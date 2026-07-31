@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { FilterSelect } from "@/components/filter-select";
-import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, ChevronsUpDown, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, Recycle, ImagePlus } from "lucide-react";
+import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, ChevronsUpDown, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, Recycle, ImagePlus, FileSpreadsheet } from "lucide-react";
 import { Fragment, useState, useMemo } from "react";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { cn, parseDateLocal } from "@/lib/utils";
@@ -19,6 +19,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { apiRequest, queryClient, getCurrentUserName } from "@/lib/queryClient";
+import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
@@ -87,14 +88,16 @@ export default function Grafica() {
   const [next10DaysFilter, setNext10DaysFilter] = useState(false);
   const [monthFilter, setMonthFilter] = useState<string[]>([]);
   const [searchFilter, setSearchFilter] = useState<string>("");
-  const [openRecipientCombobox, setOpenRecipientCombobox] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const [productionData, setProductionData] = useState({ quantityProduced: 0 });
   const [deliveryData, setDeliveryData] = useState({ photoUrl: "", receivedBy: "" });
   const [conferQty, setConferQty] = useState(0);   // conferência parcial
   const [deliverQty, setDeliverQty] = useState(0); // entrega parcial
   // Fotos anexadas no modal aberto (conferência ou entrega). Várias por vez.
   const [photos, setPhotos] = useState<string[]>([]);
-  const addPhoto = (url: string) => setPhotos(prev => [...prev, url]);
+  // A URL assinada do GCS perde o token ao ser gravada; o app serve os arquivos
+  // por /objects/... — sem converter, a foto salva não abre depois.
+  const addPhoto = (url: string) => setPhotos(prev => [...prev, convertGCSUrlToLocalPath(url)]);
   const removePhoto = (url: string) => setPhotos(prev => prev.filter(p => p !== url));
   const [modalNotes, setModalNotes] = useState("");
   const [reuseConfirmItemId, setReuseConfirmItemId] = useState<string | null>(null);
@@ -211,7 +214,6 @@ export default function Grafica() {
   const typeFilterOptions = countField('type', 'type');
   const materialFilterOptions = countField('material', 'material');
   const finishFilterOptions = countField('finish', 'finish');
-  const uniqueRecipients = Array.from(new Set(items.map((i: any) => i.receivedBy).filter(Boolean))).sort() as string[];
 
   const months = [
     { value: "all", label: "Todos os meses" },
@@ -453,6 +455,41 @@ export default function Grafica() {
     setProductionData({ quantityProduced: item.quantity });
   };
 
+  // Exporta a lista visível. Manda os ids em vez de repetir os filtros no
+  // servidor — o arquivo sai idêntico ao que está na tela.
+  const handleExportXlsx = async () => {
+    if (!filteredItems.length) return;
+    setIsExporting(true);
+    try {
+      const statusNames = statusFilter.map(s => statusConfig[s]?.label ?? s);
+      const title = statusNames.length
+        ? `Produção — ${statusNames.join(", ")}`
+        : "Produção — Gráfica";
+
+      const res = await fetch("/api/items/export-xlsx", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ itemIds: filteredItems.map((i: any) => i.id), title }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Falha ao gerar o arquivo");
+
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${title}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch (error: any) {
+      toast({ title: "Erro ao exportar", description: error.message, variant: "destructive" });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const openConferenceModal = (item: any) => {
     setSelectedItem(item);
     setModalType("conference");
@@ -481,12 +518,32 @@ export default function Grafica() {
             Gestão de ativos gráficos em tempo real
           </p>
         </div>
-        {stats.liberados > 0 && (
-          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#f97316", display: "inline-block" }} />
-            {stats.liberados} peça{stats.liberados !== 1 ? "s" : ""} aguardando produção
-          </span>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {stats.liberados > 0 && (
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+              <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#f97316", display: "inline-block" }} />
+              {stats.liberados} peça{stats.liberados !== 1 ? "s" : ""} aguardando produção
+            </span>
+          )}
+          {/* Exporta exatamente o que os filtros da tela estão mostrando. */}
+          <button
+            onClick={handleExportXlsx}
+            disabled={isExporting || filteredItems.length === 0}
+            data-testid="button-export-xlsx"
+            title={filteredItems.length ? `Exportar ${filteredItems.length} peça(s) em Excel` : "Nada para exportar"}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              backgroundColor: TI.surface, color: TI.text,
+              border: `1px solid ${TI.border}`, borderRadius: 6, padding: "7px 14px",
+              fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em",
+              cursor: (isExporting || filteredItems.length === 0) ? "not-allowed" : "pointer",
+              opacity: (isExporting || filteredItems.length === 0) ? 0.5 : 1,
+            }}
+          >
+            <FileSpreadsheet style={{ width: 13, height: 13 }} />
+            {isExporting ? "Gerando…" : `Exportar Excel${filteredItems.length ? ` (${filteredItems.length})` : ""}`}
+          </button>
+        </div>
       </div>
 
       {/* ── KPI Strip ── */}
@@ -1114,43 +1171,17 @@ export default function Grafica() {
                   <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 10 }}>
                     Responsável pelo Recebimento *
                   </label>
-                  <Popover open={openRecipientCombobox} onOpenChange={setOpenRecipientCombobox}>
-                    <PopoverTrigger asChild>
-                      <button
-                        type="button"
-                        role="combobox"
-                        data-testid="button-recipient-combobox"
-                        style={{ width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 13, fontWeight: 500, color: deliveryData.receivedBy ? TI.text : "#a8a29e", cursor: "pointer", transition: "border-color 0.15s" }}
-                        onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.borderColor = "#d6d3d1")}
-                        onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.borderColor = "transparent")}
-                      >
-                        {deliveryData.receivedBy || "Selecione o recebedor..."}
-                        <ChevronDown style={{ width: 16, height: 16, color: "#a8a29e", flexShrink: 0 }} />
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent style={{ width: "100%", padding: 0 }} align="start">
-                      <Command>
-                        <CommandInput placeholder="Digite o nome..." value={deliveryData.receivedBy} onValueChange={v => setDeliveryData({ ...deliveryData, receivedBy: v })} />
-                        <CommandList>
-                          {uniqueRecipients.length === 0 ? (
-                            <CommandEmpty>Digite o nome de quem recebeu</CommandEmpty>
-                          ) : (
-                            <>
-                              <CommandEmpty>{deliveryData.receivedBy ? `Usar "${deliveryData.receivedBy}"` : "Digite o nome"}</CommandEmpty>
-                              <CommandGroup heading="Anteriores">
-                                {uniqueRecipients.map(r => (
-                                  <CommandItem key={r} value={r} onSelect={v => { setDeliveryData({ ...deliveryData, receivedBy: v }); setOpenRecipientCombobox(false); }}>
-                                    <Check className={cn("mr-2 h-4 w-4", deliveryData.receivedBy === r ? "opacity-100" : "opacity-0")} />
-                                    {r}
-                                  </CommandItem>
-                                ))}
-                              </CommandGroup>
-                            </>
-                          )}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
+                  {/* Campo livre: quem recebe muda a cada entrega, e a lista de
+                      nomes anteriores mais atrapalhava do que ajudava. */}
+                  <input
+                    type="text"
+                    value={deliveryData.receivedBy}
+                    onChange={e => setDeliveryData({ ...deliveryData, receivedBy: e.target.value })}
+                    placeholder="Nome de quem recebeu"
+                    autoFocus
+                    data-testid="input-received-by"
+                    style={{ width: "100%", padding: "12px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 13, fontWeight: 500, color: TI.text, outline: "none" }}
+                  />
                 </div>
 
                 {/* Quantidade a entregar (entrega parcial) */}

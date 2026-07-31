@@ -13,7 +13,7 @@ import {
 } from "./shared";
 import { runInventoryCron } from "../services/inventoryLifecycle";
 import { handlePreviewXlsx, handleConfirmImport } from "../services/xlsxImport";
-import { handleExportItemsXlsx } from "../services/xlsxExport";
+import { handleExportItemsXlsx, handleExportSelectedItemsXlsx } from "../services/xlsxExport";
 
 // Enriquece uma lista de itens com { event, sponsors } fazendo apenas 3 queries
 // totais (eventos, patrocinadores e vínculos item↔patrocinador em bloco), em
@@ -283,6 +283,8 @@ export function registerItemRoutes(app: Express): void {
 
   // ── Export items to Excel (.xlsx) ────────────────────────────────────────
   app.get("/api/events/:id/export-items", requireAuth, handleExportItemsXlsx);
+  // Exportação da Gráfica: recebe os ids já filtrados pela tela.
+  app.post("/api/items/export-xlsx", requireAuth, handleExportSelectedItemsXlsx);
 
 
   // Import de Excel usa o fluxo preview → confirm (abaixo). O endpoint direto

@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Camera, Truck, FileCheck, Search, X, ExternalLink } from "lucide-react";
 import { FilterSelect } from "@/components/filter-select";
+import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 
@@ -32,6 +33,9 @@ export default function Registros() {
   const [zoom, setZoom]               = useState<any>(null);
 
   const kindOf = (p: any): Kind => (p.kind === "conference" ? "conference" : "delivery");
+  // Registros antigos guardaram a URL assinada do GCS, que expira; o app serve
+  // os arquivos por /objects/...
+  const srcOf = (p: any) => convertGCSUrlToLocalPath(p.photoUrl || "");
 
   // Filtros facetados: cada um conta sobre o resultado dos outros.
   const passesKind   = (p: any) => !kindFilter.length  || kindFilter.includes(kindOf(p));
@@ -177,7 +181,7 @@ export default function Registros() {
                       title="Ampliar"
                       style={{ display: "block", width: "100%", aspectRatio: "4/3", border: "none", padding: 0, backgroundColor: "#f4f3f0", cursor: "pointer" }}
                     >
-                      <img src={p.photoUrl} alt={k.label}
+                      <img src={srcOf(p)} alt={k.label}
                         style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                         onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                     </button>
@@ -233,7 +237,7 @@ export default function Registros() {
           style={{ position: "fixed", inset: 0, zIndex: 60, backgroundColor: "rgba(28,25,23,0.85)", display: "flex", alignItems: "center", justifyContent: "center", padding: 32, cursor: "zoom-out" }}
         >
           <div onClick={e => e.stopPropagation()} style={{ maxWidth: "90vw", maxHeight: "90vh", display: "flex", flexDirection: "column", gap: 12, cursor: "default" }}>
-            <img src={zoom.photoUrl} alt="Registro"
+            <img src={srcOf(zoom)} alt="Registro"
               style={{ maxWidth: "100%", maxHeight: "78vh", objectFit: "contain", borderRadius: 8, backgroundColor: "#ffffff" }} />
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, color: "#ffffff" }}>
               <div>
@@ -245,7 +249,7 @@ export default function Registros() {
                 </p>
               </div>
               <div style={{ display: "flex", gap: 8 }}>
-                <a href={zoom.photoUrl} target="_blank" rel="noopener noreferrer"
+                <a href={srcOf(zoom)} target="_blank" rel="noopener noreferrer"
                   style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, backgroundColor: "rgba(255,255,255,0.15)", color: "#ffffff", fontSize: 12, fontWeight: 700, textDecoration: "none" }}>
                   <ExternalLink style={{ width: 13, height: 13 }} /> Original
                 </a>

@@ -3,6 +3,7 @@ import { FilePreview, isImageUrl, isPdf } from "@/components/file-preview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
+import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import {
   Calendar, ClipboardList, FileText, History,
   Edit, Save, X, Link2, Palette, CheckCircle, Zap, Eye, Cog, Check,
@@ -60,30 +61,33 @@ const STATUS_LABELS: Record<string, string> = {
   delivered: "Entregue",
 };
 
-/** Faixa de miniaturas; clicar abre a imagem original em nova aba. */
+/**
+ * Faixa de miniaturas; clicar abre a imagem original em nova aba. Tamanho fixo
+ * por miniatura — com largura total, uma única foto virava um bloco gigante.
+ */
 function PhotoStrip({ urls, alt }: { urls: string[]; alt: string }) {
-  if (urls.length === 1) {
-    return (
-      <a href={urls[0]} target="_blank" rel="noopener noreferrer"
-        style={{ display: "block", position: "relative", aspectRatio: "16/9", borderRadius: 8, overflow: "hidden", boxShadow: "0 4px 16px rgba(0,0,0,0.12)" }}>
-        <img src={urls[0]} alt={alt}
-          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-          onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-        <span style={{ position: "absolute", top: 12, right: 12, backgroundColor: "rgba(0,0,0,0.5)", color: "#ffffff", padding: "6px 12px", borderRadius: 4, fontSize: 11, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
-          <ExternalLink style={{ width: 12, height: 12 }} /> Ver original
-        </span>
-      </a>
-    );
-  }
-
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 8 }}>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
       {urls.map(url => (
-        <a key={url} href={url} target="_blank" rel="noopener noreferrer" title="Ver original"
-          style={{ display: "block", aspectRatio: "1", borderRadius: 8, overflow: "hidden", border: "1px solid #e8e8e7", backgroundColor: "#f3f4f3" }}>
+        <a key={url} href={url} target="_blank" rel="noopener noreferrer" title="Abrir original"
+          style={{ display: "block", position: "relative", width: 132, height: 132, borderRadius: 8, overflow: "hidden", border: "1px solid #e8e8e7", backgroundColor: "#f3f4f3", flexShrink: 0 }}>
           <img src={url} alt={alt}
             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-            onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+            onError={e => {
+              const img = e.currentTarget as HTMLImageElement;
+              img.style.display = "none";
+              const parent = img.parentElement;
+              if (parent && !parent.querySelector("[data-broken]")) {
+                const span = document.createElement("span");
+                span.setAttribute("data-broken", "1");
+                span.textContent = "Imagem indisponível";
+                span.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;font-size:10px;color:#a8a29e";
+                parent.appendChild(span);
+              }
+            }} />
+          <span style={{ position: "absolute", bottom: 4, right: 4, backgroundColor: "rgba(0,0,0,0.55)", color: "#ffffff", padding: 4, borderRadius: 4, display: "flex" }}>
+            <ExternalLink style={{ width: 10, height: 10 }} />
+          </span>
         </a>
       ))}
     </div>
@@ -130,9 +134,16 @@ export function ItemDetailsDialog({
 
   // Junta as fotos da galeria com os campos antigos do item (uma foto só), sem
   // repetir a mesma URL duas vezes.
+  // Registros antigos guardaram a URL assinada do GCS, que não abre depois de o
+  // token expirar; converter para /objects/... resolve os dois casos.
   const photosOfKind = (kind: string, legacyUrl?: string) => {
-    const urls = flowPhotos.filter(p => (p.kind ?? "delivery") === kind).map(p => p.photoUrl);
-    if (legacyUrl && !urls.includes(legacyUrl)) urls.unshift(legacyUrl);
+    const urls = flowPhotos
+      .filter(p => (p.kind ?? "delivery") === kind)
+      .map(p => convertGCSUrlToLocalPath(p.photoUrl));
+    if (legacyUrl) {
+      const converted = convertGCSUrlToLocalPath(legacyUrl);
+      if (!urls.includes(converted)) urls.unshift(converted);
+    }
     return urls;
   };
   const conferencePhotos = photosOfKind("conference", item.conferencePhotoUrl);

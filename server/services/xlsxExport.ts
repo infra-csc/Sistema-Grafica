@@ -4,7 +4,17 @@ import { ptBR } from "date-fns/locale";
 import type { Request, Response } from "express";
 import { storage } from "../storage";
 
-const COLS = [
+// Colunas extras da exportação da Gráfica: as peças vêm de vários eventos e o
+// que interessa ali é o andamento da produção, não só a especificação.
+const PRODUCTION_COLS = [
+  { header: "Evento",          key: "eventName",    width: 26 },
+  { header: "Status",          key: "statusLabel",  width: 16 },
+  { header: "Produzido",       key: "qtyProduced",  width: 11 },
+  { header: "Conferido",       key: "qtyConferred", width: 11 },
+  { header: "Entregue",        key: "qtyDelivered", width: 11 },
+];
+
+const BASE_COLS = [
   { header: "#ID",             key: "displayId",    width: 10 },
   { header: "Tipo",            key: "type",         width: 18 },
   { header: "Descrição",       key: "description",  width: 28 },
@@ -42,32 +52,47 @@ function fmt(date: string | Date) {
   return format(new Date(date), "dd/MM/yyyy", { locale: ptBR });
 }
 
-export async function handleExportItemsXlsx(req: Request, res: Response) {
-  try {
-    const eventId = req.params.id;
-    const event = await storage.getEvent(eventId);
-    if (!event) return res.status(404).json({ error: "Evento não encontrado" });
+const STATUS_LABELS: Record<string, string> = {
+  draft: "Rascunho", requested: "Solicitado",
+  awaiting_linking: "Ag. Vinculação", awaiting_submission: "Ag. Envio",
+  awaiting_approval: "Ag. Aprovação", awaiting_finalization: "Ag. Finalização",
+  awaiting_final_review: "Ag. Revisão", awaiting_creator_review: "Ag. Finalização",
+  ready_for_production: "Pronto p/ Prod.", pronto_para_producao: "Pronto p/ Prod.",
+  approved: "Liberado", inProduction: "Em Produção", em_producao: "Em Produção",
+  produced: "Produzido", conferred: "Conferido", delivered: "Entregue",
+};
 
-    const rawItems = await storage.getItemsByEvent(eventId);
+async function withSponsorNames(rawItems: any[]) {
+  return await Promise.all(
+    rawItems.map(async (item) => {
+      const itemSponsors = await storage.getItemSponsors(item.id);
+      const sponsorNames = await Promise.all(
+        itemSponsors.map(async (is: any) => {
+          const s = await storage.getSponsor(is.sponsorId);
+          return s?.name ?? "";
+        })
+      );
+      return { ...item, sponsorNames: sponsorNames.filter(Boolean) };
+    })
+  );
+}
 
-    const itemsWithSponsors = await Promise.all(
-      rawItems.map(async (item) => {
-        const itemSponsors = await storage.getItemSponsors(item.id);
-        const sponsorNames = await Promise.all(
-          itemSponsors.map(async (is: any) => {
-            const s = await storage.getSponsor(is.sponsorId);
-            return s?.name ?? "";
-          })
-        );
-        return { ...item, sponsorNames: sponsorNames.filter(Boolean) };
-      })
-    );
+function byDisplayId(a: any, b: any) {
+  const nA = parseInt(String(a.displayId || "0").replace(/\D/g, "")) || 0;
+  const nB = parseInt(String(b.displayId || "0").replace(/\D/g, "")) || 0;
+  return nA - nB;
+}
 
-    const sorted = [...itemsWithSponsors].sort((a, b) => {
-      const nA = parseInt(String(a.displayId || "0").replace(/\D/g, "")) || 0;
-      const nB = parseInt(String(b.displayId || "0").replace(/\D/g, "")) || 0;
-      return nA - nB;
-    });
+/**
+ * Monta a planilha e responde com o arquivo. `withProduction` acrescenta as
+ * colunas de evento/status/quantidades usadas na exportação da Gráfica.
+ */
+async function writeWorkbook(
+  res: Response,
+  opts: { items: any[]; title: string; subtitle: string; filename: string; withProduction?: boolean },
+) {
+  const { items: sorted, title, subtitle, filename, withProduction } = opts;
+  const COLS = withProduction ? [...PRODUCTION_COLS, ...BASE_COLS] : BASE_COLS;
 
     const wb = new ExcelJS.Workbook();
     wb.creator = "NORTE";
@@ -79,7 +104,7 @@ export async function handleExportItemsXlsx(req: Request, res: Response) {
 
     ws.mergeCells(1, 1, 1, numCols);
     const titleCell = ws.getCell("A1");
-    titleCell.value = event.name.toUpperCase();
+    titleCell.value = title.toUpperCase();
     titleCell.font = { name: "Arial", bold: true, size: 14, color: { argb: "FFFFFFFF" } };
     titleCell.alignment = { vertical: "middle", horizontal: "left" };
     titleCell.fill = HEADER_FILL;
@@ -87,11 +112,7 @@ export async function handleExportItemsXlsx(req: Request, res: Response) {
 
     ws.mergeCells(2, 1, 2, numCols);
     const subCell = ws.getCell("A2");
-    const parts: string[] = [];
-    parts.push(`Data do evento: ${fmt(event.startDate)}`);
-    parts.push(`Saída do caminhão: ${fmt(event.truckDepartureDate)}`);
-    if (event.franchise) parts.push(`Franquia: ${event.franchise}`);
-    subCell.value = parts.join("   |   ");
+    subCell.value = subtitle;
     subCell.font = { name: "Arial", size: 10, color: { argb: "FFBFB8B0" } };
     subCell.alignment = { vertical: "middle", horizontal: "left" };
     subCell.fill = HEADER_FILL;
@@ -113,6 +134,13 @@ export async function handleExportItemsXlsx(req: Request, res: Response) {
 
     sorted.forEach((item, idx) => {
       const row = ws.addRow({
+        ...(withProduction ? {
+          eventName:    item.event?.name ?? item.eventName ?? "",
+          statusLabel:  STATUS_LABELS[item.status] ?? item.status ?? "",
+          qtyProduced:  item.quantityProduced ?? 0,
+          qtyConferred: item.conferredQty ?? 0,
+          qtyDelivered: item.deliveredQty ?? 0,
+        } : {}),
         displayId:    item.displayId ?? "",
         type:         item.type ?? "",
         description:  item.description ?? "",
@@ -138,7 +166,8 @@ export async function handleExportItemsXlsx(req: Request, res: Response) {
         cell.border = THIN_BORDER;
       });
 
-      const numericCols = ["quantity", "visualWidth", "visualHeight", "fileWidth", "fileHeight", "calculatedM2"];
+      const numericCols = ["quantity", "visualWidth", "visualHeight", "fileWidth", "fileHeight", "calculatedM2",
+                           "qtyProduced", "qtyConferred", "qtyDelivered"];
       numericCols.forEach((key) => {
         const colIdx = COLS.findIndex((c) => c.key === key);
         if (colIdx >= 0) {
@@ -172,16 +201,75 @@ export async function handleExportItemsXlsx(req: Request, res: Response) {
     });
     totRow.height = 22;
 
-    const safeName = event.name.replace(/[^a-zA-Z0-9À-ÿ _-]/g, "").trim();
-    const filename = `${safeName}.xlsx`;
-
     res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     res.setHeader("Content-Disposition", `attachment; filename="${encodeURIComponent(filename)}"`);
 
-    await wb.xlsx.write(res);
-    res.end();
+  await wb.xlsx.write(res);
+  res.end();
+}
+
+/** Exportação por evento (botão da tela do evento). */
+export async function handleExportItemsXlsx(req: Request, res: Response) {
+  try {
+    const event = await storage.getEvent(req.params.id);
+    if (!event) return res.status(404).json({ error: "Evento não encontrado" });
+
+    const items = (await withSponsorNames(await storage.getItemsByEvent(req.params.id))).sort(byDisplayId);
+
+    const parts = [
+      `Data do evento: ${fmt(event.startDate)}`,
+      `Saída do caminhão: ${fmt(event.truckDepartureDate)}`,
+    ];
+    if (event.franchise) parts.push(`Franquia: ${event.franchise}`);
+
+    const safeName = event.name.replace(/[^a-zA-Z0-9À-ÿ _-]/g, "").trim();
+    await writeWorkbook(res, {
+      items, title: event.name, subtitle: parts.join("   |   "),
+      filename: `${safeName}.xlsx`,
+    });
   } catch (error: any) {
     console.error("[export-items]", error);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+/**
+ * Exportação da Gráfica. Recebe os ids já filtrados pela tela — assim o arquivo
+ * reflete exatamente o que o usuário está vendo, sem duplicar no servidor a
+ * lógica de filtro do cliente.
+ */
+export async function handleExportSelectedItemsXlsx(req: Request, res: Response) {
+  try {
+    const ids: string[] = Array.isArray(req.body?.itemIds) ? req.body.itemIds : [];
+    if (!ids.length) return res.status(400).json({ error: "Nenhuma peça selecionada para exportar" });
+
+    const raw = (await Promise.all(ids.map(id => storage.getItem(id)))).filter(Boolean) as any[];
+    if (!raw.length) return res.status(404).json({ error: "Nenhuma peça encontrada" });
+
+    // Nome do evento para a coluna "Evento" — em memória, sem uma consulta por peça.
+    const eventNames = new Map<string, string>();
+    for (const eventId of Array.from(new Set(raw.map(i => i.eventId)))) {
+      const ev = await storage.getEvent(eventId as string);
+      if (ev) eventNames.set(ev.id, ev.name);
+    }
+
+    const items = (await withSponsorNames(raw))
+      .map(i => ({ ...i, eventName: eventNames.get(i.eventId) ?? "" }))
+      .sort(byDisplayId);
+
+    const title = typeof req.body?.title === "string" && req.body.title.trim()
+      ? req.body.title.trim()
+      : "Produção — Gráfica";
+    const totalQty = items.reduce((s, i) => s + (i.quantity ?? 0), 0);
+
+    await writeWorkbook(res, {
+      items, title,
+      subtitle: `${items.length} ${items.length === 1 ? "peça" : "peças"}   |   ${totalQty} un.   |   Exportado em ${fmt(new Date())}`,
+      filename: `${title.replace(/[^a-zA-Z0-9À-ÿ _-]/g, "").trim() || "producao"}.xlsx`,
+      withProduction: true,
+    });
+  } catch (error: any) {
+    console.error("[export-selected-items]", error);
     res.status(500).json({ error: error.message });
   }
 }

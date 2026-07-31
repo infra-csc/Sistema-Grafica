@@ -2287,6 +2287,16 @@ export default function Arte() {
           <div style={{ background: 'linear-gradient(135deg, #1c0a0a 0%, #2d1010 50%, #1c1917 100%)', borderRadius: '16px 16px 0 0', padding: '22px 24px 20px', position: 'relative', overflow: 'hidden' }}>
             {/* Subtle texture */}
             <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 80% 20%, rgba(220,38,38,0.12) 0%, transparent 60%)', pointerEvents: 'none' }} />
+            {/* Close button */}
+            <button
+              onClick={() => { setCorrecaoItem(null); setCorrecaoThumbUrl(""); setCorrecaoFileName(""); setCorrecaoSelectedSponsorIds(new Set()); }}
+              style={{ position: 'absolute', top: 14, right: 14, width: 28, height: 28, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background 0.15s', zIndex: 2 }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.2)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
+              aria-label="Fechar"
+            >
+              <X style={{ width: 14, height: 14, color: 'rgba(255,255,255,0.75)' }} />
+            </button>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, position: 'relative' }}>
               {/* Icon */}
               <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg, #dc2626, #991b1b)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(220,38,38,0.35)' }}>

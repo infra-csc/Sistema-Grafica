@@ -2291,7 +2291,7 @@ export default function Arte() {
                   display: 'inline-block', fontSize: 10, textTransform: 'uppercase', letterSpacing: '0.12em',
                   fontWeight: 700, color: '#dc2626', backgroundColor: 'rgba(255,218,214,0.5)',
                   padding: '2px 8px', borderRadius: 4, width: 'fit-content'
-                }}>Action Required</span>
+                }}>Ação Necessária</span>
                 <h2 style={{ fontSize: 24, fontWeight: 700, letterSpacing: '-0.05em', fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: 0, lineHeight: 1.15 }}>
                   Enviar Nova Arte
                 </h2>
@@ -2378,7 +2378,8 @@ export default function Arte() {
                       {!isPasteUploading && (
                         <FileUploader
                           onGetUploadParameters={getUploadUrl}
-                          onComplete={(result) => { setCorrecaoThumbUrl(convertGCSUrlToLocalPath(result.url)); setCorrecaoFileName(decodeURIComponent(result.url.split('/').pop()?.split('?')[0] || '').replace(/^\d+_/, '') || 'Arquivo enviado'); }}
+                          onFileSelect={(file) => { setCorrecaoFileName(file.name); }}
+                          onComplete={(result) => { setCorrecaoThumbUrl(convertGCSUrlToLocalPath(result.url)); }}
                           accept="image/*,application/pdf"
                           data-testid="uploader-correcao-thumb"
                           buttonVariant="ghost"

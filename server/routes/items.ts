@@ -471,16 +471,30 @@ export function registerItemRoutes(app: Express): void {
     }
   });
 
-  // Delete item
+  // Delete item (soft delete — preservado no histórico)
   app.delete("/api/items/:id", requireAuth, async (req, res) => {
     try {
-      // APENAS admin pode excluir peças
-      if (req.userRole !== "admin") {
-        return res.status(403).json({ error: "Apenas administradores podem excluir peças" });
+      const isAdmin = req.userRole === "admin";
+      const isSolicitacao = req.userRole === "solicitacao";
+
+      if (!isAdmin && !isSolicitacao) {
+        return res.status(403).json({ error: "Sem permissão para excluir peças" });
       }
+
       const item = await storage.getItem(req.params.id);
       if (!item) {
         return res.status(404).json({ error: "Item not found" });
+      }
+
+      // Atendimento só pode excluir peças que ainda não foram liberadas para Arte/Gráfica
+      const LOCKED_STATUSES = [
+        "awaiting_submission", "awaiting_approval", "awaiting_final_review",
+        "ready_for_production", "approved", "inProduction", "produced", "conferred", "delivered",
+      ];
+      if (isAtendimento && LOCKED_STATUSES.includes(item.status)) {
+        return res.status(403).json({
+          error: "Não é possível excluir uma peça que já foi enviada para Arte ou está em produção",
+        });
       }
       
       const success = await storage.deleteItem(req.params.id);
@@ -494,7 +508,7 @@ export function registerItemRoutes(app: Express): void {
         'deleted',
         'item',
         req.params.id,
-        `Item "${item.type}" excluído`
+        `Item "${item.type}" (${item.displayId}) excluído por ${req.userRole}`
       );
       
       broadcast({ type: "item_deleted", itemId: req.params.id, eventId: item.eventId });

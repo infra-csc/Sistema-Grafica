@@ -1,4 +1,4 @@
-﻿import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -661,6 +661,11 @@ export default function EventDetail() {
 
   const BLOCKED_EDIT_STATUSES = ["ready_for_production", "inProduction", "produced", "delivered", "pronto_para_producao", "liberado", "em_producao", "produzido", "entregue"];
   const isEditBlocked = (status: string) => BLOCKED_EDIT_STATUSES.includes(status) && !canEditLists;
+
+  // Exclusão: admin pode sempre; solicitação apenas antes de chegar na Arte
+  const canDeleteAny = hasPermission("admin") || user?.role === "solicitacao";
+  const BLOCKED_DELETE_STATUSES = ["awaiting_submission", "awaiting_approval", "awaiting_final_review", "ready_for_production", "approved", "inProduction", "produced", "conferred", "delivered", "pronto_para_producao", "liberado", "em_producao", "produzido", "entregue"];
+  const canDeleteItem = (status: string) => hasPermission("admin") || !BLOCKED_DELETE_STATUSES.includes(status);
 
   const handleEditItem = (item: any) => {
     if (isEditBlocked(item.status)) return;
@@ -1612,9 +1617,11 @@ export default function EventDetail() {
                                               <Pencil className="h-3.5 w-3.5" />
                                             </Button>
                                           )}
-                                          <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-destructive/10" onClick={() => setDeletingItemId(item.id)} data-testid={`button-delete-draft-${item.id}`}>
-                                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                                          </Button>
+                                          {canDeleteAny && (
+                                            <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-destructive/10" onClick={() => setDeletingItemId(item.id)} data-testid={`button-delete-draft-${item.id}`}>
+                                              <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                                            </Button>
+                                          )}
                                         </>
                                       )}
                                     </div>
@@ -1947,16 +1954,27 @@ export default function EventDetail() {
                                   <Pencil className="h-4 w-4" />
                                 </button>
                               )}
-                              <button
-                                style={{ color: '#a8a29e', background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'color 0.15s, background-color 0.15s' }}
-                                onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.backgroundColor = '#fef2f2'; }}
-                                onMouseLeave={e => { e.currentTarget.style.color = '#a8a29e'; e.currentTarget.style.backgroundColor = 'transparent'; }}
-                                onClick={e => { e.stopPropagation(); handleDeleteItem(item.id); }}
-                                data-testid={`button-delete-item-${item.id}`}
-                                title="Excluir peça" aria-label="Excluir peça"
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </button>
+                              {canDeleteAny && (
+                                canDeleteItem(item.status) ? (
+                                  <button
+                                    style={{ color: '#a8a29e', background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'color 0.15s, background-color 0.15s' }}
+                                    onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.backgroundColor = '#fef2f2'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.color = '#a8a29e'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                    onClick={e => { e.stopPropagation(); handleDeleteItem(item.id); }}
+                                    data-testid={`button-delete-item-${item.id}`}
+                                    title="Excluir peça" aria-label="Excluir peça"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </button>
+                                ) : (
+                                  <span
+                                    style={{ color: '#d1cdc9', padding: '6px', cursor: 'not-allowed' }}
+                                    title="Exclusão bloqueada — peça já está em Arte ou produção"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </span>
+                                )
+                              )}
                             </div>
                           </td>
                         </tr>
@@ -1986,7 +2004,7 @@ export default function EventDetail() {
               Confirmar Exclusão
             </AlertDialogTitle>
             <AlertDialogDescription style={{ fontSize: "14px", color: "#78716c", lineHeight: 1.6, marginTop: "6px" }}>
-              Tem certeza que deseja excluir esta peça? Esta ação não pode ser desfeita.
+              A peça será removida da lista, mas permanece no histórico de auditoria para rastreabilidade.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter style={{ padding: 0, display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px" }}>

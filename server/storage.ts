@@ -209,7 +209,7 @@ export class DatabaseStorage implements IStorage {
         const startValue = maxNum != null && Number(maxNum) > 0 ? Number(maxNum) + 1 : 1;
 
         // Criar sequence com valor inicial dinâmico
-        await db.execute(sql.raw(`CREATE SEQUENCE item_display_id_seq START WITH ${startValue}`));
+        await db.execute(sql.raw(`CREATE SEQUENCE IF NOT EXISTS item_display_id_seq START WITH ${startValue}`));
       } catch (error) {
         console.error('Erro ao criar sequence item_display_id_seq:', error);
         throw error; // Re-throw para que a promise seja rejeitada
@@ -274,14 +274,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getAllItems(): Promise<Item[]> {
-    return await db.select().from(items).orderBy(desc(items.createdAt));
+    return await db.select().from(items).where(sql`${items.deletedAt} IS NULL`).orderBy(desc(items.createdAt));
   }
 
   async getItemsByEvent(eventId: string): Promise<Item[]> {
     return await db
       .select()
       .from(items)
-      .where(eq(items.eventId, eventId))
+      .where(and(eq(items.eventId, eventId), sql`${items.deletedAt} IS NULL`))
       .orderBy(desc(items.createdAt));
   }
 
@@ -289,7 +289,10 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(items)
-      .where(sql`${items.status} IN ('requested', 'awaiting_linking', 'awaiting_sponsor_approval', 'sponsor_approved', 'awaiting_creator_review')`)
+      .where(and(
+        sql`${items.status} IN ('requested', 'awaiting_linking', 'awaiting_sponsor_approval', 'sponsor_approved', 'awaiting_creator_review')`,
+        sql`${items.deletedAt} IS NULL`
+      ))
       .orderBy(desc(items.createdAt));
   }
 
@@ -297,7 +300,10 @@ export class DatabaseStorage implements IStorage {
     return await db
       .select()
       .from(items)
-      .where(sql`${items.status} IN ('ready_for_production', 'pronto_para_producao', 'approved', 'inProduction', 'produced', 'conferred', 'delivered')`)
+      .where(and(
+        sql`${items.status} IN ('ready_for_production', 'pronto_para_producao', 'approved', 'inProduction', 'produced', 'conferred', 'delivered')`,
+        sql`${items.deletedAt} IS NULL`
+      ))
       .orderBy(desc(items.createdAt));
   }
 
@@ -465,7 +471,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async deleteItem(id: string): Promise<boolean> {
-    const result = await db.delete(items).where(eq(items.id, id)).returning();
+    // Soft delete: marca deletedAt para preservar no histórico/audit log
+    const result = await db
+      .update(items)
+      .set({ deletedAt: new Date(), updatedAt: new Date() })
+      .where(and(eq(items.id, id), sql`${items.deletedAt} IS NULL`))
+      .returning();
     return result.length > 0;
   }
 

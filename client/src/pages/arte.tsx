@@ -222,6 +222,22 @@ export default function Arte() {
     },
   });
 
+  // Troca do thumb já aprovado (Finalizar Arte / Finalizados). Não reabre a
+  // aprovação — o thumb anterior fica guardado no item e no histórico.
+  const updateThumbMutation = useMutation({
+    mutationFn: async ({ itemId, approvalThumbUrl }: { itemId: string; approvalThumbUrl: string }) =>
+      await apiRequest("PATCH", `/api/items/${itemId}/update-thumb`, { approvalThumbUrl }),
+    onSuccess: (updated: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"], refetchType: "none" });
+      if (updated?.id) setSelectedItem((prev: any) => (prev?.id === updated.id ? { ...prev, ...updated } : prev));
+      toast({ title: "Thumb atualizado", description: "O thumb anterior ficou guardado no histórico da peça." });
+    },
+    onError: (error: Error) =>
+      toast({ title: "Erro ao atualizar thumb", description: error.message, variant: "destructive" }),
+  });
+
   const resubmitMutation = useMutation({
     mutationFn: async ({ itemId, newThumbUrl, sponsorIds }: { itemId: string; newThumbUrl: string; sponsorIds: string[] }) => {
       return await apiRequest("POST", `/api/items/${itemId}/sponsor-approvals/resubmit`, { newThumbUrl, sponsorIds });
@@ -2495,9 +2511,35 @@ export default function Arte() {
                         Clique para visualizar
                       </a>
                     </div>
+
+                    {/* Trocar o thumb sem reabrir a aprovação */}
+                    <FileUploader
+                      onGetUploadParameters={getUploadUrl}
+                      onComplete={(result) => updateThumbMutation.mutate({
+                        itemId: selectedItem.id,
+                        approvalThumbUrl: convertGCSUrlToLocalPath(result.url),
+                      })}
+                      accept="image/*,application/pdf"
+                      data-testid="uploader-update-thumb"
+                      buttonVariant="ghost"
+                      buttonClassName="h-auto py-1 px-2 text-[10px] font-bold uppercase tracking-wider text-green-800 underline decoration-2 underline-offset-2 hover:bg-transparent shrink-0"
+                    >
+                      {updateThumbMutation.isPending ? 'Enviando…' : 'Trocar thumb'}
+                    </FileUploader>
                   </div>
                 );
               })()}
+
+              {/* Thumb anterior — gravado quando a Arte troca o thumb aprovado */}
+              {selectedItem.previousApprovalThumbUrl && (
+                <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span style={{ fontSize: 10, fontWeight: 800, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.1em' }}>⚠ Thumb substituído — versão anterior guardada</span>
+                  <a href={selectedItem.previousApprovalThumbUrl} target="_blank" rel="noopener noreferrer"
+                    style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: '#78716c', wordBreak: 'break-all', textDecoration: 'underline' }}>
+                    {selectedItem.previousApprovalThumbUrl.split('/').pop() || selectedItem.previousApprovalThumbUrl}
+                  </a>
+                </div>
+              )}
 
               {/* Arquivo anterior — exibido quando Arte substitui o arquivo enviado */}
               {selectedItem.previousFinalFileUrl && (

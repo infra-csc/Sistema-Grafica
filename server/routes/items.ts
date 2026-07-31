@@ -1181,6 +1181,56 @@ export function registerItemRoutes(app: Express): void {
   });
 
   // Arte atualiza o caminho do arquivo final já enviado (sem mudar o status do item)
+  // Troca o thumb de aprovação já existente, preservando o anterior. Serve para
+  // corrigir o material de referência sem reabrir a aprovação dos patrocinadores
+  // (para isso existe a rota de reenvio, que muda o status).
+  app.patch("/api/items/:id/update-thumb", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "arte" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Arte podem atualizar o thumb" });
+      }
+
+      const { approvalThumbUrl } = z
+        .object({ approvalThumbUrl: z.string().min(1, "approvalThumbUrl não pode estar vazio") })
+        .parse(req.body);
+
+      const currentItem = await storage.getItem(req.params.id);
+      if (!currentItem) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+      if (!currentItem.approvalThumbUrl) {
+        return res.status(409).json({ error: "Este item ainda não possui um thumb enviado" });
+      }
+      if (currentItem.approvalThumbUrl === approvalThumbUrl) {
+        return res.status(409).json({ error: "O thumb enviado é igual ao atual" });
+      }
+
+      const prevUrl = currentItem.approvalThumbUrl;
+
+      const item = await storage.updateItem(req.params.id, {
+        approvalThumbUrl,
+        previousApprovalThumbUrl: prevUrl,
+        approvalThumbUpdatedAt: new Date(),
+      });
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+
+      await createAuditLog(
+        req.userName!,
+        'updated',
+        'item',
+        item.id,
+        `Thumb de aprovação atualizado por ${req.userName}. Anterior: ${prevUrl} → Novo: ${approvalThumbUrl}`
+      );
+
+      broadcast({ type: "item_updated", item });
+      res.json(item);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   app.patch("/api/items/:id/update-final-file", requireAuth, async (req, res) => {
     try {
       if (req.userRole !== "arte" && req.userRole !== "admin") {

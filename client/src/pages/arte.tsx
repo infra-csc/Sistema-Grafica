@@ -1752,121 +1752,95 @@ export default function Arte() {
           )}
         </div>
 
-        {/* Correction cards — 2-col grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(480px, 1fr))', gap: 20 }}>
+        {/* Correction cards */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(460px, 1fr))', gap: 16 }}>
           {filteredCorrecaoItems.map((item: any) => {
             const approvalsToShow = correcaoSponsorFilter === "all"
               ? item.awaitingArteApprovals
               : item.awaitingArteApprovals.filter((a: any) => a.sponsorId === correcaoSponsorFilter);
             const isImage = item.approvalThumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(item.approvalThumbUrl) || item.approvalThumbUrl.startsWith('/objects/'));
+            const groupLabel = groupOf(item.type);
             return (
               <div
                 key={item.id}
                 data-testid={`card-correcao-${item.id}`}
                 style={{
                   backgroundColor: '#ffffff',
-                  border: '1px solid #e7e5e4',
-                  borderLeft: '4px solid #ba1a1a',
-                  borderRadius: 12,
+                  border: '1px solid #fecaca',
+                  borderRadius: 14,
                   overflow: 'hidden',
                   display: 'flex',
                   flexDirection: 'column',
-                  position: 'relative',
+                  boxShadow: '0 2px 16px rgba(186,26,26,0.07), 0 0 0 1px rgba(186,26,26,0.06)',
                 }}
               >
-                {/* Watermark */}
-                <div style={{ position: 'absolute', right: -12, top: -12, opacity: 0.04, pointerEvents: 'none' }}>
-                  <X style={{ width: 96, height: 96, color: '#ba1a1a' }} />
+                {/* ── Dark header strip ── */}
+                <div style={{ background: 'linear-gradient(135deg, #1c0a0a 0%, #2d1010 60%, #1e1410 100%)', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12, position: 'relative', overflow: 'hidden' }}>
+                  <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 90% 50%, rgba(220,38,38,0.1) 0%, transparent 60%)', pointerEvents: 'none' }} />
+                  {/* Status badge */}
+                  <span style={{ fontSize: 9, fontWeight: 800, color: '#fca5a5', background: 'rgba(220,38,38,0.2)', border: '1px solid rgba(252,165,165,0.25)', borderRadius: 5, padding: '2px 7px', letterSpacing: '0.08em', textTransform: 'uppercase', flexShrink: 0, zIndex: 1 }}>
+                    Recusado
+                  </span>
+                  {/* Divider */}
+                  <span style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.1)', flexShrink: 0, zIndex: 1 }} />
+                  {/* Group + type */}
+                  <div style={{ flex: 1, minWidth: 0, zIndex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+                      {groupLabel && <span style={{ fontSize: 10, color: 'rgba(252,165,165,0.6)', fontWeight: 600, flexShrink: 0 }}>{groupLabel}</span>}
+                      {groupLabel && <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.15)', flexShrink: 0 }}>›</span>}
+                      <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: '"Space Grotesk", sans-serif' }}>{item.type}</span>
+                      {item.description && item.description !== item.type && (
+                        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>— {item.description}</span>
+                      )}
+                    </div>
+                  </div>
+                  {/* ID chip */}
+                  <span style={{ fontFamily: '"Space Grotesk", monospace', fontSize: 10, fontWeight: 800, color: 'rgba(252,165,165,0.7)', background: 'rgba(220,38,38,0.15)', border: '1px solid rgba(252,165,165,0.15)', borderRadius: 4, padding: '2px 7px', flexShrink: 0, zIndex: 1 }}>{item.displayId}</span>
                 </div>
 
-                {/* Card body: thumb + info side by side */}
-                <div style={{ display: 'flex', gap: 0, padding: '20px 20px 16px' }}>
+                {/* ── Body ── */}
+                <div style={{ padding: '16px 18px', display: 'flex', gap: 14 }}>
                   {/* Thumb */}
-                  <div style={{
-                    width: 140, height: 140, borderRadius: 8,
-                    backgroundColor: '#f5f5f4',
-                    flexShrink: 0, overflow: 'hidden',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    marginRight: 16,
-                  }}>
+                  <div style={{ width: 80, height: 80, borderRadius: 8, backgroundColor: '#fef2f2', border: '1px solid #fecaca', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {isImage ? (
-                      <img
-                        src={item.approvalThumbUrl}
-                        alt="Thumb reprovado"
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                      />
+                      <img src={item.approvalThumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : item.approvalThumbUrl ? (
-                      <a
-                        href={item.approvalThumbUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, textDecoration: 'none', color: '#ba1a1a' }}
-                      >
-                        <FileText style={{ width: 28, height: 28 }} />
-                        <span style={{ fontSize: 10, fontWeight: 600 }}>Ver PDF</span>
+                      <a href={item.approvalThumbUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textDecoration: 'none', color: '#ba1a1a' }}>
+                        <FileText style={{ width: 22, height: 22 }} />
+                        <span style={{ fontSize: 9, fontWeight: 700 }}>PDF</span>
                       </a>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, color: '#a8a29e' }}>
-                        <FileImage style={{ width: 24, height: 24 }} />
-                        <span style={{ fontSize: 10 }}>Sem thumb</span>
-                      </div>
+                      <FileImage style={{ width: 22, height: 22, color: '#fca5a5' }} />
                     )}
                   </div>
 
-                  {/* Info */}
-                  <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                    <div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: '#ba1a1a', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                          Recusado pelo Patrocinador
-                        </span>
-                        <span style={{ color: '#e7e5e4' }}>•</span>
-                        <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 10, color: '#a8a29e' }}>{item.displayId}</span>
-                      </div>
-                      <h4 style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 15, fontWeight: 700, color: '#1c1917', letterSpacing: '-0.02em', marginBottom: 8, lineHeight: 1.3 }}>
-                        {item.type}{item.description ? ` — ${item.description}` : ''}
-                      </h4>
-
-                      {/* Rejection reasons */}
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        {approvalsToShow.map((approval: any) => (
-                          <div
-                            key={approval.id}
-                            style={{
-                              padding: '8px 10px',
-                              backgroundColor: 'rgba(186,26,26,0.04)',
-                              border: '1px solid rgba(186,26,26,0.12)',
-                              borderRadius: 8,
-                            }}
-                          >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: approval.rejectionReason ? 4 : 0 }}>
-                              {approval.sponsor?.color && (
-                                <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />
-                              )}
-                              <span style={{ fontSize: 12, fontWeight: 700, color: '#1c1917' }}>{approval.sponsor?.name || 'Patrocinador'}</span>
-                              {approval.rejectedAt && (
-                                <span style={{ fontSize: 10, color: '#a8a29e' }}>em {new Date(approval.rejectedAt).toLocaleDateString('pt-BR')}</span>
-                              )}
-                            </div>
-                            {approval.rejectionReason && (
-                              <p style={{ fontSize: 12, color: '#ba1a1a', margin: 0, lineHeight: 1.4 }}>
-                                <strong>Motivo:</strong> {approval.rejectionReason}
-                              </p>
-                            )}
+                  {/* Rejection reasons */}
+                  <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {approvalsToShow.map((approval: any) => (
+                      <div key={approval.id} style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid #fecaca' }}>
+                        {/* Sponsor bar */}
+                        <div style={{ background: '#fff1f1', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6, borderBottom: approval.rejectionReason ? '1px solid #fecaca' : 'none' }}>
+                          {approval.sponsor?.color && <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />}
+                          <span style={{ fontSize: 12, fontWeight: 700, color: '#991b1b', flex: 1 }}>{approval.sponsor?.name || 'Patrocinador'}</span>
+                          {approval.rejectedAt && (
+                            <span style={{ fontSize: 10, color: '#b45309', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>
+                              {new Date(approval.rejectedAt).toLocaleDateString('pt-BR')}
+                            </span>
+                          )}
+                        </div>
+                        {/* Reason */}
+                        {approval.rejectionReason && (
+                          <div style={{ background: '#fffafa', padding: '8px 12px' }}>
+                            <p style={{ fontSize: 12, color: '#7f1d1d', margin: 0, lineHeight: 1.5, fontStyle: 'italic' }}>"{approval.rejectionReason}"</p>
                           </div>
-                        ))}
+                        )}
                       </div>
-                    </div>
+                    ))}
                   </div>
                 </div>
 
-                {/* Footer */}
-                <div style={{
-                  padding: '12px 20px',
-                  backgroundColor: '#fafaf9',
-                  borderTop: '1px solid #e7e5e4',
-                  display: 'flex', alignItems: 'center', gap: 12,
-                }}>
+                {/* ── Footer ── */}
+                <div style={{ padding: '12px 18px', borderTop: '1px solid #fef2f2', display: 'flex', alignItems: 'center', gap: 10, background: '#fffafa' }}>
                   <button
                     onClick={() => {
                       setCorrecaoItem(item);
@@ -1876,17 +1850,22 @@ export default function Arte() {
                     }}
                     data-testid={`button-open-correcao-${item.id}`}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: 6,
-                      backgroundColor: '#f97316', color: '#ffffff', border: 'none',
+                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                      background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                      color: '#ffffff', border: 'none',
                       borderRadius: 8, height: 36, padding: '0 18px',
                       fontWeight: 700, fontSize: 12, cursor: 'pointer',
-                      transition: 'filter 0.15s',
-                      boxShadow: '0 2px 8px rgba(249,115,22,0.3)',
+                      fontFamily: '"Space Grotesk", sans-serif',
+                      letterSpacing: '-0.01em',
+                      transition: 'filter 0.15s, transform 0.1s',
+                      boxShadow: '0 2px 8px rgba(185,28,28,0.25)',
                     }}
-                    onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.08)')}
-                    onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(1)')}
+                    onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(0.93)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+                    onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)'; }}
+                    onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
                   >
-                    <RotateCcw style={{ width: 13, height: 13 }} />
+                    <Send style={{ width: 13, height: 13 }} />
                     Enviar Nova Arte
                   </button>
                   {item.approvalThumbUrl && (
@@ -1895,13 +1874,18 @@ export default function Arte() {
                       target="_blank"
                       rel="noopener noreferrer"
                       style={{
-                        fontSize: 12, fontWeight: 600, color: '#78716c',
+                        display: 'flex', alignItems: 'center', gap: 5,
+                        fontSize: 11, fontWeight: 600, color: '#a8a29e',
                         textDecoration: 'none', transition: 'color 0.15s',
+                        padding: '0 8px', height: 36, borderRadius: 8,
+                        border: '1px solid #ebe8e3', background: '#ffffff',
+                        whiteSpace: 'nowrap',
                       }}
-                      onMouseEnter={e => (e.currentTarget.style.color = '#1c1917')}
-                      onMouseLeave={e => (e.currentTarget.style.color = '#78716c')}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#44403c'; (e.currentTarget as HTMLElement).style.borderColor = '#c7c3be'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#a8a29e'; (e.currentTarget as HTMLElement).style.borderColor = '#ebe8e3'; }}
                     >
-                      Ver Histórico
+                      <Eye style={{ width: 12, height: 12 }} />
+                      Ver versão
                     </a>
                   )}
                 </div>

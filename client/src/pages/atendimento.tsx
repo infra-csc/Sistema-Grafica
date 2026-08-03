@@ -1787,11 +1787,11 @@ export default function Atendimento() {
                             </div>
 
                             {/* Col 2: Patrocinadores */}
-                            <div>
+                            <div style={{ minWidth: 0, overflow: 'hidden' }}>
                               {loadingSponsors ? (
                                 <span style={{ fontSize: 12, color: '#a8a29e' }}>...</span>
                               ) : (
-                                <SponsorChips sponsors={sponsorsWithStatus(item)} variant="colored" size="sm" />
+                                <SponsorChips sponsors={sponsorsWithStatus(item)} variant="colored" size="sm" max={2} />
                               )}
                             </div>
 

@@ -320,6 +320,9 @@ export function ItemDetailsDialog({
   // A seção também aparece quando só há observação, sem foto anexada.
   const hasFlowPhotos    = conferencePhotos.length > 0 || deliveryPhotos.length > 0
                         || !!item.conferenceNotes || !!item.deliveryNotes;
+  // Com uma foto só, ela já está no topo ao lado da arte — repetir aqui embaixo
+  // seria a mesma imagem duas vezes no mesmo card.
+  const showConferenceStrip = conferencePhotos.length > (thumbUrl ? 1 : 0);
   const hasObservations  = !!item.observations;
   const hasTimestamps    = !!(item.createdAt || item.sponsorApprovedAt || item.creatorReviewedAt || item.approvedAt || item.productionStartedAt || item.producedAt || item.conferredAt || item.deliveredAt);
 
@@ -692,8 +695,44 @@ export function ItemDetailsDialog({
 
               {thumbUrl ? (
                 <>
-                  <div style={{ position: "relative", aspectRatio: "16/9", backgroundColor: "rgba(255,255,255,0.4)", borderRadius: 4, overflow: "hidden", marginBottom: 16 }}>
-                    <FilePreview url={thumbUrl} linkUrl={thumbUrl} objectFit="cover" />
+                  {/* Arte aprovada e peça conferida lado a lado: comparar o que
+                      foi aprovado com o que saiu da impressora é justamente o
+                      que se quer olhar aqui, sem rolar até o fim do card. */}
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: conferencePhotos.length > 0 ? "1fr 1fr" : "1fr",
+                    gap: 10, marginBottom: 16,
+                  }}>
+                    <div>
+                      <div style={{ position: "relative", aspectRatio: "16/9", backgroundColor: "rgba(255,255,255,0.4)", borderRadius: 4, overflow: "hidden" }}>
+                        <FilePreview url={thumbUrl} linkUrl={thumbUrl} objectFit="cover" />
+                      </div>
+                      {conferencePhotos.length > 0 && (
+                        <p style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9d4300", margin: "6px 0 0", textAlign: "center" }}>
+                          Arte aprovada
+                        </p>
+                      )}
+                    </div>
+
+                    {conferencePhotos.length > 0 && (
+                      <div>
+                        <a href={conferencePhotos[0]} target="_blank" rel="noopener noreferrer"
+                          title="Abrir foto da conferência"
+                          style={{ display: "block", position: "relative", aspectRatio: "16/9", backgroundColor: "rgba(255,255,255,0.4)", borderRadius: 4, overflow: "hidden", border: "1px solid #a5f3fc" }}>
+                          <img src={conferencePhotos[0]} alt="Foto da conferência"
+                            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                            onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                          {conferencePhotos.length > 1 && (
+                            <span style={{ position: "absolute", bottom: 4, right: 4, backgroundColor: "rgba(14,116,144,0.9)", color: "#fff", fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 4 }}>
+                              +{conferencePhotos.length - 1}
+                            </span>
+                          )}
+                        </a>
+                        <p style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#0e7490", margin: "6px 0 0", textAlign: "center" }}>
+                          Conferido pela Gráfica
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                     <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "rgba(88,66,55,0.6)", margin: 0 }}>Arquivo de Aprovação</p>
@@ -892,12 +931,15 @@ export function ItemDetailsDialog({
                     Registros da Gráfica
                   </h3>
 
-                  {(conferencePhotos.length > 0 || item.conferenceNotes) && (
+                  {/* A primeira foto da conferência já aparece ao lado da arte,
+                      no topo. Aqui só entra o que não coube lá: as demais fotos
+                      e a observação. */}
+                  {(showConferenceStrip || item.conferenceNotes) && (
                     <div style={{ marginBottom: (deliveryPhotos.length || item.deliveryNotes) ? 20 : 0 }}>
                       <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#0e7490", margin: "0 0 8px 0" }}>
                         Conferência {conferencePhotos.length > 1 && `· ${conferencePhotos.length} fotos`}
                       </p>
-                      <PhotoStrip urls={conferencePhotos} alt="Foto da conferência" />
+                      {showConferenceStrip && <PhotoStrip urls={conferencePhotos} alt="Foto da conferência" />}
                       {item.conferenceNotes && (
                         <p style={{ fontSize: 12, color: "#584237", fontStyle: "italic", lineHeight: 1.5, margin: "8px 0 0 0" }}>"{item.conferenceNotes}"</p>
                       )}

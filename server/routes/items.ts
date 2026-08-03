@@ -15,26 +15,38 @@ import { runInventoryCron } from "../services/inventoryLifecycle";
 import { handlePreviewXlsx, handleConfirmImport } from "../services/xlsxImport";
 import { handleExportItemsXlsx, handleExportSelectedItemsXlsx } from "../services/xlsxExport";
 
-// Enriquece uma lista de itens com { event, sponsors } fazendo apenas 3 queries
-// totais (eventos, patrocinadores e vínculos item↔patrocinador em bloco), em
-// vez de 1 getEvent + 1 getItemSponsors + N getSponsor POR item (N+1). Mantém
-// exatamente o mesmo formato de saída das rotas antigas.
+// Enriquece uma lista de itens com { event, sponsors } fazendo apenas 4 queries
+// totais (eventos, patrocinadores, vínculos item↔patrocinador e aprovações em
+// bloco), em vez de 1 getEvent + 1 getItemSponsors + N getSponsor POR item
+// (N+1). Cada sponsor recebe approvalStatus: "approved"|"rejected"|"pending"|null
+// para que SponsorChips possa colorir os chips sem requests adicionais.
 async function enrichItemsWithEventsAndSponsors(list: any[]): Promise<any[]> {
   if (list.length === 0) return [];
-  const [allEvents, allSponsors, allItemSponsors] = await Promise.all([
+  const [allEvents, allSponsors, allItemSponsors, allApprovals] = await Promise.all([
     storage.getAllEvents(),
     storage.getAllSponsors(),
     storage.getAllItemSponsors(),
+    storage.getAllItemSponsorApprovals(),
   ]);
   const eventById = new Map(allEvents.map((e) => [e.id, e]));
   const sponsorById = new Map(allSponsors.map((s) => [s.id, s]));
+  // key: `${itemId}_${sponsorId}` → approval status
+  const approvalKey = (itemId: string, sponsorId: string) => `${itemId}__${sponsorId}`;
+  const approvalStatus = new Map<string, string>();
+  for (const a of allApprovals) {
+    approvalStatus.set(approvalKey(a.itemId, a.sponsorId), a.status);
+  }
   const sponsorsByItem = new Map<string, any[]>();
   for (const is of allItemSponsors) {
     const sponsor = sponsorById.get(is.sponsorId);
     if (!sponsor) continue;
+    const enrichedSponsor = {
+      ...sponsor,
+      approvalStatus: approvalStatus.get(approvalKey(is.itemId, is.sponsorId)) ?? null,
+    };
     const arr = sponsorsByItem.get(is.itemId);
-    if (arr) arr.push(sponsor);
-    else sponsorsByItem.set(is.itemId, [sponsor]);
+    if (arr) arr.push(enrichedSponsor);
+    else sponsorsByItem.set(is.itemId, [enrichedSponsor]);
   }
   return list.map((item) => ({
     ...item,

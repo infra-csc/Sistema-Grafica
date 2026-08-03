@@ -679,7 +679,7 @@ export default function PainelGeral() {
 
                                     {/* Patrocinador */}
                                     <td style={{ padding: "10px 18px" }}>
-                                      <SponsorChips sponsors={item.sponsors ?? []} variant="gray" size="sm" />
+                                      <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={4} />
                                     </td>
 
                                     {/* Status */}

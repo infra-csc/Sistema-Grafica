@@ -4,6 +4,7 @@
 import { useMemo, useState, useEffect, useDeferredValue } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Camera, Truck, FileCheck, Search, X, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
+import { Link } from "wouter";
 import { FilterSelect } from "@/components/filter-select";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { format } from "date-fns";
@@ -88,11 +89,16 @@ export default function Registros() {
     return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
   }, [photos, kindFilter, deferredSearch, period]);
 
-  const counts = {
-    total: photos.length,
-    conference: photos.filter(p => kindOf(p) === "conference").length,
-    delivery: photos.filter(p => kindOf(p) === "delivery").length,
-  };
+  // Contadores sobre o recorte atual (menos o filtro de tipo, que eles próprios
+  // controlam) — números que ignoram os filtros confundem mais do que informam.
+  const counts = useMemo(() => {
+    const pool = photos.filter(p => passesEvent(p) && passesSearch(p) && passesPeriod(p));
+    return {
+      total: pool.length,
+      conference: pool.filter(p => kindOf(p) === "conference").length,
+      delivery: pool.filter(p => kindOf(p) === "delivery").length,
+    };
+  }, [photos, eventFilter, deferredSearch, period]);
 
   const hasFilters = !!(kindFilter.length || eventFilter.length || search.trim() || period !== "Todos");
   const clearAll = () => { setKindFilter([]); setEventFilter([]); setSearch(""); setPeriod("Todos"); };
@@ -138,14 +144,25 @@ export default function Registros() {
             </div>
           </div>
 
-          {/* Contadores */}
+          {/* Contadores — refletem os filtros ativos e servem de atalho de filtro */}
           <div style={{ display: "flex", gap: 24, margin: "16px 0" }}>
-            {([["Total", counts.total, T.text], ["Conferências", counts.conference, KIND.conference.color], ["Entregas", counts.delivery, KIND.delivery.color]] as const).map(([label, n, color]) => (
-              <div key={label}>
-                <p style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 24, color, margin: 0, lineHeight: 1 }}>{n}</p>
-                <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: T.second, margin: "4px 0 0" }}>{label}</p>
-              </div>
-            ))}
+            {([
+              ["Total", counts.total, T.text, null],
+              ["Conferências", counts.conference, KIND.conference.color, "conference"],
+              ["Entregas", counts.delivery, KIND.delivery.color, "delivery"],
+            ] as const).map(([label, n, color, kind]) => {
+              const active = kind ? kindFilter.length === 1 && kindFilter[0] === kind : kindFilter.length === 0;
+              return (
+                <button key={label}
+                  onClick={() => { setKindFilter(kind && !active ? [kind] : []); setVisible(PAGE_SIZE); }}
+                  data-testid={`stat-${kind ?? "total"}`}
+                  title={kind ? `Ver só ${label.toLowerCase()}` : "Ver tudo"}
+                  style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer", opacity: active || kindFilter.length === 0 ? 1 : 0.45, transition: "opacity 0.15s" }}>
+                  <p style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 24, color, margin: 0, lineHeight: 1 }}>{n}</p>
+                  <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: T.second, margin: "4px 0 0", borderBottom: active && kind ? `2px solid ${color}` : "2px solid transparent", paddingBottom: 2 }}>{label}</p>
+                </button>
+              );
+            })}
           </div>
 
           {/* Filtros */}
@@ -220,6 +237,10 @@ export default function Registros() {
           </div>
         ) : (
           <>
+            <p style={{ fontSize: 11, color: T.muted, margin: "0 0 12px" }}>
+              Exibindo <strong style={{ color: T.text }}>{Math.min(visible, filtered.length)}</strong> de{" "}
+              <strong style={{ color: T.text }}>{filtered.length}</strong> registro{filtered.length !== 1 ? "s" : ""}
+            </p>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
               {filtered.slice(0, visible).map((p, idx) => {
                 const k = KIND[kindOf(p)];
@@ -231,11 +252,24 @@ export default function Registros() {
                     <button
                       onClick={() => setZoomIdx(idx)}
                       title="Ampliar"
-                      style={{ display: "block", width: "100%", aspectRatio: "4/3", border: "none", padding: 0, backgroundColor: "#f4f3f0", cursor: "pointer" }}
+                      style={{ display: "block", position: "relative", width: "100%", aspectRatio: "4/3", border: "none", padding: 0, backgroundColor: "#f4f3f0", cursor: "pointer" }}
                     >
-                      <img src={srcOf(p)} alt={k.label}
+                      {/* lazy: a grade carrega dezenas de fotos; sem isso o
+                          navegador baixa todas de uma vez ao abrir a tela. */}
+                      <img src={srcOf(p)} alt={k.label} loading="lazy" decoding="async"
                         style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                        onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                        onError={e => {
+                          const img = e.currentTarget as HTMLImageElement;
+                          img.style.display = "none";
+                          const box = img.parentElement;
+                          if (box && !box.querySelector("[data-broken]")) {
+                            const span = document.createElement("span");
+                            span.setAttribute("data-broken", "1");
+                            span.textContent = "Imagem indisponível";
+                            span.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:11px;color:#a8a29e";
+                            box.appendChild(span);
+                          }
+                        }} />
                     </button>
 
                     <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
@@ -252,7 +286,17 @@ export default function Registros() {
                         {p.itemType || "Peça removida"}
                         {p.itemDescription && <span style={{ fontWeight: 400, color: T.muted }}> — {p.itemDescription}</span>}
                       </p>
-                      <p style={{ fontSize: 11, color: T.muted, margin: 0 }}>{p.eventName || "Sem evento"}</p>
+                      {/* Leva ao evento da peça — a pergunta seguinte a "vi a foto"
+                          costuma ser "onde essa peça está". */}
+                      {p.eventId ? (
+                        <Link href={`/eventos/${p.eventId}`}
+                          data-testid={`link-event-${p.id}`}
+                          style={{ fontSize: 11, color: T.accent, margin: 0, textDecoration: "none", fontWeight: 600 }}>
+                          {p.eventName || "Sem evento"}
+                        </Link>
+                      ) : (
+                        <p style={{ fontSize: 11, color: T.muted, margin: 0 }}>Sem evento</p>
+                      )}
 
                       {notes && (
                         <p style={{ fontSize: 11, color: "#584237", fontStyle: "italic", margin: 0, lineHeight: 1.4 }}>"{notes}"</p>

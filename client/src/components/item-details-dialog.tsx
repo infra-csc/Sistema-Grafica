@@ -281,108 +281,76 @@ export function ItemDetailsDialog({
         {/* ══════════════════════════════════════════════════════
             HEADER — Dark
         ══════════════════════════════════════════════════════ */}
-        <header style={{ backgroundColor: "#1c1917", padding: 32, color: "#ffffff" }}>
-          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 32, flexWrap: "wrap" }}>
-
-            {/* Left: eyebrow + title + pills */}
-            <div style={{ flex: 1, minWidth: 260 }}>
-              <p style={{
-                fontFamily: "'Space Grotesk', sans-serif",
-                color: "#fd761a", fontSize: 10, fontWeight: 700,
-                textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 6px 0",
-              }}>
-                DETALHE DO ITEM
-              </p>
-              <h1 style={{
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: "clamp(28px, 4vw, 44px)", fontWeight: 800,
-                letterSpacing: "-0.04em", color: "#ffffff", margin: 0, lineHeight: 1.05,
-              }}>
-                {item.displayId} · {item.event?.name?.toUpperCase() || "—"}
-              </h1>
-
-              {/* Pills */}
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 16 }}>
-                <span style={{
-                  padding: "4px 12px", borderRadius: 999,
-                  backgroundColor: "#9d4300", color: "#ffffff",
-                  fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
-                }}>
-                  {STATUS_LABELS[rawStatus] || rawStatus}
+        <header style={{ backgroundColor: "#1c1917", color: "#ffffff" }}>
+          {/* Title + pills row */}
+          <div style={{ padding: "24px 32px 20px" }}>
+            {/* ID chip inline */}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+                {item.displayId}
+              </span>
+              {/* Status + tag pills inline */}
+              <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(253,118,26,0.2)", color: "#fd761a", border: "1px solid rgba(253,118,26,0.3)", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                {STATUS_LABELS[rawStatus] || rawStatus}
+              </span>
+              {(item.isReuse || item.reuseQty > 0) && (
+                <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(22,101,52,0.3)", color: "#4ade80", border: "1px solid rgba(22,101,52,0.4)", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                  {item.isReuse ? "Reaproveitamento" : `↩ ${item.reuseQty}/${item.quantity}`}
                 </span>
-                {(item.isReuse || item.reuseQty > 0) && (
-                  <span style={{
-                    padding: "4px 12px", borderRadius: 999,
-                    backgroundColor: "#166534", color: "#dcfce7",
-                    fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
-                  }}>
-                    {item.isReuse ? "Reaproveitamento" : `Reaproveitamento ${item.reuseQty}/${item.quantity}`}
-                  </span>
-                )}
-                {item.rejectedBySponsor && (
-                  <span style={{
-                    padding: "4px 12px", borderRadius: 999,
-                    backgroundColor: "rgba(186,26,26,0.2)", color: "#ff5449",
-                    border: "1px solid rgba(186,26,26,0.3)",
-                    fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
-                  }}>Reprovado Patrocinador</span>
-                )}
-                {item.rejectedByCreator && (
-                  <span style={{
-                    padding: "4px 12px", borderRadius: 999,
-                    backgroundColor: "rgba(186,26,26,0.2)", color: "#ff5449",
-                    border: "1px solid rgba(186,26,26,0.3)",
-                    fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
-                  }}>Reprovado Criador</span>
-                )}
-                {item.skipApproval && (
-                  <span style={{
-                    padding: "4px 12px", borderRadius: 999,
-                    backgroundColor: "#e2e2e2", color: "#584237",
-                    fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
-                  }}>Aprovação Ignorada</span>
-                )}
-              </div>
+              )}
+              {item.rejectedBySponsor && (
+                <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(186,26,26,0.25)", color: "#ff5449", border: "1px solid rgba(186,26,26,0.35)", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Reprov. Patrocinador</span>
+              )}
+              {item.rejectedByCreator && (
+                <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(186,26,26,0.25)", color: "#ff5449", border: "1px solid rgba(186,26,26,0.35)", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Reprov. Criador</span>
+              )}
+              {item.skipApproval && (
+                <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Aprov. Ignorada</span>
+              )}
             </div>
+            <h1 style={{
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontSize: "clamp(22px, 3.2vw, 34px)", fontWeight: 800,
+              letterSpacing: "-0.03em", color: "#ffffff", margin: 0, lineHeight: 1.1,
+            }}>
+              {item.event?.name?.toUpperCase() || "—"}
+            </h1>
+          </div>
 
-            {/* Right: horizontal timeline */}
-            <div style={{ display: "flex", alignItems: "center", gap: 4, overflowX: "auto", paddingBottom: 4, flexShrink: 0 }}>
-              {TIMELINE_STEPS.map((s, i) => {
-                const done    = s.idx < step;
-                const current = s.idx === step;
-                const pending = s.idx > step;
-                return (
-                  <div key={s.idx} style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
-                      <div style={{
-                        width: 32, height: 32, borderRadius: "50%",
-                        backgroundColor: (done || current) ? "#fd761a" : "rgba(255,255,255,0.1)",
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        color: (done || current) ? "#5c2400" : "rgba(255,255,255,0.4)",
-                        fontWeight: 700, fontSize: 12,
-                        boxShadow: current ? "0 0 0 4px rgba(253,118,26,0.25)" : "none",
-                        flexShrink: 0,
-                      }}>
-                        {done
-                          ? <Check style={{ width: 14, height: 14, strokeWidth: 3 }} />
-                          : <span>{s.idx + 1}</span>
-                        }
-                      </div>
-                      <span style={{
-                        fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "-0.04em",
-                        color: (done || current) ? "rgba(255,255,255,0.9)" : "rgba(255,255,255,0.35)",
-                        whiteSpace: "nowrap",
-                      }}>
-                        {s.label}
-                      </span>
+          {/* Progress tracker — full-width strip */}
+          <div style={{ padding: "14px 32px 18px", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 0, overflowX: "auto" }}>
+            {TIMELINE_STEPS.map((s, i) => {
+              const done    = s.idx < step;
+              const current = s.idx === step;
+              return (
+                <div key={s.idx} style={{ display: "flex", alignItems: "center", flex: i < TIMELINE_STEPS.length - 1 ? "1 1 0" : "0 0 auto" }}>
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, flexShrink: 0 }}>
+                    <div style={{
+                      width: 24, height: 24, borderRadius: "50%",
+                      backgroundColor: done ? "#fd761a" : current ? "rgba(253,118,26,0.25)" : "rgba(255,255,255,0.08)",
+                      border: current ? "2px solid #fd761a" : "none",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      color: done ? "#fff" : current ? "#fd761a" : "rgba(255,255,255,0.3)",
+                      fontWeight: 800, fontSize: 10,
+                      transition: "all 0.2s",
+                      flexShrink: 0,
+                    }}>
+                      {done ? <Check style={{ width: 11, height: 11, strokeWidth: 3 }} /> : <span>{s.idx + 1}</span>}
                     </div>
-                    {i < TIMELINE_STEPS.length - 1 && (
-                      <div style={{ width: 20, height: 1, backgroundColor: "rgba(255,255,255,0.15)", flexShrink: 0, marginBottom: 16 }} />
-                    )}
+                    <span style={{
+                      fontSize: 8, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em",
+                      color: (done || current) ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.25)",
+                      whiteSpace: "nowrap",
+                    }}>
+                      {s.label}
+                    </span>
                   </div>
-                );
-              })}
-            </div>
+                  {i < TIMELINE_STEPS.length - 1 && (
+                    <div style={{ flex: 1, height: 1, backgroundColor: done ? "rgba(253,118,26,0.4)" : "rgba(255,255,255,0.08)", marginBottom: 14, minWidth: 12 }} />
+                  )}
+                </div>
+              );
+            })}
           </div>
         </header>
 
@@ -390,8 +358,8 @@ export function ItemDetailsDialog({
             BANNER DESCRIPTION
         ══════════════════════════════════════════════════════ */}
         {item.description && (
-          <div style={{ padding: "24px 32px", backgroundColor: "#f3f4f3", borderLeft: "8px solid #fd761a" }}>
-            <p style={{ color: "#584237", lineHeight: 1.65, maxWidth: 800, margin: 0, fontSize: 14 }}>
+          <div style={{ padding: "14px 32px", backgroundColor: "#fdf8f5", borderLeft: "3px solid #fd761a", borderBottom: "1px solid #f0ede9" }}>
+            <p style={{ color: "#57534e", lineHeight: 1.6, maxWidth: 800, margin: 0, fontSize: 13, fontWeight: 500 }}>
               {item.description}
             </p>
           </div>
@@ -434,19 +402,19 @@ export function ItemDetailsDialog({
         {/* ══════════════════════════════════════════════════════
             TWO-COLUMN GRID
         ══════════════════════════════════════════════════════ */}
-        <div style={{ display: "grid", gridTemplateColumns: "6fr 4fr", gap: 4, padding: 32, backgroundColor: "#eeeeed" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "6fr 4fr", gap: 12, padding: "20px 32px 0", backgroundColor: "#f5f4f1" }}>
 
           {/* ── LEFT COLUMN (60%) ── */}
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
             {/* Event info + Specs */}
-            <section style={{ backgroundColor: "#ffffff", padding: 24, borderRadius: 2 }}>
+            <section style={{ backgroundColor: "#ffffff", padding: "20px 24px", borderRadius: 10 }}>
               <h3 style={{
-                fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18,
-                textTransform: "uppercase", letterSpacing: "-0.04em", margin: "0 0 24px 0",
-                display: "flex", alignItems: "center", gap: 8,
+                fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10,
+                textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 18px 0",
+                display: "flex", alignItems: "center", gap: 6, color: "#78716c",
               }}>
-                <Calendar style={{ width: 20, height: 20, color: "#fd761a" }} />
+                <Calendar style={{ width: 13, height: 13, color: "#fd761a" }} />
                 Informações do Evento
               </h3>
 
@@ -517,7 +485,7 @@ export function ItemDetailsDialog({
                       { label: "M²",         value: item.calculatedM2 ? `${item.calculatedM2} m²` : null },
                       { label: "Medida",     value: item.measurement },
                     ].filter(x => x.value).map(({ label, value }) => (
-                      <div key={label} style={{ backgroundColor: "#f3f4f3", padding: "14px 16px", borderRadius: 2 }}>
+                      <div key={label} style={{ backgroundColor: "#fafaf9", padding: "12px 14px", borderRadius: 8, border: "1px solid #f0ede9" }}>
                         <p style={{ fontSize: 9, fontWeight: 700, color: "#8c7164", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px 0" }}>{label}</p>
                         <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14, color: "#1a1c1c", margin: 0 }}>{value}</p>
                       </div>
@@ -529,13 +497,13 @@ export function ItemDetailsDialog({
 
             {/* Sponsors */}
             {item.sponsors && item.sponsors.length > 0 && (
-              <section style={{ backgroundColor: "#ffffff", padding: 24, borderRadius: 2 }}>
+              <section style={{ backgroundColor: "#ffffff", padding: 24, borderRadius: 10 }}>
                 <h3 style={{
-                  fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18,
-                  textTransform: "uppercase", letterSpacing: "-0.04em", margin: "0 0 20px 0",
-                  display: "flex", alignItems: "center", gap: 8,
+                  fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10,
+                  textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 16px 0",
+                  display: "flex", alignItems: "center", gap: 6, color: "#78716c",
                 }}>
-                  <ShieldCheck style={{ width: 20, height: 20, color: "#fd761a" }} />
+                  <ShieldCheck style={{ width: 13, height: 13, color: "#fd761a" }} />
                   Patrocinadores Vinculados
                 </h3>
 
@@ -549,13 +517,13 @@ export function ItemDetailsDialog({
                     return (
                       <div
                         key={s.id}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 12, backgroundColor: "#f3f4f3", borderRadius: 2, transition: "background 0.15s" }}
+                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 12, backgroundColor: "#fafaf9", borderRadius: 8, border: "1px solid #f0ede9", transition: "background 0.15s" }}
                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = "#e8e8e7"}
                         onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = "#f3f4f3"}
                       >
                         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                           <div style={{
-                            width: 40, height: 40, backgroundColor: "#ffffff", borderRadius: 2,
+                            width: 36, height: 36, backgroundColor: "#f5f4f1", borderRadius: 8,
                             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
                           }}>
                             <span style={{ fontSize: 16, fontWeight: 700, color: s.color || "#1c1917" }}>
@@ -591,7 +559,7 @@ export function ItemDetailsDialog({
                 </div>
 
                 {item.sponsorApprovedBy && item.sponsorApprovedAt && (
-                  <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(0,99,152,0.05)", border: "1px solid rgba(0,99,152,0.15)", borderRadius: 2, display: "flex", alignItems: "center", gap: 8 }}>
+                  <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(0,99,152,0.05)", border: "1px solid rgba(0,99,152,0.15)", borderRadius: 8, display: "flex", alignItems: "center", gap: 8 }}>
                     <CheckCircle style={{ width: 14, height: 14, color: "#006398", flexShrink: 0 }} />
                     <span style={{ fontSize: 11, color: "#003554", fontWeight: 600 }}>
                       Aprovado por <strong>{item.sponsorApprovedBy}</strong> em {format(new Date(item.sponsorApprovedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
@@ -607,12 +575,12 @@ export function ItemDetailsDialog({
 
             {/* Aprovação de Arte — glass-purple/orange */}
             <section style={{
-              background: "rgba(157,67,0,0.05)", backdropFilter: "blur(12px)",
-              border: "1px solid rgba(157,67,0,0.1)", borderLeft: "4px solid #fd761a",
-              padding: 24, borderRadius: 2,
+              background: "#ffffff",
+              border: "1px solid #f0ede9", borderTop: "3px solid #fd761a",
+              padding: 24, borderRadius: 10,
             }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, textTransform: "uppercase", letterSpacing: "-0.04em", color: "#9d4300", margin: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: "#78716c", margin: 0 }}>
                   Aprovação de Arte
                 </h3>
                 <FileImage style={{ width: 20, height: 20, color: "#9d4300" }} />
@@ -664,12 +632,12 @@ export function ItemDetailsDialog({
 
             {/* Arquivo Final — glass-green/blue */}
             <section style={{
-              background: "rgba(0,99,152,0.05)", backdropFilter: "blur(12px)",
-              border: "1px solid rgba(0,99,152,0.1)", borderLeft: "4px solid #006398",
-              padding: 24, borderRadius: 2,
+              background: "#ffffff",
+              border: "1px solid #e8f4fb", borderTop: "3px solid #006398",
+              padding: 24, borderRadius: 10,
             }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, textTransform: "uppercase", letterSpacing: "-0.04em", color: "#006398", margin: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: "#78716c", margin: 0 }}>
                   Arquivo Final
                 </h3>
                 <FolderOpen style={{ width: 20, height: 20, color: "#006398" }} />
@@ -677,13 +645,13 @@ export function ItemDetailsDialog({
 
               {item.finalFileUrl ? (
                 <>
-                  <div style={{ padding: 16, backgroundColor: "rgba(255,255,255,0.4)", borderRadius: 2, border: "1px solid rgba(0,99,152,0.15)" }}>
+                  <div style={{ padding: 16, backgroundColor: "#f5f9fc", borderRadius: 8, border: "1px solid #d4eaf5" }}>
                     <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
                       <FolderOpen style={{ width: 20, height: 20, color: "#006398", marginTop: 2, flexShrink: 0 }} />
                       <div style={{ overflow: "hidden" }}>
                         <p style={{
                           fontSize: 9, fontWeight: 700, backgroundColor: "#006398", color: "#ffffff",
-                          padding: "2px 8px", borderRadius: 2, display: "inline-block",
+                          padding: "2px 8px", borderRadius: 4, display: "inline-block",
                           marginBottom: 8, textTransform: "uppercase", letterSpacing: "-0.04em",
                         }}>
                           PRONTO PARA IMPRESSÃO
@@ -716,7 +684,7 @@ export function ItemDetailsDialog({
                       style={{
                         display: "flex", alignItems: "center", justifyContent: "center",
                         width: "100%", marginTop: 12, padding: "12px 0",
-                        backgroundColor: "#006398", color: "#ffffff", borderRadius: 2,
+                        backgroundColor: "#006398", color: "#ffffff", borderRadius: 6,
                         fontWeight: 700, fontSize: 11, textTransform: "uppercase",
                         letterSpacing: "0.1em", textDecoration: "none",
                         transition: "filter 0.15s",
@@ -730,7 +698,7 @@ export function ItemDetailsDialog({
                   )}
                 </>
               ) : (
-                <div style={{ padding: 24, backgroundColor: "rgba(255,255,255,0.3)", borderRadius: 2, border: "1px dashed rgba(0,99,152,0.25)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div style={{ padding: 24, backgroundColor: "#f5f9fc", borderRadius: 8, border: "1px dashed rgba(0,99,152,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <p style={{ fontSize: 12, color: "rgba(0,99,152,0.45)", margin: 0 }}>Arquivo final não informado</p>
                 </div>
               )}
@@ -741,20 +709,20 @@ export function ItemDetailsDialog({
         {/* ══════════════════════════════════════════════════════
             FULL-WIDTH SECTIONS
         ══════════════════════════════════════════════════════ */}
-        <div style={{ padding: "8px 32px 32px 32px", display: "flex", flexDirection: "column", gap: 40 }}>
+        <div style={{ padding: "20px 32px 32px 32px", display: "flex", flexDirection: "column", gap: 36 }}>
 
           {/* ── Dados de Produção ── */}
           <section>
-            <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 22, textTransform: "uppercase", letterSpacing: "-0.04em", margin: "0 0 20px 0", display: "flex", alignItems: "center", gap: 10 }}>
-              <Package style={{ width: 20, height: 20, color: "#fd761a" }} />
+            <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 14px 0", display: "flex", alignItems: "center", gap: 6, color: "#78716c" }}>
+              <Package style={{ width: 13, height: 13, color: "#fd761a" }} />
               Dados de Produção
             </h3>
-            <div style={{ overflow: "hidden", borderRadius: 4, backgroundColor: "#f3f4f3" }}>
+            <div style={{ overflow: "hidden", borderRadius: 10, border: "1px solid #f0ede9", backgroundColor: "#ffffff" }}>
               <table style={{ width: "100%", textAlign: "left", borderCollapse: "collapse" }}>
                 <thead>
-                  <tr style={{ backgroundColor: "#e8e8e7" }}>
+                  <tr style={{ backgroundColor: "#fafaf9", borderBottom: "1px solid #f0ede9" }}>
                     {["Quantidade", "Total M²", "Dimensões Visuais", "Dimensões Arquivo", "Medida"].map(col => (
-                      <th key={col} style={{ padding: "14px 16px", fontSize: 9, fontWeight: 900, color: "#8c7164", textTransform: "uppercase", letterSpacing: "0.1em" }}>{col}</th>
+                      <th key={col} style={{ padding: "11px 16px", fontSize: 9, fontWeight: 900, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em" }}>{col}</th>
                     ))}
                   </tr>
                 </thead>
@@ -815,8 +783,8 @@ export function ItemDetailsDialog({
             <div style={{ display: "grid", gridTemplateColumns: hasFlowPhotos && hasObservations ? "1fr 1fr" : "1fr", gap: 32 }}>
               {hasFlowPhotos && (
                 <section>
-                  <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, textTransform: "uppercase", letterSpacing: "-0.04em", margin: "0 0 16px 0", display: "flex", alignItems: "center", gap: 8 }}>
-                    <Camera style={{ width: 18, height: 18, color: "#fd761a" }} />
+                  <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 14px 0", display: "flex", alignItems: "center", gap: 6, color: "#78716c" }}>
+                    <Camera style={{ width: 13, height: 13, color: "#fd761a" }} />
                     Registros da Gráfica
                   </h3>
 
@@ -848,12 +816,12 @@ export function ItemDetailsDialog({
               )}
               {hasObservations && (
                 <section>
-                  <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, textTransform: "uppercase", letterSpacing: "-0.04em", margin: "0 0 16px 0", display: "flex", alignItems: "center", gap: 8 }}>
-                    <FileText style={{ width: 18, height: 18, color: "#fd761a" }} />
+                  <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 14px 0", display: "flex", alignItems: "center", gap: 6, color: "#78716c" }}>
+                    <FileText style={{ width: 13, height: 13, color: "#fd761a" }} />
                     Observações
                   </h3>
-                  <div style={{ backgroundColor: "#f3f4f3", padding: 24, borderRadius: 8, border: "1px solid #e8e8e7", minHeight: 160 }}>
-                    <p style={{ color: "#584237", fontStyle: "italic", lineHeight: 1.65, fontSize: 14, margin: "0 0 16px 0" }}>
+                  <div style={{ backgroundColor: "#fafaf9", padding: "14px 16px", borderRadius: 10, border: "1px solid #f0ede9" }}>
+                    <p style={{ color: "#584237", fontStyle: "italic", lineHeight: 1.6, fontSize: 13, margin: 0 }}>
                       "{item.observations}"
                     </p>
                   </div>
@@ -869,8 +837,8 @@ export function ItemDetailsDialog({
               {/* Rastreabilidade Temporal */}
               {hasTimestamps && (
                 <div>
-                  <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, textTransform: "uppercase", letterSpacing: "-0.04em", margin: "0 0 20px 0", display: "flex", alignItems: "center", gap: 8 }}>
-                    <Clock style={{ width: 18, height: 18, color: "#fd761a" }} />
+                  <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 16px 0", display: "flex", alignItems: "center", gap: 6, color: "#78716c" }}>
+                    <Clock style={{ width: 13, height: 13, color: "#fd761a" }} />
                     Rastreabilidade Temporal
                   </h3>
                   <div style={{ overflowX: "auto" }}>
@@ -905,8 +873,8 @@ export function ItemDetailsDialog({
 
               {/* Histórico / Audit */}
               <div>
-                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, textTransform: "uppercase", letterSpacing: "-0.04em", margin: "0 0 20px 0", display: "flex", alignItems: "center", gap: 8 }}>
-                  <History style={{ width: 18, height: 18, color: "#fd761a" }} />
+                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 16px 0", display: "flex", alignItems: "center", gap: 6, color: "#78716c" }}>
+                  <History style={{ width: 13, height: 13, color: "#fd761a" }} />
                   Histórico
                 </h3>
                 <div style={{ position: "relative", paddingLeft: 28 }}>
@@ -922,7 +890,7 @@ export function ItemDetailsDialog({
                             backgroundColor: logEntry ? "#fd761a" : "#e2e2e2",
                             boxShadow: logEntry ? "0 0 0 4px rgba(253,118,26,0.1)" : "none",
                           }} />
-                          <p style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "-0.04em", color: logEntry ? "#1a1c1c" : "#8c7164", margin: "0 0 2px 0" }}>
+                          <p style={{ fontSize: logEntry ? 12 : 11, fontWeight: logEntry ? 700 : 400, textTransform: "uppercase", letterSpacing: logEntry ? "-0.04em" : "0.01em", color: logEntry ? "#1a1c1c" : "#c2b9b3", margin: "0 0 2px 0" }}>
                             {stage.label}
                           </p>
                           {logEntry && (
@@ -961,33 +929,36 @@ export function ItemDetailsDialog({
             FOOTER ACTION BAR
         ══════════════════════════════════════════════════════ */}
         <footer style={{
-          padding: "20px 32px", backgroundColor: "#e8e8e7",
-          display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 16,
+          padding: "16px 32px", borderTop: "1px solid #e7e5e4", backgroundColor: "#f5f4f1",
+          display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 12,
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <span style={{ fontSize: 10, fontWeight: 700, color: "#8c7164", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-              ID: {item.displayId}
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: "#a8a29e", letterSpacing: "0.04em" }}>
+              {item.displayId}
             </span>
-            <div style={{ width: 1, height: 14, backgroundColor: "rgba(140,113,100,0.2)" }} />
-            <span style={{ fontSize: 10, fontWeight: 700, color: "#8c7164", textTransform: "uppercase", letterSpacing: "0.1em" }}>
-              {item.updatedAt ? `Atualizado: ${format(new Date(item.updatedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}` : "Norte Production"}
-            </span>
+            {item.updatedAt && (
+              <>
+                <div style={{ width: 1, height: 12, backgroundColor: "#e7e5e4" }} />
+                <span style={{ fontSize: 10, color: "#a8a29e" }}>
+                  Atualizado {format(new Date(item.updatedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                </span>
+              </>
+            )}
           </div>
-          <div style={{ display: "flex", gap: 12 }}>
-            <button
-              onClick={() => onOpenChange(false)}
-              style={{
-                padding: "8px 24px", backgroundColor: "#ffffff",
-                border: "1px solid rgba(140,113,100,0.2)",
-                fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em",
-                cursor: "pointer", borderRadius: 2, transition: "background 0.15s",
-              }}
-              onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = "#f3f4f3"}
-              onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = "#ffffff"}
-            >
-              Fechar Detalhes
-            </button>
-          </div>
+          <button
+            onClick={() => onOpenChange(false)}
+            style={{
+              padding: "8px 20px", backgroundColor: "#1c1917",
+              border: "none",
+              fontFamily: "'Space Grotesk', sans-serif",
+              fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em",
+              color: "#ffffff", cursor: "pointer", borderRadius: 6, transition: "background 0.15s",
+            }}
+            onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = "#292524"}
+            onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = "#1c1917"}
+          >
+            Fechar
+          </button>
         </footer>
       </DialogContent>
     </Dialog>

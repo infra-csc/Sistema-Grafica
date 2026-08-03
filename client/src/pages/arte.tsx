@@ -1875,7 +1875,7 @@ export default function Arte() {
                 }}
               >
                 {/* ── Dark header strip ── */}
-                <div style={{ background: 'linear-gradient(135deg, #1c0a0a 0%, #2d1010 60%, #1e1410 100%)', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 12, position: 'relative', overflow: 'hidden' }}>
+                <div style={{ background: 'linear-gradient(135deg, #1c0a0a 0%, #2d1010 60%, #1e1410 100%)', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 8, position: 'relative', overflow: 'hidden', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
                   <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 90% 50%, rgba(220,38,38,0.1) 0%, transparent 60%)', pointerEvents: 'none' }} />
                   {/* Status badge */}
                   <span style={{ fontSize: 9, fontWeight: 800, color: '#fca5a5', background: 'rgba(220,38,38,0.2)', border: '1px solid rgba(252,165,165,0.25)', borderRadius: 5, padding: '2px 7px', letterSpacing: '0.08em', textTransform: 'uppercase', flexShrink: 0, zIndex: 1 }}>
@@ -1899,9 +1899,9 @@ export default function Arte() {
                 </div>
 
                 {/* ── Body ── */}
-                <div style={{ padding: '16px 18px', display: 'flex', gap: 14 }}>
+                <div style={{ padding: '16px 18px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 12 : 14 }}>
                   {/* Thumb */}
-                  <div style={{ width: 80, height: 80, borderRadius: 8, backgroundColor: '#fef2f2', border: '1px solid #fecaca', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: isMobile ? '100%' : 80, height: isMobile ? 120 : 80, borderRadius: 8, backgroundColor: '#fef2f2', border: '1px solid #fecaca', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {isImage ? (
                       <img src={item.approvalThumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : item.approvalThumbUrl ? (
@@ -1953,7 +1953,7 @@ export default function Arte() {
                 </div>
 
                 {/* ── Footer ── */}
-                <div style={{ padding: '12px 18px', borderTop: '1px solid #fef2f2', display: 'flex', alignItems: 'center', gap: 10, background: '#fffafa' }}>
+                <div style={{ padding: '12px 18px', borderTop: '1px solid #fef2f2', display: 'flex', alignItems: 'center', gap: 10, background: '#fffafa', flexWrap: 'wrap' }}>
                   <button
                     onClick={() => {
                       setCorrecaoItem(item);
@@ -1966,7 +1966,7 @@ export default function Arte() {
                       flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
                       background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
                       color: '#ffffff', border: 'none',
-                      borderRadius: 8, height: 36, padding: '0 18px',
+                      borderRadius: 8, minHeight: 44, height: 44, padding: '0 18px',
                       fontWeight: 700, fontSize: 12, cursor: 'pointer',
                       fontFamily: '"Space Grotesk", sans-serif',
                       letterSpacing: '-0.01em',
@@ -1990,7 +1990,7 @@ export default function Arte() {
                         display: 'flex', alignItems: 'center', gap: 5,
                         fontSize: 11, fontWeight: 600, color: '#a8a29e',
                         textDecoration: 'none', transition: 'color 0.15s',
-                        padding: '0 8px', height: 36, borderRadius: 8,
+                        padding: '0 12px', minHeight: 44, height: 44, borderRadius: 8,
                         border: '1px solid #ebe8e3', background: '#ffffff',
                         whiteSpace: 'nowrap',
                       }}

@@ -186,10 +186,11 @@ export function ItemDetailsDialog({
     return `${dt.getDate().toString().padStart(2,"0")}/${(dt.getMonth()+1).toString().padStart(2,"0")} ${dt.getHours().toString().padStart(2,"0")}:${dt.getMinutes().toString().padStart(2,"0")}`;
   };
 
-  const getLog = (keywords: string[], pool = itemLogs, actionType?: string) => {
+  const getLog = (keywords: string[], pool = itemLogs, actionType?: string, match?: (d: string) => boolean) => {
     const l = pool.find((log: any) => {
       if (actionType && log.action === actionType) return true;
       const d = (log.details || log.action || "").toLowerCase();
+      if (match?.(d)) return true;
       return keywords.some(k => d.includes(k.toLowerCase()));
     });
     if (!l) return null;
@@ -200,16 +201,25 @@ export function ItemDetailsDialog({
 
   const createdLog = itemLogs.find((l: any) => l.action === "created");
 
-  const historyStages = [
+  const historyStages: { label: string; keywords: string[]; pool: any[]; actionType?: string; match?: (d: string) => boolean }[] = [
     { label: "Criado / Solicitado",            keywords: ["criado"],                    pool: itemLogs,          actionType: "created" },
     { label: "Vinculação de patrocinador",      keywords: ["patrocinadores atualizados"], pool: itemLogs },
-    { label: "Enviado para Arte",               keywords: ["enviado para arte","aguard. envio →","aguard envio →"], pool: itemLogsInclusive },
-    { label: "Em aprovação de patrocinador",    keywords: ["aguardando aprovação"],      pool: itemLogs },
+    // Mesma regra usada pela Rastreabilidade ao lado. Com a busca literal por
+    // "enviado para arte" a etapa aparecia vazia aqui e preenchida lá, porque a
+    // mensagem real varia ("Enviada para a Arte", "Aguard. Envio → …").
+    { label: "Enviado para Arte",               keywords: ["enviado para arte","aguard. envio →","aguard envio →"], pool: itemLogsInclusive,
+      match: d => (d.includes("enviad") && d.includes("arte")) || d.includes("aguard. envio →") || d.includes("aguard envio →") },
+    { label: "Em aprovação de patrocinador",    keywords: ["aguardando aprovação"],      pool: itemLogs,
+      match: d => d.includes("aguardando aprovação") || d.includes("em aprovação") },
     { label: "Aprovado — Finalização",          keywords: ["todos os patrocinadores aprovaram","aguardando finaliz","aprovado pelo patrocinador"], pool: itemLogs },
     { label: "Aguardando revisão final",        keywords: ["arquivo final adicionado","aguardando revisão final"], pool: itemLogs },
     { label: "Liberado para Produção",          keywords: ["liberado para produção","pronto_para_producao","liberado"],      pool: itemLogs },
     { label: "Em Produção",                     keywords: ["em_producao","em produção","produção iniciada","iniciada"],      pool: itemLogs },
     { label: "Produzido",                       keywords: ["produzido"],                pool: itemLogs },
+    // As etapas da Gráfica faltavam por completo: a trilha terminava em
+    // "Produzido" mesmo em peças já conferidas e entregues.
+    { label: "Conferido",                       keywords: ["conferência concluída","conferência parcial","conferência"], pool: itemLogs },
+    { label: "Entregue",                        keywords: ["entrega concluída","entrega parcial","entregue"], pool: itemLogs, actionType: "delivered" },
   ];
 
   const deliveryLog = itemLogs.find((l: any) => l.action === "delivered");
@@ -221,7 +231,7 @@ export function ItemDetailsDialog({
   const hasFlowPhotos    = conferencePhotos.length > 0 || deliveryPhotos.length > 0
                         || !!item.conferenceNotes || !!item.deliveryNotes;
   const hasObservations  = !!item.observations;
-  const hasTimestamps    = !!(item.createdAt || item.sponsorApprovedAt || item.creatorReviewedAt || item.approvedAt || item.productionStartedAt || item.producedAt || item.deliveredAt);
+  const hasTimestamps    = !!(item.createdAt || item.sponsorApprovedAt || item.creatorReviewedAt || item.approvedAt || item.productionStartedAt || item.producedAt || item.conferredAt || item.deliveredAt);
 
   const createdBy = createdLog?.userName ?? createdLog?.user_name ?? null;
 
@@ -241,6 +251,8 @@ export function ItemDetailsDialog({
     const d = (l.details || l.action || "").toLowerCase();
     return d.includes("aguardando aprovação") || d.includes("em aprovação");
   });
+  const conferLog = itemLogs.find((l: any) =>
+    (l.details || "").toLowerCase().includes("conferência"));
   const logTs = (l: any) => l?.createdAt ?? l?.created_at ?? null;
   const logBy = (l: any) => l?.userName ?? l?.user_name ?? null;
 
@@ -254,6 +266,8 @@ export function ItemDetailsDialog({
     { label: "Liberado para Produção",     value: item.approvedAt,                                         by: null,                                                      dot: "#f97316" },
     { label: "Produção Iniciada",          value: item.productionStartedAt,                                by: null,                                                      dot: "#f59e0b" },
     { label: "Produzido",                  value: item.producedAt,                                         by: null,                                                      dot: "#ec4899" },
+    // A conferência entrou no fluxo depois e ficou de fora desta trilha.
+    { label: "Conferido",                  value: item.conferredAt,                                        by: logBy(conferLog),                                          dot: "#0891b2" },
     { label: "Entregue",                   value: item.deliveredAt,                                        by: item.receivedBy,                                           dot: "#10b981" },
   ].filter((r): r is { label: string; value: any; by: any; dot: string } => !!r && !!r.value);
 
@@ -913,7 +927,7 @@ export function ItemDetailsDialog({
                   <div style={{ position: "absolute", left: 5, top: 6, bottom: 6, width: 1, backgroundColor: "#e8e8e7" }} />
                   <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                     {historyStages.map((stage, idx) => {
-                      const logEntry = getLog(stage.keywords, stage.pool, (stage as any).actionType);
+                      const logEntry = getLog(stage.keywords, stage.pool, stage.actionType, stage.match);
                       return (
                         <div key={idx} style={{ position: "relative" }}>
                           <div style={{

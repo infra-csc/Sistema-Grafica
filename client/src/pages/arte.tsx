@@ -29,6 +29,9 @@ import { ExportPdfDialog } from "@/components/export-pdf-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 
+// Quantas linhas a tabela monta por vez. O resto entra por "Carregar mais".
+const ARTE_PAGE_SIZE = 100;
+
 // Status que alimentam cada aba. Antes ficavam embutidos no filtro, que era
 // reexecutado uma vez por aba só para contar.
 const TAB_STATUSES: Record<string, string[]> = {
@@ -62,10 +65,14 @@ export default function Arte() {
   // por isso o scroll precisa ser feito nela e não na window.
   const contentRef = useRef<HTMLDivElement>(null);
 
+  // Paginação da tabela — ver comentário em renderGroupedTable.
+  const [visibleCount, setVisibleCount] = useState(ARTE_PAGE_SIZE);
+
   // Trocar de aba troca a lista inteira; manter o scroll onde estava deixava o
   // usuário no meio da tabela nova. Sempre volta ao topo da listagem.
   const changeTab = useCallback((tabId: string) => {
     setActiveTab(tabId);
+    setVisibleCount(ARTE_PAGE_SIZE);
     requestAnimationFrame(() => {
       contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     });
@@ -1100,6 +1107,10 @@ export default function Arte() {
     semThumb, comThumb, semFinal, comFinal, urgenteFilter, periodFilter,
   ]);
 
+  // Qualquer mudança de recorte recomeça a paginação — senão o usuário filtra e
+  // continua vendo "carregar mais" de uma lista que já cabe inteira.
+  useEffect(() => { setVisibleCount(ARTE_PAGE_SIZE); }, [itemsByTab]);
+
   const filteredItems = useMemo(() => {
     const list = itemsByTab[activeTab] ?? [];
     // Um Collator reutilizado é bem mais rápido que localeCompare por comparação.
@@ -1311,8 +1322,12 @@ export default function Arte() {
     });
     eventSummary.sort((a, b) => b.count - a.count);
 
+    // Só as primeiras linhas entram no DOM. Com quase mil peças numa aba, montar
+    // a tabela inteira era o que travava a troca de aba e a digitação na busca.
+    const shownItems = items.slice(0, visibleCount);
+
     const groups: { event: string; type: string; group: string; eventObj: any; items: any[] }[] = [];
-    items.forEach(item => {
+    shownItems.forEach(item => {
       const eventName = item.event?.name || 'Sem Evento';
       const typeName = item.type;
       const groupName = groupOf(typeName) || '';
@@ -1695,6 +1710,21 @@ export default function Arte() {
             </Fragment>
           );
         })}
+
+        {items.length > shownItems.length && (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '8px 0 4px' }}>
+            <button
+              onClick={() => setVisibleCount(v => v + ARTE_PAGE_SIZE)}
+              data-testid="button-load-more-arte"
+              style={{ padding: '10px 20px', borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', fontSize: 12, fontWeight: 700, color: '#1c1917', cursor: 'pointer' }}
+            >
+              Carregar mais ({items.length - shownItems.length} restantes)
+            </button>
+            <span style={{ fontSize: 11, color: '#a8a29e' }}>
+              Exibindo {shownItems.length} de {items.length} peças
+            </span>
+          </div>
+        )}
       </div>
     );
   };

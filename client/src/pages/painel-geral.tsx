@@ -532,8 +532,8 @@ export default function PainelGeral() {
                       return sortedGroups.map(group => (
                         <Fragment key={group || '__nogroup'}>
                           {group && (
-                            <div style={{ padding: "6px 4px 4px", marginTop: 6, borderLeft: "3px solid #3b82f6", paddingLeft: 8, backgroundColor: "#e7f0fb", borderRadius: "4px 4px 0 0" }}>
-                              <span style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#1d4ed8", fontFamily: "'Space Grotesk', sans-serif" }}>
+                            <div style={{ padding: "6px 4px 4px", marginTop: 6, borderLeft: "3px solid #3b82f6", paddingLeft: 8, backgroundColor: "#e7f0fb", borderRadius: "4px 4px 0 0", overflow: "hidden" }}>
+                              <span style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#1d4ed8", fontFamily: "'Space Grotesk', sans-serif", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                 {group}
                               </span>
                             </div>
@@ -541,11 +541,11 @@ export default function PainelGeral() {
                           {Object.entries(groupMap[group]).map(([type, typeItems]) => (
                             <Fragment key={type}>
                               {/* Type sub-header */}
-                              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 4px 4px", borderTop: "2px solid #e7e5e4", marginTop: group ? 0 : 6 }}>
-                                <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#44403c", fontFamily: "'Space Grotesk', sans-serif" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 4px 4px", borderTop: "2px solid #e7e5e4", marginTop: group ? 0 : 6, overflow: "hidden" }}>
+                                <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#44403c", fontFamily: "'Space Grotesk', sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flex: 1 }}>
                                   {type}
                                 </span>
-                                <span style={{ fontSize: 9, fontWeight: 800, color: "#78716c", backgroundColor: "#e7e5e4", borderRadius: 999, padding: "2px 8px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                <span style={{ fontSize: 9, fontWeight: 800, color: "#78716c", backgroundColor: "#e7e5e4", borderRadius: 999, padding: "2px 8px", textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>
                                   {typeItems.length}
                                 </span>
                               </div>
@@ -564,37 +564,43 @@ export default function PainelGeral() {
                                       backgroundColor: ci % 2 === 1 ? "#f6f4f1" : "#ffffff",
                                       display: "flex",
                                       alignItems: "flex-start",
-                                      gap: 10,
+                                      gap: 8,
                                       cursor: "pointer",
+                                      overflow: "hidden",
                                     }}
                                   >
                                     {/* Card content */}
                                     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 5 }}>
                                       {/* Row 1: ID + type */}
-                                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                                        <span data-testid={`text-display-id-${item.id}`} style={{ fontFamily: "monospace", fontWeight: 700, color: "#f97316", fontSize: 13 }}>
+                                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                        <span data-testid={`text-display-id-${item.id}`} style={{ fontFamily: "monospace", fontWeight: 700, color: "#f97316", fontSize: 13, flexShrink: 0 }}>
                                           {item.displayId}
                                         </span>
-                                        <span style={{ fontSize: 11, fontWeight: 700, color: "#44403c" }}>{item.type}</span>
+                                        <span style={{ fontSize: 11, fontWeight: 700, color: "#44403c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{item.type}</span>
                                         {item.isReuse && (
-                                          <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "2px 7px" }}>
+                                          <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "2px 7px", flexShrink: 0 }}>
                                             Reaproveit.
                                           </span>
                                         )}
                                       </div>
-                                      {/* Row 2: description */}
+                                      {/* Row 2: description — allow up to 2 lines on mobile */}
                                       {item.description && (
-                                        <span style={{ fontSize: 12, color: "#44403c", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                        <span style={{ fontSize: 12, color: "#44403c", fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as React.CSSProperties}>
                                           {item.description}
                                         </span>
                                       )}
-                                      {/* Row 3: status + sponsors */}
+                                      {/* Row 3: status pill */}
                                       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                                         <StatusPill status={item.status} />
-                                        <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={3} />
                                       </div>
+                                      {/* Row 4: sponsors (sub-row, only shown when present) */}
+                                      {item.sponsors && item.sponsors.length > 0 && (
+                                        <div style={{ minWidth: 0, overflow: "hidden" }}>
+                                          <SponsorChips sponsors={item.sponsors} variant="colored" size="sm" max={2} />
+                                        </div>
+                                      )}
                                     </div>
-                                    {/* View button */}
+                                    {/* Action buttons — compact on mobile */}
                                     <div style={{ display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
                                       <button
                                         onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
@@ -603,10 +609,10 @@ export default function PainelGeral() {
                                           background: "none", border: "1px solid #e7e5e4", cursor: "pointer",
                                           borderRadius: 6, color: "#a8a29e",
                                           display: "flex", alignItems: "center", justifyContent: "center",
-                                          minHeight: 44, minWidth: 44,
+                                          height: 36, width: 36,
                                         }}
                                       >
-                                        <Eye style={{ width: 16, height: 16 }} />
+                                        <Eye style={{ width: 15, height: 15 }} />
                                       </button>
                                       {isAdmin && (
                                         <button
@@ -617,10 +623,10 @@ export default function PainelGeral() {
                                             background: "none", border: "1px solid #fecaca", cursor: "pointer",
                                             borderRadius: 6, color: "#a8a29e",
                                             display: "flex", alignItems: "center", justifyContent: "center",
-                                            minHeight: 36, minWidth: 44,
+                                            height: 32, width: 36,
                                           }}
                                         >
-                                          <Trash2 style={{ width: 15, height: 15 }} />
+                                          <Trash2 style={{ width: 14, height: 14 }} />
                                         </button>
                                       )}
                                     </div>

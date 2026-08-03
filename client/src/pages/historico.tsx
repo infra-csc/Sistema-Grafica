@@ -102,6 +102,14 @@ const TYPE_CONFIG: Record<string, {
     label: "Conferência", dot: "#0891b2", bg: "#ecfeff", border: "#a5f3fc", color: "#0e7490",
     icon: FileCheck,
   },
+  item_reused: {
+    label: "Reaproveitamento", dot: "#059669", bg: "#f0fdf4", border: "#bbf7d0", color: "#047857",
+    icon: RefreshCw,
+  },
+  item_reused_partial: {
+    label: "Reaprov. Parcial", dot: "#10b981", bg: "#f0fdf4", border: "#a7f3d0", color: "#059669",
+    icon: RefreshCw,
+  },
   item_canceled: {
     label: "Cancelada", dot: "#dc2626", bg: "#fef2f2", border: "#fecaca", color: "#b91c1c",
     icon: Activity,
@@ -226,6 +234,22 @@ function buildDescription(e: TimelineEvent) {
           {e.receivedBy && <> para <strong style={{ color: P.text }}>{e.receivedBy}</strong></>}
         </span>
       );
+    case "item_reused":
+      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> marcada como reaproveitamento — não vai para produção · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+    case "item_reused_partial": {
+      // Dois formatos gravam o parcial: o da Gráfica ("6/10 reaproveitadas") e o
+      // da Revisão ("6 un. de 10"). O número que interessa é o mesmo.
+      const d = e.logDetails ?? "";
+      const m = d.match(/(\d+)\/(\d+)\s*reaproveitad/i) ?? d.match(/(\d+)\s*un\.\s*de\s*(\d+)/i);
+      const toProduce = d.match(/(\d+)\s*a produzir/i)?.[1];
+      return (
+        <span>
+          {ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — reaproveitamento parcial
+          {m ? <> ({m[1]} de {m[2]} un.{toProduce ? `, ${toProduce} a produzir` : ""})</> : null}
+          {" · evento "}<strong style={{ color: P.text }}>{e.eventName}</strong>
+        </span>
+      );
+    }
     case "item_conferred":
       return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> conferida{e.logDetails?.match(/\((\d+\/\d+)\)/) ? <> — {e.logDetails.match(/\((\d+\/\d+)\)/)![1]} un.</> : null} · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
     case "item_canceled":
@@ -431,6 +455,17 @@ export default function Historico() {
         type: action === "produced" ? "item_produced" : "production_started",
         ...base,
         quantityProduced: produced,
+      });
+      return;
+    }
+
+    // Reaproveitamento marcado pela Gráfica (total ou parcial). O log existia
+    // mas nenhum padrão o reconhecia, então sumia do histórico.
+    if (detailsLower.includes("reaproveitamento")) {
+      timeline.push({
+        id: `reuse-${log.id ?? itemId + ts}`,
+        type: detailsLower.includes("parcial") ? "item_reused_partial" : "item_reused",
+        ...base,
       });
       return;
     }
@@ -670,6 +705,8 @@ export default function Historico() {
               { value: "production_started", label: "Em produção", group: "Produção", pinned: true },
               { value: "item_produced", label: "Produzido", group: "Produção", pinned: true },
               { value: "item_conferred", label: "Conferências", group: "Produção", pinned: true },
+              { value: "item_reused", label: "Reaproveitamentos", group: "Produção", pinned: true },
+              { value: "item_reused_partial", label: "Reaprov. parciais", group: "Produção", pinned: true },
               { value: "item_delivered", label: "Entregas", group: "Produção", pinned: true },
               { value: "item_returned", label: "Devolvidas p/ Arte", group: "Aprovação", pinned: true },
               { value: "item_canceled", label: "Canceladas", group: "Criação", pinned: true },

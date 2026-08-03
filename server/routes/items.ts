@@ -1354,25 +1354,27 @@ export function registerItemRoutes(app: Express): void {
 
       // Reaproveitamento parcial: body pode trazer { reuseQty } quando a Solicitação
       // quer reaproveitar só algumas unidades, enviando o restante para produção.
-      const partialReuseQty = req.body?.reuseQty != null ? Number(req.body.reuseQty) : undefined;
-      const isPartialReuse =
-        partialReuseQty != null &&
-        !isNaN(partialReuseQty) &&
-        partialReuseQty > 0 &&
-        partialReuseQty < currentItem.quantity;
+      const rawReuseQty = req.body?.reuseQty != null ? Number(req.body.reuseQty) : undefined;
+      const askedReuse = rawReuseQty != null && !isNaN(rawReuseQty) && rawReuseQty > 0;
+      // Pedir a quantidade inteira pelo campo do parcial é reaproveitamento
+      // total. Antes esse caso caía fora das duas condições e a peça seguia para
+      // produção como se nada tivesse sido pedido, sem aviso nenhum.
+      const isFullReuse = currentItem.isReuse || (askedReuse && rawReuseQty! >= currentItem.quantity);
+      const isPartialReuse = askedReuse && !isFullReuse;
 
       // Peças de reaproveitamento total não passam pela produção: já entram como produzidas.
       // Reaproveitamento parcial vai para ready_for_production (as demais unidades precisam produzir).
-      const nextStatus =
-        currentItem.isReuse && !isPartialReuse ? "produced" : "ready_for_production";
+      const nextStatus = isFullReuse ? "produced" : "ready_for_production";
 
       const item = await storage.updateItem(req.params.id, {
         status: nextStatus,
         creatorReviewedAt: new Date(),
         hasModifiedData: false, // Reset flag - Gráfica vê como dados novos
-        ...(isPartialReuse
-          ? { reuseQty: partialReuseQty, isReuse: false }
-          : {}),
+        ...(isPartialReuse ? { reuseQty: rawReuseQty!, isReuse: false } : {}),
+        // Reuso total também grava a quantidade: sem isso a peça fica marcada
+        // sem registro de quantas unidades foram reaproveitadas, e a Gráfica
+        // trata como legado.
+        ...(isFullReuse ? { reuseQty: currentItem.quantity, isReuse: true } : {}),
       });
       
       if (!item) {
@@ -1386,9 +1388,13 @@ export function registerItemRoutes(app: Express): void {
         'approved',
         'item',
         item.id,
-        currentItem.isReuse
+        // O parcial não era mencionado no log: a peça aparecia no histórico
+        // apenas como "liberado para produção", sem registro do reaproveitamento.
+        isFullReuse
           ? `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("produced")} (reaproveitamento — não precisa produzir)`
-          : `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("ready_for_production")} (liberado para produção)`
+          : isPartialReuse
+            ? `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("ready_for_production")} (reaproveitamento parcial: ${rawReuseQty} un. de ${currentItem.quantity}, ${currentItem.quantity - rawReuseQty!} a produzir)`
+            : `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("ready_for_production")} (liberado para produção)`
       );
       
       // Notifica Arte e Gráfica que o item está liberado para produção

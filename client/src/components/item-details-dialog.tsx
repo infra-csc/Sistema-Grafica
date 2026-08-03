@@ -360,12 +360,14 @@ export function ItemDetailsDialog({
   const thumbUrl = item.approvalThumbUrl;
   const isThumbImage = thumbUrl && (isImageUrl(thumbUrl) && !isPdf(thumbUrl));
 
-  // A seção também aparece quando só há observação, sem foto anexada.
-  const hasFlowPhotos    = conferencePhotos.length > 0 || deliveryPhotos.length > 0
-                        || !!item.conferenceNotes || !!item.deliveryNotes;
   // Com uma foto só, ela já está no topo ao lado da arte — repetir aqui embaixo
   // seria a mesma imagem duas vezes no mesmo card.
   const showConferenceStrip = conferencePhotos.length > (thumbUrl ? 1 : 0);
+  // A seção só existe se sobrar algo para mostrar. Sem esta checagem, quando a
+  // única foto subia para o topo o título "Registros da Gráfica" ficava sozinho,
+  // anunciando um bloco vazio.
+  const hasFlowPhotos    = showConferenceStrip || deliveryPhotos.length > 0
+                        || !!item.conferenceNotes || !!item.deliveryNotes;
   const hasObservations  = !!item.observations;
   const hasTimestamps    = !!(item.createdAt || item.sponsorApprovedAt || item.creatorReviewedAt || item.approvedAt || item.productionStartedAt || item.producedAt || item.conferredAt || item.deliveredAt);
 

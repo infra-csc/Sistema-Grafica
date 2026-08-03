@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { FilterSelect } from "@/components/filter-select";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -64,6 +64,12 @@ const filterSel: React.CSSProperties = {
 };
 
 export default function Usuarios() {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 700);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
   const [, navigate] = useLocation();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -162,7 +168,7 @@ export default function Usuarios() {
   const secScore = users.length > 0 ? Math.round((users.filter(u => !u.mustChangePassword).length / users.length) * 100) : 100;
 
   return (
-    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: "28px 32px 64px" }}>
+    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "14px 16px 48px" : "28px 32px 64px" }}>
 
       {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 28, gap: 16, flexWrap: "wrap" }}>

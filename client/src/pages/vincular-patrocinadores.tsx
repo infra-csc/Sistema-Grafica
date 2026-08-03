@@ -157,6 +157,13 @@ const getSponsorColorById = (sponsorId: string, allSponsors: any[]) => {
 const COLLATOR_PTBR = new Intl.Collator('pt-BR');
 
 export default function VincularPatrocinadores() {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 700);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const { toast } = useToast();
@@ -1598,7 +1605,7 @@ export default function VincularPatrocinadores() {
             <span style={{ padding: '2px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', backgroundColor: '#1c1917', color: '#ffffff', textTransform: 'uppercase', opacity: 0.55 }}>Enviado</span>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
+        <div style={{ display: 'flex', gap: 10, flexShrink: 0, flexWrap: 'wrap' }}>
           <button
             data-testid="button-auto-vincular"
             disabled={eventFilter.length !== 1}

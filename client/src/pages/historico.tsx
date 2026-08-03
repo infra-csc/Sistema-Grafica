@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
@@ -248,6 +248,12 @@ function buildDescription(e: TimelineEvent) {
 }
 
 export default function Historico() {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 700);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
   const [, setLocation] = useLocation();
   const [eventFilter, setEventFilter] = useState<string[]>([]);
   const [actionFilter, setActionFilter] = useState<string[]>([]);
@@ -583,7 +589,7 @@ export default function Historico() {
   };
 
   return (
-    <div style={{ backgroundColor: P.bg, height: "100%", overflowY: "auto", padding: "28px 28px 48px" }}>
+    <div style={{ backgroundColor: P.bg, height: "100%", overflowY: "auto", padding: isMobile ? "14px 14px 32px" : "28px 28px 48px" }}>
 
       {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: "flex-start", gap: 20, marginBottom: 32 }}>

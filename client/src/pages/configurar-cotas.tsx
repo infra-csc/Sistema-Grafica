@@ -32,6 +32,12 @@ const DEFAULT_QUOTA_RULES: Record<string, string[]> = {
 type GlobalRule = { quota: string; itemTypes: string[] };
 
 export default function ConfigurarCotas() {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 700);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
   const { toast } = useToast();
   const [matrix, setMatrix] = useState<Record<string, Set<string>>>({});
   const [dirty, setDirty] = useState<Set<string>>(new Set());
@@ -115,7 +121,7 @@ export default function ConfigurarCotas() {
   const COLS = `200px repeat(${QUOTAS.length}, 1fr)`;
 
   return (
-    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: "32px 36px 80px" }}>
+    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "14px 16px 60px" : "32px 36px 80px" }}>
 
       {/* ── Header ── */}
       <div style={{ marginBottom: 28, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
@@ -144,7 +150,7 @@ export default function ConfigurarCotas() {
       </div>
 
       {/* ── Matrix card ── */}
-      <div style={{ backgroundColor: T.surface, borderRadius: 12, border: `1px solid ${T.border}`, overflow: "hidden" }}>
+      <div style={{ backgroundColor: T.surface, borderRadius: 12, border: `1px solid ${T.border}`, overflow: isMobile ? "auto" : "hidden", overflowX: "auto" }}>
 
         {/* ── Sticky header ── */}
         <div style={{

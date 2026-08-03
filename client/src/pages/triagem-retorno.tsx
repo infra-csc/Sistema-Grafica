@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
@@ -236,6 +236,12 @@ function SplitProgress({ splits, total }: { splits: SplitLine[]; total: number }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function TriagemRetorno() {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 700);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
   const { toast } = useToast();
   const { user } = useAuth();
   const [entries, setEntries] = useState<Record<string, TriagemEntry>>({});
@@ -505,10 +511,10 @@ export default function TriagemRetorno() {
   };
 
   return (
-    <div style={{ padding: "32px 36px", background: "#f8fafc", height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", gap: 28 }}>
+    <div style={{ padding: isMobile ? "14px 16px" : "32px 36px", background: "#f8fafc", height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", gap: isMobile ? 16 : 28 }}>
 
       {/* ── Header ── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
           <div style={{ width: 52, height: 52, borderRadius: 14, background: "#c2610c", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 12px 32px rgba(194,97,12,0.30)" }}>
             <ClipboardCheck size={22} color="#fff" strokeWidth={2.2} />

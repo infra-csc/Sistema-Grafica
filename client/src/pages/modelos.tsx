@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Plus, Layers, Search, Check, ChevronsUpDown, Pencil, Trash2, Ruler, Filter, MoreVertical, X, Settings } from "lucide-react";
 import { FilterSelect } from "@/components/filter-select";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -84,6 +84,12 @@ function tipoPillStyle(type: string) {
 }
 
 export default function Modelos() {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 700);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
   const { hasPermission } = useAuth();
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -368,7 +374,7 @@ export default function Modelos() {
   };
 
   return (
-    <div style={{ backgroundColor: "#fafaf9", height: "100%", overflowY: "auto", padding: "24px 28px 20px" }}>
+    <div style={{ backgroundColor: "#fafaf9", height: "100%", overflowY: "auto", padding: isMobile ? "12px 14px 16px" : "24px 28px 20px" }}>
 
       {/* ── Page Header ── */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 32, gap: 16, flexWrap: "wrap" }}>

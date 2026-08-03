@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import {
@@ -110,6 +110,12 @@ const ChartTip = ({ active, payload, label }: any) => {
 };
 
 export default function DashboardAnalises() {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 700);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
   const [, setLocation] = useLocation();
   const [period, setPeriod]       = useState("all");
   const [eventFilter, setEventFilter]   = useState("all");
@@ -237,7 +243,7 @@ export default function DashboardAnalises() {
   }
 
   return (
-    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: "28px 32px 64px" }}>
+    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "14px 16px 48px" : "28px 32px 64px" }}>
 
       {/* ── Header row: title + export buttons ── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
@@ -370,7 +376,7 @@ export default function DashboardAnalises() {
       })()}
 
       {/* ── KPI cards — border-l-4 editorial ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16, marginBottom: 24 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(5, 1fr)", gap: 16, marginBottom: 24 }}>
         {KPI.map((card, i) => (
           <div key={card.label} style={{
             backgroundColor: T.surface,
@@ -404,7 +410,7 @@ export default function DashboardAnalises() {
       </div>
 
       {/* ── Row 1: Area chart + Dark donut ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "2fr 1fr", gap: 16, marginBottom: 16 }}>
 
         {/* Velocidade de Produção vs Entregas */}
         <div style={{ backgroundColor: T.surface, border: `1px solid ${T.bdark}`, padding: "32px 28px 24px" }}>
@@ -497,7 +503,7 @@ export default function DashboardAnalises() {
       </div>
 
       {/* ── Row 2: Efficiency table + Status board ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
 
         {/* Eficiência por Categoria */}
         <div style={{ backgroundColor: T.surface, border: `1px solid ${T.bdark}`, overflow: "hidden" }}>

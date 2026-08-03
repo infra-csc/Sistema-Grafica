@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -52,6 +52,12 @@ const sponsorSchema = z.object({
 type SponsorForm = z.infer<typeof sponsorSchema>;
 
 export default function Patrocinadores() {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 700);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
   const [modalOpen, setModalOpen]             = useState(false);
   const [editingSponsor, setEditingSponsor]   = useState<Sponsor | null>(null);
   const [deletingSponsor, setDeletingSponsor] = useState<Sponsor | null>(null);
@@ -194,7 +200,7 @@ export default function Patrocinadores() {
   };
 
   return (
-    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: "36px 40px 80px" }}>
+    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "16px 16px 60px" : "36px 40px 80px" }}>
 
       {/* ── Page Header ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 36 }}>
@@ -483,7 +489,7 @@ export default function Patrocinadores() {
           style={{ position: "fixed", inset: 0, backgroundColor: "rgba(28,25,23,0.6)", backdropFilter: "blur(5px)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, overflowY: "auto" }}
           onClick={e => { if (e.target === e.currentTarget && window.confirm("Descartar as alterações deste formulário?")) closeModal(); }}
         >
-          <div style={{ backgroundColor: T.surface, width: "100%", maxWidth: 640, borderRadius: 12, overflow: "hidden", boxShadow: "0 32px 80px -16px rgba(0,0,0,0.35)", display: "flex", flexDirection: "column", maxHeight: "90vh", margin: "auto" }}>
+          <div style={{ backgroundColor: T.surface, width: "100%", maxWidth: isMobile ? "95vw" : 640, borderRadius: 12, overflow: "hidden", boxShadow: "0 32px 80px -16px rgba(0,0,0,0.35)", display: "flex", flexDirection: "column", maxHeight: "90vh", margin: "auto" }}>
 
             {/* Header */}
             <div style={{ padding: "28px 32px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexShrink: 0 }}>

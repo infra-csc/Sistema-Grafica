@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { parseDateLocal } from "@/lib/utils";
 import { ChevronLeft, ChevronRight, AlertTriangle, Calendar, Truck, Search, BarChart2, Flag } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useLocation } from "wouter";
 import {
   Dialog,
@@ -72,6 +72,12 @@ const MONTH_NAMES = [
 ];
 
 export default function Calendario() {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 700);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [, setLocation] = useLocation();
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -162,7 +168,7 @@ export default function Calendario() {
   }
 
   return (
-    <div style={{ backgroundColor: P.bg, height: "100%", overflowY: "auto", padding: "28px 28px 48px" }}>
+    <div style={{ backgroundColor: P.bg, height: "100%", overflowY: "auto", padding: isMobile ? "14px 14px 32px" : "28px 28px 48px" }}>
 
       {/* ── Header ── */}
       <div style={{ marginBottom: 28, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
@@ -474,7 +480,7 @@ export default function Calendario() {
       </div>
 
       {/* ── Secondary grid: Próximos Eventos + Resumo do Mês ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr minmax(220px, 300px)", gap: 20, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr minmax(220px, 300px)", gap: 20, alignItems: "start" }}>
 
         {/* Próximos Eventos */}
         <div style={{ backgroundColor: "#f0efee", borderRadius: 14, padding: 24, position: "relative", overflow: "hidden" }}>

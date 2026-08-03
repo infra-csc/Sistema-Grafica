@@ -29,6 +29,13 @@ type Period = typeof PERIODS[number];
 const PERIOD_DAYS: Record<string, number> = { "Hoje": 0, "7 dias": 7, "15 dias": 15, "30 dias": 30 };
 
 export default function Registros() {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 700);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+
   const { data: photos = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/photos"] });
 
   const [kindFilter, setKindFilter]   = useState<string[]>([]);
@@ -128,7 +135,7 @@ export default function Registros() {
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", backgroundColor: T.bg }}>
       {/* ── Cabeçalho ── */}
-      <div style={{ flexShrink: 0, backgroundColor: "#ffffff", borderBottom: `1px solid ${T.border}`, padding: "20px 32px 0" }}>
+      <div style={{ flexShrink: 0, backgroundColor: "#ffffff", borderBottom: `1px solid ${T.border}`, padding: isMobile ? "14px 16px 0" : "20px 32px 0" }}>
         <div style={{ maxWidth: 1600, margin: "0 auto" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
             <div style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: T.accent, display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -218,7 +225,7 @@ export default function Registros() {
       </div>
 
       {/* ── Galeria ── */}
-      <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px", maxWidth: 1600, margin: "0 auto", width: "100%" }}>
+      <div style={{ flex: 1, overflowY: "auto", padding: isMobile ? "16px" : "24px 32px", maxWidth: 1600, margin: "0 auto", width: "100%" }}>
         {isLoading ? (
           <div style={{ display: "flex", justifyContent: "center", padding: "48px 0" }}>
             <div style={{ width: 32, height: 32, borderRadius: "50%", border: `3px solid ${T.border}`, borderTopColor: T.accent, animation: "spin 0.8s linear infinite" }} />

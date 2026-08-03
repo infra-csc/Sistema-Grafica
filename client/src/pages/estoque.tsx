@@ -906,6 +906,13 @@ function AssetModal({ asset, onClose, onSaved }: {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Estoque() {
+  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 700);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
@@ -1055,10 +1062,10 @@ export default function Estoque() {
   };
 
   return (
-    <div style={{ padding: "32px 36px", background: "#f8fafc", height: "100%", overflowY: "auto" }}>
+    <div style={{ padding: isMobile ? "14px 16px" : "32px 36px", background: "#f8fafc", height: "100%", overflowY: "auto" }}>
 
       {/* ── Header ── */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 32 }}>
+      <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", flexWrap: "wrap", gap: isMobile ? 12 : 0, marginBottom: isMobile ? 20 : 32 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
           <div style={{ width: 52, height: 52, borderRadius: 14, background: "#c2610c", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 12px 32px rgba(194,97,12,0.30)" }}>
             <Archive size={22} color="#fff" strokeWidth={2.2} />
@@ -1085,7 +1092,7 @@ export default function Estoque() {
       </div>
 
       {/* ── Stat cards ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 16, marginBottom: 28 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(5, 1fr)", gap: 16, marginBottom: 28 }}>
         <StatCard
           label="Total Acervo" value={total} Icon={Package} color="#2563eb"
           subtext="Ativos cadastrados"

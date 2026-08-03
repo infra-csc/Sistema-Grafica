@@ -1431,7 +1431,7 @@ export default function Arte() {
                         );
                       });
                     })()}
-                    <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.18)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 99, padding: '2px 9px', fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.92)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
                       {group.items.length} {group.items.length === 1 ? 'Item' : 'Itens'}
                     </span>
                   </div>
@@ -1617,8 +1617,8 @@ export default function Arte() {
                               )}
                             </div>
                             <div style={{ display: 'flex', gap: 8, marginTop: 3, paddingLeft: 2 }}>
-                              <span style={{ fontSize: 8.5, color: '#a8a29e', width: 26, textAlign: 'center' }}>thumb</span>
-                              <span style={{ fontSize: 8.5, color: '#a8a29e', width: 26, textAlign: 'center' }}>final</span>
+                              <span style={{ fontSize: 9.5, color: '#a8a29e', width: 26, textAlign: 'center' }}>thumb</span>
+                              <span style={{ fontSize: 9.5, color: '#a8a29e', width: 26, textAlign: 'center' }}>final</span>
                             </div>
                           </td>
                           {/* Patrocinadores (todas as abas) */}
@@ -1871,11 +1871,21 @@ export default function Arte() {
                         <div style={{ background: '#fff1f1', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6, borderBottom: approval.rejectionReason ? '1px solid #fecaca' : 'none' }}>
                           {approval.sponsor?.color && <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />}
                           <span style={{ fontSize: 12, fontWeight: 700, color: '#991b1b', flex: 1 }}>{approval.sponsor?.name || 'Patrocinador'}</span>
-                          {approval.rejectedAt && (
-                            <span style={{ fontSize: 10, color: '#b45309', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>
-                              {new Date(approval.rejectedAt).toLocaleDateString('pt-BR')}
-                            </span>
-                          )}
+                          {/* Log: quem + quando */}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
+                            {approval.rejectedBy && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: '#6b7280', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 4, padding: '1px 6px' }}>
+                                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                                {approval.rejectedBy}
+                              </span>
+                            )}
+                            {approval.rejectedAt && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: '#b45309', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 4, padding: '1px 6px' }}>
+                                <Clock style={{ width: 9, height: 9, flexShrink: 0 }} />
+                                {new Date(approval.rejectedAt).toLocaleDateString('pt-BR')} {new Date(approval.rejectedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         {/* Reason */}
                         {approval.rejectionReason && (
@@ -1976,8 +1986,8 @@ export default function Arte() {
                     Módulo Arte
                   </h1>
                   {(pendingCount + correcaoCount + needsFinalFileCount) > 0 ? (
-                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 99, backgroundColor: '#fef3c7', border: '1px solid #fde68a', fontSize: 11, fontWeight: 700, color: '#92400e' }}>
-                      <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#f59e0b', display: 'inline-block' }} />
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 99, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', fontSize: 11, fontWeight: 700, color: '#c2410c' }}>
+                      <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#f97316', display: 'inline-block' }} />
                       {pendingCount + correcaoCount + needsFinalFileCount} em andamento
                     </span>
                   ) : (
@@ -1991,30 +2001,32 @@ export default function Arte() {
                 </p>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+              {/* divider */}
+              <div style={{ width: 1, height: 20, background: '#e7e5e4', margin: '0 2px' }} />
               <button
                 onClick={handleClickExportButton}
                 data-testid="button-export-pdf"
-                style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 12px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'border-color 0.12s' }}
               >
-                <Printer style={{ width: 12, height: 12 }} />
+                <Printer style={{ width: 12, height: 12, color: '#78716c' }} />
                 {selectedItemIds.size > 0 ? `Exportar ${selectedItemIds.size} sel.` : 'Exportar PDF'}
               </button>
               <button
                 onClick={openBookModal}
                 data-testid="button-upload-book"
                 title="Subir o PDF do book (layout pronto) e escolher as peças"
-                style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 12px', borderRadius: 8, border: '1px solid #ddd6fe', background: '#f5f3ff', color: '#6d28d9', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'border-color 0.12s' }}
               >
-                <FileText style={{ width: 12, height: 12 }} />
+                <FileText style={{ width: 12, height: 12, color: '#7c3aed' }} />
                 Subir book
               </button>
               {activeTab === "criar-aprovacoes" && (
                 <label
                   data-testid="button-open-bulk-thumb"
-                  style={{ height: 34, padding: '0 12px', borderRadius: 8, border: '1px solid #bbf7d0', background: '#f0fdf4', color: '#15803d', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}
+                  style={{ height: 32, padding: '0 12px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap', transition: 'border-color 0.12s' }}
                 >
-                  <FileImage style={{ width: 12, height: 12 }} />
+                  <FileImage style={{ width: 12, height: 12, color: '#16a34a' }} />
                   Multi-Upload Thumbs
                   <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => { if (e.target.files) handleBulkThumbFilesAdded(e.target.files); e.target.value = ''; }} />
                 </label>
@@ -2024,9 +2036,9 @@ export default function Arte() {
                   onClick={() => setShowBulkDialog(true)}
                   disabled={selectedItemIds.size === 0}
                   data-testid="button-open-bulk-upload"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 12px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: selectedItemIds.size > 0 ? '#44403c' : '#a8a29e', fontSize: 12, fontWeight: 600, cursor: selectedItemIds.size > 0 ? 'pointer' : 'not-allowed' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 32, padding: '0 12px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: selectedItemIds.size > 0 ? '#44403c' : '#c4bfbb', fontSize: 12, fontWeight: 600, cursor: selectedItemIds.size > 0 ? 'pointer' : 'not-allowed', transition: 'border-color 0.12s', opacity: selectedItemIds.size > 0 ? 1 : 0.6 }}
                 >
-                  <Upload style={{ width: 12, height: 12 }} />
+                  <Upload style={{ width: 12, height: 12, color: selectedItemIds.size > 0 ? '#2563eb' : '#c4bfbb' }} />
                   {selectedItemIds.size > 0 ? `PDF Compartilhado (${selectedItemIds.size})` : 'PDF Compartilhado'}
                 </button>
               )}
@@ -2046,30 +2058,31 @@ export default function Arte() {
                   key={stat.testId}
                   onClick={() => targetTab && changeTab(targetTab)}
                   data-testid={stat.testId}
+                  onMouseEnter={e => { if (targetTab && !isActiveCard) { (e.currentTarget as HTMLElement).style.background = `${stat.accentColor}0d`; (e.currentTarget as HTMLElement).style.borderColor = `${stat.accentColor}40`; } }}
+                  onMouseLeave={e => { if (targetTab && !isActiveCard) { (e.currentTarget as HTMLElement).style.background = '#fafaf9'; (e.currentTarget as HTMLElement).style.borderColor = '#e7e5e4'; } }}
                   style={{
                     flex: 1, padding: '14px 16px 12px', borderRadius: 12,
                     background: isActiveCard ? `${stat.accentColor}08` : '#fafaf9',
                     border: `1px solid ${isActiveCard ? `${stat.accentColor}30` : '#e7e5e4'}`,
                     cursor: targetTab ? 'pointer' : 'default',
                     display: 'flex', flexDirection: 'column', gap: 6,
-                    boxShadow: isActiveCard ? `inset 0 0 0 0 transparent` : 'none',
-                    transition: 'all 0.15s',
+                    boxShadow: 'none',
+                    transition: 'background 0.12s, border-color 0.12s',
                     position: 'relative', overflow: 'hidden',
                   }}
                 >
-                  {isActiveCard && (
-                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: stat.accentColor, borderRadius: '12px 12px 0 0' }} />
-                  )}
+                  {/* top accent — always visible, brighter when tab is active */}
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: stat.accentColor, opacity: isActiveCard ? 1 : stat.value > 0 ? 0.45 : 0.18, borderRadius: '12px 12px 0 0' }} />
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: isActiveCard ? stat.accentColor : '#78716c', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{stat.label}</span>
-                    <span style={{ width: 26, height: 26, borderRadius: 7, backgroundColor: isActiveCard ? `${stat.accentColor}18` : stat.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Icon style={{ width: 13, height: 13, color: stat.accentColor }} />
+                    <span style={{ fontSize: 10, fontWeight: 700, color: isActiveCard ? stat.accentColor : stat.value > 0 ? '#44403c' : '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{stat.label}</span>
+                    <span style={{ width: 26, height: 26, borderRadius: 7, backgroundColor: stat.value > 0 ? `${stat.accentColor}18` : stat.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Icon style={{ width: 13, height: 13, color: stat.value > 0 ? stat.accentColor : '#c4bfbb' }} />
                     </span>
                   </div>
-                  <span style={{ fontSize: 34, fontWeight: 800, color: isActiveCard ? stat.accentColor : '#1c1917', letterSpacing: '-0.05em', lineHeight: 1, fontFamily: '"Space Grotesk",sans-serif' }}>
+                  <span style={{ fontSize: 34, fontWeight: 800, color: isActiveCard ? stat.accentColor : stat.value > 0 ? '#1c1917' : '#b8b4b0', letterSpacing: '-0.05em', lineHeight: 1, fontFamily: '"Space Grotesk",sans-serif' }}>
                     {stat.value}
                   </span>
-                  <div style={{ fontSize: 10, color: '#a8a29e' }}>{stat.sub}</div>
+                  <div style={{ fontSize: 10, color: stat.value > 0 ? '#78716c' : '#b8b4b0' }}>{stat.sub}</div>
                   <div style={{ height: 3, borderRadius: 2, backgroundColor: '#e7e5e4', overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: `${pct}%`, backgroundColor: stat.accentColor, borderRadius: 2 }} />
                   </div>
@@ -2134,15 +2147,15 @@ export default function Arte() {
             <button
               onClick={() => setNext10DaysFilter(!next10DaysFilter)}
               data-testid="button-next-10-days-filter"
-              style={{ display: 'flex', alignItems: 'center', gap: 5, height: 34, padding: '0 11px', borderRadius: 8, border: next10DaysFilter ? '1px solid #f59e0b' : '1px solid #fde68a', background: next10DaysFilter ? '#fef3c7' : '#fffbeb', color: next10DaysFilter ? '#92400e' : '#b45309', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 5, height: 34, padding: '0 11px', borderRadius: 99, border: next10DaysFilter ? 'none' : '1px solid #d6d3d1', background: next10DaysFilter ? '#1c1917' : 'transparent', color: next10DaysFilter ? '#ffffff' : '#57534e', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s' }}
             >
               <Truck style={{ width: 12, height: 12 }} /> Saída 10 dias
             </button>
           </div>
 
           {/* ── Filter Row 2: boolean toggles ── */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 9, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.10em', marginRight: 2 }}>Mostrar:</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap', borderTop: '1px solid #f0efee', paddingTop: 8 }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', marginRight: 2 }}>Mostrar:</span>
             {([
               { key: 'urgente', label: 'Urgente', value: urgenteFilter, set: setUrgenteFilter, color: '#dc2626', bg: '#fef2f2', border: '#fca5a5' },
               { key: 'semThumb', label: 'Sem thumb', value: semThumb, set: setSemThumb, color: '#b45309', bg: '#fffbeb', border: '#fcd34d' },
@@ -2151,7 +2164,7 @@ export default function Arte() {
               { key: 'comFinal', label: 'Com arq. final', value: comFinal, set: setComFinal, color: '#15803d', bg: '#f0fdf4', border: '#86efac' },
             ] as { key: string; label: string; value: boolean; set: (v: boolean) => void; color: string; bg: string; border: string }[]).map(({ key, label, value, set, color, bg, border }) => (
               <button key={key} onClick={() => set(!value)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 26, padding: '0 10px', borderRadius: 99, cursor: 'pointer', fontSize: 11, fontWeight: 600, transition: 'all 0.14s', border: value ? `1px solid ${border}` : '1px solid #e7e5e4', background: value ? bg : '#ffffff', color: value ? color : '#78716c' }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 26, padding: '0 10px', borderRadius: 99, cursor: 'pointer', fontSize: 11, fontWeight: 600, transition: 'all 0.14s', border: value ? `1px solid ${border}` : '1px solid transparent', background: value ? bg : '#ede9e4', color: value ? color : '#78716c' }}
               >
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: value ? color : '#d6d3d1', flexShrink: 0 }} />
                 {label}

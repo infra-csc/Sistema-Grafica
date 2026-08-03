@@ -23,6 +23,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Calendar as CalendarUI } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ptBR } from "date-fns/locale";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -72,7 +75,7 @@ function EventCardActions({
 }) {
   return (
     <div
-      className="opacity-40 group-hover:opacity-100 focus-within:opacity-100"
+      className="opacity-0 group-hover:opacity-100 focus-within:opacity-100"
       style={{ position: 'absolute', top: 0, right: 0, padding: '16px', display: 'flex', gap: '6px', transition: 'opacity 0.2s', zIndex: 10 }}
       onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
     >
@@ -133,6 +136,9 @@ export default function Eventos() {
   const [selectedEventForPriority, setSelectedEventForPriority] = useState<any>(null);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const [openStartDate, setOpenStartDate] = useState(false);
+  const [openTruckDate, setOpenTruckDate] = useState(false);
+  const [openPrazoKey, setOpenPrazoKey] = useState<string | null>(null);
 
   const { data: events = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/events"],
@@ -292,6 +298,10 @@ export default function Eventos() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formData.startDate || !formData.truckDepartureDate) {
+      toast({ title: "Datas obrigatórias", description: "Preencha a data de início e a saída do caminhão.", variant: "destructive" });
+      return;
+    }
     
     // Validação: Saída do caminhão deve ser pelo menos 1 dia ANTES do início do evento
     // Comparar apenas as datas do calendário (YYYY-MM-DD) sem timezone
@@ -552,60 +562,54 @@ export default function Eventos() {
     completed:     { label: 'Concluído',     hex: '#10b981', count: events.filter(e => getEventPriority(e) === 'completed').length },
   };
 
+  // ── Date picker helpers ────────────────────────────────────────────────
+  const parseDateStr = (s: string): Date | undefined => {
+    if (!s) return undefined;
+    const [y, m, d] = s.split('-').map(Number);
+    if (!y || !m || !d) return undefined;
+    return new Date(y, m - 1, d);
+  };
+  const toDateStr = (d: Date): string =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const fmtDateBR = (s: string): string => {
+    if (!s) return '';
+    const p = s.split('-');
+    return `${p[2]}/${p[1]}/${p[0]}`;
+  };
+
   return (
-    <div style={{ backgroundColor: '#fafaf9', height: '100%', overflowY: 'auto', padding: '32px', display: 'flex', flexDirection: 'column', gap: '28px' }}>
+    <div style={{ backgroundColor: '#fafaf9', height: '100%', overflowY: 'auto', padding: '32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
 
       {/* ── HEADER ── */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-        <div>
-          <h1
-            data-testid="title-eventos"
-            style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.03em', fontSize: '40px', fontWeight: '700', color: '#1c1917', margin: 0, lineHeight: 1.1 }}
-          >
-            Eventos
-          </h1>
-          <p style={{ color: '#78716c', fontSize: '14px', margin: '6px 0 0 0', fontWeight: '500' }}>
-            Gerencie todos os eventos de produção gráfica
-          </p>
-        </div>
+      <div>
+        <h1
+          data-testid="title-eventos"
+          style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.03em', fontSize: '40px', fontWeight: '700', color: '#1c1917', margin: 0, lineHeight: 1.1 }}
+        >
+          Eventos
+        </h1>
+        <p style={{ color: '#78716c', fontSize: '14px', margin: '6px 0 0 0', fontWeight: '500' }}>
+          Gerencie todos os eventos de produção gráfica
+        </p>
 
-        <div className="flex items-center gap-3">
-          {/* Busca */}
-          <div className="relative">
-            <Search style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#a8a29e', width: '14px', height: '14px' }} />
-            <Input
-              placeholder="Buscar eventos..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              style={{ paddingLeft: '36px', width: '220px', borderColor: '#e7e5e4', borderRadius: '99px', backgroundColor: '#ffffff', fontSize: '13px' }}
-              data-testid="input-search-events"
-            />
-          </div>
-
-          {/* Botão Novo Evento */}
-          <Button
-            data-testid="button-create-event"
-            onClick={() => { setEditingEvent(null); setOpen(true); }}
-            style={{ backgroundColor: '#f97316', color: '#ffffff', borderRadius: '10px', fontWeight: '700', fontSize: '14px', padding: '0 20px', height: '40px', gap: '8px', boxShadow: '0 4px 14px rgba(249,115,22,0.25)' }}
-          >
-            <Plus className="h-4 w-4" />
-            Novo Evento
-          </Button>
-
-          {/* ── MODAL CRIAR / EDITAR (Dialog 100% controlado, sem DialogTrigger) ── */}
-          <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleCloseDialog(); else setOpen(isOpen); }}>
+        {/* ── MODAL CRIAR / EDITAR (Dialog 100% controlado, sem DialogTrigger) ── */}
+          <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleCloseDialog(); else setOpen(true); }}>
             {/* ── MODAL CRIAR / EDITAR ── */}
             <DialogContent className="sm:max-w-[720px] p-0 gap-0" style={{ borderRadius: '16px', overflow: 'visible', boxShadow: '0 24px 48px -12px rgba(26,28,28,0.22)', maxHeight: 'calc(100dvh - 48px)', display: 'flex', flexDirection: 'column' }}
               onInteractOutside={e => e.preventDefault()}
               onEscapeKeyDown={e => e.preventDefault()}>{/* evita descartar o formulário (nome, datas, prazos, patrocinadores) por clique fora/Esc acidental — usar Cancelar/Salvar */}
               {/* Cabeçalho */}
-              <div style={{ padding: '24px', borderBottom: '1px solid rgba(224,192,177,0.2)', backgroundColor: '#fafaf9', borderRadius: '16px 16px 0 0' }}>
-                <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '18px', fontWeight: '700', color: '#1c1917', margin: 0, textTransform: 'uppercase', letterSpacing: '-0.02em', lineHeight: 1 }}>
-                  {editingEvent ? "Editar Evento" : "Criar Novo Evento"}
-                </DialogTitle>
-                <DialogDescription style={{ color: '#78716c', fontSize: '14px', margin: '4px 0 0 0', fontWeight: '400' }}>
-                  {editingEvent ? "Atualize as informações do evento." : "Preencha os detalhes do evento."}
-                </DialogDescription>
+              <div style={{ borderRadius: '16px 16px 0 0', overflow: 'hidden' }}>
+                {/* Faixa laranja */}
+                <div style={{ height: '4px', background: 'linear-gradient(90deg, #f97316 0%, #fb923c 100%)' }} />
+                <div style={{ padding: '20px 24px 18px', borderBottom: '1px solid #d4cfc9', backgroundColor: '#f9f8f7' }}>
+                  <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '17px', fontWeight: '700', color: '#1c1917', margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1 }}>
+                    {editingEvent ? "Editar Evento" : "Criar Novo Evento"}
+                  </DialogTitle>
+                  <DialogDescription style={{ color: '#78716c', fontSize: '13px', margin: '4px 0 0 0', fontWeight: '400' }}>
+                    {editingEvent ? "Atualize as informações do evento." : "Preencha os detalhes do evento."}
+                  </DialogDescription>
+                </div>
               </div>
 
               <form onSubmit={handleSubmit} style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0, overflow: 'hidden' }}>
@@ -635,36 +639,95 @@ export default function Eventos() {
                       <label style={{ fontSize: '10px', fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                         Data Início
                       </label>
-                      <input
-                        id="startDate"
-                        type="date"
-                        value={formData.startDate}
-                        onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
-                        required
-                        data-testid="input-start-date"
-                        style={{ width: '100%', backgroundColor: '#e8e8e7', border: 'none', borderRadius: '6px', padding: '12px 16px', fontSize: '13px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', transition: 'box-shadow 0.15s, background-color 0.15s' }}
-                        onFocus={e => { e.currentTarget.style.boxShadow = '0 0 0 2px rgba(253,118,26,0.25)'; e.currentTarget.style.backgroundColor = '#ffffff'; }}
-                        onBlur={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.backgroundColor = '#e8e8e7'; }}
-                      />
+                      <Popover open={openStartDate} onOpenChange={setOpenStartDate}>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            data-testid="input-start-date"
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 40, backgroundColor: openStartDate ? '#ffffff' : '#e8e8e7', border: openStartDate ? '1px solid #f97316' : '1px solid transparent', borderRadius: '8px', padding: '0 12px', fontSize: '13px', color: formData.startDate ? '#1a1c1c' : '#a8a29e', fontFamily: "'Plus Jakarta Sans', sans-serif", cursor: 'pointer', textAlign: 'left' as const, boxShadow: openStartDate ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s' }}
+                          >
+                            <Calendar style={{ width: 14, height: 14, color: '#a8a29e', flexShrink: 0 }} />
+                            {formData.startDate ? fmtDateBR(formData.startDate) : <span style={{ color: '#a8a29e' }}>Selecionar data</span>}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start" style={{ zIndex: 9999 }}>
+                          <CalendarUI
+                            mode="single"
+                            selected={parseDateStr(formData.startDate)}
+                            onSelect={date => { if (date) { setFormData({ ...formData, startDate: toDateStr(date) }); setOpenStartDate(false); } }}
+                            locale={ptBR}
+                            classNames={{ day_selected: 'bg-[#f97316] text-white hover:bg-[#ea580c] hover:text-white focus:bg-[#f97316] focus:text-white', day_today: 'bg-orange-50 font-semibold' }}
+                          />
+                        </PopoverContent>
+                      </Popover>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <label style={{ fontSize: '10px', fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                         Saída Caminhão
                       </label>
-                      <input
-                        id="truckDepartureDate"
-                        type="datetime-local"
-                        value={formData.truckDepartureDate}
-                        onChange={(e) => {
-                          setFormData({ ...formData, truckDepartureDate: e.target.value });
-                          if (e.target.value) setPrazosExpanded(true);
-                        }}
-                        required
-                        data-testid="input-truck-date"
-                        style={{ width: '100%', backgroundColor: '#e8e8e7', border: 'none', borderRadius: '6px', padding: '12px 16px', fontSize: '13px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', transition: 'box-shadow 0.15s, background-color 0.15s' }}
-                        onFocus={e => { e.currentTarget.style.boxShadow = '0 0 0 2px rgba(253,118,26,0.25)'; e.currentTarget.style.backgroundColor = '#ffffff'; }}
-                        onBlur={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.backgroundColor = '#e8e8e7'; }}
-                      />
+                      <Popover open={openTruckDate} onOpenChange={setOpenTruckDate}>
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            data-testid="input-truck-date"
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 40, backgroundColor: openTruckDate ? '#ffffff' : '#e8e8e7', border: openTruckDate ? '1px solid #f97316' : '1px solid transparent', borderRadius: '8px', padding: '0 12px', fontSize: '13px', color: formData.truckDepartureDate ? '#1a1c1c' : '#a8a29e', fontFamily: "'Plus Jakarta Sans', sans-serif", cursor: 'pointer', textAlign: 'left' as const, boxShadow: openTruckDate ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s' }}
+                          >
+                            <Truck style={{ width: 14, height: 14, color: '#a8a29e', flexShrink: 0 }} />
+                            {formData.truckDepartureDate
+                              ? `${fmtDateBR(formData.truckDepartureDate.slice(0, 10))} às ${formData.truckDepartureDate.slice(11, 16)}`
+                              : <span style={{ color: '#a8a29e' }}>Selecionar data e hora</span>}
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start" style={{ zIndex: 9999 }}>
+                          <CalendarUI
+                            mode="single"
+                            selected={parseDateStr(formData.truckDepartureDate?.slice(0, 10) || '')}
+                            onSelect={date => {
+                              if (date) {
+                                const timePart = formData.truckDepartureDate?.slice(11, 16) || '08:00';
+                                setFormData({ ...formData, truckDepartureDate: toDateStr(date) + 'T' + timePart });
+                                setPrazosExpanded(true);
+                              }
+                            }}
+                            locale={ptBR}
+                            classNames={{ day_selected: 'bg-[#f97316] text-white hover:bg-[#ea580c] hover:text-white focus:bg-[#f97316] focus:text-white', day_today: 'bg-orange-50 font-semibold' }}
+                          />
+                          <div style={{ borderTop: '1px solid #f0efee', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <Clock style={{ width: 12, height: 12, color: '#a8a29e', flexShrink: 0 }} />
+                            <span style={{ fontSize: 11, color: '#78716c', fontWeight: 600, flexShrink: 0 }}>Horário:</span>
+                            <input
+                              type="number" min={0} max={23}
+                              value={parseInt(formData.truckDepartureDate?.slice(11, 13) || '8', 10)}
+                              onChange={e => {
+                                const h = String(Math.max(0, Math.min(23, Number(e.target.value)))).padStart(2, '0');
+                                const datePart = formData.truckDepartureDate?.slice(0, 10) || '';
+                                const mi = formData.truckDepartureDate?.slice(14, 16) || '00';
+                                if (datePart) setFormData({ ...formData, truckDepartureDate: `${datePart}T${h}:${mi}` });
+                              }}
+                              style={{ width: 48, height: 30, textAlign: 'center', border: '1px solid #e7e5e4', borderRadius: 6, fontSize: 13, fontWeight: 700, outline: 'none', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                            />
+                            <span style={{ color: '#78716c', fontWeight: 700, fontSize: 16, lineHeight: '1' }}>:</span>
+                            <input
+                              type="number" min={0} max={59} step={5}
+                              value={parseInt(formData.truckDepartureDate?.slice(14, 16) || '0', 10)}
+                              onChange={e => {
+                                const mi = String(Math.max(0, Math.min(59, Number(e.target.value)))).padStart(2, '0');
+                                const datePart = formData.truckDepartureDate?.slice(0, 10) || '';
+                                const h = formData.truckDepartureDate?.slice(11, 13) || '08';
+                                if (datePart) setFormData({ ...formData, truckDepartureDate: `${datePart}T${h}:${mi}` });
+                              }}
+                              style={{ width: 48, height: 30, textAlign: 'center', border: '1px solid #e7e5e4', borderRadius: 6, fontSize: 13, fontWeight: 700, outline: 'none', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setOpenTruckDate(false)}
+                              style={{ marginLeft: 'auto', height: 30, padding: '0 14px', borderRadius: 6, border: 'none', background: '#f97316', color: '#ffffff', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                            >
+                              Ok
+                            </button>
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                       {(() => {
                         const s = formData.startDate;
                         const t = formData.truckDepartureDate?.substring(0, 10);
@@ -766,41 +829,49 @@ export default function Eventos() {
 
                                   {/* Quota select — only when selected */}
                                   {isSelected && (
-                                    <select
-                                      value={currentQuota}
-                                      onClick={e => e.stopPropagation()}
-                                      onChange={e => {
-                                        const v = e.target.value;
+                                    <div style={{ flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                                    <Select
+                                      value={currentQuota || '_none_'}
+                                      onValueChange={v => {
+                                        const val = v === '_none_' ? '' : v;
                                         setSponsorQuotaMap(prev => {
                                           const n = { ...prev };
-                                          if (v) n[sponsor.id] = v; else delete n[sponsor.id];
+                                          if (val) n[sponsor.id] = val; else delete n[sponsor.id];
                                           return n;
                                         });
                                       }}
-                                      data-testid={`quota-select-${sponsor.id}`}
-                                      style={{
-                                        fontSize: 11,
-                                        fontWeight: 700,
-                                        letterSpacing: '0.05em',
-                                        textTransform: 'uppercase',
-                                        borderRadius: 6,
-                                        border: `1.5px solid ${quotaOpt ? quotaOpt.color : '#d8d5d2'}`,
-                                        backgroundColor: quotaOpt ? quotaOpt.color + '15' : '#f5f4f2',
-                                        color: quotaOpt ? quotaOpt.color : '#78716c',
-                                        padding: '4px 8px',
-                                        cursor: 'pointer',
-                                        outline: 'none',
-                                        flexShrink: 0,
-                                        minWidth: 90,
-                                      }}
                                     >
-                                      <option value="">Sem cota</option>
-                                      {QUOTA_OPTIONS.map(q => (
-                                        <option key={q.value} value={q.value} data-testid={`quota-${sponsor.id}-${q.value}`}>
-                                          {q.label}
-                                        </option>
-                                      ))}
-                                    </select>
+                                      <SelectTrigger
+                                        data-testid={`quota-select-${sponsor.id}`}
+                                        className="w-auto"
+                                        style={{
+                                          fontSize: '11px',
+                                          fontWeight: 700,
+                                          letterSpacing: '0.05em',
+                                          textTransform: 'uppercase',
+                                          borderRadius: '99px',
+                                          border: `1.5px solid ${quotaOpt ? quotaOpt.color : '#d8d5d2'}`,
+                                          backgroundColor: quotaOpt ? quotaOpt.color + '18' : '#f0efee',
+                                          color: quotaOpt ? quotaOpt.color : '#78716c',
+                                          height: '28px',
+                                          padding: '0 8px 0 10px',
+                                          minWidth: '96px',
+                                          fontFamily: "'Plus Jakarta Sans', sans-serif",
+                                          boxShadow: 'none',
+                                        }}
+                                      >
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="_none_">Sem cota</SelectItem>
+                                        {QUOTA_OPTIONS.map(q => (
+                                          <SelectItem key={q.value} value={q.value} data-testid={`quota-${sponsor.id}-${q.value}`}>
+                                            {q.label}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    </div>
                                   )}
 
                                   {/* Checkbox */}
@@ -817,7 +888,7 @@ export default function Eventos() {
                                     }}
                                     onClick={e => e.stopPropagation()}
                                     data-testid={`checkbox-sponsor-${sponsor.id}`}
-                                    className="border-[#c4bfbb] bg-white data-[state=checked]:bg-[#fd761a] data-[state=checked]:border-[#fd761a] rounded-sm flex-shrink-0"
+                                    className="border-[#d4cfc9] bg-[#f0efee] data-[state=checked]:bg-[#fd761a] data-[state=checked]:border-[#fd761a] rounded-[4px] flex-shrink-0 h-[18px] w-[18px]"
                                   />
                                 </div>
                               );
@@ -908,20 +979,37 @@ export default function Eventos() {
                                     </div>
                                   </div>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
-                                    <input
-                                      type="date"
-                                      disabled={noStart}
-                                      max={truckDateOnly || undefined}
-                                      value={dateVal}
-                                      onChange={(e) => {
-                                        const offset = dateStrToOffset(e.target.value);
-                                        setFormData({ ...formData, [key]: offset });
-                                      }}
-                                      data-testid={`input-${key}`}
-                                      style={{ backgroundColor: noStart ? '#e8e7e6' : '#ffffff', border: '1px solid #d4d0cc', borderRadius: '6px', padding: '6px 10px', fontSize: '12px', fontWeight: '600', color: noStart ? '#a8a29e' : '#1a1c1c', outline: 'none', cursor: noStart ? 'not-allowed' : 'pointer', transition: 'box-shadow 0.15s, border-color 0.15s' }}
-                                      onFocus={e => { if (!noStart) { e.currentTarget.style.boxShadow = '0 0 0 2px rgba(253,118,26,0.25)'; e.currentTarget.style.borderColor = '#f97316'; } }}
-                                      onBlur={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
-                                    />
+                                    <Popover open={openPrazoKey === key} onOpenChange={o => setOpenPrazoKey(o ? key : null)}>
+                                      <PopoverTrigger asChild>
+                                        <button
+                                          type="button"
+                                          data-testid={`input-${key}`}
+                                          disabled={noStart}
+                                          style={{ display: 'flex', alignItems: 'center', gap: 5, height: 30, padding: '0 10px', borderRadius: '6px', border: openPrazoKey === key ? '1px solid #f97316' : '1px solid transparent', backgroundColor: noStart ? '#f0efee' : (openPrazoKey === key ? '#ffffff' : '#e8e8e7'), fontSize: '12px', fontWeight: '600', color: noStart ? '#a8a29e' : (dateVal ? '#1a1c1c' : '#a8a29e'), cursor: noStart ? 'not-allowed' : 'pointer', boxShadow: openPrazoKey === key ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s', fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap' as const }}
+                                        >
+                                          <Calendar style={{ width: 11, height: 11, color: noStart ? '#c4bfbb' : '#a8a29e', flexShrink: 0 }} />
+                                          {dateVal ? fmtDateBR(dateVal) : (noStart ? '—' : 'Selecionar')}
+                                        </button>
+                                      </PopoverTrigger>
+                                      {!noStart && (
+                                        <PopoverContent className="w-auto p-0" align="end" style={{ zIndex: 9999 }}>
+                                          <CalendarUI
+                                            mode="single"
+                                            selected={parseDateStr(dateVal)}
+                                            disabled={d => !!(truckDateOnly && toDateStr(d) > truckDateOnly)}
+                                            onSelect={date => {
+                                              if (date) {
+                                                const offset = dateStrToOffset(toDateStr(date));
+                                                setFormData({ ...formData, [key]: offset });
+                                                setOpenPrazoKey(null);
+                                              }
+                                            }}
+                                            locale={ptBR}
+                                            classNames={{ day_selected: 'bg-[#f97316] text-white hover:bg-[#ea580c] hover:text-white focus:bg-[#f97316] focus:text-white', day_today: 'bg-orange-50 font-semibold' }}
+                                          />
+                                        </PopoverContent>
+                                      )}
+                                    </Popover>
                                     {!noStart && dateVal && (
                                       <span style={{ fontSize: '10px', color: '#a8a29e', fontWeight: '500', minWidth: '32px' }}>{currentDays}d</span>
                                     )}
@@ -967,14 +1055,30 @@ export default function Eventos() {
               </form>
             </DialogContent>
           </Dialog>
-        </div>
       </div>
 
-      {/* ── FILTROS em painel contido ── */}
-      <div style={{ backgroundColor: '#f3f4f3', borderRadius: '14px', padding: '16px 20px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '16px' }}>
+      {/* ── FILTROS inline ── */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', paddingBottom: '16px', borderBottom: '1px solid #e7e5e4' }}>
+
+        {/* Busca */}
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <Search style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: '#a8a29e', width: '13px', height: '13px', pointerEvents: 'none' }} />
+          <input
+            placeholder="Buscar evento..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            data-testid="input-search-events"
+            style={{ paddingLeft: '32px', paddingRight: '12px', height: '32px', width: '200px', border: '1px solid #e7e5e4', borderRadius: '99px', backgroundColor: '#ffffff', fontSize: '12px', color: '#1c1917', outline: 'none', fontFamily: 'inherit' }}
+            onFocus={e => { e.currentTarget.style.borderColor = '#fd761a'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(253,118,26,0.12)'; }}
+            onBlur={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.boxShadow = 'none'; }}
+          />
+        </div>
+
+        {/* Divisor */}
+        <div style={{ width: '1px', height: '20px', backgroundColor: '#e7e5e4', flexShrink: 0 }} />
+
         {/* Grupo prioridade */}
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-          <span style={{ fontSize: '11px', fontWeight: '700', color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.07em', marginRight: '4px' }}>Prioridade:</span>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
           {(Object.entries(priorityFilterConfig) as [PriorityLevel, typeof priorityFilterConfig.urgente][]).map(([priority, config]) => {
             const isSelected = selectedPriorities.includes(priority);
             return (
@@ -1012,7 +1116,7 @@ export default function Eventos() {
         {/* Grupo data */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <Select value={monthFilter} onValueChange={setMonthFilter}>
-            <SelectTrigger style={{ backgroundColor: '#e2e2e2', border: 'none', borderRadius: '8px', fontSize: '12px', fontWeight: '600', color: '#57534e', height: '32px', padding: '0 12px', width: '170px' }} data-testid="select-month-filter">
+            <SelectTrigger style={{ backgroundColor: '#e2e2e2', border: 'none', borderRadius: '99px', fontSize: '12px', fontWeight: '600', color: '#57534e', height: '32px', padding: '0 12px', width: '170px' }} data-testid="select-month-filter">
               <SelectValue placeholder="Mês de saída" />
             </SelectTrigger>
             <SelectContent>
@@ -1027,12 +1131,12 @@ export default function Eventos() {
             data-testid="button-next-10-days-filter"
             style={{
               display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '5px 13px', borderRadius: '8px',
+              padding: '5px 13px', borderRadius: '99px',
               fontSize: '12px', fontWeight: '700', cursor: 'pointer',
               border: 'none',
               backgroundColor: next10DaysFilter ? '#1c1917' : '#e2e2e2',
               color: next10DaysFilter ? '#ffffff' : '#57534e',
-              transition: 'all 0.15s'
+              transition: 'all 0.15s',
             }}
           >
             <Truck style={{ width: '13px', height: '13px' }} />
@@ -1046,6 +1150,19 @@ export default function Eventos() {
             </button>
           )}
         </div>
+
+        {/* Divisor antes do CTA */}
+        <div style={{ marginLeft: 'auto', width: '1px', height: '20px', backgroundColor: '#e7e5e4', flexShrink: 0 }} />
+
+        {/* CTA */}
+        <Button
+          data-testid="button-create-event"
+          onClick={() => { setEditingEvent(null); setOpen(true); }}
+          style={{ flexShrink: 0, backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: '10px', fontWeight: '700', fontSize: '13px', padding: '0 18px', height: '34px', gap: '7px', boxShadow: '0 2px 8px rgba(249,115,22,0.28)', display: 'flex', alignItems: 'center' }}
+        >
+          <Plus style={{ width: '14px', height: '14px' }} />
+          Novo Evento
+        </Button>
       </div>
 
       {/* ── CONTEÚDO ── */}
@@ -1178,7 +1295,7 @@ export default function Eventos() {
                         <span style={{ fontSize: '11px', fontWeight: '700', color: '#57534e' }}>{deliveredCount}/{itemCount} Peças</span>
                         <span style={{ fontSize: '11px', fontWeight: '800', color: '#10b981' }}>Finalizado</span>
                       </div>
-                      <div style={{ width: '100%', backgroundColor: '#f0efee', borderRadius: '99px', height: '6px', overflow: 'hidden' }}>
+                      <div style={{ width: '100%', backgroundColor: '#f0efee', borderRadius: '99px', height: '8px', overflow: 'hidden' }}>
                         <div style={{ height: '100%', backgroundColor: '#10b981', borderRadius: '99px', width: '100%' }} />
                       </div>
                     </div>
@@ -1216,7 +1333,7 @@ export default function Eventos() {
                   {/* Linha 1: badge prioridade + id */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     {!event.priority ? (
-                      <span className="animate-pulse" style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.07em', color: '#f97316', backgroundColor: '#fff7ed', padding: '4px 10px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.07em', color: '#a8a29e', backgroundColor: '#f3f4f3', padding: '4px 10px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <AlertCircle style={{ width: '10px', height: '10px' }} />
                         Sem prioridade
                       </span>
@@ -1267,7 +1384,7 @@ export default function Eventos() {
                       <span style={{ fontSize: '11px', fontWeight: '700', color: '#57534e' }}>{deliveredCount}/{itemCount} Entregues</span>
                       <span style={{ fontSize: '11px', fontWeight: '800', color: '#1c1917' }}>{progressPct}%</span>
                     </div>
-                    <div style={{ width: '100%', backgroundColor: '#f0efee', borderRadius: '99px', height: '6px', overflow: 'hidden' }}>
+                    <div style={{ width: '100%', backgroundColor: '#f0efee', borderRadius: '99px', height: '8px', overflow: 'hidden' }}>
                       <div style={{ height: '100%', backgroundColor: progressColor, borderRadius: '99px', width: `${progressPct}%`, transition: 'width 0.4s ease' }} />
                     </div>
                   </div>

@@ -114,6 +114,8 @@ export default function Arte() {
   const [comFinal, setComFinal] = useState(false);
   const [urgenteFilter, setUrgenteFilter] = useState(false);
   const [periodFilter, setPeriodFilter] = useState("Todos");
+  // Detecção de mobile (< 700 px)
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 700);
 
   const [dispenseItem, setDispenseItem] = useState<any>(null);
   const [dispenseReason, setDispenseReason] = useState<string>("");
@@ -306,6 +308,13 @@ export default function Arte() {
       toast({ title: "Erro ao dispensar", description: error.message, variant: "destructive" });
     },
   });
+
+  // Resize → atualiza isMobile
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 700);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
 
   const getUploadUrl = async () => {
     const response = await apiRequest("POST", "/api/objects/upload", {});
@@ -1458,6 +1467,26 @@ export default function Arte() {
                   </div>
                 </div>
               )}
+              {isMobile ? (
+                <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  {group.items.map((item: any) => (
+                    <div key={item.id}
+                      style={{ backgroundColor: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, padding: '12px', marginBottom: 8, cursor: 'pointer' }}
+                      onClick={() => setSelectedItem(item)}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#f97316', fontSize: 13 }}>{item.displayId}</span>
+                        <StatusBadge status={item.status} />
+                      </div>
+                      <div style={{ fontWeight: 700, fontSize: 13, color: '#1c1917' }}>{item.type}</div>
+                      {item.description && <div style={{ fontSize: 12, color: '#78716c', marginTop: 2 }}>{item.description}</div>}
+                      {item.approvalThumbUrl && <div style={{ marginTop: 6 }}>
+                        <img src={item.approvalThumbUrl} alt="thumb" style={{ maxWidth: 80, maxHeight: 60, borderRadius: 4, objectFit: 'cover' }} />
+                      </div>}
+                      <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={3} />
+                    </div>
+                  ))}
+                </div>
+              ) : (
               <div style={{ overflowX: 'auto' }} className="scrollbar-visible">
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                   <thead>
@@ -1727,6 +1756,7 @@ export default function Arte() {
                   </tbody>
                 </table>
               </div>
+              )}
             </div>
             </Fragment>
           );
@@ -1823,7 +1853,7 @@ export default function Arte() {
         </div>
 
         {/* Correction cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(460px, 1fr))', gap: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(460px, 1fr))', gap: 16 }}>
           {filteredCorrecaoItems.map((item: any) => {
             const approvalsToShow = correcaoSponsorFilter === "all"
               ? item.awaitingArteApprovals
@@ -1996,7 +2026,7 @@ export default function Arte() {
         borderBottom: '1px solid #e7e5e4',
         flexShrink: 0,
       }}>
-        <div style={{ padding: '20px 32px 0', maxWidth: 1600, margin: '0 auto' }}>
+        <div style={{ padding: isMobile ? '12px 12px 0' : '20px 32px 0', maxWidth: 1600, margin: '0 auto' }}>
 
           {/* ── Identity + actions ── */}
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
@@ -2279,7 +2309,7 @@ export default function Arte() {
       </div>
 
       {/* ── 4. SCROLLABLE CONTENT AREA ────────────────────────────────────── */}
-      <div ref={contentRef} style={{ flex: 1, overflowY: 'auto', padding: '24px 32px', maxWidth: 1600, margin: '0 auto', width: '100%' }}>
+      <div ref={contentRef} style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px 12px' : '24px 32px', maxWidth: 1600, margin: '0 auto', width: '100%' }}>
       {isLoading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
           <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid #e7e5e4', borderTopColor: '#f97316', animation: 'spin 0.8s linear infinite' }} />
@@ -2294,7 +2324,7 @@ export default function Arte() {
       {/* MODAL 0 — DISPENSAR PEÇA                                           */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <Dialog open={!!dispenseItem} onOpenChange={(open) => { if (!open) { setDispenseItem(null); setDispenseReason(""); } }}>
-        <DialogContent className="p-0 gap-0" style={{ maxWidth: 420, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 16px 32px -12px rgba(28,25,23,0.15)' }}>
+        <DialogContent className="p-0 gap-0" style={{ maxWidth: isMobile ? '95vw' : 420, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 16px 32px -12px rgba(28,25,23,0.15)' }}>
           <DialogTitle className="sr-only">Dispensar Peça</DialogTitle>
           <DialogDescription className="sr-only">Dispensar peça da fila de arte</DialogDescription>
           <div style={{ padding: 24 }}>
@@ -2349,7 +2379,7 @@ export default function Arte() {
       <Dialog open={!!correcaoItem} onOpenChange={(open) => {
         if (!open) { setCorrecaoItem(null); setCorrecaoThumbUrl(""); setCorrecaoFileName(""); setCorrecaoSelectedSponsorIds(new Set()); }
       }}>
-        <DialogContent className="p-0 gap-0 max-h-[90vh] overflow-y-auto" style={{ maxWidth: 472, borderRadius: 16, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 24px 48px -12px rgba(28,25,23,0.22), 0 0 0 1px rgba(28,25,23,0.06)' }}>
+        <DialogContent className="p-0 gap-0 max-h-[90vh] overflow-y-auto" style={{ maxWidth: isMobile ? '95vw' : 472, borderRadius: 16, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 24px 48px -12px rgba(28,25,23,0.22), 0 0 0 1px rgba(28,25,23,0.06)' }}>
           <DialogTitle className="sr-only">Enviar Nova Arte</DialogTitle>
           <DialogDescription className="sr-only">Reenvio de arte para patrocinadores</DialogDescription>
 
@@ -2935,7 +2965,7 @@ export default function Arte() {
       {/* MODAL 3 — BULK PDF UPLOAD                                          */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <Dialog open={showBulkDialog} onOpenChange={(open) => { if (!open) { setShowBulkDialog(false); setSharedPdfUrl(""); } }}>
-        <DialogContent className="p-0 gap-0" style={{ maxWidth: 600, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 16px 32px -12px rgba(28,25,23,0.1)' }}>
+        <DialogContent className="p-0 gap-0" style={{ maxWidth: isMobile ? '95vw' : 600, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 16px 32px -12px rgba(28,25,23,0.1)' }}>
           <DialogTitle className="sr-only">Upload PDF Compartilhado</DialogTitle>
           <DialogDescription className="sr-only">Vincular um PDF a múltiplos itens</DialogDescription>
 
@@ -3416,7 +3446,7 @@ export default function Arte() {
                           <ChevronsUpDown style={{ width: 12, height: 12, color: '#a8a29e', flexShrink: 0 }} />
                         </button>
                       </PopoverTrigger>
-                      <PopoverContent className="p-0" style={{ width: 260 }} align="start">
+                      <PopoverContent className="p-0" style={{ width: isMobile ? '90vw' : 260 }} align="start">
                         <Command>
                           <CommandInput placeholder="Buscar evento..." />
                           <CommandList>
@@ -3735,7 +3765,7 @@ export default function Arte() {
                                           <ChevronsUpDown style={{ width: 10, height: 10, color: '#a8a29e', flexShrink: 0 }} />
                                         </button>
                                       </PopoverTrigger>
-                                      <PopoverContent className="p-0" style={{ width: 320 }} align="start">
+                                      <PopoverContent className="p-0" style={{ width: isMobile ? '90vw' : 320 }} align="start">
                                         <Command>
                                           <CommandInput placeholder="Buscar por ID, tipo ou descrição..." />
                                           <CommandList style={{ maxHeight: 280 }}>

@@ -52,6 +52,7 @@ export default function Solicitacao() {
   const [eventFilter, setEventFilter] = useState<string[]>([]);
   const [itemTypeFilter, setItemTypeFilter] = useState<string[]>([]);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 700);
 
   const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({ queryKey: ["/api/items"] });
   const { data: events = [], isLoading: eventsLoading } = useQuery<any[]>({ queryKey: ["/api/events"] });
@@ -155,6 +156,13 @@ export default function Solicitacao() {
     },
     onError: (error: any) => toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" }),
   });
+
+  // Resize → atualiza isMobile
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 700);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
 
   const toggleReuseMutation = useMutation({
     mutationFn: async ({ itemId, isReuse }: { itemId: string; isReuse: boolean }) => {
@@ -309,7 +317,7 @@ export default function Solicitacao() {
     <div style={{ backgroundColor: TI.bg, height: "100%", overflowY: "auto" }}>
 
       {/* ── 1. HERO HEADER ─────────────────────────────────────────────── */}
-      <section style={{ backgroundColor: "#0c0a09", color: "#fff", padding: "48px 32px", position: "relative", overflow: "hidden" }}>
+      <section style={{ backgroundColor: "#0c0a09", color: "#fff", padding: isMobile ? "24px 12px" : "48px 32px", position: "relative", overflow: "hidden" }}>
         {/* Decorative icon */}
         <div style={{ position: "absolute", right: -60, top: "50%", transform: "translateY(-50%)", opacity: 0.04, pointerEvents: "none", fontSize: 280, lineHeight: 1, userSelect: "none", color: "#fff" }}>
           <Eye style={{ width: 280, height: 280 }} />
@@ -328,7 +336,7 @@ export default function Solicitacao() {
             </span>
             <h1 style={{
               fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900,
-              fontSize: 56, letterSpacing: "-0.04em", color: "#fff",
+              fontSize: isMobile ? 32 : 56, letterSpacing: "-0.04em", color: "#fff",
               lineHeight: 1, margin: 0,
             }}>
               Revisão do Criador
@@ -359,7 +367,7 @@ export default function Solicitacao() {
           <div style={{
             backgroundColor: "rgba(28,25,23,0.8)", backdropFilter: "blur(12px)",
             padding: 24, borderRadius: 12, border: "1px solid #292524",
-            width: 280, display: "flex", flexDirection: "column", gap: 16, flexShrink: 0,
+            width: isMobile ? "100%" : 280, display: "flex", flexDirection: "column", gap: 16, flexShrink: isMobile ? 1 : 0,
           }}>
             <p style={{ fontSize: 9, fontWeight: 700, color: "#57534e", letterSpacing: "0.18em", textTransform: "uppercase", margin: 0 }}>AÇÃO RÁPIDA</p>
             <button
@@ -395,7 +403,7 @@ export default function Solicitacao() {
 
       {/* ── 2. FILTER BAR ──────────────────────────────────────────────── */}
       <section style={{
-        backgroundColor: "#fff", padding: "12px 32px",
+        backgroundColor: "#fff", padding: isMobile ? "12px 12px" : "12px 32px",
         borderBottom: `1px solid ${TI.border}`,
         position: "sticky", top: 0, zIndex: 30,
         boxShadow: "0 1px 4px rgba(0,0,0,0.06)",
@@ -465,7 +473,7 @@ export default function Solicitacao() {
       </section>
 
       {/* ── 3 & 4. HIGH-DENSITY TABLE ──────────────────────────────────── */}
-      <section style={{ padding: "32px", maxWidth: 1200, margin: "0 auto", paddingBottom: 80 }}>
+      <section style={{ padding: isMobile ? "12px 12px" : "32px", maxWidth: 1200, margin: "0 auto", paddingBottom: isMobile ? 20 : 80 }}>
         {filteredItems.length === 0 ? (
           <div style={{ backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 8, textAlign: "center", padding: "80px 24px" }}>
             <CheckCircle style={{ width: 48, height: 48, color: "#d1cfce", margin: "0 auto 16px" }} />
@@ -475,6 +483,39 @@ export default function Solicitacao() {
             <p style={{ fontSize: 13, color: TI.muted, margin: 0 }}>
               {pendingItems.length === 0 ? "Não há itens aguardando sua revisão no momento." : "Tente ajustar os filtros."}
             </p>
+          </div>
+        ) : isMobile ? (
+          <div>
+            {Array.from(itemsByEvent.entries()).map(([eventKey, eventItems]) => {
+              const evInfo = getEventInfo(eventKey);
+              return (
+                <div key={eventKey} style={{marginBottom:16}}>
+                  {/* Event header */}
+                  <div style={{padding:"8px 0 6px", borderBottom:"2px solid #f97316", marginBottom:8}}>
+                    <span style={{fontSize:11,fontWeight:900,textTransform:"uppercase",letterSpacing:"0.08em",color:"#78716c"}}>{evInfo?.name || "Sem Evento"}</span>
+                  </div>
+                  {eventItems.map((item:any) => (
+                    <div key={item.id} onClick={() => openModal(item)}
+                      style={{backgroundColor:"#fff",border:"1px solid #e7e5e4",borderRadius:8,padding:"12px",marginBottom:8,cursor:"pointer",display:"flex",flexDirection:"column",gap:6}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                        <span style={{fontFamily:"monospace",fontWeight:700,color:"#f97316",fontSize:13}}>{item.displayId}</span>
+                        <input type="checkbox" checked={selectedItemIds.has(item.id)} onChange={e=>{e.stopPropagation();toggleItem(item.id);}} onClick={e=>e.stopPropagation()} style={{accentColor:"#f97316",width:16,height:16}} />
+                      </div>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+                        <div style={{flex:1}}>
+                          <span style={{fontSize:13,fontWeight:700,color:"#1c1917"}}>{item.type}</span>
+                          {item.description && <p style={{fontSize:12,color:"#78716c",margin:"2px 0 0"}}>{item.description}</p>}
+                        </div>
+                        <span style={{fontSize:10,fontWeight:700,color:"#78716c",whiteSpace:"nowrap"}}>{item.quantity}×</span>
+                      </div>
+                      <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                        {item.sponsors?.map((s:any)=><span key={s.id} style={{fontSize:10,padding:"2px 6px",borderRadius:4,backgroundColor:"#f5f5f4",color:"#78716c",fontWeight:600}}>{s.name}</span>)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div style={{ backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 8, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
@@ -814,7 +855,7 @@ export default function Solicitacao() {
 
       {/* ── 5. REVIEW MODAL ────────────────────────────────────────────── */}
       <Dialog open={modalOpen} onOpenChange={open => { setModalOpen(open); if (!open) { setShowReturnForm(false); setReturnObservations(""); } }}>
-        <DialogContent className="max-w-6xl p-0 gap-0 rounded-xl overflow-hidden flex flex-col [&>button:last-child]:hidden" style={{ height: "87vh", maxHeight: 900 }} onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+        <DialogContent className="max-w-6xl p-0 gap-0 rounded-xl overflow-hidden flex flex-col [&>button:last-child]:hidden" style={{ height: "87vh", maxHeight: 900, maxWidth: isMobile ? "95vw" : undefined }} onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
           <div style={{ display: "flex", height: "100%", overflow: "hidden" }}>
 
             {/* Left column — art visualizer (40%) */}

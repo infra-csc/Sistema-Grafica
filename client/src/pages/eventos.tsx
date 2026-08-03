@@ -63,6 +63,7 @@ function EventCardActions({
   onSetPriority,
   canEdit,
   canDelete,
+  isMobile,
 }: {
   event: any;
   cardBorderHex: string;
@@ -72,10 +73,11 @@ function EventCardActions({
   onSetPriority: (event: any, e: React.MouseEvent) => void;
   canEdit: boolean;
   canDelete: boolean;
+  isMobile?: boolean;
 }) {
   return (
     <div
-      className="opacity-0 group-hover:opacity-100 focus-within:opacity-100"
+      className={isMobile ? "focus-within:opacity-100" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100"}
       style={{ position: 'absolute', top: 0, right: 0, padding: '16px', display: 'flex', gap: '6px', transition: 'opacity 0.2s', zIndex: 10 }}
       onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
     >
@@ -136,6 +138,7 @@ export default function Eventos() {
   const [selectedEventForPriority, setSelectedEventForPriority] = useState<any>(null);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 700);
   const [openStartDate, setOpenStartDate] = useState(false);
   const [openTruckDate, setOpenTruckDate] = useState(false);
   const [openPrazoKey, setOpenPrazoKey] = useState<string | null>(null);
@@ -295,6 +298,11 @@ export default function Eventos() {
     },
   });
 
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 700);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -578,7 +586,7 @@ export default function Eventos() {
   };
 
   return (
-    <div style={{ backgroundColor: '#fafaf9', height: '100%', overflowY: 'auto', padding: '32px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+    <div style={{ backgroundColor: '#fafaf9', height: '100%', overflowY: 'auto', padding: isMobile ? '12px' : '32px', display: 'flex', flexDirection: 'column', gap: isMobile ? '14px' : '20px' }}>
 
       {/* ── HEADER ── */}
       <div>
@@ -595,7 +603,7 @@ export default function Eventos() {
         {/* ── MODAL CRIAR / EDITAR (Dialog 100% controlado, sem DialogTrigger) ── */}
           <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleCloseDialog(); else setOpen(true); }}>
             {/* ── MODAL CRIAR / EDITAR ── */}
-            <DialogContent className="sm:max-w-[720px] p-0 gap-0" style={{ borderRadius: '16px', overflow: 'visible', boxShadow: '0 24px 48px -12px rgba(26,28,28,0.22)', maxHeight: 'calc(100dvh - 48px)', display: 'flex', flexDirection: 'column' }}
+            <DialogContent className="sm:max-w-[720px] p-0 gap-0" style={{ borderRadius: '16px', overflow: 'visible', boxShadow: '0 24px 48px -12px rgba(26,28,28,0.22)', maxHeight: 'calc(100dvh - 48px)', display: 'flex', flexDirection: 'column', maxWidth: isMobile ? '95vw' : undefined }}
               onInteractOutside={e => e.preventDefault()}
               onEscapeKeyDown={e => e.preventDefault()}>{/* evita descartar o formulário (nome, datas, prazos, patrocinadores) por clique fora/Esc acidental — usar Cancelar/Salvar */}
               {/* Cabeçalho */}
@@ -634,7 +642,7 @@ export default function Eventos() {
                   </div>
 
                   {/* Datas */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: '16px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                       <label style={{ fontSize: '10px', fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                         Data Início
@@ -1073,17 +1081,17 @@ export default function Eventos() {
       </div>
 
       {/* ── FILTROS inline ── */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', paddingBottom: '16px', borderBottom: '1px solid #e7e5e4' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', paddingBottom: isMobile ? '10px' : '16px', borderBottom: '1px solid #e7e5e4' }}>
 
         {/* Busca */}
-        <div style={{ position: 'relative', flexShrink: 0 }}>
+        <div style={{ position: 'relative', flexShrink: 0, width: isMobile ? '100%' : undefined }}>
           <Search style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: '#a8a29e', width: '13px', height: '13px', pointerEvents: 'none' }} />
           <input
             placeholder="Buscar evento..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             data-testid="input-search-events"
-            style={{ paddingLeft: '32px', paddingRight: '12px', height: '32px', width: '200px', border: '1px solid #e7e5e4', borderRadius: '99px', backgroundColor: '#ffffff', fontSize: '12px', color: '#1c1917', outline: 'none', fontFamily: 'inherit' }}
+            style={{ paddingLeft: '32px', paddingRight: '12px', height: '32px', width: isMobile ? '100%' : '200px', border: '1px solid #e7e5e4', borderRadius: '99px', backgroundColor: '#ffffff', fontSize: '12px', color: '#1c1917', outline: 'none', fontFamily: 'inherit' }}
             onFocus={e => { e.currentTarget.style.borderColor = '#fd761a'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(253,118,26,0.12)'; }}
             onBlur={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.boxShadow = 'none'; }}
           />
@@ -1239,7 +1247,7 @@ export default function Eventos() {
                     style={{
                       border: '1px solid #e7e5e4',
                       borderLeft: '4px solid #10b981',
-                      padding: '24px',
+                      padding: isMobile ? '14px' : '24px',
                       boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                       transition: 'box-shadow 0.3s ease, transform 0.3s ease',
                     }}
@@ -1261,6 +1269,7 @@ export default function Eventos() {
                       onSetPriority={handleSetPriority}
                       canEdit={canEdit}
                       canDelete={canDelete}
+                      isMobile={isMobile}
                     />
 
                     {/* Topo: badge + id */}
@@ -1326,7 +1335,7 @@ export default function Eventos() {
                   style={{
                     border: '1px solid #e7e5e4',
                     borderLeft: `4px solid ${cardBorderHex}`,
-                    padding: '24px',
+                    padding: isMobile ? '14px' : '24px',
                     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                     transition: 'box-shadow 0.3s ease, transform 0.3s ease',
                   }}
@@ -1343,6 +1352,7 @@ export default function Eventos() {
                     onSetPriority={handleSetPriority}
                     canEdit={canEdit}
                     canDelete={canDelete}
+                    isMobile={isMobile}
                   />
 
                   {/* Linha 1: badge prioridade + id */}

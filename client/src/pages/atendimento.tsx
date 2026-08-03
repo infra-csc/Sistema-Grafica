@@ -134,6 +134,9 @@ export default function Atendimento() {
   const [confirmApproveIndividual, setConfirmApproveIndividual] = useState<{ itemId: string; sponsorId: string; sponsorName: string } | null>(null);
   const [confirmApproveBatch, setConfirmApproveBatch] = useState(false);
 
+  // Detecção de mobile (< 700 px)
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 700);
+
   const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({
     queryKey: ["/api/items"],
   });
@@ -414,6 +417,13 @@ export default function Atendimento() {
       toast({ title: "Erro na operação em lote", description: error.message || "Ocorreu um erro", variant: "destructive" });
     },
   });
+
+  // Resize → atualiza isMobile
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 700);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
 
   const pendingItems = awaitingItems;
 
@@ -1003,7 +1013,7 @@ export default function Atendimento() {
   };
 
   return (
-    <div className="bg-stone-50 p-8" style={{ height: "100%", overflowY: "auto" }}>
+    <div className="bg-stone-50" style={{ height: "100%", overflowY: "auto", padding: isMobile ? "12px 12px" : "32px" }}>
 
       {/* ─── HERO HEADER ─────────────────────────────────────────── */}
       <header className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-6">
@@ -1197,7 +1207,7 @@ export default function Atendimento() {
           style={{ marginBottom: 32, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 14 }}
         >
           {/* ── Header do painel ── */}
-          <div style={{ background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', padding: '20px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderRadius: '13px 13px 0 0' }}>
+          <div style={{ background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', padding: isMobile ? '16px 16px' : '20px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderRadius: '13px 13px 0 0', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg, #f97316, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(249,115,22,0.35)' }}>
                 <Zap style={{ width: 18, height: 18, color: '#ffffff' }} />
@@ -1242,7 +1252,7 @@ export default function Atendimento() {
             </div>
           </div>
 
-          <div style={{ padding: '20px 28px', background: '#fafaf9' }}>
+          <div style={{ padding: isMobile ? '16px 14px' : '20px 28px', background: '#fafaf9' }}>
             {/* ── Seletores: Patrocinador + Evento — usando FilterSelect idêntico aos filtros do topo ── */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 24, flexWrap: 'wrap' }}>
               <FilterSelect
@@ -1445,25 +1455,26 @@ export default function Atendimento() {
 
                   {/* ── Ações ── */}
                   {!batchShowRejectForm ? (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', background: '#fafaf9', borderRadius: 10, border: '1px solid #f0ede8' }}>
+                    <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', padding: '14px 16px', background: '#fafaf9', borderRadius: 10, border: '1px solid #f0ede8', gap: isMobile ? 10 : 0 }}>
                       <p style={{ fontSize: 12, color: '#78716c', margin: 0 }}>
                         {batchSelectedItemIds.size > 0
                           ? <><strong style={{ color: '#1c1917' }}>{batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'peça' : 'peças'}</strong> prontas para decisão</>
                           : 'Selecione peças para aprovar ou recusar'}
                       </p>
-                      <div style={{ display: 'flex', gap: 10 }}>
+                      <div style={{ display: 'flex', gap: 10, flexDirection: isMobile ? 'column' : 'row' }}>
                         <button
                           onClick={() => setBatchShowRejectForm(true)}
                           disabled={batchSponsorMutation.isPending || batchSelectedItemIds.size === 0}
                           data-testid="button-batch-reject"
                           style={{
-                            display: 'flex', alignItems: 'center', gap: 7,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
                             backgroundColor: '#ffffff', color: '#dc2626',
                             border: '1.5px solid #fca5a5', borderRadius: 9,
                             padding: '10px 18px', fontSize: 13, fontWeight: 700,
                             cursor: batchSelectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
                             opacity: batchSelectedItemIds.size === 0 ? 0.4 : 1,
                             transition: 'filter 0.15s',
+                            minHeight: isMobile ? 44 : undefined,
                           }}
                           onMouseEnter={e => { if (batchSelectedItemIds.size > 0) e.currentTarget.style.filter = 'brightness(0.96)'; }}
                           onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
@@ -1476,7 +1487,7 @@ export default function Atendimento() {
                           disabled={batchSponsorMutation.isPending || batchSelectedItemIds.size === 0}
                           data-testid="button-batch-approve"
                           style={{
-                            display: 'flex', alignItems: 'center', gap: 7,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
                             background: batchSelectedItemIds.size === 0 ? '#e7e5e4' : 'linear-gradient(135deg, #22c55e, #16a34a)',
                             color: '#ffffff', border: 'none', borderRadius: 9,
                             padding: '10px 22px', fontSize: 13, fontWeight: 800,
@@ -1484,6 +1495,7 @@ export default function Atendimento() {
                             boxShadow: batchSelectedItemIds.size > 0 ? '0 4px 12px rgba(34,197,94,0.35)' : 'none',
                             letterSpacing: '-0.01em', fontFamily: "'Space Grotesk', sans-serif",
                             transition: 'filter 0.15s, box-shadow 0.15s',
+                            minHeight: isMobile ? 44 : undefined,
                           }}
                           onMouseEnter={e => { if (batchSelectedItemIds.size > 0) e.currentTarget.style.filter = 'brightness(1.08)'; }}
                           onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
@@ -1701,11 +1713,11 @@ export default function Atendimento() {
                         onMouseEnter={e => { if (!isFullyApproved) (e.currentTarget as HTMLDivElement).style.boxShadow = `0 4px 12px rgba(0,0,0,0.1), inset 4px 0 0 #f97316`; }}
                         onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = `0 1px 3px rgba(0,0,0,0.06), inset 4px 0 0 ${isFullyApproved ? '#d6d3d1' : '#f97316'}`; }}
                       >
-                        <div style={{ display: 'flex', alignItems: 'center', padding: 20, gap: 24 }}>
+                        <div style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', padding: isMobile ? 14 : 20, gap: isMobile ? 12 : 24, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
 
                           {/* Thumbnail */}
                           <div style={{
-                            width: 80, height: 80, flexShrink: 0, borderRadius: 10,
+                            width: isMobile ? 52 : 80, height: isMobile ? 52 : 80, flexShrink: 0, borderRadius: 10,
                             overflow: 'hidden', backgroundColor: '#f5f5f4', position: 'relative',
                             border: '1px solid #ede9e4',
                           }}>
@@ -1749,7 +1761,7 @@ export default function Atendimento() {
                           </div>
 
                           {/* Grid de info */}
-                          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 16, alignItems: 'center', minWidth: 0 }}>
+                          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr auto', gap: isMobile ? 10 : 16, alignItems: isMobile ? 'stretch' : 'center', minWidth: 0 }}>
 
                             {/* Col 1: Título e ID */}
                             <div>
@@ -1819,7 +1831,7 @@ export default function Atendimento() {
                             </div>
 
                             {/* Col 4: Botão de ação */}
-                            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                            <div style={{ display: 'flex', justifyContent: isMobile ? 'stretch' : 'flex-end' }}>
                               {isFullyApproved ? (
                                 <button
                                   onClick={() => handleViewDetails(item)}
@@ -1830,6 +1842,9 @@ export default function Atendimento() {
                                     fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
                                     cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
                                     transition: 'background-color 0.15s',
+                                    minHeight: isMobile ? 44 : undefined,
+                                    width: isMobile ? '100%' : undefined,
+                                    justifyContent: isMobile ? 'center' : undefined,
                                   }}
                                   onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e2e8f0'; }}
                                   onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
@@ -1848,6 +1863,9 @@ export default function Atendimento() {
                                     fontSize: 11, fontWeight: 900, textTransform: 'uppercase',
                                     display: 'flex', alignItems: 'center', gap: 6,
                                     transition: 'all 0.2s',
+                                    minHeight: isMobile ? 44 : undefined,
+                                    width: isMobile ? '100%' : undefined,
+                                    justifyContent: isMobile ? 'center' : undefined,
                                   }}
                                   onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f97316'; e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.border = '1px solid #f97316'; }}
                                   onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.color = '#1c1917'; e.currentTarget.style.border = '1px solid transparent'; }}
@@ -2426,7 +2444,7 @@ export default function Atendimento() {
 
       {/* ─── MODAL DE REVISÃO (3 colunas) ───────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-6xl max-h-[92vh] p-0 gap-0 rounded-2xl overflow-hidden flex flex-col [&>button:last-child]:hidden" onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+        <DialogContent className="max-w-6xl max-h-[92vh] p-0 gap-0 rounded-2xl overflow-hidden flex flex-col [&>button:last-child]:hidden" style={isMobile ? { maxWidth: '95vw', width: '95vw' } : undefined} onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
           <DialogTitle className="sr-only">Revisão de Ativo</DialogTitle>
           <DialogDescription className="sr-only">Revise os detalhes e aprove ou reprove o ativo</DialogDescription>
 
@@ -2699,7 +2717,7 @@ export default function Atendimento() {
                                   </div>
 
                                   {isPending && !isRejectingThis && (
-                                    <div style={{ display: 'flex', gap: 6 }}>
+                                    <div style={{ display: 'flex', gap: 6, flexDirection: isMobile ? 'column' : 'row' }}>
                                       <button
                                         onClick={() => setRejectingSponsorId(sponsor.id)}
                                         disabled={individualRejectMutation.isPending}
@@ -2708,6 +2726,8 @@ export default function Atendimento() {
                                           backgroundColor: '#fef2f2', border: '1px solid #fecaca',
                                           color: '#dc2626', fontSize: 11, fontWeight: 700,
                                           cursor: 'pointer', transition: 'all 0.15s',
+                                          minHeight: isMobile ? 44 : undefined,
+                                          width: isMobile ? '100%' : undefined,
                                         }}
                                       >
                                         Reprovar
@@ -2721,7 +2741,9 @@ export default function Atendimento() {
                                           backgroundColor: '#f0fdf4', border: '1px solid #86efac',
                                           color: '#15803d', fontSize: 11, fontWeight: 700,
                                           cursor: 'pointer', transition: 'all 0.15s',
-                                          display: 'flex', alignItems: 'center', gap: 4,
+                                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                                          minHeight: isMobile ? 44 : undefined,
+                                          width: isMobile ? '100%' : undefined,
                                         }}
                                       >
                                         {individualApproveMutation.isPending
@@ -2961,7 +2983,7 @@ export default function Atendimento() {
 
       {/* ── CONFIRMAÇÃO: Aprovar Individual ─────────────────────────────── */}
       <Dialog open={!!confirmApproveIndividual} onOpenChange={(open) => { if (!open) setConfirmApproveIndividual(null); }}>
-        <DialogContent style={{ maxWidth: 380, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 16px 32px -12px rgba(28,25,23,0.15)' }}>
+        <DialogContent style={{ maxWidth: isMobile ? '95vw' : 380, width: isMobile ? '95vw' : undefined, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 16px 32px -12px rgba(28,25,23,0.15)' }}>
           <DialogTitle style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 18, fontWeight: 700, color: '#1c1917', margin: 0 }}>Confirmar Aprovação</DialogTitle>
           <DialogDescription style={{ fontSize: 13, color: '#78716c', marginTop: 8 }}>
             Aprovar a arte para o patrocinador <strong style={{ color: '#1c1917' }}>{confirmApproveIndividual?.sponsorName}</strong>?
@@ -2994,7 +3016,7 @@ export default function Atendimento() {
 
       {/* ── CONFIRMAÇÃO: Aprovar em Lote ────────────────────────────────── */}
       <Dialog open={confirmApproveBatch} onOpenChange={(open) => { if (!open) setConfirmApproveBatch(false); }}>
-        <DialogContent style={{ maxWidth: 380, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 16px 32px -12px rgba(28,25,23,0.15)' }}>
+        <DialogContent style={{ maxWidth: isMobile ? '95vw' : 380, width: isMobile ? '95vw' : undefined, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 16px 32px -12px rgba(28,25,23,0.15)' }}>
           <DialogTitle style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 18, fontWeight: 700, color: '#1c1917', margin: 0 }}>Confirmar Aprovação em Lote</DialogTitle>
           <DialogDescription style={{ fontSize: 13, color: '#78716c', marginTop: 8 }}>
             Aprovar <strong style={{ color: '#1c1917' }}>{batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'item' : 'itens'}</strong> para o patrocinador selecionado?

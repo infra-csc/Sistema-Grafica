@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState, useMemo, Fragment } from "react";
+import { useState, useMemo, Fragment, useEffect } from "react";
 import { Search, Calendar, Truck, AlertCircle, Eye, Paperclip, Trash2, FileText, Printer } from "lucide-react";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { ExportPdfDialog } from "@/components/export-pdf-dialog";
@@ -83,6 +83,8 @@ export default function PainelGeral() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null);
   const [showExportPDFModal, setShowExportPDFModal] = useState(false);
+  // Detecção de mobile (< 700 px)
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 700);
 
   // Sem placeholderData: no TanStack v5 ele zera o isLoading e o spinner nunca
   // aparece — o usuário via "Nenhum item" e KPIs zerados durante o carregamento.
@@ -102,6 +104,13 @@ export default function PainelGeral() {
     },
     onError: (error: any) => toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" }),
   });
+
+  // Resize → atualiza isMobile
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 700);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
 
   const uniqueTypes = Array.from(new Set(items.map((i: any) => i.type))).sort();
 
@@ -236,38 +245,38 @@ export default function PainelGeral() {
 
 
   return (
-    <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 22, padding: "0 28px 34px", minHeight: "100%", overflowY: "auto", background: "#fafaf9" }}>
-      <div style={{ position: "sticky", top: 0, zIndex: 4, height: 4, margin: "0 -28px", background: "linear-gradient(90deg, #1c1917 0%, #1c1917 72%, #f97316 72%, #f97316 100%)" }} />
+    <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 22, padding: isMobile ? "0 12px 20px" : "0 28px 34px", minHeight: "100%", overflowY: "auto", background: "#fafaf9" }}>
+      <div style={{ position: "sticky", top: 0, zIndex: 4, height: 4, margin: isMobile ? "0 -12px" : "0 -28px", background: "linear-gradient(90deg, #1c1917 0%, #1c1917 72%, #f97316 72%, #f97316 100%)" }} />
 
       {/* ── Header ── */}
-      <header style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, paddingTop: 22, paddingBottom: 2 }}>
+      <header style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16, paddingTop: 22, paddingBottom: 2 }}>
         <div style={{ display: "flex", flexDirection: "column" }}>
           <h1
             data-testid="title-painel-geral"
             style={{
               fontFamily: "'Space Grotesk', sans-serif",
-               fontSize: 29, fontWeight: 700, letterSpacing: "-0.055em",
+               fontSize: isMobile ? 20 : 29, fontWeight: 700, letterSpacing: "-0.055em",
               textTransform: "uppercase", color: "#1c1917", margin: 0,
             }}
           >
             Painel de Status Geral
           </h1>
-          <p style={{ fontSize: 13, color: "#78716c", fontWeight: 500, margin: "4px 0 0 0" }}>
+          <p style={{ fontSize: 13, color: "#78716c", fontWeight: 500, margin: "4px 0 0 0", display: isMobile ? "none" : "block" }}>
             Acompanhamento em tempo real de todos os itens em produção
           </p>
         </div>
         <button
           onClick={() => setShowExportPDFModal(true)}
           data-testid="button-export-pdf-painel"
-           style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 8, height: 40, padding: "0 16px", borderRadius: 7, backgroundColor: "#1c1917", border: "1px solid #1c1917", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer", boxShadow: "0 2px 0 #f97316" }}
+           style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, height: isMobile ? 44 : 40, minWidth: isMobile ? 44 : undefined, padding: isMobile ? "0 12px" : "0 16px", borderRadius: 7, backgroundColor: "#1c1917", border: "1px solid #1c1917", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer", boxShadow: "0 2px 0 #f97316" }}
         >
           <Printer style={{ width: 14, height: 14 }} />
-          Exportar PDF
+          {!isMobile && "Exportar PDF"}
         </button>
       </header>
 
       {/* ── Status cards ── */}
-       <section style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }} className="grid-cols-2 md:grid-cols-4 lg:grid-cols-6">
+       <section style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3,1fr)" : "repeat(6,1fr)", gap: 10 }}>
 
         {/* Total card — dark */}
         <div
@@ -307,15 +316,15 @@ export default function PainelGeral() {
 
       {/* ── Filter toolbar ── */}
       <div style={{
-        display: "flex", alignItems: "center", gap: 8,
+        display: "flex", alignItems: isMobile ? "stretch" : "center", flexWrap: isMobile ? "wrap" : "nowrap", gap: 8,
         backgroundColor: "#ffffff",
         borderRadius: 8,
         border: "1px solid #e7e5e4",
         padding: "8px 10px",
         boxShadow: "0 1px 3px rgba(28,25,23,0.05)",
       }}>
-        {/* Search */}
-        <div style={{ position: "relative", flexShrink: 0, width: 180 }}>
+        {/* Search — full width row on mobile */}
+        <div style={{ position: "relative", flexShrink: 0, width: isMobile ? "100%" : 180 }}>
           <Search style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "#a8a29e", pointerEvents: "none" }} />
           <input
             type="text"
@@ -327,11 +336,11 @@ export default function PainelGeral() {
           />
         </div>
 
-        {/* Divider */}
-        <div style={{ width: 1, height: 20, backgroundColor: "#e7e5e4", flexShrink: 0 }} />
+        {/* Divider — hidden on mobile */}
+        {!isMobile && <div style={{ width: 1, height: 20, backgroundColor: "#e7e5e4", flexShrink: 0 }} />}
 
         {/* Evento */}
-        <div style={{ flexShrink: 0, minWidth: 150 }}>
+        <div style={{ flexShrink: 0, minWidth: 150, ...(isMobile && { flex: "1 1 calc(50% - 4px)" }) }}>
           <EventFilterDropdown
             values={eventFilter}
             onValuesChange={setEventFilter}
@@ -344,7 +353,7 @@ export default function PainelGeral() {
         </div>
 
         {/* Tipo */}
-        <div style={{ flexShrink: 0, minWidth: 130 }}>
+        <div style={{ flexShrink: 0, minWidth: 130, ...(isMobile && { flex: "1 1 calc(50% - 4px)" }) }}>
           <FilterSelect
             label="Tipo" allLabel="Todos os tipos"
             values={typeFilter} onValuesChange={setTypeFilter}
@@ -356,7 +365,7 @@ export default function PainelGeral() {
         </div>
 
         {/* Patrocinador */}
-        <div style={{ flex: 1, minWidth: 160 }}>
+        <div style={{ flex: 1, minWidth: 160, ...(isMobile && { flex: "1 1 calc(50% - 4px)" }) }}>
           <FilterSelect
             label="Patrocinador" allLabel="Todos os patrocinadores"
             values={sponsorFilter} onValuesChange={setSponsorFilter}
@@ -368,7 +377,7 @@ export default function PainelGeral() {
         </div>
 
         {/* Status */}
-        <div style={{ flexShrink: 0, minWidth: 140 }}>
+        <div style={{ flexShrink: 0, minWidth: 140, ...(isMobile && { flex: "1 1 calc(50% - 4px)" }) }}>
           <FilterSelect
             label="Status" allLabel="Qualquer status"
             values={statusFilter} onValuesChange={setStatusFilter}
@@ -392,7 +401,7 @@ export default function PainelGeral() {
         </div>
 
         {/* Data */}
-        <div style={{ flexShrink: 0, minWidth: 130 }}>
+        <div style={{ flexShrink: 0, minWidth: 130, ...(isMobile && { flex: "1 1 calc(50% - 4px)" }) }}>
           <FilterSelect
             label="Data" allLabel="Todas as datas"
             values={dateFilter} onValuesChange={setDateFilter}
@@ -411,11 +420,11 @@ export default function PainelGeral() {
           />
         </div>
 
-        {/* Divider */}
-        <div style={{ width: 1, height: 20, backgroundColor: "#e7e5e4", flexShrink: 0 }} />
+        {/* Divider — hidden on mobile */}
+        {!isMobile && <div style={{ width: 1, height: 20, backgroundColor: "#e7e5e4", flexShrink: 0 }} />}
 
         {/* Counter + clear */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, ...(isMobile && { width: "100%" }) }}>
           <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 700, color: "#78716c", whiteSpace: "nowrap" }}>
             <span style={{ color: "#1c1917", fontWeight: 900 }}>{filteredItems.length}</span>
             {" "}iten{filteredItems.length !== 1 ? "s" : ""}
@@ -500,7 +509,131 @@ export default function PainelGeral() {
                   </span>
                 </div>
 
-                {/* Table */}
+                {/* Table (desktop) / Cards (mobile) */}
+                {isMobile ? (
+                  <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 0 }}>
+                    {(() => {
+                      const typeToGroupLocal: Record<string, string> = {};
+                      for (const s of standardItems) {
+                        if (s.group) typeToGroupLocal[s.name] = s.group;
+                      }
+                      const groupMap: Record<string, Record<string, any[]>> = {};
+                      for (const item of gd.items) {
+                        const g = typeToGroupLocal[item.type] || '';
+                        if (!groupMap[g]) groupMap[g] = {};
+                        if (!groupMap[g][item.type]) groupMap[g][item.type] = [];
+                        groupMap[g][item.type].push(item);
+                      }
+                      const sortedGroups = Object.keys(groupMap).sort((a, b) => {
+                        if (a === '') return 1; if (b === '') return -1;
+                        return a.localeCompare(b, 'pt-BR');
+                      });
+                      let cardIdx = 0;
+                      return sortedGroups.map(group => (
+                        <Fragment key={group || '__nogroup'}>
+                          {group && (
+                            <div style={{ padding: "6px 4px 4px", marginTop: 6, borderLeft: "3px solid #3b82f6", paddingLeft: 8, backgroundColor: "#e7f0fb", borderRadius: "4px 4px 0 0" }}>
+                              <span style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#1d4ed8", fontFamily: "'Space Grotesk', sans-serif" }}>
+                                {group}
+                              </span>
+                            </div>
+                          )}
+                          {Object.entries(groupMap[group]).map(([type, typeItems]) => (
+                            <Fragment key={type}>
+                              {/* Type sub-header */}
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 4px 4px", borderTop: "2px solid #e7e5e4", marginTop: group ? 0 : 6 }}>
+                                <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#44403c", fontFamily: "'Space Grotesk', sans-serif" }}>
+                                  {type}
+                                </span>
+                                <span style={{ fontSize: 9, fontWeight: 800, color: "#78716c", backgroundColor: "#e7e5e4", borderRadius: 999, padding: "2px 8px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                  {typeItems.length}
+                                </span>
+                              </div>
+                              {typeItems.map((item: any) => {
+                                const ci = cardIdx++;
+                                return (
+                                  <div
+                                    key={item.id}
+                                    data-testid={`item-row-${item.id}`}
+                                    onClick={() => setSelectedItem(item)}
+                                    style={{
+                                      border: "1px solid #e7e5e4",
+                                      borderRadius: 8,
+                                      padding: "10px 12px",
+                                      marginBottom: 8,
+                                      backgroundColor: ci % 2 === 1 ? "#f6f4f1" : "#ffffff",
+                                      display: "flex",
+                                      alignItems: "flex-start",
+                                      gap: 10,
+                                      cursor: "pointer",
+                                    }}
+                                  >
+                                    {/* Card content */}
+                                    <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 5 }}>
+                                      {/* Row 1: ID + type */}
+                                      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                                        <span data-testid={`text-display-id-${item.id}`} style={{ fontFamily: "monospace", fontWeight: 700, color: "#f97316", fontSize: 13 }}>
+                                          {item.displayId}
+                                        </span>
+                                        <span style={{ fontSize: 11, fontWeight: 700, color: "#44403c" }}>{item.type}</span>
+                                        {item.isReuse && (
+                                          <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "2px 7px" }}>
+                                            Reaproveit.
+                                          </span>
+                                        )}
+                                      </div>
+                                      {/* Row 2: description */}
+                                      {item.description && (
+                                        <span style={{ fontSize: 12, color: "#44403c", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                          {item.description}
+                                        </span>
+                                      )}
+                                      {/* Row 3: status + sponsors */}
+                                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                                        <StatusPill status={item.status} />
+                                        <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={3} />
+                                      </div>
+                                    </div>
+                                    {/* View button */}
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
+                                      <button
+                                        onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
+                                        data-testid={`button-view-${item.id}`}
+                                        style={{
+                                          background: "none", border: "1px solid #e7e5e4", cursor: "pointer",
+                                          borderRadius: 6, color: "#a8a29e",
+                                          display: "flex", alignItems: "center", justifyContent: "center",
+                                          minHeight: 44, minWidth: 44,
+                                        }}
+                                      >
+                                        <Eye style={{ width: 16, height: 16 }} />
+                                      </button>
+                                      {isAdmin && (
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); setDeleteConfirmItemId(item.id); }}
+                                          data-testid={`button-delete-${item.id}`}
+                                          title="Excluir peça (Admin)"
+                                          style={{
+                                            background: "none", border: "1px solid #fecaca", cursor: "pointer",
+                                            borderRadius: 6, color: "#a8a29e",
+                                            display: "flex", alignItems: "center", justifyContent: "center",
+                                            minHeight: 36, minWidth: 44,
+                                          }}
+                                        >
+                                          <Trash2 style={{ width: 15, height: 15 }} />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </Fragment>
+                          ))}
+                        </Fragment>
+                      ));
+                    })()}
+                  </div>
+                ) : (
                 <div style={{ overflowX: "auto", overflowY: "visible" }} className="scrollbar-visible">
                   <table style={{ width: "100%", borderCollapse: "collapse" }}>
                     <thead>
@@ -736,6 +869,7 @@ export default function PainelGeral() {
                     </tbody>
                   </table>
                 </div>
+                )}
               </div>
             );
           })

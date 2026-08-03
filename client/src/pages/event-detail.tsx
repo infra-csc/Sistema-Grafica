@@ -81,6 +81,7 @@ export default function EventDetail() {
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, string[]>>({});
   const [selectedItemForDetails, setSelectedItemForDetails] = useState<any | null>(null);
   const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 700);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -273,6 +274,12 @@ export default function EventDetail() {
   }, [editDialogOpen]);
 
   const { updateReferenceUrlMutation, removeReferenceUrlMutation } = useEventReference({ eventId });
+
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 700);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
 
   const createItemMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -828,7 +835,7 @@ export default function EventDetail() {
   });
 
   return (
-    <div style={{ padding: '28px 40px', height: '100%', overflowY: 'auto', maxWidth: '1400px', margin: '0 auto', backgroundColor: '#F7F6F3' }}>
+    <div style={{ padding: isMobile ? '12px 12px' : '28px 40px', height: '100%', overflowY: 'auto', maxWidth: '1400px', margin: '0 auto', backgroundColor: '#F7F6F3' }}>
       {/* Breadcrumb */}
       <Link href="/eventos">
         <a
@@ -919,7 +926,7 @@ export default function EventDetail() {
             }}>
               <DialogContent
                 className={`${bulkMode && !editingItem ? "max-w-[95vw] h-[90vh] p-0 gap-0 flex flex-col" : "sm:max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0"} [&>button:last-child]:hidden`}
-                style={bulkMode && !editingItem ? { display: 'flex', flexDirection: 'column', overflow: 'hidden' } : undefined}
+                style={bulkMode && !editingItem ? { display: 'flex', flexDirection: 'column', overflow: 'hidden' } : (isMobile ? { maxWidth: '95vw' } : undefined)}
                 onInteractOutside={(e) => e.preventDefault()}
                 onEscapeKeyDown={(e) => e.preventDefault()}
               >
@@ -1816,6 +1823,38 @@ export default function EventDetail() {
 
                 {/* Tabela do grupo */}
                 <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', overflow: 'hidden' }}>
+                  {isMobile ? (
+                    <div style={{ padding: '8px' }}>
+                      {typeItems.map(item => (
+                        <div key={item.id} onClick={() => setSelectedItemForDetails(item)}
+                          style={{ backgroundColor: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, padding: '12px 12px', marginBottom: 8, cursor: 'pointer' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                            <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#f97316', fontSize: 13 }}>{item.displayId}</span>
+                            <StatusBadge status={item.status} />
+                          </div>
+                          <div style={{ fontWeight: 700, fontSize: 13, color: '#1c1917', marginBottom: 2 }}>{item.type}</div>
+                          {item.description && <div style={{ fontSize: 12, color: '#78716c', marginBottom: 4 }}>{item.description}</div>}
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: '#78716c' }}>
+                            {item.quantity && <span>{item.quantity}×</span>}
+                            {item.visualWidth && item.visualHeight && <span>{item.visualWidth}×{item.visualHeight}m</span>}
+                            {item.material && <span>{item.material}</span>}
+                          </div>
+                          {canEditLists && (
+                            <div style={{ display: 'flex', gap: 6, marginTop: 8 }} onClick={e => e.stopPropagation()}>
+                              <button onClick={() => { setEditingItem(item); setEditDialogOpen(true); }}
+                                style={{ flex: 1, minHeight: 44, borderRadius: 6, border: '1px solid #e7e5e4', background: '#fafaf9', fontSize: 12, fontWeight: 700, color: '#78716c', cursor: 'pointer' }}>
+                                Editar
+                              </button>
+                              <button onClick={() => setDeletingItemId(item.id)}
+                                style={{ minHeight: 44, width: 44, borderRadius: 6, border: '1px solid #fecaca', background: '#fff', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <Trash2 style={{ width: 14, height: 14 }} />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
                   <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead>
                       <tr style={{ backgroundColor: '#f9f9f8' }}>
@@ -1981,6 +2020,7 @@ export default function EventDetail() {
                       ))}
                     </tbody>
                   </table>
+                  )}
                 </div>
               </section>
             ))}
@@ -2030,7 +2070,7 @@ export default function EventDetail() {
 
       {/* Dialog separado para editar item */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent style={{ maxWidth: "800px", width: "100%", padding: "0", backgroundColor: "#ffffff", borderRadius: "16px", overflow: "hidden", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
+        <DialogContent style={{ maxWidth: isMobile ? "95vw" : "800px", width: "100%", padding: "0", backgroundColor: "#ffffff", borderRadius: "16px", overflow: "hidden", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
 
           {/* Cabeçalho */}
           <DialogHeader style={{ padding: "24px 28px", borderBottom: "1px solid #eeeeed" }}>
@@ -2149,7 +2189,7 @@ export default function EventDetail() {
                   <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#f97316", display: "inline-block", flexShrink: 0 }}></span>
                   Dimensões de Produção
                 </div>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "12px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: "12px" }}>
                   {[
                     { label: "Visual Larg.", key: "visualWidth", orange: true, testId: "input-edit-visual-width" },
                     { label: "Visual Alt.", key: "visualHeight", orange: true, testId: "input-edit-visual-height" },
@@ -2178,7 +2218,7 @@ export default function EventDetail() {
               </div>
 
               {/* Linha 4: Material | Acabamento | Patrocinador */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: "16px" }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: "16px" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>Material</label>
                   <input

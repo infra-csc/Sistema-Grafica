@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 /* ── Palette ── */
 const P = {
@@ -71,13 +72,7 @@ const MONTH_NAMES = [
   "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro",
 ];
 
-export default function Calendario() {
-  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 700);
-    window.addEventListener("resize", fn);
-    return () => window.removeEventListener("resize", fn);
-  }, []);
+export default function Calendario() {  const isMobile = useIsMobile();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [, setLocation] = useLocation();
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);

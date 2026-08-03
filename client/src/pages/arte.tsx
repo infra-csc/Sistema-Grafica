@@ -28,6 +28,7 @@ import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { ExportPdfDialog } from "@/components/export-pdf-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // Quantas linhas a tabela monta por vez. O resto entra por "Carregar mais".
 const ARTE_PAGE_SIZE = 100;
@@ -114,9 +115,7 @@ export default function Arte() {
   const [comFinal, setComFinal] = useState(false);
   const [urgenteFilter, setUrgenteFilter] = useState(false);
   const [periodFilter, setPeriodFilter] = useState("Todos");
-  // Detecção de mobile (< 700 px)
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 700);
-
+  const isMobile = useIsMobile();
   const [dispenseItem, setDispenseItem] = useState<any>(null);
   const [dispenseReason, setDispenseReason] = useState<string>("");
 
@@ -308,13 +307,6 @@ export default function Arte() {
       toast({ title: "Erro ao dispensar", description: error.message, variant: "destructive" });
     },
   });
-
-  // Resize → atualiza isMobile
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 700);
-    window.addEventListener('resize', fn);
-    return () => window.removeEventListener('resize', fn);
-  }, []);
 
   const getUploadUrl = async () => {
     const response = await apiRequest("POST", "/api/objects/upload", {});

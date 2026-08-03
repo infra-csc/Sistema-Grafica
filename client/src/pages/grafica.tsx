@@ -23,6 +23,7 @@ import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const TI = {
   bg: "#fafaf9",
@@ -113,9 +114,7 @@ export default function Grafica() {
   const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
   const [bulkDeliveryPhotos, setBulkDeliveryPhotos] = useState<string[]>([]);
   const addBulkPhoto = (url: string) => setBulkDeliveryPhotos(prev => [...prev, convertGCSUrlToLocalPath(url)]);
-  // Detecção de mobile (< 700 px)
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 700);
-
+  const isMobile = useIsMobile();
   const { data: items = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ["/api/items/approved"] });
   const { data: events = [] } = useQuery<any[]>({ queryKey: ["/api/events"] });
   const { data: auditLogs = [] } = useQuery<any[]>({ queryKey: ["/api/audit-logs"] });
@@ -568,13 +567,6 @@ export default function Grafica() {
     setDeliveryData({ photoUrl: "", receivedBy: "" });
     setDeliverQty(remainingDeliver(item)); // padrão: o que falta entregar
   };
-
-  // Resize → atualiza isMobile
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 700);
-    window.addEventListener('resize', fn);
-    return () => window.removeEventListener('resize', fn);
-  }, []);
 
   // Items que podem ser entregues no filtro atual
   const deliverableInFilter = useMemo(

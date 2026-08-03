@@ -26,6 +26,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { CommentsSection } from "@/components/comments-section";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useAuth } from "@/contexts/auth-context";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type ItemChanges = {
   sponsorIds: string[];
@@ -156,14 +157,7 @@ const getSponsorColorById = (sponsorId: string, allSponsors: any[]) => {
 // que chamar localeCompare a cada comparação.
 const COLLATOR_PTBR = new Intl.Collator('pt-BR');
 
-export default function VincularPatrocinadores() {
-  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 700);
-    window.addEventListener("resize", fn);
-    return () => window.removeEventListener("resize", fn);
-  }, []);
-
+export default function VincularPatrocinadores() {  const isMobile = useIsMobile();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const { toast } = useToast();

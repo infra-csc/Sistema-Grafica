@@ -21,6 +21,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useState, useMemo, useEffect, Fragment, useRef } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const TI = {
   bg: "#fafaf9", surface: "#ffffff", border: "#e7e5e4",
@@ -51,9 +52,7 @@ export default function Solicitacao() {
   const [searchTerm, setSearchTerm] = useState("");
   const [eventFilter, setEventFilter] = useState<string[]>([]);
   const [itemTypeFilter, setItemTypeFilter] = useState<string[]>([]);
-  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 700);
-
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());  const isMobile = useIsMobile();
   const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({ queryKey: ["/api/items"] });
   const { data: events = [], isLoading: eventsLoading } = useQuery<any[]>({ queryKey: ["/api/events"] });
   const { data: sponsors = [] } = useQuery<any[]>({ queryKey: ["/api/sponsors"] });
@@ -156,13 +155,6 @@ export default function Solicitacao() {
     },
     onError: (error: any) => toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" }),
   });
-
-  // Resize → atualiza isMobile
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 700);
-    window.addEventListener('resize', fn);
-    return () => window.removeEventListener('resize', fn);
-  }, []);
 
   // Diálogo de reaproveitamento (total ou parcial)
   const [reuseDialogItemId, setReuseDialogItemId] = useState<string | null>(null);

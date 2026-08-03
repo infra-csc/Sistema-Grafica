@@ -12,6 +12,7 @@ import {
 import { format, subDays, subMonths, isAfter, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useLocation } from "wouter";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 /* ── Palette ── */
 const T = {
@@ -109,13 +110,7 @@ const ChartTip = ({ active, payload, label }: any) => {
   );
 };
 
-export default function DashboardAnalises() {
-  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 700);
-    window.addEventListener("resize", fn);
-    return () => window.removeEventListener("resize", fn);
-  }, []);
+export default function DashboardAnalises() {  const isMobile = useIsMobile();
   const [, setLocation] = useLocation();
   const [period, setPeriod]       = useState("all");
   const [eventFilter, setEventFilter]   = useState("all");

@@ -18,6 +18,7 @@ import {
   ChevronLeft, ChevronRight, X, AlertTriangle, ShieldCheck,
 } from "lucide-react";
 import { T } from "@/lib/theme";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 /* ── Role config ── */
 const ROLE_CFG: Record<string, { label: string; bg: string; color: string; avatarBg: string; avatarColor: string }> = {
@@ -63,13 +64,7 @@ const filterSel: React.CSSProperties = {
   appearance: "none", WebkitAppearance: "none",
 };
 
-export default function Usuarios() {
-  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 700);
-    window.addEventListener("resize", fn);
-    return () => window.removeEventListener("resize", fn);
-  }, []);
+export default function Usuarios() {  const isMobile = useIsMobile();
   const [, navigate] = useLocation();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);

@@ -13,6 +13,7 @@ import {
 import { TriagemModal } from "@/components/triagem-modal";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { useAuth } from "@/contexts/auth-context";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 const CONDITIONS = ["PERFEITO", "AVARIA_LEVE", "SUCATA"] as const;
@@ -235,13 +236,7 @@ function SplitProgress({ splits, total }: { splits: SplitLine[]; total: number }
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
-export default function TriagemRetorno() {
-  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 700);
-    window.addEventListener("resize", fn);
-    return () => window.removeEventListener("resize", fn);
-  }, []);
+export default function TriagemRetorno() {  const isMobile = useIsMobile();
   const { toast } = useToast();
   const { user } = useAuth();
   const [entries, setEntries] = useState<Record<string, TriagemEntry>>({});

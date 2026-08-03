@@ -9,6 +9,7 @@ import { FilterSelect } from "@/components/filter-select";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const T = {
   bg: "#faf9f7", text: "#1c1917", muted: "#78716c", second: "#a8a29e",
@@ -28,14 +29,7 @@ const PERIODS = ["Hoje", "7 dias", "15 dias", "30 dias", "Todos"] as const;
 type Period = typeof PERIODS[number];
 const PERIOD_DAYS: Record<string, number> = { "Hoje": 0, "7 dias": 7, "15 dias": 15, "30 dias": 30 };
 
-export default function Registros() {
-  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 700);
-    window.addEventListener("resize", fn);
-    return () => window.removeEventListener("resize", fn);
-  }, []);
-
+export default function Registros() {  const isMobile = useIsMobile();
   const { data: photos = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/photos"] });
 
   const [kindFilter, setKindFilter]   = useState<string[]>([]);

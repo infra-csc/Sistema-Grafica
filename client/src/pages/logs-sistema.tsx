@@ -5,6 +5,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Search, ChevronLeft, ChevronRight, X, Download } from "lucide-react";
 import { T } from "@/lib/theme";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface AuditLog {
   id: string;
@@ -77,13 +78,7 @@ const filterSel: React.CSSProperties = {
   transition: "all 0.2s",
 };
 
-export default function LogsSistema() {
-  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 700);
-    window.addEventListener("resize", fn);
-    return () => window.removeEventListener("resize", fn);
-  }, []);
+export default function LogsSistema() {  const isMobile = useIsMobile();
   const [search, setSearch]           = useState("");
   const [actionFilter, setActionFilter] = useState("all");
   const [entityFilter, setEntityFilter] = useState("all");

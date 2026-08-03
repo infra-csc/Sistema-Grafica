@@ -42,6 +42,7 @@ import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 type PriorityLevel = 'baixa' | 'media' | 'alta' | 'urgente' | 'completed' | 'sem_prioridade';
 
@@ -137,8 +138,7 @@ export default function Eventos() {
   const [priorityDialogOpen, setPriorityDialogOpen] = useState(false);
   const [selectedEventForPriority, setSelectedEventForPriority] = useState<any>(null);
   const { toast } = useToast();
-  const [, setLocation] = useLocation();
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 700);
+  const [, setLocation] = useLocation();  const isMobile = useIsMobile();
   const [openStartDate, setOpenStartDate] = useState(false);
   const [openTruckDate, setOpenTruckDate] = useState(false);
   const [openPrazoKey, setOpenPrazoKey] = useState<string | null>(null);
@@ -297,12 +297,6 @@ export default function Eventos() {
       });
     },
   });
-
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 700);
-    window.addEventListener('resize', fn);
-    return () => window.removeEventListener('resize', fn);
-  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -17,6 +17,7 @@ import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // ─── Status config ────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; dot: string; bg: string; color: string; border: string }> = {
@@ -83,9 +84,7 @@ export default function PainelGeral() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null);
   const [showExportPDFModal, setShowExportPDFModal] = useState(false);
-  // Detecção de mobile (< 700 px)
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 700);
-
+  const isMobile = useIsMobile();
   // Sem placeholderData: no TanStack v5 ele zera o isLoading e o spinner nunca
   // aparece — o usuário via "Nenhum item" e KPIs zerados durante o carregamento.
   const { data: items = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ["/api/items"] });
@@ -104,13 +103,6 @@ export default function PainelGeral() {
     },
     onError: (error: any) => toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" }),
   });
-
-  // Resize → atualiza isMobile
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 700);
-    window.addEventListener('resize', fn);
-    return () => window.removeEventListener('resize', fn);
-  }, []);
 
   const uniqueTypes = Array.from(new Set(items.map((i: any) => i.type))).sort();
 

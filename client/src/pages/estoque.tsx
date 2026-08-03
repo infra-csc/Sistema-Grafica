@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // ─── Status meta ─────────────────────────────────────────────────────────────
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
@@ -905,14 +906,7 @@ function AssetModal({ asset, onClose, onSaved }: {
 
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
-export default function Estoque() {
-  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 700);
-    window.addEventListener("resize", fn);
-    return () => window.removeEventListener("resize", fn);
-  }, []);
-
+export default function Estoque() {  const isMobile = useIsMobile();
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");

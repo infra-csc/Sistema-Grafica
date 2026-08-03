@@ -9,6 +9,7 @@ import { Form, FormControl, FormField, FormItem, FormMessage } from "@/component
 import { Pencil, Trash2, Search, X, AlertTriangle, Plus, Building2, ChevronLeft, ChevronRight } from "lucide-react";
 import type { Sponsor } from "@shared/schema";
 import { T } from "@/lib/theme";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const tiInput: React.CSSProperties = {
   width: "100%", padding: "14px 16px",
@@ -51,13 +52,7 @@ const sponsorSchema = z.object({
 });
 type SponsorForm = z.infer<typeof sponsorSchema>;
 
-export default function Patrocinadores() {
-  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 700);
-    window.addEventListener("resize", fn);
-    return () => window.removeEventListener("resize", fn);
-  }, []);
+export default function Patrocinadores() {  const isMobile = useIsMobile();
   const [modalOpen, setModalOpen]             = useState(false);
   const [editingSponsor, setEditingSponsor]   = useState<Sponsor | null>(null);
   const [deletingSponsor, setDeletingSponsor] = useState<Sponsor | null>(null);

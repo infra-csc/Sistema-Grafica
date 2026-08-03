@@ -49,6 +49,7 @@ import { CloneItemsDialog } from "@/components/clone-items-dialog";
 import { useEventImport, useEventClone } from "@/hooks/use-event-import";
 import { useEventReference } from "@/hooks/use-event-reference";
 import { useEventItemFlags } from "@/hooks/use-event-item-flags";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
 const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];
@@ -80,8 +81,7 @@ export default function EventDetail() {
   const [selectedItemsToLink, setSelectedItemsToLink] = useState<string[]>([]);
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, string[]>>({});
   const [selectedItemForDetails, setSelectedItemForDetails] = useState<any | null>(null);
-  const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 700);
+  const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);  const isMobile = useIsMobile();
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -274,12 +274,6 @@ export default function EventDetail() {
   }, [editDialogOpen]);
 
   const { updateReferenceUrlMutation, removeReferenceUrlMutation } = useEventReference({ eventId });
-
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 700);
-    window.addEventListener('resize', fn);
-    return () => window.removeEventListener('resize', fn);
-  }, []);
 
   const createItemMutation = useMutation({
     mutationFn: async (data: any) => {

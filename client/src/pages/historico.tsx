@@ -9,6 +9,7 @@ import {
 import { useLocation } from "wouter";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 /* ── Palette ── */
 const P = {
@@ -277,13 +278,7 @@ function buildDescription(e: TimelineEvent) {
   }
 }
 
-export default function Historico() {
-  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 700);
-    window.addEventListener("resize", fn);
-    return () => window.removeEventListener("resize", fn);
-  }, []);
+export default function Historico() {  const isMobile = useIsMobile();
   const [, setLocation] = useLocation();
   const [eventFilter, setEventFilter] = useState<string[]>([]);
   const [actionFilter, setActionFilter] = useState<string[]>([]);

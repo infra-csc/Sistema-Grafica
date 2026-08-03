@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Save, Search, X } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 /* ── Constants ── */
 const QUOTAS = [
@@ -31,13 +32,7 @@ const DEFAULT_QUOTA_RULES: Record<string, string[]> = {
 
 type GlobalRule = { quota: string; itemTypes: string[] };
 
-export default function ConfigurarCotas() {
-  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 700);
-    window.addEventListener("resize", fn);
-    return () => window.removeEventListener("resize", fn);
-  }, []);
+export default function ConfigurarCotas() {  const isMobile = useIsMobile();
   const { toast } = useToast();
   const [matrix, setMatrix] = useState<Record<string, Set<string>>>({});
   const [dirty, setDirty] = useState<Set<string>>(new Set());

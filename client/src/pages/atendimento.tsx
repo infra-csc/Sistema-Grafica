@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useState, useMemo, Fragment, useEffect, useRef, useDeferredValue } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface SponsorApproval {
   id: string;
@@ -134,9 +135,7 @@ export default function Atendimento() {
   const [confirmApproveIndividual, setConfirmApproveIndividual] = useState<{ itemId: string; sponsorId: string; sponsorName: string } | null>(null);
   const [confirmApproveBatch, setConfirmApproveBatch] = useState(false);
 
-  // Detecção de mobile (< 700 px)
-  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 700);
-
+  const isMobile = useIsMobile();
   const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({
     queryKey: ["/api/items"],
   });
@@ -417,13 +416,6 @@ export default function Atendimento() {
       toast({ title: "Erro na operação em lote", description: error.message || "Ocorreu um erro", variant: "destructive" });
     },
   });
-
-  // Resize → atualiza isMobile
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 700);
-    window.addEventListener('resize', fn);
-    return () => window.removeEventListener('resize', fn);
-  }, []);
 
   const pendingItems = awaitingItems;
 

@@ -19,6 +19,7 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // Mantém o rótulo e o visual desta tela, mas delega o comportamento ao filtro
 // padrão do app (busca, ordem alfabética, contagem). Aqui o "sem filtro" é ""
@@ -83,13 +84,7 @@ function tipoPillStyle(type: string) {
   return { backgroundColor: "#f5f5f4", color: "#57534e" };
 }
 
-export default function Modelos() {
-  const [isMobile, setIsMobile] = useState(() => typeof window !== "undefined" && window.innerWidth < 700);
-  useEffect(() => {
-    const fn = () => setIsMobile(window.innerWidth < 700);
-    window.addEventListener("resize", fn);
-    return () => window.removeEventListener("resize", fn);
-  }, []);
+export default function Modelos() {  const isMobile = useIsMobile();
   const { hasPermission } = useAuth();
   const [open, setOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");

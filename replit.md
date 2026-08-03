@@ -48,6 +48,7 @@ The system features a professional light mode theme with a clean white backgroun
 
 ## User Preferences
 - **Revisar antes de aplicar**: Antes de submeter qualquer modificação ao código, fazer uma releitura detalhada do diff completo — verificar lógica, edge cases, e efeitos colaterais. Só então aplicar os edits.
+- **Sugestões de tarefas sempre em português**: Títulos e descrições de tarefas propostas devem estar em português.
 
 ## External Dependencies
 - **Database**: PostgreSQL (Neon).

@@ -1,5 +1,5 @@
 import {
-  Calendar, CheckCircle, Factory, Home, Layers, LayoutDashboard,
+  Calendar, CalendarRange, Palette, Printer, Layers, LayoutDashboard,
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
   Link2, LogOut, ScrollText, Archive, ScanSearch, Compass, Settings2, Camera,
 } from "lucide-react";
@@ -30,12 +30,12 @@ type MenuItem = {
 // roles: undefined = todos os perfis autenticados
 const productionItems: MenuItem[] = [
   { title: "Painel Geral",            url: "/",                        icon: LayoutDashboard },
-  { title: "Eventos",                 url: "/eventos",                 icon: Home },
-  { title: "Arte",                    url: "/arte",                    icon: CheckCircle,    roles: ["arte", "atendimento", "admin"] },
+  { title: "Eventos",                 url: "/eventos",                 icon: CalendarRange },
+  { title: "Arte",                    url: "/arte",                    icon: Palette,        roles: ["arte", "atendimento", "admin"] },
   { title: "Vincular Patrocinadores", url: "/vincular-patrocinadores", icon: Link2,          roles: ["arte", "solicitacao", "atendimento", "admin"] },
   { title: "Atendimento",             url: "/atendimento",             icon: UserCheck,      roles: ["atendimento", "arte", "admin"] },
   { title: "Revisão",                 url: "/solicitacao",             icon: ClipboardCheck, roles: ["solicitacao", "admin"] },
-  { title: "Gráfica",                 url: "/grafica",                 icon: Factory,        roles: ["grafica", "solicitacao", "admin"] },
+  { title: "Gráfica",                 url: "/grafica",                 icon: Printer,        roles: ["grafica", "solicitacao", "admin"] },
   { title: "Modelos",                 url: "/modelos",                 icon: Layers,         roles: ["solicitacao", "admin"] },
   { title: "Calendário",              url: "/calendario",              icon: Calendar },
   { title: "Histórico",               url: "/historico",               icon: Activity },
@@ -69,8 +69,8 @@ const sectionLabelStyle: React.CSSProperties = {
   fontSize: 10,
   fontWeight: 700,
   textTransform: "uppercase",
-  letterSpacing: "0.2em",
-  color: "#cbd5e1",
+  letterSpacing: "0.1em",
+  color: "#94a3b8",
   padding: "0 14px",
   marginBottom: 4,
   marginTop: 0,
@@ -101,7 +101,6 @@ function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
             color: isActive ? "#f97316" : "#475569",
             backgroundColor: isActive ? "#fff7ed" : "transparent",
             textDecoration: "none",
-            borderLeft: isActive ? "3px solid #f97316" : "3px solid transparent",
             transition: "background-color 0.12s ease, color 0.12s ease",
             boxSizing: "border-box",
           }}
@@ -206,17 +205,15 @@ export function AppSidebar() {
 
       {/* ── Content ── */}
       <SidebarContent
+        className="sidebar-no-scroll"
         style={{
           padding: "0 0 8px",
           display: "flex",
           flexDirection: "column",
           gap: 0,
           overflowY: "auto",
-          scrollbarWidth: "none",
         }}
       >
-        <style>{`::-webkit-scrollbar { display: none; }`}</style>
-
         {/* Produção */}
         {filteredProduction.length > 0 && (
           <SidebarGroup style={{ padding: "8px 0 4px" }}>

@@ -696,32 +696,47 @@ export default function Eventos() {
                             <Clock style={{ width: 12, height: 12, color: '#a8a29e', flexShrink: 0 }} />
                             <span style={{ fontSize: 11, color: '#78716c', fontWeight: 600, flexShrink: 0 }}>Horário:</span>
                             <input
-                              type="number" min={0} max={23}
-                              value={parseInt(formData.truckDepartureDate?.slice(11, 13) || '8', 10)}
+                              type="text"
+                              inputMode="numeric"
+                              placeholder="HH:MM"
+                              maxLength={5}
+                              value={formData.truckDepartureDate?.slice(11, 16) || ''}
                               onChange={e => {
-                                const h = String(Math.max(0, Math.min(23, Number(e.target.value)))).padStart(2, '0');
+                                let v = e.target.value.replace(/[^\d:]/g, '');
+                                // auto-insert colon after 2 digits
+                                if (v.length === 2 && !v.includes(':')) v = v + ':';
+                                if (v.length > 5) return;
                                 const datePart = formData.truckDepartureDate?.slice(0, 10) || '';
-                                const mi = formData.truckDepartureDate?.slice(14, 16) || '00';
-                                if (datePart) setFormData({ ...formData, truckDepartureDate: `${datePart}T${h}:${mi}` });
+                                if (!datePart) return;
+                                // update as raw string while typing; only clamp when complete
+                                if (/^\d{2}:\d{2}$/.test(v)) {
+                                  const [hh, mm] = v.split(':').map(Number);
+                                  const h = String(Math.min(23, hh)).padStart(2, '0');
+                                  const mi = String(Math.min(59, mm)).padStart(2, '0');
+                                  setFormData({ ...formData, truckDepartureDate: `${datePart}T${h}:${mi}` });
+                                } else {
+                                  setFormData({ ...formData, truckDepartureDate: `${datePart}T${v}` });
+                                }
                               }}
-                              style={{ width: 48, height: 30, textAlign: 'center', border: '1px solid #e7e5e4', borderRadius: 6, fontSize: 13, fontWeight: 700, outline: 'none', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-                            />
-                            <span style={{ color: '#78716c', fontWeight: 700, fontSize: 16, lineHeight: '1' }}>:</span>
-                            <input
-                              type="number" min={0} max={59} step={5}
-                              value={parseInt(formData.truckDepartureDate?.slice(14, 16) || '0', 10)}
-                              onChange={e => {
-                                const mi = String(Math.max(0, Math.min(59, Number(e.target.value)))).padStart(2, '0');
+                              onBlur={e => {
+                                // on blur normalise incomplete values
                                 const datePart = formData.truckDepartureDate?.slice(0, 10) || '';
-                                const h = formData.truckDepartureDate?.slice(11, 13) || '08';
-                                if (datePart) setFormData({ ...formData, truckDepartureDate: `${datePart}T${h}:${mi}` });
+                                if (!datePart) return;
+                                const raw = e.target.value;
+                                const match = raw.match(/^(\d{1,2})(?::(\d{0,2}))?$/);
+                                if (match) {
+                                  const h = String(Math.min(23, parseInt(match[1] || '0', 10))).padStart(2, '0');
+                                  const mi = String(Math.min(59, parseInt(match[2] || '0', 10))).padStart(2, '0');
+                                  setFormData({ ...formData, truckDepartureDate: `${datePart}T${h}:${mi}` });
+                                }
                               }}
-                              style={{ width: 48, height: 30, textAlign: 'center', border: '1px solid #e7e5e4', borderRadius: 6, fontSize: 13, fontWeight: 700, outline: 'none', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                              style={{ width: 68, height: 34, textAlign: 'center', border: '1px solid #e7e5e4', borderRadius: 6, fontSize: 14, fontWeight: 700, outline: 'none', fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '0.05em' }}
+                              onFocus={e => { e.currentTarget.style.borderColor = '#f97316'; e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249,115,22,0.18)'; }}
                             />
                             <button
                               type="button"
                               onClick={() => setOpenTruckDate(false)}
-                              style={{ marginLeft: 'auto', height: 30, padding: '0 14px', borderRadius: 6, border: 'none', background: '#f97316', color: '#ffffff', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                              style={{ marginLeft: 'auto', height: 34, padding: '0 14px', borderRadius: 6, border: 'none', background: '#f97316', color: '#ffffff', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                             >
                               Ok
                             </button>

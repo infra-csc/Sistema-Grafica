@@ -455,6 +455,14 @@
     background: #f5f5f4;
   }
 
+  /* Sidebar: sem scrollbar visível */
+  .sidebar-no-scroll {
+    scrollbar-width: none;
+  }
+  .sidebar-no-scroll::-webkit-scrollbar {
+    display: none;
+  }
+
   .scrollbar-visible {
     scrollbar-width: thin;
     scrollbar-color: #d6d3d1 #f5f5f4;

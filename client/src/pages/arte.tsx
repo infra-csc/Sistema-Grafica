@@ -1872,20 +1872,23 @@ export default function Arte() {
                           {approval.sponsor?.color && <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />}
                           <span style={{ fontSize: 12, fontWeight: 700, color: '#991b1b', flex: 1 }}>{approval.sponsor?.name || 'Patrocinador'}</span>
                           {/* Log: quem + quando */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexShrink: 0 }}>
-                            {approval.rejectedBy && (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: '#6b7280', background: '#f3f4f6', border: '1px solid #e5e7eb', borderRadius: 4, padding: '1px 6px' }}>
-                                <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                                {approval.rejectedBy}
-                              </span>
-                            )}
-                            {approval.rejectedAt && (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 600, color: '#b45309', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 4, padding: '1px 6px' }}>
-                                <Clock style={{ width: 9, height: 9, flexShrink: 0 }} />
-                                {new Date(approval.rejectedAt).toLocaleDateString('pt-BR')} {new Date(approval.rejectedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                              </span>
-                            )}
-                          </div>
+                          {(approval.rejectedBy || approval.rejectedAt) && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                              {approval.rejectedBy && (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 600, color: '#6b7280', maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={approval.rejectedBy}>
+                                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                                  {approval.rejectedBy.split(' ')[0]}
+                                </span>
+                              )}
+                              {approval.rejectedBy && approval.rejectedAt && <span style={{ color: '#d1ccc8', fontSize: 9 }}>·</span>}
+                              {approval.rejectedAt && (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 600, color: '#b45309', whiteSpace: 'nowrap' }}>
+                                  <Clock style={{ width: 9, height: 9, flexShrink: 0 }} />
+                                  {new Date(approval.rejectedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} {new Date(approval.rejectedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              )}
+                            </div>
+                          )}
                         </div>
                         {/* Reason */}
                         {approval.rejectionReason && (
@@ -2379,10 +2382,24 @@ export default function Arte() {
                         <span style={{ fontSize: 9, fontWeight: 700, color: '#dc2626', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 4, padding: '1px 6px', letterSpacing: '0.04em' }}>RECUSADO</span>
                       </div>
                       {/* Reason */}
-                      <div style={{ backgroundColor: '#fffafa', padding: '10px 14px' }}>
+                      <div style={{ backgroundColor: '#fffafa', padding: '10px 14px 8px' }}>
                         <p style={{ fontSize: 12, color: '#7f1d1d', margin: 0, lineHeight: 1.55, fontStyle: approval.rejectionReason ? 'italic' : 'normal' }}>
                           {approval.rejectionReason ? `"${approval.rejectionReason}"` : <span style={{ color: '#b45309', fontStyle: 'normal' }}>Sem motivo informado.</span>}
                         </p>
+                        {(approval.rejectedBy || approval.rejectedAt) && (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 6 }}>
+                            {approval.rejectedBy && (
+                              <span style={{ fontSize: 10, fontWeight: 600, color: '#dc2626', background: 'rgba(220,38,38,0.08)', borderRadius: 4, padding: '1px 6px' }}>
+                                {approval.rejectedBy}
+                              </span>
+                            )}
+                            {approval.rejectedAt && (
+                              <span style={{ fontSize: 10, color: '#b45309' }}>
+                                {new Date(approval.rejectedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}

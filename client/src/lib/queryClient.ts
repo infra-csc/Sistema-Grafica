@@ -2,8 +2,14 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
-    const text = (await res.text()) || res.statusText;
-    throw new Error(`${res.status}: ${text}`);
+    const raw = (await res.text()) || res.statusText;
+    // Se a resposta for uma página HTML (ex: página 404 do Replit), não exibir
+    // o HTML bruto — substituir por mensagem genérica legível.
+    const isHtml = raw.trimStart().startsWith("<");
+    const text = isHtml
+      ? `Erro ${res.status} — servidor retornou resposta inesperada. Tente novamente.`
+      : raw;
+    throw new Error(text);
   }
 }
 

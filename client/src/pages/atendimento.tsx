@@ -2486,7 +2486,7 @@ export default function Atendimento() {
                     overflowY: 'auto',
                   }}>
                     <div>
-                      <h4 style={{ fontSize: 10, fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.12em', margin: '0 0 16px' }}>
+                      <h4 style={{ fontSize: 10, fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
                         Metadados Técnicos
                       </h4>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -2512,7 +2512,7 @@ export default function Atendimento() {
 
                     {/* Links para arquivos */}
                     <div>
-                      <h4 style={{ fontSize: 10, fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.12em', margin: '0 0 12px' }}>
+                      <h4 style={{ fontSize: 10, fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 12px' }}>
                         Arquivos
                       </h4>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -2579,7 +2579,7 @@ export default function Atendimento() {
 
                     {/* Aprovações por Patrocinador */}
                     <div>
-                      <h4 style={{ fontSize: 10, fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.12em', margin: '0 0 16px' }}>
+                      <h4 style={{ fontSize: 10, fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
                         Decisão por Patrocinador
                       </h4>
 
@@ -2605,7 +2605,7 @@ export default function Atendimento() {
                                 key={sponsor.id}
                                 style={{
                                   padding: '14px 16px', borderRadius: 10,
-                                  border: '2px dashed',
+                                  border: '1.5px solid',
                                   borderColor: isApproved ? '#86efac' : isRejected ? '#fecaca' : '#e7e5e4',
                                   backgroundColor: isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : '#fafaf9',
                                 }}
@@ -2732,7 +2732,7 @@ export default function Atendimento() {
                     backgroundColor: 'rgba(250,250,249,0.3)',
                     overflowY: 'auto',
                   }}>
-                    <h4 style={{ fontSize: 10, fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.12em', margin: '0 0 24px' }}>
+                    <h4 style={{ fontSize: 10, fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 24px' }}>
                       Histórico de Alterações
                     </h4>
 
@@ -2768,7 +2768,7 @@ export default function Atendimento() {
                             const cfg = ACTION_CONFIG[log.action] ?? { label: log.action?.replace(/_/g, ' ') ?? 'Ação', bg: '#e7e5e4', iconColor: '#a8a29e', icon: Clock };
                             const IconComp = cfg.icon;
                             return (
-                              <div key={log.id} style={{ paddingLeft: 32, position: 'relative', opacity: i > 3 ? 0.5 : 1 }}>
+                              <div key={log.id} style={{ paddingLeft: 32, position: 'relative', opacity: Math.max(0.35, 1 - i * 0.12) }}>
                                 <div style={{
                                   position: 'absolute', left: 0, top: 2,
                                   width: 20, height: 20, borderRadius: '50%',
@@ -2814,8 +2814,8 @@ export default function Atendimento() {
                     style={{
                       padding: '10px 20px', borderRadius: 8, border: 'none',
                       backgroundColor: 'transparent', color: '#78716c',
-                      fontSize: 11, fontWeight: 900, textTransform: 'uppercase',
-                      cursor: 'pointer', letterSpacing: '0.06em',
+                      fontSize: 12, fontWeight: 600,
+                      cursor: 'pointer',
                     }}
                   >
                     Fechar
@@ -2829,8 +2829,8 @@ export default function Atendimento() {
                         style={{
                           padding: '10px 20px', borderRadius: 8, border: 'none',
                           backgroundColor: '#ba1a1a', color: '#ffffff',
-                          fontSize: 11, fontWeight: 900, textTransform: 'uppercase',
-                          cursor: 'pointer', letterSpacing: '0.06em',
+                          fontSize: 12, fontWeight: 800,
+                          cursor: 'pointer',
                           display: 'flex', alignItems: 'center', gap: 6,
                           opacity: sponsorRejectMutation.isPending ? 0.7 : 1,
                         }}
@@ -2844,11 +2844,11 @@ export default function Atendimento() {
                         data-testid="button-approve-item"
                         style={{
                           padding: '10px 28px', borderRadius: 8, border: 'none',
-                          backgroundColor: '#9d4300', color: '#ffffff',
-                          fontSize: 11, fontWeight: 900, textTransform: 'uppercase',
-                          cursor: 'pointer', letterSpacing: '0.06em',
+                          backgroundColor: '#f97316', color: '#ffffff',
+                          fontSize: 12, fontWeight: 800,
+                          cursor: 'pointer',
                           display: 'flex', alignItems: 'center', gap: 6,
-                          boxShadow: '0 4px 14px rgba(157,67,0,0.3)',
+                          boxShadow: '0 4px 14px rgba(249,115,22,0.3)',
                           opacity: sponsorApproveMutation.isPending ? 0.7 : 1,
                         }}
                       >

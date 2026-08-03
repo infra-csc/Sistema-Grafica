@@ -91,6 +91,7 @@ export default function Arte() {
   const [monthFilter, setMonthFilter] = useState<string[]>([]);
   const [approvalThumbUrl, setApprovalThumbUrl] = useState<string>("");
   const [approvalThumbPreview, setApprovalThumbPreview] = useState<string>("");
+  const [savedApprovalThumbUrl, setSavedApprovalThumbUrl] = useState<string>("");
   const [searchFilter, setSearchFilter] = useState<string>("");
   // Adia o valor usado na filtragem: o input segue responsivo, mas a tabela
   // (grande) não re-renderiza a cada tecla — evita engasgo com muitas peças.
@@ -183,9 +184,13 @@ export default function Arte() {
     mutationFn: async ({ itemId, approvalThumbUrl }: { itemId: string; approvalThumbUrl: string }) => {
       return await apiRequest("PATCH", `/api/items/${itemId}`, { approvalThumbUrl });
     },
-    onSuccess: () => {
+    onSuccess: (updated: any, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setSavedApprovalThumbUrl(variables.approvalThumbUrl);
+      if (updated?.id) {
+        setSelectedItem((prev: any) => prev?.id === updated.id ? { ...prev, ...updated } : prev);
+      }
       toast({
         title: "Thumb salvo",
         description: "O thumb foi salvo. Envie para aprovação quando quiser.",
@@ -1111,6 +1116,18 @@ export default function Arte() {
   // continua vendo "carregar mais" de uma lista que já cabe inteira.
   useEffect(() => { setVisibleCount(ARTE_PAGE_SIZE); }, [itemsByTab]);
 
+  // Re-sincroniza o preview do thumb caso a query de items refaça o estado
+  // após salvar rascunho (dupla invalidação: onSuccess + WebSocket item_updated).
+  useEffect(() => {
+    if (selectedItem?.approvalThumbUrl && !approvalThumbPreview) {
+      setApprovalThumbUrl(selectedItem.approvalThumbUrl);
+      setApprovalThumbPreview(selectedItem.approvalThumbUrl);
+    }
+    if (selectedItem?.approvalThumbUrl && !savedApprovalThumbUrl) {
+      setSavedApprovalThumbUrl(selectedItem.approvalThumbUrl);
+    }
+  }, [selectedItem?.approvalThumbUrl, savedApprovalThumbUrl]);
+
   const filteredItems = useMemo(() => {
     const list = itemsByTab[activeTab] ?? [];
     // Um Collator reutilizado é bem mais rápido que localeCompare por comparação.
@@ -1138,6 +1155,7 @@ export default function Arte() {
     setSelectedItem(item);
     setApprovalThumbUrl(item.approvalThumbUrl || "");
     setApprovalThumbPreview(item.approvalThumbUrl || "");
+    setSavedApprovalThumbUrl(item.approvalThumbUrl || "");
     setFinalFileUrl(item.finalFileUrl || "");
     setFinalFileName(item.finalFileName || fileNameFromPath(item.finalFileUrl) || (item.finalFileUrl ? "arquivo enviado" : ""));
     setFinalDirty(false);
@@ -1157,8 +1175,6 @@ export default function Arte() {
       toast({ title: "Erro", description: "Faça o upload do thumb antes de salvar", variant: "destructive" });
       return;
     }
-    // Atualiza o item local otimisticamente para refletir o thumb salvo na lista.
-    setSelectedItem((prev: any) => prev ? { ...prev, approvalThumbUrl } : prev);
     saveThumbDraftMutation.mutate({ itemId: selectedItem.id, approvalThumbUrl });
   };
 
@@ -2768,25 +2784,41 @@ export default function Arte() {
                     </div>
 
                     {/* Salvar thumb sem enviar (rascunho) */}
-                    <button
-                      onClick={handleSaveThumbDraft}
-                      disabled={saveThumbDraftMutation.isPending || submitForApprovalMutation.isPending}
-                      data-testid="button-save-thumb-draft"
-                      style={{
-                        width: '100%', padding: '12px 0', borderRadius: 8,
-                        border: '1.5px solid #ddd6fe', background: '#ffffff',
-                        color: '#7c3aed', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700,
-                        fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.1em',
-                        cursor: (saveThumbDraftMutation.isPending || submitForApprovalMutation.isPending) ? 'not-allowed' : 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                        marginBottom: 8, transition: 'background 0.15s'
-                      }}
-                      onMouseEnter={e => { if (saveThumbDraftMutation.isPending || submitForApprovalMutation.isPending) return; e.currentTarget.style.background = '#faf5ff'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; }}
-                    >
-                      <FileImage style={{ width: 14, height: 14 }} />
-                      {saveThumbDraftMutation.isPending ? 'Salvando...' : 'Salvar thumb (sem enviar)'}
-                    </button>
+                    {savedApprovalThumbUrl && savedApprovalThumbUrl === approvalThumbUrl ? (
+                      <div
+                        data-testid="thumb-saved-confirmation"
+                        style={{
+                          width: '100%', padding: '12px 0', borderRadius: 8,
+                          border: '1px solid #bbf7d0', background: '#f0fdf4',
+                          color: '#15803d', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700,
+                          fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                          marginBottom: 8,
+                        }}
+                      >
+                        <CheckCircle style={{ width: 15, height: 15 }} />
+                        Thumb salvo como rascunho
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleSaveThumbDraft}
+                        disabled={saveThumbDraftMutation.isPending || submitForApprovalMutation.isPending}
+                        data-testid="button-save-thumb-draft"
+                        style={{
+                          width: '100%', padding: '12px 0', borderRadius: 8,
+                          border: '1.5px solid #ddd6fe', background: '#ffffff',
+                          color: '#7c3aed', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700,
+                          fontSize: 13,
+                          cursor: (saveThumbDraftMutation.isPending || submitForApprovalMutation.isPending) ? 'not-allowed' : 'pointer',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                          marginBottom: 8, transition: 'background 0.15s'
+                        }}
+                        onMouseEnter={e => { if (saveThumbDraftMutation.isPending || submitForApprovalMutation.isPending) return; e.currentTarget.style.background = '#faf5ff'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = '#ffffff'; }}
+                      >
+                        <FileImage style={{ width: 14, height: 14 }} />
+                        {saveThumbDraftMutation.isPending ? 'Salvando...' : 'Salvar thumb (sem enviar)'}
+                      </button>
+                    )}
 
                     {/* Enviar para Aprovação */}
                     <button
@@ -2797,7 +2829,7 @@ export default function Arte() {
                         width: '100%', padding: '14px 0', borderRadius: 8, border: 'none',
                         backgroundColor: submitForApprovalMutation.isPending ? '#c4b5fd' : '#7c3aed',
                         color: '#ffffff', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700,
-                        fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.1em',
+                        fontSize: 13,
                         cursor: submitForApprovalMutation.isPending ? 'not-allowed' : 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                         boxShadow: '0 4px 16px rgba(124,58,237,0.2)', transition: 'filter 0.15s, transform 0.1s'

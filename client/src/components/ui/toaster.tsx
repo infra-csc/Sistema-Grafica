@@ -68,7 +68,7 @@ function NorteToast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => v
           </div>
         )}
         {toast.description && (
-          <div style={{ fontSize: 12, color: "#78716c", lineHeight: 1.45 }}>
+          <div style={{ fontSize: 12, color: "#78716c", lineHeight: 1.45, maxHeight: 80, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" }}>
             {toast.description}
           </div>
         )}

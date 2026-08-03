@@ -2791,11 +2791,11 @@ export default function VincularPatrocinadores() {  const isMobile = useIsMobil
                         </div>
                       </div>
 
-                      {/* Nível 3 — Tabela de itens (colapsável) */}
+                      {/* Nível 3 — Tabela de itens (colapsável).
+                          overflowX: sem isso, no celular as 6 colunas ficavam
+                          espremidas dentro de overflow:hidden e a coluna de
+                          Ações — onde se vincula — saía de alcance. */}
                       {!isCollapsed && allItems.length > 0 && (
-                        {/* overflowX: sem isso, no celular as 6 colunas ficavam
-                            espremidas dentro de overflow:hidden e a coluna de
-                            Ações — onde se vincula — saía de alcance. */}
                         <div style={{ backgroundColor: '#ffffff', margin: '0 16px 14px', borderRadius: 8, overflow: 'hidden', overflowX: 'auto', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
                           <table style={{ width: '100%', minWidth: isMobile ? 620 : undefined, borderCollapse: 'collapse' }}>
                             <thead>

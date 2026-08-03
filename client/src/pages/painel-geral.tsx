@@ -250,7 +250,7 @@ export default function PainelGeral() {
 
       {/* ── Header ── */}
       <header style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16, paddingTop: 22, paddingBottom: 2 }}>
-        <div style={{ display: "flex", flexDirection: "column" }}>
+        <div style={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minWidth: 0 }}>
           <h1
             data-testid="title-painel-geral"
             style={{
@@ -340,7 +340,7 @@ export default function PainelGeral() {
         {!isMobile && <div style={{ width: 1, height: 20, backgroundColor: "#e7e5e4", flexShrink: 0 }} />}
 
         {/* Evento */}
-        <div style={{ flexShrink: 0, minWidth: 150, ...(isMobile && { flex: "1 1 calc(50% - 4px)" }) }}>
+        <div style={{ flexShrink: 0, minWidth: 150, ...(isMobile && { flex: "1 1 calc(50% - 4px)", minWidth: 0 }) }}>
           <EventFilterDropdown
             values={eventFilter}
             onValuesChange={setEventFilter}
@@ -353,7 +353,7 @@ export default function PainelGeral() {
         </div>
 
         {/* Tipo */}
-        <div style={{ flexShrink: 0, minWidth: 130, ...(isMobile && { flex: "1 1 calc(50% - 4px)" }) }}>
+        <div style={{ flexShrink: 0, minWidth: 130, ...(isMobile && { flex: "1 1 calc(50% - 4px)", minWidth: 0 }) }}>
           <FilterSelect
             label="Tipo" allLabel="Todos os tipos"
             values={typeFilter} onValuesChange={setTypeFilter}
@@ -365,7 +365,7 @@ export default function PainelGeral() {
         </div>
 
         {/* Patrocinador */}
-        <div style={{ flex: 1, minWidth: 160, ...(isMobile && { flex: "1 1 calc(50% - 4px)" }) }}>
+        <div style={{ flex: 1, minWidth: 160, ...(isMobile && { flex: "1 1 calc(50% - 4px)", minWidth: 0 }) }}>
           <FilterSelect
             label="Patrocinador" allLabel="Todos os patrocinadores"
             values={sponsorFilter} onValuesChange={setSponsorFilter}
@@ -377,7 +377,7 @@ export default function PainelGeral() {
         </div>
 
         {/* Status */}
-        <div style={{ flexShrink: 0, minWidth: 140, ...(isMobile && { flex: "1 1 calc(50% - 4px)" }) }}>
+        <div style={{ flexShrink: 0, minWidth: 140, ...(isMobile && { flex: "1 1 calc(50% - 4px)", minWidth: 0 }) }}>
           <FilterSelect
             label="Status" allLabel="Qualquer status"
             values={statusFilter} onValuesChange={setStatusFilter}
@@ -401,7 +401,7 @@ export default function PainelGeral() {
         </div>
 
         {/* Data */}
-        <div style={{ flexShrink: 0, minWidth: 130, ...(isMobile && { flex: "1 1 calc(50% - 4px)" }) }}>
+        <div style={{ flexShrink: 0, minWidth: 130, ...(isMobile && { flex: "1 1 calc(50% - 4px)", minWidth: 0 }) }}>
           <FilterSelect
             label="Data" allLabel="Todas as datas"
             values={dateFilter} onValuesChange={setDateFilter}

@@ -491,7 +491,7 @@ export function registerItemRoutes(app: Express): void {
         "awaiting_submission", "awaiting_approval", "awaiting_final_review",
         "ready_for_production", "approved", "inProduction", "produced", "conferred", "delivered",
       ];
-      if (isAtendimento && LOCKED_STATUSES.includes(item.status)) {
+      if (isSolicitacao && LOCKED_STATUSES.includes(item.status)) {
         return res.status(403).json({
           error: "Não é possível excluir uma peça que já foi enviada para Arte ou está em produção",
         });

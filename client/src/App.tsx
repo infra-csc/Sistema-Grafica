@@ -173,9 +173,8 @@ function Router() {
       <Route path="/historico">
         {() => <ProtectedRoute component={Historico} />}
       </Route>
-      {/* Registros: hoje só admin; a ideia é abrir para os demais perfis depois. */}
       <Route path="/registros">
-        {() => <RoleProtectedRoute component={Registros} allowedRoles={["admin"]} />}
+        {() => <ProtectedRoute component={Registros} />}
       </Route>
       <Route path="/usuarios">
         {() => <RoleProtectedRoute component={Usuarios} allowedRoles={["admin"]} />}

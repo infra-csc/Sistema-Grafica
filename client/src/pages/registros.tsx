@@ -1,9 +1,9 @@
 // Registros fotográficos da Gráfica — conferências e entregas de todas as peças.
 // Fica fora da tela da Gráfica de propósito: a maioria dos perfis não tem acesso
-// a ela, e este acervo interessa a todo mundo. Hoje restrita a admin.
-import { useMemo, useState } from "react";
+// a ela, e este acervo interessa a todo mundo.
+import { useMemo, useState, useEffect, useDeferredValue } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Camera, Truck, FileCheck, Search, X, ExternalLink } from "lucide-react";
+import { Camera, Truck, FileCheck, Search, X, ExternalLink, ChevronLeft, ChevronRight } from "lucide-react";
 import { FilterSelect } from "@/components/filter-select";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { format } from "date-fns";
@@ -23,14 +23,23 @@ type Kind = keyof typeof KIND;
 
 const PAGE_SIZE = 60;
 
+const PERIODS = ["Hoje", "7 dias", "15 dias", "30 dias", "Todos"] as const;
+type Period = typeof PERIODS[number];
+const PERIOD_DAYS: Record<string, number> = { "Hoje": 0, "7 dias": 7, "15 dias": 15, "30 dias": 30 };
+
 export default function Registros() {
   const { data: photos = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/photos"] });
 
   const [kindFilter, setKindFilter]   = useState<string[]>([]);
   const [eventFilter, setEventFilter] = useState<string[]>([]);
+  const [period, setPeriod]           = useState<Period>("Todos");
   const [search, setSearch]           = useState("");
   const [visible, setVisible]         = useState(PAGE_SIZE);
-  const [zoom, setZoom]               = useState<any>(null);
+  // Índice na lista filtrada, para poder navegar entre as fotos com o zoom aberto.
+  const [zoomIdx, setZoomIdx]         = useState<number | null>(null);
+
+  // Sem isso, cada tecla refiltra o acervo inteiro e a digitação engasga.
+  const deferredSearch = useDeferredValue(search);
 
   const kindOf = (p: any): Kind => (p.kind === "conference" ? "conference" : "delivery");
   // Registros antigos guardaram a URL assinada do GCS, que expira; o app serve
@@ -41,27 +50,34 @@ export default function Registros() {
   const passesKind   = (p: any) => !kindFilter.length  || kindFilter.includes(kindOf(p));
   const passesEvent  = (p: any) => !eventFilter.length || eventFilter.includes(p.eventId || "");
   const passesSearch = (p: any) => {
-    const q = search.trim().toLowerCase();
+    const q = deferredSearch.trim().toLowerCase();
     if (!q) return true;
     return [p.displayId, p.itemType, p.itemDescription, p.eventName, p.receivedBy, p.uploadedBy]
       .some(v => (v || "").toLowerCase().includes(q));
   };
+  const passesPeriod = (p: any) => {
+    if (period === "Todos") return true;
+    if (!p.createdAt) return false;
+    const from = new Date(); from.setHours(0, 0, 0, 0);
+    from.setDate(from.getDate() - PERIOD_DAYS[period]);
+    return new Date(p.createdAt) >= from;
+  };
 
   const filtered = useMemo(
-    () => photos.filter(p => passesKind(p) && passesEvent(p) && passesSearch(p)),
-    [photos, kindFilter, eventFilter, search],
+    () => photos.filter(p => passesKind(p) && passesEvent(p) && passesSearch(p) && passesPeriod(p)),
+    [photos, kindFilter, eventFilter, deferredSearch, period],
   );
 
   const kindOptions = useMemo(() => {
-    const pool = photos.filter(p => passesEvent(p) && passesSearch(p));
+    const pool = photos.filter(p => passesEvent(p) && passesSearch(p) && passesPeriod(p));
     return (Object.keys(KIND) as Kind[]).map(k => ({
       value: k, label: KIND[k].label,
       count: pool.filter(p => kindOf(p) === k).length,
     })).filter(o => o.count > 0 || kindFilter.includes(o.value));
-  }, [photos, eventFilter, search, kindFilter]);
+  }, [photos, eventFilter, deferredSearch, period, kindFilter]);
 
   const eventOptions = useMemo(() => {
-    const pool = photos.filter(p => passesKind(p) && passesSearch(p));
+    const pool = photos.filter(p => passesKind(p) && passesSearch(p) && passesPeriod(p));
     const map = new Map<string, { value: string; label: string; count: number }>();
     pool.forEach(p => {
       const id = p.eventId || "";
@@ -70,7 +86,7 @@ export default function Registros() {
       else map.set(id, { value: id, label: p.eventName || "Sem evento", count: 1 });
     });
     return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
-  }, [photos, kindFilter, search]);
+  }, [photos, kindFilter, deferredSearch, period]);
 
   const counts = {
     total: photos.length,
@@ -78,8 +94,28 @@ export default function Registros() {
     delivery: photos.filter(p => kindOf(p) === "delivery").length,
   };
 
-  const hasFilters = !!(kindFilter.length || eventFilter.length || search.trim());
-  const clearAll = () => { setKindFilter([]); setEventFilter([]); setSearch(""); };
+  const hasFilters = !!(kindFilter.length || eventFilter.length || search.trim() || period !== "Todos");
+  const clearAll = () => { setKindFilter([]); setEventFilter([]); setSearch(""); setPeriod("Todos"); };
+
+  // Navegação do zoom: setas e Esc, como se espera de uma galeria.
+  const zoom = zoomIdx != null ? filtered[zoomIdx] : null;
+  const stepZoom = (dir: 1 | -1) =>
+    setZoomIdx(i => {
+      if (i == null) return i;
+      const next = i + dir;
+      return next >= 0 && next < filtered.length ? next : i;
+    });
+
+  useEffect(() => {
+    if (zoomIdx == null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setZoomIdx(null);
+      else if (e.key === "ArrowRight") stepZoom(1);
+      else if (e.key === "ArrowLeft") stepZoom(-1);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [zoomIdx, filtered.length]);
 
   const fmt = (d: any) => (d ? format(new Date(d), "dd/MM/yy HH:mm", { locale: ptBR }) : "—");
 
@@ -138,6 +174,22 @@ export default function Registros() {
               values={eventFilter}
               onValuesChange={v => { setEventFilter(v); setVisible(PAGE_SIZE); }}
             />
+            {/* Período — mesmo padrão das outras telas */}
+            <div style={{ display: "flex", border: `1px solid ${T.border}`, borderRadius: 8, overflow: "hidden", backgroundColor: "#ffffff" }}>
+              {PERIODS.map(p => (
+                <button key={p}
+                  onClick={() => { setPeriod(p); setVisible(PAGE_SIZE); }}
+                  data-testid={`button-period-${p}`}
+                  style={{
+                    padding: "0 12px", height: 36, border: "none", cursor: "pointer",
+                    backgroundColor: period === p ? T.text : "transparent",
+                    color: period === p ? "#ffffff" : T.muted,
+                    fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
+                  }}>
+                  {p}
+                </button>
+              ))}
+            </div>
             {hasFilters && (
               <button onClick={clearAll} data-testid="button-clear-filters"
                 style={{ fontSize: 11, fontWeight: 600, color: T.muted, background: "none", border: `1px solid ${T.border}`, borderRadius: 99, cursor: "pointer", padding: "5px 12px" }}>
@@ -169,7 +221,7 @@ export default function Registros() {
         ) : (
           <>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 16 }}>
-              {filtered.slice(0, visible).map(p => {
+              {filtered.slice(0, visible).map((p, idx) => {
                 const k = KIND[kindOf(p)];
                 const Icon = k.icon;
                 const notes = kindOf(p) === "conference" ? p.conferenceNotes : p.deliveryNotes;
@@ -177,7 +229,7 @@ export default function Registros() {
                   <div key={p.id} data-testid={`card-photo-${p.id}`}
                     style={{ backgroundColor: "#ffffff", border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden", display: "flex", flexDirection: "column" }}>
                     <button
-                      onClick={() => setZoom(p)}
+                      onClick={() => setZoomIdx(idx)}
                       title="Ampliar"
                       style={{ display: "block", width: "100%", aspectRatio: "4/3", border: "none", padding: 0, backgroundColor: "#f4f3f0", cursor: "pointer" }}
                     >
@@ -233,9 +285,25 @@ export default function Registros() {
       {/* ── Zoom ── */}
       {zoom && (
         <div
-          onClick={() => setZoom(null)}
+          onClick={() => setZoomIdx(null)}
           style={{ position: "fixed", inset: 0, zIndex: 60, backgroundColor: "rgba(28,25,23,0.85)", display: "flex", alignItems: "center", justifyContent: "center", padding: 32, cursor: "zoom-out" }}
         >
+          {/* Setas laterais — a galeria se percorre sem fechar e reabrir */}
+          {zoomIdx! > 0 && (
+            <button onClick={e => { e.stopPropagation(); stepZoom(-1); }} title="Anterior (←)"
+              data-testid="button-zoom-prev"
+              style={{ position: "absolute", left: 16, width: 44, height: 44, borderRadius: "50%", border: "none", backgroundColor: "rgba(255,255,255,0.15)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <ChevronLeft style={{ width: 22, height: 22 }} />
+            </button>
+          )}
+          {zoomIdx! < filtered.length - 1 && (
+            <button onClick={e => { e.stopPropagation(); stepZoom(1); }} title="Próxima (→)"
+              data-testid="button-zoom-next"
+              style={{ position: "absolute", right: 16, width: 44, height: 44, borderRadius: "50%", border: "none", backgroundColor: "rgba(255,255,255,0.15)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <ChevronRight style={{ width: 22, height: 22 }} />
+            </button>
+          )}
+
           <div onClick={e => e.stopPropagation()} style={{ maxWidth: "90vw", maxHeight: "90vh", display: "flex", flexDirection: "column", gap: 12, cursor: "default" }}>
             <img src={srcOf(zoom)} alt="Registro"
               style={{ maxWidth: "100%", maxHeight: "78vh", objectFit: "contain", borderRadius: 8, backgroundColor: "#ffffff" }} />
@@ -246,14 +314,23 @@ export default function Registros() {
                 </p>
                 <p style={{ fontSize: 12, opacity: 0.75, margin: 0 }}>
                   {KIND[kindOf(zoom)].label} · {zoom.eventName || "Sem evento"} · {fmt(zoom.createdAt)}
+                  {zoom.uploadedBy && ` · por ${zoom.uploadedBy}`}
                 </p>
+                {(kindOf(zoom) === "conference" ? zoom.conferenceNotes : zoom.deliveryNotes) && (
+                  <p style={{ fontSize: 12, opacity: 0.85, fontStyle: "italic", margin: "4px 0 0" }}>
+                    "{kindOf(zoom) === "conference" ? zoom.conferenceNotes : zoom.deliveryNotes}"
+                  </p>
+                )}
               </div>
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontSize: 11, opacity: 0.6, whiteSpace: "nowrap" }}>
+                  {zoomIdx! + 1} / {filtered.length}
+                </span>
                 <a href={srcOf(zoom)} target="_blank" rel="noopener noreferrer"
                   style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, backgroundColor: "rgba(255,255,255,0.15)", color: "#ffffff", fontSize: 12, fontWeight: 700, textDecoration: "none" }}>
                   <ExternalLink style={{ width: 13, height: 13 }} /> Original
                 </a>
-                <button onClick={() => setZoom(null)}
+                <button onClick={() => setZoomIdx(null)}
                   style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", borderRadius: 8, border: "none", backgroundColor: "rgba(255,255,255,0.15)", color: "#ffffff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
                   <X style={{ width: 13, height: 13 }} /> Fechar
                 </button>

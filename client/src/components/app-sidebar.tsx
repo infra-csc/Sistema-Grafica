@@ -40,8 +40,8 @@ const productionItems: MenuItem[] = [
   { title: "Calendário",              url: "/calendario",              icon: Calendar },
   { title: "Histórico",               url: "/historico",               icon: Activity },
   // Registros fica aqui (e não dentro da Gráfica) porque a maioria dos perfis
-  // não acessa a Gráfica e este acervo interessa a todos. Só admin por enquanto.
-  { title: "Registros",               url: "/registros",               icon: Camera,         roles: ["admin"] },
+  // não acessa a Gráfica e este acervo interessa a todos.
+  { title: "Registros",               url: "/registros",               icon: Camera },
   { title: "Análises",                url: "/analises",                icon: BarChart3,      roles: ["admin"] },
 ];
 

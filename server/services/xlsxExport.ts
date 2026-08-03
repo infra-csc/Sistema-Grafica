@@ -9,6 +9,8 @@ import { storage } from "../storage";
 const PRODUCTION_COLS = [
   { header: "Evento",          key: "eventName",    width: 26 },
   { header: "Status",          key: "statusLabel",  width: 16 },
+  { header: "Reaprov.",        key: "qtyReused",    width: 10 },
+  { header: "M² a produzir",   key: "m2ToProduce",  width: 13 },
   { header: "Produzido",       key: "qtyProduced",  width: 11 },
   { header: "Conferido",       key: "qtyConferred", width: 11 },
   { header: "Entregue",        key: "qtyDelivered", width: 11 },
@@ -77,6 +79,20 @@ async function withSponsorNames(rawItems: any[]) {
   );
 }
 
+// Reuso total antigo não preencheu reuse_qty, mas cobre a peça inteira.
+function reusedTotal(item: any): number {
+  return item.isReuse ? (item.quantity ?? 0) : (item.reuseQty ?? 0);
+}
+
+/** Metragem que vai de fato para a impressora — o reaproveitado não é impresso. */
+function m2ToProduce(item: any): number {
+  const total = item.calculatedM2 != null ? parseFloat(item.calculatedM2) : 0;
+  const qty = item.quantity ?? 0;
+  if (!total || !qty) return total;
+  const toPrint = qty - reusedTotal(item);
+  return toPrint <= 0 ? 0 : parseFloat(((total / qty) * toPrint).toFixed(2));
+}
+
 function byDisplayId(a: any, b: any) {
   const nA = parseInt(String(a.displayId || "0").replace(/\D/g, "")) || 0;
   const nB = parseInt(String(b.displayId || "0").replace(/\D/g, "")) || 0;
@@ -137,6 +153,8 @@ async function writeWorkbook(
         ...(withProduction ? {
           eventName:    item.event?.name ?? item.eventName ?? "",
           statusLabel:  STATUS_LABELS[item.status] ?? item.status ?? "",
+          qtyReused:    reusedTotal(item),
+          m2ToProduce:  m2ToProduce(item),
           qtyProduced:  item.quantityProduced ?? 0,
           qtyConferred: item.conferredQty ?? 0,
           qtyDelivered: item.deliveredQty ?? 0,
@@ -168,7 +186,7 @@ async function writeWorkbook(
       });
 
       const numericCols = ["quantity", "visualWidth", "visualHeight", "fileWidth", "fileHeight", "calculatedM2",
-                           "qtyProduced", "qtyConferred", "qtyDelivered"];
+                           "qtyReused", "m2ToProduce", "qtyProduced", "qtyConferred", "qtyDelivered"];
       numericCols.forEach((key) => {
         const colIdx = COLS.findIndex((c) => c.key === key);
         if (colIdx >= 0) {

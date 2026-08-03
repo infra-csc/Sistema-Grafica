@@ -62,6 +62,17 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 /**
+ * Nome legível do arquivo. Os uploads ficam no storage com UUID, que não diz
+ * nada a quem lê; nesse caso vale mais dizer o que é do que mostrar o hash.
+ */
+function friendlyFileName(url: string): string {
+  const base = decodeURIComponent((url.split("?")[0].split("/").pop() || "").trim());
+  const isUuidish = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(base)
+    || (!base.includes(".") && base.length > 20);
+  return isUuidish ? "Imagem enviada pela Arte" : (base || "Arquivo");
+}
+
+/**
  * Faixa de miniaturas; clicar abre a imagem original em nova aba. Tamanho fixo
  * por miniatura — com largura total, uma única foto virava um bloco gigante.
  */
@@ -299,12 +310,14 @@ export function ItemDetailsDialog({
                 }}>
                   {STATUS_LABELS[rawStatus] || rawStatus}
                 </span>
-                {item.isReuse && (
+                {(item.isReuse || item.reuseQty > 0) && (
                   <span style={{
                     padding: "4px 12px", borderRadius: 999,
                     backgroundColor: "#166534", color: "#dcfce7",
                     fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
-                  }}>Reaproveitamento</span>
+                  }}>
+                    {item.isReuse ? "Reaproveitamento" : `Reaproveitamento ${item.reuseQty}/${item.quantity}`}
+                  </span>
                 )}
                 {item.rejectedBySponsor && (
                   <span style={{
@@ -612,10 +625,33 @@ export function ItemDetailsDialog({
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                     <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "rgba(88,66,55,0.6)", margin: 0 }}>Arquivo de Aprovação</p>
-                    <p style={{ fontSize: 12, fontWeight: 500, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{thumbUrl.split("/").pop()}</p>
-                    <a href={thumbUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: "#9d4300", textDecoration: "underline", display: "flex", alignItems: "center", gap: 4, marginTop: 4 }}>
-                      <ExternalLink style={{ width: 10, height: 10 }} /> Abrir original
-                    </a>
+                    {/* O nome do arquivo no storage é um UUID; mostrá-lo cru não
+                        informa nada. Só exibe quando for um nome de verdade. */}
+                    <p style={{ fontSize: 12, fontWeight: 500, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {friendlyFileName(thumbUrl)}
+                    </p>
+                    {item.approvalThumbUpdatedAt && (
+                      <p style={{ fontSize: 10, color: "rgba(88,66,55,0.6)", margin: "2px 0 0" }}>
+                        Atualizado em {fmtShort(item.approvalThumbUpdatedAt)}
+                      </p>
+                    )}
+                    <div style={{ display: "flex", gap: 12, marginTop: 4, flexWrap: "wrap" }}>
+                      <a href={thumbUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: "#9d4300", textDecoration: "underline", display: "flex", alignItems: "center", gap: 4 }}>
+                        <ExternalLink style={{ width: 10, height: 10 }} /> Abrir original
+                      </a>
+                      {item.previousApprovalThumbUrl && (
+                        <a href={item.previousApprovalThumbUrl} target="_blank" rel="noopener noreferrer" title="Versão anterior do thumb"
+                          style={{ fontSize: 10, color: "#92400e", textDecoration: "underline", display: "flex", alignItems: "center", gap: 4 }}>
+                          <ExternalLink style={{ width: 10, height: 10 }} /> Ver versão anterior
+                        </a>
+                      )}
+                      {item.bookUrl && (
+                        <a href={item.bookUrl} target="_blank" rel="noopener noreferrer" title="Book de aprovação que cobre esta peça"
+                          style={{ fontSize: 10, color: "#6d28d9", textDecoration: "underline", display: "flex", alignItems: "center", gap: 4 }}>
+                          <ExternalLink style={{ width: 10, height: 10 }} /> Book de aprovação
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </>
               ) : (
@@ -652,9 +688,23 @@ export function ItemDetailsDialog({
                         }}>
                           PRONTO PARA IMPRESSÃO
                         </p>
-                        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, wordBreak: "break-all", color: "#003554", margin: 0 }}>
-                          {item.finalFileUrl}
+                        {/* O nome original do arquivo é o que identifica a peça
+                            para a Gráfica; a URL é um UUID e não diz nada. */}
+                        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, wordBreak: "break-all", color: "#003554", margin: 0, fontWeight: 700 }}>
+                          {item.finalFileName || item.finalFileUrl}
                         </p>
+                        {item.finalFileUpdatedAt && (
+                          <p style={{ fontSize: 10, color: "rgba(0,53,84,0.6)", margin: "4px 0 0" }}>
+                            Enviado em {fmtShort(item.finalFileUpdatedAt)}
+                          </p>
+                        )}
+                        {item.previousFinalFileUrl && (
+                          <p style={{ fontSize: 10, color: "#92400e", margin: "6px 0 0", display: "flex", alignItems: "center", gap: 4 }}>
+                            ⚠ Substituiu <strong>{item.previousFinalFileName || "versão anterior"}</strong>
+                            {" — "}
+                            <a href={item.previousFinalFileUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#92400e" }}>ver anterior</a>
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -720,16 +770,27 @@ export function ItemDetailsDialog({
                     </td>
                     <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 14, color: "#57534e" }}>{item.measurement || "—"}</td>
                   </tr>
-                  {(item.quantityProduced || item.receivedBy) && (
+                  {/* Andamento na Gráfica. Sem estas quantidades não dava para
+                      saber quanto de uma peça já foi conferido ou entregue —
+                      justamente o que as etapas parciais criaram. */}
+                  {(item.quantityProduced || item.receivedBy || item.reuseQty > 0
+                    || item.conferredQty > 0 || item.deliveredQty > 0) && (
                     <tr style={{ borderTop: "1px solid #eeeeed", backgroundColor: "#fafaf9" }}>
                       <td colSpan={5} style={{ padding: "12px 16px" }}>
-                        <div style={{ display: "flex", gap: 32 }}>
-                          {item.quantityProduced && (
-                            <div>
-                              <span style={{ fontSize: 9, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.07em" }}>Produzido</span>
-                              <p style={{ fontSize: 14, fontWeight: 700, color: "#1a1c1c", margin: "2px 0 0 0", fontFamily: "'DM Mono', monospace" }}>{item.quantityProduced}</p>
+                        <div style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>
+                          {([
+                            ["Reaproveitado", item.reuseQty, "#059669"],
+                            ["Produzido", item.quantityProduced, "#1a1c1c"],
+                            ["Conferido", item.conferredQty, "#0e7490"],
+                            ["Entregue", item.deliveredQty, "#7e22ce"],
+                          ] as const).filter(([, v]) => v > 0).map(([label, value, color]) => (
+                            <div key={label}>
+                              <span style={{ fontSize: 9, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</span>
+                              <p style={{ fontSize: 14, fontWeight: 700, color, margin: "2px 0 0 0", fontFamily: "'DM Mono', monospace" }}>
+                                {value}<span style={{ color: "#a8a29e", fontWeight: 400 }}>/{item.quantity}</span>
+                              </p>
                             </div>
-                          )}
+                          ))}
                           {item.receivedBy && (
                             <div>
                               <span style={{ fontSize: 9, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.07em" }}>Recebido por</span>

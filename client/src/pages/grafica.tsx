@@ -368,6 +368,16 @@ export default function Grafica() {
   // regra antiga iam direto para a entrega. Mantidas nessa regra para não travar
   // entregas em andamento; as novas seguem pela conferência.
   const isLegacyReuse = (item: any) => item.isReuse && reusedOf(item) === 0;
+  // Reuso total antigo não preencheu reuseQty, mas cobre a peça inteira.
+  const reusedTotalOf = (item: any) => (item.isReuse ? qtyOf(item) : reusedOf(item));
+  // Metragem que de fato vai para a impressora: o reaproveitado não é impresso.
+  const m2ToProduce = (item: any) => {
+    const total = Number(item.calculatedM2) || 0;
+    const qty = qtyOf(item);
+    if (!total || !qty) return total;
+    const toPrint = qty - reusedTotalOf(item);
+    return toPrint <= 0 ? 0 : (total / qty) * toPrint;
+  };
   const remainingConfer = (item: any) => qtyOf(item) - conferredOf(item);
   // Reaproveitado também confere, então a entrega sempre sai do que foi conferido.
   const remainingDeliver = (item: any) =>
@@ -754,7 +764,7 @@ export default function Grafica() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ backgroundColor: TI.text }}>
-                {["ID", "Descrição", "QTD", "PROD", "Dimensões (V × A)", "M²", "Material", "Status", ""].map(col => (
+                {["ID", "Descrição", "QTD", "REAPROV.", "PROD", "Dimensões (V × A)", "M² a produzir", "Material", "Status", ""].map(col => (
                   <th key={col} style={{ padding: "13px 16px", textAlign: col === "" ? "right" : "left", fontSize: 9, fontWeight: 900, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
                     {col}
                   </th>
@@ -776,7 +786,7 @@ export default function Grafica() {
                       const showGroupHeader = !showEvHeader && groupName !== '' && groupName !== prevGroupName;
                       return showGroupHeader ? (
                         <tr style={{ backgroundColor: '#dbeafe' }}>
-                          <td colSpan={9} style={{ padding: '5px 16px' }}>
+                          <td colSpan={10} style={{ padding: '5px 16px' }}>
                             <span style={{ fontSize: 10, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{groupName}</span>
                           </td>
                         </tr>
@@ -784,7 +794,7 @@ export default function Grafica() {
                     })()}
                     {showEvHeader && (
                       <tr style={{ backgroundColor: "#292524" }}>
-                        <td colSpan={9} style={{ padding: "10px 16px" }}>
+                        <td colSpan={10} style={{ padding: "10px 16px" }}>
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <Package style={{ width: 16, height: 16, color: TI.accent }} />
@@ -835,7 +845,7 @@ export default function Grafica() {
                     {/* Cabeçalho de Tipo */}
                     {showTypeHeader && (
                       <tr style={{ backgroundColor: "#f4f3f0" }}>
-                        <td colSpan={9} style={{ padding: "6px 16px" }}>
+                        <td colSpan={10} style={{ padding: "6px 16px" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <div style={{ width: 3, height: 14, backgroundColor: TI.accent, borderRadius: 2, flexShrink: 0 }} />
                             <span style={{ fontSize: 11, fontWeight: 700, color: TI.text }}>{item.type}</span>
@@ -860,11 +870,14 @@ export default function Grafica() {
                       </td>
                       {/* Descrição */}
                       <td style={{ padding: "13px 16px", maxWidth: 280 }}>
-                        {reusedOf(item) > 0 && (
+                        {/* A cor verde da linha sozinha não diz o que é: o rótulo
+                            precisa aparecer sempre que houver reaproveitamento,
+                            inclusive nas peças marcadas antes de reuseQty existir. */}
+                        {(item.isReuse || reusedOf(item) > 0) && (
                           <div title={item.isReuse ? "Peça inteira reaproveitada" : `${reusedOf(item)} de ${qtyOf(item)} un. reaproveitadas`}
                             style={{ display: "inline-flex", alignItems: "center", gap: 5, backgroundColor: item.isReuse ? "#059669" : "#10b981", color: "#ffffff", borderRadius: 5, padding: "3px 9px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>
                             <RotateCcw style={{ width: 11, height: 11 }} />
-                            {item.isReuse ? "Reaproveitamento" : `Reaprov. ${reusedOf(item)}/${qtyOf(item)}`}
+                            {item.isReuse ? "Reaproveitamento" : `Reaproveitamento ${reusedOf(item)}/${qtyOf(item)}`}
                           </div>
                         )}
                         {item.description ? (
@@ -894,6 +907,17 @@ export default function Grafica() {
                       </td>
                       {/* Qtd */}
                       <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: TI.text }}>{item.quantity}</td>
+                      {/* Reaproveitado */}
+                      <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: reusedTotalOf(item) > 0 ? "#059669" : TI.muted }}>
+                        {reusedTotalOf(item) > 0 ? (
+                          <span title={item.isReuse ? "Peça inteira reaproveitada" : `${reusedTotalOf(item)} de ${qtyOf(item)} un. reaproveitadas`}>
+                            {reusedTotalOf(item)}
+                            {reusedTotalOf(item) < qtyOf(item) && (
+                              <span style={{ color: TI.muted, fontWeight: 400 }}>/{qtyOf(item)}</span>
+                            )}
+                          </span>
+                        ) : "—"}
+                      </td>
                       {/* Prod */}
                       <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: item.quantityProduced > 0 ? TI.accent : TI.muted }}>
                         {item.quantityProduced || "—"}
@@ -915,8 +939,23 @@ export default function Grafica() {
                           <span style={{ fontSize: 12, color: TI.muted }}>—</span>
                         )}
                       </td>
-                      {/* m² */}
-                      <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: TI.text, fontFamily: "monospace" }}>{item.calculatedM2 || "—"}</td>
+                      {/* m² a produzir — o reaproveitado não vai para a impressora */}
+                      <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: TI.text, fontFamily: "monospace" }}>
+                        {(() => {
+                          const total = Number(item.calculatedM2) || 0;
+                          if (!total) return "—";
+                          const toPrint = m2ToProduce(item);
+                          if (reusedTotalOf(item) === 0) return total.toFixed(2);
+                          return (
+                            <span title={`Total da peça: ${total.toFixed(2)} m² · reaproveitado não é impresso`}>
+                              <span style={{ color: toPrint === 0 ? "#059669" : TI.text }}>{toPrint.toFixed(2)}</span>
+                              <span style={{ display: "block", fontSize: 10, fontWeight: 400, color: TI.muted, textDecoration: "line-through" }}>
+                                {total.toFixed(2)}
+                              </span>
+                            </span>
+                          );
+                        })()}
+                      </td>
                       {/* Material */}
                       <td style={{ padding: "13px 16px" }}>
                         <div style={{ fontSize: 12, color: TI.text }}>{item.material}</div>
@@ -1059,7 +1098,7 @@ export default function Grafica() {
                     {/* Linha de observação */}
                     {item.observations && (
                       <tr style={{ backgroundColor: "#fffbeb", borderBottom: "1px solid #fde68a" }}>
-                        <td colSpan={9} style={{ padding: "8px 16px" }}>
+                        <td colSpan={10} style={{ padding: "8px 16px" }}>
                           <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                             <AlertCircle style={{ width: 14, height: 14, color: "#d97706", marginTop: 1, flexShrink: 0 }} />
                             <span style={{ fontSize: 12, color: "#92400e" }}>
@@ -1082,6 +1121,23 @@ export default function Grafica() {
           <div style={{ borderTop: `1px solid ${TI.border}`, padding: "10px 16px", backgroundColor: "#fafaf9", fontSize: 12, color: TI.secondary }}>
             Exibindo <strong style={{ color: TI.text }}>{filteredItems.length}</strong> peça{filteredItems.length !== 1 ? "s" : ""} ·{" "}
             <strong style={{ color: TI.text }}>{Array.from(new Set(filteredItems.map((i: any) => i.eventId).filter(Boolean))).length}</strong> evento{Array.from(new Set(filteredItems.map((i: any) => i.eventId).filter(Boolean))).length !== 1 ? "s" : ""}
+            {(() => {
+              // O total que importa para a Gráfica é o que vai ser impresso.
+              const totalM2 = filteredItems.reduce((s: number, i: any) => s + (Number(i.calculatedM2) || 0), 0);
+              const printM2 = filteredItems.reduce((s: number, i: any) => s + m2ToProduce(i), 0);
+              const reusedUn = filteredItems.reduce((s: number, i: any) => s + reusedTotalOf(i), 0);
+              if (!totalM2) return null;
+              return (
+                <>
+                  {" · "}<strong style={{ color: TI.text }}>{printM2.toFixed(2)} m²</strong> a produzir
+                  {reusedUn > 0 && (
+                    <span style={{ color: "#059669" }}>
+                      {" "}(economia de {(totalM2 - printM2).toFixed(2)} m² · {reusedUn} un. reaproveitada{reusedUn !== 1 ? "s" : ""})
+                    </span>
+                  )}
+                </>
+              );
+            })()}
           </div>
         )}
       </div>

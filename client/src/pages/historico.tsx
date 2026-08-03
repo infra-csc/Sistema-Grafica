@@ -110,6 +110,10 @@ const TYPE_CONFIG: Record<string, {
     label: "Reaprov. Parcial", dot: "#10b981", bg: "#f0fdf4", border: "#a7f3d0", color: "#059669",
     icon: RefreshCw,
   },
+  item_reuse_corrected: {
+    label: "Reaprov. Corrigido", dot: "#d97706", bg: "#fffbeb", border: "#fde68a", color: "#92400e",
+    icon: RefreshCw,
+  },
   item_canceled: {
     label: "Cancelada", dot: "#dc2626", bg: "#fef2f2", border: "#fecaca", color: "#b91c1c",
     icon: Activity,
@@ -250,6 +254,8 @@ function buildDescription(e: TimelineEvent) {
         </span>
       );
     }
+    case "item_reuse_corrected":
+      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — {e.logDetails || "reaproveitamento corrigido"} · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
     case "item_conferred":
       return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> conferida{e.logDetails?.match(/\((\d+\/\d+)\)/) ? <> — {e.logDetails.match(/\((\d+\/\d+)\)/)![1]} un.</> : null} · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
     case "item_canceled":
@@ -462,9 +468,14 @@ export default function Historico() {
     // Reaproveitamento marcado pela Gráfica (total ou parcial). O log existia
     // mas nenhum padrão o reconhecia, então sumia do histórico.
     if (detailsLower.includes("reaproveitamento")) {
+      // Correção de marcação errada precisa ser rastreável: é uma peça que
+      // voltou para a produção depois de ter sido dada como reaproveitada.
+      const corrected = detailsLower.includes("corrigido") || detailsLower.includes("removido por correção");
       timeline.push({
         id: `reuse-${log.id ?? itemId + ts}`,
-        type: detailsLower.includes("parcial") ? "item_reused_partial" : "item_reused",
+        type: corrected
+          ? "item_reuse_corrected"
+          : detailsLower.includes("parcial") ? "item_reused_partial" : "item_reused",
         ...base,
       });
       return;
@@ -707,6 +718,7 @@ export default function Historico() {
               { value: "item_conferred", label: "Conferências", group: "Produção", pinned: true },
               { value: "item_reused", label: "Reaproveitamentos", group: "Produção", pinned: true },
               { value: "item_reused_partial", label: "Reaprov. parciais", group: "Produção", pinned: true },
+              { value: "item_reuse_corrected", label: "Reaprov. corrigidos", group: "Produção", pinned: true },
               { value: "item_delivered", label: "Entregas", group: "Produção", pinned: true },
               { value: "item_returned", label: "Devolvidas p/ Arte", group: "Aprovação", pinned: true },
               { value: "item_canceled", label: "Canceladas", group: "Criação", pinned: true },

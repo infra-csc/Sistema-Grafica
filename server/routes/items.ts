@@ -2036,10 +2036,18 @@ export function registerItemRoutes(app: Express): void {
       if ((current.conferredQty || 0) > 0) {
         return res.status(409).json({ error: "Não é possível corrigir: a peça já foi parcialmente conferida" });
       }
+      // Reuso antigo vai direto para a entrega sem conferir: sem esta checagem,
+      // uma peça com unidades já entregues voltaria para "Pronto p/ Produção"
+      // carregando deliveredQty, e a contagem de entrega ficaria inconsistente.
+      if ((current.deliveredQty || 0) > 0) {
+        return res.status(409).json({ error: `Não é possível corrigir: ${current.deliveredQty} un. já foram entregues` });
+      }
       if ((current.reuseQty || 0) === 0 && !current.isReuse) {
         return res.status(409).json({ error: "Peça não tem reaproveitamento para corrigir" });
       }
 
+      // Só faz sentido corrigir para MENOS que o total: reaproveitar tudo é o
+      // que já estava valendo. Por isso o intervalo aceito é 0..quantidade-1.
       const correctedReuseQty = Number(req.body?.correctedReuseQty);
       if (isNaN(correctedReuseQty) || correctedReuseQty < 0 || correctedReuseQty >= current.quantity) {
         return res.status(400).json({
@@ -2047,12 +2055,14 @@ export function registerItemRoutes(app: Express): void {
         });
       }
 
-      const isFullReuse = correctedReuseQty >= current.quantity;
       const item = await storage.updateItem(req.params.id, {
         reuseQty: correctedReuseQty,
-        isReuse: isFullReuse,
-        // Com unidades ainda a produzir, volta para ready_for_production
-        ...(isFullReuse ? {} : { status: "ready_for_production" as const }),
+        isReuse: false,
+        // Sempre sobra o que produzir, então a peça volta para a fila da produção.
+        status: "ready_for_production" as const,
+        // A produção lançada antes da marcação errada não vale mais para a
+        // quantidade que agora precisa ser impressa.
+        quantityProduced: null,
       });
       if (!item) return res.status(404).json({ error: "Item not found" });
 
@@ -2061,8 +2071,9 @@ export function registerItemRoutes(app: Express): void {
         "updated",
         "item",
         item.id,
-        `Reaproveitamento corrigido: ${correctedReuseQty}/${current.quantity} un. reaproveitadas` +
-          (isFullReuse ? " (total)" : " — status voltou para Pronto para Produção")
+        correctedReuseQty === 0
+          ? `Reaproveitamento removido por correção — peça voltou para Pronto para Produção (${current.quantity} un. a produzir)`
+          : `Reaproveitamento corrigido: ${correctedReuseQty}/${current.quantity} un. reaproveitadas, ${current.quantity - correctedReuseQty} a produzir`
       );
 
       broadcast({ type: "item_updated", item });

@@ -198,10 +198,10 @@ export default function Grafica() {
       const qty = Number(updated?.quantity) || 0;
       const reused = Number(updated?.reuseQty) || 0;
       toast({
-        title: "Reaproveitamento corrigido",
-        description: reused < qty
-          ? `${reused} un. reaproveitadas. As outras ${qty - reused} voltaram para produção.`
-          : "Reaproveitamento mantido como total.",
+        title: reused === 0 ? "Reaproveitamento removido" : "Reaproveitamento corrigido",
+        description: reused === 0
+          ? `A peça voltou para a fila de produção com as ${qty} un.`
+          : `${reused} un. reaproveitadas. As outras ${qty - reused} voltaram para produção.`,
       });
     },
     onError: (error: Error) => {
@@ -1271,10 +1271,11 @@ export default function Grafica() {
                             )
                           )}
 
-                          {/* Corrigir reaproveitamento — disponível quando item foi
-                              marcado como reaproveitamento total por engano e ainda
-                              não foi conferido (dá para voltar ao fluxo de produção). */}
-                          {isProduced(item) && item.isReuse && conferredOf(item) === 0 && (
+                          {/* Corrigir reaproveitamento — para quando a marcação foi
+                              feita errada, total ou parcial, e a peça ainda não
+                              começou a ser conferida nem entregue. */}
+                          {isProduced(item) && reusedTotalOf(item) > 0
+                            && conferredOf(item) === 0 && deliveredOf(item) === 0 && (
                             correctReuseItemId === item.id ? (
                               <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>
                                 <input

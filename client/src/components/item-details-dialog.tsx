@@ -73,35 +73,125 @@ function friendlyFileName(url: string): string {
 }
 
 /**
- * Faixa de miniaturas; clicar abre a imagem original em nova aba. Tamanho fixo
+ * Lightbox simples: exibe a foto em tamanho maior num overlay escuro.
+ * Fechar com clique fora da imagem, botão ×, ou tecla Escape.
+ */
+function PhotoLightbox({
+  url, alt, onClose,
+}: { url: string; alt: string; onClose: () => void }) {
+  // Fecha com Escape
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed", inset: 0, zIndex: 9999,
+        backgroundColor: "rgba(0,0,0,0.85)",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        padding: 24,
+      }}
+    >
+      {/* Botão fechar */}
+      <button
+        onClick={onClose}
+        style={{
+          position: "absolute", top: 16, right: 16,
+          background: "rgba(255,255,255,0.15)", border: "none", cursor: "pointer",
+          color: "#ffffff", padding: 8, borderRadius: 6,
+          display: "flex", alignItems: "center", justifyContent: "center",
+          transition: "background 0.15s",
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.3)"; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "rgba(255,255,255,0.15)"; }}
+        aria-label="Fechar"
+      >
+        <X style={{ width: 20, height: 20 }} />
+      </button>
+
+      {/* Imagem — clique nela não propaga para o overlay */}
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{ position: "relative", maxWidth: "90vw", maxHeight: "85vh", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}
+      >
+        <img
+          src={url}
+          alt={alt}
+          style={{ maxWidth: "90vw", maxHeight: "80vh", objectFit: "contain", borderRadius: 8, boxShadow: "0 25px 60px rgba(0,0,0,0.6)" }}
+        />
+        {/* Link para abrir em nova aba */}
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            display: "inline-flex", alignItems: "center", gap: 6,
+            color: "rgba(255,255,255,0.65)", fontSize: 12, textDecoration: "none",
+            padding: "5px 12px", borderRadius: 6, backgroundColor: "rgba(255,255,255,0.1)",
+            transition: "color 0.15s, background 0.15s",
+          }}
+          onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#fff"; (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "rgba(255,255,255,0.2)"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "rgba(255,255,255,0.65)"; (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "rgba(255,255,255,0.1)"; }}
+        >
+          <ExternalLink style={{ width: 12, height: 12 }} />
+          Abrir original
+        </a>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Faixa de miniaturas; clicar abre a foto em lightbox. Tamanho fixo
  * por miniatura — com largura total, uma única foto virava um bloco gigante.
  */
 function PhotoStrip({ urls, alt }: { urls: string[]; alt: string }) {
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+
   return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-      {urls.map(url => (
-        <a key={url} href={url} target="_blank" rel="noopener noreferrer" title="Abrir original"
-          style={{ display: "block", position: "relative", width: 132, height: 132, borderRadius: 8, overflow: "hidden", border: "1px solid #e8e8e7", backgroundColor: "#f3f4f3", flexShrink: 0 }}>
-          <img src={url} alt={alt}
-            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-            onError={e => {
-              const img = e.currentTarget as HTMLImageElement;
-              img.style.display = "none";
-              const parent = img.parentElement;
-              if (parent && !parent.querySelector("[data-broken]")) {
-                const span = document.createElement("span");
-                span.setAttribute("data-broken", "1");
-                span.textContent = "Imagem indisponível";
-                span.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;font-size:10px;color:#a8a29e";
-                parent.appendChild(span);
-              }
-            }} />
-          <span style={{ position: "absolute", bottom: 4, right: 4, backgroundColor: "rgba(0,0,0,0.55)", color: "#ffffff", padding: 4, borderRadius: 4, display: "flex" }}>
-            <ExternalLink style={{ width: 10, height: 10 }} />
-          </span>
-        </a>
-      ))}
-    </div>
+    <>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+        {urls.map(url => (
+          <button
+            key={url}
+            onClick={() => setLightboxUrl(url)}
+            title="Ampliar foto"
+            style={{
+              display: "block", position: "relative", width: 132, height: 132,
+              borderRadius: 8, overflow: "hidden", border: "1px solid #e8e8e7",
+              backgroundColor: "#f3f4f3", flexShrink: 0,
+              cursor: "zoom-in", padding: 0, appearance: "none",
+            }}
+          >
+            <img src={url} alt={alt}
+              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+              onError={e => {
+                const img = e.currentTarget as HTMLImageElement;
+                img.style.display = "none";
+                const parent = img.parentElement;
+                if (parent && !parent.querySelector("[data-broken]")) {
+                  const span = document.createElement("span");
+                  span.setAttribute("data-broken", "1");
+                  span.textContent = "Imagem indisponível";
+                  span.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;font-size:10px;color:#a8a29e";
+                  parent.appendChild(span);
+                }
+              }} />
+            <span style={{ position: "absolute", bottom: 4, right: 4, backgroundColor: "rgba(0,0,0,0.55)", color: "#ffffff", padding: 4, borderRadius: 4, display: "flex" }}>
+              <Eye style={{ width: 10, height: 10 }} />
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {lightboxUrl && (
+        <PhotoLightbox url={lightboxUrl} alt={alt} onClose={() => setLightboxUrl(null)} />
+      )}
+    </>
   );
 }
 

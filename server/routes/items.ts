@@ -2133,6 +2133,10 @@ export function registerItemRoutes(app: Express): void {
       if (bookUrl !== null && (typeof bookUrl !== "string" || !bookUrl.trim())) {
         return res.status(400).json({ error: "bookUrl inválido" });
       }
+      // Limpa o bookUrl antigo de TODOS os itens do evento antes de setar o novo.
+      // Isso garante que itens não selecionados não fiquem com URL obsoleta,
+      // evitando que a exportação abra a versão antiga do book.
+      await storage.clearEventBookUrl(req.params.eventId);
       const count = await storage.setItemsBookUrl(itemIds, bookUrl || null);
       await createAuditLog(
         (req as any).userName,

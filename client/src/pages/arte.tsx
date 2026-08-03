@@ -3,7 +3,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, LayoutList, Layers, CheckSquare, Filter, SlidersHorizontal, Palette } from "lucide-react";
+import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, LayoutList, Layers, CheckSquare, Filter, SlidersHorizontal, Palette, ExternalLink, RefreshCw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -92,6 +92,7 @@ export default function Arte() {
   const [approvalThumbUrl, setApprovalThumbUrl] = useState<string>("");
   const [approvalThumbPreview, setApprovalThumbPreview] = useState<string>("");
   const [savedApprovalThumbUrl, setSavedApprovalThumbUrl] = useState<string>("");
+  const [thumbJustSaved, setThumbJustSaved] = useState(false);
   const [searchFilter, setSearchFilter] = useState<string>("");
   // Adia o valor usado na filtragem: o input segue responsivo, mas a tabela
   // (grande) não re-renderiza a cada tecla — evita engasgo com muitas peças.
@@ -188,13 +189,11 @@ export default function Arte() {
       queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSavedApprovalThumbUrl(variables.approvalThumbUrl);
+      setThumbJustSaved(true);
+      setTimeout(() => setThumbJustSaved(false), 2500);
       if (updated?.id) {
         setSelectedItem((prev: any) => prev?.id === updated.id ? { ...prev, ...updated } : prev);
       }
-      toast({
-        title: "Thumb salvo",
-        description: "O thumb foi salvo. Envie para aprovação quando quiser.",
-      });
     },
     onError: (error: Error) => {
       toast({ title: "Erro ao salvar thumb", description: error.message, variant: "destructive" });
@@ -784,6 +783,11 @@ export default function Arte() {
       .sort((a: any, b: any) => String(a.displayId || "").localeCompare(String(b.displayId || ""), "pt-BR", { numeric: true })),
     [arteItemsPool, bookEventId],
   );
+  // URL do book já existente para o evento selecionado (primeiro encontrado), se houver.
+  const existingBookUrl = useMemo(
+    () => bookEventPieces.find((i: any) => i.bookUrl)?.bookUrl ?? null,
+    [bookEventPieces],
+  );
   const bookEventOptions = useMemo(() => {
     const map = new Map<string, { value: string; label: string; count: number }>();
     arteItemsPool.forEach((i: any) => {
@@ -1156,6 +1160,7 @@ export default function Arte() {
     setApprovalThumbUrl(item.approvalThumbUrl || "");
     setApprovalThumbPreview(item.approvalThumbUrl || "");
     setSavedApprovalThumbUrl(item.approvalThumbUrl || "");
+    setThumbJustSaved(false);
     setFinalFileUrl(item.finalFileUrl || "");
     setFinalFileName(item.finalFileName || fileNameFromPath(item.finalFileUrl) || (item.finalFileUrl ? "arquivo enviado" : ""));
     setFinalDirty(false);
@@ -2789,14 +2794,17 @@ export default function Arte() {
                         data-testid="thumb-saved-confirmation"
                         style={{
                           width: '100%', padding: '12px 0', borderRadius: 8,
-                          border: '1px solid #bbf7d0', background: '#f0fdf4',
+                          border: thumbJustSaved ? '1px solid #86efac' : '1px solid #bbf7d0',
+                          background: thumbJustSaved ? '#dcfce7' : '#f0fdf4',
                           color: '#15803d', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700,
                           fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                           marginBottom: 8,
+                          transition: 'background 0.4s ease, border-color 0.4s ease',
+                          animation: thumbJustSaved ? 'thumb-saved-pop 0.25s ease' : 'none',
                         }}
                       >
                         <CheckCircle style={{ width: 15, height: 15 }} />
-                        Thumb salvo como rascunho
+                        {thumbJustSaved ? '✓ Thumb salvo como rascunho' : 'Thumb salvo como rascunho'}
                       </div>
                     ) : (
                       <button
@@ -3107,10 +3115,14 @@ export default function Arte() {
                 <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg,#f97316,#ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(249,115,22,0.35)' }}>
                   <FileText style={{ width: 15, height: 15, color: '#fff' }} />
                 </div>
-                <h2 style={{ fontSize: 20, fontWeight: 800, color: '#ffffff', margin: 0, fontFamily: '"Space Grotesk", sans-serif', letterSpacing: '-0.03em' }}>Subir book (PDF)</h2>
+                <h2 style={{ fontSize: 20, fontWeight: 800, color: '#ffffff', margin: 0, fontFamily: '"Space Grotesk", sans-serif', letterSpacing: '-0.03em' }}>
+                  {existingBookUrl ? 'Atualizar book (PDF)' : 'Subir book (PDF)'}
+                </h2>
               </div>
               <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.50)', margin: '0 0 0 42px', lineHeight: 1.4 }}>
-                Envie o layout pronto e marque as peças cobertas — serão enviadas aos patrocinadores.
+                {existingBookUrl
+                  ? 'Substitua o PDF atual e confirme as peças cobertas.'
+                  : 'Envie o layout pronto e marque as peças cobertas — serão enviadas aos patrocinadores.'}
               </p>
             </div>
             <button
@@ -3138,9 +3150,34 @@ export default function Arte() {
               />
             </div>
 
+            {/* Book atual — só aparece quando já existe um book para o evento */}
+            {existingBookUrl && !bookFileUrl && (
+              <div>
+                <label style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', display: 'block', marginBottom: 6 }}>Book atual</label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 10, border: '1.5px solid #fed7aa', background: '#fff7ed' }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg,#f97316,#ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 3px 8px rgba(249,115,22,0.25)' }}>
+                    <FileText style={{ width: 14, height: 14, color: '#fff' }} />
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 12, fontWeight: 700, color: '#c2410c', margin: 0 }}>Book já enviado</p>
+                    <p style={{ fontSize: 10, color: '#a8a29e', margin: '1px 0 0' }}>Envie um novo PDF abaixo para substituí-lo</p>
+                  </div>
+                  <a
+                    href={existingBookUrl} target="_blank" rel="noopener noreferrer"
+                    onClick={e => e.stopPropagation()}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#f97316', textDecoration: 'none', background: '#fff', border: '1px solid #fed7aa', borderRadius: 6, padding: '5px 10px', flexShrink: 0, whiteSpace: 'nowrap' }}
+                  >
+                    <ExternalLink style={{ width: 11, height: 11 }} /> Ver book
+                  </a>
+                </div>
+              </div>
+            )}
+
             {/* Upload do PDF */}
             <div>
-              <label style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', display: 'block', marginBottom: 6 }}>Arquivo do book</label>
+              <label style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', display: 'block', marginBottom: 6 }}>
+                {existingBookUrl ? 'Novo PDF (substituição)' : 'Arquivo do book'}
+              </label>
               <label style={{
                 display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 10,
                 border: `1.5px dashed ${bookFileUrl ? '#f97316' : '#d4d4d0'}`,
@@ -3153,18 +3190,22 @@ export default function Arte() {
                 <div style={{ width: 36, height: 36, borderRadius: 9, background: bookFileUrl ? 'linear-gradient(135deg,#f97316,#ea580c)' : '#f3f4f3', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s', boxShadow: bookFileUrl ? '0 3px 8px rgba(249,115,22,0.28)' : 'none' }}>
                   {bookUploading
                     ? <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(249,115,22,0.3)', borderTopColor: '#f97316', animation: 'spin 0.8s linear infinite' }} />
-                    : <FileText style={{ width: 16, height: 16, color: bookFileUrl ? '#fff' : '#a8a29e' }} />
+                    : bookFileUrl
+                      ? <FileText style={{ width: 16, height: 16, color: '#fff' }} />
+                      : existingBookUrl
+                        ? <RefreshCw style={{ width: 15, height: 15, color: '#a8a29e' }} />
+                        : <FileText style={{ width: 16, height: 16, color: '#a8a29e' }} />
                   }
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <p style={{ fontSize: 13, fontWeight: 700, color: bookFileUrl ? '#c2410c' : '#78716c', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {bookUploading ? 'Enviando arquivo…' : bookFileName || 'Escolher PDF do book…'}
+                    {bookUploading ? 'Enviando arquivo…' : bookFileName || (existingBookUrl ? 'Escolher novo PDF…' : 'Escolher PDF do book…')}
                   </p>
                   {!bookFileUrl && !bookUploading && (
                     <p style={{ fontSize: 10, color: '#a8a29e', margin: '1px 0 0' }}>Somente arquivos .PDF</p>
                   )}
                   {bookFileUrl && (
-                    <p style={{ fontSize: 10, color: '#f97316', margin: '1px 0 0', fontWeight: 600 }}>✓ Arquivo carregado</p>
+                    <p style={{ fontSize: 10, color: '#f97316', margin: '1px 0 0', fontWeight: 600 }}>✓ Arquivo carregado — pronto para substituir</p>
                   )}
                 </div>
                 {bookFileUrl && <span style={{ fontSize: 10, fontWeight: 700, color: '#f97316', flexShrink: 0 }}>Trocar</span>}
@@ -3264,7 +3305,9 @@ export default function Arte() {
             >
               {saveBookMutation.isPending
                 ? <><div style={{ width: 13, height: 13, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Salvando…</>
-                : <><FileText style={{ width: 13, height: 13 }} />{`Salvar book — ${bookSelectedIds.size} peça${bookSelectedIds.size !== 1 ? 's' : ''}`}</>
+                : existingBookUrl
+                  ? <><RefreshCw style={{ width: 13, height: 13 }} />{`Atualizar book — ${bookSelectedIds.size} peça${bookSelectedIds.size !== 1 ? 's' : ''}`}</>
+                  : <><FileText style={{ width: 13, height: 13 }} />{`Salvar book — ${bookSelectedIds.size} peça${bookSelectedIds.size !== 1 ? 's' : ''}`}</>
               }
             </button>
           </div>

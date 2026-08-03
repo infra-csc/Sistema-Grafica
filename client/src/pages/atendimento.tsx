@@ -300,7 +300,7 @@ export default function Atendimento() {
           apiRequest("GET", `/api/items/${selectedItem.id}/sponsor-approvals`)
             .then(r => r.json()).then(setSponsorApprovals).catch(console.error);
         }
-        toast({ title: "Reprovação registrada", description: `Aguardando ${data.pendingCount} patrocinador(es).` });
+        toast({ title: "Reprovação registrada", description: "O item retorna para Arte preparar nova versão." });
       }
     },
     onError: (error: any) => {
@@ -1006,7 +1006,7 @@ export default function Atendimento() {
     <div className="bg-stone-50 p-8" style={{ height: "100%", overflowY: "auto" }}>
 
       {/* ─── HERO HEADER ─────────────────────────────────────────── */}
-      <header className="mb-10 flex flex-col md:flex-row md:items-end justify-between gap-6">
+      <header className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="max-w-2xl">
           <div className="flex items-center gap-3 mb-3">
             <span style={{
@@ -1024,36 +1024,40 @@ export default function Atendimento() {
           </div>
           <h1 style={{
             fontFamily: "'Space Grotesk', sans-serif",
-            fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: 900,
-            letterSpacing: '-0.04em', color: '#1c1917',
-            lineHeight: 1, marginBottom: 16,
+            fontSize: 'clamp(1.5rem, 2.5vw, 1.875rem)', fontWeight: 900,
+            letterSpacing: '-0.03em', color: '#1c1917',
+            lineHeight: 1.1, marginBottom: 12,
           }}>
             Aprovação do Patrocinador
           </h1>
-          <p style={{ color: '#57534e', fontSize: 16, fontWeight: 500, lineHeight: 1.6 }}>
-            Gestão centralizada de ativos de marca e validação técnica de entregáveis para patrocinadores.
+          <p style={{ color: '#78716c', fontSize: 14, fontWeight: 500, lineHeight: 1.5 }}>
+            Valide e aprove ativos de marca com cada patrocinador.
           </p>
         </div>
-        <div className="flex flex-col items-end gap-2">
-          <span style={{ color: '#a8a29e', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.2em' }}>
-            Pendências Atuais
+        <div
+          data-testid="badge-pendentes-count"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            padding: '12px 20px', borderRadius: 12,
+            border: '1.5px solid #fed7aa',
+            backgroundColor: '#fff7ed',
+            flexShrink: 0,
+          }}
+        >
+          <span style={{
+            fontFamily: "'Space Grotesk', sans-serif",
+            fontSize: 36, fontWeight: 900, lineHeight: 1,
+            color: '#f97316',
+          }}>
+            {actionableCount ?? '—'}
           </span>
-          <div style={{
-            backgroundColor: '#0c0a09', color: '#ffffff',
-            padding: '10px 18px', borderRadius: 10,
-            display: 'flex', alignItems: 'center', gap: 14,
-          }} data-testid="badge-pendentes-count">
-            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 32, fontWeight: 900, lineHeight: 1 }}>
-              {actionableCount ?? '—'}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#c2410c' }}>
+              Ativos
             </span>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#f97316' }}>
-                Ativos
-              </span>
-              <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.6)' }}>
-                em análise
-              </span>
-            </div>
+            <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#a8a29e' }}>
+              Em análise
+            </span>
           </div>
         </div>
       </header>
@@ -1080,8 +1084,9 @@ export default function Atendimento() {
             {tab.label}
             {tab.count != null && (
               <span style={{
-                backgroundColor: activeTab === tab.key ? '#c2410c' : '#e7e5e4',
-                color: activeTab === tab.key ? '#fff' : '#78716c',
+                backgroundColor: activeTab === tab.key ? '#f97316' : '#fff7ed',
+                color: activeTab === tab.key ? '#fff' : '#ea580c',
+                border: activeTab === tab.key ? 'none' : '1px solid #fed7aa',
                 fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 10,
                 minWidth: 18, textAlign: 'center',
               }}>
@@ -1226,7 +1231,7 @@ export default function Atendimento() {
                       }}>
                         {step.done ? <Check style={{ width: 11, height: 11 }} /> : step.n}
                       </div>
-                      <span style={{ fontSize: 10, fontWeight: 600, color: step.done ? 'rgba(255,255,255,0.7)' : active ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.3)', letterSpacing: '0.04em', display: idx === 2 && !batchSponsorId ? 'none' : 'block' }}>
+                      <span style={{ fontSize: 10, fontWeight: 600, color: step.done ? 'rgba(255,255,255,0.7)' : active ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.3)', letterSpacing: '0.04em' }}>
                         {step.label}
                       </span>
                     </div>
@@ -1377,7 +1382,20 @@ export default function Atendimento() {
                           >
                             {hasThumb ? (
                               <>
-                                <img src={item.approvalThumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                <img
+                                  src={item.approvalThumbUrl}
+                                  alt=""
+                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                    const fb = (e.currentTarget as HTMLImageElement).nextElementSibling as HTMLElement | null;
+                                    if (fb?.dataset.fallback) fb.style.display = 'flex';
+                                  }}
+                                />
+                                <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', background: '#f4f4f3', flexDirection: 'column', gap: 2 }}>
+                                  <Package style={{ width: 16, height: 16, color: '#c4bfbb' }} />
+                                  <span style={{ fontSize: 7, color: '#c4bfbb', fontWeight: 700, letterSpacing: '0.04em' }}>SEM ARTE</span>
+                                </div>
                                 <span
                                   style={{ position: 'absolute', inset: 0, background: 'rgba(28,25,23,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'opacity 0.12s' }}
                                   onMouseEnter={e => (e.currentTarget as HTMLElement).style.opacity = '1'}
@@ -1701,7 +1719,15 @@ export default function Atendimento() {
                                     filter: isFullyApproved ? 'grayscale(1)' : 'grayscale(0)',
                                     transition: 'filter 0.4s',
                                   }}
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                    const fb = (e.currentTarget as HTMLImageElement).nextElementSibling as HTMLElement | null;
+                                    if (fb?.dataset.fallback) fb.style.display = 'flex';
+                                  }}
                                 />
+                                <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', background: '#f5f5f4' }}>
+                                  <FileText style={{ width: 24, height: 24, color: '#a8a29e' }} />
+                                </div>
                                 {!isFullyApproved && (
                                   <div style={{
                                     position: 'absolute', inset: 0,
@@ -1887,9 +1913,23 @@ export default function Atendimento() {
                         }}
                       >
                         <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px', gap: 20 }}>
-                          <div style={{ width: 48, height: 48, flexShrink: 0, borderRadius: 6, backgroundColor: '#f5f5f4', overflow: 'hidden', filter: 'grayscale(1)' }}>
+                          <div style={{ width: 48, height: 48, flexShrink: 0, borderRadius: 6, backgroundColor: '#f5f5f4', overflow: 'hidden', filter: 'grayscale(1)', position: 'relative' }}>
                             {item.approvalThumbUrl
-                              ? <img src={item.approvalThumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ? <>
+                                  <img
+                                    src={item.approvalThumbUrl}
+                                    alt=""
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                    onError={(e) => {
+                                      (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                      const fb = (e.currentTarget as HTMLImageElement).nextElementSibling as HTMLElement | null;
+                                      if (fb?.dataset.fallback) fb.style.display = 'flex';
+                                    }}
+                                  />
+                                  <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', background: '#f5f5f4' }}>
+                                    <FileText style={{ width: 18, height: 18, color: '#a8a29e' }} />
+                                  </div>
+                                </>
                               : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FileText style={{ width: 18, height: 18, color: '#a8a29e' }} /></div>}
                           </div>
                           <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 12, alignItems: 'center', minWidth: 0 }}>
@@ -2073,11 +2113,24 @@ export default function Atendimento() {
                           <div style={{
                             width: 48, height: 48, borderRadius: 8, overflow: 'hidden',
                             background: '#f5f5f4', flexShrink: 0,
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.08)', position: 'relative',
                           }}>
                             {(item.approvalThumbUrl || item.finalPreviewUrl)
-                              ? <img src={item.approvalThumbUrl || item.finalPreviewUrl} alt=""
-                                  style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              ? <>
+                                  <img
+                                    src={item.approvalThumbUrl || item.finalPreviewUrl}
+                                    alt=""
+                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                                    onError={(e) => {
+                                      (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                      const fb = (e.currentTarget as HTMLImageElement).nextElementSibling as HTMLElement | null;
+                                      if (fb?.dataset.fallback) fb.style.display = 'flex';
+                                    }}
+                                  />
+                                  <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', background: '#f5f5f4' }}>
+                                    <FileText style={{ width: 16, height: 16, color: '#c4bfbb' }} />
+                                  </div>
+                                </>
                               : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                   <FileText style={{ width: 16, height: 16, color: '#c4bfbb' }} />
                                 </div>}
@@ -2174,14 +2227,13 @@ export default function Atendimento() {
                                       transition: 'all 0.15s',
                                       flexShrink: 0,
                                     }} />
-                                    <span style={{
-                                      fontSize: isCurrent ? 10 : 9,
-                                      fontWeight: isCurrent ? 800 : 500,
-                                      color: isCurrent ? stageColor : isDone ? '#a8a29e' : '#d0cbc5',
-                                      whiteSpace: 'nowrap',
-                                      lineHeight: 1.2,
-                                      textAlign: 'center',
-                                    }}>{stage.label}</span>
+                                    {isCurrent && (
+                                      <span style={{
+                                        fontSize: 10, fontWeight: 800,
+                                        color: stageColor,
+                                        whiteSpace: 'nowrap', lineHeight: 1.2, textAlign: 'center',
+                                      }}>{stage.label}</span>
+                                    )}
                                   </div>
                                 );
                               })}
@@ -2265,9 +2317,23 @@ export default function Atendimento() {
               <>
                 {/* Header escuro */}
                 <div style={{ padding: '20px 24px 16px', background: 'linear-gradient(135deg,#1c1917,#292524)', display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 10, overflow: 'hidden', flexShrink: 0, background: '#292524', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 10, overflow: 'hidden', flexShrink: 0, background: '#292524', border: '1px solid rgba(255,255,255,0.1)', position: 'relative' }}>
                     {(di.approvalThumbUrl || di.finalPreviewUrl)
-                      ? <img src={di.approvalThumbUrl || di.finalPreviewUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ? <>
+                          <img
+                            src={di.approvalThumbUrl || di.finalPreviewUrl}
+                            alt=""
+                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            onError={(e) => {
+                              (e.currentTarget as HTMLImageElement).style.display = 'none';
+                              const fb = (e.currentTarget as HTMLImageElement).nextElementSibling as HTMLElement | null;
+                              if (fb?.dataset.fallback) fb.style.display = 'flex';
+                            }}
+                          />
+                          <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', background: '#292524' }}>
+                            <FileText style={{ width: 18, height: 18, color: '#57534e' }} />
+                          </div>
+                        </>
                       : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FileText style={{ width: 18, height: 18, color: '#57534e' }} /></div>}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -2305,8 +2371,8 @@ export default function Atendimento() {
                         const statusBorder= isApproved ? '#bbf7d0' : isRejected ? '#fecaca' : isNewVersion ? '#fde68a' : '#fed7aa';
                         const dotColor    = isApproved ? '#22c55e' : isRejected ? '#ef4444' : isNewVersion ? '#f59e0b' : '#d1d5db';
                         return (
-                          <div key={sp.id} style={{ padding: '14px 24px', borderBottom: si < diSps.length - 1 ? '1px solid #f5f5f4' : 'none', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: c, flexShrink: 0, marginTop: 4, boxShadow: `0 0 0 3px ${c}22` }} />
+                          <div key={sp.id} style={{ padding: '14px 24px', borderBottom: si < diSps.length - 1 ? '1px solid #f5f5f4' : 'none', display: 'flex', alignItems: 'flex-start', gap: 12, borderLeft: `3px solid ${c}` }}>
+                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: dotColor, flexShrink: 0, marginTop: 4, boxShadow: `0 0 0 3px ${dotColor}33` }} />
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                                 <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917' }}>{sp.name}</span>
@@ -2669,8 +2735,9 @@ export default function Atendimento() {
 
                                 {/* Motivo de reprovação existente */}
                                 {isRejected && approval?.rejectionReason && (
-                                  <div style={{ marginTop: 10, padding: '8px 12px', backgroundColor: '#ffffff', borderRadius: 6, border: '1px solid #fecaca' }}>
-                                    <p style={{ fontSize: 11, fontStyle: 'italic', color: '#78716c', margin: 0 }}>
+                                  <div style={{ marginTop: 10, padding: '10px 12px', backgroundColor: '#fff', borderRadius: 8, border: '1px solid #fecaca', borderLeft: '3px solid #dc2626' }}>
+                                    <p style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#fca5a5', margin: '0 0 4px' }}>Motivo</p>
+                                    <p style={{ fontSize: 12, fontStyle: 'italic', color: '#57534e', margin: 0, lineHeight: 1.5 }}>
                                       "{approval.rejectionReason}"
                                     </p>
                                   </div>
@@ -2679,22 +2746,45 @@ export default function Atendimento() {
                                 {/* Formulário de reprovação inline */}
                                 {isRejectingThis && (
                                   <div style={{ marginTop: 12 }}>
-                                    <Textarea
+                                    {/* Label */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
+                                      <div style={{ width: 2, height: 12, borderRadius: 1, backgroundColor: '#dc2626', flexShrink: 0 }} />
+                                      <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#dc2626' }}>Motivo da reprovação</span>
+                                      <span style={{ fontSize: 11, color: '#fca5a5', fontWeight: 700, lineHeight: 1 }}>*</span>
+                                    </div>
+
+                                    {/* Textarea nativa — sem reset de className interferindo no foco */}
+                                    <textarea
                                       value={rejectionReason}
                                       onChange={e => setRejectionReason(e.target.value)}
-                                      placeholder="Motivo da reprovação (obrigatório)..."
-                                      className="h-20 text-sm resize-none"
+                                      placeholder="Descreva o problema para a equipe de Arte..."
+                                      rows={3}
                                       data-testid={`textarea-reject-reason-${sponsor.id}`}
-                                      style={{ borderColor: rejectionReason.trim() === "" ? '#fca5a5' : '#e7e5e4' }}
+                                      style={{
+                                        width: '100%', boxSizing: 'border-box',
+                                        padding: '10px 12px', fontSize: 13,
+                                        fontFamily: 'inherit', color: '#1c1917',
+                                        backgroundColor: '#fff',
+                                        border: `1.5px solid ${rejectionReason.trim() ? '#dc2626' : '#e7e5e4'}`,
+                                        borderRadius: 8, resize: 'none', outline: 'none', lineHeight: 1.5,
+                                        transition: 'border-color 0.15s, box-shadow 0.15s',
+                                      }}
+                                      onFocus={e => { e.currentTarget.style.borderColor = '#dc2626'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(220,38,38,0.08)'; }}
+                                      onBlur={e => { e.currentTarget.style.borderColor = rejectionReason.trim() ? '#dc2626' : '#e7e5e4'; e.currentTarget.style.boxShadow = 'none'; }}
                                     />
-                                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 8 }}>
+
+                                    {/* Botões */}
+                                    <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
                                       <button
                                         onClick={() => { setRejectingSponsorId(null); setRejectionReason(""); }}
                                         style={{
-                                          padding: '6px 14px', borderRadius: 6,
-                                          backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
-                                          color: '#78716c', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                                          flex: 1, height: 36, borderRadius: 8,
+                                          background: '#fff', border: '1px solid #e7e5e4',
+                                          color: '#78716c', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                                          transition: 'background 0.12s',
                                         }}
+                                        onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
+                                        onMouseLeave={e => { e.currentTarget.style.background = '#fff'; }}
                                       >
                                         Cancelar
                                       </button>
@@ -2703,17 +2793,22 @@ export default function Atendimento() {
                                         disabled={individualRejectMutation.isPending || rejectionReason.trim() === ""}
                                         data-testid={`button-confirm-reject-${sponsor.id}`}
                                         style={{
-                                          padding: '6px 14px', borderRadius: 6,
-                                          backgroundColor: rejectionReason.trim() === "" ? '#a8a29e' : '#dc2626',
-                                          border: 'none', color: '#ffffff', fontSize: 12, fontWeight: 700,
+                                          flex: 2, height: 36, borderRadius: 8, border: 'none',
+                                          backgroundColor: rejectionReason.trim() === "" ? '#e7e5e4' : '#dc2626',
+                                          color: rejectionReason.trim() === "" ? '#a8a29e' : '#fff',
+                                          fontSize: 12, fontWeight: 800,
                                           cursor: rejectionReason.trim() === "" ? 'not-allowed' : 'pointer',
-                                          display: 'flex', alignItems: 'center', gap: 5,
+                                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                          transition: 'background-color 0.15s, box-shadow 0.15s',
+                                          boxShadow: rejectionReason.trim() ? '0 2px 8px rgba(220,38,38,0.25)' : 'none',
                                         }}
+                                        onMouseEnter={e => { if (rejectionReason.trim()) e.currentTarget.style.backgroundColor = '#b91c1c'; }}
+                                        onMouseLeave={e => { if (rejectionReason.trim()) e.currentTarget.style.backgroundColor = '#dc2626'; }}
                                       >
                                         {individualRejectMutation.isPending
-                                          ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" />
-                                          : <XCircle style={{ width: 12, height: 12 }} />}
-                                        Confirmar Reprovação
+                                          ? <><Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />Registrando…</>
+                                          : <><XCircle style={{ width: 13, height: 13 }} />Confirmar Reprovação</>
+                                        }
                                       </button>
                                     </div>
                                   </div>
@@ -2815,12 +2910,12 @@ export default function Atendimento() {
                       padding: '10px 20px', borderRadius: 8, border: 'none',
                       backgroundColor: 'transparent', color: '#78716c',
                       fontSize: 12, fontWeight: 600,
-                      cursor: 'pointer',
+                      cursor: 'pointer', marginRight: 'auto',
                     }}
                   >
                     Fechar
                   </button>
-                  {!allDecided && (
+                  {(dialogSponsors.length === 0 || allApproved) && (
                     <>
                       <button
                         onClick={() => sponsorRejectMutation.mutate(selectedItem.id)}

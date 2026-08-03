@@ -71,6 +71,7 @@ export interface IStorage {
   createBulkItems(items: InsertItem[]): Promise<Item[]>;
   updateItem(id: string, data: Partial<InsertItem>): Promise<Item | undefined>;
   setItemsBookUrl(itemIds: string[], bookUrl: string | null): Promise<number>;
+  clearEventBookUrl(eventId: string): Promise<number>;
   updateItemWithStatusCheck(id: string, fromStatus: ItemStatus, toStatus: ItemStatus): Promise<Item | null>;
   approveItem(id: string): Promise<Item | undefined>;
   startProduction(id: string, quantityProduced: number): Promise<Item | undefined>;
@@ -397,6 +398,15 @@ export class DatabaseStorage implements IStorage {
       .update(items)
       .set({ bookUrl, updatedAt: new Date() })
       .where(inArray(items.id, itemIds))
+      .returning();
+    return res.length;
+  }
+
+  async clearEventBookUrl(eventId: string): Promise<number> {
+    const res = await db
+      .update(items)
+      .set({ bookUrl: null, updatedAt: new Date() })
+      .where(eq(items.eventId, eventId))
       .returning();
     return res.length;
   }

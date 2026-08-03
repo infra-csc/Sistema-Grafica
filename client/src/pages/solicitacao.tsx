@@ -161,18 +161,29 @@ export default function Solicitacao() {
       await apiRequest("PATCH", `/api/items/${itemId}`, { isReuse });
       // Ao marcar reaproveitamento, libera automaticamente para Gráfica (status → produced)
       if (isReuse) {
-        await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, {});
+        try {
+          await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, {});
+        } catch {
+          // Marcação salva; apenas o avanço de status falhou. Não bloqueia o fluxo.
+          return { statusAdvanced: false };
+        }
       }
+      return { statusAdvanced: true };
     },
-    onSuccess: (_, { isReuse }) => {
+    onSuccess: (result, { isReuse }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      const advanced = (result as any)?.statusAdvanced !== false;
       toast({
         title: isReuse ? "Reaproveitamento confirmado" : "Marcação removida",
-        description: isReuse ? "Peça enviada diretamente para a Gráfica como produzida." : "A peça voltará ao fluxo normal.",
+        description: isReuse
+          ? advanced
+            ? "Peça enviada diretamente para a Gráfica como produzida."
+            : "Peça marcada para reaproveitamento. O status será atualizado em breve."
+          : "A peça voltará ao fluxo normal.",
       });
     },
-    onError: (error: any) => toast({ title: "Erro", description: error.message, variant: "destructive" }),
+    onError: (error: any) => toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" }),
   });
 
   const pendingItems = useMemo(() => items.filter(item => item.status === "awaiting_final_review"), [items]);

@@ -137,15 +137,17 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
           borderBottom: "1px solid rgba(255,255,255,0.06)",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 0 0 1px rgba(255,255,255,0.12) inset" }}>
-              <Printer style={{ width: 18, height: 18, color: "#fff" }} />
+            <div style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: allBook ? "#2563eb" : "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 0 0 1px rgba(255,255,255,0.12) inset", transition: "background-color 0.2s" }}>
+              {allBook ? <BookOpen style={{ width: 18, height: 18, color: "#fff" }} /> : <Printer style={{ width: 18, height: 18, color: "#fff" }} />}
             </div>
             <div>
               <h2 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.03em", color: "#fff", margin: 0, lineHeight: 1.2 }}>
-                Exportar PDF
+                {allBook ? "Exportar Book" : "Exportar PDF"}
               </h2>
               <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", margin: "3px 0 0" }}>
-                Selecione as peças, aplique filtros e configure o layout do arquivo
+                {allBook
+                  ? "Todas as peças possuem book — o arquivo já está pronto para download"
+                  : "Selecione as peças, aplique filtros e configure o layout do arquivo"}
               </p>
             </div>
           </div>
@@ -169,7 +171,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
             {/* Título da seção */}
             <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #ebe8e4" }}>
               <p style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e", margin: 0 }}>
-                Opções do PDF
+                {allBook ? "Opções do Book" : "Opções do PDF"}
               </p>
             </div>
 
@@ -288,30 +290,62 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                 style={{ width: "100%", height: 36, borderRadius: 8, background: "#fff", border: "1px solid #e4e0db", color: "#78716c", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
                 Cancelar
               </button>
-              <button
-                onClick={() => {
-                  const withBook    = selected.filter(i => i.bookUrl);
-                  const withoutBook = selected.filter(i => !i.bookUrl);
-                  const bookUrls = Array.from(new Set(withBook.map(i => i.bookUrl as string)));
-                  bookUrls.forEach(url => window.open(url, "_blank", "noopener,noreferrer"));
-                  if (withoutBook.length > 0) void exportMixedToPDF(withoutBook, combinedSet, `${title} — ${withoutBook.length} peça(s)`, groupByEvent);
-                  onOpenChange(false);
-                }}
-                disabled={selected.length === 0}
-                data-testid="button-export-confirm"
-                style={{
-                  width: "100%", height: 46, borderRadius: 10,
-                  backgroundColor: selected.length === 0 ? "#e7e5e4" : "#7c3aed",
-                  border: "none",
-                  color: selected.length === 0 ? "#a8a29e" : "#fff",
-                  fontSize: 13, fontWeight: 800,
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                  cursor: selected.length === 0 ? "not-allowed" : "pointer",
-                  letterSpacing: "-0.01em",
-                }}>
-                <Printer style={{ width: 15, height: 15 }} />
-                Gerar PDF{selected.length > 0 && ` — ${selected.length} ${selected.length === 1 ? "peça" : "peças"}${pageCount > 0 ? ` · ${pageCount} pág.` : ""}`}
-              </button>
+
+              {/* Quando há books: mostrar botão "Abrir Book" separado */}
+              {hasBook && (
+                <button
+                  onClick={() => {
+                    const bookUrls = Array.from(new Set(selected.filter(i => i.bookUrl).map(i => i.bookUrl as string)));
+                    bookUrls.forEach(url => window.open(url, "_blank", "noopener,noreferrer"));
+                    if (allBook) onOpenChange(false);
+                  }}
+                  disabled={selected.length === 0}
+                  data-testid="button-export-book"
+                  style={{
+                    width: "100%", height: allBook ? 46 : 38, borderRadius: 10,
+                    backgroundColor: selected.length === 0 ? "#e7e5e4" : "#2563eb",
+                    border: "none",
+                    color: selected.length === 0 ? "#a8a29e" : "#fff",
+                    fontSize: allBook ? 13 : 12, fontWeight: 800,
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                    cursor: selected.length === 0 ? "not-allowed" : "pointer",
+                    letterSpacing: "-0.01em",
+                    boxShadow: selected.length > 0 ? "0 2px 8px rgba(37,99,235,0.3)" : "none",
+                  }}>
+                  <BookOpen style={{ width: 15, height: 15 }} />
+                  {allBook
+                    ? `Abrir Book${selected.filter(i => i.bookUrl).length > 1 ? "s" : ""} — ${selected.filter(i => i.bookUrl).length} ${selected.filter(i => i.bookUrl).length === 1 ? "peça" : "peças"}`
+                    : `Abrir Books (${selected.filter(i => i.bookUrl).length} com book)`}
+                </button>
+              )}
+
+              {/* Gerar PDF apenas se houver itens SEM book */}
+              {!allBook && (
+                <button
+                  onClick={() => {
+                    const withoutBook = selected.filter(i => !i.bookUrl);
+                    if (withoutBook.length > 0) void exportMixedToPDF(withoutBook, combinedSet, `${title} — ${withoutBook.length} peça(s)`, groupByEvent);
+                    onOpenChange(false);
+                  }}
+                  disabled={selected.filter(i => !i.bookUrl).length === 0}
+                  data-testid="button-export-confirm"
+                  style={{
+                    width: "100%", height: 46, borderRadius: 10,
+                    backgroundColor: selected.filter(i => !i.bookUrl).length === 0 ? "#e7e5e4" : "#7c3aed",
+                    border: "none",
+                    color: selected.filter(i => !i.bookUrl).length === 0 ? "#a8a29e" : "#fff",
+                    fontSize: 13, fontWeight: 800,
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                    cursor: selected.filter(i => !i.bookUrl).length === 0 ? "not-allowed" : "pointer",
+                    letterSpacing: "-0.01em",
+                  }}>
+                  <Printer style={{ width: 15, height: 15 }} />
+                  {(() => {
+                    const n = selected.filter(i => !i.bookUrl).length;
+                    return `Gerar PDF${n > 0 ? ` — ${n} ${n === 1 ? "peça" : "peças"}${pageCount > 0 ? ` · ${pageCount} pág.` : ""}` : ""}`;
+                  })()}
+                </button>
+              )}
             </div>
           </div>
 

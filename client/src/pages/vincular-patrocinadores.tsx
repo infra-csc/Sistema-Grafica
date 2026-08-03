@@ -188,6 +188,7 @@ export default function VincularPatrocinadores() {
   const [bulkApplyDialogOpen, setBulkApplyDialogOpen] = useState(false);
   const [bulkSelectedSponsors, setBulkSelectedSponsors] = useState<string[]>([]);
   const [bulkSkipApproval, setBulkSkipApproval] = useState(false);
+  const [bulkSponsorSearch, setBulkSponsorSearch] = useState('');
   
   // Estado para controlar qual aba está ativa
   const [activeTab, setActiveTab] = useState<"vincular" | "enviar">(() => (sessionStorage.getItem("vincular:activeTab") as "vincular" | "enviar") || "vincular");
@@ -1573,16 +1574,28 @@ export default function VincularPatrocinadores() {
       </Dialog>
 
       {/* ── Page Header ── */}
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-8">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-6">
         <div>
-          <h1 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 42, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '-0.03em', lineHeight: 1, color: '#1a1c1c', marginBottom: 12 }}>
+          {/* Breadcrumb */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+            <span style={{ display: 'inline-block', padding: '3px 10px', backgroundColor: '#f97316', color: '#fff', fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', borderRadius: 4 }}>
+              Fluxo de Verificação
+            </span>
+            <span style={{ fontSize: 10, color: '#a8a29e', fontWeight: 500 }}>•</span>
+            <span style={{ fontSize: 10, color: '#78716c', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Vincular Patrocinadores</span>
+          </div>
+          <h1 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 'clamp(1.5rem, 2.5vw, 1.875rem)', fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1, color: '#1a1c1c', marginBottom: 6 }}>
             Vincular Patrocinadores
           </h1>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            <span style={{ padding: '2px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', backgroundColor: '#e8e8e7', color: '#78716c', textTransform: 'uppercase' }}>PENDENTE</span>
-            <span style={{ padding: '2px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', backgroundColor: '#ffedd5', color: '#c2410c', textTransform: 'uppercase' }}>RASCUNHO</span>
-            <span style={{ padding: '2px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', backgroundColor: '#dcfce7', color: '#166534', textTransform: 'uppercase' }}>PRONTO</span>
-            <span style={{ padding: '2px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 800, letterSpacing: '0.08em', backgroundColor: '#1c1917', color: '#ffffff', textTransform: 'uppercase', opacity: 0.55 }}>ENVIADO</span>
+          <p style={{ color: '#78716c', fontSize: 14, fontWeight: 500, lineHeight: 1.5, marginBottom: 10 }}>
+            Associe patrocinadores a cada item antes do envio à Arte.
+          </p>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
+            <span style={{ fontSize: 10, fontWeight: 600, color: '#a8a29e', marginRight: 2 }}>Legenda:</span>
+            <span style={{ padding: '2px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', backgroundColor: '#e8e8e7', color: '#78716c', textTransform: 'uppercase' }}>Pendente</span>
+            <span style={{ padding: '2px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', backgroundColor: '#ffedd5', color: '#c2410c', textTransform: 'uppercase' }}>Rascunho</span>
+            <span style={{ padding: '2px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', backgroundColor: '#dcfce7', color: '#166534', textTransform: 'uppercase' }}>Pronto</span>
+            <span style={{ padding: '2px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', backgroundColor: '#1c1917', color: '#ffffff', textTransform: 'uppercase', opacity: 0.55 }}>Enviado</span>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
@@ -1613,9 +1626,9 @@ export default function VincularPatrocinadores() {
             Auto-vincular por Cota
           </button>
           <button
-            style={{ padding: '10px 20px', backgroundColor: '#e8e8e7', color: '#1c1917', fontWeight: 700, fontSize: 13, borderRadius: 6, border: 'none', cursor: 'pointer' }}
-            onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#d8d8d7')}
-            onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#e8e8e7')}
+            style={{ padding: '10px 20px', backgroundColor: '#ffffff', color: '#44403c', fontWeight: 600, fontSize: 13, borderRadius: 6, border: '1px solid #e7e5e4', cursor: 'pointer' }}
+            onMouseEnter={e => { (e.currentTarget.style.backgroundColor = '#fafaf9'); (e.currentTarget.style.borderColor = '#d6d3d1'); }}
+            onMouseLeave={e => { (e.currentTarget.style.backgroundColor = '#ffffff'); (e.currentTarget.style.borderColor = '#e7e5e4'); }}
           >
             Exportar PDF
           </button>
@@ -1900,8 +1913,8 @@ export default function VincularPatrocinadores() {
                 {selectedItemIds.size}
               </div>
               <div>
-                <p style={{ fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '-0.01em', color: '#ffffff', marginBottom: 1 }}>Itens Selecionados</p>
-                <p style={{ fontSize: 10, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.45)' }}>Lote de produção ativa</p>
+                <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: '-0.01em', color: '#ffffff', marginBottom: 1 }}>{selectedItemIds.size} {selectedItemIds.size === 1 ? 'item selecionado' : 'itens selecionados'}</p>
+                <p style={{ fontSize: 10, fontWeight: 500, letterSpacing: '0.04em', color: 'rgba(255,255,255,0.45)' }}>Ação em lote</p>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1929,7 +1942,7 @@ export default function VincularPatrocinadores() {
                     }}
                     disabled={saveLinkingMutation.isPending}
                     data-testid="button-save-selected"
-                    style={{ backgroundColor: '#22c55e', color: '#ffffff', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 800, fontSize: 13, textTransform: 'uppercase', letterSpacing: '-0.01em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: saveLinkingMutation.isPending ? 0.7 : 1 }}
+                    style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: saveLinkingMutation.isPending ? 0.7 : 1 }}
                     onMouseEnter={e => { if (!saveLinkingMutation.isPending) e.currentTarget.style.filter = 'brightness(1.1)'; }}
                     onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
                   >
@@ -2314,7 +2327,7 @@ export default function VincularPatrocinadores() {
                                       {uiStatus === 'PRONTO' && (
                                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 7px', backgroundColor: '#dcfce7', border: '1px solid #86efac', borderRadius: 4, width: 'fit-content' }}>
                                           <Check style={{ width: 9, height: 9, color: '#166534' }} />
-                                          <span style={{ fontSize: 9, fontWeight: 800, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Salvo — clique para editar</span>
+                                          <span style={{ fontSize: 9, fontWeight: 700, color: '#166534', letterSpacing: '0.04em' }}>Salvo · editar</span>
                                         </div>
                                       )}
                                       {/* Row 1: sponsor toggle chips */}
@@ -3085,7 +3098,7 @@ export default function VincularPatrocinadores() {
       </Dialog>
 
       {/* Dialog — Aplicar Patrocinadores em Lote */}
-      <Dialog open={bulkApplyDialogOpen} onOpenChange={setBulkApplyDialogOpen}>
+      <Dialog open={bulkApplyDialogOpen} onOpenChange={(o) => { setBulkApplyDialogOpen(o); if (!o) setBulkSponsorSearch(''); }}>
         <DialogContent className="sm:max-w-md p-0 gap-0" style={{ backgroundColor: '#fafaf9', borderRadius: 12 }}>
           <div style={{ padding: '24px', borderBottom: '1px solid #eeeeed' }}>
             <DialogTitle style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 20, fontWeight: 700, letterSpacing: '-0.03em', color: '#1a1c1c', lineHeight: 1.2 }}>
@@ -3110,16 +3123,33 @@ export default function VincularPatrocinadores() {
             })()}
           </div>
 
-          <div style={{ padding: '24px', maxHeight: 320, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* Campo de busca */}
+          <div style={{ padding: '12px 24px 0', borderBottom: '1px solid #eeeeed' }}>
+            <div style={{ position: 'relative', marginBottom: 12 }}>
+              <Search style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: '#a8a29e', pointerEvents: 'none' }} />
+              <input
+                type="text"
+                placeholder="Buscar patrocinador..."
+                value={bulkSponsorSearch}
+                onChange={e => setBulkSponsorSearch(e.target.value)}
+                style={{ width: '100%', paddingLeft: 32, paddingRight: 12, paddingTop: 8, paddingBottom: 8, borderRadius: 8, border: '1.5px solid #e7e5e4', fontSize: 13, color: '#1a1c1c', outline: 'none', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                onFocus={e => (e.currentTarget.style.borderColor = '#f97316')}
+                onBlur={e => (e.currentTarget.style.borderColor = '#e7e5e4')}
+              />
+            </div>
+          </div>
+
+          <div style={{ padding: '12px 24px 16px', maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
             {/* Opção: Sem Patrocinador — aparece primeiro */}
+            {!bulkSponsorSearch && (
             <div
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                padding: '14px 16px',
+                padding: '12px 14px',
                 backgroundColor: '#ffffff',
                 border: bulkSkipApproval ? '2px solid #f97316' : '2px dashed #dadad9',
                 borderRadius: 8, cursor: 'pointer',
-                opacity: bulkSkipApproval ? 1 : 0.7,
+                opacity: bulkSkipApproval ? 1 : 0.65,
                 transition: 'all 0.15s',
               }}
               data-testid="bulk-option-sem-patrocinador"
@@ -3133,81 +3163,112 @@ export default function VincularPatrocinadores() {
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <X style={{ width: 16, height: 16, color: '#625d5b', flexShrink: 0 }} />
-                <span style={{ fontSize: 14, fontWeight: 600, color: '#1a1c1c' }}>Sem Patrocinador</span>
+                <X style={{ width: 15, height: 15, color: '#625d5b', flexShrink: 0 }} />
+                <span style={{ fontSize: 13, fontWeight: 600, color: '#1a1c1c' }}>Sem Patrocinador</span>
               </div>
               {bulkSkipApproval ? (
-                <CheckCircle2 style={{ width: 18, height: 18, color: '#f97316', flexShrink: 0 }} />
+                <CheckCircle2 style={{ width: 17, height: 17, color: '#f97316', flexShrink: 0 }} />
               ) : (
-                <div style={{ width: 18, height: 18, borderRadius: '50%', border: '1.5px solid #dadad9', flexShrink: 0 }} />
+                <div style={{ width: 17, height: 17, borderRadius: '50%', border: '1.5px solid #dadad9', flexShrink: 0 }} />
               )}
             </div>
+            )}
 
-            {/* Lista de patrocinadores — filtrada pelo evento selecionado */}
+            {/* Lista de patrocinadores — filtrada, ordenada A-Z, selecionados primeiro */}
             {(() => {
-              const bulkSponsors = eventFilter.length === 1
-                ? getEventSponsors(eventFilter[0])
-                : sponsors;
-              if (bulkSponsors.length === 0) return (
-                <p style={{ fontSize: 13, textAlign: 'center', padding: '24px 0', color: '#625d5b' }}>
-                  Nenhum patrocinador cadastrado para este evento
+              const base = (eventFilter.length === 1 ? getEventSponsors(eventFilter[0]) : sponsors) as any[];
+              const q = bulkSponsorSearch.toLowerCase().trim();
+              const filtered = q ? base.filter((s: any) => s.name.toLowerCase().includes(q) || (s.company || '').toLowerCase().includes(q)) : base;
+              const sorted = [...filtered].sort((a: any, b: any) => {
+                const aSelected = bulkSelectedSponsors.includes(a.id);
+                const bSelected = bulkSelectedSponsors.includes(b.id);
+                if (aSelected !== bSelected) return aSelected ? -1 : 1;
+                return a.name.localeCompare(b.name, 'pt-BR');
+              });
+              if (sorted.length === 0) return (
+                <p style={{ fontSize: 13, textAlign: 'center', padding: '20px 0', color: '#a8a29e' }}>
+                  {q ? `Nenhum resultado para "${bulkSponsorSearch}"` : 'Nenhum patrocinador cadastrado para este evento'}
                 </p>
               );
-              return bulkSponsors.map((sponsor) => {
-              const isSelected = bulkSelectedSponsors.includes(sponsor.id);
-              return (
-                <div
-                  key={sponsor.id}
-                  style={{
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    padding: '14px 16px',
-                    backgroundColor: '#ffffff',
-                    border: isSelected ? '2px solid #f97316' : '1px solid #eeeeed',
-                    borderRadius: 8, cursor: 'pointer',
-                    transition: 'border-color 0.15s',
-                  }}
-                  data-testid={`checkbox-bulk-sponsor-${sponsor.id}`}
-                  onClick={() => {
-                    if (isSelected) {
-                      setBulkSelectedSponsors(bulkSelectedSponsors.filter(id => id !== sponsor.id));
-                    } else {
-                      setBulkSkipApproval(false);
-                      setBulkSelectedSponsors([...bulkSelectedSponsors, sponsor.id]);
-                    }
-                  }}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: sponsor.color || '#3b82f6', flexShrink: 0 }} />
-                    <span style={{ fontSize: 14, fontWeight: 600, color: '#1a1c1c' }}>
-                      {sponsor.name}
-                      {sponsor.company && (
-                        <span style={{ marginLeft: 6, fontWeight: 400, color: '#625d5b', fontSize: 13 }}> ({sponsor.company})</span>
-                      )}
-                    </span>
+              const selectedOnes = sorted.filter((s: any) => bulkSelectedSponsors.includes(s.id));
+              const unselectedOnes = sorted.filter((s: any) => !bulkSelectedSponsors.includes(s.id));
+              const renderSponsor = (sponsor: any) => {
+                const isSelected = bulkSelectedSponsors.includes(sponsor.id);
+                return (
+                  <div
+                    key={sponsor.id}
+                    style={{
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                      padding: '11px 14px',
+                      backgroundColor: isSelected ? '#fff7ed' : '#ffffff',
+                      border: isSelected ? '2px solid #f97316' : '1px solid #eeeeed',
+                      borderRadius: 8, cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                    data-testid={`checkbox-bulk-sponsor-${sponsor.id}`}
+                    onClick={() => {
+                      if (isSelected) {
+                        setBulkSelectedSponsors(bulkSelectedSponsors.filter(id => id !== sponsor.id));
+                      } else {
+                        setBulkSkipApproval(false);
+                        setBulkSelectedSponsors([...bulkSelectedSponsors, sponsor.id]);
+                      }
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{ width: 11, height: 11, borderRadius: '50%', backgroundColor: sponsor.color || '#a8a29e', flexShrink: 0, boxShadow: isSelected ? `0 0 0 2px rgba(249,115,22,0.2)` : 'none' }} />
+                      <span style={{ fontSize: 13, fontWeight: isSelected ? 700 : 600, color: isSelected ? '#1a1c1c' : '#44403c' }}>
+                        {sponsor.name}
+                        {sponsor.company && (
+                          <span style={{ marginLeft: 6, fontWeight: 400, color: '#a8a29e', fontSize: 12 }}> {sponsor.company}</span>
+                        )}
+                      </span>
+                    </div>
+                    {isSelected ? (
+                      <CheckCircle2 style={{ width: 17, height: 17, color: '#f97316', flexShrink: 0 }} />
+                    ) : (
+                      <div style={{ width: 17, height: 17, borderRadius: '50%', border: '1.5px solid #dadad9', flexShrink: 0 }} />
+                    )}
                   </div>
-                  {isSelected ? (
-                    <CheckCircle2 style={{ width: 18, height: 18, color: '#f97316', flexShrink: 0 }} />
-                  ) : (
-                    <div style={{ width: 18, height: 18, borderRadius: '50%', border: '1.5px solid #dadad9', flexShrink: 0 }} />
+                );
+              };
+              return (
+                <>
+                  {selectedOnes.length > 0 && (
+                    <>
+                      {selectedOnes.map(renderSponsor)}
+                      {unselectedOnes.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
+                          <div style={{ flex: 1, height: 1, backgroundColor: '#eeeeed' }} />
+                          <span style={{ fontSize: 10, color: '#a8a29e', fontWeight: 600, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>outros</span>
+                          <div style={{ flex: 1, height: 1, backgroundColor: '#eeeeed' }} />
+                        </div>
+                      )}
+                    </>
                   )}
-                </div>
+                  {unselectedOnes.map(renderSponsor)}
+                </>
               );
-            });})()}
+            })()}
           </div>
 
           <div style={{ padding: '14px 24px', borderTop: '1px solid #eeeeed', backgroundColor: '#f3f4f3', display: 'flex', justifyContent: 'flex-end', gap: 8, borderRadius: '0 0 12px 12px' }}>
             <button
               onClick={() => setBulkApplyDialogOpen(false)}
-              style={{ padding: '8px 20px', background: 'none', border: 'none', fontSize: 11, fontWeight: 700, color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.08em', cursor: 'pointer' }}
+              style={{ padding: '9px 20px', background: '#ffffff', border: '1.5px solid #d6d3d1', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#44403c', cursor: 'pointer' }}
+              onMouseEnter={e => (e.currentTarget.style.background = '#f5f5f4')}
+              onMouseLeave={e => (e.currentTarget.style.background = '#ffffff')}
             >
-              DESCARTAR
+              Cancelar
             </button>
             <button
               onClick={handleApplyBulkSponsors}
               data-testid="button-confirm-bulk-apply"
-              style={{ padding: '8px 16px', backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', cursor: 'pointer' }}
+              style={{ padding: '9px 20px', backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px rgba(249,115,22,0.3)' }}
+              onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.08)')}
+              onMouseLeave={e => (e.currentTarget.style.filter = 'none')}
             >
-              APLICAR EM LOTE
+              Aplicar em Lote
             </button>
           </div>
         </DialogContent>
@@ -3239,13 +3300,13 @@ export default function VincularPatrocinadores() {
               </div>
               <div style={{ flex: 1 }}>
                 <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>
-                  Envio para produção criativa
+                  Envio para a equipe de Arte
                 </p>
                 <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 22, fontWeight: 800, letterSpacing: '-0.03em', color: '#ffffff', margin: 0, lineHeight: 1.1 }}>
                   Enviar para Arte
                 </h2>
                 <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', marginTop: 6, lineHeight: 1.4 }}>
-                  Os itens abaixo serão encaminhados à equipe de Arte para aprovação e vinculação criativa.
+                  Os itens serão encaminhados à equipe de Arte para aprovação e finalização.
                 </p>
               </div>
               {/* Count pill */}
@@ -3355,7 +3416,7 @@ export default function VincularPatrocinadores() {
                                 border: `1px solid ${isNew ? 'rgba(249,115,22,0.35)' : '#e7e5e4'}`,
                                 fontSize: 11, fontWeight: 600, color: '#44403c',
                               }}>
-                                <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: sp.color || '#a8a29e', flexShrink: 0 }} />
+                                <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: isNew ? '#f97316' : '#a8a29e', flexShrink: 0 }} />
                                 {sp.name}
                                 {isNew && <span style={{ fontSize: 9, color: '#f97316', fontWeight: 800, letterSpacing: '0.04em' }}>+NOVO</span>}
                               </span>

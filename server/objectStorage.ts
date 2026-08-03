@@ -104,13 +104,17 @@ export class ObjectStorageService {
       // Get the ACL policy for the object.
       const aclPolicy = await getObjectAclPolicy(file);
       const isPublic = aclPolicy?.visibility === "public";
+      const contentType = metadata.contentType || "application/octet-stream";
+      const isPdf = contentType === "application/pdf" || file.name.endsWith(".pdf");
+
       // Set appropriate headers
       res.set({
-        "Content-Type": metadata.contentType || "application/octet-stream",
+        "Content-Type": isPdf ? "application/pdf" : contentType,
         "Content-Length": metadata.size,
-        "Cache-Control": `${
-          isPublic ? "public" : "private"
-        }, max-age=${cacheTtlSec}`,
+        "Cache-Control": `${isPublic ? "public" : "private"}, max-age=${cacheTtlSec}`,
+        // Tell the browser to display the file inline (critical for PDFs in new tabs).
+        // Without this, Chrome downloads the file silently and the tab shows blank.
+        ...(isPdf && { "Content-Disposition": "inline; filename=\"document.pdf\"" }),
       });
 
       // Stream the file to the response

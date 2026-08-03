@@ -538,3 +538,8 @@
   background: #e7e5e4;
   border-radius: 2px;
 }
+@keyframes thumb-saved-pop {
+  0%   { transform: scale(0.97); opacity: 0.7; }
+  60%  { transform: scale(1.02); opacity: 1; }
+  100% { transform: scale(1);    opacity: 1; }
+}

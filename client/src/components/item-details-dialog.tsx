@@ -402,10 +402,10 @@ export function ItemDetailsDialog({
         {/* ══════════════════════════════════════════════════════
             TWO-COLUMN GRID
         ══════════════════════════════════════════════════════ */}
-        <div style={{ display: "grid", gridTemplateColumns: "6fr 4fr", gap: 12, padding: "20px 32px 0", backgroundColor: "#f5f4f1" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "6fr 4fr", gap: 16, padding: "20px 32px 20px", backgroundColor: "#e8e4de" }}>
 
           {/* ── LEFT COLUMN (60%) ── */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
             {/* Event info + Specs */}
             <section style={{ backgroundColor: "#ffffff", padding: "20px 24px", borderRadius: 10 }}>
@@ -571,7 +571,7 @@ export function ItemDetailsDialog({
           </div>
 
           {/* ── RIGHT COLUMN (40%) ── */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
             {/* Aprovação de Arte — glass-purple/orange */}
             <section style={{

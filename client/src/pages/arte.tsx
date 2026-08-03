@@ -1884,7 +1884,7 @@ export default function Arte() {
                               {approval.rejectedAt && (
                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 10, fontWeight: 600, color: '#b45309', whiteSpace: 'nowrap' }}>
                                   <Clock style={{ width: 9, height: 9, flexShrink: 0 }} />
-                                  {new Date(approval.rejectedAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} {new Date(approval.rejectedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                                  {(() => { const d = new Date(approval.rejectedAt); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })()}
                                 </span>
                               )}
                             </div>
@@ -2717,8 +2717,8 @@ export default function Arte() {
                   <h3 style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em', textTransform: 'uppercase', color: '#1c1917', margin: 0 }}>
                     Thumb de Aprovação
                   </h3>
-                  <span style={{ fontSize: 10, backgroundColor: 'rgba(159,153,150,0.2)', color: '#35322f', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
-                    REQUISITO A
+                  <span title="Obrigatório para enviar à aprovação" style={{ fontSize: 10, backgroundColor: 'rgba(220,38,38,0.08)', color: '#b91c1c', padding: '2px 8px', borderRadius: 4, fontWeight: 700, letterSpacing: '0.04em' }}>
+                    OBRIGATÓRIO
                   </span>
                 </div>
 
@@ -2815,9 +2815,9 @@ export default function Arte() {
                   /* State A1: empty upload zone */
                   <div style={{
                     background: (isPasteUploading || isDragOver) ? 'rgba(237,233,254,0.8)' : 'rgba(250,245,255,0.5)', backdropFilter: 'blur(8px)',
-                    border: (isPasteUploading || isDragOver) ? '2px dashed #7c3aed' : '1px dashed #ddd6fe', borderRadius: 12, padding: 32,
+                    border: (isPasteUploading || isDragOver) ? '2px dashed #7c3aed' : '1px dashed #ddd6fe', borderRadius: 12, padding: '24px 32px',
                     display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                    textAlign: 'center', gap: 12, cursor: 'pointer', transition: 'background 0.15s'
+                    textAlign: 'center', gap: 10, cursor: 'pointer', transition: 'background 0.15s'
                   }}
                     onMouseEnter={e => { if (!isPasteUploading && !isDragOver) (e.currentTarget as HTMLElement).style.background = 'rgba(237,233,254,0.5)'; }}
                     onMouseLeave={e => { if (!isPasteUploading && !isDragOver) (e.currentTarget as HTMLElement).style.background = 'rgba(250,245,255,0.5)'; }}
@@ -2850,9 +2850,9 @@ export default function Arte() {
                     </div>
                     <div>
                       <p style={{ fontSize: 14, fontWeight: 700, color: '#3b0764', margin: '0 0 4px' }}>
-                        {isPasteUploading ? 'Enviando imagem...' : 'Upload de Miniatura'}
+                        {isPasteUploading ? 'Enviando imagem...' : 'Upload do Thumb'}
                       </p>
-                      <p style={{ fontSize: 12, color: 'rgba(59,7,100,0.6)', margin: 0 }}>
+                      <p style={{ fontSize: 12, color: 'rgba(59,7,100,0.55)', margin: 0 }}>
                         {isPasteUploading ? 'Aguarde o upload concluir' : 'Arraste, selecione ou cole com Ctrl+V'}
                       </p>
                     </div>
@@ -2873,13 +2873,13 @@ export default function Arte() {
                         }}
                         accept="image/*"
                         buttonVariant="ghost"
-                        buttonClassName="mt-2 text-[11px] font-bold uppercase tracking-wider bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 hover:text-white transition-all"
+                        buttonClassName="mt-2 text-[12px] font-bold bg-purple-600 text-white px-5 py-2 rounded-lg hover:bg-purple-700 hover:text-white transition-all"
                       >
-                        Fazer Upload do Thumb
+                        Fazer upload do thumb
                       </FileUploader>
                     )}
                     {!isPasteUploading && (
-                      <p style={{ fontSize: 10, color: '#c4b5fd', margin: '-4px 0 0', fontWeight: 600, letterSpacing: '0.05em' }}>
+                      <p style={{ fontSize: 10, color: '#8b5cf6', margin: '-2px 0 0', fontWeight: 600 }}>
                         ou Ctrl+V para colar direto
                       </p>
                     )}

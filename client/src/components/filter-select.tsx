@@ -1,6 +1,7 @@
 /**
  * FilterSelect — componente de filtro padrão do app.
  * Suporta seleção simples (value/onChange) e múltipla (values/onValuesChange).
+ * accent="orange" (padrão) ou "violet" para contextos com tema violeta.
  */
 import { useMemo, useState, useRef, useEffect } from "react";
 import { Search, ChevronDown, Check, X } from "lucide-react";
@@ -38,6 +39,7 @@ interface FilterSelectProps {
   disabled?: boolean;
   dropdownAlign?: "left" | "right";
   hideClear?: boolean;
+  accent?: "orange" | "violet";
 }
 
 export function FilterSelect({
@@ -61,6 +63,7 @@ export function FilterSelect({
   disabled = false,
   dropdownAlign = "left",
   hideClear = false,
+  accent = "orange",
 }: FilterSelectProps) {
   const multiple = values !== undefined && onValuesChange !== undefined;
   const [open, setOpen] = useState(false);
@@ -75,6 +78,23 @@ export function FilterSelect({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
+
+  // ── Paleta de cor baseada no accent ───────────────────────────────────
+  const C = accent === "violet" ? {
+    bg50:    "#F5F3FF",
+    border:  "#A78BFA",
+    main:    "#7C3AED",
+    badge:   "#7C3AED",
+    text:    "#5B21B6",
+    focus:   "rgba(124,58,237,0.15)",
+  } : {
+    bg50:    "#FFF7ED",
+    border:  "#FB923C",
+    main:    "#F97316",
+    badge:   "#FB923C",
+    text:    "#C2410C",
+    focus:   "rgba(251,146,60,0.15)",
+  };
 
   const sorted = useMemo(() => {
     const pinned = options.filter(o => o.pinned);
@@ -154,13 +174,13 @@ export function FilterSelect({
     display: "flex", alignItems: "center",
     gap: 6, height: 36,
     padding: "0 10px 0 12px",
-    backgroundColor: open || isActive ? "#FFF7ED" : "#ffffff",
-    border: isActive ? "1.5px solid #FB923C" : open ? "1.5px solid #FB923C" : "1px solid #e2e8f0",
+    backgroundColor: open || isActive ? C.bg50 : "#ffffff",
+    border: isActive ? `1.5px solid ${C.border}` : open ? `1.5px solid ${C.border}` : "1px solid #e2e8f0",
     borderRadius: 7,
     cursor: disabled ? "not-allowed" : "pointer",
     opacity: disabled ? 0.6 : 1,
     fontSize: 13, fontWeight: isActive ? 600 : 400,
-    color: isActive ? "#C2410C" : "#1c1917",
+    color: isActive ? C.text : "#1c1917",
     transition: "background 0.15s, border 0.15s, color 0.15s",
     outline: "none", whiteSpace: "nowrap",
     ...(fullWidth ? { width: "100%", justifyContent: "space-between" } : { maxWidth: 260 }),
@@ -171,8 +191,8 @@ export function FilterSelect({
     display: "flex", alignItems: "center",
     gap: 8, padding: "12px 16px",
     border: "none", borderRadius: 8,
-    backgroundColor: isActive ? "#FFF7ED" : "#ffffff",
-    color: isActive ? "#C2410C" : "#1c1917",
+    backgroundColor: isActive ? C.bg50 : "#ffffff",
+    color: isActive ? C.text : "#1c1917",
     fontSize: 14, fontWeight: 600,
     cursor: disabled ? "not-allowed" : "pointer",
     opacity: disabled ? 0.6 : 1,
@@ -202,18 +222,18 @@ export function FilterSelect({
         style={{
           width: "100%", display: "flex", alignItems: "center", gap: 8,
           padding: "8px 12px", border: "none", cursor: "pointer", textAlign: "left",
-          backgroundColor: isSel ? "#FFF7ED" : "transparent",
+          backgroundColor: isSel ? C.bg50 : "transparent",
           transition: "background 0.1s",
         }}
         onMouseEnter={e => { if (!isSel) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F9FAFB"; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = isSel ? "#FFF7ED" : "transparent"; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = isSel ? C.bg50 : "transparent"; }}
       >
         {/* Checkbox (multi) ou dot (single) */}
         {multiple ? (
           <span style={{
             width: 16, height: 16, borderRadius: 4, flexShrink: 0,
             border: isSel ? "none" : "1.5px solid #D1D5DB",
-            backgroundColor: isSel ? "#F97316" : "transparent",
+            backgroundColor: isSel ? C.main : "transparent",
             display: "flex", alignItems: "center", justifyContent: "center",
           }}>
             {isSel && <Check style={{ width: 10, height: 10, color: "#fff" }} />}
@@ -221,14 +241,14 @@ export function FilterSelect({
         ) : (
           <span style={{
             width: 8, height: 8, borderRadius: "50%", flexShrink: 0,
-            backgroundColor: opt.dotColor || (isSel ? "#F97316" : "#D1D5DB"),
+            backgroundColor: opt.dotColor || (isSel ? C.main : "#D1D5DB"),
           }} />
         )}
 
         {/* Label */}
         <span style={{
           flex: 1, fontSize: 12, fontWeight: isSel ? 600 : 400,
-          color: isSel ? "#C2410C" : "#374151",
+          color: isSel ? C.text : "#374151",
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         }}>
           {opt.label}
@@ -238,7 +258,7 @@ export function FilterSelect({
         {opt.count !== undefined && (
           <span style={{
             fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 99,
-            backgroundColor: isSel ? "#FB923C" : "#F3F4F6",
+            backgroundColor: isSel ? C.badge : "#F3F4F6",
             color: isSel ? "#fff" : "#6B7280", flexShrink: 0,
           }}>
             {opt.count}
@@ -246,7 +266,7 @@ export function FilterSelect({
         )}
 
         {/* Check mark (modo simples) */}
-        {!multiple && isSel && <Check style={{ width: 12, height: 12, color: "#F97316", flexShrink: 0 }} />}
+        {!multiple && isSel && <Check style={{ width: 12, height: 12, color: C.main, flexShrink: 0 }} />}
       </button>
     );
   };
@@ -276,7 +296,7 @@ export function FilterSelect({
         {multiple && values!.length > 1 && (
           <span style={{
             fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 99,
-            backgroundColor: "#FB923C", color: "#fff", flexShrink: 0, marginLeft: 2,
+            backgroundColor: C.badge, color: "#fff", flexShrink: 0, marginLeft: 2,
           }}>
             {values!.length}
           </span>
@@ -292,7 +312,7 @@ export function FilterSelect({
               else onChange?.("all");
               setSearch("");
             }}
-            style={{ display: "flex", alignItems: "center", color: "#FB923C", marginLeft: 2, cursor: "pointer", flexShrink: 0 }}
+            style={{ display: "flex", alignItems: "center", color: C.border, marginLeft: 2, cursor: "pointer", flexShrink: 0 }}
             title="Limpar filtro"
           >
             <X style={{ width: 13, height: 13 }} />
@@ -302,7 +322,7 @@ export function FilterSelect({
         <ChevronDown style={{
           width: variant === "bare" ? 14 : 13, height: variant === "bare" ? 14 : 13,
           flexShrink: 0, marginLeft: 2,
-          color: isActive ? "#FB923C" : "#78716c",
+          color: isActive ? C.border : "#78716c",
           transition: "transform 0.2s",
           transform: open ? "rotate(180deg)" : "rotate(0deg)",
         }} />
@@ -333,7 +353,7 @@ export function FilterSelect({
                   backgroundColor: "#F9FAFB", border: "1.5px solid #E5E7EB",
                   borderRadius: 6, fontSize: 12, color: "#111827", outline: "none",
                 }}
-                onFocus={e => { e.target.style.border = "1.5px solid #FB923C"; e.target.style.boxShadow = "0 0 0 3px rgba(251,146,60,0.15)"; }}
+                onFocus={e => { e.target.style.border = `1.5px solid ${C.border}`; e.target.style.boxShadow = `0 0 0 3px ${C.focus}`; }}
                 onBlur={e => { e.target.style.border = "1.5px solid #E5E7EB"; e.target.style.boxShadow = "none"; }}
               />
             </div>
@@ -354,7 +374,7 @@ export function FilterSelect({
                 style={{
                   width: "100%", display: "flex", alignItems: "center", gap: 8,
                   padding: "9px 12px", border: "none", cursor: "pointer", textAlign: "left",
-                  backgroundColor: !isActive ? "#F97316" : "transparent",
+                  backgroundColor: !isActive ? C.main : "transparent",
                   color: !isActive ? "#fff" : "#374151",
                   fontWeight: 700, fontSize: 12,
                   transition: "background 0.1s",
@@ -370,7 +390,7 @@ export function FilterSelect({
                     backgroundColor: !isActive ? "#fff" : "transparent",
                     display: "flex", alignItems: "center", justifyContent: "center",
                   }}>
-                    {!isActive && <Check style={{ width: 10, height: 10, color: "#F97316" }} />}
+                    {!isActive && <Check style={{ width: 10, height: 10, color: C.main }} />}
                   </span>
                 )}
                 <span style={{ flex: 1 }}>{allLabelText}</span>
@@ -407,7 +427,7 @@ export function FilterSelect({
               </span>
               <button
                 onClick={handleClearMultiple}
-                style={{ fontSize: 11, fontWeight: 700, color: "#F97316", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
+                style={{ fontSize: 11, fontWeight: 700, color: C.main, background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}
               >
                 Limpar
               </button>

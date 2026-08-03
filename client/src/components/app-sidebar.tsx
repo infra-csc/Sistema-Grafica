@@ -93,7 +93,7 @@ function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
             display: "flex",
             alignItems: "center",
             gap: 10,
-            padding: "8px 12px 8px 9px",
+            padding: "8px 12px",
             borderRadius: 8,
             fontSize: 13,
             fontFamily: "'Plus Jakarta Sans', sans-serif",

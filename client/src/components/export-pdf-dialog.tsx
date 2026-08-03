@@ -199,16 +199,16 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                           style={{
                             display: "flex", alignItems: "center", gap: 10,
                             padding: "9px 12px", borderRadius: 8,
-                            border: `1px solid ${on ? "#bfdbfe" : "#e4e0db"}`,
-                            backgroundColor: on ? "#eff6ff" : "#fff",
+                            border: `1px solid ${on ? "#ddd6fe" : "#e4e0db"}`,
+                            backgroundColor: on ? "#f5f3ff" : "#fff",
                             cursor: "pointer", transition: "background 0.1s",
                           }}
                         >
-                          <div style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, border: `2px solid ${on ? "#2563eb" : "#ccc"}`, backgroundColor: on ? "#2563eb" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <div style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, border: `2px solid ${on ? "#7c3aed" : "#ccc"}`, backgroundColor: on ? "#7c3aed" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
                             {on && <CheckCircle style={{ width: 9, height: 9, color: "#fff" }} />}
                           </div>
                           <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: "#1c1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.key}</span>
-                          <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: on ? "#2563eb" : "#a8a29e" }}>
+                          <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: on ? "#7c3aed" : "#a8a29e" }}>
                             {on ? Math.ceil(g.count / MAX_ITEMS_PER_COMBINED_PAGE) : g.count} pág.
                           </span>
                         </div>
@@ -227,12 +227,12 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                     style={{
                       display: "flex", alignItems: "center", gap: 10,
                       padding: "10px 12px", borderRadius: 8,
-                      border: `1px solid ${groupByEvent ? "#bfdbfe" : "#e4e0db"}`,
-                      backgroundColor: groupByEvent ? "#eff6ff" : "#fff",
+                      border: `1px solid ${groupByEvent ? "#ddd6fe" : "#e4e0db"}`,
+                      backgroundColor: groupByEvent ? "#f5f3ff" : "#fff",
                       cursor: "pointer",
                     }}
                   >
-                    <div style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, border: `2px solid ${groupByEvent ? "#2563eb" : "#ccc"}`, backgroundColor: groupByEvent ? "#2563eb" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <div style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, border: `2px solid ${groupByEvent ? "#7c3aed" : "#ccc"}`, backgroundColor: groupByEvent ? "#7c3aed" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       {groupByEvent && <CheckCircle style={{ width: 9, height: 9, color: "#fff" }} />}
                     </div>
                     <div>
@@ -329,23 +329,24 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                 <SlidersHorizontal style={{ width: 13, height: 13, color: "#a8a29e" }} />
                 <span style={{ fontSize: 11, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.08em" }}>Filtros</span>
               </div>
-              <FilterSelect showAllLabelWhenEmpty hideWhenEmpty={false}
+              <FilterSelect showAllLabelWhenEmpty hideWhenEmpty={false} accent="violet"
                 label="Evento" allLabel="Todos os eventos"
                 value={eventFilter} onChange={setEventFilter}
                 options={eventOptions} searchPlaceholder="Buscar evento..." emptyText="Nenhum." />
-              <FilterSelect showAllLabelWhenEmpty hideWhenEmpty={false}
+              <FilterSelect showAllLabelWhenEmpty hideWhenEmpty={false} accent="violet"
                 label="Patrocinador" allLabel="Todos"
                 value={sponsorFilter} onChange={setSponsorFilter}
                 options={sponsorOptions} searchPlaceholder="Buscar..." emptyText="Nenhum." />
-              <FilterSelect showAllLabelWhenEmpty hideWhenEmpty={false}
+              <FilterSelect showAllLabelWhenEmpty hideWhenEmpty={false} accent="violet"
                 label="Grupo" allLabel="Todos os grupos"
                 value={groupFilter} onChange={(x: string) => { setGroupFilter(x); setTypeFilter("all"); }}
                 options={groupOptions} searchPlaceholder="Buscar grupo..." emptyText="Nenhum." />
-              <FilterSelect showAllLabelWhenEmpty hideWhenEmpty={false}
+              <FilterSelect showAllLabelWhenEmpty hideWhenEmpty={false} accent="violet"
                 label="Tipo" allLabel="Todos os tipos"
                 value={typeFilter} onChange={setTypeFilter}
-                options={typeOptions} searchPlaceholder="Buscar tipo..." emptyText="Nenhum." />
-              <FilterSelect showAllLabelWhenEmpty hideWhenEmpty={false}
+                options={typeOptions} searchPlaceholder="Buscar tipo..." emptyText="Nenhum."
+                dropdownAlign="right" />
+              <FilterSelect showAllLabelWhenEmpty hideWhenEmpty={false} accent="violet"
                 label="Status" allLabel="Todos"
                 value={statusFilter} onChange={setStatusFilter}
                 options={statusOptions} searchPlaceholder="Buscar..." emptyText="Nenhum."

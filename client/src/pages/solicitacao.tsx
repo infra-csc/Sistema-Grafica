@@ -164,6 +164,10 @@ export default function Solicitacao() {
     return () => window.removeEventListener('resize', fn);
   }, []);
 
+  // Diálogo de reaproveitamento (total ou parcial)
+  const [reuseDialogItemId, setReuseDialogItemId] = useState<string | null>(null);
+  const [partialReuseQty, setPartialReuseQty] = useState(1);
+
   const toggleReuseMutation = useMutation({
     mutationFn: async ({ itemId, isReuse }: { itemId: string; isReuse: boolean }) => {
       await apiRequest("PATCH", `/api/items/${itemId}`, { isReuse });
@@ -172,7 +176,6 @@ export default function Solicitacao() {
         try {
           await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, {});
         } catch {
-          // Marcação salva; apenas o avanço de status falhou. Não bloqueia o fluxo.
           return { statusAdvanced: false };
         }
       }
@@ -189,6 +192,25 @@ export default function Solicitacao() {
             ? "Peça enviada diretamente para a Gráfica como produzida."
             : "Peça marcada para reaproveitamento. O status será atualizado em breve."
           : "A peça voltará ao fluxo normal.",
+      });
+    },
+    onError: (error: any) => toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" }),
+  });
+
+  // Reaproveitamento parcial: define reuseQty e avança via creator-review
+  const partialReuseMutation = useMutation({
+    mutationFn: async ({ itemId, reuseQty }: { itemId: string; reuseQty: number }) => {
+      // creator-review aceita reuseQty no body para registrar o parcial e
+      // avança para ready_for_production (as demais unidades ainda vão para produção)
+      await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, { reuseQty });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      setReuseDialogItemId(null);
+      toast({
+        title: "Reaproveitamento parcial confirmado",
+        description: "As unidades reaproveitadas foram registradas. O restante segue para produção.",
       });
     },
     onError: (error: any) => toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" }),
@@ -767,7 +789,16 @@ export default function Solicitacao() {
                                   Revisar
                                 </button>
                                 <button
-                                  onClick={() => toggleReuseMutation.mutate({ itemId: item.id, isReuse: !item.isReuse })}
+                                  onClick={() => {
+                                    if (item.isReuse) {
+                                      // Se já está marcado como reaproveitamento total, desfaz
+                                      toggleReuseMutation.mutate({ itemId: item.id, isReuse: false });
+                                    } else {
+                                      // Abre o diálogo para escolher total ou parcial
+                                      setPartialReuseQty(Math.max(1, Number(item.quantity) - 1 || 1));
+                                      setReuseDialogItemId(item.id);
+                                    }
+                                  }}
                                   data-testid={`button-reuse-${item.id}`}
                                   title={item.isReuse ? "Remover marcação de reaproveitamento" : "Marcar para reaproveitamento"}
                                   style={{
@@ -1319,6 +1350,95 @@ export default function Solicitacao() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Diálogo: escolher reaproveitamento total ou parcial */}
+      {reuseDialogItemId && (() => {
+        const dialogItem = pendingItems.find(i => i.id === reuseDialogItemId);
+        if (!dialogItem) return null;
+        const qty = Number(dialogItem.quantity) || 1;
+        return (
+          <div
+            style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.45)" }}
+            onClick={() => setReuseDialogItemId(null)}
+          >
+            <div
+              style={{ backgroundColor: "#ffffff", borderRadius: 12, padding: 28, width: Math.min(380, window.innerWidth - 32), boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}
+              onClick={e => e.stopPropagation()}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
+                <Recycle style={{ width: 18, height: 18, color: "#15803d" }} />
+                <h3 style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 16, textTransform: "uppercase", letterSpacing: "-0.02em" }}>
+                  Reaproveitamento
+                </h3>
+              </div>
+              <p style={{ margin: "0 0 20px", fontSize: 12, color: "#78716c" }}>
+                {dialogItem.displayId} · {dialogItem.type} · <strong>{qty} un.</strong>
+              </p>
+
+              {/* Opção: reaproveitar tudo */}
+              <button
+                onClick={() => {
+                  toggleReuseMutation.mutate({ itemId: dialogItem.id, isReuse: true });
+                  setReuseDialogItemId(null);
+                }}
+                disabled={toggleReuseMutation.isPending || partialReuseMutation.isPending}
+                style={{
+                  width: "100%", padding: "12px 16px", marginBottom: 10,
+                  backgroundColor: "#15803d", color: "#fff",
+                  border: "none", borderRadius: 8, cursor: "pointer",
+                  fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
+                  display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                }}
+              >
+                <Recycle style={{ width: 13, height: 13 }} />
+                Reaproveitar tudo ({qty} un.) — pula produção
+              </button>
+
+              {/* Opção: reaproveitar parcialmente (só aparece se qty > 1) */}
+              {qty > 1 && (
+                <div style={{ border: "1px solid #e7e5e4", borderRadius: 8, padding: "14px 16px" }}>
+                  <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 700, color: "#78716c", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                    Reaproveitar parcialmente
+                  </p>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    <input
+                      type="number"
+                      min={1}
+                      max={qty - 1}
+                      value={partialReuseQty}
+                      onChange={e => setPartialReuseQty(Math.max(1, Math.min(qty - 1, parseInt(e.target.value) || 1)))}
+                      style={{ width: 64, height: 34, padding: "0 8px", borderRadius: 6, border: "1px solid #d4d4d0", fontSize: 14, fontWeight: 700, textAlign: "center", outline: "none" }}
+                    />
+                    <span style={{ fontSize: 12, color: "#78716c" }}>de {qty} un. reaproveitadas</span>
+                  </div>
+                  <p style={{ margin: "0 0 10px", fontSize: 11, color: "#78716c" }}>
+                    As outras <strong>{qty - partialReuseQty}</strong> un. seguirão para produção normal.
+                  </p>
+                  <button
+                    onClick={() => partialReuseMutation.mutate({ itemId: dialogItem.id, reuseQty: partialReuseQty })}
+                    disabled={toggleReuseMutation.isPending || partialReuseMutation.isPending}
+                    style={{
+                      width: "100%", padding: "10px 16px",
+                      backgroundColor: "#0c0a09", color: "#fff",
+                      border: "none", borderRadius: 6, cursor: "pointer",
+                      fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
+                    }}
+                  >
+                    {partialReuseMutation.isPending ? "Salvando..." : `Confirmar ${partialReuseQty} un. reaproveitadas`}
+                  </button>
+                </div>
+              )}
+
+              <button
+                onClick={() => setReuseDialogItemId(null)}
+                style={{ width: "100%", marginTop: 12, padding: "8px 0", background: "none", border: "none", fontSize: 12, color: "#a8a29e", cursor: "pointer" }}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Delete confirmation */}
       <AlertDialog open={!!deleteConfirmItemId} onOpenChange={open => { if (!open) setDeleteConfirmItemId(null); }}>

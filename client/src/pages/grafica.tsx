@@ -102,6 +102,8 @@ export default function Grafica() {
   const [modalNotes, setModalNotes] = useState("");
   const [reuseConfirmItemId, setReuseConfirmItemId] = useState<string | null>(null);
   const [reuseQty, setReuseQty] = useState(0); // reaproveitamento parcial
+  const [correctReuseItemId, setCorrectReuseItemId] = useState<string | null>(null);
+  const [correctReuseQty, setCorrectReuseQty] = useState(0); // quantidade corrigida
   // Entrega em lote
   const [bulkDeliveryMode, setBulkDeliveryMode] = useState(false);
   const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(new Set());
@@ -182,6 +184,29 @@ export default function Grafica() {
     onError: (error: Error) => {
       setReuseConfirmItemId(null);
       toast({ title: "Erro ao marcar reaproveitamento", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Corrige reaproveitamento total marcado por engano (só disponível antes de conferir)
+  const correctReuseMutation = useMutation({
+    mutationFn: async ({ itemId, correctedReuseQty }: { itemId: string; correctedReuseQty: number }) =>
+      await apiRequest("POST", `/api/items/${itemId}/correct-reuse`, { correctedReuseQty }),
+    onSuccess: (updated: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setCorrectReuseItemId(null);
+      const qty = Number(updated?.quantity) || 0;
+      const reused = Number(updated?.reuseQty) || 0;
+      toast({
+        title: "Reaproveitamento corrigido",
+        description: reused < qty
+          ? `${reused} un. reaproveitadas. As outras ${qty - reused} voltaram para produção.`
+          : "Reaproveitamento mantido como total.",
+      });
+    },
+    onError: (error: Error) => {
+      setCorrectReuseItemId(null);
+      toast({ title: "Erro ao corrigir reaproveitamento", description: error.message, variant: "destructive" });
     },
   });
 
@@ -1242,6 +1267,51 @@ export default function Grafica() {
                                 onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.color = "#059669")}
                               >
                                 <RotateCcw style={{ width: 15, height: 15 }} />
+                              </button>
+                            )
+                          )}
+
+                          {/* Corrigir reaproveitamento — disponível quando item foi
+                              marcado como reaproveitamento total por engano e ainda
+                              não foi conferido (dá para voltar ao fluxo de produção). */}
+                          {isProduced(item) && item.isReuse && conferredOf(item) === 0 && (
+                            correctReuseItemId === item.id ? (
+                              <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={qtyOf(item) - 1}
+                                  value={correctReuseQty}
+                                  onChange={e => setCorrectReuseQty(Math.max(0, Math.min(qtyOf(item) - 1, parseInt(e.target.value) || 0)))}
+                                  title={`Quantas unidades reaproveitadas (0 a ${qtyOf(item) - 1})`}
+                                  style={{ width: 52, height: 26, padding: "0 6px", borderRadius: 5, border: "1px solid #fbbf24", fontSize: 11, fontWeight: 700, color: TI.text, textAlign: "center", outline: "none" }}
+                                />
+                                <span style={{ fontSize: 10, color: TI.muted, whiteSpace: "nowrap" }}>de {qtyOf(item)}</span>
+                                <button
+                                  onClick={() => correctReuseMutation.mutate({ itemId: item.id, correctedReuseQty: correctReuseQty })}
+                                  disabled={correctReuseMutation.isPending}
+                                  title="Confirmar correção"
+                                  style={{ backgroundColor: "#d97706", color: "#fff", border: "none", borderRadius: 5, height: 26, padding: "0 8px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+                                >
+                                  OK
+                                </button>
+                                <button
+                                  onClick={() => setCorrectReuseItemId(null)}
+                                  title="Cancelar"
+                                  style={{ background: "none", border: `1px solid ${TI.border}`, borderRadius: 5, height: 26, padding: "0 6px", fontSize: 10, fontWeight: 700, color: TI.muted, cursor: "pointer" }}
+                                >
+                                  <X style={{ width: 10, height: 10 }} />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={e => { e.stopPropagation(); setCorrectReuseItemId(item.id); setCorrectReuseQty(Math.max(0, qtyOf(item) - 1)); }}
+                                title="Corrigir reaproveitamento marcado por engano"
+                                style={{ background: "none", border: "none", cursor: "pointer", color: "#d97706", padding: 4, borderRadius: 4, display: "flex", alignItems: "center", transition: "color 0.15s" }}
+                                onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.color = "#92400e")}
+                                onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.color = "#d97706")}
+                              >
+                                <RotateCcw style={{ width: 14, height: 14 }} />
                               </button>
                             )
                           )}

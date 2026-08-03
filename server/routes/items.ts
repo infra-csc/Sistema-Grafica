@@ -1352,12 +1352,27 @@ export function registerItemRoutes(app: Express): void {
         });
       }
 
-      // Peças de reaproveitamento não passam pela produção: já entram como produzidas
-      const nextStatus = currentItem.isReuse ? "produced" : "ready_for_production";
+      // Reaproveitamento parcial: body pode trazer { reuseQty } quando a Solicitação
+      // quer reaproveitar só algumas unidades, enviando o restante para produção.
+      const partialReuseQty = req.body?.reuseQty != null ? Number(req.body.reuseQty) : undefined;
+      const isPartialReuse =
+        partialReuseQty != null &&
+        !isNaN(partialReuseQty) &&
+        partialReuseQty > 0 &&
+        partialReuseQty < currentItem.quantity;
+
+      // Peças de reaproveitamento total não passam pela produção: já entram como produzidas.
+      // Reaproveitamento parcial vai para ready_for_production (as demais unidades precisam produzir).
+      const nextStatus =
+        currentItem.isReuse && !isPartialReuse ? "produced" : "ready_for_production";
+
       const item = await storage.updateItem(req.params.id, {
         status: nextStatus,
         creatorReviewedAt: new Date(),
         hasModifiedData: false, // Reset flag - Gráfica vê como dados novos
+        ...(isPartialReuse
+          ? { reuseQty: partialReuseQty, isReuse: false }
+          : {}),
       });
       
       if (!item) {
@@ -1985,6 +2000,63 @@ export function registerItemRoutes(app: Express): void {
         isFullReuse
           ? `Reaproveitamento total pela Gráfica: ${newReuse}/${current.quantity} un.`
           : `Reaproveitamento parcial pela Gráfica: ${n} un. (${newReuse}/${current.quantity} reaproveitadas, ${current.quantity - newReuse} a produzir)`
+      );
+
+      broadcast({ type: "item_updated", item });
+      res.json(item);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Corrige reaproveitamento total que foi marcado por engano na Solicitação.
+  // Só disponível enquanto a peça ainda não foi conferida (status = produced, conferredQty = 0).
+  app.post("/api/items/:id/correct-reuse", requireAuth, async (req, res) => {
+    try {
+      if (
+        (req as any).userRole !== "grafica" &&
+        (req as any).userRole !== "admin" &&
+        (req as any).userRole !== "solicitacao"
+      ) {
+        return res.status(403).json({ error: "Apenas a Gráfica, Solicitação ou Admin pode corrigir reaproveitamento" });
+      }
+
+      const current = await storage.getItem(req.params.id);
+      if (!current) return res.status(404).json({ error: "Item not found" });
+
+      if (current.status !== "produced" && current.status !== "produzido") {
+        return res.status(409).json({ error: "Correção disponível apenas para peças com status Produzido" });
+      }
+      if ((current.conferredQty || 0) > 0) {
+        return res.status(409).json({ error: "Não é possível corrigir: a peça já foi parcialmente conferida" });
+      }
+      if ((current.reuseQty || 0) === 0 && !current.isReuse) {
+        return res.status(409).json({ error: "Peça não tem reaproveitamento para corrigir" });
+      }
+
+      const correctedReuseQty = Number(req.body?.correctedReuseQty);
+      if (isNaN(correctedReuseQty) || correctedReuseQty < 0 || correctedReuseQty >= current.quantity) {
+        return res.status(400).json({
+          error: `Quantidade corrigida inválida (deve ser entre 0 e ${current.quantity - 1})`,
+        });
+      }
+
+      const isFullReuse = correctedReuseQty >= current.quantity;
+      const item = await storage.updateItem(req.params.id, {
+        reuseQty: correctedReuseQty,
+        isReuse: isFullReuse,
+        // Com unidades ainda a produzir, volta para ready_for_production
+        ...(isFullReuse ? {} : { status: "ready_for_production" as const }),
+      });
+      if (!item) return res.status(404).json({ error: "Item not found" });
+
+      await createAuditLog(
+        (req as any).userName!,
+        "updated",
+        "item",
+        item.id,
+        `Reaproveitamento corrigido: ${correctedReuseQty}/${current.quantity} un. reaproveitadas` +
+          (isFullReuse ? " (total)" : " — status voltou para Pronto para Produção")
       );
 
       broadcast({ type: "item_updated", item });

@@ -46,6 +46,9 @@ The system features a professional light mode theme with a clean white backgroun
 - **Scalability**: Robust backend and database.
 - **Responsiveness**: Full responsiveness for all devices.
 
+## User Preferences
+- **Revisar antes de aplicar**: Antes de submeter qualquer modificação ao código, fazer uma releitura detalhada do diff completo — verificar lógica, edge cases, e efeitos colaterais. Só então aplicar os edits.
+
 ## External Dependencies
 - **Database**: PostgreSQL (Neon).
 - **Frontend Libraries**: React, Tailwind CSS, Shadcn UI, Recharts, date-fns.

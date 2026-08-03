@@ -7,8 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { FilterSelect } from "@/components/filter-select";
-import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, ChevronsUpDown, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, Recycle, ImagePlus, FileSpreadsheet } from "lucide-react";
-import { Fragment, useState, useMemo } from "react";
+import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, ChevronsUpDown, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, Recycle, ImagePlus, FileSpreadsheet, ListChecks } from "lucide-react";
+import { Fragment, useState, useMemo, useEffect } from "react";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { cn, parseDateLocal } from "@/lib/utils";
 import {
@@ -102,6 +102,17 @@ export default function Grafica() {
   const [modalNotes, setModalNotes] = useState("");
   const [reuseConfirmItemId, setReuseConfirmItemId] = useState<string | null>(null);
   const [reuseQty, setReuseQty] = useState(0); // reaproveitamento parcial
+  // Entrega em lote
+  const [bulkDeliveryMode, setBulkDeliveryMode] = useState(false);
+  const [bulkSelectedIds, setBulkSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeliveryOpen, setBulkDeliveryOpen] = useState(false);
+  const [bulkReceivedBy, setBulkReceivedBy] = useState("");
+  const [bulkDeliveryNotes, setBulkDeliveryNotes] = useState("");
+  const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
+  const [bulkDeliveryPhotos, setBulkDeliveryPhotos] = useState<string[]>([]);
+  const addBulkPhoto = (url: string) => setBulkDeliveryPhotos(prev => [...prev, convertGCSUrlToLocalPath(url)]);
+  // Detecção de mobile (< 700 px)
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 700);
 
   const { data: items = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ["/api/items/approved"] });
   const { data: events = [] } = useQuery<any[]>({ queryKey: ["/api/events"] });
@@ -533,55 +544,142 @@ export default function Grafica() {
     setDeliverQty(remainingDeliver(item)); // padrão: o que falta entregar
   };
 
+  // Resize → atualiza isMobile
+  useEffect(() => {
+    const fn = () => setIsMobile(window.innerWidth < 700);
+    window.addEventListener('resize', fn);
+    return () => window.removeEventListener('resize', fn);
+  }, []);
+
+  // Items que podem ser entregues no filtro atual
+  const deliverableInFilter = useMemo(
+    () => (filteredItems as any[]).filter(i => canDeliver(i)),
+    [filteredItems],
+  );
+  const allDeliverableSelected =
+    deliverableInFilter.length > 0 && deliverableInFilter.every((i: any) => bulkSelectedIds.has(i.id));
+
+  const toggleBulkItem = (id: string) =>
+    setBulkSelectedIds(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+
+  const handleBulkDelivery = async () => {
+    if (!bulkReceivedBy.trim()) {
+      toast({ title: "Campo obrigatório", description: "Informe quem recebeu o material", variant: "destructive" });
+      return;
+    }
+    setIsBulkSubmitting(true);
+    try {
+      const ids = [...bulkSelectedIds];
+      // 1. Registrar entrega em cada item
+      await Promise.all(ids.map(itemId => {
+        const item = (filteredItems as any[]).find(i => i.id === itemId);
+        const qty = item ? remainingDeliver(item) : 1;
+        return apiRequest("PATCH", `/api/items/${itemId}/deliver`, {
+          receivedBy: bulkReceivedBy.trim(),
+          qty,
+          notes: bulkDeliveryNotes || null,
+        });
+      }));
+      // 2. Mesmo comprovante fotográfico para todos os itens
+      if (bulkDeliveryPhotos.length > 0) {
+        await Promise.all(
+          ids.flatMap(itemId =>
+            bulkDeliveryPhotos.map(photoUrl =>
+              apiRequest("POST", `/api/items/${itemId}/photos`, { photoUrl, kind: "delivery" })
+            )
+          )
+        );
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      toast({ title: `${ids.length} peça(s) entregue(s)`, description: `Recebido por: ${bulkReceivedBy}` });
+      setBulkDeliveryOpen(false);
+      setBulkDeliveryMode(false);
+      setBulkSelectedIds(new Set());
+      setBulkReceivedBy("");
+      setBulkDeliveryNotes("");
+      setBulkDeliveryPhotos([]);
+    } catch (e: any) {
+      toast({ title: "Erro na entrega em lote", description: e.message, variant: "destructive" });
+    } finally {
+      setIsBulkSubmitting(false);
+    }
+  };
+
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24, padding: 24, backgroundColor: TI.bg, height: "100%", overflowY: "auto" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 12 : 24, padding: isMobile ? "12px 12px" : 24, paddingBottom: bulkDeliveryMode ? 80 : isMobile ? 12 : 24, backgroundColor: TI.bg, height: "100%", overflowY: "auto" }}>
 
       {/* ── Header ── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: isMobile ? "center" : "flex-end", flexWrap: "wrap", gap: 8 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 26, fontWeight: 900, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", textTransform: "uppercase", color: TI.text }} data-testid="title-grafica">
-            Controle de Produção
+          <h1 style={{ margin: 0, fontSize: isMobile ? 19 : 26, fontWeight: 900, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", textTransform: "uppercase", color: TI.text }} data-testid="title-grafica">
+            {isMobile ? "Gráfica" : "Controle de Produção"}
           </h1>
-          <p style={{ margin: "4px 0 0", fontSize: 13, color: TI.secondary }}>
-            Gestão de ativos gráficos em tempo real
-          </p>
+          {!isMobile && (
+            <p style={{ margin: "4px 0 0", fontSize: 13, color: TI.secondary }}>
+              Gestão de ativos gráficos em tempo real
+            </p>
+          )}
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {stats.liberados > 0 && (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {!isMobile && stats.liberados > 0 && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#f97316", display: "inline-block" }} />
               {stats.liberados} peça{stats.liberados !== 1 ? "s" : ""} aguardando produção
             </span>
           )}
-          {/* Exporta exatamente o que os filtros da tela estão mostrando. */}
-          <button
-            onClick={handleExportXlsx}
-            disabled={isExporting || filteredItems.length === 0}
-            data-testid="button-export-xlsx"
-            title={filteredItems.length ? `Exportar ${filteredItems.length} peça(s) em Excel` : "Nada para exportar"}
-            style={{
-              display: "inline-flex", alignItems: "center", gap: 6,
-              backgroundColor: TI.surface, color: TI.text,
-              border: `1px solid ${TI.border}`, borderRadius: 6, padding: "7px 14px",
-              fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em",
-              cursor: (isExporting || filteredItems.length === 0) ? "not-allowed" : "pointer",
-              opacity: (isExporting || filteredItems.length === 0) ? 0.5 : 1,
-            }}
-          >
-            <FileSpreadsheet style={{ width: 13, height: 13 }} />
-            {isExporting ? "Gerando…" : `Exportar Excel${filteredItems.length ? ` (${filteredItems.length})` : ""}`}
-          </button>
+          {/* Botão Entrega em Lote */}
+          {deliverableInFilter.length > 0 && !bulkDeliveryMode && (
+            <button
+              onClick={() => { setBulkDeliveryMode(true); setBulkSelectedIds(new Set()); }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                backgroundColor: TI.accent, color: '#fff',
+                border: 'none', borderRadius: 8, padding: isMobile ? '11px 16px' : '8px 14px',
+                fontSize: isMobile ? 13 : 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em',
+                cursor: 'pointer', boxShadow: '0 2px 8px rgba(249,115,22,0.3)',
+              }}
+            >
+              <ListChecks style={{ width: isMobile ? 16 : 14, height: isMobile ? 16 : 14 }} />
+              {isMobile ? `Entregar em lote (${deliverableInFilter.length})` : `Entrega em Lote (${deliverableInFilter.length})`}
+            </button>
+          )}
+          {bulkDeliveryMode && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff7ed', color: TI.accent, border: '1.5px solid #fed7aa', borderRadius: 8, padding: '7px 12px', fontSize: 11, fontWeight: 800 }}>
+              <ListChecks style={{ width: 13, height: 13 }} />
+              {isMobile ? 'Lote ativo' : 'Modo entrega em lote ativo'}
+            </span>
+          )}
+          {/* Exportar Excel — só no desktop */}
+          {!isMobile && (
+            <button
+              onClick={handleExportXlsx}
+              disabled={isExporting || filteredItems.length === 0}
+              data-testid="button-export-xlsx"
+              title={filteredItems.length ? `Exportar ${filteredItems.length} peça(s) em Excel` : "Nada para exportar"}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                backgroundColor: TI.surface, color: TI.text,
+                border: `1px solid ${TI.border}`, borderRadius: 6, padding: "7px 14px",
+                fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em",
+                cursor: (isExporting || filteredItems.length === 0) ? "not-allowed" : "pointer",
+                opacity: (isExporting || filteredItems.length === 0) ? 0.5 : 1,
+              }}
+            >
+              <FileSpreadsheet style={{ width: 13, height: 13 }} />
+              {isExporting ? "Gerando…" : `Exportar Excel${filteredItems.length ? ` (${filteredItems.length})` : ""}`}
+            </button>
+          )}
         </div>
       </div>
 
       {/* ── KPI Strip ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(5, 1fr)", gap: isMobile ? 6 : 12 }}>
         {[
-          { label: "Liberados",    value: stats.liberados,  sub: "Aguard. produção", borderColor: "#0369a1", numColor: "#0369a1", testId: "stat-approved",    filterVal: "ready_for_production" },
-          { label: "Em Produção",  value: stats.emProducao, sub: "Ativo",             borderColor: "#f97316", numColor: "#ea580c", testId: "stat-production",  filterVal: "inProduction" },
-          { label: "Produzidos",   value: stats.produzidos, sub: "Aguard. conferência", borderColor: "#16a34a", numColor: "#15803d", testId: "stat-produced",    filterVal: "produced" },
-          { label: "Conferidos",   value: stats.conferidos, sub: "Aguard. entrega",   borderColor: "#0891b2", numColor: "#0e7490", testId: "stat-conferred",   filterVal: "conferred" },
-          { label: "Entregues",    value: stats.entregues,  sub: "Concluído",         borderColor: "#0284c7", numColor: "#166534", testId: "stat-delivered",   filterVal: "delivered" },
+          { label: "Liberados",    value: stats.liberados,  sub: "Aguard. produção",    borderColor: "#0369a1", numColor: "#0369a1", testId: "stat-approved",    filterVal: "ready_for_production" },
+          { label: "Em Produção",  value: stats.emProducao, sub: "Ativo",               borderColor: "#f97316", numColor: "#ea580c", testId: "stat-production",  filterVal: "inProduction" },
+          { label: "Produzidos",   value: stats.produzidos, sub: "Ag. conferência",      borderColor: "#16a34a", numColor: "#15803d", testId: "stat-produced",    filterVal: "produced" },
+          { label: "Conferidos",   value: stats.conferidos, sub: "Ag. entrega",          borderColor: "#0891b2", numColor: "#0e7490", testId: "stat-conferred",   filterVal: "conferred" },
+          { label: "Entregues",    value: stats.entregues,  sub: "Concluído",            borderColor: "#0284c7", numColor: "#166534", testId: "stat-delivered",   filterVal: "delivered" },
         ].map(kpi => {
           const isActive = statusFilter.includes(kpi.filterVal);
           return (
@@ -593,7 +691,7 @@ export default function Grafica() {
                 backgroundColor: isActive ? kpi.borderColor : TI.surface,
                 borderLeft: `4px solid ${kpi.borderColor}`,
                 borderRadius: 8,
-                padding: "16px 18px",
+                padding: isMobile ? "10px 10px" : "16px 18px",
                 boxShadow: isActive ? `0 4px 16px ${kpi.borderColor}33` : "0 1px 4px rgba(0,0,0,0.06)",
                 cursor: "pointer",
                 transition: "all 0.15s",
@@ -603,9 +701,9 @@ export default function Grafica() {
               onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLDivElement).style.backgroundColor = `${kpi.borderColor}0f`; }}
               onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLDivElement).style.backgroundColor = TI.surface; }}
             >
-              <div style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", color: isActive ? "rgba(255,255,255,0.7)" : TI.muted, marginBottom: 6, fontFamily: "'Space Grotesk', sans-serif" }}>{kpi.label}</div>
-              <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: isActive ? "#ffffff" : kpi.numColor, lineHeight: 1 }}>{kpi.value}</div>
-              <div style={{ fontSize: 11, color: isActive ? "rgba(255,255,255,0.6)" : TI.secondary, marginTop: 4 }}>{isActive ? "Clique para limpar" : kpi.sub}</div>
+              <div style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: isActive ? "rgba(255,255,255,0.7)" : TI.muted, marginBottom: isMobile ? 3 : 6, fontFamily: "'Space Grotesk', sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kpi.label}</div>
+              <div style={{ fontSize: isMobile ? 22 : 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: isActive ? "#ffffff" : kpi.numColor, lineHeight: 1 }}>{kpi.value}</div>
+              {!isMobile && <div style={{ fontSize: 11, color: isActive ? "rgba(255,255,255,0.6)" : TI.secondary, marginTop: 4 }}>{isActive ? "Clique para limpar" : kpi.sub}</div>}
             </div>
           );
         })}
@@ -615,7 +713,7 @@ export default function Grafica() {
           data-testid="stat-total"
           style={{
             backgroundColor: TI.text, borderLeft: `4px solid ${TI.accent}`, borderRadius: 8,
-            padding: "16px 18px", boxShadow: "0 4px 16px rgba(0,0,0,0.14)",
+            padding: isMobile ? "10px 10px" : "16px 18px", boxShadow: "0 4px 16px rgba(0,0,0,0.14)",
             cursor: "pointer", transition: "opacity 0.15s",
             outline: statusFilter.length === 0 ? `2px solid ${TI.accent}` : "2px solid transparent",
             outlineOffset: 2,
@@ -623,9 +721,9 @@ export default function Grafica() {
           onMouseEnter={e => ((e.currentTarget as HTMLDivElement).style.opacity = "0.85")}
           onMouseLeave={e => ((e.currentTarget as HTMLDivElement).style.opacity = "1")}
         >
-          <div style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.4)", marginBottom: 6, fontFamily: "'Space Grotesk', sans-serif" }}>Total Geral</div>
-          <div style={{ fontSize: 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: "#ffffff", lineHeight: 1 }}>{stats.total}</div>
-          <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>{statusFilter.length === 0 ? "Todos selecionados" : "Ver todos"}</div>
+          <div style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(255,255,255,0.4)", marginBottom: isMobile ? 3 : 6, fontFamily: "'Space Grotesk', sans-serif" }}>Total</div>
+          <div style={{ fontSize: isMobile ? 22 : 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: "#ffffff", lineHeight: 1 }}>{stats.total}</div>
+          {!isMobile && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>{statusFilter.length === 0 ? "Todos selecionados" : "Ver todos"}</div>}
         </div>
       </div>
 
@@ -712,7 +810,7 @@ export default function Grafica() {
 
         {/* Avançados */}
         {showAdvancedFilters && (
-          <div style={{ width: "100%", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, borderTop: `1px solid ${TI.border}`, paddingTop: 10, marginTop: 2 }}>
+          <div style={{ width: "100%", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 8, borderTop: `1px solid ${TI.border}`, paddingTop: 10, marginTop: 2 }}>
             {[
               { label: "Tipo", allLabel: "Todos os tipos", values: typeFilter, onValuesChange: setTypeFilter, options: typeFilterOptions, testId: "select-type-filter" },
               { label: "Material", allLabel: "Todos os materiais", values: materialFilter, onValuesChange: setMaterialFilter, options: materialFilterOptions, testId: "select-material-filter" },
@@ -759,7 +857,112 @@ export default function Grafica() {
             <div style={{ fontSize: 15, fontWeight: 700, color: TI.secondary, marginBottom: 4 }}>Nenhuma peça encontrada</div>
             <div style={{ fontSize: 13 }}>Ajuste os filtros para visualizar itens</div>
           </div>
+        ) : isMobile ? (
+          /* ── View mobile: cards ── */
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '8px 8px' }}>
+            {(filteredItems as any[]).map((item: any, index: number) => {
+              const prev = index > 0 ? (filteredItems as any[])[index - 1] : null;
+              const showEvHeader = !prev || prev.event?.name !== item.event?.name;
+              const isSelected = bulkSelectedIds.has(item.id);
+              const canDeliverItem = canDeliver(item);
+
+              return (
+                <Fragment key={item.id}>
+                  {showEvHeader && (
+                    <div style={{ padding: '8px 8px 6px', marginTop: index > 0 ? 6 : 0, background: TI.text, borderRadius: '8px 8px 0 0' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Package style={{ width: 13, height: 13, color: TI.accent }} />
+                        <span style={{ fontSize: 11, fontWeight: 800, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: "'Space Grotesk', sans-serif" }}>
+                          {item.event?.name || 'Sem Evento'}
+                        </span>
+                        {item.event && (
+                          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                            <Calendar style={{ width: 10, height: 10 }} />
+                            {parseDateLocal(item.event.startDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  <div
+                    style={{
+                      display: 'flex', alignItems: 'stretch', minHeight: 74,
+                      background: isSelected ? '#fff7ed' : '#fff',
+                      border: `1.5px solid ${isSelected ? TI.accent : TI.border}`,
+                      borderRadius: showEvHeader ? '0 0 10px 10px' : 10,
+                      overflow: 'hidden',
+                      cursor: bulkDeliveryMode && canDeliverItem ? 'pointer' : undefined,
+                      transition: 'border-color 0.12s, background 0.12s',
+                    }}
+                    onClick={bulkDeliveryMode && canDeliverItem ? () => toggleBulkItem(item.id) : undefined}
+                  >
+                    {/* Left stripe / checkbox */}
+                    {bulkDeliveryMode ? (
+                      canDeliverItem ? (
+                        <div style={{ width: 52, flexShrink: 0, background: isSelected ? TI.accent : '#f5f5f4', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}>
+                          <div style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${isSelected ? '#fff' : '#d4d4d0'}`, background: isSelected ? 'rgba(255,255,255,0.25)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {isSelected && <Check style={{ width: 14, height: 14, color: '#fff' }} />}
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ width: 4, flexShrink: 0, background: '#e7e5e4' }} />
+                      )
+                    ) : (
+                      <div style={{ width: 4, flexShrink: 0, background: isDelivered(item) ? '#86efac' : canDeliverItem ? TI.accent : '#e7e5e4' }} />
+                    )}
+
+                    {/* Content */}
+                    <div style={{ flex: 1, padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: item.isReuse ? '#059669' : TI.accent }}>
+                          {item.displayId}
+                        </span>
+                        <StatusPill status={item.status} />
+                        {item.isReuse && <span style={{ fontSize: 9, fontWeight: 800, color: '#059669', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 4, padding: '2px 6px' }}>REAPROV.</span>}
+                      </div>
+                      <div style={{ fontSize: 14, fontWeight: 700, color: TI.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</div>
+                      {item.observations && (
+                        <div style={{ fontSize: 11, color: '#d97706', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
+                          <AlertCircle style={{ width: 10, height: 10 }} />{item.observations}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right: action buttons */}
+                    {!bulkDeliveryMode && (
+                      <div style={{ flexShrink: 0, padding: '10px 10px', display: 'flex', flexDirection: 'column', gap: 5, justifyContent: 'center' }}>
+                        {canDeliverItem && (
+                          <button
+                            onClick={e => { e.stopPropagation(); openDeliveryModal(item); }}
+                            style={{ padding: '11px 14px', borderRadius: 8, background: TI.accent, border: 'none', color: '#fff', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          >
+                            <Truck style={{ width: 13, height: 13 }} />
+                            {deliveredOf(item) > 0 ? `Entregar ${remainingDeliver(item)}` : 'Entregar'}
+                          </button>
+                        )}
+                        {canConfer(item) && (
+                          <button
+                            onClick={e => { e.stopPropagation(); openConferenceModal(item); }}
+                            style={{ padding: '11px 14px', borderRadius: 8, background: '#0891b2', border: 'none', color: '#fff', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          >
+                            <CheckCircle style={{ width: 13, height: 13 }} />
+                            Conferir
+                          </button>
+                        )}
+                        {isDelivered(item) && (
+                          <span style={{ fontSize: 12, color: '#15803d', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700, padding: '4px 8px' }}>
+                            <Check style={{ width: 13, height: 13 }} /> Entregue
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </Fragment>
+              );
+            })}
+          </div>
         ) : (
+          /* ── View desktop: tabela ── */
           <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
@@ -1064,6 +1267,15 @@ export default function Grafica() {
                             </button>
                           )}
 
+                          {/* Checkbox seleção em lote */}
+                          {bulkDeliveryMode && canDeliver(item) && (
+                            <div
+                              onClick={e => { e.stopPropagation(); toggleBulkItem(item.id); }}
+                              style={{ width: 26, height: 26, borderRadius: 6, flexShrink: 0, border: `2px solid ${bulkSelectedIds.has(item.id) ? TI.accent : '#d4d4d0'}`, background: bulkSelectedIds.has(item.id) ? TI.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.12s' }}
+                            >
+                              {bulkSelectedIds.has(item.id) && <Check style={{ width: 13, height: 13, color: '#fff' }} />}
+                            </div>
+                          )}
                           {/* Entregar — reaproveitamento: direto; normal: o que já foi conferido */}
                           {canDeliver(item) && (
                             <button
@@ -1142,6 +1354,227 @@ export default function Grafica() {
         )}
       </div>
 
+      {/* ── Barra flutuante de entrega em lote ── */}
+      {bulkDeliveryMode && (
+        <div style={{
+          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
+          background: TI.text,
+          padding: '12px 16px',
+          display: 'flex', alignItems: 'center', gap: 10,
+          boxShadow: '0 -4px 24px rgba(0,0,0,0.28)',
+        }}>
+          {/* Selecionar tudo / desmarcar */}
+          <button
+            onClick={() => allDeliverableSelected
+              ? setBulkSelectedIds(new Set())
+              : setBulkSelectedIds(new Set(deliverableInFilter.map((i: any) => i.id)))
+            }
+            style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+          >
+            {allDeliverableSelected ? 'Desmarcar' : `Sel. ${deliverableInFilter.length}`}
+          </button>
+
+          {/* Contador */}
+          <span style={{ flex: 1, color: bulkSelectedIds.size > 0 ? '#fff' : 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {bulkSelectedIds.size > 0
+              ? `${bulkSelectedIds.size} peça${bulkSelectedIds.size !== 1 ? 's' : ''} selecionada${bulkSelectedIds.size !== 1 ? 's' : ''}`
+              : 'Toque nas peças para selecionar'}
+          </span>
+
+          {/* Confirmar */}
+          <button
+            onClick={() => { if (bulkSelectedIds.size > 0) setBulkDeliveryOpen(true); }}
+            disabled={bulkSelectedIds.size === 0}
+            style={{
+              padding: '12px 18px', borderRadius: 10, border: 'none', flexShrink: 0,
+              background: bulkSelectedIds.size === 0 ? 'rgba(255,255,255,0.15)' : TI.accent,
+              color: bulkSelectedIds.size === 0 ? 'rgba(255,255,255,0.35)' : '#fff',
+              fontSize: 13, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif",
+              cursor: bulkSelectedIds.size === 0 ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', gap: 7,
+              boxShadow: bulkSelectedIds.size > 0 ? '0 4px 16px rgba(249,115,22,0.4)' : 'none',
+              transition: 'all 0.15s',
+            }}
+          >
+            <Truck style={{ width: 15, height: 15 }} />
+            Confirmar{bulkSelectedIds.size > 0 && ` (${bulkSelectedIds.size})`}
+          </button>
+
+          {/* Cancelar modo */}
+          <button
+            onClick={() => { setBulkDeliveryMode(false); setBulkSelectedIds(new Set()); }}
+            style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+          >
+            <X style={{ width: 16, height: 16 }} />
+          </button>
+        </div>
+      )}
+
+      {/* ── Dialog entrega em lote ── */}
+      <Dialog open={bulkDeliveryOpen} onOpenChange={o => { if (!o) { setBulkDeliveryOpen(false); setBulkDeliveryPhotos([]); } }}>
+        <DialogContent style={{ padding: 0, gap: 0, maxWidth: 440, width: '95vw', borderRadius: 14, overflow: 'hidden', border: 'none', boxShadow: '0 24px 48px -12px rgba(28,25,23,0.22)' }}>
+          <DialogTitle className="sr-only">Confirmar Entrega em Lote</DialogTitle>
+          <DialogDescription className="sr-only">Registre a entrega de múltiplas peças de uma vez</DialogDescription>
+
+          {/* Header dark */}
+          <div style={{ background: TI.text, padding: '20px 24px', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: TI.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Truck style={{ width: 18, height: 18, color: '#fff' }} />
+            </div>
+            <div>
+              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', fontFamily: "'Space Grotesk', sans-serif" }}>
+                Entrega em Lote
+              </h2>
+              <p style={{ margin: '2px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>
+                {bulkSelectedIds.size} peça{bulkSelectedIds.size !== 1 ? 's' : ''} selecionada{bulkSelectedIds.size !== 1 ? 's' : ''}
+              </p>
+            </div>
+          </div>
+
+          {/* Body */}
+          <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18, background: '#fafaf9' }}>
+            {/* Responsável */}
+            <div>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#78716c', marginBottom: 10 }}>
+                Responsável pelo Recebimento *
+              </label>
+              <input
+                type="text"
+                value={bulkReceivedBy}
+                onChange={e => setBulkReceivedBy(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleBulkDelivery(); } }}
+                placeholder="Nome de quem recebeu"
+                autoFocus
+                style={{ width: '100%', boxSizing: 'border-box', padding: '14px 16px', background: '#fff', border: '1.5px solid #e7e5e4', borderRadius: 10, fontSize: 15, fontWeight: 600, color: TI.text, outline: 'none', transition: 'border-color 0.15s, box-shadow 0.15s' }}
+                onFocus={e => { e.currentTarget.style.borderColor = TI.accent; e.currentTarget.style.boxShadow = `0 0 0 3px ${TI.accent}22`; }}
+                onBlur={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.boxShadow = 'none'; }}
+              />
+            </div>
+
+            {/* Comprovante fotográfico */}
+            <div>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#78716c', marginBottom: 10 }}>
+                Comprovante fotográfico <span style={{ textTransform: 'none', fontWeight: 400, color: '#a8a29e', letterSpacing: 0 }}>· opcional · mesmo para todas as peças</span>
+              </label>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <ObjectUploader
+                    capture
+                    maxFileSize={10485760}
+                    buttonVariant="ghost"
+                    buttonClassName="w-full h-full p-0 border-0 hover:bg-transparent"
+                    onGetUploadParameters={uploadParams}
+                    onComplete={r => addBulkPhoto(r.url)}
+                    onError={onPhotoError}
+                  >
+                    <div style={{ width: '100%', padding: '12px 0', backgroundColor: '#f4f3f0', borderRadius: 8, border: '2px dashed #d6d3d1', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+                      <Camera style={{ width: 18, height: 18, color: '#78716c' }} />
+                      <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#78716c' }}>Câmera</span>
+                    </div>
+                  </ObjectUploader>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <ObjectUploader
+                    multiple
+                    maxFileSize={10485760}
+                    buttonVariant="ghost"
+                    buttonClassName="w-full h-full p-0 border-0 hover:bg-transparent"
+                    onGetUploadParameters={uploadParams}
+                    onComplete={r => addBulkPhoto(r.url)}
+                    onError={onPhotoError}
+                  >
+                    <div style={{ width: '100%', padding: '12px 0', backgroundColor: '#f4f3f0', borderRadius: 8, border: '2px dashed #d6d3d1', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+                      <ImagePlus style={{ width: 18, height: 18, color: '#78716c' }} />
+                      <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#78716c' }}>Galeria</span>
+                    </div>
+                  </ObjectUploader>
+                </div>
+              </div>
+              {bulkDeliveryPhotos.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: 8, marginTop: 10 }}>
+                  {bulkDeliveryPhotos.map(url => (
+                    <div key={url} style={{ position: 'relative', aspectRatio: '1', borderRadius: 8, overflow: 'hidden', border: '1px solid #e7e5e4', backgroundColor: '#f4f3f0' }}>
+                      <img src={url} alt="Comprovante" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <button
+                        type="button"
+                        onClick={() => setBulkDeliveryPhotos(prev => prev.filter(u => u !== url))}
+                        style={{ position: 'absolute', top: 3, right: 3, width: 18, height: 18, borderRadius: '50%', border: 'none', backgroundColor: 'rgba(28,25,23,0.75)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
+                      >
+                        <X style={{ width: 10, height: 10 }} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Observações */}
+            <div>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#78716c', marginBottom: 8 }}>
+                Observações <span style={{ textTransform: 'none', fontWeight: 400, color: '#a8a29e', letterSpacing: 0 }}>(opcional)</span>
+              </label>
+              <textarea
+                value={bulkDeliveryNotes}
+                onChange={e => setBulkDeliveryNotes(e.target.value)}
+                placeholder="Ex.: entregue na portaria, aguardando retirada..."
+                rows={2}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '12px 14px', background: '#fff', border: '1.5px solid #e7e5e4', borderRadius: 10, fontSize: 13, fontFamily: 'inherit', color: TI.text, outline: 'none', resize: 'none', lineHeight: 1.5 }}
+              />
+            </div>
+
+            {/* Peças selecionadas */}
+            <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 10, maxHeight: 150, overflowY: 'auto' }}>
+              {[...bulkSelectedIds].map((itemId, idx) => {
+                const item = (filteredItems as any[]).find(i => i.id === itemId);
+                if (!item) return null;
+                return (
+                  <div key={itemId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: idx < bulkSelectedIds.size - 1 ? '1px solid #f5f5f4' : 'none' }}>
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: TI.accent, flexShrink: 0 }}>{item.displayId}</span>
+                    <span style={{ fontSize: 12, color: TI.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{item.type}</span>
+                    <span style={{ fontSize: 11, color: TI.muted, flexShrink: 0 }}>{remainingDeliver(item)} un.</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer */}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => setBulkDeliveryOpen(false)}
+                style={{ flex: 1, height: 48, borderRadius: 10, background: 'transparent', border: '1.5px solid #e7e5e4', color: '#78716c', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'background 0.12s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkDelivery}
+                disabled={isBulkSubmitting || !bulkReceivedBy.trim()}
+                style={{
+                  flex: 2, height: 48, borderRadius: 10, border: 'none',
+                  background: (!bulkReceivedBy.trim() || isBulkSubmitting) ? '#e7e5e4' : '#15803d',
+                  color: (!bulkReceivedBy.trim() || isBulkSubmitting) ? '#a8a29e' : '#fff',
+                  fontSize: 13, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif",
+                  cursor: (!bulkReceivedBy.trim() || isBulkSubmitting) ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  boxShadow: bulkReceivedBy.trim() && !isBulkSubmitting ? '0 4px 14px rgba(21,128,61,0.3)' : 'none',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { if (bulkReceivedBy.trim() && !isBulkSubmitting) e.currentTarget.style.background = '#166534'; }}
+                onMouseLeave={e => { if (bulkReceivedBy.trim() && !isBulkSubmitting) e.currentTarget.style.background = '#15803d'; }}
+              >
+                {isBulkSubmitting
+                  ? 'Salvando...'
+                  : <><Truck style={{ width: 15, height: 15 }} />Confirmar Entrega ({bulkSelectedIds.size})</>
+                }
+              </button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* ── Dialog de Detalhes ── */}
       <ItemDetailsDialog
         item={viewDetailsItem}
@@ -1152,7 +1585,7 @@ export default function Grafica() {
 
       {/* ── Modal de Produção / Entrega ── */}
       <Dialog open={!!selectedItem && !!modalType} onOpenChange={open => { if (!open) { setSelectedItem(null); setModalType(null); } }}>
-        <DialogContent style={{ padding: 0, gap: 0, maxWidth: 448, borderRadius: 12, overflow: "hidden" }}>
+        <DialogContent style={{ padding: 0, gap: 0, maxWidth: 448, ...(isMobile && { width: '95vw' }), borderRadius: isMobile ? 16 : 12, overflow: "hidden" }}>
 
           {/* ── Header dark ── */}
           <div style={{ backgroundColor: TI.text, padding: "24px" }}>
@@ -1170,28 +1603,84 @@ export default function Grafica() {
           </div>
 
           {/* ── Corpo ── */}
-          <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 20 }}>
+          <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 20, overflowY: "auto", maxHeight: "calc(88vh - 112px)" }}>
 
             {/* Card de identificação */}
             {selectedItem && (
-              <div style={{ backgroundColor: "#f4f3f0", borderRadius: 8, padding: 16, display: "flex", alignItems: "flex-start", gap: 14 }}>
-                {/* Ícone */}
-                <div style={{ backgroundColor: "#ffffff", borderRadius: 6, padding: 8, boxShadow: "0 1px 4px rgba(0,0,0,0.08)", flexShrink: 0 }}>
-                  {modalType === "production"
-                    ? <Printer style={{ width: 20, height: 20, color: TI.accent }} />
-                    : <Truck style={{ width: 20, height: 20, color: TI.accent }} />}
-                </div>
-                {/* Info */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
-                    <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, color: TI.accent }}>{selectedItem.displayId}</span>
-                    <StatusPill status={selectedItem.status} />
+              <div style={{ backgroundColor: "#f4f3f0", borderRadius: 10, padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+                {/* Linha principal: ícone + ID + status + tipo + evento */}
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                  <div style={{ backgroundColor: "#ffffff", borderRadius: 8, padding: 8, boxShadow: "0 1px 4px rgba(0,0,0,0.08)", flexShrink: 0 }}>
+                    {modalType === "production"
+                      ? <Printer style={{ width: 20, height: 20, color: TI.accent }} />
+                      : modalType === "conference"
+                      ? <CheckCircle style={{ width: 20, height: 20, color: "#0891b2" }} />
+                      : <Truck style={{ width: 20, height: 20, color: TI.accent }} />}
                   </div>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: TI.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{selectedItem.type}</div>
-                  <div style={{ fontSize: 12, color: "#78716c", marginTop: 2 }}>
-                    {selectedItem.material}{selectedItem.visualWidth ? ` | ${selectedItem.visualWidth} × ${selectedItem.visualHeight}m` : ""}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
+                      <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, color: selectedItem.isReuse ? '#059669' : TI.accent }}>{selectedItem.displayId}</span>
+                      <StatusPill status={selectedItem.status} />
+                    </div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: TI.text }}>{selectedItem.type}</div>
+                    {selectedItem.description && selectedItem.description !== selectedItem.type && (
+                      <div style={{ fontSize: 12, color: TI.secondary, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedItem.description}</div>
+                    )}
+                    {selectedItem.event?.name && (
+                      <div style={{ fontSize: 12, color: "#78716c", marginTop: 4, display: "flex", alignItems: "center", gap: 5 }}>
+                        <Calendar style={{ width: 11, height: 11, flexShrink: 0 }} />
+                        {selectedItem.event.name}
+                      </div>
+                    )}
                   </div>
                 </div>
+
+                {/* Grade de specs */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <div style={{ background: '#fff', borderRadius: 7, padding: '8px 10px' }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.muted, marginBottom: 3 }}>Material</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: TI.text }}>{selectedItem.material || '—'}</div>
+                    {selectedItem.visualWidth && (
+                      <div style={{ fontSize: 11, color: TI.secondary, marginTop: 1 }}>{selectedItem.visualWidth} × {selectedItem.visualHeight}m</div>
+                    )}
+                  </div>
+                  <div style={{ background: '#fff', borderRadius: 7, padding: '8px 10px' }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.muted, marginBottom: 3 }}>Acabamento</div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: TI.text }}>{selectedItem.finish || '—'}</div>
+                    {Number(selectedItem.calculatedM2) > 0 && (
+                      <div style={{ fontSize: 11, color: TI.secondary, marginTop: 1 }}>{m2ToProduce(selectedItem).toFixed(2)} m²</div>
+                    )}
+                  </div>
+                  <div style={{ background: '#fff', borderRadius: 7, padding: '8px 10px' }}>
+                    <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.muted, marginBottom: 2 }}>Quantidade</div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: TI.text, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{qtyOf(selectedItem)}<span style={{ fontSize: 11, fontWeight: 500, color: TI.muted, marginLeft: 3 }}>un.</span></div>
+                    {selectedItem.isReuse && <div style={{ fontSize: 10, color: '#059669', marginTop: 2, fontWeight: 600 }}>Reaproveitado</div>}
+                  </div>
+                  {(modalType === "conference" || modalType === "delivery") && (
+                    <div style={{ background: modalType === "conference" ? '#ecfeff' : '#fff7ed', borderRadius: 7, padding: '8px 10px', border: `1px solid ${modalType === "conference" ? '#a5f3fc' : '#fed7aa'}` }}>
+                      <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: modalType === "conference" ? '#0e7490' : '#c2410c', marginBottom: 2 }}>
+                        {modalType === "conference" ? "A Conferir" : "A Entregar"}
+                      </div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: modalType === "conference" ? '#0891b2' : TI.accent, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>
+                        {modalType === "conference" ? remainingConfer(selectedItem) : remainingDeliver(selectedItem)}<span style={{ fontSize: 11, fontWeight: 500, marginLeft: 3 }}>un.</span>
+                      </div>
+                      {modalType === "conference" && conferredOf(selectedItem) > 0 && (
+                        <div style={{ fontSize: 10, color: '#0e7490', marginTop: 2 }}>{conferredOf(selectedItem)} já conferida{conferredOf(selectedItem) !== 1 ? 's' : ''}</div>
+                      )}
+                      {modalType === "delivery" && deliveredOf(selectedItem) > 0 && (
+                        <div style={{ fontSize: 10, color: '#c2410c', marginTop: 2 }}>{deliveredOf(selectedItem)} já entregue{deliveredOf(selectedItem) !== 1 ? 's' : ''}</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Observações */}
+                {selectedItem.observations && (
+                  <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 7, padding: '8px 10px', display: 'flex', gap: 7, alignItems: 'flex-start' }}>
+                    <AlertCircle style={{ width: 12, height: 12, color: '#d97706', flexShrink: 0, marginTop: 1 }} />
+                    <span style={{ fontSize: 12, color: '#92400e', lineHeight: 1.4 }}>{selectedItem.observations}</span>
+                  </div>
+                )}
               </div>
             )}
 
@@ -1273,8 +1762,8 @@ export default function Grafica() {
                   />
                 </div>
 
-                {/* Quantidade a entregar (entrega parcial) */}
-                {qtyOf(selectedItem) > 1 && (
+                {/* Quantidade a entregar (entrega parcial) — só exibe se restar mais de 1 */}
+                {remainingDeliver(selectedItem) > 1 && (
                   <div>
                     <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 8 }}>
                       Quantidade a entregar agora <span style={{ color: "#a8a29e", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· já entregue {deliveredOf(selectedItem)}/{qtyOf(selectedItem)}, disponível {remainingDeliver(selectedItem)}</span>
@@ -1320,7 +1809,7 @@ export default function Grafica() {
                 <p style={{ fontSize: 12, color: "#57534e", margin: 0 }}>
                   Confira a peça produzida e anexe a foto. Pode conferir parcialmente — depois é só conferir o restante.
                 </p>
-                {qtyOf(selectedItem) > 1 && (
+                {remainingConfer(selectedItem) > 1 && (
                   <div>
                     <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 8 }}>
                       Quantidade a conferir agora <span style={{ color: "#a8a29e", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· já conferido {conferredOf(selectedItem)}/{qtyOf(selectedItem)}, faltam {remainingConfer(selectedItem)}</span>

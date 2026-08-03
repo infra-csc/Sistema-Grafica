@@ -64,9 +64,9 @@ function StatusPill({ status }: { status: string }) {
 
 // ─── Label style ──────────────────────────────────────────
 const filterLabel: React.CSSProperties = {
-  display: "block", fontSize: 10, fontWeight: 900,
-  textTransform: "uppercase", letterSpacing: "0.09em",
-  color: "#78716c", marginBottom: 8,
+  display: "block", fontSize: 9, fontWeight: 900,
+  textTransform: "uppercase", letterSpacing: "0.11em",
+  color: "#a8a29e", marginBottom: 4,
 };
 
 export default function PainelGeral() {
@@ -192,18 +192,27 @@ export default function PainelGeral() {
         onClick={() => setStatusFilter(isActive ? [] : [filterKey])}
         data-testid={`stat-card-${filterKey}`}
         style={{
-          backgroundColor: "#ffffff",
-          border: `1px solid ${isActive ? "#f97316" : "#e7e5e4"}`,
-          padding: 16, minHeight: 100,
+          position: "relative", overflow: "hidden",
+          background: isActive ? `linear-gradient(135deg, ${color}18 0%, #ffffff 72%)` : "#ffffff",
+          border: `1px solid ${isActive ? color : "#e7e5e4"}`,
+          borderLeft: `4px solid ${isActive ? color : `${dot}90`}`,
+          borderRadius: 10,
+          padding: "14px 15px 13px 14px", minHeight: 102,
           display: "flex", flexDirection: "column", justifyContent: "space-between",
           cursor: "pointer",
-          boxShadow: isActive ? "inset 0 0 0 1px #f97316" : "none",
-          transition: "border-color 0.15s, box-shadow 0.15s",
+          boxShadow: isActive ? `0 0 0 2px ${color}30, 0 5px 12px ${color}18` : "0 1px 2px rgba(28,25,23,.04)",
+          transform: isActive ? "translateY(1px)" : "none",
+          transition: "border-color 0.15s, box-shadow 0.15s, transform 0.15s",
         }}
+        onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)"; }}
+        onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLDivElement).style.transform = "none"; }}
       >
-        <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: dot }} />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: dot, boxShadow: `0 0 0 4px ${dot}18` }} />
+          {isActive && <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: ".08em", color, textTransform: "uppercase" }}>Filtrado</span>}
+        </div>
         <div>
-          <p style={{ fontSize: 20, fontWeight: 700, color, lineHeight: 1, margin: 0 }}>{value}</p>
+          <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 27, fontWeight: 700, color: isActive ? color : "#1c1917", lineHeight: 1, margin: 0, letterSpacing: "-.05em" }}>{value}</p>
           <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#78716c", marginTop: 4, lineHeight: 1.2 }}>{label}</p>
         </div>
       </div>
@@ -211,10 +220,10 @@ export default function PainelGeral() {
   };
 
   const inputStyle: React.CSSProperties = {
-    width: "100%", height: 40,
+    width: "100%", height: 36,
     backgroundColor: "#ffffff",
     border: "1px solid #e7e5e4",
-    borderRadius: 0,
+    borderRadius: 6,
     padding: "0 12px",
     fontSize: 13, color: "#1c1917",
     fontFamily: "inherit",
@@ -222,18 +231,22 @@ export default function PainelGeral() {
     boxSizing: "border-box",
   };
 
+  const hasActiveFilters = statusFilter.length > 0 || eventFilter.length > 0 || sponsorFilter.length > 0 || typeFilter.length > 0 || dateFilter.length > 0 || searchTerm.length > 0;
+  const clearAllFilters = () => { setStatusFilter([]); setEventFilter([]); setSponsorFilter([]); setTypeFilter([]); setDateFilter([]); setSearchTerm(""); };
+
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 24, padding: 24, height: "100%", overflowY: "auto" }}>
+    <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 22, padding: "0 28px 34px", minHeight: "100%", overflowY: "auto", background: "#fafaf9" }}>
+      <div style={{ position: "sticky", top: 0, zIndex: 4, height: 4, margin: "0 -28px", background: "linear-gradient(90deg, #1c1917 0%, #1c1917 72%, #f97316 72%, #f97316 100%)" }} />
 
       {/* ── Header ── */}
-      <header style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16 }}>
+      <header style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, paddingTop: 22, paddingBottom: 2 }}>
         <div style={{ display: "flex", flexDirection: "column" }}>
           <h1
             data-testid="title-painel-geral"
             style={{
               fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: 28, fontWeight: 700, letterSpacing: "-0.04em",
+               fontSize: 29, fontWeight: 700, letterSpacing: "-0.055em",
               textTransform: "uppercase", color: "#1c1917", margin: 0,
             }}
           >
@@ -246,7 +259,7 @@ export default function PainelGeral() {
         <button
           onClick={() => setShowExportPDFModal(true)}
           data-testid="button-export-pdf-painel"
-          style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 7, height: 38, padding: "0 16px", borderRadius: 8, backgroundColor: "#7c3aed", border: "none", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+           style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 8, height: 40, padding: "0 16px", borderRadius: 7, backgroundColor: "#1c1917", border: "1px solid #1c1917", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer", boxShadow: "0 2px 0 #f97316" }}
         >
           <Printer style={{ width: 14, height: 14 }} />
           Exportar PDF
@@ -254,25 +267,27 @@ export default function PainelGeral() {
       </header>
 
       {/* ── Status cards ── */}
-      <section style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 8 }} className="grid-cols-2 md:grid-cols-4 lg:grid-cols-6">
+       <section style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)", gap: 10 }} className="grid-cols-2 md:grid-cols-4 lg:grid-cols-6">
 
         {/* Total card — dark */}
         <div
           onClick={() => setStatusFilter([])}
           data-testid="stat-total"
           style={{
-            backgroundColor: "#1c1917",
+             background: "linear-gradient(145deg, #292522, #1c1917)",
+             border: `1px solid ${statusFilter.length === 0 ? "#f97316" : "#3b3531"}`,
             borderBottom: "3px solid #f97316",
-            padding: 16, minHeight: 100,
+             borderRadius: 10,
+             padding: "14px 15px", minHeight: 102,
             display: "flex", flexDirection: "column", justifyContent: "space-between",
             cursor: "pointer",
-            outline: statusFilter.length === 0 ? "2px solid #f97316" : "none",
-            outlineOffset: -2,
+             boxShadow: statusFilter.length === 0 ? "0 0 0 2px rgba(249,115,22,.22), 0 5px 12px rgba(28,25,23,.16)" : "0 2px 5px rgba(28,25,23,.12)",
+             transform: statusFilter.length === 0 ? "translateY(1px)" : "none",
           }}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /></svg>
+           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /></svg>{statusFilter.length === 0 && <span style={{ fontSize: 9, color: "#f97316", fontWeight: 900, letterSpacing: ".08em" }}>BASELINE</span>}</div>
           <div>
-            <p style={{ fontSize: 20, fontWeight: 700, color: "#f97316", lineHeight: 1, margin: 0 }}>{stats.total}</p>
+             <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 27, fontWeight: 700, color: "#f97316", lineHeight: 1, margin: 0, letterSpacing: "-.05em" }}>{stats.total}</p>
             <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "rgba(255,255,255,0.5)", marginTop: 4, lineHeight: 1.2 }}>Total</p>
           </div>
         </div>
@@ -290,118 +305,133 @@ export default function PainelGeral() {
         <StatusCard label="Entregue"           value={stats.delivered}            dot="#15803d" color="#15803d" filterKey="delivered" />
       </section>
 
-      {/* ── Filter panel ── */}
-      <section style={{
-        backgroundColor: "#fafaf9",
+      {/* ── Filter toolbar ── */}
+      <div style={{
+        display: "flex", alignItems: "center", gap: 8,
+        backgroundColor: "#ffffff",
+        borderRadius: 8,
         border: "1px solid #e7e5e4",
-        padding: 24,
-        boxShadow: "0 1px 4px rgba(0,0,0,0.05)",
+        padding: "8px 10px",
+        boxShadow: "0 1px 3px rgba(28,25,23,0.05)",
       }}>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 2fr 1fr 1fr", gap: 16, alignItems: "end" }}>
-
-          {/* Busca */}
-          <div>
-            <label style={filterLabel}>Busca</label>
-            <div style={{ position: "relative" }}>
-              <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 15, height: 15, color: "#a8a29e" }} />
-              <input
-                type="text"
-                placeholder="ID, evento ou tipo..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                data-testid="input-search"
-                style={{ ...inputStyle, paddingLeft: 32 }}
-              />
-            </div>
-          </div>
-
-          {/* Evento */}
-          <div>
-            <label style={filterLabel}>Evento</label>
-            <EventFilterDropdown
-              values={eventFilter}
-              onValuesChange={setEventFilter}
-              options={(() => {
-                const P: Record<string,number> = { urgente:0, alta:1, media:2, baixa:3 };
-                const C: Record<string,string> = { urgente:'#ef4444', alta:'#f97316', media:'#eab308', baixa:'#3b82f6' };
-                return [...events].sort((a:any,b:any) => { const pa=P[a.priority]??4,pb=P[b.priority]??4; return pa!==pb?pa-pb:a.name.localeCompare(b.name,'pt-BR'); }).map((e:any) => ({ value: e.id, label: e.name, dotColor: C[e.priority] }));
-              })()}
-            />
-          </div>
-
-          {/* Tipo */}
-          <div>
-            <label style={filterLabel}>Tipo</label>
-            <FilterSelect
-              label="Tipo" allLabel="Todos os tipos"
-              values={typeFilter} onValuesChange={setTypeFilter}
-              hideWhenEmpty={false}
-              options={uniqueTypes.map((t: string) => ({ value: t, label: t }))}
-              testId="select-type-filter"
-              fullWidth
-            />
-          </div>
-
-          {/* Patrocinador */}
-          <div>
-            <label style={filterLabel}>Patrocinador</label>
-            <FilterSelect
-              label="Patrocinador" allLabel="Todos os patrocinadores"
-              values={sponsorFilter} onValuesChange={setSponsorFilter}
-              hideWhenEmpty={false}
-              options={(sponsors as any[]).map((s: any) => ({ value: s.id, label: s.name }))}
-              testId="select-sponsor-filter"
-              fullWidth
-            />
-          </div>
-
-          {/* Status */}
-          <div>
-            <label style={filterLabel}>Status</label>
-            <FilterSelect
-              label="Status" allLabel="Qualquer status"
-              values={statusFilter} onValuesChange={setStatusFilter}
-              hideWhenEmpty={false}
-              options={[
-                { value: "requested",              label: "Rascunho",           pinned: true },
-                { value: "awaiting_linking",        label: "Aguard. Vinculação", pinned: true },
-                { value: "awaiting_submission",     label: "Aguard. Envio",      pinned: true },
-                { value: "awaiting_approval",       label: "Aguard. Aprovação",  pinned: true },
-                { value: "awaiting_finalization",   label: "Aguard. Finalização",pinned: true },
-                { value: "awaiting_final_review",   label: "Aguard. Revisão",    pinned: true },
-                { value: "ready_for_production",    label: "Pronto p/ Produção", pinned: true },
-                { value: "inProduction",            label: "Em Produção",        pinned: true },
-                { value: "produced",                label: "Produzido",          pinned: true },
-                { value: "conferred",               label: "Conferido",          pinned: true },
-                { value: "delivered",               label: "Entregue",           pinned: true },
-              ]}
-              testId="select-status-filter"
-              fullWidth
-            />
-          </div>
-
-          {/* Data */}
-          <div>
-            <label style={filterLabel}>Data</label>
-            <FilterSelect
-              label="Data" allLabel="Todas as datas"
-              values={dateFilter} onValuesChange={setDateFilter}
-              hideWhenEmpty={false}
-              options={[
-                { value: "overdue",    label: "Atrasados",         pinned: true },
-                { value: "today",      label: "Hoje",              pinned: true },
-                { value: "next3days",  label: "Próximos 3 dias",   pinned: true },
-                { value: "next7days",  label: "Próximos 7 dias",   pinned: true },
-                { value: "next10days", label: "Próximos 10 dias",  pinned: true },
-                { value: "next15days", label: "Próximos 15 dias",  pinned: true },
-                { value: "next30days", label: "Próximos 30 dias",  pinned: true },
-              ]}
-              testId="select-date-filter"
-              fullWidth
-            />
-          </div>
+        {/* Search */}
+        <div style={{ position: "relative", flexShrink: 0, width: 180 }}>
+          <Search style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "#a8a29e", pointerEvents: "none" }} />
+          <input
+            type="text"
+            placeholder="Buscar ID, evento..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            data-testid="input-search"
+            style={{ ...inputStyle, paddingLeft: 28, height: 32, fontSize: 12 }}
+          />
         </div>
-      </section>
+
+        {/* Divider */}
+        <div style={{ width: 1, height: 20, backgroundColor: "#e7e5e4", flexShrink: 0 }} />
+
+        {/* Evento */}
+        <div style={{ flexShrink: 0, minWidth: 150 }}>
+          <EventFilterDropdown
+            values={eventFilter}
+            onValuesChange={setEventFilter}
+            options={(() => {
+              const P: Record<string,number> = { urgente:0, alta:1, media:2, baixa:3 };
+              const C: Record<string,string> = { urgente:'#ef4444', alta:'#f97316', media:'#eab308', baixa:'#3b82f6' };
+              return [...events].sort((a:any,b:any) => { const pa=P[a.priority]??4,pb=P[b.priority]??4; return pa!==pb?pa-pb:a.name.localeCompare(b.name,'pt-BR'); }).map((e:any) => ({ value: e.id, label: e.name, dotColor: C[e.priority] }));
+            })()}
+          />
+        </div>
+
+        {/* Tipo */}
+        <div style={{ flexShrink: 0, minWidth: 130 }}>
+          <FilterSelect
+            label="Tipo" allLabel="Todos os tipos"
+            values={typeFilter} onValuesChange={setTypeFilter}
+            hideWhenEmpty={false}
+            options={uniqueTypes.map((t: string) => ({ value: t, label: t }))}
+            testId="select-type-filter"
+            fullWidth
+          />
+        </div>
+
+        {/* Patrocinador */}
+        <div style={{ flex: 1, minWidth: 160 }}>
+          <FilterSelect
+            label="Patrocinador" allLabel="Todos os patrocinadores"
+            values={sponsorFilter} onValuesChange={setSponsorFilter}
+            hideWhenEmpty={false}
+            options={(sponsors as any[]).map((s: any) => ({ value: s.id, label: s.name }))}
+            testId="select-sponsor-filter"
+            fullWidth
+          />
+        </div>
+
+        {/* Status */}
+        <div style={{ flexShrink: 0, minWidth: 140 }}>
+          <FilterSelect
+            label="Status" allLabel="Qualquer status"
+            values={statusFilter} onValuesChange={setStatusFilter}
+            hideWhenEmpty={false}
+            options={[
+              { value: "requested",              label: "Rascunho",           pinned: true },
+              { value: "awaiting_linking",        label: "Aguard. Vinculação", pinned: true },
+              { value: "awaiting_submission",     label: "Aguard. Envio",      pinned: true },
+              { value: "awaiting_approval",       label: "Aguard. Aprovação",  pinned: true },
+              { value: "awaiting_finalization",   label: "Aguard. Finalização",pinned: true },
+              { value: "awaiting_final_review",   label: "Aguard. Revisão",    pinned: true },
+              { value: "ready_for_production",    label: "Pronto p/ Produção", pinned: true },
+              { value: "inProduction",            label: "Em Produção",        pinned: true },
+              { value: "produced",                label: "Produzido",          pinned: true },
+              { value: "conferred",               label: "Conferido",          pinned: true },
+              { value: "delivered",               label: "Entregue",           pinned: true },
+            ]}
+            testId="select-status-filter"
+            fullWidth
+          />
+        </div>
+
+        {/* Data */}
+        <div style={{ flexShrink: 0, minWidth: 130 }}>
+          <FilterSelect
+            label="Data" allLabel="Todas as datas"
+            values={dateFilter} onValuesChange={setDateFilter}
+            hideWhenEmpty={false}
+            options={[
+              { value: "overdue",    label: "Atrasados",         pinned: true },
+              { value: "today",      label: "Hoje",              pinned: true },
+              { value: "next3days",  label: "Próximos 3 dias",   pinned: true },
+              { value: "next7days",  label: "Próximos 7 dias",   pinned: true },
+              { value: "next10days", label: "Próximos 10 dias",  pinned: true },
+              { value: "next15days", label: "Próximos 15 dias",  pinned: true },
+              { value: "next30days", label: "Próximos 30 dias",  pinned: true },
+            ]}
+            testId="select-date-filter"
+            fullWidth
+          />
+        </div>
+
+        {/* Divider */}
+        <div style={{ width: 1, height: 20, backgroundColor: "#e7e5e4", flexShrink: 0 }} />
+
+        {/* Counter + clear */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 700, color: "#78716c", whiteSpace: "nowrap" }}>
+            <span style={{ color: "#1c1917", fontWeight: 900 }}>{filteredItems.length}</span>
+            {" "}iten{filteredItems.length !== 1 ? "s" : ""}
+          </span>
+          {hasActiveFilters && (
+            <button
+              onClick={clearAllFilters}
+              style={{ display: "flex", alignItems: "center", gap: 4, background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 5, padding: "3px 10px", fontSize: 11, fontWeight: 700, color: "#f97316", cursor: "pointer", transition: "all 0.15s", whiteSpace: "nowrap", height: 32 }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#f97316"; (e.currentTarget as HTMLButtonElement).style.color = "#fff"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "#fff7ed"; (e.currentTarget as HTMLButtonElement).style.color = "#f97316"; }}
+            >
+              × Limpar
+            </button>
+          )}
+        </div>
+      </div>
 
       {/* ── Grouped table ── */}
       <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -424,43 +454,35 @@ export default function PainelGeral() {
             const gd = eventData as { eventId: string | null; eventName: string; items: any[] };
             const firstItem = gd.items[0];
             return (
-              <div key={eventKey} style={{ border: "1px solid #e2e2e2", backgroundColor: "#ffffff", overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.06)" }}>
+              <div key={eventKey} style={{ border: "1px solid #e2e2e2", borderRadius: 10, backgroundColor: "#ffffff", overflow: "hidden", boxShadow: "0 2px 8px rgba(28,25,23,0.07)" }}>
 
                 {/* Group header */}
                 <div style={{
-                  backgroundColor: "#f5f4f3",
-                  borderBottom: "1px solid #e2e2e2",
-                  padding: "16px 20px",
+                  borderBottom: "1px solid #e7e5e4",
+                  padding: "13px 18px 13px 20px",
                   display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
+                  borderLeft: "3px solid #f97316",
                 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-                    <div style={{
-                      width: 40, height: 40,
-                      backgroundColor: "#ffffff",
-                      border: "1px solid #e2e2e2",
-                      display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                    }}>
-                      <Calendar style={{ width: 18, height: 18, color: "#f97316" }} />
-                    </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div>
                       <h3 style={{
                         fontFamily: "'Space Grotesk', sans-serif",
-                        fontWeight: 700, fontSize: 16,
-                        textTransform: "uppercase", letterSpacing: "-0.02em",
-                        color: "#1c1917", margin: 0, lineHeight: 1.2,
+                        fontWeight: 800, fontSize: 14,
+                        textTransform: "uppercase", letterSpacing: "0.01em",
+                        color: "#1c1917", margin: 0, lineHeight: 1,
                       }}>
                         {gd.eventName}
                       </h3>
-                      <div style={{ display: "flex", gap: 16, marginTop: 4 }}>
+                      <div style={{ display: "flex", gap: 14, marginTop: 5 }}>
                         {firstItem?.event?.startDate && (
-                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#78716c" }}>
-                            <Calendar style={{ width: 12, height: 12 }} />
+                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: "#78716c" }}>
+                            <Calendar style={{ width: 11, height: 11, flexShrink: 0 }} />
                             Início: {format(parseDateLocal(firstItem.event.startDate), "dd MMM yyyy", { locale: ptBR })}
                           </span>
                         )}
                         {firstItem?.event?.truckDepartureDate && (
-                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#78716c" }}>
-                            <Truck style={{ width: 12, height: 12 }} />
+                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: "#78716c" }}>
+                            <Truck style={{ width: 11, height: 11, flexShrink: 0 }} />
                             Saída: {format(toUTCDisplayDate(firstItem.event.truckDepartureDate), "dd MMM yyyy 'às' HH:mm", { locale: ptBR })}
                           </span>
                         )}
@@ -468,9 +490,10 @@ export default function PainelGeral() {
                     </div>
                   </div>
                   <span style={{
-                    padding: "3px 12px", borderRadius: 999,
-                    backgroundColor: "#e2e2e2", color: "#57534e",
-                    fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.07em",
+                    padding: "4px 11px", borderRadius: 999,
+                    backgroundColor: "#fff7ed", color: "#f97316",
+                    border: "1px solid #fed7aa",
+                    fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em",
                     whiteSpace: "nowrap",
                   }}>
                     {gd.items.length} {gd.items.length === 1 ? "item" : "itens"}
@@ -518,7 +541,7 @@ export default function PainelGeral() {
                             {/* ── Grupo Pai header (only when group exists) ── */}
                             {group && (
                               <tr>
-                                <td colSpan={6} style={{ padding: "6px 20px", backgroundColor: "#dbeafe", borderTop: "1px solid #bfdbfe", borderBottom: "1px solid #bfdbfe" }}>
+                                 <td colSpan={6} style={{ padding: "7px 20px", backgroundColor: "#e7f0fb", borderTop: "1px solid #c9ddf5", borderBottom: "1px solid #c9ddf5", borderLeft: "3px solid #3b82f6" }}>
                                   <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#1d4ed8", fontFamily: "'Space Grotesk', sans-serif" }}>
                                     {group}
                                   </span>
@@ -530,29 +553,29 @@ export default function PainelGeral() {
                             {/* ── Type sub-header ── */}
                             <tr>
                               <td colSpan={6} style={{
-                                padding: "8px 20px",
-                                backgroundColor: "#f0ede8",
-                                borderTop: "1px solid #e2e2e2",
-                                borderBottom: "1px solid #e2e2e2",
+                                padding: "6px 18px 6px 20px",
+                                backgroundColor: "#fafaf9",
+                                borderTop: "2px solid #e7e5e4",
+                                borderBottom: "1px solid #e7e5e4",
                               }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                   <span style={{
-                                    fontSize: 10, fontWeight: 900,
-                                    textTransform: "uppercase", letterSpacing: "0.10em",
-                                    color: "#57534e",
+                                    fontSize: 11, fontWeight: 800,
+                                    textTransform: "uppercase", letterSpacing: "0.08em",
+                                    color: "#44403c",
                                     fontFamily: "'Space Grotesk', sans-serif",
                                   }}>
                                     {type}
                                   </span>
                                   <span style={{
-                                    fontSize: 9, fontWeight: 700,
-                                    color: "#a8a29e",
-                                    backgroundColor: "#e7e3de",
+                                    fontSize: 9, fontWeight: 800,
+                                    color: "#78716c",
+                                    backgroundColor: "#e7e5e4",
                                     borderRadius: 999,
-                                    padding: "1px 7px",
+                                    padding: "2px 8px",
                                     textTransform: "uppercase", letterSpacing: "0.06em",
                                   }}>
-                                    {typeItems.length} {typeItems.length === 1 ? "item" : "itens"}
+                                    {typeItems.length}
                                   </span>
                                 </div>
                               </td>
@@ -568,21 +591,24 @@ export default function PainelGeral() {
                                     onClick={() => setSelectedItem(item)}
                                     style={{
                                       borderBottom: "1px solid #f0f0ef",
-                                      backgroundColor: idx % 2 === 1 ? "#fafaf9" : "#ffffff",
+                                       backgroundColor: idx % 2 === 1 ? "#f6f4f1" : "#ffffff",
+                                       borderLeft: "3px solid transparent",
                                       cursor: "pointer",
                                       transition: "transform 0.15s, background-color 0.15s",
                                     }}
                                     onMouseEnter={(e) => {
                                       (e.currentTarget as HTMLTableRowElement).style.transform = "translateY(-1px)";
-                                      (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "#f3f4f3";
+                                       (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "#fff7ed";
+                                       (e.currentTarget as HTMLTableRowElement).style.borderLeftColor = "#f97316";
                                     }}
                                     onMouseLeave={(e) => {
                                       (e.currentTarget as HTMLTableRowElement).style.transform = "none";
-                                      (e.currentTarget as HTMLTableRowElement).style.backgroundColor = idx % 2 === 1 ? "#fafaf9" : "#ffffff";
+                                       (e.currentTarget as HTMLTableRowElement).style.backgroundColor = idx % 2 === 1 ? "#f6f4f1" : "#ffffff";
+                                       (e.currentTarget as HTMLTableRowElement).style.borderLeftColor = "transparent";
                                     }}
                                   >
                                     {/* ID */}
-                                    <td style={{ padding: "14px 20px", whiteSpace: "nowrap" }}>
+                                    <td style={{ padding: "10px 18px 10px 20px", whiteSpace: "nowrap" }}>
                                       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                                         <span data-testid={`text-display-id-${item.id}`} style={{ fontFamily: "monospace", fontWeight: 700, color: "#f97316", fontSize: 13 }}>
                                           {item.displayId}
@@ -608,18 +634,25 @@ export default function PainelGeral() {
                                     </td>
 
                                             {/* Descrição */}
-                                    <td style={{ padding: "14px 20px", maxWidth: 260 }}>
-                                      {item.description ? (
-                                        <span style={{ fontSize: 12, color: "#78716c", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                          {item.description}
-                                        </span>
-                                      ) : (
-                                        <span style={{ color: "#a8a29e", fontSize: 12 }}>—</span>
-                                      )}
+                                    <td style={{ padding: "10px 18px", maxWidth: 260 }}>
+                                      <div style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
+                                        {item.description ? (
+                                          <span style={{ fontSize: 12, color: "#44403c", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0 }}>
+                                            {item.description}
+                                          </span>
+                                        ) : (
+                                          <span style={{ color: "#c4bfbb", fontSize: 12 }}>—</span>
+                                        )}
+                                        {item.observations && (
+                                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, flexShrink: 0, fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "#78716c", backgroundColor: "#f0ede9", border: "1px solid #e2ddd8", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>
+                                            ↩ {item.observations}
+                                          </span>
+                                        )}
+                                      </div>
                                     </td>
 
                                     {/* Medidas */}
-                                    <td style={{ padding: "14px 20px", whiteSpace: "nowrap" }}>
+                                    <td style={{ padding: "10px 18px", whiteSpace: "nowrap" }}>
                                       {(item.visualWidth && item.visualHeight) || (item.fileWidth && item.fileHeight) ? (
                                         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                                           {item.visualWidth && item.visualHeight && (
@@ -645,17 +678,17 @@ export default function PainelGeral() {
                                     </td>
 
                                     {/* Patrocinador */}
-                                    <td style={{ padding: "14px 20px" }}>
+                                    <td style={{ padding: "10px 18px" }}>
                                       <SponsorChips sponsors={item.sponsors ?? []} variant="gray" size="sm" />
                                     </td>
 
                                     {/* Status */}
-                                    <td style={{ padding: "14px 20px", whiteSpace: "nowrap" }}>
+                                    <td style={{ padding: "10px 18px", whiteSpace: "nowrap" }}>
                                       <StatusPill status={item.status} />
                                     </td>
 
                                     {/* Ação */}
-                                    <td style={{ padding: "14px 20px", textAlign: "right" }}>
+                                    <td style={{ padding: "10px 18px", textAlign: "right" }}>
                                       <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
                                         <button
                                           onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
@@ -692,17 +725,6 @@ export default function PainelGeral() {
                                     </td>
                                   </tr>
 
-                                  {/* Observations row */}
-                                  {item.observations && (
-                                    <tr style={{ backgroundColor: "rgba(251,191,36,0.08)", borderBottom: "1px solid rgba(251,191,36,0.2)" }}>
-                                      <td colSpan={6} style={{ padding: "8px 20px" }}>
-                                        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, textTransform: "uppercase", color: "#92400e" }}>
-                                          <AlertCircle style={{ width: 13, height: 13, flexShrink: 0 }} />
-                                          Observação: {item.observations}
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  )}
                                 </Fragment>
                               );
                             })}
@@ -745,8 +767,8 @@ export default function PainelGeral() {
               {deleteConfirmItemId && (() => {
                 const item = items.find((i: any) => i.id === deleteConfirmItemId);
                 return item
-                  ? `A peça "${item.displayId} — ${item.type}" será excluída permanentemente. Esta ação não pode ser desfeita.`
-                  : "Esta peça será excluída permanentemente. Esta ação não pode ser desfeita.";
+                  ? `A peça "${item.displayId} — ${item.type}" será removida da lista, mas permanece no histórico de auditoria.`
+                  : "A peça será removida da lista, mas permanece no histórico de auditoria.";
               })()}
             </AlertDialogDescription>
           </AlertDialogHeader>

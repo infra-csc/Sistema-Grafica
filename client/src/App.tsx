@@ -275,7 +275,7 @@ function AuthenticatedLayout() {
             </div>
           </div>
         </header>
-        <main className="flex-1 overflow-hidden bg-background min-h-0" style={{ minWidth: 0 }}>
+        <main className="flex-1 overflow-y-auto bg-background min-h-0" style={{ minWidth: 0 }}>
           <Router />
         </main>
       </SidebarInset>

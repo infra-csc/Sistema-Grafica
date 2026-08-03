@@ -1926,8 +1926,8 @@ export function registerItemRoutes(app: Express): void {
   // junto com as produzidas.
   app.post("/api/items/:id/mark-reuse", requireAuth, async (req, res) => {
     try {
-      if ((req as any).userRole !== "grafica" && (req as any).userRole !== "admin") {
-        return res.status(403).json({ error: "Apenas a Gráfica pode marcar reaproveitamento" });
+      if ((req as any).userRole !== "grafica" && (req as any).userRole !== "admin" && (req as any).userRole !== "solicitacao") {
+        return res.status(403).json({ error: "Apenas a Gráfica ou Solicitação pode marcar reaproveitamento" });
       }
       const current = await storage.getItem(req.params.id);
       if (!current) return res.status(404).json({ error: "Item not found" });

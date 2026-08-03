@@ -244,18 +244,35 @@ export async function handleExportSelectedItemsXlsx(req: Request, res: Response)
     const ids: string[] = Array.isArray(req.body?.itemIds) ? req.body.itemIds : [];
     if (!ids.length) return res.status(400).json({ error: "Nenhuma peça selecionada para exportar" });
 
-    const raw = (await Promise.all(ids.map(id => storage.getItem(id)))).filter(Boolean) as any[];
+    // A Gráfica exporta centenas de peças de uma vez. Uma consulta por peça
+    // (e outra por patrocinador) estouraria o pool de conexões, então tudo é
+    // carregado em bloco e cruzado em memória.
+    const wanted = new Set(ids);
+    const raw = (await storage.getAllItems()).filter(i => wanted.has(i.id));
     if (!raw.length) return res.status(404).json({ error: "Nenhuma peça encontrada" });
 
-    // Nome do evento para a coluna "Evento" — em memória, sem uma consulta por peça.
     const eventNames = new Map<string, string>();
-    for (const eventId of Array.from(new Set(raw.map(i => i.eventId)))) {
-      const ev = await storage.getEvent(eventId as string);
-      if (ev) eventNames.set(ev.id, ev.name);
-    }
+    (await storage.getAllEvents()).forEach(ev => eventNames.set(ev.id, ev.name));
 
-    const items = (await withSponsorNames(raw))
-      .map(i => ({ ...i, eventName: eventNames.get(i.eventId) ?? "" }))
+    const sponsorNames = new Map<string, string>();
+    (await storage.getAllSponsors()).forEach(s => sponsorNames.set(s.id, s.name));
+
+    const sponsorsByItem = new Map<string, string[]>();
+    (await storage.getAllItemSponsors()).forEach(link => {
+      if (!wanted.has(link.itemId)) return;
+      const name = sponsorNames.get(link.sponsorId);
+      if (!name) return;
+      const list = sponsorsByItem.get(link.itemId);
+      if (list) list.push(name);
+      else sponsorsByItem.set(link.itemId, [name]);
+    });
+
+    const items = raw
+      .map(i => ({
+        ...i,
+        eventName: eventNames.get(i.eventId) ?? "",
+        sponsorNames: sponsorsByItem.get(i.id) ?? [],
+      }))
       .sort(byDisplayId);
 
     const title = typeof req.body?.title === "string" && req.body.title.trim()

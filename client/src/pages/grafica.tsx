@@ -364,14 +364,19 @@ export default function Grafica() {
   const deliveredOf = (item: any) => Number(item.deliveredQty) || 0;
   const reusedOf = (item: any) => Number(item.reuseQty) || 0;
   const producedOf = (item: any) => Number(item.quantityProduced) || 0;
+  // Peças marcadas como reuso antes de reuseQty existir nunca conferiram — pela
+  // regra antiga iam direto para a entrega. Mantidas nessa regra para não travar
+  // entregas em andamento; as novas seguem pela conferência.
+  const isLegacyReuse = (item: any) => item.isReuse && reusedOf(item) === 0;
   const remainingConfer = (item: any) => qtyOf(item) - conferredOf(item);
   // Reaproveitado também confere, então a entrega sempre sai do que foi conferido.
-  const remainingDeliver = (item: any) => conferredOf(item) - deliveredOf(item);
+  const remainingDeliver = (item: any) =>
+    (isLegacyReuse(item) ? qtyOf(item) : conferredOf(item)) - deliveredOf(item);
   // Sobra para reaproveitar: o que não foi reaproveitado nem produzido ainda.
   const remainingReuse = (item: any) => qtyOf(item) - reusedOf(item) - producedOf(item);
   // Botões parciais: dá pra conferir enquanto falta conferir (e já produziu);
   // dá pra entregar enquanto há conferido não entregue.
-  const canConfer = (item: any) => !isDelivered(item) && isProduced(item) && remainingConfer(item) > 0;
+  const canConfer = (item: any) => !isDelivered(item) && !isLegacyReuse(item) && isProduced(item) && remainingConfer(item) > 0;
   const canDeliver = (item: any) => !isDelivered(item) && remainingDeliver(item) > 0;
 
   // Anexo de fotos usado pelos modais de conferência e entrega. Dois caminhos:

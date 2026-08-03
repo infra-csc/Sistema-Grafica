@@ -2043,10 +2043,17 @@ export function registerItemRoutes(app: Express): void {
       // Entrega parcial: acumula deliveredQty; só vira "delivered" quando entrega
       // tudo. Só se entrega o que já foi conferido — inclusive o reaproveitamento,
       // que também passa pela conferência.
+      //
+      // Exceção para o legado: peças marcadas como reuso ANTES de reuse_qty
+      // existir têm reuseQty = 0 e nunca passaram por conferência, porque a regra
+      // antiga as mandava direto para a entrega. Exigir conferência delas agora
+      // travaria entregas já em andamento, então seguem pela regra antiga.
+      const legacyReuse = currentItem.isReuse && (currentItem.reuseQty || 0) === 0;
       const alreadyDelivered = currentItem.deliveredQty || 0;
-      const remaining = (currentItem.conferredQty || 0) - alreadyDelivered;
+      const maxDeliverable = legacyReuse ? currentItem.quantity : (currentItem.conferredQty || 0);
+      const remaining = maxDeliverable - alreadyDelivered;
       if (remaining <= 0) {
-        return res.status(409).json({ error: `Nada a entregar. Entregue ${alreadyDelivered}/${currentItem.quantity} (conferido ${currentItem.conferredQty || 0}).` });
+        return res.status(409).json({ error: `Nada a entregar. Entregue ${alreadyDelivered}/${currentItem.quantity}${legacyReuse ? "" : ` (conferido ${currentItem.conferredQty || 0})`}.` });
       }
       const n = Math.min(remaining, Math.max(1, Number(req.body.qty) || remaining));
       const newDelivered = alreadyDelivered + n;

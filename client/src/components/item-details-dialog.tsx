@@ -276,17 +276,57 @@ export function ItemDetailsDialog({
     return `${dt.getDate().toString().padStart(2,"0")}/${(dt.getMonth()+1).toString().padStart(2,"0")} ${dt.getHours().toString().padStart(2,"0")}:${dt.getMinutes().toString().padStart(2,"0")}`;
   };
 
-  const getLog = (keywords: string[], pool = itemLogs, actionType?: string, match?: (d: string) => boolean) => {
-    const l = pool.find((log: any) => {
-      if (actionType && log.action === actionType) return true;
-      const d = (log.details || log.action || "").toLowerCase();
-      if (match?.(d)) return true;
-      return keywords.some(k => d.includes(k.toLowerCase()));
-    });
-    if (!l) return null;
-    const ts   = l.createdAt ?? l.created_at;
-    const name = l.userName  ?? l.user_name;
-    return { date: fmtShort(ts), user: name };
+  const logTsOf = (l: any) => new Date(l?.createdAt ?? l?.created_at ?? 0).getTime();
+
+  /**
+   * Resolve as etapas do fluxo contra os logs, em ordem.
+   *
+   * Os matchers são por trecho de texto e uma mesma mensagem casa com mais de
+   * uma etapa — "Enviado para Arte — Status alterado: Aguardando Envio →
+   * Aguardando Aprovação" serve tanto para "Enviado para Arte" quanto para "Em
+   * aprovação de patrocinador". Com cada etapa varrendo a lista inteira por
+   * conta própria, duas etapas pegavam o mesmo log ou uma etapa posterior
+   * pegava um log anterior, e a trilha aparecia fora de ordem cronológica.
+   *
+   * Aqui cada log é consumido por uma etapa só, e a busca sempre começa depois
+   * do log já usado — o que garante que as datas nunca andem para trás.
+   */
+  const resolveStages = (stages: typeof historyStages) => {
+    const out = new Map<string, { date: string; user?: string; ts?: any } | null>();
+    let cursor = 0; // índice do primeiro log ainda disponível em itemLogs
+
+    for (const stage of stages) {
+      const usesInclusive = stage.pool === itemLogsInclusive;
+      // A lista "inclusive" (ações em lote) não entra no cursor: ela é um
+      // superconjunto com índices próprios.
+      const pool: any[] = usesInclusive ? stage.pool : itemLogs.slice(cursor);
+
+      const idx = pool.findIndex((log: any) => {
+        if (stage.actionType && log.action === stage.actionType) return true;
+        const d = (log.details || log.action || "").toLowerCase();
+        if (stage.match?.(d)) return true;
+        return stage.keywords.some(k => d.includes(k.toLowerCase()));
+      });
+
+      if (idx < 0) { out.set(stage.label, null); continue; }
+
+      const log = pool[idx];
+      out.set(stage.label, {
+        date: fmtShort(log.createdAt ?? log.created_at),
+        user: log.userName ?? log.user_name,
+        ts: log.createdAt ?? log.created_at,
+      });
+
+      if (!usesInclusive) {
+        cursor += idx + 1;
+      } else {
+        // Avança o cursor até passar deste log, para as etapas seguintes não
+        // voltarem no tempo por causa de um log vindo da lista em lote.
+        const ts = logTsOf(log);
+        while (cursor < itemLogs.length && logTsOf(itemLogs[cursor]) <= ts) cursor++;
+      }
+    }
+    return out;
   };
 
   const createdLog = itemLogs.find((l: any) => l.action === "created");
@@ -312,6 +352,9 @@ export function ItemDetailsDialog({
     { label: "Entregue",                        keywords: ["entrega concluída","entrega parcial","entregue"], pool: itemLogs, actionType: "delivered" },
   ];
 
+  // Resolvido uma vez, em ordem — ver resolveStages.
+  const stageLogs = resolveStages(historyStages);
+
   const deliveryLog = itemLogs.find((l: any) => l.action === "delivered");
 
   const thumbUrl = item.approvalThumbUrl;
@@ -329,25 +372,15 @@ export function ItemDetailsDialog({
   const createdBy = createdLog?.userName ?? createdLog?.user_name ?? null;
 
   // Etapas intermediárias não têm campo de timestamp dedicado no item — vêm dos
-  // audit logs, igual ao HISTÓRICO, para a rastreabilidade não ficar incompleta.
-  const sponsorLinkLog = itemLogs.find((l: any) => {
-    const d = (l.details || l.action || "").toLowerCase();
-    return d.includes("patrocinadores atualizados") || d.includes("patrocinadores vinculados") || d.includes("sponsor");
-  });
-  const sentToArteLog = itemLogsInclusive.find((l: any) => {
-    const d = (l.details || l.action || "").toLowerCase();
-    return (d.includes("enviado") && d.includes("arte")) ||
-           d.includes("aguard. envio →") ||
-           d.includes("aguard envio →");
-  });
-  const awaitingSponsorLog = itemLogs.find((l: any) => {
-    const d = (l.details || l.action || "").toLowerCase();
-    return d.includes("aguardando aprovação") || d.includes("em aprovação");
-  });
-  const conferLog = itemLogs.find((l: any) =>
-    (l.details || "").toLowerCase().includes("conferência"));
-  const logTs = (l: any) => l?.createdAt ?? l?.created_at ?? null;
-  const logBy = (l: any) => l?.userName ?? l?.user_name ?? null;
+  // audit logs. Reaproveitam a resolução sequencial do HISTÓRICO em vez de cada
+  // uma varrer a lista por conta própria: com buscas independentes, duas etapas
+  // acabavam no mesmo log e a trilha aparecia fora de ordem.
+  const sponsorLinkLog = stageLogs.get("Vinculação de patrocinador");
+  const sentToArteLog = stageLogs.get("Enviado para Arte");
+  const awaitingSponsorLog = stageLogs.get("Em aprovação de patrocinador");
+  const conferLog = stageLogs.get("Conferido");
+  const logTs = (l: any) => l?.ts ?? null;
+  const logBy = (l: any) => l?.user ?? null;
 
   const traceRows = [
     { label: "Solicitado / Criado",        value: item.createdAt,                                         by: createdBy,                                                 dot: "#2563eb" },
@@ -362,7 +395,12 @@ export function ItemDetailsDialog({
     // A conferência entrou no fluxo depois e ficou de fora desta trilha.
     { label: "Conferido",                  value: item.conferredAt,                                        by: logBy(conferLog),                                          dot: "#0891b2" },
     { label: "Entregue",                   value: item.deliveredAt,                                        by: item.receivedBy,                                           dot: "#10b981" },
-  ].filter((r): r is { label: string; value: any; by: any; dot: string } => !!r && !!r.value);
+  ]
+    .filter((r): r is { label: string; value: any; by: any; dot: string } => !!r && !!r.value)
+    // A ordem das etapas é a do fluxo, mas as datas vêm de fontes diferentes
+    // (campos do item e audit logs). Ordenar por data garante que a trilha seja
+    // lida de cima para baixo sem saltos para trás.
+    .sort((a, b) => new Date(a.value).getTime() - new Date(b.value).getTime());
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1027,7 +1065,7 @@ export function ItemDetailsDialog({
                   <div style={{ position: "absolute", left: 5, top: 6, bottom: 6, width: 1, backgroundColor: "#e8e8e7" }} />
                   <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                     {historyStages.map((stage, idx) => {
-                      const logEntry = getLog(stage.keywords, stage.pool, stage.actionType, stage.match);
+                      const logEntry = stageLogs.get(stage.label) ?? null;
                       return (
                         <div key={idx} style={{ position: "relative" }}>
                           <div style={{

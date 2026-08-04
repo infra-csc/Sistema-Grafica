@@ -276,83 +276,75 @@ export function ItemDetailsDialog({
     return `${dt.getDate().toString().padStart(2,"0")}/${(dt.getMonth()+1).toString().padStart(2,"0")} ${dt.getHours().toString().padStart(2,"0")}:${dt.getMinutes().toString().padStart(2,"0")}`;
   };
 
-  const logTsOf = (l: any) => new Date(l?.createdAt ?? l?.created_at ?? 0).getTime();
-
   /**
-   * Resolve as etapas do fluxo contra os logs, em ordem.
+   * Resolve as etapas do fluxo contra os audit logs.
    *
-   * Os matchers são por trecho de texto e uma mesma mensagem casa com mais de
-   * uma etapa — "Enviado para Arte — Status alterado: Aguardando Envio →
-   * Aguardando Aprovação" serve tanto para "Enviado para Arte" quanto para "Em
-   * aprovação de patrocinador". Com cada etapa varrendo a lista inteira por
-   * conta própria, duas etapas pegavam o mesmo log ou uma etapa posterior
-   * pegava um log anterior, e a trilha aparecia fora de ordem cronológica.
+   * O ponto delicado é que as mensagens têm o formato
+   * "Status alterado: <origem> → <destino>", ou seja, carregam também o nome do
+   * status ANTERIOR. Procurando no texto inteiro, cada etapa casava com a
+   * transição SEGUINTE: "Em aprovação de patrocinador" pegava o log que SAI de
+   * "Aguardando Aprovação", que na verdade é a aprovação. Por isso o casamento
+   * de status olha só o trecho depois da seta.
    *
-   * Aqui cada log é consumido por uma etapa só, e a busca sempre começa depois
-   * do log já usado — o que garante que as datas nunca andem para trás.
+   * Com o destino certo, cada etapa encontra exatamente o seu log e não é
+   * preciso "consumir" logs para evitar colisão — o que inclusive seria errado,
+   * já que um mesmo log representa duas etapas de propósito: enviar para a Arte
+   * É entrar em aprovação de patrocinador.
    */
   const resolveStages = (stages: typeof historyStages) => {
     const out = new Map<string, { date: string; user?: string; ts?: any } | null>();
-    let cursor = 0; // índice do primeiro log ainda disponível em itemLogs
 
     for (const stage of stages) {
-      const usesInclusive = stage.pool === itemLogsInclusive;
-      // A lista "inclusive" (ações em lote) não entra no cursor: ela é um
-      // superconjunto com índices próprios.
-      const pool: any[] = usesInclusive ? stage.pool : itemLogs.slice(cursor);
-
-      const idx = pool.findIndex((log: any) => {
+      const log = (stage.pool as any[]).find((log: any) => {
         if (stage.actionType && log.action === stage.actionType) return true;
         const d = (log.details || log.action || "").toLowerCase();
-        if (stage.match?.(d)) return true;
-        return stage.keywords.some(k => d.includes(k.toLowerCase()));
+        const arrow = d.lastIndexOf("→");
+        const target = arrow >= 0 ? d.slice(arrow + 1) : d;
+        if (stage.match?.(d, target)) return true;
+        return stage.keywords.some(k => target.includes(k.toLowerCase()));
       });
 
-      if (idx < 0) { out.set(stage.label, null); continue; }
-
-      const log = pool[idx];
-      out.set(stage.label, {
+      out.set(stage.label, log ? {
         date: fmtShort(log.createdAt ?? log.created_at),
         user: log.userName ?? log.user_name,
         ts: log.createdAt ?? log.created_at,
-      });
-
-      if (!usesInclusive) {
-        cursor += idx + 1;
-      } else {
-        // Avança o cursor até passar deste log, para as etapas seguintes não
-        // voltarem no tempo por causa de um log vindo da lista em lote.
-        const ts = logTsOf(log);
-        while (cursor < itemLogs.length && logTsOf(itemLogs[cursor]) <= ts) cursor++;
-      }
+      } : null);
     }
     return out;
   };
 
   const createdLog = itemLogs.find((l: any) => l.action === "created");
 
-  const historyStages: { label: string; keywords: string[]; pool: any[]; actionType?: string; match?: (d: string) => boolean }[] = [
+  // `match` recebe a mensagem inteira e o trecho após a seta (o status de
+  // destino). Use `target` para status; `d` só quando o texto livre é a pista.
+  const historyStages: { label: string; keywords: string[]; pool: any[]; actionType?: string; match?: (d: string, target: string) => boolean }[] = [
     { label: "Criado / Solicitado",            keywords: ["criado"],                    pool: itemLogs,          actionType: "created" },
     { label: "Vinculação de patrocinador",      keywords: ["patrocinadores atualizados"], pool: itemLogs },
-    // Mesma regra usada pela Rastreabilidade ao lado. Com a busca literal por
-    // "enviado para arte" a etapa aparecia vazia aqui e preenchida lá, porque a
-    // mensagem real varia ("Enviada para a Arte", "Aguard. Envio → …").
-    { label: "Enviado para Arte",               keywords: ["enviado para arte","aguard. envio →","aguard envio →"], pool: itemLogsInclusive,
+    // Aqui a pista é o texto livre no início da mensagem, não o status.
+    { label: "Enviado para Arte",               keywords: [], pool: itemLogsInclusive,
       match: d => (d.includes("enviad") && d.includes("arte")) || d.includes("aguard. envio →") || d.includes("aguard envio →") },
-    { label: "Em aprovação de patrocinador",    keywords: ["aguardando aprovação"],      pool: itemLogs,
-      match: d => d.includes("aguardando aprovação") || d.includes("em aprovação") },
-    { label: "Aprovado — Finalização",          keywords: ["todos os patrocinadores aprovaram","aguardando finaliz","aprovado pelo patrocinador"], pool: itemLogs },
-    { label: "Aguardando revisão final",        keywords: ["arquivo final adicionado","aguardando revisão final"], pool: itemLogs },
-    { label: "Liberado para Produção",          keywords: ["liberado para produção","pronto_para_producao","liberado"],      pool: itemLogs },
-    { label: "Em Produção",                     keywords: ["em_producao","em produção","produção iniciada","iniciada"],      pool: itemLogs },
-    { label: "Produzido",                       keywords: ["produzido"],                pool: itemLogs },
+    // Daqui em diante, o destino é o que identifica a etapa.
+    { label: "Em aprovação de patrocinador",    keywords: ["aguardando aprovação"],      pool: itemLogs },
+    { label: "Aprovado — Finalização",          keywords: ["aguardando finaliz"], pool: itemLogs,
+      match: (d, t) => t.includes("aguardando finaliz")
+                    || d.includes("todos os patrocinadores aprovaram")
+                    || d.includes("aprovado pelo patrocinador") },
+    { label: "Aguardando revisão final",        keywords: ["aguardando revisão final"], pool: itemLogs,
+      match: (d, t) => t.includes("aguardando revisão final") || d.includes("arquivo final adicionado") },
+    { label: "Liberado para Produção",          keywords: ["pronto p/ produção", "pronto para produção", "liberado para produção"], pool: itemLogs,
+      match: (d, t) => t.includes("pronto p/ produção") || t.includes("pronto para produção")
+                    || d.includes("liberado para produção") || d.includes("aprovado para produção") },
+    { label: "Em Produção",                     keywords: ["em produção"], pool: itemLogs, actionType: "production" },
+    { label: "Produzido",                       keywords: ["produzido"], pool: itemLogs, actionType: "produced" },
     // As etapas da Gráfica faltavam por completo: a trilha terminava em
     // "Produzido" mesmo em peças já conferidas e entregues.
-    { label: "Conferido",                       keywords: ["conferência concluída","conferência parcial","conferência"], pool: itemLogs },
-    { label: "Entregue",                        keywords: ["entrega concluída","entrega parcial","entregue"], pool: itemLogs, actionType: "delivered" },
+    { label: "Conferido",                       keywords: [], pool: itemLogs,
+      match: d => d.includes("conferência") },
+    { label: "Entregue",                        keywords: [], pool: itemLogs, actionType: "delivered",
+      match: d => d.includes("entrega concluída") || d.includes("entrega parcial") },
   ];
 
-  // Resolvido uma vez, em ordem — ver resolveStages.
+  // Resolvido uma vez e compartilhado pelas duas colunas — ver resolveStages.
   const stageLogs = resolveStages(historyStages);
 
   const deliveryLog = itemLogs.find((l: any) => l.action === "delivered");

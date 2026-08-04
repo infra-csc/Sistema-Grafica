@@ -1725,6 +1725,10 @@ export default function Grafica() {
                 style={{
                   display: "block", position: "relative", width: "100%",
                   height: isMobile ? 240 : 200,
+                  // O corpo do modal é um flex column com rolagem: sem
+                  // flexShrink 0 este bloco era espremido até uma linha fina
+                  // quando o conteúdo passava da altura máxima.
+                  flexShrink: 0,
                   borderRadius: 10, overflow: "hidden",
                   backgroundColor: "#ffffff", border: `1px solid ${TI.border}`,
                 }}

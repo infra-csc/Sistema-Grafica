@@ -928,6 +928,25 @@ export default function Grafica() {
                       <div style={{ width: 4, flexShrink: 0, background: isDelivered(item) ? '#86efac' : canDeliverItem ? TI.accent : '#e7e5e4' }} />
                     )}
 
+                    {/* Arte aprovada — no celular é ela que identifica a peça
+                        de relance, na hora de conferir com o material na mão. */}
+                    {item.approvalThumbUrl && !bulkDeliveryMode && (
+                      <a
+                        href={convertGCSUrlToLocalPath(item.approvalThumbUrl)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={e => e.stopPropagation()}
+                        title="Abrir a arte aprovada"
+                        data-testid={`thumb-art-mobile-${item.id}`}
+                        style={{ width: 60, flexShrink: 0, alignSelf: 'stretch', backgroundColor: '#faf9f7', borderRight: `1px solid ${TI.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4 }}
+                      >
+                        <img src={convertGCSUrlToLocalPath(item.approvalThumbUrl)} alt="Arte"
+                          loading="lazy" decoding="async"
+                          style={{ maxWidth: '100%', maxHeight: 66, objectFit: 'contain', display: 'block' }}
+                          onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                      </a>
+                    )}
+
                     {/* Content */}
                     <div style={{ flex: 1, padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
@@ -1088,8 +1107,28 @@ export default function Grafica() {
                           {item.displayId}
                         </span>
                       </td>
-                      {/* Descrição */}
-                      <td style={{ padding: "13px 16px", maxWidth: 280 }}>
+                      {/* Descrição — com a arte ao lado: a Gráfica identifica a
+                          peça pelo desenho, não pelo texto, e antes era preciso
+                          abrir o detalhe de cada uma para saber o que era. */}
+                      <td style={{ padding: "13px 16px", maxWidth: 320 }}>
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                          {item.approvalThumbUrl && (
+                            <a
+                              href={convertGCSUrlToLocalPath(item.approvalThumbUrl)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={e => e.stopPropagation()}
+                              title="Abrir a arte aprovada"
+                              data-testid={`thumb-art-${item.id}`}
+                              style={{ display: "block", width: 44, height: 44, borderRadius: 6, overflow: "hidden", border: `1px solid ${TI.border}`, backgroundColor: "#fff", flexShrink: 0 }}
+                            >
+                              <img src={convertGCSUrlToLocalPath(item.approvalThumbUrl)} alt="Arte"
+                                loading="lazy" decoding="async"
+                                style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+                                onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                            </a>
+                          )}
+                          <div style={{ minWidth: 0, flex: 1 }}>
                         {/* A cor verde da linha sozinha não diz o que é: o rótulo
                             precisa aparecer sempre que houver reaproveitamento,
                             inclusive nas peças marcadas antes de reuseQty existir. */}
@@ -1124,6 +1163,8 @@ export default function Grafica() {
                             ⚠ Arquivo atualizado
                           </div>
                         )}
+                          </div>
+                        </div>
                       </td>
                       {/* Qtd */}
                       <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: TI.text }}>{item.quantity}</td>
@@ -1671,15 +1712,39 @@ export default function Grafica() {
             {/* Card de identificação */}
             {selectedItem && (
               <div style={{ backgroundColor: "#f4f3f0", borderRadius: 10, padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
-                {/* Linha principal: ícone + ID + status + tipo + evento */}
+                {/* Linha principal: arte (ou ícone) + ID + status + tipo + evento.
+                    Na conferência a arte aprovada entra no lugar do ícone: é com
+                    ela que se compara a peça impressa, e antes era preciso sair
+                    do modal e abrir o detalhe para vê-la. */}
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                  <div style={{ backgroundColor: "#ffffff", borderRadius: 8, padding: 8, boxShadow: "0 1px 4px rgba(0,0,0,0.08)", flexShrink: 0 }}>
-                    {modalType === "production"
-                      ? <Printer style={{ width: 20, height: 20, color: TI.accent }} />
-                      : modalType === "conference"
-                      ? <CheckCircle style={{ width: 20, height: 20, color: "#0891b2" }} />
-                      : <Truck style={{ width: 20, height: 20, color: TI.accent }} />}
-                  </div>
+                  {selectedItem.approvalThumbUrl ? (
+                    <a
+                      href={convertGCSUrlToLocalPath(selectedItem.approvalThumbUrl)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Abrir a arte aprovada em tamanho real"
+                      data-testid="thumb-approved-art"
+                      style={{ display: "block", width: 92, height: 92, borderRadius: 8, overflow: "hidden", backgroundColor: "#ffffff", boxShadow: "0 1px 4px rgba(0,0,0,0.08)", flexShrink: 0, position: "relative" }}
+                    >
+                      <img
+                        src={convertGCSUrlToLocalPath(selectedItem.approvalThumbUrl)}
+                        alt="Arte aprovada"
+                        style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
+                        onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                      />
+                      <span style={{ position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: "rgba(28,25,23,0.72)", color: "#fff", fontSize: 8, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", textAlign: "center", padding: "2px 0" }}>
+                        Arte aprovada
+                      </span>
+                    </a>
+                  ) : (
+                    <div style={{ backgroundColor: "#ffffff", borderRadius: 8, padding: 8, boxShadow: "0 1px 4px rgba(0,0,0,0.08)", flexShrink: 0 }}>
+                      {modalType === "production"
+                        ? <Printer style={{ width: 20, height: 20, color: TI.accent }} />
+                        : modalType === "conference"
+                        ? <CheckCircle style={{ width: 20, height: 20, color: "#0891b2" }} />
+                        : <Truck style={{ width: 20, height: 20, color: TI.accent }} />}
+                    </div>
+                  )}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
                       <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, color: selectedItem.isReuse ? '#059669' : TI.accent }}>{selectedItem.displayId}</span>

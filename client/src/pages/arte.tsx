@@ -1153,7 +1153,24 @@ export default function Arte() {
   const aguardandoCount = itemsByTab["aguardando-patrocinador"].length;
   const needsFinalFileCount = itemsByTab["finalizar-layouts"].length;
   const finalizadosCount = itemsByTab["finalizados"].length;
-  const correcaoCount = correcaoItems.length;
+  const correcaoCount = useMemo(() => {
+    if (eventFilter.length === 0 && typeFilter.length === 0 && materialFilter.length === 0 && sponsorFilter.length === 0 && !deferredSearch) {
+      return correcaoItems.length;
+    }
+    const s = deferredSearch.toLowerCase();
+    return correcaoItems.filter((item: any) => {
+      if (eventFilter.length > 0 && !eventFilter.includes(item.eventId)) return false;
+      if (typeFilter.length > 0 && !typeFilter.includes(item.type)) return false;
+      if (materialFilter.length > 0 && !materialFilter.includes(item.material)) return false;
+      if (sponsorFilter.length > 0 && !(item.sponsors ?? []).some((sp: any) => sponsorFilter.includes(sp.id))) return false;
+      if (s) {
+        const hit = [item.displayId, item.type, item.description, item.event?.name]
+          .some((f: any) => f && f.toLowerCase().includes(s));
+        if (!hit) return false;
+      }
+      return true;
+    }).length;
+  }, [correcaoItems, eventFilter, typeFilter, materialFilter, sponsorFilter, deferredSearch]);
   const pendingItems = filteredItems.filter(item => item.status === 'awaiting_submission');
 
   const handleViewDetails = (item: any) => {
@@ -1790,9 +1807,34 @@ export default function Arte() {
       );
     }
 
+    // Aplica os mesmos filtros globais que as outras abas usam
+    const search = deferredSearch.toLowerCase();
+    const baseItems = correcaoItems.filter((item: any) => {
+      if (eventFilter.length > 0 && !eventFilter.includes(item.eventId)) return false;
+      if (typeFilter.length > 0 && !typeFilter.includes(item.type)) return false;
+      if (materialFilter.length > 0 && !materialFilter.includes(item.material)) return false;
+      if (sponsorFilter.length > 0 && !(item.sponsors ?? []).some((s: any) => sponsorFilter.includes(s.id))) return false;
+      if (search) {
+        const hit = [item.displayId, item.type, item.description, item.event?.name]
+          .some((f: any) => f && f.toLowerCase().includes(search));
+        if (!hit) return false;
+      }
+      return true;
+    });
+
+    if (baseItems.length === 0) {
+      return (
+        <div style={{ textAlign: 'center', padding: '48px 0' }}>
+          <Search style={{ width: 40, height: 40, color: '#d6d3d1', margin: '0 auto 16px' }} />
+          <p style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 4 }}>Nenhuma correção neste filtro</p>
+          <p style={{ fontSize: 13, color: '#a8a29e' }}>Há {correcaoItems.length} {correcaoItems.length === 1 ? 'item aguardando correção' : 'itens aguardando correção'} em outros eventos ou tipos</p>
+        </div>
+      );
+    }
+
     const correcaoSponsors: { id: string; name: string; color: string }[] = [];
     const seenSponsorIds = new Set<string>();
-    correcaoItems.forEach((item: any) => {
+    baseItems.forEach((item: any) => {
       (item.awaitingArteApprovals || []).forEach((a: any) => {
         if (a.sponsor && !seenSponsorIds.has(a.sponsorId)) {
           seenSponsorIds.add(a.sponsorId);
@@ -1802,8 +1844,8 @@ export default function Arte() {
     });
 
     const filteredCorrecaoItems = correcaoSponsorFilter === "all"
-      ? correcaoItems
-      : correcaoItems.filter((item: any) => (item.awaitingArteApprovals || []).some((a: any) => a.sponsorId === correcaoSponsorFilter));
+      ? baseItems
+      : baseItems.filter((item: any) => (item.awaitingArteApprovals || []).some((a: any) => a.sponsorId === correcaoSponsorFilter));
 
     return (
       <div>
@@ -3370,7 +3412,7 @@ export default function Arte() {
           </div>
 
           {/* ── Body — 2 columns ── */}
-          <div style={{ display: 'flex', height: 580, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', height: 520, overflow: 'hidden' }}>
 
             {/* ══════════════════════════════════════
                 Left panel — upload + controles
@@ -3438,19 +3480,28 @@ export default function Arte() {
                           <ChevronsUpDown style={{ width: 12, height: 12, color: '#a8a29e', flexShrink: 0 }} />
                         </button>
                       </PopoverTrigger>
-                      <PopoverContent className="p-0" style={{ width: isMobile ? '90vw' : 260 }} align="start">
+                      <PopoverContent className="p-0" style={{ width: isMobile ? '90vw' : 240 }} align="start">
                         <Command>
                           <CommandInput placeholder="Buscar evento..." />
-                          <CommandList>
+                          <CommandList style={{ maxHeight: 220 }}>
                             <CommandEmpty>Nenhum evento encontrado.</CommandEmpty>
                             <CommandGroup>
-                              <CommandItem value="all" onSelect={() => { setBulkThumbEventFilter("all"); setBulkThumbEventComboOpen(false); }}>
-                                <Check style={{ width: 12, height: 12, opacity: bulkThumbEventFilter === "all" ? 1 : 0, marginRight: 8, flexShrink: 0 }} />
+                              <CommandItem
+                                value="all"
+                                className="data-[selected=true]:bg-stone-100 data-[selected=true]:text-stone-900"
+                                onSelect={() => { setBulkThumbEventFilter("all"); setBulkThumbEventComboOpen(false); }}
+                              >
+                                <Check style={{ width: 12, height: 12, color: '#16a34a', opacity: bulkThumbEventFilter === "all" ? 1 : 0, marginRight: 8, flexShrink: 0 }} />
                                 Todos os eventos
                               </CommandItem>
                               {sortedEvts.map((ev: any) => (
-                                <CommandItem key={ev.id} value={ev.name} onSelect={() => { setBulkThumbEventFilter(ev.id); setBulkThumbEventComboOpen(false); }}>
-                                  <Check style={{ width: 12, height: 12, opacity: bulkThumbEventFilter === ev.id ? 1 : 0, marginRight: 8, flexShrink: 0 }} />
+                                <CommandItem
+                                  key={ev.id}
+                                  value={ev.name}
+                                  className="data-[selected=true]:bg-stone-100 data-[selected=true]:text-stone-900"
+                                  onSelect={() => { setBulkThumbEventFilter(ev.id); setBulkThumbEventComboOpen(false); }}
+                                >
+                                  <Check style={{ width: 12, height: 12, color: '#16a34a', opacity: bulkThumbEventFilter === ev.id ? 1 : 0, marginRight: 8, flexShrink: 0 }} />
                                   {ev.name}
                                 </CommandItem>
                               ))}
@@ -3463,94 +3514,40 @@ export default function Arte() {
                 })()}
               </div>
 
-              {/* ── Resumo ── */}
-              <div style={{ padding: '14px 18px 0' }}>
-                <p style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', margin: '0 0 8px' }}>Resumo</p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                  {[
-                    { label: 'Vinculados',  count: bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length,  dot: '#16a34a', color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
-                    { label: 'Sem vínculo', count: bulkThumbEntries.filter(e => !e.matchedItemId && e.status === 'pending').length, dot: '#f59e0b', color: '#92400e', bg: '#fffbeb', border: '#fde68a' },
-                    { label: 'Concluídos', count: bulkThumbEntries.filter(e => e.status === 'done').length,   dot: '#7c3aed', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
-                    { label: 'Erro',       count: bulkThumbEntries.filter(e => e.status === 'error').length,  dot: '#dc2626', color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
-                  ].map(s => (
-                    <div key={s.label} style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      padding: '6px 10px', borderRadius: 7,
-                      backgroundColor: s.count > 0 ? s.bg : 'transparent',
-                      border: `1px solid ${s.count > 0 ? s.border : '#ebe8e3'}`,
-                      transition: 'all 0.15s',
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-                        <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: s.count > 0 ? s.dot : '#d4d4d0', flexShrink: 0 }} />
-                        <span style={{ fontSize: 11, fontWeight: 600, color: s.count > 0 ? s.color : '#a8a29e' }}>{s.label}</span>
-                      </div>
-                      <span style={{ fontSize: 14, fontWeight: 800, color: s.count > 0 ? s.color : '#d4d4d0', fontFamily: '"Space Grotesk", sans-serif', lineHeight: 1 }}>{s.count}</span>
+              {/* ── Resumo — só aparece quando há arquivos com count > 0 ── */}
+              {bulkThumbEntries.length > 0 && (() => {
+                const rows = [
+                  { label: 'Vinculados',  count: bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length,  dot: '#16a34a', color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
+                  { label: 'Sem vínculo', count: bulkThumbEntries.filter(e => !e.matchedItemId && e.status === 'pending').length, dot: '#f59e0b', color: '#92400e', bg: '#fffbeb', border: '#fde68a' },
+                  { label: 'Concluídos',  count: bulkThumbEntries.filter(e => e.status === 'done').length,                        dot: '#7c3aed', color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
+                  { label: 'Erro',        count: bulkThumbEntries.filter(e => e.status === 'error').length,                       dot: '#dc2626', color: '#dc2626', bg: '#fef2f2', border: '#fecaca' },
+                ].filter(s => s.count > 0);
+                if (rows.length === 0) return null;
+                return (
+                  <div style={{ padding: '14px 18px 0' }}>
+                    <p style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', margin: '0 0 8px' }}>Resumo</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      {rows.map(s => (
+                        <div key={s.label} style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '6px 10px', borderRadius: 7,
+                          backgroundColor: s.bg, border: `1px solid ${s.border}`,
+                          transition: 'all 0.15s',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                            <div style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: s.dot, flexShrink: 0 }} />
+                            <span style={{ fontSize: 11, fontWeight: 600, color: s.color }}>{s.label}</span>
+                          </div>
+                          <span style={{ fontSize: 14, fontWeight: 800, color: s.color, fontFamily: '"Space Grotesk", sans-serif', lineHeight: 1 }}>{s.count}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </div>
+                  </div>
+                );
+              })()}
 
               {/* Spacer */}
               <div style={{ flex: 1 }} />
-
-              {/* ── Footer actions ── */}
-              <div style={{ padding: '14px 18px', borderTop: '1px solid #ebe8e3', display: 'flex', flexDirection: 'column', gap: 7 }}>
-                {bulkThumbEntries.filter(e => e.status === 'done').length > 0 && (
-                  <button
-                    onClick={() => setBulkThumbEntries(prev => prev.filter(e => e.status !== 'done'))}
-                    style={{ width: '100%', height: 32, borderRadius: 7, background: 'none', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 11, fontWeight: 600 }}
-                  >Limpar concluídos</button>
-                )}
-                <button
-                  onClick={() => { if (!bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); setBulkThumbEventFilter("all"); } }}
-                  style={{ width: '100%', height: 32, borderRadius: 7, background: 'transparent', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 12, fontWeight: 600, transition: 'background 0.12s' }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
-                  onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-                >Cancelar</button>
-                <button
-                  onClick={handleBulkThumbSaveDraft}
-                  disabled={bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0}
-                  data-testid="button-bulk-thumb-save-draft"
-                  style={{
-                    width: '100%', height: 36, borderRadius: 7,
-                    backgroundColor: '#ffffff',
-                    border: `1.5px solid ${(bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? '#e7e5e4' : '#ddd6fe'}`,
-                    color: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? '#a8a29e' : '#7c3aed',
-                    fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                    cursor: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? 'not-allowed' : 'pointer',
-                    transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={e => { if (!bulkThumbRunning && bulkThumbEntries.filter(x => x.matchedItemId && x.status === 'pending').length > 0) e.currentTarget.style.backgroundColor = '#faf5ff'; }}
-                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
-                >
-                  <FileImage style={{ width: 12, height: 12 }} />
-                  Salvar {bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length} thumb(s) sem enviar
-                </button>
-                <button
-                  onClick={handleBulkThumbUpload}
-                  disabled={bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0}
-                  data-testid="button-bulk-thumb-confirm"
-                  style={{
-                    width: '100%', height: 42, borderRadius: 8,
-                    background: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0)
-                      ? '#e7e5e4' : 'linear-gradient(135deg,#16a34a,#15803d)',
-                    border: 'none',
-                    color: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? '#a8a29e' : '#ffffff',
-                    fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                    cursor: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? 'not-allowed' : 'pointer',
-                    boxShadow: (bulkThumbRunning || bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length === 0) ? 'none' : '0 4px 12px rgba(21,128,61,0.28)',
-                    transition: 'all 0.15s',
-                    letterSpacing: '-0.01em',
-                  }}
-                  onMouseEnter={e => { if (!bulkThumbRunning) e.currentTarget.style.filter = 'brightness(1.08)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
-                >
-                  {bulkThumbRunning
-                    ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Enviando...</>
-                    : <><Send style={{ width: 14, height: 14 }} />Enviar {bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length} thumb(s)</>
-                  }
-                </button>
-              </div>
             </div>
 
             {/* ══════════════════════════════════════
@@ -3598,7 +3595,7 @@ export default function Arte() {
                         );
                       })()}
                     </div>
-                    <span style={{ fontSize: 10, color: '#b8b3ad', fontStyle: 'italic' }}>Confirme o vínculo de cada imagem</span>
+                    <span style={{ fontSize: 10, color: '#78716c', fontWeight: 600 }}>Confirme o vínculo de cada imagem</span>
                   </div>
 
                   {/* ── Lista de cards (horizontal) ── */}
@@ -3745,14 +3742,14 @@ export default function Arte() {
                                         <button style={{
                                           width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4,
                                           height: 32, borderRadius: 6,
-                                          border: `1.5px solid ${isLinked ? '#93c5fd' : '#fbbf24'}`,
+                                          border: `1px solid ${isLinked ? '#93c5fd' : '#e7e5e4'}`,
                                           backgroundColor: '#ffffff', fontSize: 10, fontWeight: 600,
                                           color: linked ? '#1c1917' : '#78716c', padding: '0 6px', cursor: 'pointer', outline: 'none',
                                         }}>
                                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                             {linked
                                               ? `${linked.displayId} · ${linked.type}`
-                                              : '— Vincular manualmente —'}
+                                              : 'Selecionar peça...'}
                                           </span>
                                           <ChevronsUpDown style={{ width: 10, height: 10, color: '#a8a29e', flexShrink: 0 }} />
                                         </button>
@@ -3796,21 +3793,21 @@ export default function Arte() {
                                                     <CommandItem
                                                       key={item.id}
                                                       value={searchVal}
+                                                      className="data-[selected=true]:bg-stone-100 data-[selected=true]:text-stone-900"
                                                       onSelect={() => {
                                                         setBulkThumbEntries(prev => prev.map(en => en.id === entry.id ? { ...en, matchedItemId: item.id } : en));
                                                         setBulkThumbLinkOpenMap(prev => ({ ...prev, [entry.id]: false }));
                                                       }}
                                                     >
-                                                      <Check style={{ width: 10, height: 10, opacity: entry.matchedItemId === item.id ? 1 : 0, marginRight: 6, flexShrink: 0 }} />
-                                                      <div style={{ overflow: 'hidden' }}>
-                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                                          <span style={{ fontSize: 11, fontWeight: 800, color: '#1c1917', fontFamily: '"Space Grotesk", sans-serif', flexShrink: 0 }}>{item.displayId}</span>
-                                                          <span style={{ fontSize: 10, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</span>
-                                                        </div>
+                                                      <Check style={{ width: 10, height: 10, color: '#16a34a', opacity: entry.matchedItemId === item.id ? 1 : 0, marginRight: 4, flexShrink: 0 }} />
+                                                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', minWidth: 0 }}>
+                                                        {/* displayId — destaque */}
+                                                        <span style={{ fontSize: 11, fontWeight: 800, color: '#1c1917', fontFamily: '"Space Grotesk", sans-serif', flexShrink: 0 }}>{item.displayId}</span>
+                                                        {/* descrição ou evento — o tipo já aparece no cabeçalho do grupo */}
                                                         {(item.description || evtName) && (
-                                                          <div style={{ fontSize: 10, color: '#a8a29e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 1 }}>
-                                                            {item.description ? item.description.slice(0, 40) : evtName}
-                                                          </div>
+                                                          <span style={{ fontSize: 10, color: '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            {item.description ? item.description.slice(0, 48) : evtName}
+                                                          </span>
                                                         )}
                                                       </div>
                                                     </CommandItem>
@@ -3835,6 +3832,88 @@ export default function Arte() {
               )}
             </div>
           </div>
+
+          {/* ── Rodapé unificado — ocupa toda a largura do modal ── */}
+          {(() => {
+            const readyCount = bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length;
+            const doneCount  = bulkThumbEntries.filter(e => e.status === 'done').length;
+            const isDisabled = bulkThumbRunning || readyCount === 0;
+            return (
+              <div style={{
+                borderTop: '1px solid #ebe8e3', padding: '12px 24px',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                backgroundColor: '#ffffff', borderRadius: '0 0 14px 14px', flexShrink: 0,
+              }}>
+                {/* Esquerda: limpar concluídos */}
+                <div>
+                  {doneCount > 0 && (
+                    <button
+                      onClick={() => setBulkThumbEntries(prev => prev.filter(e => e.status !== 'done'))}
+                      style={{ height: 32, padding: '0 12px', borderRadius: 7, background: 'none', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 11, fontWeight: 600, transition: 'background 0.12s' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+                    >Limpar {doneCount} enviado{doneCount !== 1 ? 's' : ''}</button>
+                  )}
+                </div>
+
+                {/* Direita: Cancelar → Salvar rascunho → Enviar */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {/* Ghost — Cancelar */}
+                  <button
+                    onClick={() => { if (!bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); setBulkThumbEventFilter("all"); } }}
+                    style={{ height: 36, padding: '0 16px', borderRadius: 7, background: 'transparent', border: 'none', color: '#78716c', cursor: 'pointer', fontSize: 12, fontWeight: 600, transition: 'color 0.12s' }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = '#78716c'; }}
+                  >Cancelar</button>
+
+                  {/* Outline — Salvar como rascunho (secundário) */}
+                  <button
+                    onClick={handleBulkThumbSaveDraft}
+                    disabled={isDisabled}
+                    data-testid="button-bulk-thumb-save-draft"
+                    title="Salva o thumb na peça sem enviá-la para aprovação. A peça continua como rascunho na fila de Arte."
+                    style={{
+                      height: 36, padding: '0 16px', borderRadius: 7,
+                      backgroundColor: '#ffffff',
+                      border: `1.5px solid ${isDisabled ? '#e7e5e4' : '#ddd6fe'}`,
+                      color: isDisabled ? '#a8a29e' : '#7c3aed',
+                      fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6,
+                      cursor: isDisabled ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={e => { if (!isDisabled) e.currentTarget.style.backgroundColor = '#faf5ff'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
+                  >
+                    <FileImage style={{ width: 12, height: 12 }} />
+                    {`Salvar ${readyCount} ${readyCount === 1 ? 'thumb' : 'thumbs'} como rascunho`}
+                  </button>
+
+                  {/* Filled primary — Enviar */}
+                  <button
+                    onClick={handleBulkThumbUpload}
+                    disabled={isDisabled}
+                    data-testid="button-bulk-thumb-confirm"
+                    style={{
+                      height: 40, padding: '0 20px', borderRadius: 8,
+                      background: isDisabled ? '#e7e5e4' : 'linear-gradient(135deg,#16a34a,#15803d)',
+                      border: 'none',
+                      color: isDisabled ? '#a8a29e' : '#ffffff',
+                      fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 7,
+                      cursor: isDisabled ? 'not-allowed' : 'pointer',
+                      boxShadow: isDisabled ? 'none' : '0 4px 12px rgba(21,128,61,0.28)',
+                      transition: 'all 0.15s', letterSpacing: '-0.01em',
+                    }}
+                    onMouseEnter={e => { if (!isDisabled) e.currentTarget.style.filter = 'brightness(1.08)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+                  >
+                    {bulkThumbRunning
+                      ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Enviando...</>
+                      : <><Send style={{ width: 14, height: 14 }} />{`Enviar ${readyCount} ${readyCount === 1 ? 'thumb' : 'thumbs'}`}</>
+                    }
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
 

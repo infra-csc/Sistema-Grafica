@@ -510,6 +510,10 @@
 :focus:not(:focus-visible) {
   outline: none;
 }
+/* Inputs de busca (cmdk) nunca precisam do anel laranja — o wrapper já dá feedback visual */
+[cmdk-input]:focus-visible {
+  outline: none;
+}
 
 /* ── Modal de revisão – responsivo ──────────────────────────── */
 .review-modal-body {

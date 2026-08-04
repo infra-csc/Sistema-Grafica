@@ -87,30 +87,39 @@ export function registerItemRoutes(app: Express): void {
         return res.status(403).json({ error: "Acesso não autorizado" });
       }
 
-      const allItems = await storage.getAllItems();
+      // Batch: carrega tudo em paralelo (poucas queries totais) em vez de
+      // fazer N+1 round trips (approvals/sponsors/evento por item), que
+      // deixava a aba de Correção lenta para abrir com muitos itens.
+      const [allItems, allEvents, allSponsors, allItemSponsorApprovals] = await Promise.all([
+        storage.getAllItems(),
+        storage.getAllEvents(),
+        storage.getAllSponsors(),
+        storage.getAllItemSponsorApprovals(),
+      ]);
+
       const awaitingItems = allItems.filter(i => i.status === "awaiting_sponsor_approval");
+      const eventById = new Map(allEvents.map(e => [e.id, e]));
+      const sponsorById = new Map(allSponsors.map(s => [s.id, s]));
+
+      const approvalsByItem = new Map<string, any[]>();
+      for (const a of allItemSponsorApprovals) {
+        if (a.status !== "awaiting_arte") continue;
+        const list = approvalsByItem.get(a.itemId);
+        if (list) list.push(a);
+        else approvalsByItem.set(a.itemId, [a]);
+      }
 
       const result = [];
       for (const item of awaitingItems) {
-        const approvals = await storage.getItemSponsorApprovals(item.id);
-        const awaitingArte = approvals.filter((a: any) => a.status === "awaiting_arte");
-        if (awaitingArte.length === 0) continue;
-
-        const itemSponsors = await storage.getItemSponsors(item.id);
-        const sponsorMap = new Map<string, any>();
-        for (const is of itemSponsors) {
-          const s = await storage.getSponsor(is.sponsorId);
-          if (s) sponsorMap.set(is.sponsorId, s);
-        }
-
-        const event = await storage.getEvent(item.eventId);
+        const awaitingArte = approvalsByItem.get(item.id);
+        if (!awaitingArte || awaitingArte.length === 0) continue;
 
         result.push({
           ...item,
-          event,
+          event: eventById.get(item.eventId) || null,
           awaitingArteApprovals: awaitingArte.map((a: any) => ({
             ...a,
-            sponsor: sponsorMap.get(a.sponsorId) || null,
+            sponsor: sponsorById.get(a.sponsorId) || null,
           })),
         });
       }

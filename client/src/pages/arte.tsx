@@ -388,7 +388,6 @@ export default function Arte() {
   const [bulkThumbEntries, setBulkThumbEntries] = useState<BulkThumbEntry[]>([]);
   const [bulkThumbRunning, setBulkThumbRunning] = useState(false);
   const [bulkThumbEventFilter, setBulkThumbEventFilter] = useState<string>("all");
-  const [bulkThumbEventComboOpen, setBulkThumbEventComboOpen] = useState(false);
   const [bulkThumbLinkOpenMap, setBulkThumbLinkOpenMap] = useState<Record<string, boolean>>({});
   const [showExportModal, setShowExportModal] = useState(false);
   // Book pronto (PDF) subido pela Arte: escolhe o evento e as peças cobertas.
@@ -778,12 +777,17 @@ export default function Arte() {
   };
 
   // ── Book pronto (PDF) enviado pela Arte para os patrocinadores ─────────────
-  const bookEventPieces = useMemo(
-    () => arteItemsPool
-      .filter((i: any) => i.eventId === bookEventId)
-      .sort((a: any, b: any) => String(a.displayId || "").localeCompare(String(b.displayId || ""), "pt-BR", { numeric: true })),
-    [arteItemsPool, bookEventId],
-  );
+  const bookEventPieces = useMemo(() => {
+    const seen = new Set<string>();
+    return arteItemsPool
+      .filter((i: any) => {
+        if (i.eventId !== bookEventId) return false;
+        if (seen.has(i.id)) return false;
+        seen.add(i.id);
+        return true;
+      })
+      .sort((a: any, b: any) => String(a.displayId || "").localeCompare(String(b.displayId || ""), "pt-BR", { numeric: true }));
+  }, [arteItemsPool, bookEventId]);
   // URL do book já existente para o evento selecionado (primeiro encontrado), se houver.
   const existingBookUrl = useMemo(
     () => bookEventPieces.find((i: any) => i.bookUrl)?.bookUrl ?? null,
@@ -3200,7 +3204,7 @@ export default function Arte() {
           </div>
 
           {/* ── Body ── */}
-          <div style={{ padding: '22px 28px', display: 'flex', flexDirection: 'column', gap: 18, maxHeight: '62vh', overflowY: 'auto', backgroundColor: '#fafaf9' }}>
+          <div style={{ padding: '22px 28px', display: 'flex', flexDirection: 'column', gap: 22, maxHeight: '62vh', overflowY: 'auto', backgroundColor: '#fafaf9' }}>
 
             {/* Evento */}
             <div>
@@ -3243,36 +3247,36 @@ export default function Arte() {
                 {existingBookUrl ? 'Novo PDF (substituição)' : 'Arquivo do book'}
               </label>
               <label style={{
-                display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', borderRadius: 10,
-                border: `1.5px dashed ${bookFileUrl ? '#f97316' : '#d4d4d0'}`,
-                background: bookFileUrl ? '#fff7ed' : '#ffffff',
+                display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px', borderRadius: 10,
+                border: `2px dashed ${bookFileUrl ? '#f97316' : '#e2d9cf'}`,
+                background: bookFileUrl ? '#fff7ed' : 'linear-gradient(135deg,#fdfcfb,#f9f7f5)',
                 cursor: 'pointer', transition: 'all 0.15s',
               }}
-                onMouseEnter={e => { if (!bookFileUrl) { (e.currentTarget as HTMLLabelElement).style.borderColor = '#a8a29e'; (e.currentTarget as HTMLLabelElement).style.background = '#f5f5f4'; } }}
-                onMouseLeave={e => { if (!bookFileUrl) { (e.currentTarget as HTMLLabelElement).style.borderColor = '#d4d4d0'; (e.currentTarget as HTMLLabelElement).style.background = '#ffffff'; } }}
+                onMouseEnter={e => { if (!bookFileUrl) { (e.currentTarget as HTMLLabelElement).style.borderColor = '#f97316'; (e.currentTarget as HTMLLabelElement).style.background = '#fff7ed'; } }}
+                onMouseLeave={e => { if (!bookFileUrl) { (e.currentTarget as HTMLLabelElement).style.borderColor = '#e2d9cf'; (e.currentTarget as HTMLLabelElement).style.background = 'linear-gradient(135deg,#fdfcfb,#f9f7f5)'; } }}
               >
-                <div style={{ width: 36, height: 36, borderRadius: 9, background: bookFileUrl ? 'linear-gradient(135deg,#f97316,#ea580c)' : '#f3f4f3', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s', boxShadow: bookFileUrl ? '0 3px 8px rgba(249,115,22,0.28)' : 'none' }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: bookFileUrl ? 'linear-gradient(135deg,#f97316,#ea580c)' : 'linear-gradient(135deg,#fff0e6,#ffe4cc)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s', boxShadow: bookFileUrl ? '0 4px 10px rgba(249,115,22,0.28)' : 'none' }}>
                   {bookUploading
                     ? <div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(249,115,22,0.3)', borderTopColor: '#f97316', animation: 'spin 0.8s linear infinite' }} />
                     : bookFileUrl
-                      ? <FileText style={{ width: 16, height: 16, color: '#fff' }} />
+                      ? <FileText style={{ width: 18, height: 18, color: '#fff' }} />
                       : existingBookUrl
-                        ? <RefreshCw style={{ width: 15, height: 15, color: '#a8a29e' }} />
-                        : <FileText style={{ width: 16, height: 16, color: '#a8a29e' }} />
+                        ? <RefreshCw style={{ width: 16, height: 16, color: '#ea580c' }} />
+                        : <FileText style={{ width: 18, height: 18, color: '#ea580c' }} />
                   }
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 13, fontWeight: 700, color: bookFileUrl ? '#c2410c' : '#78716c', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {bookUploading ? 'Enviando arquivo…' : bookFileName || (existingBookUrl ? 'Escolher novo PDF…' : 'Escolher PDF do book…')}
+                  <p style={{ fontSize: 13, fontWeight: 700, color: bookFileUrl ? '#c2410c' : '#1c1917', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {bookUploading ? 'Enviando arquivo…' : bookFileName || (existingBookUrl ? 'Escolher novo PDF…' : 'Arrastar ou clicar para adicionar PDF')}
                   </p>
                   {!bookFileUrl && !bookUploading && (
-                    <p style={{ fontSize: 10, color: '#a8a29e', margin: '1px 0 0' }}>Somente arquivos .PDF</p>
+                    <p style={{ fontSize: 11, color: '#a8a29e', margin: '2px 0 0' }}>Somente arquivos .PDF · Qualquer tamanho</p>
                   )}
                   {bookFileUrl && (
-                    <p style={{ fontSize: 10, color: '#f97316', margin: '1px 0 0', fontWeight: 600 }}>✓ Arquivo carregado — pronto para substituir</p>
+                    <p style={{ fontSize: 11, color: '#f97316', margin: '2px 0 0', fontWeight: 600 }}>✓ Arquivo carregado — pronto para salvar</p>
                   )}
                 </div>
-                {bookFileUrl && <span style={{ fontSize: 10, fontWeight: 700, color: '#f97316', flexShrink: 0 }}>Trocar</span>}
+                {bookFileUrl && <span style={{ fontSize: 11, fontWeight: 700, color: '#f97316', flexShrink: 0, padding: '4px 10px', border: '1px solid #fed7aa', borderRadius: 6, background: '#fff' }}>Trocar</span>}
                 <input type="file" accept="application/pdf,.pdf" style={{ display: 'none' }}
                   onChange={e => { handleBookFile(e.target.files?.[0]); e.target.value = ''; }} />
               </label>
@@ -3290,17 +3294,17 @@ export default function Arte() {
                   )}
                 </div>
                 {bookEventPieces.length > 0 && (
-                  <div style={{ display: 'flex', gap: 4, alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
                     <button onClick={() => setBookSelectedIds(new Set(bookEventPieces.map((i: any) => i.id)))}
-                      style={{ background: 'none', border: 'none', padding: '3px 8px', fontSize: 11, fontWeight: 700, color: '#57534e', cursor: 'pointer', borderRadius: 6, transition: 'background 0.1s' }}
-                      onMouseEnter={e => { e.currentTarget.style.background = '#f0efee'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+                      style={{ background: 'none', border: 'none', padding: '3px 8px', fontSize: 11, fontWeight: 700, color: '#f97316', cursor: 'pointer', borderRadius: 6, transition: 'color 0.1s', textDecoration: 'underline', textDecorationColor: 'transparent', textUnderlineOffset: '2px' }}
+                      onMouseEnter={e => { e.currentTarget.style.textDecorationColor = '#f97316'; }}
+                      onMouseLeave={e => { e.currentTarget.style.textDecorationColor = 'transparent'; }}
                     >Todas</button>
-                    <span style={{ color: '#d4d4d0' }}>·</span>
+                    <span style={{ color: '#d4d4d0', userSelect: 'none' }}>·</span>
                     <button onClick={() => setBookSelectedIds(new Set())}
-                      style={{ background: 'none', border: 'none', padding: '3px 8px', fontSize: 11, fontWeight: 700, color: '#57534e', cursor: 'pointer', borderRadius: 6, transition: 'background 0.1s' }}
-                      onMouseEnter={e => { e.currentTarget.style.background = '#f0efee'; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+                      style={{ background: 'none', border: 'none', padding: '3px 8px', fontSize: 11, fontWeight: 700, color: '#a8a29e', cursor: 'pointer', borderRadius: 6, transition: 'color 0.1s', textDecoration: 'underline', textDecorationColor: 'transparent', textUnderlineOffset: '2px' }}
+                      onMouseEnter={e => { e.currentTarget.style.textDecorationColor = '#a8a29e'; }}
+                      onMouseLeave={e => { e.currentTarget.style.textDecorationColor = 'transparent'; }}
                     >Nenhuma</button>
                   </div>
                 )}
@@ -3317,7 +3321,7 @@ export default function Arte() {
                   return (
                     <div key={item.id}
                       onClick={() => setBookSelectedIds(prev => { const n = new Set(prev); if (n.has(item.id)) n.delete(item.id); else n.add(item.id); return n; })}
-                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', borderBottom: isLast ? 'none' : '1px solid #f5f4f2', cursor: 'pointer', background: on ? '#fff7ed' : '#ffffff', transition: 'background 0.1s' }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderBottom: isLast ? 'none' : '1px solid #f5f4f2', cursor: 'pointer', background: on ? '#fff7ed' : '#ffffff', transition: 'background 0.1s' }}
                       onMouseEnter={e => { if (!on) e.currentTarget.style.background = '#fafaf9'; }}
                       onMouseLeave={e => { e.currentTarget.style.background = on ? '#fff7ed' : '#ffffff'; }}
                     >
@@ -3347,15 +3351,18 @@ export default function Arte() {
           </div>
 
           {/* ── Footer ── */}
-          <div style={{ padding: '14px 28px', borderTop: '1px solid #ebe8e3', display: 'flex', gap: 10, justifyContent: 'flex-end', backgroundColor: '#ffffff' }}>
+          <div style={{ padding: '14px 28px', borderTop: '1px solid #ebe8e3', display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#ffffff' }}>
+            {/* Ghost — Cancelar fica à esquerda, longe do CTA primário */}
             <button onClick={() => setShowBookModal(false)}
-              style={{ height: 38, padding: '0 16px', borderRadius: 8, background: 'transparent', border: '1px solid #e7e5e4', color: '#78716c', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'background 0.12s' }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              style={{ height: 38, padding: '0 16px', borderRadius: 8, background: 'transparent', border: 'none', color: '#78716c', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'color 0.12s' }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#78716c'; }}
             >Cancelar</button>
+            {/* Filled — Salvar book */}
             <button
               onClick={() => saveBookMutation.mutate()}
               disabled={!bookFileUrl || bookSelectedIds.size === 0 || saveBookMutation.isPending}
+              title={!bookFileUrl ? 'Adicione o arquivo PDF antes de salvar' : bookSelectedIds.size === 0 ? 'Selecione ao menos uma peça' : undefined}
               style={{
                 height: 38, padding: '0 20px', borderRadius: 8, border: 'none',
                 background: (!bookFileUrl || bookSelectedIds.size === 0 || saveBookMutation.isPending) ? '#e7e5e4' : 'linear-gradient(135deg,#1c1917,#292524)',
@@ -3412,7 +3419,7 @@ export default function Arte() {
           </div>
 
           {/* ── Body — 2 columns ── */}
-          <div style={{ display: 'flex', height: 520, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', height: 520, overflow: 'visible' }}>
 
             {/* ══════════════════════════════════════
                 Left panel — upload + controles
@@ -3462,56 +3469,14 @@ export default function Arte() {
               {/* ── Event filter ── */}
               <div style={{ padding: '14px 18px 0' }}>
                 <p style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', margin: '0 0 6px' }}>Evento</p>
-                {(() => {
-                  const sortedEvts = [...(events as any[])].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
-                  const selEvt = sortedEvts.find(e => e.id === bulkThumbEventFilter);
-                  return (
-                    <Popover open={bulkThumbEventComboOpen} onOpenChange={setBulkThumbEventComboOpen}>
-                      <PopoverTrigger asChild>
-                        <button style={{
-                          width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8,
-                          height: 34, borderRadius: 8, border: '1px solid #e7e5e4',
-                          backgroundColor: '#ffffff', fontSize: 12, fontWeight: 600,
-                          color: selEvt ? '#1c1917' : '#78716c', padding: '0 10px', cursor: 'pointer', outline: 'none',
-                        }}>
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {selEvt ? selEvt.name : 'Todos os eventos'}
-                          </span>
-                          <ChevronsUpDown style={{ width: 12, height: 12, color: '#a8a29e', flexShrink: 0 }} />
-                        </button>
-                      </PopoverTrigger>
-                      <PopoverContent className="p-0" style={{ width: isMobile ? '90vw' : 240 }} align="start">
-                        <Command>
-                          <CommandInput placeholder="Buscar evento..." />
-                          <CommandList style={{ maxHeight: 220 }}>
-                            <CommandEmpty>Nenhum evento encontrado.</CommandEmpty>
-                            <CommandGroup>
-                              <CommandItem
-                                value="all"
-                                className="data-[selected=true]:bg-stone-100 data-[selected=true]:text-stone-900"
-                                onSelect={() => { setBulkThumbEventFilter("all"); setBulkThumbEventComboOpen(false); }}
-                              >
-                                <Check style={{ width: 12, height: 12, color: '#16a34a', opacity: bulkThumbEventFilter === "all" ? 1 : 0, marginRight: 8, flexShrink: 0 }} />
-                                Todos os eventos
-                              </CommandItem>
-                              {sortedEvts.map((ev: any) => (
-                                <CommandItem
-                                  key={ev.id}
-                                  value={ev.name}
-                                  className="data-[selected=true]:bg-stone-100 data-[selected=true]:text-stone-900"
-                                  onSelect={() => { setBulkThumbEventFilter(ev.id); setBulkThumbEventComboOpen(false); }}
-                                >
-                                  <Check style={{ width: 12, height: 12, color: '#16a34a', opacity: bulkThumbEventFilter === ev.id ? 1 : 0, marginRight: 8, flexShrink: 0 }} />
-                                  {ev.name}
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                  );
-                })()}
+                <div style={{ width: '100%' }}>
+                  <EventFilterDropdown
+                    value={bulkThumbEventFilter}
+                    onChange={setBulkThumbEventFilter}
+                    allLabel="Todos os eventos"
+                    options={(events as any[]).map((ev: any) => ({ value: ev.id, label: ev.name }))}
+                  />
+                </div>
               </div>
 
               {/* ── Resumo — só aparece quando há arquivos com count > 0 ── */}

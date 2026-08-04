@@ -434,6 +434,17 @@ export default function Grafica() {
   const onPhotoError = (error: Error) =>
     toast({ title: "Erro no upload", description: error.message, variant: "destructive" });
 
+  // Barra de ações dos modais. No celular o conteúdo (arte grande + specs +
+  // fotos + observação) passa da altura da tela, e o botão de confirmar ficava
+  // no fim da rolagem: depois de tirar a foto era preciso procurar por ele.
+  const modalActionsStyle: React.CSSProperties = {
+    display: "flex", gap: 10,
+    position: "sticky", bottom: 0,
+    backgroundColor: "#ffffff",
+    paddingTop: 12, marginTop: -4,
+    boxShadow: "0 -8px 12px -8px rgba(28,25,23,0.18)",
+  };
+
   const renderNotesField = (placeholder: string) => (
     <div>
       <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 8 }}>
@@ -1858,7 +1869,7 @@ export default function Grafica() {
                 </div>
 
                 {/* Footer */}
-                <div style={{ display: "flex", gap: 10 }}>
+                <div style={modalActionsStyle}>
                   <button
                     type="button"
                     onClick={() => { setSelectedItem(null); setModalType(null); }}
@@ -1922,7 +1933,7 @@ export default function Grafica() {
                 {renderNotesField("Ex.: entregue na portaria, faltou 1 caixa…")}
 
                 {/* Footer */}
-                <div style={{ display: "flex", gap: 10 }}>
+                <div style={modalActionsStyle}>
                   <button
                     type="button"
                     onClick={() => { setSelectedItem(null); setModalType(null); }}
@@ -1964,7 +1975,7 @@ export default function Grafica() {
                 {renderPhotoPicker("· obrigatória, pode anexar várias")}
 
                 {renderNotesField("Ex.: cor puxando para o escuro, ilhós faltando…")}
-                <div style={{ display: "flex", gap: 10 }}>
+                <div style={modalActionsStyle}>
                   <button type="button" onClick={() => { setSelectedItem(null); setModalType(null); }}
                     style={{ flex: 1, padding: "12px 0", backgroundColor: "transparent", border: "none", color: "#78716c", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer", borderRadius: 8 }}>
                     Cancelar

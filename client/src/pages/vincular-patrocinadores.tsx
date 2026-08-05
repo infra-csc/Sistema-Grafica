@@ -1431,7 +1431,7 @@ export default function VincularPatrocinadores() {
             </div>
             <button
               onClick={() => setPreviewRefUrl(null)}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, border: '1px solid #e7e5e4', background: 'white', cursor: 'pointer', color: '#78716c' }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 8, border: '1px solid #e7e5e4', background: 'white', cursor: 'pointer', color: '#78716c' }}
               data-testid="button-close-ref-preview"
             >
               <X style={{ width: 14, height: 14 }} />
@@ -1476,12 +1476,12 @@ export default function VincularPatrocinadores() {
                 <Zap style={{ width: 15, height: 15, color: '#fff' }} />
               </div>
               <div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: '#1c1917', letterSpacing: '-0.01em' }}>Auto-vincular por Cota</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: '#1c1917', letterSpacing: '-0.01em' }}>Auto-vincular por Cota</div>
                 <div style={{ fontSize: 11, color: '#78716c', marginTop: 2 }}>Patrocinadores serão vinculados conforme as regras de cota do evento</div>
               </div>
             </div>
             <button onClick={() => { setAutoLinkOpen(false); setAutoLinkPreview(null); }}
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, border: '1px solid #e7e5e4', background: 'white', cursor: 'pointer', color: '#78716c' }}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 8, border: '1px solid #e7e5e4', background: 'white', cursor: 'pointer', color: '#78716c' }}
               data-testid="button-close-auto-link">
               <X style={{ width: 14, height: 14 }} />
             </button>
@@ -1509,14 +1509,14 @@ export default function VincularPatrocinadores() {
                 {autoLinkPreview.length > 0 && (
                   <div>
                     {/* Total count */}
-                    <div style={{ fontSize: 10, fontWeight: 800, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12 }}>
                       {autoLinkPreview.reduce((acc: number, e: any) => acc + e.items.length, 0)} vínculo{autoLinkPreview.reduce((acc: number, e: any) => acc + e.items.length, 0) !== 1 ? 's' : ''} a criar · {autoLinkPreview.length} patrocinador{autoLinkPreview.length !== 1 ? 'es' : ''}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                       {autoLinkPreview.map((entry: any) => (
                         <div key={entry.sponsorId} style={{ padding: '10px 14px', borderRadius: 8, backgroundColor: '#f0f0ff', border: '1px solid #e0e0ff' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-                            <span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: 10, fontWeight: 700, backgroundColor: '#4f46e5', color: '#fff', textTransform: 'uppercase' }}>
+                            <span style={{ padding: '2px 8px', borderRadius: 9999, fontSize: 11, fontWeight: 700, backgroundColor: '#4f46e5', color: '#fff', textTransform: 'uppercase' }}>
                               {entry.quota}
                             </span>
                             <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917' }}>{entry.sponsorName}</span>
@@ -1580,13 +1580,13 @@ export default function VincularPatrocinadores() {
         <div>
           {/* Breadcrumb */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <span style={{ display: 'inline-block', padding: '3px 10px', backgroundColor: '#f97316', color: '#fff', fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', borderRadius: 4 }}>
+            <span style={{ display: 'inline-block', padding: '3px 10px', backgroundColor: '#f97316', color: '#fff', fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', borderRadius: 4 }}>
               Fluxo de Verificação
             </span>
-            <span style={{ fontSize: 10, color: '#a8a29e', fontWeight: 500 }}>•</span>
-            <span style={{ fontSize: 10, color: '#78716c', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase' }}>Vincular Patrocinadores</span>
+            <span style={{ fontSize: 11, color: '#a8a29e', fontWeight: 500 }}>•</span>
+            <span style={{ fontSize: 11, color: '#78716c', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Vincular Patrocinadores</span>
           </div>
-          <h1 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 'clamp(1.5rem, 2.5vw, 1.875rem)', fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1.1, color: '#1a1c1c', marginBottom: 6 }}>
+          <h1 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 'clamp(1.5rem, 2.5vw, 1.875rem)', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.1, color: '#1a1c1c', marginBottom: 6 }}>
             Vincular Patrocinadores
           </h1>
           <p style={{ color: '#78716c', fontSize: 14, fontWeight: 500, lineHeight: 1.5, marginBottom: 10 }}>
@@ -1659,7 +1659,7 @@ export default function VincularPatrocinadores() {
           >
             <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
               <Send style={{ width: 13, height: 13, flexShrink: 0 }} />
-              <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: '-0.01em' }}>
+              <span style={{ fontWeight: 700, fontSize: 13, letterSpacing: '-0.01em' }}>
                 Enviar para Arte
                 {contextStatusCounts.PRONTO > 0 && (
                   <span style={{ marginLeft: 6, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 4, padding: '1px 6px', fontSize: 11 }}>
@@ -1668,7 +1668,7 @@ export default function VincularPatrocinadores() {
                 )}
               </span>
             </div>
-            <span style={{ fontSize: 10, fontWeight: 400, opacity: 0.8, paddingLeft: 20, letterSpacing: 0 }}>
+            <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.8, paddingLeft: 20, letterSpacing: 0 }}>
               {contextStatusCounts.PRONTO === 0 ? 'Nenhum item pronto' : 'Conclui sua etapa de vinculação'}
             </span>
           </button>
@@ -1679,10 +1679,10 @@ export default function VincularPatrocinadores() {
       <div style={{ backgroundColor: '#f3f4f3', borderRadius: 12, padding: '20px 24px', marginBottom: 32 }}>
         {/* Row 1: título + número total */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14 }}>
-          <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#78716c' }}>Progresso de Envio</span>
-          <span style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 22, fontWeight: 900, color: '#1a1c1c', letterSpacing: '-0.03em' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#78716c' }}>Progresso de Envio</span>
+          <span style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 22, fontWeight: 700, color: '#1a1c1c', letterSpacing: '-0.03em' }}>
             {completedItems} <span style={{ color: '#a8a29e' }}>de</span> {totalItems}{' '}
-            <span style={{ fontSize: 10, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>enviados</span>
+            <span style={{ fontSize: 11, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>enviados</span>
           </span>
         </div>
 
@@ -1716,24 +1716,24 @@ export default function VincularPatrocinadores() {
           {/* PENDENTE */}
           <div style={{ backgroundColor: '#ffffff', borderRadius: 8, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: '3px solid #d4d0cc' }}>
             <div>
-              <p style={{ fontSize: 9, fontWeight: 800, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Sem ação</p>
-              <p style={{ fontSize: 15, fontWeight: 800, color: '#1a1c1c', lineHeight: 1 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Sem ação</p>
+              <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1c1c', lineHeight: 1 }}>
                 {contextStatusCounts.PENDENTE}
                 <span style={{ fontSize: 11, fontWeight: 500, color: '#78716c', marginLeft: 4 }}>{contextStatusCounts.PENDENTE !== 1 ? 'itens' : 'item'}</span>
               </p>
-              <p style={{ fontSize: 10, color: '#a8a29e', marginTop: 2 }}>Aguardando vinculação</p>
+              <p style={{ fontSize: 11, color: '#a8a29e', marginTop: 2 }}>Aguardando vinculação</p>
             </div>
           </div>
 
           {/* RASCUNHO */}
           <div style={{ backgroundColor: '#ffffff', borderRadius: 8, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: '3px solid #fb923c' }}>
             <div>
-              <p style={{ fontSize: 9, fontWeight: 800, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Rascunho</p>
-              <p style={{ fontSize: 15, fontWeight: 800, color: '#1a1c1c', lineHeight: 1 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Rascunho</p>
+              <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1c1c', lineHeight: 1 }}>
                 {contextStatusCounts.RASCUNHO}
                 <span style={{ fontSize: 11, fontWeight: 500, color: '#78716c', marginLeft: 4 }}>{contextStatusCounts.RASCUNHO !== 1 ? 'itens' : 'item'}</span>
               </p>
-              <p style={{ fontSize: 10, color: '#a8a29e', marginTop: 2 }}>Patrocinador adicionado, não salvo</p>
+              <p style={{ fontSize: 11, color: '#a8a29e', marginTop: 2 }}>Patrocinador adicionado, não salvo</p>
             </div>
             {contextStatusCounts.RASCUNHO > 0 && (
               <button
@@ -1757,12 +1757,12 @@ export default function VincularPatrocinadores() {
           {/* PRONTO */}
           <div style={{ backgroundColor: '#ffffff', borderRadius: 8, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: '3px solid #4ade80' }}>
             <div>
-              <p style={{ fontSize: 9, fontWeight: 800, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>Pronto para Envio</p>
-              <p style={{ fontSize: 15, fontWeight: 800, color: '#1a1c1c', lineHeight: 1 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Pronto para Envio</p>
+              <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1c1c', lineHeight: 1 }}>
                 {contextStatusCounts.PRONTO}
                 <span style={{ fontSize: 11, fontWeight: 500, color: '#78716c', marginLeft: 4 }}>{contextStatusCounts.PRONTO !== 1 ? 'itens' : 'item'}</span>
               </p>
-              <p style={{ fontSize: 10, color: '#a8a29e', marginTop: 2 }}>Salvo, aguardando envio à Arte</p>
+              <p style={{ fontSize: 11, color: '#a8a29e', marginTop: 2 }}>Salvo, aguardando envio à Arte</p>
             </div>
             {contextStatusCounts.PRONTO > 0 && (
               <button
@@ -1823,7 +1823,7 @@ export default function VincularPatrocinadores() {
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end" }}>
             {/* Filtro por Evento */}
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#78716c" }}>Evento</label>
+              <label style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#78716c" }}>Evento</label>
               <EventFilterDropdown
                 values={eventFilter}
                 onValuesChange={setEventFilter}
@@ -1833,7 +1833,7 @@ export default function VincularPatrocinadores() {
 
             {/* Filtro por Patrocinador */}
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#78716c" }}>Patrocinador</label>
+              <label style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#78716c" }}>Patrocinador</label>
               <FilterSelect
                 showAllLabelWhenEmpty hideWhenEmpty={false}
                 label="Patrocinador" allLabel="Todos os patrocinadores"
@@ -1846,7 +1846,7 @@ export default function VincularPatrocinadores() {
 
             {/* Filtro por Item (tipo) */}
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#78716c" }}>Peça</label>
+              <label style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#78716c" }}>Peça</label>
               <FilterSelect
                 label="Peça" allLabel="Todas as peças"
                 values={itemFilter} onValuesChange={setItemFilter}
@@ -1858,7 +1858,7 @@ export default function VincularPatrocinadores() {
 
             {/* Filtro por Status */}
             <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#78716c" }}>Status</label>
+              <label style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#78716c" }}>Status</label>
               <FilterSelect
                 label="Status" allLabel="Todos os status"
                 values={statusFilter} onValuesChange={setStatusFilter}
@@ -1899,12 +1899,12 @@ export default function VincularPatrocinadores() {
         <div style={{ position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 640, padding: '0 24px', zIndex: 50 }}>
           <div style={{ backgroundColor: '#1c1917', color: '#ffffff', padding: '14px 20px', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 16px 48px rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ width: 40, height: 40, backgroundColor: '#f97316', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 900, fontFamily: 'Space Grotesk, sans-serif', color: '#ffffff', flexShrink: 0 }}>
+              <div style={{ width: 40, height: 40, backgroundColor: '#f97316', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: '#ffffff', flexShrink: 0 }}>
                 {selectedItemIds.size}
               </div>
               <div>
                 <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: '-0.01em', color: '#ffffff', marginBottom: 1 }}>{selectedItemIds.size} {selectedItemIds.size === 1 ? 'item selecionado' : 'itens selecionados'}</p>
-                <p style={{ fontSize: 10, fontWeight: 500, letterSpacing: '0.04em', color: 'rgba(255,255,255,0.45)' }}>Ação em lote</p>
+                <p style={{ fontSize: 11, fontWeight: 500, letterSpacing: '0.04em', color: 'rgba(255,255,255,0.45)' }}>Ação em lote</p>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1944,7 +1944,7 @@ export default function VincularPatrocinadores() {
               <button
                 onClick={handleOpenBulkApplyDialog}
                 data-testid="button-apply-bulk-sponsors"
-                style={{ backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 800, fontSize: 13, textTransform: 'uppercase', letterSpacing: '-0.01em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                style={{ backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, textTransform: 'uppercase', letterSpacing: '-0.01em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
                 onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
                 onMouseLeave={e => (e.currentTarget.style.filter = 'none')}
               >
@@ -1990,7 +1990,7 @@ export default function VincularPatrocinadores() {
                   <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', color: '#ffffff', fontSize: 17, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '-0.01em', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {event.name}
                   </h2>
-                  <span style={{ backgroundColor: progress.completed === progress.total && progress.total > 0 ? '#16a34a' : '#3d3936', color: '#ffffff', borderRadius: 4, padding: '1px 7px', fontSize: 10, fontWeight: 900, whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.03em' }}>
+                  <span style={{ backgroundColor: progress.completed === progress.total && progress.total > 0 ? '#16a34a' : '#3d3936', color: '#ffffff', borderRadius: 4, padding: '1px 7px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.03em' }}>
                     {progress.completed}/{progress.total} CONCLUÍDO
                   </span>
                 </div>
@@ -2030,13 +2030,13 @@ export default function VincularPatrocinadores() {
                             data-testid={`checkbox-select-all-${event.id}`}
                           />
                         </th>
-                        <th className="px-3 py-4 text-left" style={{ fontSize: '10px', fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>ID</th>
-                        <th className="px-3 py-4 text-left" style={{ fontSize: '10px', fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Peça / Especificação</th>
-                        <th className="px-3 py-4 text-left" style={{ fontSize: '10px', fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Detalhes</th>
-                        <th className="px-3 py-4 text-left" style={{ fontSize: '10px', fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        <th className="px-3 py-4 text-left" style={{ fontSize: '11px', fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>ID</th>
+                        <th className="px-3 py-4 text-left" style={{ fontSize: '11px', fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Peça / Especificação</th>
+                        <th className="px-3 py-4 text-left" style={{ fontSize: '11px', fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Detalhes</th>
+                        <th className="px-3 py-4 text-left" style={{ fontSize: '11px', fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                           Vínculos Ativos
                         </th>
-                        <th className="px-3 py-4 text-right pr-6" style={{ fontSize: '10px', fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        <th className="px-3 py-4 text-right pr-6" style={{ fontSize: '11px', fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                           Status
                         </th>
                       </tr>
@@ -2062,7 +2062,7 @@ export default function VincularPatrocinadores() {
                             <tr key={`group-${groupName}-${itemIndex}`}>
                               <td colSpan={6} style={{ padding: 0 }}>
                                 <div style={{ backgroundColor: '#dbeafe', padding: '5px 20px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  <span style={{ fontSize: 10, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{groupName}</span>
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{groupName}</span>
                                 </div>
                               </td>
                             </tr>
@@ -2099,20 +2099,20 @@ export default function VincularPatrocinadores() {
                                     </div>
                                     <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 20 }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                        <span style={{ fontSize: 10, fontWeight: 900, color: groupTextColor, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+                                        <span style={{ fontSize: 11, fontWeight: 700, color: groupTextColor, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                                           {item.type} — {typeItems.length} {typeItems.length !== 1 ? 'itens' : 'item'}
                                         </span>
                                         {/* Badge de status do grupo */}
                                         {allSent ? (
-                                          <span style={{ fontSize: 9, fontWeight: 800, color: '#15803d', backgroundColor: '#dcfce7', border: '1px solid #86efac', borderRadius: 4, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                          <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', backgroundColor: '#dcfce7', border: '1px solid #86efac', borderRadius: 4, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                                             Enviado
                                           </span>
                                         ) : allReady ? (
-                                          <span style={{ fontSize: 9, fontWeight: 800, color: '#166534', backgroundColor: '#dcfce7', border: '1px solid #86efac', borderRadius: 4, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                          <span style={{ fontSize: 11, fontWeight: 700, color: '#166534', backgroundColor: '#dcfce7', border: '1px solid #86efac', borderRadius: 4, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                                             Pronto
                                           </span>
                                         ) : (
-                                          <span style={{ fontSize: 9, fontWeight: 800, color: '#92400e', backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 4, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                          <span style={{ fontSize: 11, fontWeight: 700, color: '#92400e', backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 4, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                                             {pendingCount} sem atribuição
                                           </span>
                                         )}
@@ -2186,7 +2186,7 @@ export default function VincularPatrocinadores() {
                                     onClick={e => { e.stopPropagation(); setPreviewRefUrl(item.referenceUrl!); }}
                                     title="Ver referência visual"
                                     data-testid={`link-reference-vincular-${item.id}`}
-                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 700, color: '#2563eb', textDecoration: 'none', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 3, padding: '2px 6px', marginTop: 2, cursor: 'pointer' }}
+                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: '#2563eb', textDecoration: 'none', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 3, padding: '2px 6px', marginTop: 2, cursor: 'pointer' }}
                                   >
                                     <Paperclip style={{ width: 9, height: 9 }} />
                                     Ref. visual
@@ -2197,7 +2197,7 @@ export default function VincularPatrocinadores() {
                             <td className="px-3 py-3">
                               <div style={{ display: 'flex', flexDirection: 'column' }}>
                                 <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1c1c' }}>Qty: {String(item.quantity).padStart(2, '0')}</span>
-                                <span style={{ fontSize: 10, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
                                   {parseFloat(item.calculatedM2).toFixed(2)} m²
                                 </span>
                               </div>
@@ -2207,12 +2207,12 @@ export default function VincularPatrocinadores() {
                               {currentSkipApproval ? (
                                 /* "Sem Patrocinador" */
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <span style={{ padding: '3px 8px', backgroundColor: '#fffbeb', color: '#92400e', border: '1px solid #fcd34d', fontSize: 9, fontWeight: 800, textTransform: 'uppercase', borderRadius: 4, letterSpacing: '0.04em' }}>
+                                  <span style={{ padding: '3px 8px', backgroundColor: '#fffbeb', color: '#92400e', border: '1px solid #fcd34d', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', borderRadius: 4, letterSpacing: '0.04em' }}>
                                     Sem Pat.
                                   </span>
                                   {isEditable && (
                                     <button onClick={() => toggleItemSkipApproval(item)} data-testid={`btn-undo-skip-${item.id}`}
-                                      style={{ background: 'none', border: 'none', fontSize: 10, color: '#a8a29e', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>
+                                      style={{ background: 'none', border: 'none', fontSize: 11, color: '#a8a29e', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>
                                       desfazer
                                     </button>
                                   )}
@@ -2243,7 +2243,7 @@ export default function VincularPatrocinadores() {
                                                 display: 'inline-flex', alignItems: 'center', gap: canUnlink ? 3 : 0,
                                                 padding: canUnlink ? '3px 4px 3px 7px' : '3px 7px',
                                                 backgroundColor: bg, color: fg,
-                                                fontSize: 9, fontWeight: 700, textTransform: 'uppercase',
+                                                fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
                                                 borderRadius: 4, letterSpacing: '0.04em', whiteSpace: 'nowrap',
                                               }}>
                                                 {sp.name}
@@ -2275,13 +2275,13 @@ export default function VincularPatrocinadores() {
                                           })}
                                           {!isExpanded && overflow > 0 && (
                                             <button onClick={(e) => { e.stopPropagation(); toggleSponsorExpand(item.id); }}
-                                              style={{ padding: '3px 6px', backgroundColor: '#f0efee', color: '#78716c', fontSize: 9, fontWeight: 700, borderRadius: 4, border: '1px solid #e7e5e4', cursor: 'pointer' }}>
+                                              style={{ padding: '3px 6px', backgroundColor: '#f0efee', color: '#78716c', fontSize: 11, fontWeight: 700, borderRadius: 4, border: '1px solid #e7e5e4', cursor: 'pointer' }}>
                                               +{overflow}
                                             </button>
                                           )}
                                           {isExpanded && validLinked.length > LIMIT && (
                                             <button onClick={(e) => { e.stopPropagation(); toggleSponsorExpand(item.id); }}
-                                              style={{ padding: '3px 6px', backgroundColor: '#f0efee', color: '#78716c', fontSize: 9, fontWeight: 700, borderRadius: 4, border: '1px solid #e7e5e4', cursor: 'pointer' }}>
+                                              style={{ padding: '3px 6px', backgroundColor: '#f0efee', color: '#78716c', fontSize: 11, fontWeight: 700, borderRadius: 4, border: '1px solid #e7e5e4', cursor: 'pointer' }}>
                                               menos
                                             </button>
                                           )}
@@ -2315,7 +2315,7 @@ export default function VincularPatrocinadores() {
                                       {uiStatus === 'PRONTO' && (
                                         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 7px', backgroundColor: '#dcfce7', border: '1px solid #86efac', borderRadius: 4, width: 'fit-content' }}>
                                           <Check style={{ width: 9, height: 9, color: '#166534' }} />
-                                          <span style={{ fontSize: 9, fontWeight: 700, color: '#166534', letterSpacing: '0.04em' }}>Salvo · editar</span>
+                                          <span style={{ fontSize: 11, fontWeight: 700, color: '#166534', letterSpacing: '0.04em' }}>Salvo · editar</span>
                                         </div>
                                       )}
                                       {/* Row 1: sponsor toggle chips */}
@@ -2331,7 +2331,7 @@ export default function VincularPatrocinadores() {
                                               padding: '3px 7px',
                                               backgroundColor: allSelected ? '#1c1917' : '#f0efee',
                                               color: allSelected ? '#ffffff' : '#78716c',
-                                              fontSize: 9, fontWeight: 800, textTransform: 'uppercase',
+                                              fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
                                               borderRadius: 4, border: `1px solid ${allSelected ? '#1c1917' : '#d6d3d1'}`,
                                               cursor: 'pointer', letterSpacing: '0.03em',
                                             }}
@@ -2370,7 +2370,7 @@ export default function VincularPatrocinadores() {
                                                 padding: '3px 7px',
                                                 backgroundColor: isLinked ? hexToRgba(brandColor, 0.18) : '#fafafa',
                                                 color: isLinked ? brandColor : '#57534e',
-                                                fontSize: 9, fontWeight: 700, textTransform: 'uppercase',
+                                                fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
                                                 borderRadius: 4,
                                                 border: `1px solid ${isLinked ? hexToRgba(brandColor, 0.5) : hexToRgba(brandColor, 0.3)}`,
                                                 cursor: isEditable ? 'pointer' : 'not-allowed',
@@ -2395,11 +2395,11 @@ export default function VincularPatrocinadores() {
                                           <button
                                             onClick={(e) => { e.stopPropagation(); toggleItemSkipApproval(item); }}
                                             data-testid={`btn-skip-sponsor-${item.id}`}
-                                            style={{ background: 'none', border: 'none', fontSize: 10, color: '#a8a29e', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
+                                            style={{ background: 'none', border: 'none', fontSize: 11, color: '#a8a29e', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
                                           >
                                             sem pat.
                                           </button>
-                                          <span style={{ color: '#d6d3d1', fontSize: 10 }}>·</span>
+                                          <span style={{ color: '#d6d3d1', fontSize: 11 }}>·</span>
                                           <button
                                             onClick={(e) => { e.stopPropagation(); updateItemIsReuseMutation.mutate({ itemId: item.id, isReuse: !item.isReuse }); }}
                                             data-testid={`btn-reuse-${item.id}`}
@@ -2407,7 +2407,7 @@ export default function VincularPatrocinadores() {
                                             style={{
                                               display: 'inline-flex', alignItems: 'center', gap: 3,
                                               background: 'none', border: 'none', padding: 0,
-                                              fontSize: 10, fontWeight: item.isReuse ? 700 : 400,
+                                              fontSize: 11, fontWeight: item.isReuse ? 700 : 400,
                                               color: item.isReuse ? '#065f46' : '#a8a29e',
                                               cursor: 'pointer', textDecoration: item.isReuse ? 'none' : 'underline',
                                             }}
@@ -2430,7 +2430,7 @@ export default function VincularPatrocinadores() {
                                 <span
                                   data-testid={`badge-status-${item.id}`}
                                   style={{
-                                    padding: '2px 8px', borderRadius: 9999, fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em',
+                                    padding: '2px 8px', borderRadius: 9999, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
                                     ...(uiStatus === 'RASCUNHO' ? { backgroundColor: '#ffedd5', color: '#c2410c' }
                                       : uiStatus === 'PRONTO' ? { backgroundColor: '#dcfce7', color: '#166534' }
                                       : uiStatus === 'ENVIADO' ? { backgroundColor: '#1c1917', color: '#ffffff' }
@@ -2537,7 +2537,7 @@ export default function VincularPatrocinadores() {
               }} />
             </div>
             {sponsorLinkStats.total > 0 && (
-              <div style={{ marginTop: 6, textAlign: 'right', fontSize: 11, fontWeight: 800, color: '#f97316', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+              <div style={{ marginTop: 6, textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#f97316', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                 {Math.round((sponsorLinkStats.fullyLinked / sponsorLinkStats.total) * 100)}% completo
               </div>
             )}
@@ -2560,7 +2560,7 @@ export default function VincularPatrocinadores() {
                     width: 32, height: 32, borderRadius: '50%',
                     backgroundColor: '#f97316',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 13, fontWeight: 800, color: '#ffffff',
+                    fontSize: 13, fontWeight: 700, color: '#ffffff',
                   }}>{n}</div>
                   <span style={{ color: '#ffffff', fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em' }}>
                     {n} item{n !== 1 ? 's' : ''} selecionado{n !== 1 ? 's' : ''}
@@ -2609,7 +2609,7 @@ export default function VincularPatrocinadores() {
                       <Package style={{ width: 22, height: 22, color: '#f97316' }} />
                     </div>
                     <div>
-                      <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: '#ffffff', textTransform: 'uppercase', letterSpacing: '-0.02em', fontFamily: "'Space Grotesk', sans-serif" }}>
+                      <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#ffffff', textTransform: 'uppercase', letterSpacing: '-0.02em', fontFamily: "'Space Grotesk', sans-serif" }}>
                         {event.name}
                       </h2>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
@@ -2618,7 +2618,7 @@ export default function VincularPatrocinadores() {
                           backgroundColor: 'rgba(249,115,22,0.2)', color: '#f97316',
                           border: '1px solid rgba(249,115,22,0.3)',
                           borderRadius: 100, padding: '2px 10px',
-                          fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em',
+                          fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
                         }}>
                           <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: '#f97316', display: 'inline-block' }} />
                           {eventSponsorList.length} Patrocinadores Ativos
@@ -2643,7 +2643,7 @@ export default function VincularPatrocinadores() {
                             marginLeft: idx === 0 ? 0 : -10,
                             backgroundColor: s.color || '#3b82f6',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 10, fontWeight: 800, color: '#ffffff',
+                            fontSize: 11, fontWeight: 700, color: '#ffffff',
                             zIndex: visibleSponsors.length - idx,
                             position: 'relative',
                             flexShrink: 0,
@@ -2659,7 +2659,7 @@ export default function VincularPatrocinadores() {
                           marginLeft: -10,
                           backgroundColor: '#57534e',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 10, fontWeight: 800, color: '#ffffff',
+                          fontSize: 11, fontWeight: 700, color: '#ffffff',
                           zIndex: 0, position: 'relative', flexShrink: 0,
                         }}>
                           +{overflowCount}
@@ -2718,15 +2718,15 @@ export default function VincularPatrocinadores() {
                             width: 32, height: 32, borderRadius: 6,
                             backgroundColor: sponsor.color || '#3b82f6',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 13, fontWeight: 800, color: '#ffffff', flexShrink: 0,
+                            fontSize: 13, fontWeight: 700, color: '#ffffff', flexShrink: 0,
                           }}>
                             {sponsor.name.charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <div style={{ fontSize: 13, fontWeight: 800, color: '#1c1917', textTransform: 'uppercase', letterSpacing: '-0.01em' }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', textTransform: 'uppercase', letterSpacing: '-0.01em' }}>
                               {sponsor.name}
                             </div>
-                            <div style={{ fontSize: 10, fontWeight: 700, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 1 }}>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 1 }}>
                               Patrocinador
                             </div>
                           </div>
@@ -2739,7 +2739,7 @@ export default function VincularPatrocinadores() {
                               {linkedItems.length} / {effectiveTotal} itens vinculados
                             </div>
                             {sentWithoutLinkItems.length > 0 && (
-                              <div style={{ fontSize: 9, fontWeight: 700, color: '#c2410c', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                              <div style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                                 {sentWithoutLinkItems.length} enviado{sentWithoutLinkItems.length !== 1 ? 's' : ''} s/ vínculo
                               </div>
                             )}
@@ -2755,15 +2755,15 @@ export default function VincularPatrocinadores() {
 
                           {/* Status chip */}
                           {allLinked ? (
-                            <span style={{ backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: 4, padding: '3px 10px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+                            <span style={{ backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: 4, padding: '3px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
                               Completo
                             </span>
                           ) : nearCompletion ? (
-                            <span style={{ backgroundColor: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', borderRadius: 4, padding: '3px 10px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+                            <span style={{ backgroundColor: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', borderRadius: 4, padding: '3px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
                               Quase Completo
                             </span>
                           ) : (
-                            <span style={{ backgroundColor: '#fafaf9', color: '#78716c', border: '1px solid #e7e5e4', borderRadius: 4, padding: '3px 10px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+                            <span style={{ backgroundColor: '#fafaf9', color: '#78716c', border: '1px solid #e7e5e4', borderRadius: 4, padding: '3px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
                               Em Andamento
                             </span>
                           )}
@@ -2791,7 +2791,7 @@ export default function VincularPatrocinadores() {
                                   <input type="checkbox" style={{ display: 'none' }} />
                                 </th>
                                 {['ID', 'Peça', 'Detalhes', 'Status de Vínculo', 'Ações'].map(col => (
-                                  <th key={col} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 9, fontWeight: 800, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{col}</th>
+                                  <th key={col} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{col}</th>
                                 ))}
                               </tr>
                             </thead>
@@ -2837,12 +2837,12 @@ export default function VincularPatrocinadores() {
                                     <td style={{ padding: '12px 16px' }}>
                                       <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
                                         {item.quantity && (
-                                          <span style={{ padding: '2px 6px', backgroundColor: '#f4f3f0', borderRadius: 3, fontSize: 9, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                          <span style={{ padding: '2px 6px', backgroundColor: '#f4f3f0', borderRadius: 3, fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                                             {item.quantity} un
                                           </span>
                                         )}
                                         {item.calculatedM2 && parseFloat(item.calculatedM2) > 0 && (
-                                          <span style={{ padding: '2px 6px', backgroundColor: '#f4f3f0', borderRadius: 3, fontSize: 9, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                          <span style={{ padding: '2px 6px', backgroundColor: '#f4f3f0', borderRadius: 3, fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                                             {parseFloat(item.calculatedM2).toFixed(2)} m²
                                           </span>
                                         )}
@@ -2851,15 +2851,15 @@ export default function VincularPatrocinadores() {
                                     {/* Status badge */}
                                     <td style={{ padding: '12px 16px' }}>
                                       {isLinked ? (
-                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: 100, padding: '3px 10px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: 100, padding: '3px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                                           <Check style={{ width: 9, height: 9 }} /> Vinculado
                                         </span>
                                       ) : isSent ? (
-                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', borderRadius: 100, padding: '3px 10px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }} title="Item enviado sem este patrocinador vinculado">
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', borderRadius: 100, padding: '3px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }} title="Item enviado sem este patrocinador vinculado">
                                           <Send style={{ width: 9, height: 9 }} /> Enviado s/ vínculo
                                         </span>
                                       ) : (
-                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: '#f5f5f4', color: '#78716c', border: '1px solid #e7e5e4', borderRadius: 100, padding: '3px 10px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: '#f5f5f4', color: '#78716c', border: '1px solid #e7e5e4', borderRadius: 100, padding: '3px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                                           Pendente
                                         </span>
                                       )}
@@ -2875,7 +2875,7 @@ export default function VincularPatrocinadores() {
                                           <button
                                             onClick={() => openSendModalForItem(item)}
                                             disabled={sendToArteMutation.isPending}
-                                            style={{ backgroundColor: '#1c1917', color: '#ffffff', border: 'none', borderRadius: 6, height: 30, padding: '0 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                                            style={{ backgroundColor: '#1c1917', color: '#ffffff', border: 'none', borderRadius: 6, height: 34, padding: '0 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                                             onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316')}
                                             onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1c1917')}
                                             data-testid={`sp-btn-send-${item.id}`}
@@ -2885,7 +2885,7 @@ export default function VincularPatrocinadores() {
                                           <button
                                             onClick={() => unlinkSponsorFromItem(item.id, sponsor.id)}
                                             title="Desvincular"
-                                            style={{ backgroundColor: 'transparent', border: '1px solid #e7e5e4', color: '#78716c', borderRadius: 6, height: 30, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
+                                            style={{ backgroundColor: 'transparent', border: '1px solid #e7e5e4', color: '#78716c', borderRadius: 6, height: 34, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
                                             onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#fca5a5'; b.style.color = '#dc2626'; }}
                                             onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#e7e5e4'; b.style.color = '#78716c'; }}
                                             data-testid={`sp-btn-unlink-${item.id}-${sponsor.id}`}
@@ -2897,7 +2897,7 @@ export default function VincularPatrocinadores() {
                                         <button
                                           onClick={() => linkSponsorToItem(item.id, sponsor.id)}
                                           disabled={saveLinkingMutation.isPending}
-                                          style={{ backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 6, height: 30, padding: '0 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                                          style={{ backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 6, height: 34, padding: '0 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                                           onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#ea580c')}
                                           onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316')}
                                           data-testid={`sp-btn-link-${item.id}`}
@@ -2933,7 +2933,7 @@ export default function VincularPatrocinadores() {
                   Patrocinadores do Evento
                 </DialogTitle>
                 {selectedEventForSponsors && (
-                  <p style={{ fontSize: 11, marginTop: 3, color: '#78716c', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.09em' }}>
+                  <p style={{ fontSize: 11, marginTop: 3, color: '#78716c', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                     {selectedEventForSponsors.name}
                   </p>
                 )}
@@ -2999,7 +2999,7 @@ export default function VincularPatrocinadores() {
               return (
                 <>
                   {selected.length > 0 && unselected.length > 0 && (
-                    <div style={{ fontSize: 10, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '2px 4px 4px' }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '2px 4px 4px' }}>
                       Selecionados ({selected.length})
                     </div>
                   )}
@@ -3009,7 +3009,7 @@ export default function VincularPatrocinadores() {
                     return (
                       <div key={sponsor.id}>
                         {showDivider && (
-                          <div style={{ fontSize: 10, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', padding: '8px 4px 4px' }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em', padding: '8px 4px 4px' }}>
                             Disponíveis ({unselected.length})
                           </div>
                         )}
@@ -3071,7 +3071,7 @@ export default function VincularPatrocinadores() {
               <button
                 onClick={() => { setSponsorDialogOpen(false); setSponsorModalSearch(''); }}
                 disabled={manageEventSponsorsMutation.isPending}
-                style={{ height: 34, padding: '0 14px', background: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#44403c', cursor: 'pointer' }}
+                style={{ height: 36, padding: '0 14px', background: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#44403c', cursor: 'pointer' }}
               >
                 Cancelar
               </button>
@@ -3079,7 +3079,7 @@ export default function VincularPatrocinadores() {
                 onClick={handleSaveEventSponsors}
                 disabled={manageEventSponsorsMutation.isPending}
                 data-testid="button-save-event-sponsors"
-                style={{ height: 34, padding: '0 16px', backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                style={{ height: 36, padding: '0 16px', backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
               >
                 {manageEventSponsorsMutation.isPending ? "Salvando..." : "Salvar"}
               </button>
@@ -3231,7 +3231,7 @@ export default function VincularPatrocinadores() {
                       {unselectedOnes.length > 0 && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0' }}>
                           <div style={{ flex: 1, height: 1, backgroundColor: '#eeeeed' }} />
-                          <span style={{ fontSize: 10, color: '#a8a29e', fontWeight: 600, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>outros</span>
+                          <span style={{ fontSize: 11, color: '#a8a29e', fontWeight: 600, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>outros</span>
                           <div style={{ flex: 1, height: 1, backgroundColor: '#eeeeed' }} />
                         </div>
                       )}
@@ -3290,10 +3290,10 @@ export default function VincularPatrocinadores() {
                 <Send style={{ width: 22, height: 22, color: '#ffffff' }} />
               </div>
               <div style={{ flex: 1 }}>
-                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>
+                <p style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.45)', marginBottom: 4 }}>
                   Envio para a equipe de Arte
                 </p>
-                <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 22, fontWeight: 800, letterSpacing: '-0.03em', color: '#ffffff', margin: 0, lineHeight: 1.1 }}>
+                <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 22, fontWeight: 700, letterSpacing: '-0.03em', color: '#ffffff', margin: 0, lineHeight: 1.1 }}>
                   Enviar para Arte
                 </h2>
                 <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.55)', marginTop: 6, lineHeight: 1.4 }}>
@@ -3302,10 +3302,10 @@ export default function VincularPatrocinadores() {
               </div>
               {/* Count pill */}
               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 18px', background: 'rgba(249,115,22,0.15)', border: '1px solid rgba(249,115,22,0.3)', borderRadius: 12, flexShrink: 0 }}>
-                <span style={{ fontSize: 28, fontWeight: 900, color: '#fb923c', fontFamily: 'Space Grotesk, sans-serif', lineHeight: 1 }}>
+                <span style={{ fontSize: 28, fontWeight: 700, color: '#fb923c', fontFamily: 'Space Grotesk, sans-serif', lineHeight: 1 }}>
                   {sendConfirmModal?.items.length ?? 0}
                 </span>
-                <span style={{ fontSize: 10, fontWeight: 600, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.45)', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>
                   {(sendConfirmModal?.items.length ?? 0) === 1 ? 'item' : 'itens'}
                 </span>
               </div>
@@ -3324,16 +3324,16 @@ export default function VincularPatrocinadores() {
                   <div style={{ flex: 1, padding: '9px 14px', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <CheckCircle2 style={{ width: 14, height: 14, color: '#4ade80', flexShrink: 0 }} />
                     <div>
-                      <p style={{ fontSize: 16, fontWeight: 800, color: '#4ade80', lineHeight: 1, fontFamily: 'Space Grotesk, sans-serif' }}>{withSponsors}</p>
-                      <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>com patrocinador</p>
+                      <p style={{ fontSize: 16, fontWeight: 700, color: '#4ade80', lineHeight: 1, fontFamily: 'Space Grotesk, sans-serif' }}>{withSponsors}</p>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>com patrocinador</p>
                     </div>
                   </div>
                   {withoutSponsors > 0 && (
                     <div style={{ flex: 1, padding: '9px 14px', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                       <AlertTriangle style={{ width: 14, height: 14, color: '#fbbf24', flexShrink: 0 }} />
                       <div>
-                        <p style={{ fontSize: 16, fontWeight: 800, color: '#fbbf24', lineHeight: 1, fontFamily: 'Space Grotesk, sans-serif' }}>{withoutSponsors}</p>
-                        <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>sem patrocinador</p>
+                        <p style={{ fontSize: 16, fontWeight: 700, color: '#fbbf24', lineHeight: 1, fontFamily: 'Space Grotesk, sans-serif' }}>{withoutSponsors}</p>
+                        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>sem patrocinador</p>
                       </div>
                     </div>
                   )}
@@ -3368,20 +3368,20 @@ export default function VincularPatrocinadores() {
                   }}>
                     {/* Index number */}
                     <div style={{ width: 26, height: 26, borderRadius: 6, background: hasSponsor ? '#f4f4f3' : '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
-                      <span style={{ fontSize: 10, fontWeight: 800, color: hasSponsor ? '#78716c' : '#92400e' }}>{idx + 1}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: hasSponsor ? '#78716c' : '#92400e' }}>{idx + 1}</span>
                     </div>
 
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {/* Top row */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 11, fontWeight: 800, color: '#f97316', flexShrink: 0, background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 4, padding: '1px 6px' }}>
+                        <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 11, fontWeight: 700, color: '#f97316', flexShrink: 0, background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 4, padding: '1px 6px' }}>
                           {item.displayId}
                         </span>
                         <span style={{ fontSize: 13, fontWeight: 700, color: '#1a1c1c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
                           {item.type}
                         </span>
                         {eventName && (
-                          <span style={{ fontSize: 10, color: '#a8a29e', whiteSpace: 'nowrap', flexShrink: 0, background: '#f4f4f3', borderRadius: 4, padding: '2px 7px' }}>
+                          <span style={{ fontSize: 11, color: '#a8a29e', whiteSpace: 'nowrap', flexShrink: 0, background: '#f4f4f3', borderRadius: 4, padding: '2px 7px' }}>
                             {eventName}
                           </span>
                         )}
@@ -3409,7 +3409,7 @@ export default function VincularPatrocinadores() {
                               }}>
                                 <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: isNew ? '#f97316' : '#a8a29e', flexShrink: 0 }} />
                                 {sp.name}
-                                {isNew && <span style={{ fontSize: 9, color: '#f97316', fontWeight: 800, letterSpacing: '0.04em' }}>+NOVO</span>}
+                                {isNew && <span style={{ fontSize: 11, color: '#f97316', fontWeight: 700, letterSpacing: '0.04em' }}>+NOVO</span>}
                               </span>
                             );
                           })}
@@ -3457,7 +3457,7 @@ export default function VincularPatrocinadores() {
                   padding: '11px 26px',
                   background: (isSending || sendToArteMutation.isPending) ? '#fdba74' : 'linear-gradient(135deg, #f97316, #ea580c)',
                   color: '#ffffff', border: 'none', borderRadius: 10,
-                  fontSize: 14, fontWeight: 800, cursor: (isSending || sendToArteMutation.isPending) ? 'not-allowed' : 'pointer',
+                  fontSize: 14, fontWeight: 700, cursor: (isSending || sendToArteMutation.isPending) ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', gap: 9,
                   boxShadow: (isSending || sendToArteMutation.isPending) ? 'none' : '0 4px 12px rgba(249,115,22,0.35)',
                   letterSpacing: '-0.01em', fontFamily: 'Space Grotesk, sans-serif',
@@ -3480,7 +3480,7 @@ export default function VincularPatrocinadores() {
       <Dialog open={!!saveConfirmModal} onOpenChange={open => { if (!open && !saveLinkingMutation.isPending) setSaveConfirmModal(null); }}>
         <DialogContent style={{ maxWidth: 480, borderRadius: 12 }}>
           <DialogHeader>
-            <DialogTitle style={{ fontSize: 16, fontWeight: 800 }}>Confirmar Salvamento</DialogTitle>
+            <DialogTitle style={{ fontSize: 16, fontWeight: 700 }}>Confirmar Salvamento</DialogTitle>
             <DialogDescription style={{ fontSize: 13, color: '#78716c' }}>
               {saveConfirmModal?.items.length === 1
                 ? 'O item abaixo terá sua vinculação salva.'
@@ -3496,7 +3496,7 @@ export default function VincularPatrocinadores() {
               });
               return (
                 <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', backgroundColor: '#f9f8f7', borderRadius: 8, border: '1px solid #e7e5e4' }}>
-                  <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 800, color: '#f97316', minWidth: 52 }}>{item.displayId}</span>
+                  <span style={{ fontFamily: 'monospace', fontSize: 12, fontWeight: 700, color: '#f97316', minWidth: 52 }}>{item.displayId}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 13, fontWeight: 600, color: '#1a1c1c', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.type}</p>
                     {ch?.skipApproval ? (
@@ -3526,7 +3526,7 @@ export default function VincularPatrocinadores() {
                 });
               }}
               disabled={saveLinkingMutation.isPending}
-              style={{ padding: '8px 20px', borderRadius: 8, border: 'none', backgroundColor: '#f97316', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: saveLinkingMutation.isPending ? 0.7 : 1 }}
+              style={{ padding: '8px 20px', borderRadius: 8, border: 'none', backgroundColor: '#f97316', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: saveLinkingMutation.isPending ? 0.7 : 1 }}
             >
               <Save style={{ width: 14, height: 14 }} />
               {saveLinkingMutation.isPending ? 'Salvando...' : 'Confirmar Salvamento'}
@@ -3539,7 +3539,7 @@ export default function VincularPatrocinadores() {
       <Dialog open={!!returnModal} onOpenChange={open => { if (!open && !returnToCreationMutation.isPending) setReturnModal(null); }}>
         <DialogContent style={{ maxWidth: 420, borderRadius: 12 }}>
           <DialogHeader>
-            <DialogTitle style={{ fontSize: 16, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <DialogTitle style={{ fontSize: 16, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}>
               <RotateCcw style={{ width: 18, height: 18, color: '#f97316' }} />
               Devolver para Criação
             </DialogTitle>
@@ -3549,7 +3549,7 @@ export default function VincularPatrocinadores() {
           </DialogHeader>
           {returnModal && (
             <div style={{ padding: '10px 14px', backgroundColor: '#fff7ed', borderRadius: 8, border: '1px solid #fed7aa', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 800, color: '#f97316' }}>{returnModal.displayId}</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#f97316' }}>{returnModal.displayId}</span>
               <span style={{ fontSize: 13, fontWeight: 600, color: '#1a1c1c' }}>{returnModal.type}</span>
             </div>
           )}
@@ -3562,7 +3562,7 @@ export default function VincularPatrocinadores() {
             <button
               onClick={() => returnModal && returnToCreationMutation.mutate(returnModal.id)}
               disabled={returnToCreationMutation.isPending}
-              style={{ padding: '8px 20px', borderRadius: 8, border: 'none', backgroundColor: '#dc2626', color: '#fff', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: returnToCreationMutation.isPending ? 0.7 : 1 }}
+              style={{ padding: '8px 20px', borderRadius: 8, border: 'none', backgroundColor: '#dc2626', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: returnToCreationMutation.isPending ? 0.7 : 1 }}
             >
               <RotateCcw style={{ width: 14, height: 14 }} />
               {returnToCreationMutation.isPending ? 'Devolvendo...' : 'Confirmar Devolução'}

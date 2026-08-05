@@ -104,7 +104,7 @@ export function EventFilterDropdown({
 
         {/* Badge de contagem (2+) */}
         {multiple && values!.length > 1 && (
-          <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 99, backgroundColor: "#FB923C", color: "#fff", flexShrink: 0 }}>
+          <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 99, backgroundColor: "#FB923C", color: "#fff", flexShrink: 0 }}>
             {values!.length}
           </span>
         )}
@@ -224,7 +224,7 @@ export function EventFilterDropdown({
                   </span>
 
                   {opt.count !== undefined && (
-                    <span style={{ fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 99, backgroundColor: isSel ? "#FB923C" : "#F3F4F6", color: isSel ? "#fff" : "#6B7280", flexShrink: 0 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 99, backgroundColor: isSel ? "#FB923C" : "#F3F4F6", color: isSel ? "#fff" : "#6B7280", flexShrink: 0 }}>
                       {opt.count}
                     </span>
                   )}

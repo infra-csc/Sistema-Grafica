@@ -257,7 +257,7 @@ export function FilterSelect({
         {/* Count badge */}
         {opt.count !== undefined && (
           <span style={{
-            fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 99,
+            fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 99,
             backgroundColor: isSel ? C.badge : "#F3F4F6",
             color: isSel ? "#fff" : "#6B7280", flexShrink: 0,
           }}>
@@ -295,7 +295,7 @@ export function FilterSelect({
         {/* Badge de contagem (multi, 2+) */}
         {multiple && values!.length > 1 && (
           <span style={{
-            fontSize: 10, fontWeight: 700, padding: "1px 6px", borderRadius: 99,
+            fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 99,
             backgroundColor: C.badge, color: "#fff", flexShrink: 0, marginLeft: 2,
           }}>
             {values!.length}
@@ -407,7 +407,7 @@ export function FilterSelect({
               groupedEntries.map(([groupName, opts]) => (
                 <div key={groupName || "__sem__"}>
                   {groupName && (
-                    <div style={{ padding: "6px 12px 2px", fontSize: 10, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                    <div style={{ padding: "6px 12px 2px", fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                       {groupName}
                     </div>
                   )}

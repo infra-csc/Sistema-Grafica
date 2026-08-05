@@ -122,7 +122,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
           borderRadius: 16,
           backgroundColor: "#fff",
           border: "none",
-          boxShadow: "0 32px 64px -16px rgba(28,25,23,0.22), 0 0 0 1px rgba(0,0,0,0.06)",
+          boxShadow: "0 32px 64px -16px rgba(0,0,0,0.28), 0 0 0 1px rgba(0,0,0,0.05)",
           overflow: "hidden",
         }}
       >
@@ -144,7 +144,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
               <h2 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.03em", color: "#fff", margin: 0, lineHeight: 1.2 }}>
                 {allBook ? "Exportar Book" : "Exportar PDF"}
               </h2>
-              <p style={{ fontSize: 12, color: "rgba(255,255,255,0.4)", margin: "3px 0 0" }}>
+              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", margin: "3px 0 0" }}>
                 {allBook
                   ? "Todas as peças possuem book — o arquivo já está pronto para download"
                   : "Selecione as peças, aplique filtros e configure o layout do arquivo"}
@@ -153,7 +153,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
           </div>
           <button
             onClick={() => onOpenChange(false)}
-            style={{ width: 34, height: 34, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.1)", cursor: "pointer", color: "rgba(255,255,255,0.6)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            style={{ width: 40, height: 40, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", cursor: "pointer", color: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <X style={{ width: 16, height: 16 }} />
           </button>
         </div>
@@ -188,7 +188,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                       <button onClick={() => setUngroupedKeys(new Set(groupsInSelection.map(g => g.key)))} style={{ background: "none", border: "none", padding: 0, fontSize: 11, fontWeight: 700, color: "#7c3aed", cursor: "pointer" }}>Nenhum</button>
                     </div>
                   </div>
-                  <p style={{ fontSize: 11, color: "#a8a29e", margin: "0 0 12px", lineHeight: 1.5 }}>
+                  <p style={{ fontSize: 11, color: "#78716c", margin: "0 0 12px", lineHeight: 1.5 }}>
                     Grupos marcados saem juntos numa página. Desmarcados, uma peça por página.
                   </p>
                   <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
@@ -206,10 +206,10 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                             cursor: "pointer", transition: "background 0.1s",
                           }}
                         >
-                          <div style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, border: `2px solid ${on ? "#7c3aed" : "#ccc"}`, backgroundColor: on ? "#7c3aed" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            {on && <CheckCircle style={{ width: 9, height: 9, color: "#fff" }} />}
+                          <div style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, border: `2px solid ${on ? "#7c3aed" : "#d4d0ca"}`, backgroundColor: on ? "#7c3aed" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            {on && <CheckCircle style={{ width: 10, height: 10, color: "#fff" }} />}
                           </div>
-                          <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: "#1c1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{g.key}</span>
+                          <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: "#1c1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textTransform: "capitalize" }}>{g.key}</span>
                           <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: on ? "#7c3aed" : "#a8a29e" }}>
                             {on ? Math.ceil(g.count / MAX_ITEMS_PER_COMBINED_PAGE) : g.count} pág.
                           </span>
@@ -234,12 +234,12 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                       cursor: "pointer",
                     }}
                   >
-                    <div style={{ width: 16, height: 16, borderRadius: 4, flexShrink: 0, border: `2px solid ${groupByEvent ? "#7c3aed" : "#ccc"}`, backgroundColor: groupByEvent ? "#7c3aed" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {groupByEvent && <CheckCircle style={{ width: 9, height: 9, color: "#fff" }} />}
+                    <div style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, border: `2px solid ${groupByEvent ? "#7c3aed" : "#d4d0ca"}`, backgroundColor: groupByEvent ? "#7c3aed" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {groupByEvent && <CheckCircle style={{ width: 10, height: 10, color: "#fff" }} />}
                     </div>
                     <div>
                       <p style={{ fontSize: 12, fontWeight: 600, color: "#1c1917", margin: 0 }}>Página de capa por evento</p>
-                      <p style={{ fontSize: 11, color: "#a8a29e", margin: 0 }}>{eventCount} eventos no PDF</p>
+                      <p style={{ fontSize: 11, color: "#78716c", margin: 0 }}>{eventCount} eventos no PDF</p>
                     </div>
                   </div>
                 </div>
@@ -287,7 +287,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
             <div style={{ padding: "16px 24px", borderTop: "1px solid #ebe8e4", display: "flex", flexDirection: "column", gap: 8 }}>
               <button
                 onClick={() => onOpenChange(false)}
-                style={{ width: "100%", height: 36, borderRadius: 8, background: "#fff", border: "1px solid #e4e0db", color: "#78716c", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+                style={{ width: "100%", height: 40, borderRadius: 8, background: "#fff", border: "1px solid #e4e0db", color: "#78716c", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
                 Cancelar
               </button>
 
@@ -422,7 +422,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                   </button>
                 </div>
               </div>
-              <span style={{ fontSize: 11, color: "#a8a29e" }}>
+              <span style={{ fontSize: 11, color: "#78716c" }}>
                 {selected.filter(i => i.approvalThumbUrl).length} com thumb
                 {selected.some(i => i.bookUrl) ? ` · ${selected.filter(i => i.bookUrl).length} com book` : ""}
               </span>
@@ -459,13 +459,13 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                         padding: "10px 14px", borderRadius: 10,
                         border: `1px solid ${picked ? "#ebe8e4" : "#e4e0db"}`,
                         backgroundColor: picked ? "#fff" : "#fafaf9",
-                        opacity: picked ? 1 : 0.45,
+                        opacity: picked ? 1 : 0.5,
                         cursor: "pointer",
                         transition: "opacity 0.12s, background 0.1s",
                       }}
                     >
                       {/* Checkbox */}
-                      <div style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, border: `2px solid ${picked ? "#7c3aed" : "#ccc"}`, backgroundColor: picked ? "#7c3aed" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <div style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, border: `2px solid ${picked ? "#7c3aed" : "#d4d0ca"}`, backgroundColor: picked ? "#7c3aed" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         {picked && <CheckCircle style={{ width: 10, height: 10, color: "#fff" }} />}
                       </div>
                       {/* Thumb */}
@@ -478,13 +478,13 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
                           <span style={{ fontSize: 11, fontWeight: 800, color: "#7c3aed", fontFamily: "monospace", letterSpacing: "0.02em" }}>{item.displayId}</span>
-                          <span style={{ fontSize: 12, fontWeight: 600, color: "#1c1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.type}</span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: "#1c1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textTransform: "capitalize" }}>{item.type}</span>
                           {item.bookUrl && (
                             <span
                               title="Coberta por book da Arte"
                               data-testid={`badge-book-export-${item.id}`}
-                              style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 800, color: "#6d28d9", backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 4, padding: "2px 6px", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-                              <FileText style={{ width: 8, height: 8 }} /> Book
+                              style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: "#6d28d9", backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 4, padding: "2px 6px", textTransform: "uppercase" }}>
+                              <FileText style={{ width: 10, height: 10 }} /> Book
                             </span>
                           )}
                         </div>

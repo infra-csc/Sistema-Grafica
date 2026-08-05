@@ -1021,10 +1021,11 @@ export default function Atendimento() {
         <div className="max-w-2xl">
           <div className="flex items-center gap-3 mb-3">
             <span style={{
-              backgroundColor: '#fd761a', color: '#5c2400',
-              fontSize: 10, fontWeight: 800,
+              backgroundColor: 'transparent', color: '#c2410c',
+              fontSize: 11, fontWeight: 700,
               padding: '2px 8px', borderRadius: 4,
-              letterSpacing: '0.12em', textTransform: 'uppercase',
+              letterSpacing: '0.08em', textTransform: 'uppercase',
+              border: '1px solid #fed7aa',
             }}>
               Fluxo de Verificação
             </span>
@@ -1066,7 +1067,7 @@ export default function Atendimento() {
             <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: actionableCount ? '#c2410c' : '#78716c' }}>
               Aguardam
             </span>
-            <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#a8a29e' }}>
+            <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#a8a29e' }}>
               Aprovação
             </span>
           </div>
@@ -1095,11 +1096,11 @@ export default function Atendimento() {
             {tab.label}
             {tab.count != null && (
               <span style={{
-                backgroundColor: activeTab === tab.key ? '#f97316' : '#fff7ed',
-                color: activeTab === tab.key ? '#fff' : '#ea580c',
-                border: activeTab === tab.key ? 'none' : '1px solid #fed7aa',
-                fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 10,
-                minWidth: 18, textAlign: 'center',
+                backgroundColor: '#f5f5f4',
+                color: '#78716c',
+                border: '1px solid #e7e5e4',
+                fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 10,
+                minWidth: 20, textAlign: 'center',
               }}>
                 {tab.count}
               </span>
@@ -1217,7 +1218,7 @@ export default function Atendimento() {
                 <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em', margin: 0, color: '#ffffff' }}>
                   Aprovação em Lote
                 </h3>
-                <p style={{ color: 'rgba(255,255,255,0.5)', fontSize: 12, margin: 0 }}>
+                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, margin: 0 }}>
                   {batchEligibleSponsors.length} {batchEligibleSponsors.length === 1 ? 'patrocinador com' : 'patrocinadores com'} itens pendentes
                 </p>
               </div>
@@ -1237,12 +1238,12 @@ export default function Atendimento() {
                         width: 22, height: 22, borderRadius: '50%',
                         background: step.done ? '#22c55e' : active ? '#f97316' : 'rgba(255,255,255,0.15)',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 10, fontWeight: 800, color: step.done || active ? '#fff' : 'rgba(255,255,255,0.4)',
+                        fontSize: 11, fontWeight: 800, color: step.done || active ? '#fff' : 'rgba(255,255,255,0.5)',
                         flexShrink: 0, transition: 'background 0.2s',
                       }}>
                         {step.done ? <Check style={{ width: 11, height: 11 }} /> : step.n}
                       </div>
-                      <span style={{ fontSize: 10, fontWeight: 600, color: step.done ? 'rgba(255,255,255,0.7)' : active ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.3)', letterSpacing: '0.04em' }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: step.done ? 'rgba(255,255,255,0.75)' : active ? '#fff' : 'rgba(255,255,255,0.55)' }}>
                         {step.label}
                       </span>
                     </div>
@@ -1333,11 +1334,11 @@ export default function Atendimento() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       {batchEligibleItems.filter((i: any) => !i.approvalThumbUrl).length > 0 && (
                         <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#b45309', fontWeight: 600, background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 20, padding: '2px 10px' }}>
-                          <AlertCircle style={{ width: 10, height: 10 }} />
+                          <AlertCircle style={{ width: 11, height: 11 }} />
                           {batchEligibleItems.filter((i: any) => !i.approvalThumbUrl).length} sem arte
                         </span>
                       )}
-                      <span style={{ fontSize: 12, fontWeight: 700, color: batchSelectedItemIds.size > 0 ? '#ea580c' : '#a8a29e' }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: batchSelectedItemIds.size > 0 ? '#ea580c' : '#a8a29e' }}>
                         {batchSelectedItemIds.size} / {batchItemCount} selecionadas
                       </span>
                     </div>
@@ -1405,7 +1406,7 @@ export default function Atendimento() {
                                 />
                                 <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', background: '#f4f4f3', flexDirection: 'column', gap: 2 }}>
                                   <Package style={{ width: 16, height: 16, color: '#c4bfbb' }} />
-                                  <span style={{ fontSize: 7, color: '#c4bfbb', fontWeight: 700, letterSpacing: '0.04em' }}>SEM ARTE</span>
+                                  <span style={{ fontSize: 11, color: '#c4bfbb', fontWeight: 600, letterSpacing: '0.03em' }}>SEM ARTE</span>
                                 </div>
                                 <span
                                   style={{ position: 'absolute', inset: 0, background: 'rgba(28,25,23,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'opacity 0.12s' }}
@@ -1418,14 +1419,14 @@ export default function Atendimento() {
                             ) : (
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                                 <Package style={{ width: 18, height: 18, color: '#c4bfbb' }} />
-                                <span style={{ fontSize: 7, color: '#c4bfbb', fontWeight: 700, letterSpacing: '0.04em' }}>SEM ARTE</span>
+                                <span style={{ fontSize: 11, color: '#c4bfbb', fontWeight: 600, letterSpacing: '0.03em' }}>SEM ARTE</span>
                               </div>
                             )}
                           </div>
                           {/* Info */}
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                              <span style={{ fontFamily: 'monospace', fontSize: 10, fontWeight: 800, color: '#9a3412', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>
+                              <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#9a3412', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>
                                 {item.displayId}
                               </span>
                               <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1441,11 +1442,11 @@ export default function Atendimento() {
                           {/* Status thumb */}
                           <div style={{ flexShrink: 0 }}>
                             {hasThumb
-                              ? <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#15803d', fontWeight: 700, background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 20, padding: '2px 8px' }}>
-                                  <CheckCircle style={{ width: 9, height: 9 }} /> Arte OK
+                              ? <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#15803d', fontWeight: 700, background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 20, padding: '2px 8px' }}>
+                                  <CheckCircle style={{ width: 10, height: 10 }} /> Arte OK
                                 </span>
-                              : <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#92400e', fontWeight: 700, background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 20, padding: '2px 8px' }}>
-                                  <AlertCircle style={{ width: 9, height: 9 }} /> Sem arte
+                              : <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#92400e', fontWeight: 700, background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 20, padding: '2px 8px' }}>
+                                  <AlertCircle style={{ width: 11, height: 11 }} /> Sem arte
                                 </span>
                             }
                           </div>
@@ -1536,7 +1537,7 @@ export default function Atendimento() {
                       <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
                         <button
                           onClick={() => { setBatchShowRejectForm(false); setBatchRejectReason(""); }}
-                          style={{ backgroundColor: '#ffffff', color: '#78716c', border: '1px solid #e7e5e4', borderRadius: 8, padding: '9px 18px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                          style={{ backgroundColor: '#ffffff', color: '#78716c', border: '1px solid #e7e5e4', borderRadius: 8, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
                         >
                           Cancelar
                         </button>
@@ -1629,7 +1630,7 @@ export default function Atendimento() {
                     title="Evento com itens aguardando aprovação"
                     style={{
                       width: 8, height: 8, borderRadius: '50%',
-                      backgroundColor: '#fd761a', flexShrink: 0,
+                      backgroundColor: '#f97316', flexShrink: 0,
                     }} />
                   <h4 style={{
                     fontFamily: "'Space Grotesk', sans-serif",
@@ -1658,16 +1659,16 @@ export default function Atendimento() {
                       ? { bg: '#FDF0E8', border: '#FDDBC4', text: '#C97B4B' }
                       : { bg: '#F3F2F0', border: '#E7E3DC', text: '#6F6A63' };
                     return (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 99, padding: '3px 9px', fontSize: 10, fontWeight: 700, color: s.text, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 99, padding: '3px 10px', fontSize: 11, fontWeight: 700, color: s.text, whiteSpace: 'nowrap' }}>
                         Aprovação de Layout · {ds}{diff >= 0 && diff <= 14 && <span title={`Prazo em ${diff} ${diff === 1 ? 'dia' : 'dias'}`} style={{ opacity: 0.7, fontWeight: 500 }}> ({diff}d)</span>}
                       </span>
                     );
                   })()}
                   <span style={{
                     marginLeft: 'auto',
-                    backgroundColor: '#fff7ed', border: '1px solid #fed7aa',
-                    color: '#c2410c', borderRadius: 100,
-                    fontSize: 11, fontWeight: 700, padding: '3px 10px',
+                    backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4',
+                    color: '#78716c', borderRadius: 100,
+                    fontSize: 11, fontWeight: 600, padding: '3px 10px',
                   }}>
                     {eventItems.length} {eventItems.length === 1 ? 'peça' : 'peças'}
                   </span>
@@ -1698,8 +1699,8 @@ export default function Atendimento() {
                         )}
                         {showTypeHeader && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0 2px' }}>
-                            <span style={{ fontSize: 9, fontWeight: 600, color: '#d4d0ca', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>Tipo:</span>
-                            <span style={{ fontSize: 10, fontWeight: 700, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>{item.type}</span>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: '#c4bfb8', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>Tipo:</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{item.type}</span>
                             <div style={{ flex: 1, height: 1, background: '#f0ede8' }} />
                           </div>
                         )}
@@ -1774,17 +1775,17 @@ export default function Atendimento() {
                                   {item.type}
                                 </h5>
                                 {item.isReuse && (
-                                  <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', backgroundColor: '#dcfce7', color: '#166534', borderRadius: 999, padding: '2px 7px', flexShrink: 0 }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', backgroundColor: '#dcfce7', color: '#166534', borderRadius: 999, padding: '2px 8px', flexShrink: 0 }}>
                                     Reaproveit.
                                   </span>
                                 )}
                               </div>
-                              <p style={{ fontSize: 10, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', margin: '3px 0 0', letterSpacing: '0.05em' }}>
+                              <p style={{ fontSize: 11, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', margin: '3px 0 0', letterSpacing: '0.04em' }}>
                                 {item.displayId}{item.description ? ` • ${item.description}` : ''}
                               </p>
                               {item.referenceUrl && (
-                                <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 700, color: '#2563eb', textDecoration: 'none', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 3, padding: '2px 6px', marginTop: 4 }} data-testid={`link-reference-atendimento-${item.id}`}>
-                                  <Paperclip style={{ width: 9, height: 9 }} />
+                                <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600, color: '#2563eb', textDecoration: 'none', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 4, padding: '2px 7px', marginTop: 4 }} data-testid={`link-reference-atendimento-${item.id}`}>
+                                  <Paperclip style={{ width: 10, height: 10 }} />
                                   Ref. visual
                                 </a>
                               )}
@@ -1804,9 +1805,9 @@ export default function Atendimento() {
                               {isFullyApproved ? (
                                 <span style={{
                                   display: 'inline-flex', alignItems: 'center', gap: 6,
-                                  padding: '4px 8px', borderRadius: 4,
+                                  padding: '4px 10px', borderRadius: 5,
                                   backgroundColor: '#f1f5f9', color: '#64748b',
-                                  fontSize: 10, fontWeight: 700,
+                                  fontSize: 11, fontWeight: 700,
                                 }}>
                                   <CheckCircle style={{ width: 12, height: 12 }} />
                                   APROVADO
@@ -1816,9 +1817,9 @@ export default function Atendimento() {
                                   title="A arte está em correção — você será notificado quando a nova versão estiver pronta"
                                   style={{
                                     display: 'inline-flex', alignItems: 'center', gap: 6,
-                                    padding: '4px 8px', borderRadius: 4,
+                                    padding: '4px 10px', borderRadius: 5,
                                     backgroundColor: '#f1f5f9', color: '#475569',
-                                    fontSize: 10, fontWeight: 700,
+                                    fontSize: 11, fontWeight: 700,
                                   }}>
                                   <RotateCcw style={{ width: 12, height: 12 }} />
                                   EM CORREÇÃO
@@ -1959,14 +1960,14 @@ export default function Atendimento() {
                           <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 12, alignItems: 'center', minWidth: 0 }}>
                             <div>
                               <h5 style={{ fontSize: 13, fontWeight: 600, color: '#78716c', margin: 0 }}>{item.type}</h5>
-                              <p style={{ fontSize: 10, color: '#a8a29e', margin: '2px 0 0' }}>{item.displayId}</p>
+                              <p style={{ fontSize: 11, color: '#a8a29e', margin: '2px 0 0' }}>{item.displayId}</p>
                             </div>
                             <SponsorChips sponsors={itemSps} variant="colored" size="sm" />
                             <span data-testid={`badge-aprovado-${item.id}`} style={{
                               display: 'inline-flex', alignItems: 'center', gap: 4,
-                              fontSize: 10, fontWeight: 700, color: '#15803d',
+                              fontSize: 11, fontWeight: 700, color: '#15803d',
                               backgroundColor: '#f0fdf4', border: '1px solid #86efac',
-                              padding: '3px 8px', borderRadius: 4,
+                              padding: '3px 10px', borderRadius: 5,
                             }}>
                               <CheckCircle style={{ width: 11, height: 11 }} /> APROVADO
                             </span>
@@ -1986,7 +1987,7 @@ export default function Atendimento() {
       {/* ─── ABA HISTÓRICO ──────────────────────────────────────── */}
       {activeTab === "history" && (() => {
         const evById = new Map((events as any[]).map((e: any) => [e.id, e]));
-        const FL: React.CSSProperties = { fontSize: 10, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 };
+        const FL: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 };
         const SEL = (active: boolean): React.CSSProperties => ({
           height: 38, border: `1.5px solid ${active ? '#c2610c' : '#e2e8f0'}`,
           borderRadius: 8, fontSize: 13, fontWeight: 500, background: '#fff',
@@ -2049,7 +2050,7 @@ export default function Atendimento() {
                     display: 'inline-flex', alignItems: 'center', gap: 5,
                     height: 36, padding: '0 12px',
                     backgroundColor: '#0c0a09', color: '#fff',
-                    border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                    border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600,
                   }}
                 >
                   <X style={{ width: 13, height: 13 }} /> Limpar filtros
@@ -2058,7 +2059,7 @@ export default function Atendimento() {
               <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
                 {loadingSponsors
                   ? <Loader2 style={{ width: 14, height: 14, color: '#a8a29e' }} className="animate-spin" />
-                  : <span style={{ fontSize: 12, color: '#a8a29e', fontWeight: 600 }}>
+                  : <span style={{ fontSize: 13, color: '#a8a29e', fontWeight: 600 }}>
                       {historyItems.length} {historyItems.length === 1 ? 'resultado' : 'resultados'}
                     </span>}
               </div>
@@ -2191,18 +2192,18 @@ export default function Atendimento() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
                               <span style={{ fontSize: 11, color: '#78716c', fontWeight: 500 }}>{ev?.name || '—'}</span>
                               <span style={{
-                                fontSize: 10, fontWeight: 700,
-                                backgroundColor: statusCfg.bg, color: statusCfg.color,
-                                padding: '2px 7px', borderRadius: 4, whiteSpace: 'nowrap', lineHeight: 1.5,
+                                fontSize: 11, fontWeight: 700,
+                                backgroundColor: statusCfg.bg, color: statusCfg.color, border: `1px solid ${statusCfg.border || statusCfg.bg}`,
+                                padding: '2px 8px', borderRadius: 5, whiteSpace: 'nowrap', lineHeight: 1.5,
                               }}>{statusCfg.label}</span>
                             </div>
                           </div>
 
                           {/* Resumo + download */}
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 6, background: '#f5f5f4', border: '1px solid #ebe8e4' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6, background: '#f5f5f4', border: '1px solid #ebe8e4', cursor: 'pointer' }}>
                               <Eye style={{ width: 11, height: 11, color: '#a8a29e' }} />
-                              <span style={{ fontSize: 10, fontWeight: 600, color: '#a8a29e', whiteSpace: 'nowrap' }}>Ver detalhes</span>
+                              <span style={{ fontSize: 11, fontWeight: 600, color: '#78716c', whiteSpace: 'nowrap' }}>Ver detalhes</span>
                             </div>
                             {sponsorApprovals.length > 0 && (
                               <div style={{
@@ -2212,9 +2213,9 @@ export default function Atendimento() {
                                 borderRadius: 8, padding: '4px 10px', minWidth: 48,
                               }}>
                                 <span style={{ fontSize: 15, fontWeight: 800, color: allApproved ? '#15803d' : '#374151', lineHeight: 1 }}>
-                                  {approvedOnes.length} <span style={{ fontSize: 10, fontWeight: 500, opacity: 0.5 }}>de</span> {sponsorApprovals.length}
+                                  {approvedOnes.length} <span style={{ fontSize: 11, fontWeight: 500, opacity: 0.55 }}>de</span> {sponsorApprovals.length}
                                 </span>
-                                <span style={{ fontSize: 9, color: allApproved ? '#22c55e' : '#9ca3af', fontWeight: 700, marginTop: 1, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                <span style={{ fontSize: 11, color: allApproved ? '#22c55e' : '#9ca3af', fontWeight: 700, marginTop: 2 }}>
                                   {allApproved ? 'todos' : 'aprovaram'}
                                 </span>
                               </div>
@@ -2233,13 +2234,13 @@ export default function Atendimento() {
                               <Fragment key={i}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
                                   <span style={{ width: 7, height: 7, borderRadius: '50%', background: m.dot, flexShrink: 0, boxShadow: `0 0 0 2px ${m.dot}33` }} />
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#57534e', whiteSpace: 'nowrap' }}>{m.label}{(m as any).sublabel && <span style={{ fontWeight: 500, color: '#a8a29e', marginLeft: 3 }}>({(m as any).sublabel})</span>}</span>
-                                  {m.date && <span style={{ fontSize: 10, color: '#a8a29e', whiteSpace: 'nowrap' }}>{m.date}{m.by ? ` · ${m.by}` : ''}</span>}
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', whiteSpace: 'nowrap' }}>{m.label}{(m as any).sublabel && <span style={{ fontWeight: 500, color: '#a8a29e', marginLeft: 3 }}>({(m as any).sublabel})</span>}</span>
+                                  {m.date && <span style={{ fontSize: 11, color: '#a8a29e', whiteSpace: 'nowrap' }}>{m.date}{m.by ? ` · ${m.by}` : ''}</span>}
                                 </div>
                                 {i < timelineMilestones.length - 1 && (
                                   <span style={{ display: 'flex', alignItems: 'center', margin: '0 8px', flexShrink: 0 }}>
                                     <span style={{ display: 'block', width: 24, height: 1, background: '#e5e7eb' }} />
-                                    <span style={{ fontSize: 9, color: '#d1d5db', marginLeft: -2 }}>›</span>
+                                    <span style={{ fontSize: 11, color: '#d1d5db', marginLeft: -2 }}>›</span>
                                   </span>
                                 )}
                               </Fragment>
@@ -2248,7 +2249,7 @@ export default function Atendimento() {
                         )}
 
                         {/* ── Pipeline de fluxo ── */}
-                        <div style={{ borderTop: '1px solid #f5f5f4', padding: '12px 16px 14px' }}>
+                        <div style={{ borderTop: '1px solid #f5f5f4', padding: '12px 16px 14px', overflow: 'hidden' }}>
                           {/* stepper: linha absoluta + dots + labels */}
                           <div className="pipeline-scroll"><div style={{ position: 'relative', minWidth: 500 }}>
                             {/* linha conectora de fundo */}
@@ -2275,7 +2276,7 @@ export default function Atendimento() {
                                     }} />
                                     {isCurrent && (
                                       <span style={{
-                                        fontSize: 10, fontWeight: 800,
+                                        fontSize: 11, fontWeight: 800,
                                         color: stageColor,
                                         whiteSpace: 'nowrap', lineHeight: 1.2, textAlign: 'center',
                                       }}>{stage.label}</span>
@@ -2308,7 +2309,7 @@ export default function Atendimento() {
                                   style={{
                                     display: 'inline-flex', alignItems: 'center', gap: 5,
                                     height: 26, padding: '0 9px 0 7px',
-                                    borderRadius: 13, background: bg, border: `1px solid ${border}`,
+                                    borderRadius: 12, background: bg, border: `1px solid ${border}`,
                                     flexShrink: 0, cursor: 'default',
                                   }}>
                                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: dotBg, flexShrink: 0 }} />
@@ -2316,15 +2317,15 @@ export default function Atendimento() {
                                     {sponsor.name}
                                   </span>
                                   {isApproved && appr?.approvedAt && (
-                                    <span style={{ fontSize: 10, color: '#4ade80', fontWeight: 500, whiteSpace: 'nowrap', lineHeight: 1 }}>
+                                    <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 500, whiteSpace: 'nowrap', lineHeight: 1 }}>
                                       {fmtDt(appr.approvedAt, true)}
                                     </span>
                                   )}
                                   {!isApproved && !isRejected && !isNewVersion && (
-                                    <span style={{ fontSize: 9, color: '#9ca3af', fontWeight: 600, lineHeight: 1, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Ag.</span>
+                                    <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, lineHeight: 1, textTransform: 'uppercase', letterSpacing: '0.03em' }}>Ag.</span>
                                   )}
-                                  {isRejected && <span style={{ fontSize: 9, color: '#fca5a5', fontWeight: 700, lineHeight: 1 }}>✕</span>}
-                                  {isNewVersion && <span style={{ fontSize: 9, color: '#fcd34d', fontWeight: 700, lineHeight: 1 }}>↻</span>}
+                                  {isRejected && <span style={{ fontSize: 11, color: '#fca5a5', fontWeight: 700, lineHeight: 1 }}>✕</span>}
+                                  {isNewVersion && <span style={{ fontSize: 11, color: '#fcd34d', fontWeight: 700, lineHeight: 1 }}>↻</span>}
                                 </div>
                               );
                             })}
@@ -2351,7 +2352,7 @@ export default function Atendimento() {
 
       {/* ─── MODAL HISTÓRICO DE APROVAÇÕES ─────────────────────── */}
       <Dialog open={!!histDetailItem} onOpenChange={open => { if (!open) setHistDetailItem(null); }}>
-        <DialogContent className="p-0 gap-0" style={{ maxWidth: 620, width: '95vw', borderRadius: 16, border: 'none', boxShadow: '0 24px 48px -12px rgba(28,25,23,0.2)', overflow: 'hidden' }}>
+        <DialogContent className="p-0 gap-0" style={{ maxWidth: 620, width: '95vw', borderRadius: 16, border: 'none', boxShadow: '0 32px 64px -16px rgba(0,0,0,0.28), 0 0 0 1px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
           <DialogTitle className="sr-only">Histórico de aprovações</DialogTitle>
           <DialogDescription className="sr-only">Log completo de aprovações por patrocinador</DialogDescription>
           {histDetailItem && (() => {
@@ -2359,14 +2360,14 @@ export default function Atendimento() {
             const diSps: any[] = itemSponsorsMap[di.id] || [];
             const diApprovals: SponsorApproval[] = itemApprovalsMap[di.id] || [];
             const ev = di._ev;
-            const fmtFull = (d: any) => d ? format(new Date(d), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR }) : null;
+            const fmtFull = (d: any) => d ? format(new Date(d), "dd/MM/yy 'às' HH:mm", { locale: ptBR }) : null;
             const approvedCount = diApprovals.filter(a => a.status === 'approved').length;
             const allApp = diSps.length > 0 && approvedCount === diSps.length;
             return (
               <>
                 {/* Header escuro */}
                 <div style={{ padding: '20px 24px 16px', background: 'linear-gradient(135deg,#1c1917,#292524)', display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 10, overflow: 'hidden', flexShrink: 0, background: '#292524', border: '1px solid rgba(255,255,255,0.1)', position: 'relative' }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 10, overflow: 'hidden', flexShrink: 0, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {(di.approvalThumbUrl || di.finalPreviewUrl)
                       ? <>
                           <img
@@ -2379,33 +2380,55 @@ export default function Atendimento() {
                               if (fb?.dataset.fallback) fb.style.display = 'flex';
                             }}
                           />
-                          <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', background: '#292524' }}>
-                            <FileText style={{ width: 18, height: 18, color: '#57534e' }} />
+                          <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' }}>
+                            <span style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.65)', letterSpacing: '-0.01em' }}>{di.type?.slice(0,2).toUpperCase()}</span>
                           </div>
                         </>
-                      : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FileText style={{ width: 18, height: 18, color: '#57534e' }} /></div>}
+                      : <span style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.65)', letterSpacing: '-0.01em' }}>{di.type?.slice(0,2).toUpperCase()}</span>}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                      <h2 style={{ fontSize: 16, fontWeight: 800, color: '#fff', margin: 0, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{di.type}</h2>
-                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontWeight: 500, flexShrink: 0 }}>{di.displayId}</span>
+                      <h2 style={{ fontSize: 16, fontWeight: 800, color: '#fff', margin: 0, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'capitalize' }}>{di.type}</h2>
+                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', fontWeight: 500, flexShrink: 0 }}>{di.displayId}</span>
                     </div>
-                    <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>{ev?.name || '—'}</span>
+                    <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)' }}>{ev?.name || '—'}</span>
                   </div>
-                  <button onClick={() => setHistDetailItem(null)} style={{ width: 32, height: 32, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <X style={{ width: 15, height: 15 }} />
+                  <button onClick={() => setHistDetailItem(null)} style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <X style={{ width: 16, height: 16 }} />
                   </button>
                 </div>
-                {/* Resumo */}
-                <div style={{ padding: '12px 24px', borderBottom: '1px solid #f0ede8', background: '#fafaf9', display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 14px', borderRadius: 8, background: allApp ? '#f0fdf4' : '#f5f5f4', border: `1px solid ${allApp ? '#bbf7d0' : '#e7e5e4'}` }}>
-                    <span style={{ fontSize: 20, fontWeight: 800, color: allApp ? '#15803d' : '#374151', lineHeight: 1 }}>{approvedCount}</span>
-                    <span style={{ fontSize: 11, color: allApp ? '#4ade80' : '#9ca3af', fontWeight: 600 }}>/ {diSps.length} aprovaram</span>
+                {/* Body: resumo + lista integrados, sem faixa separada */}
+                <div style={{ position: 'relative' }}>
+                <div style={{ maxHeight: 440, overflowY: 'auto' }}>
+                  {/* Resumo compacto no topo do body */}
+                  <div style={{ padding: '14px 24px 12px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: `1px solid ${allApp ? '#d1fae5' : '#f0ede8'}`, background: allApp ? '#f6fef9' : '#fff' }}>
+                    {/* Counter pill empilhado verticalmente */}
+                    <div style={{
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      width: 56, height: 56, borderRadius: 12, flexShrink: 0,
+                      background: allApp ? '#f0fdf4' : '#f5f5f4',
+                      border: `1.5px solid ${allApp ? '#bbf7d0' : '#e7e5e4'}`,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 1, lineHeight: 1 }}>
+                        <span style={{ fontSize: 22, fontWeight: 800, color: allApp ? '#15803d' : '#374151' }}>{approvedCount}</span>
+                        <span style={{ fontSize: 12, fontWeight: 500, color: allApp ? '#86efac' : '#a8a29e' }}>/{diSps.length}</span>
+                      </div>
+                      <span style={{ fontSize: 11, color: allApp ? '#22c55e' : '#9ca3af', fontWeight: 700, marginTop: 2, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                        {allApp ? (diSps.length === 1 ? 'aprovou' : 'todos') : 'parcial'}
+                      </span>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                        {allApp && <CheckCircle style={{ width: 14, height: 14, color: '#22c55e', flexShrink: 0 }} />}
+                        <span style={{ fontSize: 13, fontWeight: 600, color: allApp ? '#15803d' : '#1c1917' }}>
+                          {allApp
+                            ? (diSps.length === 1 ? 'Patrocinador aprovou' : 'Todos os patrocinadores aprovaram')
+                            : `${approvedCount} de ${diSps.length} aprovaram`}
+                        </span>
+                      </div>
+                      {di.createdAt && <div style={{ fontSize: 11, color: '#a8a29e' }}>Criado em {fmtFull(di.createdAt)}</div>}
+                    </div>
                   </div>
-                  {di.createdAt && <span style={{ fontSize: 11, color: '#a8a29e' }}>Criado {fmtFull(di.createdAt)}</span>}
-                </div>
-                {/* Lista patrocinadores */}
-                <div style={{ maxHeight: 420, overflowY: 'auto', padding: '4px 0' }}>
                   {diSps.length === 0
                     ? <div style={{ padding: '32px 24px', textAlign: 'center', color: '#a8a29e', fontSize: 13 }}>Nenhum patrocinador vinculado</div>
                     : diSps.map((sp: any, si: number) => {
@@ -2415,17 +2438,17 @@ export default function Atendimento() {
                         const isNewVersion = appr?.status === 'new_version_pending';
                         const c = sp.color || '#94a3b8';
                         const statusLabel = isApproved ? 'Aprovado' : isRejected ? 'Reprovado' : isNewVersion ? 'Nova versão' : 'Aguardando';
-                        const statusColor = isApproved ? '#15803d' : isRejected ? '#b91c1c' : isNewVersion ? '#92400e' : '#92400e';
-                        const statusBg    = isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : isNewVersion ? '#fffbeb' : '#fff7ed';
-                        const statusBorder= isApproved ? '#bbf7d0' : isRejected ? '#fecaca' : isNewVersion ? '#fde68a' : '#fed7aa';
+                        const statusColor = isApproved ? '#15803d' : isRejected ? '#b91c1c' : isNewVersion ? '#92400e' : '#6b7280';
+                        const statusBg    = isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : isNewVersion ? '#fffbeb' : '#f5f5f4';
+                        const statusBorder= isApproved ? '#bbf7d0' : isRejected ? '#fecaca' : isNewVersion ? '#fde68a' : '#e7e5e4';
                         const dotColor    = isApproved ? '#22c55e' : isRejected ? '#ef4444' : isNewVersion ? '#f59e0b' : '#d1d5db';
                         return (
-                          <div key={sp.id} style={{ padding: '14px 24px', borderBottom: si < diSps.length - 1 ? '1px solid #f5f5f4' : 'none', display: 'flex', alignItems: 'flex-start', gap: 12, borderLeft: `3px solid ${c}` }}>
-                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: dotColor, flexShrink: 0, marginTop: 4, boxShadow: `0 0 0 3px ${dotColor}33` }} />
+                          <div key={sp.id} style={{ padding: '12px 24px', borderBottom: si < diSps.length - 1 ? '1px solid #f5f5f4' : 'none', display: 'flex', alignItems: 'center', gap: 12, borderLeft: sp.color ? `3px solid ${sp.color}` : 'none', paddingLeft: sp.color ? '24px' : '27px' }}>
+                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: dotColor, flexShrink: 0, alignSelf: 'flex-start', marginTop: 3, boxShadow: `0 0 0 3px ${dotColor}33` }} />
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                                <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917' }}>{sp.name}</span>
-                                <span style={{ fontSize: 10, fontWeight: 700, color: statusColor, background: statusBg, border: `1px solid ${statusBorder}`, borderRadius: 4, padding: '2px 8px', whiteSpace: 'nowrap' }}>{statusLabel}</span>
+                                <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', textTransform: 'capitalize' }}>{sp.name}</span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: statusColor, background: statusBg, border: `1px solid ${statusBorder}`, borderRadius: 5, padding: '2px 8px', whiteSpace: 'nowrap' }}>{statusLabel}</span>
                               </div>
                               {isApproved && appr?.approvedAt && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -2462,11 +2485,12 @@ export default function Atendimento() {
                         );
                       })
                   }
+                  <div style={{ height: 8 }} />
                 </div>
-                {/* Footer */}
-                <div style={{ padding: '12px 24px', borderTop: '1px solid #f0ede8', display: 'flex', justifyContent: 'flex-end' }}>
-                  <button onClick={() => setHistDetailItem(null)} style={{ height: 36, padding: '0 20px', borderRadius: 8, background: '#1c1917', border: 'none', color: '#ffffff', cursor: 'pointer', fontSize: 13, fontWeight: 700, letterSpacing: '0.01em' }}>Fechar</button>
+                {/* Fade de scroll: só exibe quando a lista pode ter overflow */}
+                {diSps.length > 4 && <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 48, background: 'linear-gradient(to bottom, transparent, rgba(255,255,255,0.97))', pointerEvents: 'none', borderRadius: '0 0 16px 16px' }} />}
                 </div>
+
               </>
             );
           })()}
@@ -2522,13 +2546,13 @@ export default function Atendimento() {
                         REVISÃO DE ATIVO {selectedItem.displayId}
                       </h2>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                           {ev?.name || 'Sem Evento'}
                         </span>
                         {ev?.truckDepartureDate && (
                           <>
                             <span style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: '#d6d3d1' }} />
-                            <span style={{ fontSize: 10, fontWeight: 700, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                               Prazo · {format(toUTCDisplayDate(ev.truckDepartureDate), "dd/MM HH:mm")}
                             </span>
                           </>
@@ -2542,7 +2566,7 @@ export default function Atendimento() {
                     const hasPrev = qIdx > 0;
                     const hasNext = qIdx >= 0 && qIdx < reviewQueue.length - 1;
                     const navBtn = (enabled: boolean): React.CSSProperties => ({
-                      width: 34, height: 34, borderRadius: 9,
+                      width: 40, height: 40, borderRadius: 10,
                       border: '1px solid #e7e5e4',
                       backgroundColor: '#ffffff',
                       cursor: enabled ? 'pointer' : 'not-allowed',
@@ -2581,7 +2605,7 @@ export default function Atendimento() {
                           onClick={() => setDialogOpen(false)}
                           data-testid="button-close-dialog"
                           style={{
-                            width: 36, height: 36, borderRadius: '50%',
+                            width: 40, height: 40, borderRadius: '50%',
                             border: 'none', backgroundColor: 'transparent', cursor: 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             color: '#78716c', transition: 'background-color 0.15s',
@@ -2607,7 +2631,7 @@ export default function Atendimento() {
                     overflowY: 'auto',
                   }}>
                     <div>
-                      <h4 style={{ fontSize: 10, fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
+                      <h4 style={{ fontSize: 11, fontWeight: 800, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
                         Especificações
                       </h4>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -2624,7 +2648,7 @@ export default function Atendimento() {
                           })() },
                         ].map(({ label, value }) => (
                           <div key={label} style={{ backgroundColor: '#ffffff', padding: '10px 12px', borderRadius: 8, border: '1px solid #f1f0ef' }}>
-                            <p style={{ fontSize: 10, color: '#a8a29e', fontWeight: 700, textTransform: 'uppercase', margin: '0 0 3px' }}>{label}</p>
+                            <p style={{ fontSize: 11, color: '#a8a29e', fontWeight: 700, textTransform: 'uppercase', margin: '0 0 4px' }}>{label}</p>
                             <p style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', margin: 0 }}>{value}</p>
                           </div>
                         ))}
@@ -2633,7 +2657,7 @@ export default function Atendimento() {
 
                     {/* Links para arquivos */}
                     <div>
-                      <h4 style={{ fontSize: 10, fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 12px' }}>
+                      <h4 style={{ fontSize: 11, fontWeight: 800, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 12px' }}>
                         Arquivos
                       </h4>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -2700,7 +2724,7 @@ export default function Atendimento() {
 
                     {/* Aprovações por Patrocinador */}
                     <div>
-                      <h4 style={{ fontSize: 10, fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
+                      <h4 style={{ fontSize: 11, fontWeight: 800, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
                         Decisão
                       </h4>
 
@@ -2773,7 +2797,7 @@ export default function Atendimento() {
                                     <div>
                                       <p style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', margin: 0 }}>{sponsor.name}</p>
                                       <p style={{
-                                        fontSize: 10, margin: '1px 0 0', textTransform: 'uppercase', fontWeight: 700,
+                                        fontSize: 11, margin: '2px 0 0', textTransform: 'uppercase', fontWeight: 700,
                                         color: isApproved ? '#15803d' : isRejected ? '#dc2626' : isNewVersion ? '#0369a1' : '#b45309',
                                       }}>
                                         {isApproved ? 'Aprovado' : isRejected ? 'Reprovado' : isNewVersion ? 'Nova Arte Enviada' : 'Aguardando Decisão'}
@@ -2787,11 +2811,11 @@ export default function Atendimento() {
                                         onClick={() => setRejectingSponsorId(sponsor.id)}
                                         disabled={individualRejectMutation.isPending}
                                         style={{
-                                          padding: '6px 14px', borderRadius: 6,
+                                          padding: '8px 16px', borderRadius: 7,
                                           backgroundColor: '#fef2f2', border: '1px solid #fecaca',
-                                          color: '#dc2626', fontSize: 11, fontWeight: 700,
+                                          color: '#dc2626', fontSize: 12, fontWeight: 700,
                                           cursor: 'pointer', transition: 'all 0.15s',
-                                          minHeight: isMobile ? 44 : undefined,
+                                          minHeight: 36,
                                           width: isMobile ? '100%' : undefined,
                                         }}
                                       >
@@ -2802,12 +2826,12 @@ export default function Atendimento() {
                                         disabled={individualApproveMutation.isPending}
                                         data-testid={`button-approve-sponsor-${sponsor.id}`}
                                         style={{
-                                          padding: '6px 14px', borderRadius: 6,
+                                          padding: '8px 16px', borderRadius: 7,
                                           backgroundColor: '#f0fdf4', border: '1px solid #86efac',
-                                          color: '#15803d', fontSize: 11, fontWeight: 700,
+                                          color: '#15803d', fontSize: 12, fontWeight: 700,
                                           cursor: 'pointer', transition: 'all 0.15s',
                                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                                          minHeight: isMobile ? 44 : undefined,
+                                          minHeight: 36,
                                           width: isMobile ? '100%' : undefined,
                                         }}
                                       >
@@ -2823,7 +2847,7 @@ export default function Atendimento() {
                                 {/* Motivo de reprovação existente */}
                                 {isRejected && approval?.rejectionReason && (
                                   <div style={{ marginTop: 10, padding: '10px 12px', backgroundColor: '#fff', borderRadius: 8, border: '1px solid #fecaca', borderLeft: '3px solid #dc2626' }}>
-                                    <p style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#fca5a5', margin: '0 0 4px' }}>Motivo</p>
+                                    <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#fca5a5', margin: '0 0 4px' }}>Motivo</p>
                                     <p style={{ fontSize: 12, fontStyle: 'italic', color: '#57534e', margin: 0, lineHeight: 1.5 }}>
                                       "{approval.rejectionReason}"
                                     </p>
@@ -2836,7 +2860,7 @@ export default function Atendimento() {
                                     {/* Label */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
                                       <div style={{ width: 2, height: 12, borderRadius: 1, backgroundColor: '#dc2626', flexShrink: 0 }} />
-                                      <span style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#dc2626' }}>Motivo da reprovação</span>
+                                      <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#dc2626' }}>Motivo da reprovação</span>
                                       <span style={{ fontSize: 11, color: '#fca5a5', fontWeight: 700, lineHeight: 1 }}>*</span>
                                     </div>
 
@@ -2914,7 +2938,7 @@ export default function Atendimento() {
                     backgroundColor: 'rgba(250,250,249,0.3)',
                     overflowY: 'auto',
                   }}>
-                    <h4 style={{ fontSize: 10, fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 24px' }}>
+                    <h4 style={{ fontSize: 11, fontWeight: 800, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 24px' }}>
                       Histórico de Alterações
                     </h4>
 
@@ -2951,7 +2975,7 @@ export default function Atendimento() {
                             const IconComp = cfg.icon;
                             const isSystemLog = ['updated', 'status_changed', 'file_uploaded', 'thumb_uploaded'].includes(log.action);
                             return (
-                              <div key={log.id} style={{ paddingLeft: 32, position: 'relative', opacity: isSystemLog ? Math.max(0.25, 0.5 - i * 0.04) : Math.max(0.5, 1 - i * 0.1) }}>
+                              <div key={log.id} style={{ paddingLeft: 32, position: 'relative', opacity: isSystemLog ? Math.max(0.4, 0.7 - i * 0.04) : Math.max(0.6, 1 - i * 0.08) }}>
                                 <div style={{
                                   position: 'absolute', left: 0, top: 2,
                                   width: 20, height: 20, borderRadius: '50%',
@@ -2963,13 +2987,13 @@ export default function Atendimento() {
                                 <p style={{ fontSize: 11, fontWeight: 700, color: cfg.iconColor, margin: 0 }}>
                                   {cfg.label}
                                 </p>
-                                <p style={{ fontSize: 10, color: '#a8a29e', margin: '2px 0 0' }}>
+                                <p style={{ fontSize: 11, color: '#a8a29e', margin: '2px 0 0' }}>
                                   {log.userName && <><span style={{ fontWeight: 600, color: '#78716c' }}>{log.userName}</span> · </>}
                                   {format(new Date(log.createdAt), "dd MMM, yyyy 'às' HH:mm", { locale: ptBR })}
                                 </p>
                                 {log.details && (
                                   <p style={{
-                                    fontSize: 10, margin: '6px 0 0',
+                                    fontSize: 11, margin: '6px 0 0',
                                     backgroundColor: '#ffffff', border: `1px solid ${cfg.bg}`,
                                     padding: '6px 10px', borderRadius: 6,
                                     color: '#57534e', fontStyle: 'italic',
@@ -2998,7 +3022,7 @@ export default function Atendimento() {
                       padding: '10px 20px', borderRadius: 8,
                       border: '1px solid #e7e5e4',
                       backgroundColor: 'transparent', color: '#78716c',
-                      fontSize: 12, fontWeight: 600,
+                      fontSize: 13, fontWeight: 600,
                       cursor: 'pointer', marginRight: 'auto',
                       transition: 'border-color 0.15s, color 0.15s',
                     }}
@@ -3016,7 +3040,7 @@ export default function Atendimento() {
                         style={{
                           padding: '10px 20px', borderRadius: 8, border: 'none',
                           backgroundColor: '#ba1a1a', color: '#ffffff',
-                          fontSize: 12, fontWeight: 800,
+                          fontSize: 13, fontWeight: 800,
                           cursor: 'pointer',
                           display: 'flex', alignItems: 'center', gap: 6,
                           opacity: sponsorRejectMutation.isPending ? 0.7 : 1,
@@ -3032,7 +3056,7 @@ export default function Atendimento() {
                         style={{
                           padding: '10px 28px', borderRadius: 8, border: 'none',
                           backgroundColor: '#f97316', color: '#ffffff',
-                          fontSize: 12, fontWeight: 800,
+                          fontSize: 13, fontWeight: 800,
                           cursor: 'pointer',
                           display: 'flex', alignItems: 'center', gap: 6,
                           boxShadow: '0 4px 14px rgba(249,115,22,0.3)',
@@ -3053,7 +3077,7 @@ export default function Atendimento() {
 
       {/* ── CONFIRMAÇÃO: Aprovar Individual ─────────────────────────────── */}
       <Dialog open={!!confirmApproveIndividual} onOpenChange={(open) => { if (!open) setConfirmApproveIndividual(null); }}>
-        <DialogContent style={{ maxWidth: isMobile ? '95vw' : 380, width: isMobile ? '95vw' : undefined, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 16px 32px -12px rgba(28,25,23,0.15)' }}>
+        <DialogContent style={{ maxWidth: isMobile ? '95vw' : 380, width: isMobile ? '95vw' : undefined, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 24px 48px -12px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.04)' }}>
           <DialogTitle style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 18, fontWeight: 700, color: '#1c1917', margin: 0 }}>Confirmar Aprovação</DialogTitle>
           <DialogDescription style={{ fontSize: 13, color: '#78716c', marginTop: 8 }}>
             Aprovar a arte para o patrocinador <strong style={{ color: '#1c1917' }}>{confirmApproveIndividual?.sponsorName}</strong>?
@@ -3062,7 +3086,7 @@ export default function Atendimento() {
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <button
               onClick={() => setConfirmApproveIndividual(null)}
-              style={{ flex: 1, height: 38, borderRadius: 8, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              style={{ flex: 1, height: 40, borderRadius: 8, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
             >
               Cancelar
             </button>
@@ -3075,7 +3099,7 @@ export default function Atendimento() {
               }}
               disabled={individualApproveMutation.isPending}
               data-testid="button-confirm-approve-individual"
-              style={{ flex: 1, height: 38, borderRadius: 8, backgroundColor: '#15803d', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              style={{ flex: 1, height: 40, borderRadius: 8, backgroundColor: '#15803d', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
             >
               <CheckCircle style={{ width: 14, height: 14 }} />
               Aprovar
@@ -3086,7 +3110,7 @@ export default function Atendimento() {
 
       {/* ── CONFIRMAÇÃO: Aprovar em Lote ────────────────────────────────── */}
       <Dialog open={confirmApproveBatch} onOpenChange={(open) => { if (!open) setConfirmApproveBatch(false); }}>
-        <DialogContent style={{ maxWidth: isMobile ? '95vw' : 380, width: isMobile ? '95vw' : undefined, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 16px 32px -12px rgba(28,25,23,0.15)' }}>
+        <DialogContent style={{ maxWidth: isMobile ? '95vw' : 380, width: isMobile ? '95vw' : undefined, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 24px 48px -12px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.04)' }}>
           <DialogTitle style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 18, fontWeight: 700, color: '#1c1917', margin: 0 }}>Confirmar Aprovação em Lote</DialogTitle>
           <DialogDescription style={{ fontSize: 13, color: '#78716c', marginTop: 8 }}>
             Aprovar <strong style={{ color: '#1c1917' }}>{batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'item' : 'itens'}</strong> para o patrocinador selecionado?
@@ -3095,7 +3119,7 @@ export default function Atendimento() {
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <button
               onClick={() => setConfirmApproveBatch(false)}
-              style={{ flex: 1, height: 38, borderRadius: 8, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              style={{ flex: 1, height: 40, borderRadius: 8, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
             >
               Cancelar
             </button>
@@ -3106,7 +3130,7 @@ export default function Atendimento() {
               }}
               disabled={batchSponsorMutation.isPending}
               data-testid="button-confirm-batch-approve"
-              style={{ flex: 1, height: 38, borderRadius: 8, backgroundColor: '#15803d', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              style={{ flex: 1, height: 40, borderRadius: 8, backgroundColor: '#15803d', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
             >
               <CheckCircle style={{ width: 14, height: 14 }} />
               Aprovar Seleção

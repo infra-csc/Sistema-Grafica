@@ -35,8 +35,8 @@ const VARIANT_STYLES = {
 };
 
 const SIZE_STYLES = {
-  xs: { fontSize: 9,  fontWeight: 700, padding: "1px 5px" },
-  sm: { fontSize: 10, fontWeight: 700, padding: "2px 6px" },
+  xs: { fontSize: 11, fontWeight: 600, padding: "2px 6px" },
+  sm: { fontSize: 11, fontWeight: 600, padding: "2px 7px" },
   md: { fontSize: 12, fontWeight: 600, padding: "3px 8px" },
 };
 

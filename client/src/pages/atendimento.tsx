@@ -68,6 +68,7 @@ export default function Atendimento() {
   const [histEventFilter, setHistEventFilter] = useState<string[]>([]);
   const [histSponsorFilter, setHistSponsorFilter] = useState<string[]>([]);
   const [histPeriodFilter, setHistPeriodFilter] = useState<string>("all");
+  const [histSearchTerm, setHistSearchTerm] = useState<string>("");
 
   // Modal detalhe de aprovações (Histórico)
   const [histDetailItem, setHistDetailItem] = useState<any>(null);
@@ -683,6 +684,14 @@ export default function Atendimento() {
         if (!approvedAt || approvedAt < cutoff) return false;
       }
 
+      if (histSearchTerm.trim()) {
+        const q = histSearchTerm.trim().toLowerCase();
+        const matchType = item.type?.toLowerCase().includes(q);
+        const matchId   = item.displayId?.toLowerCase().includes(q);
+        const matchDesc = item.description?.toLowerCase().includes(q);
+        if (!matchType && !matchId && !matchDesc) return false;
+      }
+
       return true;
     }).sort((a: any, b: any) => {
       // Ordena pela aprovação mais recente
@@ -694,7 +703,7 @@ export default function Atendimento() {
       };
       return latestApproval(b) - latestApproval(a);
     });
-  }, [items, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histEventFilter, histSponsorFilter, histPeriodFilter]);
+  }, [items, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histEventFilter, histSponsorFilter, histPeriodFilter, histSearchTerm]);
 
   // Fila de revisão: todas as peças pendentes na MESMA ordem em que aparecem
   // na tela (agrupadas por evento). É o que permite ir para a próxima peça sem
@@ -747,7 +756,7 @@ export default function Atendimento() {
 
   // Ao trocar de aba ou mexer nos filtros, volta a listagem para o topo.
   useEffect(() => { setPendVisible(PAGE_SIZE); }, [activeTab, searchTerm, eventFilter, itemTypeFilter, sponsorFilter]);
-  useEffect(() => { setHistVisible(PAGE_SIZE); }, [activeTab, histEventFilter, histSponsorFilter, histPeriodFilter]);
+  useEffect(() => { setHistVisible(PAGE_SIZE); }, [activeTab, histEventFilter, histSponsorFilter, histPeriodFilter, histSearchTerm]);
 
   const getEventInfo = (eventId: string) => events.find((e: any) => e.id === eventId);
 
@@ -1039,26 +1048,26 @@ export default function Atendimento() {
         <div
           data-testid="badge-pendentes-count"
           style={{
-            display: 'flex', alignItems: 'center', gap: 12,
+            display: activeTab === 'history' ? 'none' : 'flex', alignItems: 'center', gap: 12,
             padding: '12px 20px', borderRadius: 12,
-            border: '1.5px solid #fed7aa',
-            backgroundColor: '#fff7ed',
+            border: `1.5px solid ${actionableCount ? '#fed7aa' : '#e7e5e4'}`,
+            backgroundColor: actionableCount ? '#fff7ed' : '#fafaf9',
             flexShrink: 0,
           }}
         >
           <span style={{
             fontFamily: "'Space Grotesk', sans-serif",
             fontSize: 36, fontWeight: 900, lineHeight: 1,
-            color: '#f97316',
+            color: actionableCount ? '#f97316' : '#a8a29e',
           }}>
             {actionableCount ?? '—'}
           </span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#c2410c' }}>
-              Ativos
+            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: actionableCount ? '#c2410c' : '#78716c' }}>
+              Aguardam
             </span>
             <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#a8a29e' }}>
-              Em análise
+              Aprovação
             </span>
           </div>
         </div>
@@ -1067,7 +1076,7 @@ export default function Atendimento() {
       {/* ─── ABAS ─────────────────────────────────────────────────── */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 28, borderBottom: '1px solid #e7e5e4', paddingBottom: 0 }}>
         {([
-          { key: 'pending', label: 'Pendentes', count: actionableCount },
+          { key: 'pending', label: 'Pendentes', count: pendingGroup.length > 0 ? pendingGroup.length : actionableCount },
           { key: 'history', label: 'Histórico', count: null },
         ] as const).map(tab => (
           <button
@@ -1107,12 +1116,12 @@ export default function Atendimento() {
         display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center',
       }}>
         {/* Busca */}
-        <div style={{ flex: '1 1 280px', position: 'relative' }}>
+        <div style={{ flex: '1 1 200px', minWidth: 180, position: 'relative' }}>
           <Search style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: '#a8a29e' }} />
           <input
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
-            placeholder="Buscar por ID, Tipo ou Descrição..."
+            placeholder="ID, tipo ou descrição..."
             data-testid="input-search"
             style={{
               width: '100%', paddingLeft: 40, paddingRight: 16, paddingTop: 12, paddingBottom: 12,
@@ -1177,14 +1186,14 @@ export default function Atendimento() {
             title="Exportar itens em PDF"
             style={{
               height: 46, padding: '0 16px', borderRadius: 8,
-              backgroundColor: '#1c1917', border: 'none',
-              color: '#ffffff', cursor: 'pointer',
+              backgroundColor: 'transparent', border: '1.5px solid #d4d0ca',
+              color: '#78716c', cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 6,
-              fontSize: 13, fontWeight: 700, transition: 'all 0.15s',
+              fontSize: 13, fontWeight: 600, transition: 'all 0.15s',
               whiteSpace: 'nowrap', marginLeft: 'auto',
             }}
-            onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(1.2)'; }}
-            onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#a8a29e'; e.currentTarget.style.color = '#1c1917'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#d4d0ca'; e.currentTarget.style.color = '#78716c'; }}
           >
             <Printer style={{ width: 15, height: 15 }} />
             Exportar PDF
@@ -1616,10 +1625,12 @@ export default function Atendimento() {
                       transition: 'transform 0.15s',
                     }}
                   />
-                  <div style={{
-                    width: 8, height: 8, borderRadius: '50%',
-                    backgroundColor: '#fd761a', flexShrink: 0,
-                  }} />
+                  <div
+                    title="Evento com itens aguardando aprovação"
+                    style={{
+                      width: 8, height: 8, borderRadius: '50%',
+                      backgroundColor: '#fd761a', flexShrink: 0,
+                    }} />
                   <h4 style={{
                     fontFamily: "'Space Grotesk', sans-serif",
                     fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em',
@@ -1648,7 +1659,7 @@ export default function Atendimento() {
                       : { bg: '#F3F2F0', border: '#E7E3DC', text: '#6F6A63' };
                     return (
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 99, padding: '3px 9px', fontSize: 10, fontWeight: 700, color: s.text, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
-                        Aprovação de Layout · {ds}{diff >= 0 && diff <= 14 && <span style={{ opacity: 0.7, fontWeight: 500 }}> ({diff}d)</span>}
+                        Aprovação de Layout · {ds}{diff >= 0 && diff <= 14 && <span title={`Prazo em ${diff} ${diff === 1 ? 'dia' : 'dias'}`} style={{ opacity: 0.7, fontWeight: 500 }}> ({diff}d)</span>}
                       </span>
                     );
                   })()}
@@ -1687,7 +1698,8 @@ export default function Atendimento() {
                         )}
                         {showTypeHeader && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0 2px' }}>
-                            <span style={{ fontSize: 10, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>{item.type}</span>
+                            <span style={{ fontSize: 9, fontWeight: 600, color: '#d4d0ca', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>Tipo:</span>
+                            <span style={{ fontSize: 10, fontWeight: 700, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>{item.type}</span>
                             <div style={{ flex: 1, height: 1, background: '#f0ede8' }} />
                           </div>
                         )}
@@ -1697,13 +1709,13 @@ export default function Atendimento() {
                         className="group"
                         style={{
                           backgroundColor: '#ffffff', borderRadius: 12,
-                          boxShadow: `0 1px 3px rgba(0,0,0,0.06), inset 4px 0 0 ${isFullyApproved ? '#d6d3d1' : '#f97316'}`,
+                          boxShadow: `0 1px 3px rgba(0,0,0,0.06), inset 4px 0 0 ${isFullyApproved ? '#d6d3d1' : hasArteBlock ? '#94a3b8' : '#f97316'}`,
                           overflow: 'hidden',
                           opacity: isFullyApproved ? 0.75 : 1,
                           transition: 'box-shadow 0.2s',
                         }}
-                        onMouseEnter={e => { if (!isFullyApproved) (e.currentTarget as HTMLDivElement).style.boxShadow = `0 4px 12px rgba(0,0,0,0.1), inset 4px 0 0 #f97316`; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = `0 1px 3px rgba(0,0,0,0.06), inset 4px 0 0 ${isFullyApproved ? '#d6d3d1' : '#f97316'}`; }}
+                        onMouseEnter={e => { if (!isFullyApproved) (e.currentTarget as HTMLDivElement).style.boxShadow = `0 4px 12px rgba(0,0,0,0.1), inset 4px 0 0 ${hasArteBlock ? '#94a3b8' : '#f97316'}`; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = `0 1px 3px rgba(0,0,0,0.06), inset 4px 0 0 ${isFullyApproved ? '#d6d3d1' : hasArteBlock ? '#94a3b8' : '#f97316'}`; }}
                       >
                         <div style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', padding: isMobile ? 14 : 20, gap: isMobile ? 12 : 24, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
 
@@ -1800,14 +1812,16 @@ export default function Atendimento() {
                                   APROVADO
                                 </span>
                               ) : hasArteBlock ? (
-                                <span style={{
-                                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                                  padding: '4px 8px', borderRadius: 4,
-                                  backgroundColor: '#fef3c7', color: '#92400e',
-                                  fontSize: 10, fontWeight: 700,
-                                }}>
+                                <span
+                                  title="A arte está em correção — você será notificado quando a nova versão estiver pronta"
+                                  style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                                    padding: '4px 8px', borderRadius: 4,
+                                    backgroundColor: '#f1f5f9', color: '#475569',
+                                    fontSize: 10, fontWeight: 700,
+                                  }}>
                                   <RotateCcw style={{ width: 12, height: 12 }} />
-                                  DEVOLVIDO À ARTE
+                                  EM CORREÇÃO
                                 </span>
                               ) : (
                                 <span style={{
@@ -2000,6 +2014,27 @@ export default function Atendimento() {
               padding: '12px 16px', marginBottom: 20,
               display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap',
             }}>
+              {/* Busca */}
+              <div style={{ flex: '1 1 180px', minWidth: 160, position: 'relative' }}>
+                <Search style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: '#a8a29e' }} />
+                <input
+                  value={histSearchTerm}
+                  onChange={e => setHistSearchTerm(e.target.value)}
+                  placeholder="ID, tipo ou descrição..."
+                  style={{
+                    width: '100%', paddingLeft: 36, paddingRight: histSearchTerm ? 32 : 12, paddingTop: 9, paddingBottom: 9,
+                    backgroundColor: '#ffffff', borderRadius: 8, border: '1px solid #e7e5e4',
+                    outline: 'none', fontSize: 13, fontWeight: 500, color: '#1c1917',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                {histSearchTerm && (
+                  <button onClick={() => setHistSearchTerm("")} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e' }}>
+                    <X style={{ width: 13, height: 13 }} />
+                  </button>
+                )}
+              </div>
+              <div style={{ width: 1, height: 24, background: '#e7e5e4', flexShrink: 0 }} />
               <EventFilterDropdown values={histEventFilter} onValuesChange={setHistEventFilter} options={histEventOptions} />
               <FilterSelect showAllLabelWhenEmpty label="Patrocinador" allLabel="Todos os patrocinadores"
                 values={histSponsorFilter} onValuesChange={setHistSponsorFilter}
@@ -2007,9 +2042,9 @@ export default function Atendimento() {
               <FilterSelect showAllLabelWhenEmpty label="Período" allLabel="Todos os períodos"
                 value={histPeriodFilter} onChange={setHistPeriodFilter}
                 options={periodOptions} />
-              {hasHistFilters && (
+              {(hasHistFilters || histSearchTerm) && (
                 <button
-                  onClick={() => { setHistEventFilter([]); setHistSponsorFilter([]); setHistPeriodFilter("all"); }}
+                  onClick={() => { setHistEventFilter([]); setHistSponsorFilter([]); setHistPeriodFilter("all"); setHistSearchTerm(""); }}
                   style={{
                     display: 'inline-flex', alignItems: 'center', gap: 5,
                     height: 36, padding: '0 12px',
@@ -2024,7 +2059,7 @@ export default function Atendimento() {
                 {loadingSponsors
                   ? <Loader2 style={{ width: 14, height: 14, color: '#a8a29e' }} className="animate-spin" />
                   : <span style={{ fontSize: 12, color: '#a8a29e', fontWeight: 600 }}>
-                      {historyItems.length} {historyItems.length === 1 ? 'peça' : 'peças'}
+                      {historyItems.length} {historyItems.length === 1 ? 'resultado' : 'resultados'}
                     </span>}
               </div>
             </div>
@@ -2095,7 +2130,7 @@ export default function Atendimento() {
 
                   const timelineMilestones = [
                     item.createdAt && { dot: '#93c5fd', label: 'Criado', date: fmtDt(item.createdAt) },
-                    !item.sponsorApprovedAt && lastApprovedAt && { dot: '#4ade80', label: `Últ. aprovação (${approvedOnes.length})`, date: fmtDt(lastApprovedAt), by: lastApprovedBy },
+                    !item.sponsorApprovedAt && lastApprovedAt && { dot: '#4ade80', label: `Últ. aprovação`, sublabel: `${approvedOnes.length} de ${sponsorApprovals.length}`, date: fmtDt(lastApprovedAt), by: lastApprovedBy },
                     item.sponsorApprovedAt && { dot: '#22c55e', label: 'Todos aprovaram', date: fmtDt(item.sponsorApprovedAt) },
                     item.approvedAt && { dot: '#a78bfa', label: 'Liberado p/ produção', date: fmtDt(item.approvedAt) },
                   ].filter(Boolean) as { dot: string; label: string; date: string | null; by?: string | null }[];
@@ -2123,7 +2158,8 @@ export default function Atendimento() {
                           <div style={{
                             width: 48, height: 48, borderRadius: 8, overflow: 'hidden',
                             background: '#f5f5f4', flexShrink: 0,
-                            boxShadow: '0 1px 3px rgba(0,0,0,0.08)', position: 'relative',
+                            border: '1px solid #e7e5e4',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.06)', position: 'relative',
                           }}>
                             {(item.approvalThumbUrl || item.finalPreviewUrl)
                               ? <>
@@ -2176,10 +2212,10 @@ export default function Atendimento() {
                                 borderRadius: 8, padding: '4px 10px', minWidth: 48,
                               }}>
                                 <span style={{ fontSize: 15, fontWeight: 800, color: allApproved ? '#15803d' : '#374151', lineHeight: 1 }}>
-                                  {approvedOnes.length}/{sponsorApprovals.length}
+                                  {approvedOnes.length} <span style={{ fontSize: 10, fontWeight: 500, opacity: 0.5 }}>de</span> {sponsorApprovals.length}
                                 </span>
-                                <span style={{ fontSize: 9, color: allApproved ? '#4ade80' : '#9ca3af', fontWeight: 600, marginTop: 1 }}>
-                                  {allApproved ? 'TODOS' : 'aprovou'}
+                                <span style={{ fontSize: 9, color: allApproved ? '#22c55e' : '#9ca3af', fontWeight: 700, marginTop: 1, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                  {allApproved ? 'todos' : 'aprovaram'}
                                 </span>
                               </div>
                             )}
@@ -2197,7 +2233,7 @@ export default function Atendimento() {
                               <Fragment key={i}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
                                   <span style={{ width: 7, height: 7, borderRadius: '50%', background: m.dot, flexShrink: 0, boxShadow: `0 0 0 2px ${m.dot}33` }} />
-                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#57534e', whiteSpace: 'nowrap' }}>{m.label}</span>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: '#57534e', whiteSpace: 'nowrap' }}>{m.label}{(m as any).sublabel && <span style={{ fontWeight: 500, color: '#a8a29e', marginLeft: 3 }}>({(m as any).sublabel})</span>}</span>
                                   {m.date && <span style={{ fontSize: 10, color: '#a8a29e', whiteSpace: 'nowrap' }}>{m.date}{m.by ? ` · ${m.by}` : ''}</span>}
                                 </div>
                                 {i < timelineMilestones.length - 1 && (
@@ -2283,6 +2319,9 @@ export default function Atendimento() {
                                     <span style={{ fontSize: 10, color: '#4ade80', fontWeight: 500, whiteSpace: 'nowrap', lineHeight: 1 }}>
                                       {fmtDt(appr.approvedAt, true)}
                                     </span>
+                                  )}
+                                  {!isApproved && !isRejected && !isNewVersion && (
+                                    <span style={{ fontSize: 9, color: '#9ca3af', fontWeight: 600, lineHeight: 1, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Ag.</span>
                                   )}
                                   {isRejected && <span style={{ fontSize: 9, color: '#fca5a5', fontWeight: 700, lineHeight: 1 }}>✕</span>}
                                   {isNewVersion && <span style={{ fontSize: 9, color: '#fcd34d', fontWeight: 700, lineHeight: 1 }}>↻</span>}
@@ -2465,8 +2504,14 @@ export default function Atendimento() {
                   backgroundColor: '#fafaf9',
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    <div style={{ backgroundColor: '#0c0a09', color: '#ffffff', padding: 10, borderRadius: 10 }}>
-                      <FileText style={{ width: 20, height: 20 }} />
+                    <div style={{
+                      width: 40, height: 40, borderRadius: 10, overflow: 'hidden', flexShrink: 0,
+                      backgroundColor: '#0c0a09', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      border: '1px solid #2c2a28',
+                    }}>
+                      {thumbUrl
+                        ? <img src={thumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : <FileText style={{ width: 20, height: 20, color: '#ffffff' }} />}
                     </div>
                     <div>
                       <h2 style={{
@@ -2483,8 +2528,8 @@ export default function Atendimento() {
                         {ev?.truckDepartureDate && (
                           <>
                             <span style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: '#d6d3d1' }} />
-                            <span style={{ fontSize: 10, fontWeight: 800, color: '#f97316', textTransform: 'uppercase' }}>
-                              Saída: {format(toUTCDisplayDate(ev.truckDepartureDate), "dd/MM HH:mm")}
+                            <span style={{ fontSize: 10, fontWeight: 700, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                              Prazo · {format(toUTCDisplayDate(ev.truckDepartureDate), "dd/MM HH:mm")}
                             </span>
                           </>
                         )}
@@ -2509,8 +2554,8 @@ export default function Atendimento() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         {qIdx >= 0 && reviewQueue.length > 1 && (
                           <>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: '#a8a29e', fontFamily: 'monospace', whiteSpace: 'nowrap' }}>
-                              {qIdx + 1} / {reviewQueue.length}
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#a8a29e', whiteSpace: 'nowrap' }}>
+                              Peça {qIdx + 1} <span style={{ opacity: 0.5 }}>de</span> {reviewQueue.length}
                             </span>
                             <button
                               onClick={() => hasPrev && goToAdjacentItem(-1)}
@@ -2563,7 +2608,7 @@ export default function Atendimento() {
                   }}>
                     <div>
                       <h4 style={{ fontSize: 10, fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
-                        Metadados Técnicos
+                        Especificações
                       </h4>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                         {[
@@ -2606,7 +2651,7 @@ export default function Atendimento() {
                               fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
                             }}
                           >
-                            <span>Thumb Aprovação</span>
+                            <span>Arquivo para aprovação</span>
                             <Download style={{ width: 14, height: 14 }} />
                           </a>
                         )}
@@ -2656,8 +2701,33 @@ export default function Atendimento() {
                     {/* Aprovações por Patrocinador */}
                     <div>
                       <h4 style={{ fontSize: 10, fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
-                        Decisão por Patrocinador
+                        Decisão
                       </h4>
+
+                      {allDecided && !allApproved && (
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '10px 14px', borderRadius: 8, marginBottom: 16,
+                          backgroundColor: '#f8fafc', border: '1px solid #e2e8f0',
+                        }}>
+                          <RotateCcw style={{ width: 14, height: 14, color: '#64748b', flexShrink: 0 }} />
+                          <p style={{ fontSize: 12, color: '#475569', margin: 0, fontWeight: 500 }}>
+                            Decisões registradas — a Arte está preparando uma nova versão.
+                          </p>
+                        </div>
+                      )}
+                      {allApproved && (
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          padding: '10px 14px', borderRadius: 8, marginBottom: 16,
+                          backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0',
+                        }}>
+                          <CheckCircle style={{ width: 14, height: 14, color: '#15803d', flexShrink: 0 }} />
+                          <p style={{ fontSize: 12, color: '#15803d', margin: 0, fontWeight: 600 }}>
+                            Todos os patrocinadores aprovaram este ativo.
+                          </p>
+                        </div>
+                      )}
 
                       {loadingSponsorApprovals ? (
                         <div style={{ display: 'flex', justifyContent: 'center', padding: 24 }}>
@@ -2702,7 +2772,10 @@ export default function Atendimento() {
                                     </div>
                                     <div>
                                       <p style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', margin: 0 }}>{sponsor.name}</p>
-                                      <p style={{ fontSize: 10, color: '#a8a29e', margin: '1px 0 0', textTransform: 'uppercase', fontWeight: 600 }}>
+                                      <p style={{
+                                        fontSize: 10, margin: '1px 0 0', textTransform: 'uppercase', fontWeight: 700,
+                                        color: isApproved ? '#15803d' : isRejected ? '#dc2626' : isNewVersion ? '#0369a1' : '#b45309',
+                                      }}>
                                         {isApproved ? 'Aprovado' : isRejected ? 'Reprovado' : isNewVersion ? 'Nova Arte Enviada' : 'Aguardando Decisão'}
                                       </p>
                                     </div>
@@ -2876,8 +2949,9 @@ export default function Atendimento() {
                             };
                             const cfg = ACTION_CONFIG[log.action] ?? { label: log.action?.replace(/_/g, ' ') ?? 'Ação', bg: '#e7e5e4', iconColor: '#a8a29e', icon: Clock };
                             const IconComp = cfg.icon;
+                            const isSystemLog = ['updated', 'status_changed', 'file_uploaded', 'thumb_uploaded'].includes(log.action);
                             return (
-                              <div key={log.id} style={{ paddingLeft: 32, position: 'relative', opacity: Math.max(0.35, 1 - i * 0.12) }}>
+                              <div key={log.id} style={{ paddingLeft: 32, position: 'relative', opacity: isSystemLog ? Math.max(0.25, 0.5 - i * 0.04) : Math.max(0.5, 1 - i * 0.1) }}>
                                 <div style={{
                                   position: 'absolute', left: 0, top: 2,
                                   width: 20, height: 20, borderRadius: '50%',
@@ -2921,11 +2995,15 @@ export default function Atendimento() {
                   <button
                     onClick={() => setDialogOpen(false)}
                     style={{
-                      padding: '10px 20px', borderRadius: 8, border: 'none',
+                      padding: '10px 20px', borderRadius: 8,
+                      border: '1px solid #e7e5e4',
                       backgroundColor: 'transparent', color: '#78716c',
                       fontSize: 12, fontWeight: 600,
                       cursor: 'pointer', marginRight: 'auto',
+                      transition: 'border-color 0.15s, color 0.15s',
                     }}
+                    onMouseEnter={e => { e.currentTarget.style.borderColor = '#a8a29e'; e.currentTarget.style.color = '#1c1917'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.color = '#78716c'; }}
                   >
                     Fechar
                   </button>

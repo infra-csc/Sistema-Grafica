@@ -157,7 +157,8 @@ const getSponsorColorById = (sponsorId: string, allSponsors: any[]) => {
 // que chamar localeCompare a cada comparação.
 const COLLATOR_PTBR = new Intl.Collator('pt-BR');
 
-export default function VincularPatrocinadores() {  const isMobile = useIsMobile();
+export default function VincularPatrocinadores() {
+  const isMobile = useIsMobile();
   const { user } = useAuth();
   const isAdmin = user?.role === 'admin';
   const { toast } = useToast();
@@ -1591,13 +1592,6 @@ export default function VincularPatrocinadores() {  const isMobile = useIsMobil
           <p style={{ color: '#78716c', fontSize: 14, fontWeight: 500, lineHeight: 1.5, marginBottom: 10 }}>
             Associe patrocinadores a cada item antes do envio à Arte.
           </p>
-          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
-            <span style={{ fontSize: 10, fontWeight: 600, color: '#a8a29e', marginRight: 2 }}>Legenda:</span>
-            <span style={{ padding: '2px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', backgroundColor: '#e8e8e7', color: '#78716c', textTransform: 'uppercase' }}>Pendente</span>
-            <span style={{ padding: '2px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', backgroundColor: '#ffedd5', color: '#c2410c', textTransform: 'uppercase' }}>Rascunho</span>
-            <span style={{ padding: '2px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', backgroundColor: '#dcfce7', color: '#166534', textTransform: 'uppercase' }}>Pronto</span>
-            <span style={{ padding: '2px 10px', borderRadius: 9999, fontSize: 10, fontWeight: 700, letterSpacing: '0.06em', backgroundColor: '#1c1917', color: '#ffffff', textTransform: 'uppercase', opacity: 0.55 }}>Enviado</span>
-          </div>
         </div>
         <div style={{ display: 'flex', gap: 10, flexShrink: 0, flexWrap: 'wrap' }}>
           <button
@@ -1643,12 +1637,20 @@ export default function VincularPatrocinadores() {  const isMobile = useIsMobil
             }}
             disabled={contextStatusCounts.PRONTO === 0 || sendToArteMutation.isPending}
             data-testid="button-finalizar-lote"
+            title={
+              contextStatusCounts.PRONTO === 0
+                ? contextStatusCounts.RASCUNHO > 0
+                  ? `Há ${contextStatusCounts.RASCUNHO} ${contextStatusCounts.RASCUNHO === 1 ? 'rascunho' : 'rascunhos'} — salve-${contextStatusCounts.RASCUNHO === 1 ? 'o' : 'os'} para deixar os itens prontos`
+                  : 'Nenhum item está pronto para envio. Vincule e salve patrocinadores primeiro.'
+                : undefined
+            }
             style={{
               display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
               padding: '10px 18px',
-              backgroundColor: contextStatusCounts.PRONTO === 0 ? '#e7e5e4' : '#f97316',
+              backgroundColor: contextStatusCounts.PRONTO === 0 ? 'transparent' : '#f97316',
               color: contextStatusCounts.PRONTO === 0 ? '#a8a29e' : '#ffffff',
-              borderRadius: 8, border: 'none',
+              borderRadius: 8,
+              border: contextStatusCounts.PRONTO === 0 ? '1.5px dashed #d4d0cc' : 'none',
               cursor: contextStatusCounts.PRONTO === 0 ? 'not-allowed' : 'pointer',
               minWidth: 180,
             }}
@@ -1707,22 +1709,6 @@ export default function VincularPatrocinadores() {  const isMobile = useIsMobil
           );
         })()}
 
-        {/* Legenda inline dos segmentos */}
-        <div style={{ display: 'flex', gap: 16, marginTop: 10, flexWrap: 'wrap' }}>
-          {[
-            { label: 'Sem ação',  color: '#a8a29e', count: contextStatusCounts.PENDENTE, bg: '#e8e8e7' },
-            { label: 'Rascunho',  color: '#c2410c', count: contextStatusCounts.RASCUNHO, bg: '#ffedd5' },
-            { label: 'Pronto',    color: '#166534', count: contextStatusCounts.PRONTO,   bg: '#dcfce7' },
-            { label: 'Enviado',   color: '#ffffff', count: contextStatusCounts.ENVIADO,  bg: '#1c1917' },
-          ].map(s => (
-            <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: s.bg === '#e8e8e7' ? '#a8a29e' : s.bg === '#ffedd5' ? '#fb923c' : s.bg === '#dcfce7' ? '#4ade80' : '#1c1917', flexShrink: 0 }} />
-              <span style={{ fontSize: 10, fontWeight: 600, color: '#78716c' }}>
-                {s.label} <strong style={{ color: '#1a1c1c' }}>{s.count}</strong>
-              </span>
-            </div>
-          ))}
-        </div>
 
         {/* Row 2: 3 cartões de status acionáveis */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 16 }}>
@@ -1887,18 +1873,21 @@ export default function VincularPatrocinadores() {  const isMobile = useIsMobil
               />
             </div>
 
-            {/* Busca */}
-            <div>
-              <label className="text-xs text-muted-foreground mb-1.5 block">Buscar</label>
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Nome..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-9"
-                  data-testid="input-search-events"
-                />
+            {/* Separador + Busca */}
+            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
+              <div style={{ width: 1, height: 34, backgroundColor: '#e7e5e4', alignSelf: 'flex-end', flexShrink: 0 }} />
+              <div>
+                <label className="text-xs text-muted-foreground mb-1.5 block">Buscar</label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Nome..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-9"
+                    data-testid="input-search-events"
+                  />
+                </div>
               </div>
             </div>
           </div>
@@ -2001,7 +1990,7 @@ export default function VincularPatrocinadores() {  const isMobile = useIsMobil
                   <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', color: '#ffffff', fontSize: 17, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '-0.01em', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {event.name}
                   </h2>
-                  <span style={{ backgroundColor: progress.completed === progress.total && progress.total > 0 ? '#f97316' : '#3d3936', color: '#ffffff', borderRadius: 4, padding: '1px 7px', fontSize: 10, fontWeight: 900, whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.03em' }}>
+                  <span style={{ backgroundColor: progress.completed === progress.total && progress.total > 0 ? '#16a34a' : '#3d3936', color: '#ffffff', borderRadius: 4, padding: '1px 7px', fontSize: 10, fontWeight: 900, whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.03em' }}>
                     {progress.completed}/{progress.total} CONCLUÍDO
                   </span>
                 </div>
@@ -2019,6 +2008,7 @@ export default function VincularPatrocinadores() {  const isMobile = useIsMobil
                   <button
                     onClick={() => handleOpenSponsorDialog(event)}
                     data-testid={`button-manage-event-sponsors-${event.id}`}
+                    title={eventSponsors.length === 0 ? 'Adicionar patrocinadores a este evento' : `${eventSponsors.length} ${eventSponsors.length === 1 ? 'patrocinador' : 'patrocinadores'} neste evento`}
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', backgroundColor: 'rgba(255,255,255,0.1)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)', fontSize: 11, fontWeight: 600 }}>
                     <Building2 style={{ width: 12, height: 12 }} />
                     {eventSponsors.length === 0 ? 'Adicionar Pat.' : `${eventSponsors.length} Pat.`}
@@ -2044,13 +2034,10 @@ export default function VincularPatrocinadores() {  const isMobile = useIsMobil
                         <th className="px-3 py-4 text-left" style={{ fontSize: '10px', fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Peça / Especificação</th>
                         <th className="px-3 py-4 text-left" style={{ fontSize: '10px', fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Detalhes</th>
                         <th className="px-3 py-4 text-left" style={{ fontSize: '10px', fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                          <div className="flex items-center gap-1">
-                            <Link2 className="h-3 w-3" />
-                            Vínculos Ativos
-                          </div>
+                          Vínculos Ativos
                         </th>
                         <th className="px-3 py-4 text-right pr-6" style={{ fontSize: '10px', fontWeight: 900, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                          Status / Ações
+                          Status
                         </th>
                       </tr>
                     </thead>
@@ -2102,7 +2089,7 @@ export default function VincularPatrocinadores() {  const isMobile = useIsMobil
                                 <td colSpan={6} style={{ padding: 0 }}>
                                   <div style={{ backgroundColor: groupBg, display: 'flex', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
                                     {/* Coluna do checkbox — mesma largura do td de item (50px) */}
-                                    <div style={{ width: 50, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '6px 0' }}>
+                                    <div style={{ width: 50, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '10px 0' }}>
                                       <Checkbox
                                         checked={allTypeSelected}
                                         onCheckedChange={() => toggleTypeGroup(typeItems)}
@@ -2220,7 +2207,7 @@ export default function VincularPatrocinadores() {  const isMobile = useIsMobil
                               {currentSkipApproval ? (
                                 /* "Sem Patrocinador" */
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <span style={{ padding: '3px 8px', backgroundColor: '#1c1917', color: '#a8a29e', fontSize: 9, fontWeight: 700, textTransform: 'uppercase', borderRadius: 4, letterSpacing: '0.04em' }}>
+                                  <span style={{ padding: '3px 8px', backgroundColor: '#fffbeb', color: '#92400e', border: '1px solid #fcd34d', fontSize: 9, fontWeight: 800, textTransform: 'uppercase', borderRadius: 4, letterSpacing: '0.04em' }}>
                                     Sem Pat.
                                   </span>
                                   {isEditable && (

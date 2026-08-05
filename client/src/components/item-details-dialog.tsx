@@ -355,11 +355,17 @@ export function ItemDetailsDialog({
   // Com uma foto só, ela já está no topo ao lado da arte — repetir aqui embaixo
   // seria a mesma imagem duas vezes no mesmo card.
   const showConferenceStrip = conferencePhotos.length > (thumbUrl ? 1 : 0);
+  // Peça entregue sem comprovante: a foto da entrega é opcional, então dá para
+  // concluir sem anexar nada. Mostrar isso explicitamente evita a leitura de que
+  // o registro existe e não está carregando.
+  const isDeliveredItem  = ["delivered", "entregue"].includes(rawStatus);
+  const missingDeliveryProof = isDeliveredItem && deliveryPhotos.length === 0;
   // A seção só existe se sobrar algo para mostrar. Sem esta checagem, quando a
   // única foto subia para o topo o título "Registros da Gráfica" ficava sozinho,
   // anunciando um bloco vazio.
   const hasFlowPhotos    = showConferenceStrip || deliveryPhotos.length > 0
-                        || !!item.conferenceNotes || !!item.deliveryNotes;
+                        || !!item.conferenceNotes || !!item.deliveryNotes
+                        || missingDeliveryProof;
   const hasObservations  = !!item.observations;
   const hasTimestamps    = !!(item.createdAt || item.sponsorApprovedAt || item.creatorReviewedAt || item.approvedAt || item.productionStartedAt || item.producedAt || item.conferredAt || item.deliveredAt);
 
@@ -988,6 +994,18 @@ export function ItemDetailsDialog({
                       {item.deliveryNotes && (
                         <p style={{ fontSize: 12, color: "#584237", fontStyle: "italic", lineHeight: 1.5, margin: "8px 0 0 0" }}>"{item.deliveryNotes}"</p>
                       )}
+                    </div>
+                  )}
+
+                  {missingDeliveryProof && (
+                    <div style={{ display: "flex", alignItems: "flex-start", gap: 8, backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 12px" }}>
+                      <span style={{ fontSize: 13, lineHeight: 1 }}>⚠</span>
+                      <div>
+                        <p style={{ fontSize: 11, fontWeight: 700, color: "#92400e", margin: 0 }}>Entregue sem comprovante fotográfico</p>
+                        <p style={{ fontSize: 11, color: "#a16207", margin: "2px 0 0", lineHeight: 1.4 }}>
+                          A foto da entrega é opcional{item.receivedBy ? ` — consta apenas o recebimento por ${item.receivedBy}` : ""}.
+                        </p>
+                      </div>
                     </div>
                   )}
                 </section>

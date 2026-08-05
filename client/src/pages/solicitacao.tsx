@@ -88,19 +88,41 @@ export default function Solicitacao() {
   });
 
   const bulkReleaseMutation = useMutation({
-    mutationFn: async (itemIds: string[]) => await apiRequest("PATCH", `/api/items/bulk-creator-review`, { itemIds }),
-    onSuccess: (result: any) => {
+    // Não existe rota em lote para isto: a chamada a /bulk-creator-review caía
+    // no fallback do SPA (200 + HTML) e a tela dava "peças liberadas" sem que
+    // nada tivesse acontecido. Usa a rota individual, que é idempotente, e
+    // reporta o que de fato passou.
+    mutationFn: async (itemIds: string[]) => {
+      const results = await Promise.allSettled(
+        itemIds.map(id => apiRequest("PATCH", `/api/items/${id}/creator-review`, {}))
+      );
+      const failed = results.filter(r => r.status === "rejected").length;
+      return { total: itemIds.length, released: itemIds.length - failed, failed };
+    },
+    onSuccess: ({ total, released, failed }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setSelectedItemIds(new Set()); setBulkReleaseConfirmOpen(false);
-      toast({ title: "Peças liberadas", description: `${result.released ?? selectedItemIds.size} peças foram liberadas para produção.` });
+      if (failed > 0) {
+        toast({
+          title: "Liberação parcial",
+          description: `${released} de ${total} liberada(s). ${failed} não passou(aram) — verifique o status delas.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Peças liberadas", description: `${released} peça(s) liberada(s) para produção.` });
+      }
     },
     onError: (error: any) => toast({ title: "Erro ao liberar peças", description: error.message, variant: "destructive" }),
   });
 
   const returnToArteMutation = useMutation({
     mutationFn: async (payload: { itemId: string; notes: string }) =>
-      await apiRequest("POST", `/api/items/${payload.itemId}/return-to-arte`, { notes: payload.notes }),
+      // PATCH, não POST: a rota é PATCH e o método errado caía no fallback do
+      // SPA, que responde 200 com HTML. A tela dava "devolvida com sucesso" e o
+      // servidor nunca recebia nada — a peça continuava na fila de revisão.
+      await apiRequest("PATCH", `/api/items/${payload.itemId}/return-to-arte`, { notes: payload.notes }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
@@ -114,7 +136,7 @@ export default function Solicitacao() {
   const bulkReturnMutation = useMutation({
     mutationFn: async (payload: { ids: string[]; notes: string }) => {
       const results = await Promise.allSettled(
-        payload.ids.map(id => apiRequest("POST", `/api/items/${id}/return-to-arte`, { notes: payload.notes }))
+        payload.ids.map(id => apiRequest("PATCH", `/api/items/${id}/return-to-arte`, { notes: payload.notes }))
       );
       return { total: payload.ids.length, failed: results.filter(r => r.status === "rejected").length };
     },

@@ -596,10 +596,12 @@ export default function Grafica() {
       return;
     }
     setIsBulkSubmitting(true);
+    const ids = [...bulkSelectedIds];
     try {
-      const ids = [...bulkSelectedIds];
-      // 1. Registrar entrega em cada item
-      await Promise.all(ids.map(itemId => {
+      // allSettled, não all: com Promise.all a primeira falha rejeitava, mas as
+      // demais requisições já tinham sido enviadas e concluíam. A tela mostrava
+      // "erro na entrega em lote" enquanto as peças apareciam como entregues.
+      const delivery = await Promise.allSettled(ids.map(itemId => {
         const item = (filteredItems as any[]).find(i => i.id === itemId);
         const qty = item ? remainingDeliver(item) : 1;
         return apiRequest("PATCH", `/api/items/${itemId}/deliver`, {
@@ -608,18 +610,49 @@ export default function Grafica() {
           notes: bulkDeliveryNotes || null,
         });
       }));
-      // 2. Mesmo comprovante fotográfico para todos os itens
-      if (bulkDeliveryPhotos.length > 0) {
-        await Promise.all(
-          ids.flatMap(itemId =>
+
+      // Só anexa a foto nas peças cuja entrega passou.
+      const deliveredIds = ids.filter((_, i) => delivery[i].status === "fulfilled");
+      const failed = ids.length - deliveredIds.length;
+
+      let photoFailed = 0;
+      if (bulkDeliveryPhotos.length > 0 && deliveredIds.length > 0) {
+        const photos = await Promise.allSettled(
+          deliveredIds.flatMap(itemId =>
             bulkDeliveryPhotos.map(photoUrl =>
-              apiRequest("POST", `/api/items/${itemId}/photos`, { photoUrl, kind: "delivery" })
+              // uploadedBy é NOT NULL no banco: sem ele o insert falhava, a foto
+              // não era gravada (por isso não aparecia no card nem em Registros)
+              // e o erro derrubava o lote inteiro.
+              apiRequest("POST", `/api/items/${itemId}/photos`, {
+                photoUrl, kind: "delivery", uploadedBy: getCurrentUserName(),
+              })
             )
           )
         );
+        photoFailed = photos.filter(p => p.status === "rejected").length;
       }
+
+      // Invalida sempre — mesmo com falha parcial a lista precisa refletir o
+      // que de fato foi entregue.
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
-      toast({ title: `${ids.length} peça(s) entregue(s)`, description: `Recebido por: ${bulkReceivedBy}` });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+
+      if (failed > 0) {
+        toast({
+          title: "Entrega parcial",
+          description: `${deliveredIds.length} de ${ids.length} entregue(s). ${failed} falhou(aram) e continua(m) na lista.`,
+          variant: "destructive",
+        });
+      } else if (photoFailed > 0) {
+        toast({
+          title: `${deliveredIds.length} peça(s) entregue(s)`,
+          description: "A entrega foi registrada, mas o comprovante não pôde ser anexado.",
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: `${deliveredIds.length} peça(s) entregue(s)`, description: `Recebido por: ${bulkReceivedBy}` });
+      }
+
       setBulkDeliveryOpen(false);
       setBulkDeliveryMode(false);
       setBulkSelectedIds(new Set());
@@ -627,6 +660,7 @@ export default function Grafica() {
       setBulkDeliveryNotes("");
       setBulkDeliveryPhotos([]);
     } catch (e: any) {
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       toast({ title: "Erro na entrega em lote", description: e.message, variant: "destructive" });
     } finally {
       setIsBulkSubmitting(false);

@@ -1049,6 +1049,74 @@ export function registerItemRoutes(app: Express): void {
     }
   });
 
+  // Admin reverts an individual sponsor approval back to "pending" — for when
+  // atendimento aprovou/reprovou o patrocinador errado por engano. Reabre o
+  // item para aprovação se ele já havia avançado por essa aprovação.
+  app.post("/api/items/:id/sponsor-approvals/:sponsorId/revert", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas administradores podem reverter uma aprovação" });
+      }
+
+      const { id: itemId, sponsorId } = req.params;
+
+      const currentItem = await storage.getItem(itemId);
+      if (!currentItem) {
+        return res.status(404).json({ error: "Item não encontrado" });
+      }
+
+      const approval = await storage.getItemSponsorApproval(itemId, sponsorId);
+      if (!approval) {
+        return res.status(404).json({ error: "Aprovação não encontrada para este patrocinador" });
+      }
+      if (approval.status === "pending") {
+        return res.status(409).json({ error: "Esta aprovação já está pendente" });
+      }
+
+      const previousStatus = approval.status;
+      const updatedApproval = await storage.updateItemSponsorApproval(approval.id, {
+        status: "pending",
+        approvedBy: null,
+        approvedAt: null,
+        rejectedBy: null,
+        rejectedAt: null,
+        rejectionReason: null,
+      });
+
+      // Se o item já havia avançado por conta desta aprovação (todos aprovados),
+      // reabre para aprovação do patrocinador — senão o item ficaria "aprovado"
+      // com um patrocinador pendente por baixo.
+      let item = currentItem;
+      if (currentItem.status === "sponsor_approved") {
+        item = (await storage.updateItem(itemId, {
+          status: "awaiting_sponsor_approval",
+          sponsorApprovedBy: null,
+          sponsorApprovedAt: null,
+          rejectedBySponsor: false,
+        }))!;
+      }
+
+      const sponsor = await storage.getSponsor(sponsorId);
+
+      await createAuditLog(
+        req.userName!,
+        'updated',
+        'item',
+        itemId,
+        `Administrador reverteu a aprovação de "${sponsor?.name || sponsorId}" para pendente (estava: ${previousStatus})${item.status !== currentItem.status ? `. Item reaberto: ${translateStatus(currentItem.status)} → ${translateStatus(item.status)}` : ''}`
+      );
+
+      broadcast({ type: "sponsor_approval_updated", itemId, approval: updatedApproval });
+      if (item.status !== currentItem.status) {
+        broadcast({ type: "item_updated", item });
+      }
+
+      res.json({ approval: updatedApproval, item });
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   // Arte submits new version for specific sponsors (correção)
   app.post("/api/items/:id/sponsor-approvals/resubmit", requireAuth, async (req, res) => {
     try {

@@ -58,7 +58,10 @@ const ARTE_COLS: { label: string; w: number | string; right?: boolean }[] = [
   { label: 'Material',          w: 104 },
   { label: 'Thumb / Final',     w: 96 },
   { label: 'Patroc.',           w: 124 },
-  { label: 'Ações',             w: 112, right: true },
+  // 112px cabia só com 2 botões-ícone; com "Enviar Aprovação"/"Enviar
+  // Finalização" (texto) + dispensar, o botão vazava por cima da coluna de
+  // Patrocinadores. 200px acomoda os 4 botões numa linha só.
+  { label: 'Ações',             w: 200, right: true },
 ];
 
 // Status que alimentam cada aba. Antes ficavam embutidos no filtro, que era
@@ -1756,7 +1759,10 @@ export default function Arte() {
                           </td>
                           {/* Ações */}
                           <td style={{ padding: '9px 16px', textAlign: 'right' }}>
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 6 }}>
+                            {/* flexWrap: se algum dia a coluna ficar estreita de
+                                novo, os botões quebram linha em vez de vazar por
+                                cima do Patroc. — ver ARTE_COLS['Ações']. */}
+                            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center', gap: 6, rowGap: 6 }}>
                               <button
                                 onClick={() => handleExportItemPDF(item)}
                                 data-testid={`button-export-item-pdf-${item.id}`}

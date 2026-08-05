@@ -12,6 +12,10 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState, useEffect } from "react";
+import { useAuth } from "@/contexts/auth-context";
+import { useToast } from "@/hooks/use-toast";
+import { queryClient } from "@/lib/queryClient";
+import { Undo2 } from "lucide-react";
 
 interface ItemDetailsDialogProps {
   item: any | null;
@@ -201,12 +205,25 @@ export function ItemDetailsDialog({
 }: ItemDetailsDialogProps) {
   const [editMode, setEditMode]     = useState(false);
   const [editedItem, setEditedItem] = useState(item);
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [revertingSponsorId, setRevertingSponsorId] = useState<string | null>(null);
 
   // Aprovação por patrocinador não vem no payload de /api/items — sem buscar
   // aqui, peças com várias marcas apareciam sempre como "Aguardando" no Painel
   // Geral e no detalhe do evento, mesmo já aprovadas.
   const [fetchedApprovals, setFetchedApprovals] = useState<any[]>([]);
+  // Sobrepõe a lista assim que o admin reverte uma aprovação — sem isso o chip
+  // ficaria com o status antigo até o diálogo reabrir.
+  const [approvalsOverride, setApprovalsOverride] = useState<any[] | null>(null);
+  const refetchApprovals = () => {
+    if (!item?.id) return;
+    return fetch(`/api/items/${item.id}/sponsor-approvals`, { credentials: "include" })
+      .then(r => (r.ok ? r.json() : []))
+      .then(data => { const list = Array.isArray(data) ? data : []; setFetchedApprovals(list); setApprovalsOverride(list); return list; });
+  };
   useEffect(() => {
+    setApprovalsOverride(null);
     if (!open || !item?.id || item?.sponsorApprovals) { setFetchedApprovals([]); return; }
     let cancelled = false;
     fetch(`/api/items/${item.id}/sponsor-approvals`, { credentials: "include" })
@@ -231,7 +248,30 @@ export function ItemDetailsDialog({
 
   if (!item) return null;
 
-  const approvalsList: any[] = item.sponsorApprovals ?? fetchedApprovals;
+  const approvalsList: any[] = approvalsOverride ?? item.sponsorApprovals ?? fetchedApprovals;
+
+  const handleRevertApproval = async (sponsorId: string, sponsorName: string) => {
+    if (!item?.id) return;
+    setRevertingSponsorId(sponsorId);
+    try {
+      const res = await fetch(`/api/items/${item.id}/sponsor-approvals/${sponsorId}/revert`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Não foi possível reverter a aprovação");
+      await refetchApprovals();
+      // O item pode ter voltado de "sponsor_approved" para aguardando aprovação —
+      // as listas que dependem de /api/items (Painel Geral, Atendimento etc.)
+      // precisam refletir isso sem exigir um refresh manual da página.
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      toast({ title: "Aprovação revertida", description: `"${sponsorName}" volta a aguardar aprovação.` });
+    } catch (error: any) {
+      toast({ title: "Erro ao reverter", description: error.message, variant: "destructive" });
+    } finally {
+      setRevertingSponsorId(null);
+    }
+  };
 
   // Junta as fotos da galeria com os campos antigos do item (uma foto só), sem
   // repetir a mesma URL duas vezes.
@@ -691,13 +731,34 @@ export function ItemDetailsDialog({
                             ) : null}
                           </div>
                         </div>
-                        {isApproved ? (
-                          <span style={{ padding: "4px 12px", borderRadius: 999, backgroundColor: "rgba(0,99,152,0.1)", color: "#006398", fontSize: 10, fontWeight: 700, textTransform: "uppercase", whiteSpace: "nowrap" }}>Aprovado</span>
-                        ) : isRejected ? (
-                          <span style={{ padding: "4px 12px", borderRadius: 999, backgroundColor: "rgba(186,26,26,0.1)", color: "#ba1a1a", fontSize: 10, fontWeight: 700, textTransform: "uppercase", whiteSpace: "nowrap" }}>Reprovado</span>
-                        ) : (
-                          <span style={{ padding: "4px 12px", borderRadius: 999, backgroundColor: "#e2e2e2", color: "#584237", fontSize: 10, fontWeight: 700, textTransform: "uppercase", whiteSpace: "nowrap" }}>Aguardando</span>
-                        )}
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                          {isApproved ? (
+                            <span style={{ padding: "4px 12px", borderRadius: 999, backgroundColor: "rgba(0,99,152,0.1)", color: "#006398", fontSize: 10, fontWeight: 700, textTransform: "uppercase", whiteSpace: "nowrap" }}>Aprovado</span>
+                          ) : isRejected ? (
+                            <span style={{ padding: "4px 12px", borderRadius: 999, backgroundColor: "rgba(186,26,26,0.1)", color: "#ba1a1a", fontSize: 10, fontWeight: 700, textTransform: "uppercase", whiteSpace: "nowrap" }}>Reprovado</span>
+                          ) : (
+                            <span style={{ padding: "4px 12px", borderRadius: 999, backgroundColor: "#e2e2e2", color: "#584237", fontSize: 10, fontWeight: 700, textTransform: "uppercase", whiteSpace: "nowrap" }}>Aguardando</span>
+                          )}
+                          {/* Correção de admin: desfaz uma aprovação/reprovação feita por
+                              engano, sem precisar mexer direto no banco. */}
+                          {user?.role === "admin" && approval && approval.status !== "pending" && (
+                            <button
+                              type="button"
+                              onClick={() => handleRevertApproval(s.id, s.name)}
+                              disabled={revertingSponsorId === s.id}
+                              title={`Reverter para pendente (admin) — estava ${isApproved ? "aprovado" : "reprovado"}`}
+                              data-testid={`button-revert-approval-${s.id}`}
+                              style={{
+                                display: "flex", alignItems: "center", justifyContent: "center",
+                                width: 26, height: 26, borderRadius: 999, border: "1px solid #e7e5e4",
+                                backgroundColor: "#ffffff", color: "#78716c", cursor: revertingSponsorId === s.id ? "default" : "pointer",
+                                opacity: revertingSponsorId === s.id ? 0.5 : 1, flexShrink: 0,
+                              }}
+                            >
+                              <Undo2 style={{ width: 13, height: 13 }} />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}

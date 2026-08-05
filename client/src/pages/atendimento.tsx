@@ -1775,7 +1775,7 @@ export default function Atendimento() {
                                   {item.type}
                                 </h5>
                                 {item.isReuse && (
-                                  <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', backgroundColor: '#dcfce7', color: '#166534', borderRadius: 999, padding: '2px 8px', flexShrink: 0 }}>
+                                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', backgroundColor: '#dcfce7', color: '#166534', borderRadius: 999, padding: '2px 8px', flexShrink: 0 }}>
                                     Reaproveit.
                                   </span>
                                 )}

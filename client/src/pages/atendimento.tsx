@@ -641,7 +641,8 @@ export default function Atendimento() {
   // ── Aba Histórico ───────────────────────────────────────────────────────
   // Itens que têm pelo menos uma aprovação de patrocinador com status 'approved',
   // independente do status atual (podem estar em produção, entregues, etc.)
-  const HIST_STATUS: Record<string, { label: string; bg: string; color: string }> = {
+  // `border` é opcional: quando não vem, a borda cai para o próprio bg.
+  const HIST_STATUS: Record<string, { label: string; bg: string; color: string; border?: string }> = {
     awaiting_finalization:    { label: 'Aguard. Finalização', bg: '#fff7ed', color: '#c2410c' },
     awaiting_final_review:    { label: 'Aguard. Revisão',    bg: '#fff7ed', color: '#c2410c' },
     awaiting_creator_review:  { label: 'Aguard. Revisão',    bg: '#fff7ed', color: '#c2410c' },

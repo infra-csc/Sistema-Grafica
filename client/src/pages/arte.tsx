@@ -1507,8 +1507,12 @@ export default function Arte() {
               ) : (
               <div style={{ overflowX: 'auto' }} className="scrollbar-visible">
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <thead>
-                    <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4' }}>
+                  {/* sticky: com ~71 px por linha cabem 11 na tela, e dentro de um
+                      grupo grande o cabeçalho saía de vista — restavam números
+                      soltos sem saber a que coluna pertenciam. Agora ele
+                      acompanha a rolagem até o próximo grupo empurrá-lo. */}
+                  <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
+                    <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4', boxShadow: '0 1px 0 #e7e5e4' }}>
                       {(tabId === "criar-aprovacoes" || tabId === "finalizados") && (
                         <th style={{ padding: '10px 16px', width: 40 }}>
                           <Checkbox
@@ -1533,7 +1537,10 @@ export default function Arte() {
                         { label: 'Dimensões (V / A)', w: 120 },
                         { label: 'M²', w: 46 },
                         { label: 'Material', w: 92 },
-                        { label: 'Arte', w: 68 },
+                        // "thumb" e "final" saíram de dentro de cada linha, onde se
+                        // repetiam centenas de vezes, para o cabeçalho — que é o
+                        // lugar de rótulo de coluna.
+                        { label: 'Thumb / Final', w: 68 },
                         { label: 'Patroc.', w: 118 },
                         { label: 'Ações', w: 96, right: true },
                       ].map((col, ci) => (
@@ -1683,10 +1690,6 @@ export default function Arte() {
                                   <FileText style={{ width: 13, height: 13 }} />
                                 </span>
                               )}
-                            </div>
-                            <div style={{ display: 'flex', gap: 8, marginTop: 3, paddingLeft: 2 }}>
-                              <span style={{ fontSize: 11, color: '#57534e', width: 26, textAlign: 'center' }}>thumb</span>
-                              <span style={{ fontSize: 11, color: '#57534e', width: 26, textAlign: 'center' }}>final</span>
                             </div>
                           </td>
                           {/* Patrocinadores (todas as abas) */}

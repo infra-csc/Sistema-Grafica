@@ -2697,13 +2697,19 @@ export default function Arte() {
               data-testid="button-submit-correcao"
               style={{
                 width: '100%', padding: '13px 0', borderRadius: 12, border: 'none',
+                // Vermelho é a cor do problema (a recusa), não da solução. Enviar
+                // a arte corrigida é a ação construtiva do modal e usa o laranja
+                // de ação do app — o mesmo dos outros botões primários da tela.
+                // Desabilitado em rosa claro com texto branco dava ~2:1; agora usa
+                // o cinza padrão, legível.
                 background: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending)
-                  ? 'linear-gradient(135deg, #fca5a5, #f87171)'
-                  : 'linear-gradient(135deg, #dc2626, #b91c1c)',
-                color: '#ffffff', fontWeight: 700, fontSize: 15,
+                  ? '#e7e5e4'
+                  : 'linear-gradient(135deg, #ea580c, #c2410c)',
+                color: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) ? '#57534e' : '#ffffff',
+                fontWeight: 700, fontSize: 15,
                 fontFamily: '"Space Grotesk", sans-serif', letterSpacing: '-0.02em',
                 cursor: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) ? 'not-allowed' : 'pointer',
-                boxShadow: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) ? 'none' : '0 4px 16px rgba(185,28,28,0.28)',
+                boxShadow: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) ? 'none' : '0 4px 16px rgba(194,65,12,0.28)',
                 transition: 'filter 0.15s, transform 0.1s, box-shadow 0.15s',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
               }}
@@ -3916,7 +3922,12 @@ export default function Arte() {
                     onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
                   >
                     <FileImage style={{ width: 12, height: 12 }} />
-                    {`Salvar ${readyCount} ${readyCount === 1 ? 'thumb' : 'thumbs'} como rascunho`}
+                    {/* Sem nada vinculado o botão dizia "Salvar 0 thumbs": o zero
+                        não informa, só ocupa espaço. O rótulo limpo já basta,
+                        porque o botão está desabilitado de qualquer forma. */}
+                    {readyCount > 0
+                      ? `Salvar ${readyCount} ${readyCount === 1 ? 'thumb' : 'thumbs'} como rascunho`
+                      : 'Salvar como rascunho'}
                   </button>
 
                   {/* Filled primary — Enviar */}
@@ -3939,7 +3950,7 @@ export default function Arte() {
                   >
                     {bulkThumbRunning
                       ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Enviando...</>
-                      : <><Send style={{ width: 14, height: 14 }} />{`Enviar ${readyCount} ${readyCount === 1 ? 'thumb' : 'thumbs'}`}</>
+                      : <><Send style={{ width: 14, height: 14 }} />{readyCount > 0 ? `Enviar ${readyCount} ${readyCount === 1 ? 'thumb' : 'thumbs'}` : 'Enviar thumbs'}</>
                     }
                   </button>
                 </div>

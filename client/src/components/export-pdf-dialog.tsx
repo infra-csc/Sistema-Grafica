@@ -285,6 +285,17 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
 
             {/* Rodapé */}
             <div style={{ padding: "16px 24px", borderTop: "1px solid #ebe8e4", display: "flex", flexDirection: "column", gap: 8 }}>
+              {/* Sem esta linha, o topo dizia "1326 de 1326 peças" e o botão
+                  "Gerar PDF — 649 peças": dois números contraditórios na mesma
+                  tela, e nada explicando que as demais já têm book pronto e por
+                  isso saem pelo outro botão, não no PDF gerado. */}
+              {hasBook && !allBook && selected.length > 0 && (
+                <p style={{ fontSize: 11, color: "#57534e", margin: "0 0 4px", lineHeight: 1.5, background: "#fafaf9", border: "1px solid #ebe8e4", borderRadius: 8, padding: "8px 10px" }}>
+                  Das <strong style={{ color: "#1c1917" }}>{selected.length}</strong> peças selecionadas,{" "}
+                  <strong style={{ color: "#1c1917" }}>{selected.filter(i => i.bookUrl).length}</strong> já têm book pronto
+                  (abrem em nova aba) e <strong style={{ color: "#1c1917" }}>{selected.filter(i => !i.bookUrl).length}</strong> entram no PDF gerado.
+                </p>
+              )}
               <button
                 onClick={() => onOpenChange(false)}
                 style={{ width: "100%", height: 40, borderRadius: 8, background: "#fff", border: "1px solid #e4e0db", color: "#78716c", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
@@ -303,14 +314,17 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                   data-testid="button-export-book"
                   style={{
                     width: "100%", height: allBook ? 46 : 38, borderRadius: 10,
-                    backgroundColor: selected.length === 0 ? "#e7e5e4" : "#2563eb",
+                    // Roxo é a cor de "book" no app (o badge Book na lista da Arte
+                    // usa a mesma família). Este botão era azul, uma terceira cor
+                    // sem significado dentro do mesmo modal.
+                    backgroundColor: selected.length === 0 ? "#e7e5e4" : "#6d28d9",
                     border: "none",
-                    color: selected.length === 0 ? "#a8a29e" : "#fff",
+                    color: selected.length === 0 ? "#57534e" : "#fff",
                     fontSize: allBook ? 13 : 12, fontWeight: 800,
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                     cursor: selected.length === 0 ? "not-allowed" : "pointer",
                     letterSpacing: "-0.01em",
-                    boxShadow: selected.length > 0 ? "0 2px 8px rgba(37,99,235,0.3)" : "none",
+                    boxShadow: selected.length > 0 ? "0 2px 8px rgba(109,40,217,0.28)" : "none",
                   }}>
                   <BookOpen style={{ width: 15, height: 15 }} />
                   {allBook
@@ -331,9 +345,12 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                   data-testid="button-export-confirm"
                   style={{
                     width: "100%", height: 46, borderRadius: 10,
-                    backgroundColor: selected.filter(i => !i.bookUrl).length === 0 ? "#e7e5e4" : "#7c3aed",
+                    // Ação primária do modal usa o laranja de ação do app, como os
+                    // botões primários das listas. O roxo fica reservado ao botão
+                    // de book, onde a cor tem significado.
+                    backgroundColor: selected.filter(i => !i.bookUrl).length === 0 ? "#e7e5e4" : "#c2410c",
                     border: "none",
-                    color: selected.filter(i => !i.bookUrl).length === 0 ? "#a8a29e" : "#fff",
+                    color: selected.filter(i => !i.bookUrl).length === 0 ? "#57534e" : "#fff",
                     fontSize: 13, fontWeight: 800,
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                     cursor: selected.filter(i => !i.bookUrl).length === 0 ? "not-allowed" : "pointer",
@@ -368,7 +385,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                 value={eventFilter} onChange={setEventFilter}
                 options={eventOptions} searchPlaceholder="Buscar evento..." emptyText="Nenhum." />
               <FilterSelect showAllLabelWhenEmpty hideWhenEmpty={false} accent="violet"
-                label="Patrocinador" allLabel="Todos"
+                label="Patrocinador" allLabel="Todos os patrocinadores"
                 value={sponsorFilter} onChange={setSponsorFilter}
                 options={sponsorOptions} searchPlaceholder="Buscar..." emptyText="Nenhum." />
               <FilterSelect showAllLabelWhenEmpty hideWhenEmpty={false} accent="violet"
@@ -381,7 +398,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                 options={typeOptions} searchPlaceholder="Buscar tipo..." emptyText="Nenhum."
                 dropdownAlign="right" />
               <FilterSelect showAllLabelWhenEmpty hideWhenEmpty={false} accent="violet"
-                label="Status" allLabel="Todos"
+                label="Status" allLabel="Todos os status"
                 value={statusFilter} onChange={setStatusFilter}
                 options={statusOptions} searchPlaceholder="Buscar..." emptyText="Nenhum."
                 dropdownAlign="right" />

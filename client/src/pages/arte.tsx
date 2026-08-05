@@ -1345,11 +1345,11 @@ export default function Arte() {
         <div style={{ textAlign: 'center', padding: '48px 0' }}>
           {tabId === "criar-aprovacoes" ? <CheckCircle style={{ width: 48, height: 48, color: '#16a34a', margin: '0 auto 16px' }} /> :
            tabId === "finalizar-layouts" ? <Upload style={{ width: 48, height: 48, color: '#2563eb', margin: '0 auto 16px' }} /> :
-           <Eye style={{ width: 48, height: 48, color: '#78716c', margin: '0 auto 16px' }} />}
+           <Eye style={{ width: 48, height: 48, color: '#57534e', margin: '0 auto 16px' }} />}
           <p style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 4 }}>
             {tabId === "criar-aprovacoes" ? "Tudo liberado!" : tabId === "aguardando-patrocinador" ? "Nenhuma peça aguardando patrocinador" : tabId === "finalizar-layouts" ? "Nenhum item aguardando arquivo final" : "Nenhum item finalizado"}
           </p>
-          <p style={{ fontSize: 13, color: '#78716c' }}>
+          <p style={{ fontSize: 13, color: '#57534e' }}>
             {tabId === "criar-aprovacoes" ? "Não há itens pendentes no momento" : tabId === "aguardando-patrocinador" ? "Nenhuma peça em aprovação pelo patrocinador" : "Histórico vazio"}
           </p>
         </div>
@@ -1394,7 +1394,7 @@ export default function Arte() {
         {/* Resumo por evento — chips clicáveis para filtrar/pular */}
         {eventFilter.length === 0 && eventSummary.length > 1 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', padding: '12px 14px', backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 12 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>
               {eventSummary.length} eventos
             </span>
             {eventSummary.map(ev => (
@@ -1496,7 +1496,7 @@ export default function Arte() {
                         <StatusBadge status={item.status} />
                       </div>
                       <div style={{ fontWeight: 700, fontSize: 13, color: '#1c1917' }}>{item.type}</div>
-                      {item.description && <div style={{ fontSize: 12, color: '#78716c', marginTop: 2 }}>{item.description}</div>}
+                      {item.description && <div style={{ fontSize: 12, color: '#57534e', marginTop: 2 }}>{item.description}</div>}
                       {item.approvalThumbUrl && <div style={{ marginTop: 6 }}>
                         <img src={item.approvalThumbUrl} alt="thumb" style={{ maxWidth: 80, maxHeight: 60, borderRadius: 6, objectFit: 'cover' }} />
                       </div>}
@@ -1543,7 +1543,7 @@ export default function Arte() {
                             padding: '10px 16px',
                             fontSize: 11,
                             fontWeight: 700,
-                            color: '#78716c',
+                            color: '#57534e',
                             textTransform: 'uppercase',
                             letterSpacing: '0.08em',
                             width: col.flex ? undefined : col.w,
@@ -1577,7 +1577,7 @@ export default function Arte() {
                           {/* ID */}
                           <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                              <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 12, color: '#78716c', fontWeight: 600 }} data-testid={`text-display-id-${item.id}`}>
+                              <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 12, color: '#57534e', fontWeight: 600 }} data-testid={`text-display-id-${item.id}`}>
                                 {item.displayId}
                               </span>
                               {tabId === "finalizados" && <StatusBadge status={item.status} />}
@@ -1627,11 +1627,11 @@ export default function Arte() {
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                                 <span style={{ fontSize: 12, fontWeight: 600, color: '#1c1917' }}>{item.visualWidth} × {item.visualHeight}</span>
                                 {item.fileWidth && item.fileHeight && (
-                                  <span style={{ fontSize: 11, color: '#78716c' }}>{item.fileWidth} × {item.fileHeight} <span style={{ fontSize: 11, color: '#78716c' }}>(sangria)</span></span>
+                                  <span style={{ fontSize: 11, color: '#57534e' }}>{item.fileWidth} × {item.fileHeight} <span style={{ fontSize: 11, color: '#57534e' }}>(sangria)</span></span>
                                 )}
                               </div>
                             ) : (
-                              <span style={{ color: '#78716c', fontSize: 12 }}>—</span>
+                              <span style={{ color: '#57534e', fontSize: 12 }}>—</span>
                             )}
                           </td>
                           {/* m² */}
@@ -1646,7 +1646,7 @@ export default function Arte() {
                                   display: 'inline-block',
                                   padding: '2px 8px',
                                   backgroundColor: '#f5f5f4',
-                                  color: '#78716c',
+                                  color: '#57534e',
                                   borderRadius: 6,
                                   fontSize: 11,
                                   fontWeight: 700,
@@ -1657,10 +1657,10 @@ export default function Arte() {
                                   {item.material}
                                 </span>
                                 {item.finish && (
-                                  <span style={{ fontSize: 11, color: '#78716c' }}>{item.finish}</span>
+                                  <span style={{ fontSize: 11, color: '#57534e' }}>{item.finish}</span>
                                 )}
                               </div>
-                            ) : <span style={{ color: '#78716c', fontSize: 12 }}>—</span>}
+                            ) : <span style={{ color: '#57534e', fontSize: 12 }}>—</span>}
                           </td>
                           {/* ARTE — indicadores thumb / arquivo final (todas as abas) */}
                           <td style={{ padding: '12px 16px' }}>
@@ -1685,8 +1685,8 @@ export default function Arte() {
                               )}
                             </div>
                             <div style={{ display: 'flex', gap: 8, marginTop: 3, paddingLeft: 2 }}>
-                              <span style={{ fontSize: 11, color: '#78716c', width: 26, textAlign: 'center' }}>thumb</span>
-                              <span style={{ fontSize: 11, color: '#78716c', width: 26, textAlign: 'center' }}>final</span>
+                              <span style={{ fontSize: 11, color: '#57534e', width: 26, textAlign: 'center' }}>thumb</span>
+                              <span style={{ fontSize: 11, color: '#57534e', width: 26, textAlign: 'center' }}>final</span>
                             </div>
                           </td>
                           {/* Patrocinadores (todas as abas) */}
@@ -1704,7 +1704,7 @@ export default function Arte() {
                                   width: 34, height: 34, borderRadius: 8,
                                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                                   background: 'none', border: '1px solid #e7e5e4', cursor: 'pointer',
-                                  color: '#78716c', transition: 'all 0.15s',
+                                  color: '#57534e', transition: 'all 0.15s',
                                 }}
                                 onMouseEnter={e => { e.currentTarget.style.color = '#7c3aed'; e.currentTarget.style.borderColor = '#7c3aed'; }}
                                 onMouseLeave={e => { e.currentTarget.style.color = '#a8a29e'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
@@ -1719,7 +1719,7 @@ export default function Arte() {
                                   width: 34, height: 34, borderRadius: 8,
                                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                                   background: 'none', border: '1px solid #e7e5e4', cursor: 'pointer',
-                                  color: '#78716c', transition: 'all 0.15s',
+                                  color: '#57534e', transition: 'all 0.15s',
                                 }}
                                 onMouseEnter={e => { e.currentTarget.style.color = '#f97316'; e.currentTarget.style.borderColor = '#f97316'; }}
                                 onMouseLeave={e => { e.currentTarget.style.color = '#a8a29e'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
@@ -1728,7 +1728,7 @@ export default function Arte() {
                               </button>
                               {(tabId === "criar-aprovacoes" || tabId === "finalizar-layouts") && (() => {
                                 const isSkip = tabId === "criar-aprovacoes" && item.skipApproval;
-                                const bgColor = tabId === "finalizar-layouts" ? '#2563eb' : isSkip ? '#7c3aed' : '#f97316';
+                                const bgColor = tabId === "finalizar-layouts" ? '#2563eb' : isSkip ? '#7c3aed' : '#c2410c'; // laranja da marca da 2.80:1 com texto branco e reprova AA; este da 5.18
                                 const label = tabId === "finalizar-layouts" ? "Finalizar Arte" : isSkip ? "Enviar Finalização" : "Enviar Aprovação";
                                 return (
                                   <button
@@ -1758,7 +1758,7 @@ export default function Arte() {
                                     width: 32, height: 32, borderRadius: 8,
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     background: 'none', border: '1px solid #e7e5e4', cursor: 'pointer',
-                                    color: '#78716c', transition: 'all 0.15s',
+                                    color: '#57534e', transition: 'all 0.15s',
                                   }}
                                   onMouseEnter={e => { e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#dc2626'; }}
                                   onMouseLeave={e => { e.currentTarget.style.color = '#a8a29e'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
@@ -1789,7 +1789,7 @@ export default function Arte() {
             >
               Carregar mais ({items.length - shownItems.length} restantes)
             </button>
-            <span style={{ fontSize: 11, color: '#78716c' }}>
+            <span style={{ fontSize: 11, color: '#57534e' }}>
               Exibindo {shownItems.length} de {items.length} peças
             </span>
           </div>
@@ -1811,7 +1811,7 @@ export default function Arte() {
         <div style={{ textAlign: 'center', padding: '48px 0' }}>
           <CheckCircle style={{ width: 48, height: 48, color: '#16a34a', margin: '0 auto 16px' }} />
           <p style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 4 }}>Sem correção pendente</p>
-          <p style={{ fontSize: 13, color: '#78716c' }}>Nenhum item aguarda nova versão de arte</p>
+          <p style={{ fontSize: 13, color: '#57534e' }}>Nenhum item aguarda nova versão de arte</p>
         </div>
       );
     }
@@ -1836,7 +1836,7 @@ export default function Arte() {
         <div style={{ textAlign: 'center', padding: '48px 0' }}>
           <Search style={{ width: 40, height: 40, color: '#d6d3d1', margin: '0 auto 16px' }} />
           <p style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 4 }}>Nenhuma correção neste filtro</p>
-          <p style={{ fontSize: 13, color: '#78716c' }}>Há {correcaoItems.length} {correcaoItems.length === 1 ? 'item aguardando correção' : 'itens aguardando correção'} em outros eventos ou tipos</p>
+          <p style={{ fontSize: 13, color: '#57534e' }}>Há {correcaoItems.length} {correcaoItems.length === 1 ? 'item aguardando correção' : 'itens aguardando correção'} em outros eventos ou tipos</p>
         </div>
       );
     }
@@ -1868,7 +1868,7 @@ export default function Arte() {
           {/* Sponsor filter pills */}
           {correcaoSponsors.length > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Filtrar:</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Filtrar:</span>
               {[{ id: "all", name: "Todos", color: "#78716c" }, ...correcaoSponsors].map(sp => {
                 const isActive = correcaoSponsorFilter === sp.id;
                 return (
@@ -2031,7 +2031,7 @@ export default function Arte() {
                       rel="noopener noreferrer"
                       style={{
                         display: 'flex', alignItems: 'center', gap: 5,
-                        fontSize: 11, fontWeight: 600, color: '#78716c',
+                        fontSize: 11, fontWeight: 600, color: '#57534e',
                         textDecoration: 'none', transition: 'color 0.15s',
                         padding: '0 12px', minHeight: 44, height: 44, borderRadius: 8,
                         border: '1px solid #ebe8e3', background: '#ffffff',
@@ -2093,7 +2093,7 @@ export default function Arte() {
                     </span>
                   )}
                 </div>
-                <p style={{ fontSize: 12, color: '#78716c', margin: 0, marginTop: 3 }}>
+                <p style={{ fontSize: 12, color: '#57534e', margin: 0, marginTop: 3 }}>
                   Aprovações · Correções · Finalizações de layout
                 </p>
               </div>
@@ -2106,7 +2106,7 @@ export default function Arte() {
                 data-testid="button-export-pdf"
                 style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'border-color 0.12s' }}
               >
-                <Printer style={{ width: 12, height: 12, color: '#78716c' }} />
+                <Printer style={{ width: 12, height: 12, color: '#57534e' }} />
                 {selectedItemIds.size > 0 ? `Exportar ${selectedItemIds.size} sel.` : 'Exportar PDF'}
               </button>
               <button
@@ -2191,7 +2191,7 @@ export default function Arte() {
           {/* ── Filter Row 1: search + dropdowns + period ── */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
             <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 160 }}>
-              <Search style={{ width: 14, height: 14, color: '#78716c', position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+              <Search style={{ width: 14, height: 14, color: '#57534e', position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
               <input
                 type="text"
                 value={searchFilter}
@@ -2252,7 +2252,7 @@ export default function Arte() {
 
           {/* ── Filter Row 2: boolean toggles ── */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap', borderTop: '1px solid #f0efee', paddingTop: 8 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Mostrar:</span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Mostrar:</span>
             {([
               { key: 'urgente', label: 'Urgente', value: urgenteFilter, set: setUrgenteFilter, color: '#dc2626', bg: '#fef2f2', border: '#fca5a5' },
               { key: 'semThumb', label: 'Sem thumb', value: semThumb, set: setSemThumb, color: '#b45309', bg: '#fffbeb', border: '#fcd34d' },
@@ -2272,7 +2272,7 @@ export default function Arte() {
           {/* ── Active chips ── */}
           {activeChips.length > 0 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Ativos:</span>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Ativos:</span>
               {activeChips.map(chip => (
                 <span key={chip} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 999, background: '#fff7ed', border: '1px solid #fed7aa', fontSize: 11, fontWeight: 600, color: '#c2410c' }}>
                   {chip}
@@ -2281,7 +2281,7 @@ export default function Arte() {
                   </button>
                 </span>
               ))}
-              <button onClick={clearAllFilters} data-testid="button-clear-filters" style={{ fontSize: 11, fontWeight: 600, color: '#78716c', background: 'none', border: '1px solid #e7e5e4', borderRadius: 999, cursor: 'pointer', padding: '3px 10px' }}>
+              <button onClick={clearAllFilters} data-testid="button-clear-filters" style={{ fontSize: 11, fontWeight: 600, color: '#57534e', background: 'none', border: '1px solid #e7e5e4', borderRadius: 999, cursor: 'pointer', padding: '3px 10px' }}>
                 Limpar tudo
               </button>
             </div>
@@ -2376,7 +2376,7 @@ export default function Arte() {
                 <span style={{ display: 'inline-block', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, color: '#dc2626', backgroundColor: 'rgba(255,218,214,0.5)', padding: '2px 9px', borderRadius: 6, marginBottom: 6 }}>Ação Irreversível</span>
                 <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.04em', fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: 0 }}>Dispensar Peça</h2>
               </div>
-              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#78716c', padding: 2, borderRadius: 6 }}>
+              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#57534e', padding: 2, borderRadius: 6 }}>
                 <X style={{ width: 20, height: 20 }} />
               </button>
             </div>
@@ -2390,7 +2390,7 @@ export default function Arte() {
               </div>
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#78716c' }}>Motivo (opcional)</label>
+              <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e' }}>Motivo (opcional)</label>
               <textarea
                 value={dispenseReason}
                 onChange={e => setDispenseReason(e.target.value)}
@@ -2400,7 +2400,7 @@ export default function Arte() {
               />
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} style={{ flex: 1, height: 40, borderRadius: 8, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} style={{ flex: 1, height: 40, borderRadius: 8, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 Cancelar
               </button>
               <button
@@ -2509,7 +2509,7 @@ export default function Arte() {
 
                 {/* Upload zone */}
                 <div style={{ marginBottom: 18 }}>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#78716c', marginBottom: 8 }}>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#57534e', marginBottom: 8 }}>
                     Nova Versão
                   </label>
                   {correcaoThumbUrl ? (
@@ -2576,7 +2576,7 @@ export default function Arte() {
 
                 {/* Sponsor checkboxes */}
                 <div style={{ marginBottom: 20 }}>
-                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#78716c', marginBottom: 8 }}>
+                  <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#57534e', marginBottom: 8 }}>
                     Re-enviar para aprovação
                   </label>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -2739,7 +2739,7 @@ export default function Arte() {
                 <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.07em' }}>⚠ Thumb substituído — versão anterior guardada</span>
                   <a href={selectedItem.previousApprovalThumbUrl} target="_blank" rel="noopener noreferrer"
-                    style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: '#78716c', wordBreak: 'break-all', textDecoration: 'underline' }}>
+                    style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: '#57534e', wordBreak: 'break-all', textDecoration: 'underline' }}>
                     {selectedItem.previousApprovalThumbUrl.split('/').pop() || selectedItem.previousApprovalThumbUrl}
                   </a>
                 </div>
@@ -2749,7 +2749,7 @@ export default function Arte() {
               {selectedItem.previousFinalFileUrl && (
                 <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fbbf24', borderRadius: 8, padding: '10px 14px', display: 'flex', flexDirection: 'column', gap: 4 }}>
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#92400e', textTransform: 'uppercase', letterSpacing: '0.07em' }}>⚠ Substituindo — arquivo anterior gravado</span>
-                  <span style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: '#78716c', wordBreak: 'break-all' }}>
+                  <span style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: '#57534e', wordBreak: 'break-all' }}>
                     {selectedItem.previousFinalFileName || selectedItem.previousFinalFileUrl}
                   </span>
                 </div>
@@ -3027,11 +3027,11 @@ export default function Arte() {
                 <h2 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.05em', fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: 0, lineHeight: 1.1 }}>
                   Upload PDF<br />Compartilhado
                 </h2>
-                <p style={{ fontSize: 13, color: '#78716c', margin: 0 }}>Vincular um único documento a múltiplos itens selecionados.</p>
+                <p style={{ fontSize: 13, color: '#57534e', margin: 0 }}>Vincular um único documento a múltiplos itens selecionados.</p>
               </div>
               <button
                 onClick={() => { setShowBulkDialog(false); setSharedPdfUrl(""); }}
-                style={{ padding: '6px', backgroundColor: '#f3f4f3', border: 'none', borderRadius: '50%', cursor: 'pointer', color: '#78716c', lineHeight: 1, flexShrink: 0 }}
+                style={{ padding: '6px', backgroundColor: '#f3f4f3', border: 'none', borderRadius: '50%', cursor: 'pointer', color: '#57534e', lineHeight: 1, flexShrink: 0 }}
                 onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
                 onMouseLeave={e => { e.currentTarget.style.color = '#78716c'; }}
               >
@@ -3061,14 +3061,14 @@ export default function Arte() {
                           {item.approvalThumbUrl ? (
                             <img src={item.approvalThumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : (
-                            <FileImage style={{ width: 16, height: 16, color: '#78716c' }} />
+                            <FileImage style={{ width: 16, height: 16, color: '#57534e' }} />
                           )}
                         </div>
                         <div style={{ minWidth: 0 }}>
                           <p style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {item.displayId} · {item.type}
                           </p>
-                          <p style={{ fontSize: 11, color: '#78716c', margin: 0 }}>
+                          <p style={{ fontSize: 11, color: '#57534e', margin: 0 }}>
                             {item.event?.name || 'Sem evento'}{item.sponsors?.[0]?.name ? ` • ${item.sponsors[0].name}` : ''}
                           </p>
                         </div>
@@ -3117,7 +3117,7 @@ export default function Arte() {
                         <FileText style={{ width: 30, height: 30, color: '#9d4300' }} />
                       </div>
                       <p style={{ fontSize: 13, fontWeight: 700, fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: '0 0 4px' }}>Upload PDF</p>
-                      <p style={{ fontSize: 11, color: '#78716c', margin: '0 0 14px', padding: '0 8px' }}>Este arquivo será aplicado a todos os itens à esquerda.</p>
+                      <p style={{ fontSize: 11, color: '#57534e', margin: '0 0 14px', padding: '0 8px' }}>Este arquivo será aplicado a todos os itens à esquerda.</p>
                       <FileUploader
                         onGetUploadParameters={getUploadUrl}
                         onComplete={(result) => { setSharedPdfUrl(convertGCSUrlToLocalPath(result.url)); toast({ title: "Upload concluído", description: "PDF compartilhado enviado com sucesso" }); }}
@@ -3221,7 +3221,7 @@ export default function Arte() {
 
             {/* Evento */}
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#78716c', display: 'block', marginBottom: 6 }}>Evento</label>
+              <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e', display: 'block', marginBottom: 6 }}>Evento</label>
               <FilterSelect
                 fullWidth hideWhenEmpty={false} showAllLabelWhenEmpty
                 label="Evento" allLabel="Selecione um evento"
@@ -3234,14 +3234,14 @@ export default function Arte() {
             {/* Book atual — só aparece quando já existe um book para o evento */}
             {existingBookUrl && !bookFileUrl && (
               <div>
-                <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#78716c', display: 'block', marginBottom: 6 }}>Book atual</label>
+                <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e', display: 'block', marginBottom: 6 }}>Book atual</label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, border: '1.5px solid #fed7aa', background: '#fff7ed' }}>
                   <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg,#f97316,#ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 3px 8px rgba(249,115,22,0.25)' }}>
                     <FileText style={{ width: 14, height: 14, color: '#fff' }} />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 12, fontWeight: 700, color: '#c2410c', margin: 0 }}>Book já enviado</p>
-                    <p style={{ fontSize: 11, color: '#78716c', margin: '1px 0 0' }}>Envie um novo PDF abaixo para substituí-lo</p>
+                    <p style={{ fontSize: 11, color: '#57534e', margin: '1px 0 0' }}>Envie um novo PDF abaixo para substituí-lo</p>
                   </div>
                   <a
                     href={existingBookUrl} target="_blank" rel="noopener noreferrer"
@@ -3256,7 +3256,7 @@ export default function Arte() {
 
             {/* Upload do PDF */}
             <div>
-              <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#78716c', display: 'block', marginBottom: 6 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e', display: 'block', marginBottom: 6 }}>
                 {existingBookUrl ? 'Novo PDF (substituição)' : 'Arquivo do book'}
               </label>
               <label style={{
@@ -3283,7 +3283,7 @@ export default function Arte() {
                     {bookUploading ? 'Enviando arquivo…' : bookFileName || (existingBookUrl ? 'Escolher novo PDF…' : 'Arrastar ou clicar para adicionar PDF')}
                   </p>
                   {!bookFileUrl && !bookUploading && (
-                    <p style={{ fontSize: 11, color: '#78716c', margin: '2px 0 0' }}>Somente arquivos .PDF · Qualquer tamanho</p>
+                    <p style={{ fontSize: 11, color: '#57534e', margin: '2px 0 0' }}>Somente arquivos .PDF · Qualquer tamanho</p>
                   )}
                   {bookFileUrl && (
                     <p style={{ fontSize: 11, color: '#f97316', margin: '2px 0 0', fontWeight: 600 }}>✓ Arquivo carregado — pronto para salvar</p>
@@ -3299,10 +3299,10 @@ export default function Arte() {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#78716c' }}>Peças no book</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e' }}>Peças no book</span>
                   {bookEventPieces.length > 0 && (
                     <span style={{ fontSize: 11, fontWeight: 800, color: '#1c1917', fontFamily: '"Space Grotesk", sans-serif' }}>
-                      {bookSelectedIds.size}<span style={{ fontWeight: 500, color: '#78716c' }}> / {bookEventPieces.length}</span>
+                      {bookSelectedIds.size}<span style={{ fontWeight: 500, color: '#57534e' }}> / {bookEventPieces.length}</span>
                     </span>
                   )}
                 </div>
@@ -3315,7 +3315,7 @@ export default function Arte() {
                     >Todas</button>
                     <span style={{ color: '#d4d4d0', userSelect: 'none' }}>·</span>
                     <button onClick={() => setBookSelectedIds(new Set())}
-                      style={{ background: 'none', border: 'none', padding: '3px 8px', fontSize: 11, fontWeight: 700, color: '#78716c', cursor: 'pointer', borderRadius: 6, transition: 'color 0.1s', textDecoration: 'underline', textDecorationColor: 'transparent', textUnderlineOffset: '2px' }}
+                      style={{ background: 'none', border: 'none', padding: '3px 8px', fontSize: 11, fontWeight: 700, color: '#57534e', cursor: 'pointer', borderRadius: 6, transition: 'color 0.1s', textDecoration: 'underline', textDecorationColor: 'transparent', textUnderlineOffset: '2px' }}
                       onMouseEnter={e => { e.currentTarget.style.textDecorationColor = '#a8a29e'; }}
                       onMouseLeave={e => { e.currentTarget.style.textDecorationColor = 'transparent'; }}
                     >Nenhuma</button>
@@ -3326,7 +3326,7 @@ export default function Arte() {
                 {bookEventPieces.length === 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '28px 20px', gap: 8 }}>
                     <FileText style={{ width: 26, height: 26, color: '#d4d4d0' }} />
-                    <p style={{ fontSize: 12, color: '#78716c', margin: 0, textAlign: 'center' }}>Selecione um evento para ver as peças disponíveis.</p>
+                    <p style={{ fontSize: 12, color: '#57534e', margin: 0, textAlign: 'center' }}>Selecione um evento para ver as peças disponíveis.</p>
                   </div>
                 ) : bookEventPieces.map((item: any, idx: number) => {
                   const on = bookSelectedIds.has(item.id);
@@ -3350,7 +3350,7 @@ export default function Arte() {
                           <span style={{ fontSize: 12, fontWeight: 600, color: on ? '#1c1917' : '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', transition: 'color 0.1s' }}>{item.type}</span>
                         </div>
                         {item.description && item.description !== item.type && (
-                          <span style={{ fontSize: 11, color: '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</span>
+                          <span style={{ fontSize: 11, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</span>
                         )}
                       </span>
                       {item.bookUrl && (
@@ -3367,7 +3367,7 @@ export default function Arte() {
           <div style={{ padding: '14px 28px', borderTop: '1px solid #ebe8e3', display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#ffffff' }}>
             {/* Ghost — Cancelar fica à esquerda, longe do CTA primário */}
             <button onClick={() => setShowBookModal(false)}
-              style={{ height: 40, padding: '0 16px', borderRadius: 8, background: 'transparent', border: 'none', color: '#78716c', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'color 0.12s' }}
+              style={{ height: 40, padding: '0 16px', borderRadius: 8, background: 'transparent', border: 'none', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'color 0.12s' }}
               onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
               onMouseLeave={e => { e.currentTarget.style.color = '#78716c'; }}
             >Cancelar</button>
@@ -3471,7 +3471,7 @@ export default function Arte() {
                     <p style={{ fontSize: 12, fontWeight: 700, color: isDragOverBulk ? '#15803d' : '#1c1917', margin: '0 0 2px' }}>
                       {isDragOverBulk ? 'Solte aqui' : 'Arrastar ou clicar'}
                     </p>
-                    <p style={{ fontSize: 11, color: '#78716c', margin: 0, letterSpacing: '0.03em' }}>JPG · PNG · WEBP · SVG</p>
+                    <p style={{ fontSize: 11, color: '#57534e', margin: 0, letterSpacing: '0.03em' }}>JPG · PNG · WEBP · SVG</p>
                   </div>
                 </div>
               </div>
@@ -3481,7 +3481,7 @@ export default function Arte() {
 
               {/* ── Event filter ── */}
               <div style={{ padding: '14px 18px 0' }}>
-                <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#78716c', margin: '0 0 6px' }}>Evento</p>
+                <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e', margin: '0 0 6px' }}>Evento</p>
                 <div style={{ width: '100%' }}>
                   <EventFilterDropdown
                     value={bulkThumbEventFilter}
@@ -3503,7 +3503,7 @@ export default function Arte() {
                 if (rows.length === 0) return null;
                 return (
                   <div style={{ padding: '14px 18px 0' }}>
-                    <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#78716c', margin: '0 0 8px' }}>Resumo</p>
+                    <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e', margin: '0 0 8px' }}>Resumo</p>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {rows.map(s => (
                         <div key={s.label} style={{
@@ -3539,14 +3539,14 @@ export default function Arte() {
                     <Upload style={{ width: 30, height: 30, color: '#fff' }} />
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    <p style={{ fontSize: 15, fontWeight: 700, color: '#78716c', margin: '0 0 6px' }}>Nenhuma imagem adicionada</p>
-                    <p style={{ fontSize: 12, color: '#78716c', margin: 0, maxWidth: 240, lineHeight: 1.6 }}>
+                    <p style={{ fontSize: 15, fontWeight: 700, color: '#57534e', margin: '0 0 6px' }}>Nenhuma imagem adicionada</p>
+                    <p style={{ fontSize: 12, color: '#57534e', margin: 0, maxWidth: 240, lineHeight: 1.6 }}>
                       Arraste para a área ao lado ou clique para selecionar
                     </p>
                   </div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
                     {['JPG', 'PNG', 'WEBP', 'SVG'].map(f => (
-                      <span key={f} style={{ padding: '3px 10px', borderRadius: 999, backgroundColor: '#ebe8e3', fontSize: 11, fontWeight: 700, color: '#78716c', letterSpacing: '0.06em' }}>{f}</span>
+                      <span key={f} style={{ padding: '3px 10px', borderRadius: 999, backgroundColor: '#ebe8e3', fontSize: 11, fontWeight: 700, color: '#57534e', letterSpacing: '0.06em' }}>{f}</span>
                     ))}
                   </div>
                 </div>
@@ -3573,7 +3573,7 @@ export default function Arte() {
                         );
                       })()}
                     </div>
-                    <span style={{ fontSize: 11, color: '#78716c', fontWeight: 600 }}>Confirme o vínculo de cada imagem</span>
+                    <span style={{ fontSize: 11, color: '#57534e', fontWeight: 600 }}>Confirme o vínculo de cada imagem</span>
                   </div>
 
                   {/* ── Lista de cards (horizontal) ── */}
@@ -3644,7 +3644,7 @@ export default function Arte() {
                                 <p style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', margin: '0 0 1px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.file.name}>
                                   {entry.file.name}
                                 </p>
-                                <p style={{ fontSize: 11, color: '#78716c', margin: 0 }}>
+                                <p style={{ fontSize: 11, color: '#57534e', margin: 0 }}>
                                   {(entry.file.size / 1024).toFixed(0)} KB
                                 </p>
                               </div>
@@ -3655,7 +3655,7 @@ export default function Arte() {
                                   onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#fef2f2'; e.currentTarget.style.borderColor = '#fecaca'; }}
                                   onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
                                 >
-                                  <X style={{ width: 10, height: 10, color: '#78716c' }} />
+                                  <X style={{ width: 10, height: 10, color: '#57534e' }} />
                                 </button>
                               )}
                             </div>
@@ -3729,7 +3729,7 @@ export default function Arte() {
                                               ? `${linked.displayId} · ${linked.type}`
                                               : 'Selecionar peça...'}
                                           </span>
-                                          <ChevronsUpDown style={{ width: 10, height: 10, color: '#78716c', flexShrink: 0 }} />
+                                          <ChevronsUpDown style={{ width: 10, height: 10, color: '#57534e', flexShrink: 0 }} />
                                         </button>
                                       </PopoverTrigger>
                                       <PopoverContent className="p-0" style={{ width: isMobile ? '90vw' : 320 }} align="start">
@@ -3741,7 +3741,7 @@ export default function Arte() {
                                               <div style={{ padding: '12px 16px', fontSize: 11, color: '#b45309', fontWeight: 600, lineHeight: 1.5 }}>
                                                 Nenhuma peça pronta para receber thumb
                                                 {bulkThumbEventFilter !== "all" ? " neste evento" : ""}.
-                                                <span style={{ display: 'block', fontWeight: 500, color: '#78716c', marginTop: 4 }}>
+                                                <span style={{ display: 'block', fontWeight: 500, color: '#57534e', marginTop: 4 }}>
                                                   Só aparecem peças aguardando envio ou em correção. Se a peça é nova,
                                                   ela precisa passar antes por <b>Vincular Patrocinadores</b>.
                                                   {bulkThumbEventFilter !== "all" && " Você também pode trocar o filtro de evento para 'Todos'."}
@@ -3783,7 +3783,7 @@ export default function Arte() {
                                                         <span style={{ fontSize: 11, fontWeight: 800, color: '#1c1917', fontFamily: '"Space Grotesk", sans-serif', flexShrink: 0 }}>{item.displayId}</span>
                                                         {/* descrição ou evento — o tipo já aparece no cabeçalho do grupo */}
                                                         {(item.description || evtName) && (
-                                                          <span style={{ fontSize: 11, color: '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                          <span style={{ fontSize: 11, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                             {item.description ? item.description.slice(0, 48) : evtName}
                                                           </span>
                                                         )}
@@ -3827,7 +3827,7 @@ export default function Arte() {
                   {doneCount > 0 && (
                     <button
                       onClick={() => setBulkThumbEntries(prev => prev.filter(e => e.status !== 'done'))}
-                      style={{ height: 36, padding: '0 14px', borderRadius: 6, background: 'none', border: '1px solid #e7e5e4', color: '#78716c', cursor: 'pointer', fontSize: 12, fontWeight: 600, transition: 'background 0.12s' }}
+                      style={{ height: 36, padding: '0 14px', borderRadius: 6, background: 'none', border: '1px solid #e7e5e4', color: '#57534e', cursor: 'pointer', fontSize: 12, fontWeight: 600, transition: 'background 0.12s' }}
                       onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
                       onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
                     >Limpar {doneCount} enviado{doneCount !== 1 ? 's' : ''}</button>
@@ -3839,7 +3839,7 @@ export default function Arte() {
                   {/* Ghost — Cancelar */}
                   <button
                     onClick={() => { if (!bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); setBulkThumbEventFilter("all"); } }}
-                    style={{ height: 38, padding: '0 16px', borderRadius: 6, background: 'transparent', border: 'none', color: '#78716c', cursor: 'pointer', fontSize: 13, fontWeight: 600, transition: 'color 0.12s' }}
+                    style={{ height: 38, padding: '0 16px', borderRadius: 6, background: 'transparent', border: 'none', color: '#57534e', cursor: 'pointer', fontSize: 13, fontWeight: 600, transition: 'color 0.12s' }}
                     onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
                     onMouseLeave={e => { e.currentTarget.style.color = '#78716c'; }}
                   >Cancelar</button>

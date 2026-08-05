@@ -1486,13 +1486,19 @@ export default function Arte() {
                         d.setHours(0,0,0,0);
                         const diff = Math.ceil((d.getTime() - tod.getTime()) / 86400000);
                         const ds = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                        // Estes chips são o aviso de prazo — o que mais precisa ser
+                        // lido no cabeçalho. Em tom claro sobre translúcido sobre o
+                        // laranja, ficavam em 1.34:1 (medido no navegador): o dado
+                        // mais urgente era o menos legível. Fundo sólido claro com
+                        // texto escuro resolve o contraste e ainda faz o atrasado
+                        // saltar do cabeçalho.
                         const s = diff < 0
-                          ? { bg: 'rgba(255,80,80,0.22)', border: 'rgba(255,80,80,0.38)', text: '#ffb3b3' }
+                          ? { bg: '#fee2e2', border: '#fca5a5', text: '#991b1b' }
                           : diff === 0
-                          ? { bg: 'rgba(255,200,80,0.28)', border: 'rgba(255,200,80,0.45)', text: '#ffe59c' }
+                          ? { bg: '#fef3c7', border: '#fcd34d', text: '#92400e' }
                           : diff <= 3
-                          ? { bg: 'rgba(255,160,50,0.22)', border: 'rgba(255,160,50,0.38)', text: '#ffc78a' }
-                          : { bg: 'rgba(255,255,255,0.12)', border: 'rgba(255,255,255,0.2)', text: 'rgba(255,255,255,0.72)' };
+                          ? { bg: '#ffedd5', border: '#fdba74', text: '#9a3412' }
+                          : { bg: 'rgba(255,255,255,0.92)', border: 'rgba(255,255,255,0.6)', text: '#7c2d12' };
                         return (
                           <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 999, padding: '3px 9px', fontSize: 11, fontWeight: 700, color: s.text, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
                             {label} · {ds}{diff >= 0 && diff <= 14 && <span style={{ opacity: 0.65, fontWeight: 500 }}> ({diff}d)</span>}
@@ -1554,7 +1560,11 @@ export default function Arte() {
                       {[
                         { label: 'ID', w: 68 },
                         { label: 'Qtd', w: 44 },
-                        { label: `${group.type}`, flex: true },
+                        // Esta coluna sempre traz a descrição da peça. Usar o nome
+                        // do grupo como rótulo fazia o cabeçalho mudar a cada
+                        // bloco ("2X1", "ÍCONE", "FAIXA DE CHEGADA") e repetia
+                        // uma informação que a faixa logo acima já dá.
+                        { label: 'Peça', flex: true },
                         { label: 'Dimensões (V / A)', w: 120 },
                         { label: 'M²', w: 46 },
                         { label: 'Material', w: 92 },
@@ -1628,7 +1638,11 @@ export default function Arte() {
                           </td>
                           {/* Descrição */}
                           <td style={{ padding: '9px 16px' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                            {/* alignItems flex-start: num flex column o padrão é
+                                stretch, e as tags "Book" e "Ref. visual" eram
+                                esticadas na largura inteira da célula, parecendo
+                                um campo vazio em vez de uma etiqueta. */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
                               <span style={{ fontWeight: 600, color: '#1c1917', fontSize: 13 }}>{item.description || item.type}</span>
                               {item.observations && (
                                 <span style={{ fontSize: 11, color: '#d97706', display: 'flex', alignItems: 'center', gap: 3 }}>

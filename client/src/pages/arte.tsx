@@ -42,6 +42,25 @@ const MODAL_SHADOW = "0 24px 48px -12px rgba(28,25,23,0.22), 0 0 0 1px rgba(28,2
 // uma linha em telas de trabalho; o resto entra por expansão.
 const EVENT_CHIPS_VISIBLE = 8;
 
+/**
+ * Colunas da lista. As larguras saíram de medir o conteúdo real renderizado, e
+ * não de estimativa: a coluna de ID, por exemplo, chega a 208 px quando traz o
+ * selo de status abaixo do número. Ficam aqui fora para que o colgroup e o
+ * cabeçalho usem exatamente os mesmos valores — é isso que mantém as colunas
+ * alinhadas entre grupos, inclusive nos que não repetem o cabeçalho.
+ */
+const ARTE_COLS: { label: string; w: number | string; right?: boolean }[] = [
+  { label: 'ID',                w: 150 },
+  { label: 'Qtd',               w: 56 },
+  { label: 'Peça',              w: 'auto' },
+  { label: 'Dimensões (V / A)', w: 150 },
+  { label: 'M²',                w: 68 },
+  { label: 'Material',          w: 104 },
+  { label: 'Thumb / Final',     w: 96 },
+  { label: 'Patroc.',           w: 124 },
+  { label: 'Ações',             w: 112, right: true },
+];
+
 // Status que alimentam cada aba. Antes ficavam embutidos no filtro, que era
 // reexecutado uma vez por aba só para contar.
 const TAB_STATUSES: Record<string, string[]> = {
@@ -1533,15 +1552,20 @@ export default function Arte() {
                 </div>
               ) : (
               <div style={{ overflowX: 'auto' }} className="scrollbar-visible">
-                {/* NÃO usar tableLayout: 'fixed' aqui, já tentei e quebra.
-                    As colunas de fato não ficam alinhadas entre os grupos
-                    (medido: a de ID varia de 124 a 173 px), mas as larguras
-                    declaradas nos cabeçalhos são menores que o conteúdo real —
-                    com fixed, "THUMB / FINAL" invadia "PATROC." e o botão de ação
-                    passava por cima da coluna vizinha. Alinhar de verdade exige
-                    rever largura por largura contra o conteúdo, não só trocar o
-                    modo de layout. */}
-                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                {/* Cada grupo é uma tabela independente. No layout automático cada
+                    uma se dimensionava pelo próprio conteúdo, então as colunas não
+                    batiam entre um bloco e outro (a de ID ia de 124 a 173 px) e o
+                    olho perdia o alinhamento vertical ao rolar.
+                    A primeira tentativa de usar 'fixed' quebrou porque as larguras
+                    declaradas eram menores que o conteúdo real — medindo na tela,
+                    a coluna de ID precisa de 208 px e tinha 68 declarados. As
+                    larguras de ARTE_COLS vieram dessa medição, e o colgroup as
+                    aplica mesmo nas tabelas que não repetem o cabeçalho. */}
+                <table style={{ width: '100%', minWidth: 1100, tableLayout: 'fixed', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <colgroup>
+                    {(tabId === "criar-aprovacoes" || tabId === "finalizados") && <col style={{ width: 44 }} />}
+                    {ARTE_COLS.map((c, i) => <col key={i} style={{ width: c.w }} />)}
+                  </colgroup>
                   {/* sticky: com ~71 px por linha cabem 11 na tela, e dentro de um
                       grupo grande o cabeçalho saía de vista — restavam números
                       soltos sem saber a que coluna pertenciam. Agora ele
@@ -1565,24 +1589,8 @@ export default function Arte() {
                           />
                         </th>
                       )}
-                      {[
-                        { label: 'ID', w: 68 },
-                        { label: 'Qtd', w: 44 },
-                        // Esta coluna sempre traz a descrição da peça. Usar o nome
-                        // do grupo como rótulo fazia o cabeçalho mudar a cada
-                        // bloco ("2X1", "ÍCONE", "FAIXA DE CHEGADA") e repetia
-                        // uma informação que a faixa logo acima já dá.
-                        { label: 'Peça', flex: true },
-                        { label: 'Dimensões (V / A)', w: 120 },
-                        { label: 'M²', w: 46 },
-                        { label: 'Material', w: 92 },
-                        // "thumb" e "final" saíram de dentro de cada linha, onde se
-                        // repetiam centenas de vezes, para o cabeçalho — que é o
-                        // lugar de rótulo de coluna.
-                        { label: 'Thumb / Final', w: 68 },
-                        { label: 'Patroc.', w: 118 },
-                        { label: 'Ações', w: 96, right: true },
-                      ].map((col, ci) => (
+                      {/* Mesma lista usada pelo colgroup — ver ARTE_COLS. */}
+                      {ARTE_COLS.map((col, ci) => (
                         <th
                           key={ci}
                           style={{
@@ -1592,9 +1600,10 @@ export default function Arte() {
                             color: '#57534e',
                             textTransform: 'uppercase',
                             letterSpacing: '0.08em',
-                            width: col.flex ? undefined : col.w,
                             textAlign: col.right ? 'right' : 'left',
                             whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
                           }}
                         >
                           {col.label}
@@ -1620,9 +1629,12 @@ export default function Arte() {
                               />
                             </td>
                           )}
-                          {/* ID */}
-                          <td style={{ padding: '9px 16px', whiteSpace: 'nowrap' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                          {/* ID — whiteSpace normal e alignItems flex-start: com
+                              tableLayout fixed o selo de status precisa poder
+                              quebrar dentro da coluna em vez de vazar sobre a
+                              vizinha. */}
+                          <td style={{ padding: '9px 16px' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
                               <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 12, color: '#57534e', fontWeight: 600 }} data-testid={`text-display-id-${item.id}`}>
                                 {item.displayId}
                               </span>

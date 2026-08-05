@@ -58,10 +58,11 @@ const ARTE_COLS: { label: string; w: number | string; right?: boolean }[] = [
   { label: 'Material',          w: 104 },
   { label: 'Thumb / Final',     w: 96 },
   { label: 'Patroc.',           w: 124 },
-  // 112px cabia só com 2 botões-ícone; com "Enviar Aprovação"/"Enviar
-  // Finalização" (texto) + dispensar, o botão vazava por cima da coluna de
-  // Patrocinadores. 200px acomoda os 4 botões numa linha só.
-  { label: 'Ações',             w: 200, right: true },
+  // Até 4 botões podem aparecer juntos nesta coluna (exportar + ver + o botão
+  // de texto "Enviar Aprovação"/"Enviar Finalização"/"Finalizar Arte" +
+  // dispensar). 200px ainda forçava a quebra em 3 linhas empilhadas (feio e
+  // com espaçamento estranho); 340px cabe tudo numa linha só, sem quebrar.
+  { label: 'Ações',             w: 340, right: true },
 ];
 
 // Status que alimentam cada aba. Antes ficavam embutidos no filtro, que era

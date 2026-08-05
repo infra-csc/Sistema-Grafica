@@ -23,6 +23,8 @@ import { useState, useMemo, Fragment, useEffect, useRef, useDeferredValue } from
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/contexts/auth-context";
+import { Undo2 } from "lucide-react";
 
 interface SponsorApproval {
   id: string;
@@ -46,6 +48,7 @@ const COLLATOR = new Intl.Collator();
 
 export default function Atendimento() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -308,6 +311,26 @@ export default function Atendimento() {
     },
     onError: (error: any) => {
       toast({ title: "Erro ao reprovar", description: error.message || "Ocorreu um erro ao reprovar", variant: "destructive" });
+    },
+  });
+
+  // Correção de admin: desfaz uma aprovação/reprovação feita por engano,
+  // sem precisar mexer direto no banco. Só admin vê o botão (checado na UI).
+  const revertApprovalMutation = useMutation({
+    mutationFn: async ({ itemId, sponsorId }: { itemId: string; sponsorId: string }) => {
+      const response = await apiRequest("POST", `/api/items/${itemId}/sponsor-approvals/${sponsorId}/revert`, {});
+      return response.json();
+    },
+    onSuccess: (data) => {
+      applyItemDecisionToCache(data.item);
+      if (selectedItem) {
+        apiRequest("GET", `/api/items/${selectedItem.id}/sponsor-approvals`)
+          .then(r => r.json()).then(setSponsorApprovals).catch(console.error);
+      }
+      toast({ title: "Aprovação revertida", description: "O patrocinador volta a aguardar decisão." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao reverter", description: error.message || "Não foi possível reverter a aprovação", variant: "destructive" });
     },
   });
 
@@ -2842,6 +2865,31 @@ export default function Atendimento() {
                                         Aprovar
                                       </button>
                                     </div>
+                                  )}
+
+                                  {/* Correção de admin: aprovou/reprovou o patrocinador errado por
+                                      engano — desfaz sem precisar mexer direto no banco. */}
+                                  {!isPending && !isRejectingThis && user?.role === "admin" && (
+                                    <button
+                                      onClick={() => revertApprovalMutation.mutate({ itemId: selectedItem.id, sponsorId: sponsor.id })}
+                                      disabled={revertApprovalMutation.isPending}
+                                      title={`Reverter para pendente (admin) — estava ${isApproved ? 'aprovado' : 'reprovado'}`}
+                                      data-testid={`button-revert-approval-${sponsor.id}`}
+                                      style={{
+                                        display: 'flex', alignItems: 'center', gap: 6,
+                                        padding: '8px 14px', borderRadius: 7,
+                                        backgroundColor: '#fff', border: '1px solid #e7e5e4',
+                                        color: '#78716c', fontSize: 12, fontWeight: 700,
+                                        cursor: revertApprovalMutation.isPending ? 'default' : 'pointer',
+                                        opacity: revertApprovalMutation.isPending ? 0.5 : 1,
+                                        minHeight: 36, transition: 'all 0.15s',
+                                      }}
+                                    >
+                                      {revertApprovalMutation.isPending
+                                        ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" />
+                                        : <Undo2 style={{ width: 12, height: 12 }} />}
+                                      Reverter
+                                    </button>
                                   )}
                                 </div>
 

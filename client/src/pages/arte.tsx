@@ -1533,14 +1533,15 @@ export default function Arte() {
                 </div>
               ) : (
               <div style={{ overflowX: 'auto' }} className="scrollbar-visible">
-                {/* tableLayout fixed: cada grupo é uma tabela independente e, no
-                    modo automático, cada uma dimensionava as colunas pelo próprio
-                    conteúdo. Medindo na tela, a coluna de ID ia de 124 a 173 px e
-                    a de Peça de 453 a 508 — as colunas dançavam a cada bloco e o
-                    olho perdia o alinhamento vertical, que é o que faz uma tabela
-                    ser lida como tabela. Com fixed, as larguras dos cabeçalhos
-                    valem para todos os grupos. */}
-                <table style={{ width: '100%', minWidth: 880, tableLayout: 'fixed', borderCollapse: 'collapse', textAlign: 'left' }}>
+                {/* NÃO usar tableLayout: 'fixed' aqui, já tentei e quebra.
+                    As colunas de fato não ficam alinhadas entre os grupos
+                    (medido: a de ID varia de 124 a 173 px), mas as larguras
+                    declaradas nos cabeçalhos são menores que o conteúdo real —
+                    com fixed, "THUMB / FINAL" invadia "PATROC." e o botão de ação
+                    passava por cima da coluna vizinha. Alinhar de verdade exige
+                    rever largura por largura contra o conteúdo, não só trocar o
+                    modo de layout. */}
+                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                   {/* sticky: com ~71 px por linha cabem 11 na tela, e dentro de um
                       grupo grande o cabeçalho saía de vista — restavam números
                       soltos sem saber a que coluna pertenciam. Agora ele

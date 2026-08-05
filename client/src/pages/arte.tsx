@@ -38,6 +38,10 @@ const ARTE_PAGE_SIZE = 100;
 // dependendo de qual botão tinha sido apertado.
 const MODAL_SHADOW = "0 24px 48px -12px rgba(28,25,23,0.22), 0 0 0 1px rgba(28,25,23,0.06)";
 
+// Quantos eventos aparecem no resumo antes do "mais N". Oito costuma caber em
+// uma linha em telas de trabalho; o resto entra por expansão.
+const EVENT_CHIPS_VISIBLE = 8;
+
 // Status que alimentam cada aba. Antes ficavam embutidos no filtro, que era
 // reexecutado uma vez por aba só para contar.
 const TAB_STATUSES: Record<string, string[]> = {
@@ -73,6 +77,7 @@ export default function Arte() {
 
   // Paginação da tabela — ver comentário em renderGroupedTable.
   const [visibleCount, setVisibleCount] = useState(ARTE_PAGE_SIZE);
+  const [showAllEvents, setShowAllEvents] = useState(false);
 
   // Trocar de aba troca a lista inteira; manter o scroll onde estava deixava o
   // usuário no meio da tabela nova. Sempre volta ao topo da listagem.
@@ -1397,7 +1402,11 @@ export default function Arte() {
             <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>
               {eventSummary.length} eventos
             </span>
-            {eventSummary.map(ev => (
+            {/* Só os maiores ficam à vista. Com os 19 eventos abertos, três
+                linhas de chips idênticos disputavam a atenção e o olho não tinha
+                onde pousar — "Rio S21K · 95" pesava o mesmo que um evento de uma
+                peça só. Os pequenos continuam a um clique. */}
+            {(showAllEvents ? eventSummary : eventSummary.slice(0, EVENT_CHIPS_VISIBLE)).map(ev => (
               <button
                 key={ev.id || ev.name}
                 onClick={() => { if (ev.id) setEventFilter([ev.id]); }}
@@ -1405,11 +1414,23 @@ export default function Arte() {
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 8px 5px 11px', borderRadius: 999, border: '1px solid #fdba74', backgroundColor: '#fff7ed', color: '#c2410c', fontSize: 12, fontWeight: 600, cursor: ev.id ? 'pointer' : 'default', whiteSpace: 'nowrap' }}
               >
                 {ev.name}
-                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 20, height: 18, padding: '0 6px', borderRadius: 999, backgroundColor: '#ea580c', color: '#ffffff', fontSize: 11, fontWeight: 800 }}>
+                <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 20, height: 18, padding: '0 6px', borderRadius: 999, backgroundColor: '#c2410c', color: '#ffffff', fontSize: 11, fontWeight: 800 }}>
                   {ev.count}
                 </span>
               </button>
             ))}
+            {eventSummary.length > EVENT_CHIPS_VISIBLE && (
+              <button
+                onClick={() => setShowAllEvents(v => !v)}
+                data-testid="button-toggle-events"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 11px', borderRadius: 999, border: '1px dashed #d6d3d1', background: 'none', color: '#57534e', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                {showAllEvents
+                  ? 'Mostrar menos'
+                  : `mais ${eventSummary.length - EVENT_CHIPS_VISIBLE} evento${eventSummary.length - EVENT_CHIPS_VISIBLE !== 1 ? 's' : ''}`}
+                <ChevronDown style={{ width: 12, height: 12, transform: showAllEvents ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }} />
+              </button>
+            )}
           </div>
         )}
         {groups.map((group, gIdx) => {
@@ -1573,7 +1594,7 @@ export default function Arte() {
                           onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = '#ffffff'}
                         >
                           {(tabId === "criar-aprovacoes" || tabId === "finalizados") && (
-                            <td style={{ padding: '12px 16px', width: 40 }}>
+                            <td style={{ padding: '9px 16px', width: 40 }}>
                               <Checkbox
                                 checked={selectedItemIds.has(item.id)}
                                 onCheckedChange={() => toggleItemSelection(item.id)}
@@ -1582,7 +1603,7 @@ export default function Arte() {
                             </td>
                           )}
                           {/* ID */}
-                          <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                          <td style={{ padding: '9px 16px', whiteSpace: 'nowrap' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                               <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 12, color: '#57534e', fontWeight: 600 }} data-testid={`text-display-id-${item.id}`}>
                                 {item.displayId}
@@ -1602,11 +1623,11 @@ export default function Arte() {
                             </div>
                           </td>
                           {/* Qtd */}
-                          <td style={{ padding: '12px 16px', fontWeight: 700, color: '#1c1917', fontSize: 14 }}>
+                          <td style={{ padding: '9px 16px', fontWeight: 700, color: '#1c1917', fontSize: 14 }}>
                             {String(item.quantity || '—').padStart(2, '0')}
                           </td>
                           {/* Descrição */}
-                          <td style={{ padding: '12px 16px' }}>
+                          <td style={{ padding: '9px 16px' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                               <span style={{ fontWeight: 600, color: '#1c1917', fontSize: 13 }}>{item.description || item.type}</span>
                               {item.observations && (
@@ -1629,7 +1650,7 @@ export default function Arte() {
                             </div>
                           </td>
                           {/* Dimensões */}
-                          <td style={{ padding: '12px 16px', whiteSpace: 'nowrap' }}>
+                          <td style={{ padding: '9px 16px', whiteSpace: 'nowrap' }}>
                             {item.visualWidth && item.visualHeight ? (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                                 <span style={{ fontSize: 12, fontWeight: 600, color: '#1c1917' }}>{item.visualWidth} × {item.visualHeight}</span>
@@ -1642,11 +1663,11 @@ export default function Arte() {
                             )}
                           </td>
                           {/* m² */}
-                          <td style={{ padding: '12px 16px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 600, fontSize: 13, color: '#1c1917' }}>
+                          <td style={{ padding: '9px 16px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 600, fontSize: 13, color: '#1c1917' }}>
                             {item.calculatedM2 || '—'}
                           </td>
                           {/* Material */}
-                          <td style={{ padding: '12px 16px' }}>
+                          <td style={{ padding: '9px 16px' }}>
                             {item.material ? (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
                                 <span style={{
@@ -1670,7 +1691,7 @@ export default function Arte() {
                             ) : <span style={{ color: '#57534e', fontSize: 12 }}>—</span>}
                           </td>
                           {/* ARTE — indicadores thumb / arquivo final (todas as abas) */}
-                          <td style={{ padding: '12px 16px' }}>
+                          <td style={{ padding: '9px 16px' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                               {item.approvalThumbUrl ? (
                                 <a href={item.approvalThumbUrl} target="_blank" rel="noopener noreferrer" title="Ver thumb" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }}>
@@ -1693,11 +1714,11 @@ export default function Arte() {
                             </div>
                           </td>
                           {/* Patrocinadores (todas as abas) */}
-                          <td style={{ padding: '12px 16px' }}>
+                          <td style={{ padding: '9px 16px' }}>
                             <SponsorChips sponsors={item.sponsors ?? []} variant="orange" size="sm" />
                           </td>
                           {/* Ações */}
-                          <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                          <td style={{ padding: '9px 16px', textAlign: 'right' }}>
                             <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 6 }}>
                               <button
                                 onClick={() => handleExportItemPDF(item)}
@@ -2136,6 +2157,11 @@ export default function Arte() {
                   onClick={() => setShowBulkDialog(true)}
                   disabled={selectedItemIds.size === 0}
                   data-testid="button-open-bulk-upload"
+                  // Botão desabilitado sem dizer por quê deixa o usuário achando
+                  // que está quebrado; o título explica a condição que o libera.
+                  title={selectedItemIds.size > 0
+                    ? `Vincular um PDF a ${selectedItemIds.size} peça(s) selecionada(s)`
+                    : 'Selecione ao menos uma peça para vincular um PDF compartilhado'}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: selectedItemIds.size > 0 ? '#44403c' : '#c4bfbb', fontSize: 13, fontWeight: 600, cursor: selectedItemIds.size > 0 ? 'pointer' : 'not-allowed', transition: 'border-color 0.12s', opacity: selectedItemIds.size > 0 ? 1 : 0.6 }}
                 >
                   <Upload style={{ width: 12, height: 12, color: selectedItemIds.size > 0 ? '#2563eb' : '#c4bfbb' }} />
@@ -3741,7 +3767,7 @@ export default function Arte() {
                                           <CommandList style={{ maxHeight: 280 }}>
                                             <CommandEmpty>Nenhuma peça encontrada.</CommandEmpty>
                                             {pendingPool.length === 0 && (
-                                              <div style={{ padding: '12px 16px', fontSize: 11, color: '#b45309', fontWeight: 600, lineHeight: 1.5 }}>
+                                              <div style={{ padding: '9px 16px', fontSize: 11, color: '#b45309', fontWeight: 600, lineHeight: 1.5 }}>
                                                 Nenhuma peça pronta para receber thumb
                                                 {bulkThumbEventFilter !== "all" ? " neste evento" : ""}.
                                                 <span style={{ display: 'block', fontWeight: 500, color: '#57534e', marginTop: 4 }}>

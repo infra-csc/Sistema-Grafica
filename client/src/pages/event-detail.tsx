@@ -1849,11 +1849,30 @@ export default function EventDetail() {
                       ))}
                     </div>
                   ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                  // Rolagem horizontal própria: são onze colunas com rótulo
+                  // inteiro (nowrap) dentro de um card com overflow:hidden, e o
+                  // que passava da largura era simplesmente cortado. A coluna
+                  // Ações é a última, então quem sumia era ela — junto com o
+                  // botão de excluir, que ficava fora da área visível e parecia
+                  // não existir.
+                  <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', minWidth: 1120, borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead>
                       <tr style={{ backgroundColor: '#f9f9f8' }}>
                         {['ID', 'Referência', 'Descrição', 'Qtd', 'Dimensões (V / A)', 'M²', 'Material', 'Acabamento', 'Patrocinador', 'Status', 'Ações'].map(col => (
-                          <th key={col} style={{ padding: '14px 20px', fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a8a29e', whiteSpace: 'nowrap' }}>
+                          <th
+                            key={col}
+                            style={{
+                              // 14px laterais em vez de 20: onze colunas pagam o
+                              // padding duas vezes cada, e só isso devolvia 132px
+                              // de largura útil à tabela.
+                              padding: '14px 14px',
+                              fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em',
+                              // #a8a29e em 11px reprova AA (2,5:1 sobre #f9f9f8).
+                              color: '#78716c', whiteSpace: 'nowrap',
+                              textAlign: col === 'Ações' ? 'right' : 'left',
+                              width: col === 'Ações' ? 132 : undefined,
+                            }}>
                             {col}
                           </th>
                         ))}
@@ -1871,13 +1890,13 @@ export default function EventDetail() {
                           data-testid={`row-item-${item.id}`}
                         >
                           {/* ID */}
-                          <td style={{ padding: '14px 20px' }}>
+                          <td style={{ padding: '14px 14px' }}>
                             <span style={{ fontWeight: '700', color: '#f97316', fontSize: '12px', fontFamily: 'monospace' }} data-testid={`text-display-id-${item.id}`}>
                               #{item.displayId}
                             </span>
                           </td>
                           {/* Ref. */}
-                          <td style={{ padding: '14px 20px' }} onClick={e => e.stopPropagation()}>
+                          <td style={{ padding: '14px 14px' }} onClick={e => e.stopPropagation()}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                               {item.referenceUrl && (
                                 <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Ver referência" data-testid={`link-reference-table-${item.id}`}>
@@ -1913,7 +1932,7 @@ export default function EventDetail() {
                             </div>
                           </td>
                           {/* Descrição */}
-                          <td style={{ padding: '14px 20px' }}>
+                          <td style={{ padding: '14px 14px' }}>
                             {item.isReuse && !['em_producao','produzido','entregue'].includes(item.status) && (
                               <div style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: "#059669", color: "#ffffff", borderRadius: 4, padding: "2px 7px", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
                                 <RotateCcw style={{ width: 9, height: 9 }} /> Reaproveit.
@@ -1926,11 +1945,11 @@ export default function EventDetail() {
                             )}
                           </td>
                           {/* Qtd */}
-                          <td style={{ padding: '14px 20px', fontSize: '13px', color: '#1a1c1c' }}>
+                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#1a1c1c' }}>
                             {String(item.quantity).padStart(2, '0')}
                           </td>
                           {/* Dimensões */}
-                          <td style={{ padding: '14px 20px', fontSize: '12px', color: '#78716c', fontStyle: 'italic', whiteSpace: 'nowrap' }}>
+                          <td style={{ padding: '14px 14px', fontSize: '12px', color: '#78716c', fontStyle: 'italic', whiteSpace: 'nowrap' }}>
                             {(item.visualWidth && item.visualHeight) ? (
                               <>
                                 {item.visualWidth} × {item.visualHeight}m
@@ -1939,34 +1958,36 @@ export default function EventDetail() {
                             ) : '—'}
                           </td>
                           {/* M² */}
-                          <td style={{ padding: '14px 20px', fontSize: '13px', fontWeight: '800', color: '#1a1c1c' }}>
+                          <td style={{ padding: '14px 14px', fontSize: '13px', fontWeight: '800', color: '#1a1c1c' }}>
                             {parseFloat(item.calculatedM2 || '0').toFixed(2)}
                           </td>
                           {/* Material */}
-                          <td style={{ padding: '14px 20px', fontSize: '13px', color: '#78716c' }}>{item.material || '—'}</td>
+                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#78716c' }}>{item.material || '—'}</td>
                           {/* Acabamento */}
-                          <td style={{ padding: '14px 20px', fontSize: '13px', color: '#78716c' }}>{item.finish || '—'}</td>
+                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#78716c' }}>{item.finish || '—'}</td>
                           {/* Patrocinador */}
-                          <td style={{ padding: '14px 20px', fontSize: '13px', color: '#a8a29e' }}>—</td>
+                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#a8a29e' }}>—</td>
                           {/* Status */}
-                          <td style={{ padding: '14px 20px' }}>
+                          <td style={{ padding: '14px 14px' }}>
                             <StatusBadge status={item.status} />
                           </td>
-                          {/* Ações — visíveis só no hover via CSS group */}
-                          <td style={{ padding: '14px 20px' }}>
-                            <div
-                              className="opacity-0 group-hover:opacity-100"
-                              style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', alignItems: 'center', transition: 'opacity 0.15s' }}
-                            >
+                          {/* Ações — sempre visíveis. Escondê-las atrás do hover
+                              deixava a linha sem indício de que dava para editar
+                              ou excluir, e no toque não há hover nenhum; é a
+                              mesma correção já feita no botão de excluir de
+                              outra tela. Ficam em cinza discreto para não
+                              competir com o conteúdo da linha. */}
+                          <td style={{ padding: '14px 14px', width: 132 }}>
+                            <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', alignItems: 'center' }}>
                               {/* Toggle reaproveitamento — disponível enquanto não estiver em produção/entregue */}
                               {!isEditBlocked(item.status) && (
                                 <button
                                   title={item.isReuse ? "Reaproveitamento ativo — clique para desativar" : "Marcar como reaproveitamento"}
                                   onClick={e => { e.stopPropagation(); updateItemIsReuseMutation.mutate({ itemId: item.id, isReuse: !item.isReuse }); }}
                                   data-testid={`button-reuse-item-${item.id}`}
-                                  style={{ background: item.isReuse ? '#d1fae5' : 'none', border: item.isReuse ? '1px solid #6ee7b7' : 'none', borderRadius: '6px', padding: '6px', cursor: 'pointer', color: item.isReuse ? '#065f46' : '#a8a29e', transition: 'all 0.15s', display: 'flex', alignItems: 'center' }}
+                                  style={{ background: item.isReuse ? '#d1fae5' : 'none', border: item.isReuse ? '1px solid #6ee7b7' : 'none', borderRadius: '6px', padding: '6px', cursor: 'pointer', color: item.isReuse ? '#065f46' : '#78716c', transition: 'all 0.15s', display: 'flex', alignItems: 'center' }}
                                   onMouseEnter={e => { if (!item.isReuse) { e.currentTarget.style.color = '#065f46'; e.currentTarget.style.backgroundColor = '#d1fae5'; } }}
-                                  onMouseLeave={e => { if (!item.isReuse) { e.currentTarget.style.color = '#a8a29e'; e.currentTarget.style.backgroundColor = 'transparent'; } }}
+                                  onMouseLeave={e => { if (!item.isReuse) { e.currentTarget.style.color = '#78716c'; e.currentTarget.style.backgroundColor = 'transparent'; } }}
                                 >
                                   <RotateCcw className="h-4 w-4" />
                                 </button>
@@ -1977,9 +1998,9 @@ export default function EventDetail() {
                                 </span>
                               ) : (
                                 <button
-                                  style={{ color: '#a8a29e', background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'color 0.15s, background-color 0.15s' }}
+                                  style={{ color: '#78716c', background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'color 0.15s, background-color 0.15s' }}
                                   onMouseEnter={e => { e.currentTarget.style.color = '#1a1c1c'; e.currentTarget.style.backgroundColor = '#f0efee'; }}
-                                  onMouseLeave={e => { e.currentTarget.style.color = '#a8a29e'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.color = '#78716c'; e.currentTarget.style.backgroundColor = 'transparent'; }}
                                   onClick={e => { e.stopPropagation(); handleEditItem(item); }}
                                   data-testid={`button-edit-item-${item.id}`}
                                   title="Editar peça" aria-label="Editar peça"
@@ -1990,9 +2011,9 @@ export default function EventDetail() {
                               {canDeleteAny && (
                                 canDeleteItem(item.status) ? (
                                   <button
-                                    style={{ color: '#a8a29e', background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'color 0.15s, background-color 0.15s' }}
+                                    style={{ color: '#78716c', background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'color 0.15s, background-color 0.15s' }}
                                     onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.backgroundColor = '#fef2f2'; }}
-                                    onMouseLeave={e => { e.currentTarget.style.color = '#a8a29e'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.color = '#78716c'; e.currentTarget.style.backgroundColor = 'transparent'; }}
                                     onClick={e => { e.stopPropagation(); handleDeleteItem(item.id); }}
                                     data-testid={`button-delete-item-${item.id}`}
                                     title="Excluir peça" aria-label="Excluir peça"
@@ -2014,6 +2035,7 @@ export default function EventDetail() {
                       ))}
                     </tbody>
                   </table>
+                  </div>
                   )}
                 </div>
               </section>

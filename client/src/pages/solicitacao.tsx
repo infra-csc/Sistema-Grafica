@@ -52,7 +52,8 @@ export default function Solicitacao() {
   const [searchTerm, setSearchTerm] = useState("");
   const [eventFilter, setEventFilter] = useState<string[]>([]);
   const [itemTypeFilter, setItemTypeFilter] = useState<string[]>([]);
-  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());  const isMobile = useIsMobile();
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  const isMobile = useIsMobile();
   const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({ queryKey: ["/api/items"] });
   const { data: events = [], isLoading: eventsLoading } = useQuery<any[]>({ queryKey: ["/api/events"] });
   const { data: sponsors = [] } = useQuery<any[]>({ queryKey: ["/api/sponsors"] });
@@ -900,19 +901,19 @@ export default function Solicitacao() {
 
       {/* ── 5. REVIEW MODAL ────────────────────────────────────────────── */}
       <Dialog open={modalOpen} onOpenChange={open => { setModalOpen(open); if (!open) { setShowReturnForm(false); setReturnObservations(""); } }}>
-        <DialogContent className="max-w-6xl p-0 gap-0 rounded-xl overflow-hidden flex flex-col [&>button:last-child]:hidden" style={{ height: "87vh", maxHeight: 900, maxWidth: isMobile ? "95vw" : undefined }} onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
-          <div style={{ display: "flex", height: "100%", overflow: "hidden" }}>
+        <DialogContent className="review-dialog-shell max-w-6xl p-0 gap-0 rounded-xl overflow-hidden flex flex-col [&>button:last-child]:hidden" style={{ height: isMobile ? "94dvh" : "87vh", maxHeight: 900, maxWidth: isMobile ? "95vw" : undefined }} onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+          <div className="review-modal-columns" style={{ height: "100%" }}>
 
             {/* Left column — art visualizer (40%) */}
-            <div style={{ width: "40%", backgroundColor: "#f3f4f3", display: "flex", flexDirection: "column", borderRight: "1px solid #e7e5e4", overflow: "hidden" }}>
+            <div style={{ width: isMobile ? "100%" : "40%", backgroundColor: "#f5f5f4", display: "flex", flexDirection: "column", borderRight: "1px solid #e7e5e4", overflow: "hidden" }}>
               {/* Left header */}
-              <div style={{ padding: "12px 16px", backgroundColor: "#673AB7", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+              <div style={{ padding: "14px 18px", backgroundColor: "#1c1917", borderBottom: "2px solid #f97316", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#fff" }}>Visualizador de Arte</span>
                 <Maximize2 style={{ width: 16, height: 16, color: "rgba(255,255,255,0.7)" }} />
               </div>
 
               {/* Left content */}
-              <div style={{ flex: 1, padding: 20, overflowY: "auto", display: "flex", flexDirection: "column", gap: 20 }}>
+              <div className="review-modal-scroll" style={{ flex: 1, padding: isMobile ? 14 : 20, overflowY: "auto", display: "flex", flexDirection: "column", gap: 20 }}>
                 {/* Art preview */}
                 <div style={{ aspectRatio: "1/1", width: "100%", backgroundColor: "#fff", borderRadius: 8, overflow: "hidden", border: "1px solid #e7e5e4", boxShadow: "inset 0 1px 4px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                   {selectedItem?.approvalThumbUrl ? (
@@ -1021,9 +1022,9 @@ export default function Solicitacao() {
             </div>
 
             {/* Right column — decision & timeline (60%) */}
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", backgroundColor: "#fff", overflow: "hidden" }}>
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", backgroundColor: "#fafaf9", overflow: "hidden" }}>
               {/* Right header */}
-              <div style={{ padding: "20px 24px", borderBottom: "1px solid #f0efee", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexShrink: 0 }}>
+              <div style={{ padding: isMobile ? "16px 18px" : "20px 24px", borderBottom: "1px solid #e7e5e4", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexShrink: 0 }}>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 22, textTransform: "uppercase", letterSpacing: "-0.03em", color: TI.text, margin: 0 }}>
@@ -1046,12 +1047,12 @@ export default function Solicitacao() {
                   onMouseEnter={e => (e.currentTarget.style.color = TI.text)}
                   onMouseLeave={e => (e.currentTarget.style.color = TI.muted)}
                 >
-                  <X style={{ width: 20, height: 20 }} />
+                          <X style={{ width: 20, height: 20 }} />
                 </button>
               </div>
 
               {/* Right body */}
-              <div style={{ flex: 1, overflowY: "auto", padding: "24px 32px", display: "flex", flexDirection: "column", gap: 28 }}>
+              <div className="review-modal-scroll" style={{ flex: 1, overflowY: "auto", padding: isMobile ? "18px" : "24px 32px", display: "flex", flexDirection: "column", gap: 24 }}>
 
                 {/* Reuse banner */}
                 {selectedItem?.isReuse && (
@@ -1067,7 +1068,7 @@ export default function Solicitacao() {
                 )}
 
                 {/* Action card (dark) */}
-                <div style={{ backgroundColor: "#0c0a09", padding: 28, borderRadius: 12, display: "flex", flexDirection: "column", gap: 20 }}>
+                <div style={{ backgroundColor: "#1c1917", border: "1px solid #292524", padding: isMobile ? 18 : 24, borderRadius: 12, display: "flex", flexDirection: "column", gap: 18, boxShadow: "0 8px 20px rgba(12,10,9,.10)" }}>
                   <div style={{ display: "flex", gap: 12 }}>
                     <button
                       onClick={() => setReleaseConfirmOpen(true)}
@@ -1226,7 +1227,7 @@ export default function Solicitacao() {
 
       {/* Release single */}
       <AlertDialog open={releaseConfirmOpen} onOpenChange={setReleaseConfirmOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="review-confirm-content">
           <AlertDialogHeader>
             <AlertDialogTitle>Liberar para Produção</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1248,14 +1249,14 @@ export default function Solicitacao() {
 
       {/* Return to Arte from card (quick) */}
       <AlertDialog open={returnConfirmOpen} onOpenChange={setReturnConfirmOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="review-confirm-content">
           <AlertDialogHeader>
             <AlertDialogTitle>Devolver para Arte</AlertDialogTitle>
             <AlertDialogDescription>
               {selectedItem && <span><strong>{selectedItem.displayId}</strong> será devolvido à equipe de Arte.</span>}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div style={{ padding: "0 24px" }}>
+          <div style={{ padding: 0 }}>
             <textarea
               placeholder="Descreva as alterações necessárias (opcional)..."
               value={returnObservations}
@@ -1279,7 +1280,7 @@ export default function Solicitacao() {
 
       {/* Bulk release */}
       <AlertDialog open={bulkReleaseConfirmOpen} onOpenChange={setBulkReleaseConfirmOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="review-confirm-content">
           <AlertDialogHeader>
             <AlertDialogTitle>Liberar {selectedItemIds.size} iten{selectedItemIds.size !== 1 ? "s" : ""}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1301,14 +1302,14 @@ export default function Solicitacao() {
 
       {/* Bulk return */}
       <AlertDialog open={bulkReturnConfirmOpen} onOpenChange={setBulkReturnConfirmOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="review-confirm-content">
           <AlertDialogHeader>
             <AlertDialogTitle>Devolver {selectedItemIds.size} iten{selectedItemIds.size !== 1 ? "s" : ""} para Arte</AlertDialogTitle>
             <AlertDialogDescription>
               Deseja devolver {selectedItemIds.size} {selectedItemIds.size === 1 ? "item" : "itens"} para a Arte?
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div style={{ padding: "0 24px" }}>
+          <div style={{ padding: 0 }}>
             <textarea
               placeholder="Observações (opcional)..."
               value={bulkReturnObservations}
@@ -1336,14 +1337,14 @@ export default function Solicitacao() {
 
       {/* Cancel single */}
       <AlertDialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>
-        <AlertDialogContent>
+        <AlertDialogContent className="review-confirm-content">
           <AlertDialogHeader>
             <AlertDialogTitle>Cancelar Item</AlertDialogTitle>
             <AlertDialogDescription>
               {selectedItem && <span><strong>{selectedItem.displayId}</strong> — {selectedItem.type}</span>}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div style={{ padding: "0 24px" }}>
+          <div style={{ padding: 0 }}>
             <textarea
               placeholder="Motivo do cancelamento (opcional)..."
               value={cancelObservations}
@@ -1372,11 +1373,11 @@ export default function Solicitacao() {
         const qty = Number(dialogItem.quantity) || 1;
         return (
           <div
-            style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.45)" }}
+            className="reuse-dialog-overlay" style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.45)", padding: 16 }}
             onClick={() => setReuseDialogItemId(null)}
           >
             <div
-              style={{ backgroundColor: "#ffffff", borderRadius: 12, padding: 28, width: Math.min(380, window.innerWidth - 32), boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}
+              className="reuse-dialog-panel" style={{ backgroundColor: "#ffffff", borderRadius: 12, padding: 28, width: Math.min(380, window.innerWidth - 32), boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}
               onClick={e => e.stopPropagation()}
             >
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
@@ -1456,7 +1457,7 @@ export default function Solicitacao() {
 
       {/* Delete confirmation */}
       <AlertDialog open={!!deleteConfirmItemId} onOpenChange={open => { if (!open) setDeleteConfirmItemId(null); }}>
-        <AlertDialogContent>
+        <AlertDialogContent className="review-confirm-content">
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir peça</AlertDialogTitle>
             <AlertDialogDescription>

@@ -5,6 +5,7 @@
 import { WebSocket } from "ws";
 import { z } from "zod";
 import { storage } from "../storage";
+import { invalidateAllCaches } from "../cache";
 
 // Extend Express Request type to include userName and userId
 declare global {
@@ -32,9 +33,6 @@ export const wsClients = new Set<WebSocket>();
 // Broadcast function for real-time updates.
 // Also flushes server-side caches so the next read reflects the mutation.
 export function broadcast(data: any) {
-  // Lazy import to avoid circular dependency at module load time.
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const { invalidateAllCaches } = require("../cache") as typeof import("../cache");
   invalidateAllCaches();
 
   const message = JSON.stringify(data);

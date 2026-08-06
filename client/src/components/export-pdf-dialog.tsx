@@ -2,9 +2,10 @@
 // facetados, seleção manual das peças e agrupamento por grupo/evento — tudo
 // gerando o mesmo book via exportMixedToPDF.
 import { useState, useMemo, useEffect } from "react";
-import { Printer, X, FileText, FileImage, CheckCircle, SlidersHorizontal, BookOpen } from "lucide-react";
+import { Printer, X, FileText, FileImage, CheckCircle, SlidersHorizontal, BookOpen, Scissors } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { FilterSelect } from "@/components/filter-select";
+import { BookPagePicker } from "@/components/book-page-picker";
 import { exportMixedToPDF, groupKeyOf, MAX_ITEMS_PER_COMBINED_PAGE, convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 
 interface ExportPdfDialogProps {
@@ -30,6 +31,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
   // pelo "Gerar PDF", que desenha uma página por peça a partir do thumb: é a
   // única forma de obter só as peças filtradas em um arquivo.
   const [ignoreBook, setIgnoreBook] = useState(false);
+  const [pickerUrl, setPickerUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) { setExcludedIds(new Set()); setUngroupedKeys(new Set()); setIgnoreBook(false); }
@@ -138,6 +140,10 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
   const hasBook = nBook > 0;
   const allBook = hasBook && nBook === selected.length;
   const anyBook = selected.some(i => !!i.bookUrl);
+  const bookUrlsInSelection = useMemo(
+    () => Array.from(new Set(selected.filter(i => !!i.bookUrl).map(i => i.bookUrl as string))),
+    [selected],
+  );
 
   // Só as peças que realmente entram no "Gerar PDF" contam páginas. Antes o
   // cálculo varria toda a seleção e o botão dizia coisas como "1 peça · 6 pág.",
@@ -155,6 +161,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
   }, [selected, combinedSet, groupByEvent, bookUrlFullySelected, ignoreBook]);
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="p-0 gap-0"
@@ -381,6 +388,28 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                 style={{ width: "100%", height: 40, borderRadius: 8, background: "#fff", border: "1px solid #e4e0db", color: "#78716c", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
                 Cancelar
               </button>
+
+              {/* Recorte de páginas. "Abrir Book" só sabe abrir o PDF inteiro
+                  porque nenhuma página está associada a uma peça; aqui o usuário
+                  escolhe visualmente quais páginas quer e leva um PDF só com
+                  elas. Aparece sempre que houver book na seleção, inclusive com
+                  "Ignorar book" ligado — é justamente quando mais se precisa. */}
+              {bookUrlsInSelection.map((url, idx) => (
+                <button
+                  key={url}
+                  onClick={() => setPickerUrl(url)}
+                  data-testid={`button-extract-book-${idx}`}
+                  style={{
+                    width: "100%", height: 38, borderRadius: 10,
+                    backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe",
+                    color: "#5b21b6", fontSize: 12, fontWeight: 800,
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                    cursor: "pointer", letterSpacing: "-0.01em",
+                  }}>
+                  <Scissors style={{ width: 14, height: 14 }} />
+                  Extrair páginas do book{bookUrlsInSelection.length > 1 ? ` ${idx + 1}` : ""}
+                </button>
+              ))}
 
               {/* Quando há books: mostrar botão "Abrir Book" separado */}
               {hasBook && (
@@ -625,5 +654,18 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Fora do Dialog de exportação de propósito: um Dialog do Radix aninhado
+        em outro disputa o foco com o pai e o seletor abriria sem receber
+        teclado. */}
+    {pickerUrl && (
+      <BookPagePicker
+        open
+        onOpenChange={o => { if (!o) setPickerUrl(null); }}
+        bookUrl={pickerUrl}
+        fileName={title}
+      />
+    )}
+    </>
   );
 }

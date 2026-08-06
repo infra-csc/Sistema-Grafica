@@ -158,8 +158,13 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
           </button>
         </div>
 
-        {/* ══ Body ═══════════════════════════════════════════════════════ */}
-        <div style={{ display: "flex", height: 580, overflow: "hidden" }}>
+        {/* ══ Body ═══════════════════════════════════════════════════════
+            overflow visible: mesma causa do painel direito logo abaixo — este
+            era o segundo ancestral com overflow:hidden entre o dropdown de
+            filtro e a borda do modal. A altura fixa (580) não depende do
+            overflow para funcionar; só o overflow:hidden do DialogContent (que
+            faz a máscara dos cantos arredondados) precisa continuar como está. */}
+        <div style={{ display: "flex", height: 580, overflow: "visible" }}>
 
           {/* ── Painel esquerdo — Opções do PDF ─────────────────────────── */}
           <div style={{
@@ -366,8 +371,12 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
             </div>
           </div>
 
-          {/* ── Painel direito — filtros + lista ────────────────────────── */}
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", backgroundColor: "#fff" }}>
+          {/* ── Painel direito — filtros + lista ──────────────────────────
+              overflow visible: com "hidden" aqui, o painel dos filtros era
+              recortado na borda do painel (o z-index não ajuda contra o clip de
+              um ancestral). A lista continua rolando por conta própria — o que
+              faz isso funcionar é o minHeight 0 nela, não o overflow do pai. */}
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "visible", minWidth: 0, backgroundColor: "#fff" }}>
 
             {/* Barra de filtros */}
             <div style={{

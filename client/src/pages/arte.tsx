@@ -51,12 +51,16 @@ const EVENT_CHIPS_VISIBLE = 8;
  */
 const ARTE_COLS: { label: string; w: number | string; right?: boolean }[] = [
   { label: 'ID',                w: 150 },
-  { label: 'Qtd',               w: 56 },
+  // Medido no navegador: o rótulo "QTD" maiúsculo, com o letter-spacing do
+  // cabeçalho, precisa de 58px — 56 cortava em "Q...". 68 dá folga real.
+  { label: 'Qtd',               w: 68 },
   { label: 'Peça',              w: 'auto' },
   { label: 'Dimensões (V / A)', w: 150 },
   { label: 'M²',                w: 68 },
   { label: 'Material',          w: 104 },
-  { label: 'Thumb / Final',     w: 96 },
+  // Mesma causa: "THUMB / FINAL" precisa de 126px e tinha 96, cortando em
+  // "Thumb ...". 140 dá folga.
+  { label: 'Thumb / Final',     w: 140 },
   { label: 'Patroc.',           w: 124 },
   // Até 4 botões podem aparecer juntos nesta coluna (exportar + ver + o botão
   // de texto "Enviar Aprovação"/"Enviar Finalização"/"Finalizar Arte" +
@@ -64,6 +68,16 @@ const ARTE_COLS: { label: string; w: number | string; right?: boolean }[] = [
   // com espaçamento estranho); 340px cabe tudo numa linha só, sem quebrar.
   { label: 'Ações',             w: 340, right: true },
 ];
+
+// checkbox (44) + colunas fixas + um mínimo para "Peça" (largura 'auto').
+// Derivado, não hardcoded: a largura de "Ações" mudou duas vezes (112→200→340)
+// enquanto este número ficou parado em 1100 — bem abaixo da soma das colunas
+// fixas (1132px sozinhas, sem sobrar nada para "Peça"), e foi isso que causou
+// a sobreposição. Calculando a partir de ARTE_COLS, os dois nunca mais podem
+// dessincronizar.
+const ARTE_PECA_MIN_WIDTH = 220;
+const ARTE_TABLE_MIN_WIDTH = 44 + ARTE_PECA_MIN_WIDTH
+  + ARTE_COLS.reduce((sum, c) => sum + (typeof c.w === 'number' ? c.w : 0), 0);
 
 // Status que alimentam cada aba. Antes ficavam embutidos no filtro, que era
 // reexecutado uma vez por aba só para contar.
@@ -1565,7 +1579,7 @@ export default function Arte() {
                     a coluna de ID precisa de 208 px e tinha 68 declarados. As
                     larguras de ARTE_COLS vieram dessa medição, e o colgroup as
                     aplica mesmo nas tabelas que não repetem o cabeçalho. */}
-                <table style={{ width: '100%', minWidth: 1100, tableLayout: 'fixed', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <table style={{ width: '100%', minWidth: ARTE_TABLE_MIN_WIDTH, tableLayout: 'fixed', borderCollapse: 'collapse', textAlign: 'left' }}>
                   <colgroup>
                     {(tabId === "criar-aprovacoes" || tabId === "finalizados") && <col style={{ width: 44 }} />}
                     {ARTE_COLS.map((c, i) => <col key={i} style={{ width: c.w }} />)}

@@ -109,7 +109,37 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
   const clearFilters = () => { setEventFilter("all"); setSponsorFilter("all"); setGroupFilter("all"); setTypeFilter("all"); setStatusFilter("all"); };
   const activeFilterCount = [eventFilter, sponsorFilter, groupFilter, typeFilter, statusFilter].filter(v => v !== "all").length;
 
-  const nBook = selected.filter(i => i.bookUrl).length;
+  // "Abrir Book" abre o PDF bruto do book — não há como extrair só algumas
+  // páginas dele, porque o app nunca guardou qual página cobre qual peça. Se o
+  // usuário seleciona só parte das peças de um book e o botão abrisse o PDF
+  // mesmo assim, ele sempre veria o book inteiro: era exatamente o "não
+  // consigo dividir as peças, sempre vem o book cheio" relatado.
+  //
+  // A correção não tenta separar páginas de um PDF existente (isso exigiria
+  // guardar página por peça desde o upload do book, uma mudança bem maior).
+  // Em vez disso, uma peça só entra no grupo "book" quando TODAS as peças do
+  // mesmo book (dentro do pool que este modal recebeu) estão selecionadas —
+  // aí sim o PDF corresponde exatamente ao que a tela está pedindo. Quando a
+  // seleção é parcial, a peça sai do grupo "book" e cai no "Gerar PDF", que já
+  // desenha uma página por peça a partir do thumb: é isso que "divide" as
+  // peças na prática, sem precisar mexer no PDF já enviado.
+  const bookUrlFullySelected = useMemo(() => {
+    const poolByBook = new Map<string, Set<string>>();
+    items.forEach(i => {
+      if (!i.bookUrl) return;
+      if (!poolByBook.has(i.bookUrl)) poolByBook.set(i.bookUrl, new Set());
+      poolByBook.get(i.bookUrl)!.add(i.id);
+    });
+    const selectedIds = new Set(selected.map(i => i.id));
+    const full = new Set<string>();
+    poolByBook.forEach((ids, url) => {
+      if (Array.from(ids).every(id => selectedIds.has(id))) full.add(url);
+    });
+    return full;
+  }, [items, selected]);
+  const isFullBookItem = (i: any) => !!i.bookUrl && bookUrlFullySelected.has(i.bookUrl);
+
+  const nBook = selected.filter(isFullBookItem).length;
   const hasBook = nBook > 0;
   const allBook = hasBook && nBook === selected.length;
 
@@ -297,8 +327,8 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
               {hasBook && !allBook && selected.length > 0 && (
                 <p style={{ fontSize: 11, color: "#57534e", margin: "0 0 4px", lineHeight: 1.5, background: "#fafaf9", border: "1px solid #ebe8e4", borderRadius: 8, padding: "8px 10px" }}>
                   Das <strong style={{ color: "#1c1917" }}>{selected.length}</strong> peças selecionadas,{" "}
-                  <strong style={{ color: "#1c1917" }}>{selected.filter(i => i.bookUrl).length}</strong> já têm book pronto
-                  (abrem em nova aba) e <strong style={{ color: "#1c1917" }}>{selected.filter(i => !i.bookUrl).length}</strong> entram no PDF gerado.
+                  <strong style={{ color: "#1c1917" }}>{selected.filter(isFullBookItem).length}</strong> já têm book pronto
+                  (abrem em nova aba) e <strong style={{ color: "#1c1917" }}>{selected.filter(i => !isFullBookItem(i)).length}</strong> entram no PDF gerado.
                 </p>
               )}
               <button
@@ -311,7 +341,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
               {hasBook && (
                 <button
                   onClick={() => {
-                    const bookUrls = Array.from(new Set(selected.filter(i => i.bookUrl).map(i => i.bookUrl as string)));
+                    const bookUrls = Array.from(new Set(selected.filter(isFullBookItem).map(i => i.bookUrl as string)));
                     bookUrls.forEach(url => window.open(url, "_blank", "noopener,noreferrer"));
                     if (allBook) onOpenChange(false);
                   }}
@@ -333,8 +363,8 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                   }}>
                   <BookOpen style={{ width: 15, height: 15 }} />
                   {allBook
-                    ? `Abrir Book${selected.filter(i => i.bookUrl).length > 1 ? "s" : ""} — ${selected.filter(i => i.bookUrl).length} ${selected.filter(i => i.bookUrl).length === 1 ? "peça" : "peças"}`
-                    : `Abrir Books (${selected.filter(i => i.bookUrl).length} com book)`}
+                    ? `Abrir Book${selected.filter(isFullBookItem).length > 1 ? "s" : ""} — ${selected.filter(isFullBookItem).length} ${selected.filter(isFullBookItem).length === 1 ? "peça" : "peças"}`
+                    : `Abrir Books (${selected.filter(isFullBookItem).length} com book)`}
                 </button>
               )}
 
@@ -342,28 +372,28 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
               {!allBook && (
                 <button
                   onClick={() => {
-                    const withoutBook = selected.filter(i => !i.bookUrl);
+                    const withoutBook = selected.filter(i => !isFullBookItem(i));
                     if (withoutBook.length > 0) void exportMixedToPDF(withoutBook, combinedSet, `${title} — ${withoutBook.length} peça(s)`, groupByEvent);
                     onOpenChange(false);
                   }}
-                  disabled={selected.filter(i => !i.bookUrl).length === 0}
+                  disabled={selected.filter(i => !isFullBookItem(i)).length === 0}
                   data-testid="button-export-confirm"
                   style={{
                     width: "100%", height: 46, borderRadius: 10,
                     // Ação primária do modal usa o laranja de ação do app, como os
                     // botões primários das listas. O roxo fica reservado ao botão
                     // de book, onde a cor tem significado.
-                    backgroundColor: selected.filter(i => !i.bookUrl).length === 0 ? "#e7e5e4" : "#c2410c",
+                    backgroundColor: selected.filter(i => !isFullBookItem(i)).length === 0 ? "#e7e5e4" : "#c2410c",
                     border: "none",
-                    color: selected.filter(i => !i.bookUrl).length === 0 ? "#57534e" : "#fff",
+                    color: selected.filter(i => !isFullBookItem(i)).length === 0 ? "#57534e" : "#fff",
                     fontSize: 13, fontWeight: 800,
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                    cursor: selected.filter(i => !i.bookUrl).length === 0 ? "not-allowed" : "pointer",
+                    cursor: selected.filter(i => !isFullBookItem(i)).length === 0 ? "not-allowed" : "pointer",
                     letterSpacing: "-0.01em",
                   }}>
                   <Printer style={{ width: 15, height: 15 }} />
                   {(() => {
-                    const n = selected.filter(i => !i.bookUrl).length;
+                    const n = selected.filter(i => !isFullBookItem(i)).length;
                     return `Gerar PDF${n > 0 ? ` — ${n} ${n === 1 ? "peça" : "peças"}${pageCount > 0 ? ` · ${pageCount} pág.` : ""}` : ""}`;
                   })()}
                 </button>
@@ -450,7 +480,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
               </div>
               <span style={{ fontSize: 11, color: "#78716c" }}>
                 {selected.filter(i => i.approvalThumbUrl).length} com thumb
-                {selected.some(i => i.bookUrl) ? ` · ${selected.filter(i => i.bookUrl).length} com book` : ""}
+                {selected.some(isFullBookItem) ? ` · ${selected.filter(isFullBookItem).length} com book` : ""}
               </span>
             </div>
 
@@ -505,13 +535,29 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
                           <span style={{ fontSize: 11, fontWeight: 800, color: "#7c3aed", fontFamily: "monospace", letterSpacing: "0.02em" }}>{item.displayId}</span>
                           <span style={{ fontSize: 12, fontWeight: 600, color: "#1c1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textTransform: "capitalize" }}>{item.type}</span>
+                          {/* Antes o selo dizia só "Book" para qualquer peça
+                              coberta, sem dizer qual botão realmente ia usá-la —
+                              origem da confusão "sempre vem o book cheio". Agora
+                              distingue: book completo (abre o PDF como enviado)
+                              de book parcial (as outras peças do mesmo book não
+                              estão selecionadas, então esta vira página avulsa
+                              no "Gerar PDF" em vez de abrir o PDF inteiro). */}
                           {item.bookUrl && (
-                            <span
-                              title="Coberta por book da Arte"
-                              data-testid={`badge-book-export-${item.id}`}
-                              style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: "#6d28d9", backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 4, padding: "2px 6px", textTransform: "uppercase" }}>
-                              <FileText style={{ width: 10, height: 10 }} /> Book
-                            </span>
+                            isFullBookItem(item) ? (
+                              <span
+                                title="Book completo — abre o PDF como foi enviado pela Arte"
+                                data-testid={`badge-book-export-${item.id}`}
+                                style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: "#6d28d9", backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 4, padding: "2px 6px", textTransform: "uppercase" }}>
+                                <FileText style={{ width: 10, height: 10 }} /> Book
+                              </span>
+                            ) : (
+                              <span
+                                title="Faltam outras peças deste book na seleção — como o PDF não pode ser dividido em páginas, esta peça sai como página avulsa no PDF gerado"
+                                data-testid={`badge-book-partial-export-${item.id}`}
+                                style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: "#92400e", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 4, padding: "2px 6px", textTransform: "uppercase" }}>
+                                <FileText style={{ width: 10, height: 10 }} /> Book parcial
+                              </span>
+                            )
                           )}
                         </div>
                         <div style={{ fontSize: 11, color: "#78716c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

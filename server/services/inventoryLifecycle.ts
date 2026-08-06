@@ -116,5 +116,6 @@ export function startInventoryLifecycle(): void {
   // On startup: backfill missing assets first, then immediately run lifecycle transitions,
   // then schedule every-10-minute checks. Sequential so backfilled assets are ready for the cron.
   backfillInventoryAssets().then(() => runInventoryCron());
-  setInterval(runInventoryCron, 10 * 60 * 1000);
+  // Catch-up logic inside runInventoryCron handles missed ticks, so 60 min is sufficient.
+  setInterval(runInventoryCron, 60 * 60 * 1000);
 }

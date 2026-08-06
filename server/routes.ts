@@ -62,9 +62,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // WebSocket server on /ws path to avoid conflict with Vite HMR
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
-  wss.on('connection', (ws) => {
+  wss.on('connection', (ws: WebSocket & { isAlive?: boolean }) => {
+    ws.isAlive = true;
     wsClients.add(ws);
     console.log('WebSocket client connected');
+
+    ws.on('pong', () => { ws.isAlive = true; });
 
     ws.on('close', () => {
       wsClients.delete(ws);
@@ -79,6 +82,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     // Send initial connection confirmation
     ws.send(JSON.stringify({ type: 'connected', message: 'WebSocket connected' }));
   });
+
+  // Heartbeat: ping every 30 s and terminate connections that don't pong back.
+  // Prevents dead sockets accumulating in wsClients and receiving broadcasts.
+  setInterval(() => {
+    (wss.clients as Set<WebSocket & { isAlive?: boolean }>).forEach((ws) => {
+      if (ws.isAlive === false) {
+        ws.terminate();
+        wsClients.delete(ws);
+        return;
+      }
+      ws.isAlive = false;
+      ws.ping();
+    });
+  }, 30_000);
 
   return httpServer;
 }

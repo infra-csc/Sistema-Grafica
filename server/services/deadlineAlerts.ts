@@ -4,6 +4,12 @@
 import { storage } from "../storage";
 import { broadcast } from "../routes/shared";
 
+// Deduplication: track alert keys already sent in this process lifetime.
+// Key format: "<eventId>-departure-<hours>h" or "<eventId>-<label>-<hours>h"
+// Prevents duplicate notifications if the service restarts mid-window or
+// the 30-minute tick fires twice inside the same ±0.5h alert window.
+const sentAlertKeys = new Set<string>();
+
 export function startDeadlineAlerts(): void {
   // Background job to check for upcoming deadlines
   setInterval(async () => {
@@ -24,14 +30,18 @@ export function startDeadlineAlerts(): void {
           (hoursUntilDeparture <= 12 && hoursUntilDeparture > 11.5)
         ) {
           const hours = Math.floor(hoursUntilDeparture);
-          const notification = await storage.createNotification({
-            type: "deadlineAlert",
-            message: `ALERTA: Faltam ${hours}h para saída do caminhão - ${event.name}`,
-            eventId: event.id,
-            targetRoles: ["arte", "grafica", "solicitacao"],
-          });
-          broadcast({ type: "deadline_alert", event, hoursRemaining: hours });
-          broadcast({ type: "notification_created", notification });
+          const alertKey = `${event.id}-departure-${hours}h`;
+          if (!sentAlertKeys.has(alertKey)) {
+            sentAlertKeys.add(alertKey);
+            const notification = await storage.createNotification({
+              type: "deadlineAlert",
+              message: `ALERTA: Faltam ${hours}h para saída do caminhão - ${event.name}`,
+              eventId: event.id,
+              targetRoles: ["arte", "grafica", "solicitacao"],
+            });
+            broadcast({ type: "deadline_alert", event, hoursRemaining: hours });
+            broadcast({ type: "notification_created", notification });
+          }
         }
 
         // ── Prazo alerts (48h / 24h before each configurable deadline) ──────
@@ -65,14 +75,18 @@ export function startDeadlineAlerts(): void {
             (hoursUntil <= 24 && hoursUntil > 23.5)
           ) {
             const hours = Math.round(hoursUntil);
-            const notification = await storage.createNotification({
-              type: "prazoAlert",
-              message: `Prazo "${label}" em ${hours}h — ${event.name}`,
-              eventId: event.id,
-              targetRoles: roles,
-            });
-            broadcast({ type: "prazo_alert", event, label, hoursRemaining: hours });
-            broadcast({ type: "notification_created", notification });
+            const alertKey = `${event.id}-${label}-${hours}h`;
+            if (!sentAlertKeys.has(alertKey)) {
+              sentAlertKeys.add(alertKey);
+              const notification = await storage.createNotification({
+                type: "prazoAlert",
+                message: `Prazo "${label}" em ${hours}h — ${event.name}`,
+                eventId: event.id,
+                targetRoles: roles,
+              });
+              broadcast({ type: "prazo_alert", event, label, hoursRemaining: hours });
+              broadcast({ type: "notification_created", notification });
+            }
           }
         }
       }

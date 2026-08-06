@@ -29,8 +29,14 @@ declare module "express-session" {
 // WebSocket clients set
 export const wsClients = new Set<WebSocket>();
 
-// Broadcast function for real-time updates
+// Broadcast function for real-time updates.
+// Also flushes server-side caches so the next read reflects the mutation.
 export function broadcast(data: any) {
+  // Lazy import to avoid circular dependency at module load time.
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const { invalidateAllCaches } = require("../cache") as typeof import("../cache");
+  invalidateAllCaches();
+
   const message = JSON.stringify(data);
   wsClients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {

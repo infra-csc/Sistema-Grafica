@@ -9,12 +9,19 @@ import {
   createAuditLog,
 } from "./shared";
 
+import { eventsCache, setEventsCache } from "../cache";
+
 export function registerEventRoutes(app: Express): void {
   // ============ EVENTS ============
   
   // Get all events with items count
   app.get("/api/events", requireAuth, async (req, res) => {
     try {
+      const now = Date.now();
+      if (eventsCache && eventsCache.expiresAt > now) {
+        return res.json(eventsCache.data);
+      }
+
       const allEvents = await storage.getAllEvents();
       
       // Fetch items and sponsors for each event and calculate real-time status
@@ -24,9 +31,9 @@ export function registerEventRoutes(app: Express): void {
           const eventSponsors = await storage.getEventSponsors(event.id);
           
           // Calculate real-time status
-          const now = new Date();
+          const nowDate = new Date();
           const eventStartDate = new Date(event.startDate);
-          const eventHasPassed = now > eventStartDate;
+          const eventHasPassed = nowDate > eventStartDate;
           
           let calculatedStatus = event.status;
           
@@ -47,7 +54,8 @@ export function registerEventRoutes(app: Express): void {
           };
         })
       );
-      
+
+      setEventsCache(eventsWithItems);
       res.json(eventsWithItems);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

@@ -3,6 +3,8 @@ import type { Express } from "express";
 import { storage } from "../storage";
 import { requireAuth, broadcast } from "./shared";
 
+import { notifCache, setNotifCache, invalidateNotificationsCache } from "../cache";
+
 export function registerNotificationRoutes(app: Express): void {
   // ============ NOTIFICATIONS ============
 
@@ -12,11 +14,17 @@ export function registerNotificationRoutes(app: Express): void {
       if (!userRole) {
         return res.status(403).json({ error: "Perfil de usuário não encontrado" });
       }
+
+      const cached = notifCache.get(userRole);
+      if (cached && cached.expiresAt > Date.now()) {
+        return res.json(cached.data);
+      }
       
       const allNotifications = await storage.getAllNotifications();
       
       // Admin vê TODAS as notificações
       if (userRole === "admin") {
+        setNotifCache(userRole, allNotifications);
         return res.json(allNotifications);
       }
       
@@ -29,7 +37,8 @@ export function registerNotificationRoutes(app: Express): void {
         // Verificar se o perfil do usuário está na lista de targetRoles
         return notification.targetRoles.includes(userRole);
       });
-      
+
+      setNotifCache(userRole, filteredNotifications);
       res.json(filteredNotifications);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

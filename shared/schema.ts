@@ -470,6 +470,13 @@ export const insertSponsorSchema = createInsertSchema(sponsors).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
+}).extend({
+  // "Nenhum executivo" chega do formulário como string vazia, e o Postgres a
+  // trata como um id de verdade: tenta casar '' com users.id e derruba o insert
+  // com "violates foreign key constraint sponsors_account_executive_id_users_id".
+  // A coerção mora aqui — e não na tela — para valer também no PATCH e em
+  // qualquer outro caminho que use este schema.
+  accountExecutiveId: z.string().nullish().transform(v => (v && v.trim() ? v : null)),
 });
 
 export const insertEventSponsorSchema = createInsertSchema(eventSponsors).omit({

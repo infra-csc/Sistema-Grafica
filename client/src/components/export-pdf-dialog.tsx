@@ -24,17 +24,18 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
   const [excludedIds, setExcludedIds]   = useState<Set<string>>(new Set());
   const [ungroupedKeys, setUngroupedKeys] = useState<Set<string>>(new Set());
   const [groupByEvent, setGroupByEvent] = useState(false);
-  // O book é um PDF único do evento (dezenas de páginas) e o app nunca guardou
-  // qual página cobre qual peça, então "Abrir Books" só sabe abrir o arquivo
-  // inteiro. Quando o usuário filtra por patrocinador, isso devolve o book cheio
-  // — não dá para recortar. Com este interruptor as peças ignoram o book e saem
-  // pelo "Gerar PDF", que desenha uma página por peça a partir do thumb: é a
-  // única forma de obter só as peças filtradas em um arquivo.
-  const [ignoreBook, setIgnoreBook] = useState(false);
+  // De onde sai o arquivo. Antes existiam quatro controles disputando a mesma
+  // decisão — o interruptor "Ignorar book", "Abrir Books", "Extrair páginas" e
+  // "Gerar PDF" — em dois lugares diferentes da tela, e o modal ainda podia
+  // produzir dois artefatos de uma vez, exibindo duas contagens que se
+  // contradiziam ("926 peças" no topo, "223 peças" no botão). Uma escolha só,
+  // no topo do painel, elimina a contradição: ou o arquivo nasce das artes, ou
+  // ele é o book que a Arte já enviou.
+  const [source, setSource] = useState<"artes" | "book">("artes");
   const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => {
-    if (open) { setExcludedIds(new Set()); setUngroupedKeys(new Set()); setIgnoreBook(false); }
+    if (open) { setExcludedIds(new Set()); setUngroupedKeys(new Set()); }
     // O seletor de páginas é irmão deste Dialog, não filho — fechar a exportação
     // não o desmontaria, e ele ficaria sozinho na tela sem o modal que o abriu.
     else setPickerOpen(false);
@@ -109,43 +110,10 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
   const clearFilters = () => { setEventFilter("all"); setSponsorFilter("all"); setGroupFilter("all"); setTypeFilter("all"); setStatusFilter("all"); };
   const activeFilterCount = [eventFilter, sponsorFilter, groupFilter, typeFilter, statusFilter].filter(v => v !== "all").length;
 
-  // "Abrir Book" abre o PDF bruto do book — não há como extrair só algumas
-  // páginas dele, porque o app nunca guardou qual página cobre qual peça. Se o
-  // usuário seleciona só parte das peças de um book e o botão abrisse o PDF
-  // mesmo assim, ele sempre veria o book inteiro: era exatamente o "não
-  // consigo dividir as peças, sempre vem o book cheio" relatado.
-  //
-  // A correção não tenta separar páginas de um PDF existente (isso exigiria
-  // guardar página por peça desde o upload do book, uma mudança bem maior).
-  // Em vez disso, uma peça só entra no grupo "book" quando TODAS as peças do
-  // mesmo book (dentro do pool que este modal recebeu) estão selecionadas —
-  // aí sim o PDF corresponde exatamente ao que a tela está pedindo. Quando a
-  // seleção é parcial, a peça sai do grupo "book" e cai no "Gerar PDF", que já
-  // desenha uma página por peça a partir do thumb: é isso que "divide" as
-  // peças na prática, sem precisar mexer no PDF já enviado.
-  const bookUrlFullySelected = useMemo(() => {
-    const poolByBook = new Map<string, Set<string>>();
-    items.forEach(i => {
-      if (!i.bookUrl) return;
-      if (!poolByBook.has(i.bookUrl)) poolByBook.set(i.bookUrl, new Set());
-      poolByBook.get(i.bookUrl)!.add(i.id);
-    });
-    const selectedIds = new Set(selected.map(i => i.id));
-    const full = new Set<string>();
-    poolByBook.forEach((ids, url) => {
-      if (Array.from(ids).every(id => selectedIds.has(id))) full.add(url);
-    });
-    return full;
-  }, [items, selected]);
-  const isFullBookItem = (i: any) => !ignoreBook && !!i.bookUrl && bookUrlFullySelected.has(i.bookUrl);
-
-  const nBook = selected.filter(isFullBookItem).length;
-  const hasBook = nBook > 0;
-  const allBook = hasBook && nBook === selected.length;
-  const anyBook = selected.some(i => !!i.bookUrl);
   // Um evento tem um book; a seleção inteira, sem filtro, chega a dezenas deles.
-  // Por isso a escolha de qual book abrir vive dentro do seletor, e não como um
-  // botão por book no rodapé — com 8 books o rodapé engolia o painel de opções.
+  // Por isso a escolha de qual book abrir vive dentro do seletor de páginas, e
+  // não como um botão por book no rodapé — com 8 books o rodapé engolia o painel
+  // de opções.
   const booksInSelection = useMemo(() => {
     const map = new Map<string, { url: string; label: string; count: number }>();
     selected.forEach(i => {
@@ -156,13 +124,14 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
     });
     return Array.from(map.values()).sort((a, b) => b.count - a.count);
   }, [selected]);
+  const coveredCount   = useMemo(() => selected.filter(i => !!i.bookUrl).length, [selected]);
+  const uncoveredCount = selected.length - coveredCount;
+  const anyBook  = coveredCount > 0;
+  const useBook  = source === "book" && anyBook;
 
-  // Só as peças que realmente entram no "Gerar PDF" contam páginas. Antes o
-  // cálculo varria toda a seleção e o botão dizia coisas como "1 peça · 6 pág.",
-  // porque as 7 que abriam o book continuavam somando página.
   const pageCount = useMemo(() => {
     const perEvent = new Map<string,Map<string,number>>();
-    selected.filter(i => !isFullBookItem(i)).forEach(i => {
+    selected.forEach(i => {
       const ev = i.eventId || "__"; if (!perEvent.has(ev)) perEvent.set(ev, new Map());
       const g = groupKeyOf(i); const m = perEvent.get(ev)!; m.set(g, (m.get(g) ?? 0) + 1);
     });
@@ -170,7 +139,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
     perEvent.forEach(groups => groups.forEach((count, key) => { total += combinedSet.has(key) ? Math.ceil(count / MAX_ITEMS_PER_COMBINED_PAGE) : count; }));
     if (groupByEvent && perEvent.size > 1) total += perEvent.size;
     return total;
-  }, [selected, combinedSet, groupByEvent, bookUrlFullySelected, ignoreBook]);
+  }, [selected, combinedSet, groupByEvent]);
 
   return (
     <>
@@ -197,16 +166,16 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
           borderBottom: "1px solid rgba(255,255,255,0.06)",
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: allBook ? "#2563eb" : "#7c3aed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 0 0 1px rgba(255,255,255,0.12) inset", transition: "background-color 0.2s" }}>
-              {allBook ? <BookOpen style={{ width: 18, height: 18, color: "#fff" }} /> : <Printer style={{ width: 18, height: 18, color: "#fff" }} />}
+            <div style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: useBook ? "#6d28d9" : "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 0 0 1px rgba(255,255,255,0.12) inset", transition: "background-color 0.2s" }}>
+              {useBook ? <BookOpen style={{ width: 18, height: 18, color: "#fff" }} /> : <Printer style={{ width: 18, height: 18, color: "#fff" }} />}
             </div>
             <div>
               <h2 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.03em", color: "#fff", margin: 0, lineHeight: 1.2 }}>
-                {allBook ? "Exportar Book" : "Exportar PDF"}
+                {useBook ? "Exportar book" : "Exportar PDF"}
               </h2>
-              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", margin: "3px 0 0" }}>
-                {allBook
-                  ? "Todas as peças possuem book — o arquivo já está pronto para download"
+              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.72)", margin: "3px 0 0" }}>
+                {useBook
+                  ? "Use o arquivo que a Arte já enviou — inteiro ou só as páginas que precisa"
                   : "Selecione as peças, aplique filtros e configure o layout do arquivo"}
               </p>
             </div>
@@ -233,17 +202,75 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
             display: "flex", flexDirection: "column",
             backgroundColor: "#fafaf9",
           }}>
-            {/* Título da seção */}
+            {/* Título da seção. #78716c em vez de #a8a29e: o rótulo tem 11px em
+                caixa alta sobre #fafaf9, onde o cinza claro dava 2,4:1 e reprova
+                WCAG AA — texto pequeno é justamente o que menos pode perder
+                contraste. */}
             <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #ebe8e4" }}>
-              <p style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e", margin: 0 }}>
-                {allBook ? "Opções do Book" : "Opções do PDF"}
+              <p style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", margin: 0 }}>
+                Opções
               </p>
             </div>
 
-            <div style={{ flex: 1, overflowY: "auto", padding: "20px 24px" }}>
+            <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "20px 24px" }}>
 
-              {/* Várias peças por página */}
-              {groupsInSelection.length > 0 && (
+              {/* ── Origem do arquivo ──────────────────────────────────────
+                  A decisão que governa todo o resto do painel vem primeiro. Era
+                  ela que antes estava dissolvida em quatro controles espalhados;
+                  como radio, o usuário vê as duas saídas possíveis lado a lado
+                  em vez de deduzi-las pelos botões do rodapé. */}
+              {anyBook && (
+                <div style={{ marginBottom: 24 }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: "#292524", margin: "0 0 10px" }}>Origem do arquivo</p>
+                  <div role="radiogroup" aria-label="Origem do arquivo" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                    {([
+                      { id: "artes" as const, icon: Printer,  title: "Gerar das artes",
+                        desc: `Uma página por peça, montada a partir das artes aprovadas.` },
+                      { id: "book"  as const, icon: BookOpen, title: "Book da Arte",
+                        desc: `O PDF original do evento, como foi enviado ao patrocinador.` },
+                    ]).map(opt => {
+                      const on = source === opt.id;
+                      const Icon = opt.icon;
+                      const tint = opt.id === "book" ? "#6d28d9" : "#c2410c";
+                      return (
+                        <button
+                          key={opt.id}
+                          role="radio"
+                          aria-checked={on}
+                          onClick={() => setSource(opt.id)}
+                          data-testid={`radio-source-${opt.id}`}
+                          style={{
+                            display: "flex", alignItems: "flex-start", gap: 10, width: "100%", textAlign: "left",
+                            padding: "11px 12px", borderRadius: 10, cursor: "pointer",
+                            border: `1px solid ${on ? tint : "#e4e0db"}`,
+                            backgroundColor: on ? (opt.id === "book" ? "#f5f3ff" : "#fff7ed") : "#fff",
+                            boxShadow: on ? `0 0 0 1px ${tint} inset` : "none",
+                            transition: "border-color 0.12s, background-color 0.12s",
+                          }}>
+                          <span style={{
+                            width: 16, height: 16, borderRadius: 999, flexShrink: 0, marginTop: 2,
+                            border: `2px solid ${on ? tint : "#d4d0ca"}`,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                          }}>
+                            {on && <span style={{ width: 7, height: 7, borderRadius: 999, backgroundColor: tint }} />}
+                          </span>
+                          <span style={{ minWidth: 0 }}>
+                            <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: on ? tint : "#1c1917" }}>
+                              <Icon style={{ width: 12, height: 12 }} /> {opt.title}
+                            </span>
+                            <span style={{ display: "block", fontSize: 11, color: "#57534e", lineHeight: 1.5, marginTop: 3 }}>
+                              {opt.desc}
+                            </span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Várias peças por página — só afeta o PDF gerado das artes. */}
+              {!useBook && groupsInSelection.length > 0 && (
                 <div style={{ marginBottom: 24 }}>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
                     <p style={{ fontSize: 12, fontWeight: 700, color: "#292524", margin: 0 }}>Peças por página</p>
@@ -310,185 +337,129 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                 </div>
               )}
 
-              {/* Book info — a seção aparece sempre que houver book na seleção,
-                  inclusive com "Ignorar book" ligado: senão o interruptor sumiria
-                  junto com o painel e não haveria como voltar atrás. */}
-              {anyBook && (
-                <div style={{ marginBottom: 8 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "#292524", margin: "0 0 10px" }}>Arquivo book</p>
-                  {hasBook && (
-                    <div style={{ backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 10, padding: "12px 14px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                        <div style={{ width: 28, height: 28, borderRadius: 7, backgroundColor: "#ede9fe", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                          <BookOpen style={{ width: 13, height: 13, color: "#7c3aed" }} />
-                        </div>
-                        <p style={{ fontSize: 13, fontWeight: 800, color: "#5b21b6", margin: 0 }}>
-                          {allBook ? "Todas as peças" : `${nBook} de ${selected.length} peças`}
-                        </p>
-                      </div>
-                      <div style={{ height: 4, borderRadius: 999, backgroundColor: "#ddd6fe", overflow: "hidden", marginBottom: 8 }}>
-                        <div style={{ height: "100%", width: `${Math.round((nBook / selected.length) * 100)}%`, backgroundColor: "#7c3aed", borderRadius: 999 }} />
-                      </div>
-                      <p style={{ fontSize: 11, color: "#6d28d9", margin: 0, lineHeight: 1.5 }}>
-                        {allBook
-                          ? "Todas cobertas pelo book da Arte. O PDF abre pronto."
-                          : `${nBook} ${nBook === 1 ? "abre" : "abrem"} o book pronto. As outras ${selected.length - nBook} são geradas.`}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* O book é o PDF do evento inteiro e não tem como recortar
-                      páginas por peça. Sem este interruptor, filtrar por um
-                      patrocinador ainda entregava o book cheio e não havia saída
-                      alguma para obter só as peças filtradas. */}
-                  <button
-                    onClick={() => setIgnoreBook(v => !v)}
-                    data-testid="toggle-ignore-book"
-                    style={{
-                      marginTop: hasBook ? 8 : 0, width: "100%", textAlign: "left",
-                      display: "flex", alignItems: "flex-start", gap: 10,
-                      padding: "10px 12px", borderRadius: 10, cursor: "pointer",
-                      border: `1px solid ${ignoreBook ? "#fdba74" : "#ebe8e4"}`,
-                      backgroundColor: ignoreBook ? "#fff7ed" : "#fafaf9",
-                      transition: "background-color 0.12s, border-color 0.12s",
-                    }}
-                  >
-                    <div style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, marginTop: 1, display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${ignoreBook ? "#c2410c" : "#d4d0ca"}`, backgroundColor: ignoreBook ? "#c2410c" : "transparent" }}>
-                      {ignoreBook && <CheckCircle style={{ width: 9, height: 9, color: "#fff" }} />}
-                    </div>
-                    <span style={{ minWidth: 0 }}>
-                      <span style={{ display: "block", fontSize: 12, fontWeight: 700, color: ignoreBook ? "#7c2d12" : "#292524" }}>
-                        Ignorar book
-                      </span>
-                      <span style={{ display: "block", fontSize: 11, color: "#57534e", lineHeight: 1.5, marginTop: 2 }}>
-                        Gera um PDF novo a partir das artes, com uma página por peça
-                        selecionada. Para levar páginas do book original, use
-                        "Extrair páginas do book".
-                      </span>
-                    </span>
-                  </button>
-                </div>
-              )}
-
-              {/* Empty state */}
-              {groupsInSelection.length === 0 && eventCount <= 1 && !hasBook && (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 0", gap: 10, color: "#a8a29e" }}>
+              {/* Estado vazio do painel: só quando não há mesmo nada a
+                  configurar. Com origem "book" o painel fica curto de
+                  propósito — a ação está no rodapé, não aqui. */}
+              {!useBook && groupsInSelection.length === 0 && eventCount <= 1 && !anyBook && (
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 0", gap: 10 }}>
                   <div style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: "#f5f5f4", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <FileText style={{ width: 20, height: 20, color: "#d4d0ca" }} />
                   </div>
-                  <p style={{ fontSize: 12, color: "#c4c0ba", margin: 0, textAlign: "center" }}>
-                    Selecione peças ao lado para configurar o layout
+                  <p style={{ fontSize: 12, color: "#78716c", margin: 0, textAlign: "center", lineHeight: 1.5 }}>
+                    Selecione peças ao lado<br />para configurar o layout
+                  </p>
+                </div>
+              )}
+
+              {/* Com o book escolhido, o painel explica o que o arquivo é — sem
+                  isso a coluna ficaria com um radio solto e um vazio embaixo. */}
+              {useBook && (
+                <div style={{ backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 10, padding: "12px 14px" }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: "#5b21b6", margin: "0 0 6px" }}>
+                    {booksInSelection.length === 1
+                      ? "1 book na seleção"
+                      : `${booksInSelection.length} books na seleção`}
+                  </p>
+                  <p style={{ fontSize: 11, color: "#6d28d9", margin: 0, lineHeight: 1.6 }}>
+                    Cada evento tem um book próprio, com o layout já aprovado.
+                    O arquivo sai exatamente como a Arte enviou.
                   </p>
                 </div>
               )}
             </div>
 
             {/* Rodapé — flexShrink 0 aqui e em cada botão: a coluna tem altura
-                fixa (580) e o rodapé pode chegar a quatro botões empilhados
-                (Cancelar, Extrair, Abrir Books, Gerar PDF) mais a nota. Sem
-                travar o encolhimento, o flex espremia as alturas e os botões
-                saíam achatados em vez de o painel de cima ceder espaço. */}
-            <div style={{ padding: "16px 24px", borderTop: "1px solid #ebe8e4", display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
-              {/* Sem esta linha, o topo dizia "1326 de 1326 peças" e o botão
-                  "Gerar PDF — 649 peças": dois números contraditórios na mesma
-                  tela, e nada explicando que as demais já têm book pronto e por
-                  isso saem pelo outro botão, não no PDF gerado. */}
-              {hasBook && !allBook && selected.length > 0 && (
-                <p style={{ fontSize: 11, color: "#57534e", margin: "0 0 4px", lineHeight: 1.5, background: "#fafaf9", border: "1px solid #ebe8e4", borderRadius: 8, padding: "8px 10px" }}>
-                  Das <strong style={{ color: "#1c1917" }}>{selected.length}</strong> peças selecionadas,{" "}
-                  <strong style={{ color: "#1c1917" }}>{selected.filter(isFullBookItem).length}</strong> já têm book pronto
-                  (abrem em nova aba) e <strong style={{ color: "#1c1917" }}>{selected.filter(i => !isFullBookItem(i)).length}</strong> entram no PDF gerado.
+                fixa (580) e o rodapé empilha até três controles. Sem travar o
+                encolhimento, o flex espremia as alturas e os botões saíam
+                achatados em vez de o painel de cima ceder espaço. */}
+            <div style={{ padding: "16px 24px", borderTop: "1px solid #ebe8e4", display: "flex", flexDirection: "column", gap: 8, flexShrink: 0, backgroundColor: "#fff" }}>
+
+              {/* Aviso de peças que ficam de fora. Antes o modal produzia os dois
+                  artefatos de uma vez e mostrava duas contagens contraditórias
+                  ("926 peças" no topo, "223 peças" no botão) sem explicar a
+                  diferença. Agora a saída é uma só e o aviso diz o que sobra. */}
+              {useBook && uncoveredCount > 0 && (
+                <p style={{ fontSize: 11, color: "#7c2d12", margin: "0 0 4px", lineHeight: 1.6, background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 8, padding: "9px 11px" }}>
+                  <strong style={{ color: "#7c2d12" }}>{uncoveredCount}</strong>{" "}
+                  {uncoveredCount === 1 ? "peça selecionada não tem" : "peças selecionadas não têm"} book
+                  e {uncoveredCount === 1 ? "fica" : "ficam"} de fora. Escolha "Gerar das artes" para incluir {uncoveredCount === 1 ? "ela" : "todas"}.
                 </p>
               )}
-              <button
-                onClick={() => onOpenChange(false)}
-                style={{ width: "100%", height: 40, borderRadius: 8, background: "#fff", border: "1px solid #e4e0db", color: "#78716c", cursor: "pointer", fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
-                Cancelar
-              </button>
 
-              {/* Recorte de páginas. "Abrir Book" só sabe abrir o PDF inteiro
-                  porque nenhuma página está associada a uma peça; aqui o usuário
-                  escolhe visualmente quais páginas quer e leva um PDF só com
-                  elas. Aparece sempre que houver book na seleção, inclusive com
-                  "Ignorar book" ligado — é justamente quando mais se precisa. */}
-              {booksInSelection.length > 0 && (
-                <button
-                  onClick={() => setPickerOpen(true)}
-                  data-testid="button-extract-book"
-                  style={{
-                    width: "100%", height: 38, flexShrink: 0, borderRadius: 10,
-                    backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe",
-                    color: "#5b21b6", fontSize: 12, fontWeight: 800,
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                    cursor: "pointer", letterSpacing: "-0.01em",
-                  }}>
-                  <Scissors style={{ width: 14, height: 14 }} />
-                  Extrair páginas do book
-                  {booksInSelection.length > 1 ? ` (${booksInSelection.length})` : ""}
-                </button>
-              )}
-
-              {/* Quando há books: mostrar botão "Abrir Book" separado */}
-              {hasBook && (
-                <button
-                  onClick={() => {
-                    const bookUrls = Array.from(new Set(selected.filter(isFullBookItem).map(i => i.bookUrl as string)));
-                    bookUrls.forEach(url => window.open(url, "_blank", "noopener,noreferrer"));
-                    if (allBook) onOpenChange(false);
-                  }}
-                  disabled={selected.length === 0}
-                  data-testid="button-export-book"
-                  style={{
-                    width: "100%", height: allBook ? 46 : 38, flexShrink: 0, borderRadius: 10,
-                    // Roxo é a cor de "book" no app (o badge Book na lista da Arte
-                    // usa a mesma família). Este botão era azul, uma terceira cor
-                    // sem significado dentro do mesmo modal.
-                    backgroundColor: selected.length === 0 ? "#e7e5e4" : "#6d28d9",
-                    border: "none",
-                    color: selected.length === 0 ? "#57534e" : "#fff",
-                    fontSize: allBook ? 13 : 12, fontWeight: 800,
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                    cursor: selected.length === 0 ? "not-allowed" : "pointer",
-                    letterSpacing: "-0.01em",
-                    boxShadow: selected.length > 0 ? "0 2px 8px rgba(109,40,217,0.28)" : "none",
-                  }}>
-                  <BookOpen style={{ width: 15, height: 15 }} />
-                  {allBook
-                    ? `Abrir Book${selected.filter(isFullBookItem).length > 1 ? "s" : ""} — ${selected.filter(isFullBookItem).length} ${selected.filter(isFullBookItem).length === 1 ? "peça" : "peças"}`
-                    : `Abrir Books (${selected.filter(isFullBookItem).length} com book)`}
-                </button>
-              )}
-
-              {/* Gerar PDF apenas se houver itens SEM book */}
-              {!allBook && (
+              {useBook ? (
+                <>
+                  {/* Recortar é a ação primária: abrir o book inteiro já era
+                      possível antes e é justamente o que devolvia "o book cheio"
+                      quando o usuário queria só algumas peças. */}
+                  <button
+                    onClick={() => setPickerOpen(true)}
+                    data-testid="button-extract-book"
+                    style={{
+                      width: "100%", height: 46, flexShrink: 0, borderRadius: 10,
+                      backgroundColor: "#6d28d9", border: "none", color: "#fff",
+                      fontSize: 13, fontWeight: 800, letterSpacing: "-0.01em",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      cursor: "pointer", boxShadow: "0 2px 8px rgba(109,40,217,0.28)",
+                    }}>
+                    <Scissors style={{ width: 15, height: 15 }} />
+                    Escolher páginas do book
+                  </button>
+                  <button
+                    onClick={() => {
+                      booksInSelection.forEach(b => window.open(b.url, "_blank", "noopener,noreferrer"));
+                      onOpenChange(false);
+                    }}
+                    data-testid="button-export-book"
+                    style={{
+                      width: "100%", height: 38, flexShrink: 0, borderRadius: 10,
+                      backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe",
+                      color: "#5b21b6", fontSize: 12, fontWeight: 700,
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
+                      cursor: "pointer",
+                    }}>
+                    <BookOpen style={{ width: 14, height: 14 }} />
+                    {booksInSelection.length === 1
+                      ? "Abrir book completo"
+                      : `Abrir os ${booksInSelection.length} books completos`}
+                  </button>
+                </>
+              ) : (
                 <button
                   onClick={() => {
-                    const withoutBook = selected.filter(i => !isFullBookItem(i));
-                    if (withoutBook.length > 0) void exportMixedToPDF(withoutBook, combinedSet, `${title} — ${withoutBook.length} peça(s)`, groupByEvent);
+                    if (selected.length > 0) void exportMixedToPDF(selected, combinedSet, `${title} — ${selected.length} peça(s)`, groupByEvent);
                     onOpenChange(false);
                   }}
-                  disabled={selected.filter(i => !isFullBookItem(i)).length === 0}
+                  disabled={selected.length === 0}
                   data-testid="button-export-confirm"
                   style={{
                     width: "100%", height: 46, flexShrink: 0, borderRadius: 10,
                     // Ação primária do modal usa o laranja de ação do app, como os
-                    // botões primários das listas. O roxo fica reservado ao botão
-                    // de book, onde a cor tem significado.
-                    backgroundColor: selected.filter(i => !isFullBookItem(i)).length === 0 ? "#e7e5e4" : "#c2410c",
+                    // botões primários das listas. O roxo fica reservado ao book,
+                    // onde a cor tem significado.
+                    backgroundColor: selected.length === 0 ? "#e7e5e4" : "#c2410c",
                     border: "none",
-                    color: selected.filter(i => !isFullBookItem(i)).length === 0 ? "#57534e" : "#fff",
+                    color: selected.length === 0 ? "#57534e" : "#fff",
                     fontSize: 13, fontWeight: 800,
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                    cursor: selected.filter(i => !isFullBookItem(i)).length === 0 ? "not-allowed" : "pointer",
+                    cursor: selected.length === 0 ? "not-allowed" : "pointer",
                     letterSpacing: "-0.01em",
+                    boxShadow: selected.length > 0 ? "0 2px 8px rgba(194,65,12,0.24)" : "none",
                   }}>
                   <Printer style={{ width: 15, height: 15 }} />
-                  {(() => {
-                    const n = selected.filter(i => !isFullBookItem(i)).length;
-                    return `Gerar PDF${n > 0 ? ` — ${n} ${n === 1 ? "peça" : "peças"}${pageCount > 0 ? ` · ${pageCount} pág.` : ""}` : ""}`;
-                  })()}
+                  {selected.length === 0
+                    ? "Gerar PDF"
+                    : `Gerar PDF — ${selected.length} ${selected.length === 1 ? "peça" : "peças"}${pageCount > 0 ? ` · ${pageCount} pág.` : ""}`}
                 </button>
               )}
+
+              {/* Cancelar por último e discreto: a ação destrutiva não deve
+                  competir com a primária, e vinha acima dela chamando mais
+                  atenção que o próprio "Gerar PDF". */}
+              <button
+                onClick={() => onOpenChange(false)}
+                style={{ width: "100%", height: 36, flexShrink: 0, borderRadius: 8, background: "none", border: "none", color: "#78716c", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+                Cancelar
+              </button>
             </div>
           </div>
 
@@ -570,12 +541,11 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                 </div>
               </div>
               <span style={{ fontSize: 11, color: "#78716c" }}>
-                {/* Conta por bookUrl, não por isFullBookItem: aqui a linha
-                    descreve os dados da seleção, e uma peça coberta por book
-                    continua coberta mesmo quando o botão de abrir o book some
-                    (seleção parcial ou "Ignorar book" ligado). */}
+                {/* Descreve os dados da seleção, não a origem escolhida: uma peça
+                    coberta por book continua coberta mesmo quando a exportação
+                    sai pelas artes. */}
                 {selected.filter(i => i.approvalThumbUrl).length} com thumb
-                {anyBook ? ` · ${selected.filter(i => !!i.bookUrl).length} com book` : ""}
+                {anyBook ? ` · ${coveredCount} com book` : ""}
               </span>
             </div>
 
@@ -630,37 +600,28 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
                           <span style={{ fontSize: 11, fontWeight: 800, color: "#7c3aed", fontFamily: "monospace", letterSpacing: "0.02em" }}>{item.displayId}</span>
                           <span style={{ fontSize: 12, fontWeight: 600, color: "#1c1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textTransform: "capitalize" }}>{item.type}</span>
-                          {/* Antes o selo dizia só "Book" para qualquer peça
-                              coberta, sem dizer qual botão realmente ia usá-la —
-                              origem da confusão "sempre vem o book cheio". Agora
-                              distingue: book completo (abre o PDF como enviado)
-                              de book parcial (as outras peças do mesmo book não
-                              estão selecionadas, então esta vira página avulsa
-                              no "Gerar PDF" em vez de abrir o PDF inteiro). */}
-                          {item.bookUrl && (
-                            ignoreBook ? (
-                              <span
-                                title="Book ignorado — esta peça entra no PDF gerado"
-                                data-testid={`badge-book-ignored-export-${item.id}`}
-                                style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: "#57534e", backgroundColor: "#f5f5f4", border: "1px solid #e4e0db", borderRadius: 4, padding: "2px 6px", textTransform: "uppercase", textDecoration: "line-through" }}>
-                                <FileText style={{ width: 10, height: 10 }} /> Book
-                              </span>
-                            ) : isFullBookItem(item) ? (
-                              <span
-                                title="Book completo — abre o PDF como foi enviado pela Arte"
-                                data-testid={`badge-book-export-${item.id}`}
-                                style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: "#6d28d9", backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 4, padding: "2px 6px", textTransform: "uppercase" }}>
-                                <FileText style={{ width: 10, height: 10 }} /> Book
-                              </span>
-                            ) : (
-                              <span
-                                title="Faltam outras peças deste book na seleção — como o PDF não pode ser dividido em páginas, esta peça sai como página avulsa no PDF gerado"
-                                data-testid={`badge-book-partial-export-${item.id}`}
-                                style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: "#92400e", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 4, padding: "2px 6px", textTransform: "uppercase" }}>
-                                <FileText style={{ width: 10, height: 10 }} /> Book parcial
-                              </span>
-                            )
-                          )}
+                          {/* O selo marca só o que muda o resultado. Com origem
+                              "book" o que importa é quem fica de fora, então a
+                              linha destacada é a peça SEM book — antes o selo
+                              roxo aparecia em centenas de linhas repetindo uma
+                              informação que não mudava decisão nenhuma. */}
+                          {useBook
+                            ? !item.bookUrl && (
+                                <span
+                                  title="Esta peça não está coberta por nenhum book e fica de fora da exportação"
+                                  data-testid={`badge-no-book-export-${item.id}`}
+                                  style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 700, color: "#9a3412", backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 4, padding: "2px 6px", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                                  Sem book
+                                </span>
+                              )
+                            : item.bookUrl && (
+                                <span
+                                  title="Coberta por um book da Arte — troque a origem para usar o arquivo original"
+                                  data-testid={`badge-book-export-${item.id}`}
+                                  style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 700, color: "#6d28d9", backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 4, padding: "2px 6px", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                                  <FileText style={{ width: 9, height: 9 }} /> Book
+                                </span>
+                              )}
                         </div>
                         <div style={{ fontSize: 11, color: "#78716c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {item.event?.name || ""}{item.description ? ` · ${item.description}` : ""}

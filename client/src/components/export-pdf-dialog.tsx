@@ -23,9 +23,16 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
   const [excludedIds, setExcludedIds]   = useState<Set<string>>(new Set());
   const [ungroupedKeys, setUngroupedKeys] = useState<Set<string>>(new Set());
   const [groupByEvent, setGroupByEvent] = useState(false);
+  // O book é um PDF único do evento (dezenas de páginas) e o app nunca guardou
+  // qual página cobre qual peça, então "Abrir Books" só sabe abrir o arquivo
+  // inteiro. Quando o usuário filtra por patrocinador, isso devolve o book cheio
+  // — não dá para recortar. Com este interruptor as peças ignoram o book e saem
+  // pelo "Gerar PDF", que desenha uma página por peça a partir do thumb: é a
+  // única forma de obter só as peças filtradas em um arquivo.
+  const [ignoreBook, setIgnoreBook] = useState(false);
 
   useEffect(() => {
-    if (open) { setExcludedIds(new Set()); setUngroupedKeys(new Set()); }
+    if (open) { setExcludedIds(new Set()); setUngroupedKeys(new Set()); setIgnoreBook(false); }
   }, [open]);
 
   const APPROVED_STATUSES = [
@@ -93,18 +100,6 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
   const combinedSet = useMemo(() => new Set(groupsInSelection.map(g => g.key).filter(k => !ungroupedKeys.has(k))), [groupsInSelection, ungroupedKeys]);
   const eventCount  = useMemo(() => new Set(selected.map(i => i.eventId || "__")).size, [selected]);
 
-  const pageCount = useMemo(() => {
-    const perEvent = new Map<string,Map<string,number>>();
-    selected.forEach(i => {
-      const ev = i.eventId || "__"; if (!perEvent.has(ev)) perEvent.set(ev, new Map());
-      const g = groupKeyOf(i); const m = perEvent.get(ev)!; m.set(g, (m.get(g) ?? 0) + 1);
-    });
-    let total = 0;
-    perEvent.forEach(groups => groups.forEach((count, key) => { total += combinedSet.has(key) ? Math.ceil(count / MAX_ITEMS_PER_COMBINED_PAGE) : count; }));
-    if (groupByEvent && perEvent.size > 1) total += perEvent.size;
-    return total;
-  }, [selected, combinedSet, groupByEvent]);
-
   const hasFilters = eventFilter !== "all" || sponsorFilter !== "all" || groupFilter !== "all" || typeFilter !== "all" || statusFilter !== "all";
   const clearFilters = () => { setEventFilter("all"); setSponsorFilter("all"); setGroupFilter("all"); setTypeFilter("all"); setStatusFilter("all"); };
   const activeFilterCount = [eventFilter, sponsorFilter, groupFilter, typeFilter, statusFilter].filter(v => v !== "all").length;
@@ -137,11 +132,27 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
     });
     return full;
   }, [items, selected]);
-  const isFullBookItem = (i: any) => !!i.bookUrl && bookUrlFullySelected.has(i.bookUrl);
+  const isFullBookItem = (i: any) => !ignoreBook && !!i.bookUrl && bookUrlFullySelected.has(i.bookUrl);
 
   const nBook = selected.filter(isFullBookItem).length;
   const hasBook = nBook > 0;
   const allBook = hasBook && nBook === selected.length;
+  const anyBook = selected.some(i => !!i.bookUrl);
+
+  // Só as peças que realmente entram no "Gerar PDF" contam páginas. Antes o
+  // cálculo varria toda a seleção e o botão dizia coisas como "1 peça · 6 pág.",
+  // porque as 7 que abriam o book continuavam somando página.
+  const pageCount = useMemo(() => {
+    const perEvent = new Map<string,Map<string,number>>();
+    selected.filter(i => !isFullBookItem(i)).forEach(i => {
+      const ev = i.eventId || "__"; if (!perEvent.has(ev)) perEvent.set(ev, new Map());
+      const g = groupKeyOf(i); const m = perEvent.get(ev)!; m.set(g, (m.get(g) ?? 0) + 1);
+    });
+    let total = 0;
+    perEvent.forEach(groups => groups.forEach((count, key) => { total += combinedSet.has(key) ? Math.ceil(count / MAX_ITEMS_PER_COMBINED_PAGE) : count; }));
+    if (groupByEvent && perEvent.size > 1) total += perEvent.size;
+    return total;
+  }, [selected, combinedSet, groupByEvent, bookUrlFullySelected, ignoreBook]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -280,28 +291,62 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                 </div>
               )}
 
-              {/* Book info */}
-              {hasBook && (
+              {/* Book info — a seção aparece sempre que houver book na seleção,
+                  inclusive com "Ignorar book" ligado: senão o interruptor sumiria
+                  junto com o painel e não haveria como voltar atrás. */}
+              {anyBook && (
                 <div style={{ marginBottom: 8 }}>
                   <p style={{ fontSize: 12, fontWeight: 700, color: "#292524", margin: "0 0 10px" }}>Arquivo book</p>
-                  <div style={{ backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 10, padding: "12px 14px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-                      <div style={{ width: 28, height: 28, borderRadius: 7, backgroundColor: "#ede9fe", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                        <BookOpen style={{ width: 13, height: 13, color: "#7c3aed" }} />
+                  {hasBook && (
+                    <div style={{ backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 10, padding: "12px 14px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                        <div style={{ width: 28, height: 28, borderRadius: 7, backgroundColor: "#ede9fe", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                          <BookOpen style={{ width: 13, height: 13, color: "#7c3aed" }} />
+                        </div>
+                        <p style={{ fontSize: 13, fontWeight: 800, color: "#5b21b6", margin: 0 }}>
+                          {allBook ? "Todas as peças" : `${nBook} de ${selected.length} peças`}
+                        </p>
                       </div>
-                      <p style={{ fontSize: 13, fontWeight: 800, color: "#5b21b6", margin: 0 }}>
-                        {allBook ? "Todas as peças" : `${nBook} de ${selected.length} peças`}
+                      <div style={{ height: 4, borderRadius: 999, backgroundColor: "#ddd6fe", overflow: "hidden", marginBottom: 8 }}>
+                        <div style={{ height: "100%", width: `${Math.round((nBook / selected.length) * 100)}%`, backgroundColor: "#7c3aed", borderRadius: 999 }} />
+                      </div>
+                      <p style={{ fontSize: 11, color: "#6d28d9", margin: 0, lineHeight: 1.5 }}>
+                        {allBook
+                          ? "Todas cobertas pelo book da Arte. O PDF abre pronto."
+                          : `${nBook} ${nBook === 1 ? "abre" : "abrem"} o book pronto. As outras ${selected.length - nBook} são geradas.`}
                       </p>
                     </div>
-                    <div style={{ height: 4, borderRadius: 999, backgroundColor: "#ddd6fe", overflow: "hidden", marginBottom: 8 }}>
-                      <div style={{ height: "100%", width: `${Math.round((nBook / selected.length) * 100)}%`, backgroundColor: "#7c3aed", borderRadius: 999 }} />
+                  )}
+
+                  {/* O book é o PDF do evento inteiro e não tem como recortar
+                      páginas por peça. Sem este interruptor, filtrar por um
+                      patrocinador ainda entregava o book cheio e não havia saída
+                      alguma para obter só as peças filtradas. */}
+                  <button
+                    onClick={() => setIgnoreBook(v => !v)}
+                    data-testid="toggle-ignore-book"
+                    style={{
+                      marginTop: hasBook ? 8 : 0, width: "100%", textAlign: "left",
+                      display: "flex", alignItems: "flex-start", gap: 10,
+                      padding: "10px 12px", borderRadius: 10, cursor: "pointer",
+                      border: `1px solid ${ignoreBook ? "#fdba74" : "#ebe8e4"}`,
+                      backgroundColor: ignoreBook ? "#fff7ed" : "#fafaf9",
+                      transition: "background-color 0.12s, border-color 0.12s",
+                    }}
+                  >
+                    <div style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, marginTop: 1, display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${ignoreBook ? "#c2410c" : "#d4d0ca"}`, backgroundColor: ignoreBook ? "#c2410c" : "transparent" }}>
+                      {ignoreBook && <CheckCircle style={{ width: 9, height: 9, color: "#fff" }} />}
                     </div>
-                    <p style={{ fontSize: 11, color: "#6d28d9", margin: 0, lineHeight: 1.5 }}>
-                      {allBook
-                        ? "Todas cobertas pelo book da Arte. O PDF abre pronto."
-                        : `${nBook} ${nBook === 1 ? "abre" : "abrem"} o book pronto. As outras ${selected.length - nBook} são geradas.`}
-                    </p>
-                  </div>
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: "block", fontSize: 12, fontWeight: 700, color: ignoreBook ? "#7c2d12" : "#292524" }}>
+                        Ignorar book
+                      </span>
+                      <span style={{ display: "block", fontSize: 11, color: "#57534e", lineHeight: 1.5, marginTop: 2 }}>
+                        O book é um PDF único do evento e não pode ser dividido por peça.
+                        Marque para gerar um PDF só com as peças selecionadas aqui.
+                      </span>
+                    </span>
+                  </button>
                 </div>
               )}
 
@@ -543,7 +588,14 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                               estão selecionadas, então esta vira página avulsa
                               no "Gerar PDF" em vez de abrir o PDF inteiro). */}
                           {item.bookUrl && (
-                            isFullBookItem(item) ? (
+                            ignoreBook ? (
+                              <span
+                                title="Book ignorado — esta peça entra no PDF gerado"
+                                data-testid={`badge-book-ignored-export-${item.id}`}
+                                style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 11, fontWeight: 700, color: "#57534e", backgroundColor: "#f5f5f4", border: "1px solid #e4e0db", borderRadius: 4, padding: "2px 6px", textTransform: "uppercase", textDecoration: "line-through" }}>
+                                <FileText style={{ width: 10, height: 10 }} /> Book
+                              </span>
+                            ) : isFullBookItem(item) ? (
                               <span
                                 title="Book completo — abre o PDF como foi enviado pela Arte"
                                 data-testid={`badge-book-export-${item.id}`}

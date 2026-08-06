@@ -1724,9 +1724,16 @@ export default function Arte() {
                           {/* Material */}
                           <td style={{ padding: '9px 16px' }}>
                             {item.material ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                                <span style={{
-                                  display: 'inline-block',
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+                                {/* Materiais do catálogo são curtos ("SANETT",
+                                    "LONA"), mas o campo aceita texto livre —
+                                    "Adesivo transparente" já vazava para dentro
+                                    da coluna de Thumb/Final. Trunca com
+                                    reticências em vez de vazar; o nome completo
+                                    fica disponível no hover. */}
+                                <span title={item.material} style={{
+                                  display: 'block',
+                                  maxWidth: '100%',
                                   padding: '2px 8px',
                                   backgroundColor: '#f5f5f4',
                                   color: '#57534e',
@@ -1736,11 +1743,14 @@ export default function Arte() {
                                   textTransform: 'uppercase',
                                   letterSpacing: '0.04em',
                                   whiteSpace: 'nowrap',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  boxSizing: 'border-box',
                                 }}>
                                   {item.material}
                                 </span>
                                 {item.finish && (
-                                  <span style={{ fontSize: 11, color: '#57534e' }}>{item.finish}</span>
+                                  <span title={item.finish} style={{ fontSize: 11, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{item.finish}</span>
                                 )}
                               </div>
                             ) : <span style={{ color: '#57534e', fontSize: 12 }}>—</span>}

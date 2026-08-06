@@ -31,10 +31,13 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
   // pelo "Gerar PDF", que desenha uma página por peça a partir do thumb: é a
   // única forma de obter só as peças filtradas em um arquivo.
   const [ignoreBook, setIgnoreBook] = useState(false);
-  const [pickerUrl, setPickerUrl] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => {
     if (open) { setExcludedIds(new Set()); setUngroupedKeys(new Set()); setIgnoreBook(false); }
+    // O seletor de páginas é irmão deste Dialog, não filho — fechar a exportação
+    // não o desmontaria, e ele ficaria sozinho na tela sem o modal que o abriu.
+    else setPickerOpen(false);
   }, [open]);
 
   const APPROVED_STATUSES = [
@@ -140,10 +143,19 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
   const hasBook = nBook > 0;
   const allBook = hasBook && nBook === selected.length;
   const anyBook = selected.some(i => !!i.bookUrl);
-  const bookUrlsInSelection = useMemo(
-    () => Array.from(new Set(selected.filter(i => !!i.bookUrl).map(i => i.bookUrl as string))),
-    [selected],
-  );
+  // Um evento tem um book; a seleção inteira, sem filtro, chega a dezenas deles.
+  // Por isso a escolha de qual book abrir vive dentro do seletor, e não como um
+  // botão por book no rodapé — com 8 books o rodapé engolia o painel de opções.
+  const booksInSelection = useMemo(() => {
+    const map = new Map<string, { url: string; label: string; count: number }>();
+    selected.forEach(i => {
+      if (!i.bookUrl) return;
+      const cur = map.get(i.bookUrl);
+      if (cur) cur.count++;
+      else map.set(i.bookUrl, { url: i.bookUrl, label: i.event?.name || "Sem evento", count: 1 });
+    });
+    return Array.from(map.values()).sort((a, b) => b.count - a.count);
+  }, [selected]);
 
   // Só as peças que realmente entram no "Gerar PDF" contam páginas. Antes o
   // cálculo varria toda a seleção e o botão dizia coisas como "1 peça · 6 pág.",
@@ -349,8 +361,9 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                         Ignorar book
                       </span>
                       <span style={{ display: "block", fontSize: 11, color: "#57534e", lineHeight: 1.5, marginTop: 2 }}>
-                        O book é um PDF único do evento e não pode ser dividido por peça.
-                        Marque para gerar um PDF só com as peças selecionadas aqui.
+                        Gera um PDF novo a partir das artes, com uma página por peça
+                        selecionada. Para levar páginas do book original, use
+                        "Extrair páginas do book".
                       </span>
                     </span>
                   </button>
@@ -370,8 +383,12 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
               )}
             </div>
 
-            {/* Rodapé */}
-            <div style={{ padding: "16px 24px", borderTop: "1px solid #ebe8e4", display: "flex", flexDirection: "column", gap: 8 }}>
+            {/* Rodapé — flexShrink 0 aqui e em cada botão: a coluna tem altura
+                fixa (580) e o rodapé pode chegar a quatro botões empilhados
+                (Cancelar, Extrair, Abrir Books, Gerar PDF) mais a nota. Sem
+                travar o encolhimento, o flex espremia as alturas e os botões
+                saíam achatados em vez de o painel de cima ceder espaço. */}
+            <div style={{ padding: "16px 24px", borderTop: "1px solid #ebe8e4", display: "flex", flexDirection: "column", gap: 8, flexShrink: 0 }}>
               {/* Sem esta linha, o topo dizia "1326 de 1326 peças" e o botão
                   "Gerar PDF — 649 peças": dois números contraditórios na mesma
                   tela, e nada explicando que as demais já têm book pronto e por
@@ -385,7 +402,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
               )}
               <button
                 onClick={() => onOpenChange(false)}
-                style={{ width: "100%", height: 40, borderRadius: 8, background: "#fff", border: "1px solid #e4e0db", color: "#78716c", cursor: "pointer", fontSize: 13, fontWeight: 600 }}>
+                style={{ width: "100%", height: 40, borderRadius: 8, background: "#fff", border: "1px solid #e4e0db", color: "#78716c", cursor: "pointer", fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
                 Cancelar
               </button>
 
@@ -394,22 +411,22 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                   escolhe visualmente quais páginas quer e leva um PDF só com
                   elas. Aparece sempre que houver book na seleção, inclusive com
                   "Ignorar book" ligado — é justamente quando mais se precisa. */}
-              {bookUrlsInSelection.map((url, idx) => (
+              {booksInSelection.length > 0 && (
                 <button
-                  key={url}
-                  onClick={() => setPickerUrl(url)}
-                  data-testid={`button-extract-book-${idx}`}
+                  onClick={() => setPickerOpen(true)}
+                  data-testid="button-extract-book"
                   style={{
-                    width: "100%", height: 38, borderRadius: 10,
+                    width: "100%", height: 38, flexShrink: 0, borderRadius: 10,
                     backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe",
                     color: "#5b21b6", fontSize: 12, fontWeight: 800,
                     display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                     cursor: "pointer", letterSpacing: "-0.01em",
                   }}>
                   <Scissors style={{ width: 14, height: 14 }} />
-                  Extrair páginas do book{bookUrlsInSelection.length > 1 ? ` ${idx + 1}` : ""}
+                  Extrair páginas do book
+                  {booksInSelection.length > 1 ? ` (${booksInSelection.length})` : ""}
                 </button>
-              ))}
+              )}
 
               {/* Quando há books: mostrar botão "Abrir Book" separado */}
               {hasBook && (
@@ -422,7 +439,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                   disabled={selected.length === 0}
                   data-testid="button-export-book"
                   style={{
-                    width: "100%", height: allBook ? 46 : 38, borderRadius: 10,
+                    width: "100%", height: allBook ? 46 : 38, flexShrink: 0, borderRadius: 10,
                     // Roxo é a cor de "book" no app (o badge Book na lista da Arte
                     // usa a mesma família). Este botão era azul, uma terceira cor
                     // sem significado dentro do mesmo modal.
@@ -453,7 +470,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                   disabled={selected.filter(i => !isFullBookItem(i)).length === 0}
                   data-testid="button-export-confirm"
                   style={{
-                    width: "100%", height: 46, borderRadius: 10,
+                    width: "100%", height: 46, flexShrink: 0, borderRadius: 10,
                     // Ação primária do modal usa o laranja de ação do app, como os
                     // botões primários das listas. O roxo fica reservado ao botão
                     // de book, onde a cor tem significado.
@@ -553,8 +570,12 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                 </div>
               </div>
               <span style={{ fontSize: 11, color: "#78716c" }}>
+                {/* Conta por bookUrl, não por isFullBookItem: aqui a linha
+                    descreve os dados da seleção, e uma peça coberta por book
+                    continua coberta mesmo quando o botão de abrir o book some
+                    (seleção parcial ou "Ignorar book" ligado). */}
                 {selected.filter(i => i.approvalThumbUrl).length} com thumb
-                {selected.some(isFullBookItem) ? ` · ${selected.filter(isFullBookItem).length} com book` : ""}
+                {anyBook ? ` · ${selected.filter(i => !!i.bookUrl).length} com book` : ""}
               </span>
             </div>
 
@@ -658,11 +679,11 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
     {/* Fora do Dialog de exportação de propósito: um Dialog do Radix aninhado
         em outro disputa o foco com o pai e o seletor abriria sem receber
         teclado. */}
-    {pickerUrl && (
+    {pickerOpen && (
       <BookPagePicker
         open
-        onOpenChange={o => { if (!o) setPickerUrl(null); }}
-        bookUrl={pickerUrl}
+        onOpenChange={setPickerOpen}
+        books={booksInSelection}
         fileName={title}
       />
     )}

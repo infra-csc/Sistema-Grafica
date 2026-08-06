@@ -17,17 +17,32 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { toast } from "@/hooks/use-toast";
 
+export interface BookOption {
+  url: string;
+  /** Nome do evento a que o book pertence. */
+  label: string;
+  /** Quantas peças da seleção esse book cobre. */
+  count: number;
+}
+
 interface BookPagePickerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  bookUrl: string;
+  /** Books presentes na seleção. Com mais de um, o usuário escolhe aqui dentro. */
+  books: BookOption[];
   /** Nome sugerido para o arquivo recortado (sem extensão). */
   fileName?: string;
 }
 
 const THUMB_WIDTH = 260;
 
-export function BookPagePicker({ open, onOpenChange, bookUrl, fileName = "book" }: BookPagePickerProps) {
+export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }: BookPagePickerProps) {
+  // Sem filtro a seleção cobre dezenas de eventos, cada um com seu book. Manter
+  // a escolha aqui — e não como um botão por book no modal de exportação —
+  // evita um rodapé de oito botões empurrando o painel de opções para fora.
+  const [bookUrl, setBookUrl] = useState(books[0]?.url ?? "");
+  const activeBook = books.find(b => b.url === bookUrl) ?? books[0];
+
   const [loading, setLoading]   = useState(true);
   const [error, setError]       = useState<string | null>(null);
   const [thumbs, setThumbs]     = useState<string[]>([]);
@@ -37,7 +52,7 @@ export function BookPagePicker({ open, onOpenChange, bookUrl, fileName = "book" 
   const bytesRef = useRef<ArrayBuffer | null>(null);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !bookUrl) return;
     let cancelled = false;
 
     setLoading(true); setError(null); setThumbs([]); setPicked(new Set());
@@ -76,8 +91,9 @@ export function BookPagePicker({ open, onOpenChange, bookUrl, fileName = "book" 
           rendered.push(canvas.toDataURL("image/jpeg", 0.72));
           // Publica a cada página: em book de 20+ páginas o usuário já começa a
           // escolher enquanto o resto renderiza, em vez de encarar um spinner.
+          // `loading` só cai no fim do laço — é ele que sustenta o aviso de
+          // "carregando o restante" enquanto as demais páginas aparecem.
           setThumbs([...rendered]);
-          setLoading(false);
         }
         if (doc.numPages === 0) setError("O book não tem páginas.");
         setLoading(false);
@@ -109,7 +125,11 @@ export function BookPagePicker({ open, onOpenChange, bookUrl, fileName = "book" 
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `${fileName} — ${indexes.length} pág.pdf`;
+      // O título vem da tela que abriu o modal e pode conter "/" ou ":", que
+      // quebram o nome do arquivo em parte dos navegadores.
+      // O nome do evento identifica o book melhor que o título genérico da tela.
+      const safeName = (activeBook?.label || fileName || "book").replace(/[\\/:*?"<>|]/g, "-").trim() || "book";
+      a.download = `${safeName} — ${indexes.length} pág.pdf`;
       a.click();
       // Revogar na hora cancela o download em alguns navegadores.
       setTimeout(() => URL.revokeObjectURL(url), 30_000);
@@ -138,8 +158,8 @@ export function BookPagePicker({ open, onOpenChange, bookUrl, fileName = "book" 
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <h2 style={{ fontSize: 18, fontWeight: 800, color: "#fff", margin: 0, letterSpacing: "-0.02em" }}>Extrair páginas do book</h2>
-            <p style={{ fontSize: 13, color: "#a8a29e", margin: "2px 0 0" }}>
-              Marque as páginas que quer e baixe um PDF só com elas
+            <p style={{ fontSize: 13, color: "#a8a29e", margin: "2px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {activeBook ? `${activeBook.label} · ` : ""}Marque as páginas e baixe um PDF só com elas
             </p>
           </div>
           <button
@@ -149,6 +169,25 @@ export function BookPagePicker({ open, onOpenChange, bookUrl, fileName = "book" 
             <X style={{ width: 16, height: 16 }} />
           </button>
         </div>
+
+        {/* Escolha do book — só quando a seleção cobre mais de um evento */}
+        {books.length > 1 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 24px", borderBottom: "1px solid #ebe8e4", backgroundColor: "#fff" }}>
+            <label htmlFor="book-picker-select" style={{ fontSize: 12, fontWeight: 700, color: "#292524", flexShrink: 0 }}>Book</label>
+            <select
+              id="book-picker-select"
+              value={bookUrl}
+              onChange={e => setBookUrl(e.target.value)}
+              data-testid="select-book"
+              style={{ flex: 1, minWidth: 0, height: 36, borderRadius: 8, border: "1px solid #e4e0db", padding: "0 10px", fontSize: 13, color: "#1c1917", backgroundColor: "#fff", cursor: "pointer" }}>
+              {books.map(b => (
+                <option key={b.url} value={b.url}>
+                  {b.label} — {b.count} {b.count === 1 ? "peça" : "peças"}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Barra de seleção */}
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 24px", borderBottom: "1px solid #ebe8e4", backgroundColor: "#fafaf9", flexWrap: "wrap" }}>
@@ -175,7 +214,10 @@ export function BookPagePicker({ open, onOpenChange, bookUrl, fileName = "book" 
         </div>
 
         {/* Páginas */}
-        <div style={{ height: 520, overflowY: "auto", padding: 24, backgroundColor: "#fff" }}>
+        {/* min(520px, 52vh): com altura fixa o modal inteiro (cabeçalho + barra
+            + rodapé ≈ 700px) estourava a tela em notebook baixo e no celular,
+            e o rodapé com o botão de baixar ficava fora do alcance. */}
+        <div style={{ height: "min(520px, 52vh)", overflowY: "auto", padding: 24, backgroundColor: "#fff" }}>
           {error && (
             <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: 16, borderRadius: 10, backgroundColor: "#fef2f2", border: "1px solid #fecaca" }}>
               <AlertCircle style={{ width: 16, height: 16, color: "#b91c1c", flexShrink: 0, marginTop: 1 }} />

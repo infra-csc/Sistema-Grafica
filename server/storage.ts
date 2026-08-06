@@ -64,6 +64,7 @@ export interface IStorage {
   // Items
   getItem(id: string): Promise<Item | undefined>;
   getAllItems(): Promise<Item[]>;
+  getDeletedItems(): Promise<Item[]>;
   getItemsByEvent(eventId: string): Promise<Item[]>;
   getPendingItems(): Promise<Item[]>;
   getApprovedItems(): Promise<Item[]>;
@@ -488,6 +489,14 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(items.id, id), sql`${items.deletedAt} IS NULL`))
       .returning();
     return result.length > 0;
+  }
+
+  async getDeletedItems(): Promise<Item[]> {
+    return await db
+      .select()
+      .from(items)
+      .where(sql`${items.deletedAt} IS NOT NULL`)
+      .orderBy(desc(items.deletedAt));
   }
 
   // Standard Items

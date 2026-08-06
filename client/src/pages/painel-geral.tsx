@@ -42,6 +42,7 @@ const STATUS_CONFIG: Record<string, { label: string; dot: string; bg: string; co
   conferred:             { label: "Conferido",          dot: "#0e7490", bg: "#ecfeff", color: "#0e7490", border: "#a5f3fc" },
   delivered:             { label: "Entregue",           dot: "#15803d", bg: "#f0fdf4", color: "#15803d", border: "#dcfce7" },
   canceled:              { label: "Cancelado",          dot: "#ef4444", bg: "#fef2f2", color: "#ef4444", border: "#fecaca" },
+  deleted:               { label: "Excluído",           dot: "#dc2626", bg: "#fef2f2", color: "#dc2626", border: "#fecaca" },
 };
 
 function StatusPill({ status }: { status: string }) {
@@ -74,6 +75,11 @@ export default function PainelGeral() {
   const { toast } = useToast();
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  // Exclusão: admin pode sempre; solicitação apenas antes de a peça chegar na Arte
+  // (mesma regra do event-detail.tsx — mantém os dois em sincronia).
+  const canDeleteAny = isAdmin || user?.role === "solicitacao";
+  const BLOCKED_DELETE_STATUSES = ["awaiting_submission", "awaiting_approval", "awaiting_final_review", "ready_for_production", "approved", "inProduction", "produced", "conferred", "delivered", "pronto_para_producao", "liberado", "em_producao", "produzido", "entregue"];
+  const canDeleteItem = (status: string) => isAdmin || !BLOCKED_DELETE_STATUSES.includes(status);
 
   const [searchTerm, setSearchTerm]     = useState("");
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
@@ -93,10 +99,17 @@ export default function PainelGeral() {
   const { data: auditLogs = [] }        = useQuery<any[]>({ queryKey: ["/api/audit-logs"], placeholderData: [] });
   const { data: standardItems = [] }    = useQuery<any[]>({ queryKey: ["/api/standard-items"], placeholderData: [] });
 
+  const showDeleted = statusFilter.includes("deleted");
+  const { data: deletedItems = [] } = useQuery<any[]>({
+    queryKey: ["/api/items/deleted"],
+    enabled: showDeleted && canDeleteAny,
+  });
+
   const deleteItemMutation = useMutation({
     mutationFn: async (itemId: string) => await apiRequest("DELETE", `/api/items/${itemId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items/deleted"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setDeleteConfirmItemId(null);
       toast({ title: "Peça excluída", description: "A peça foi removida com sucesso." });
@@ -138,7 +151,12 @@ export default function PainelGeral() {
   };
 
   const matchesStatus = (item: any, f: string[]) => {
-    if (f.length === 0) return true;
+    const isDeleted = !!item.deletedAt;
+    // Itens excluídos só aparecem quando o filtro "deleted" está ativo.
+    if (isDeleted) return f.includes("deleted");
+    // Itens normais nunca aparecem quando só "deleted" está selecionado.
+    const activeFilters = f.filter(x => x !== "deleted");
+    if (activeFilters.length === 0) return !isDeleted;
     const map: Record<string, string[]> = {
       requested:             ["draft", "requested"],
       awaiting_approval:     ["awaiting_approval", "awaiting_sponsor_approval"],
@@ -146,13 +164,19 @@ export default function PainelGeral() {
       awaiting_final_review: ["awaiting_final_review"],
       ready_for_production:  ["ready_for_production", "pronto_para_producao"],
     };
-    return f.some(fv => map[fv] ? map[fv].includes(item.status) : item.status === fv);
+    return activeFilters.some(fv => map[fv] ? map[fv].includes(item.status) : item.status === fv);
   };
 
+  // Quando o filtro "Excluídos" está ativo, mescla as peças soft-deleted na lista de exibição.
+  const allDisplayItems = showDeleted ? [...items, ...(deletedItems as any[])] : items;
+
   const statsItems    = items.filter(applyBaseFilters);
-  const filteredItems = statsItems
+  const filteredItems = allDisplayItems
+    .filter(applyBaseFilters)
     .filter((i) => matchesStatus(i, statusFilter))
     .sort((a, b) => {
+      // Itens excluídos ficam no final
+      if (!!a.deletedAt !== !!b.deletedAt) return a.deletedAt ? 1 : -1;
       const gA = typeToGroup[a.type] || '', gB = typeToGroup[b.type] || '';
       if (gA !== gB) return gA.localeCompare(gB, 'pt-BR');
       const idA = parseInt(String(a.displayId || '0').replace(/\D/g, '')) || 0;
@@ -386,6 +410,7 @@ export default function PainelGeral() {
               { value: "produced",                label: "Produzido",          pinned: true },
               { value: "conferred",               label: "Conferido",          pinned: true },
               { value: "delivered",               label: "Entregue",           pinned: true },
+              ...(canDeleteAny ? [{ value: "deleted", label: "Excluídos", pinned: true }] : []),
             ]}
             testId="select-status-filter"
             fullWidth
@@ -543,33 +568,35 @@ export default function PainelGeral() {
                               </div>
                               {typeItems.map((item: any) => {
                                 const ci = cardIdx++;
+                                const isDeleted = !!item.deletedAt;
                                 return (
                                   <div
                                     key={item.id}
                                     data-testid={`item-row-${item.id}`}
                                     onClick={() => setSelectedItem(item)}
                                     style={{
-                                      border: "1px solid #e7e5e4",
+                                      border: `1px solid ${isDeleted ? "#fecaca" : "#e7e5e4"}`,
                                       borderRadius: 8,
                                       padding: "10px 12px",
                                       marginBottom: 8,
-                                      backgroundColor: ci % 2 === 1 ? "#f6f4f1" : "#ffffff",
+                                      backgroundColor: isDeleted ? "#fff5f5" : (ci % 2 === 1 ? "#f6f4f1" : "#ffffff"),
                                       display: "flex",
                                       alignItems: "flex-start",
                                       gap: 8,
                                       cursor: "pointer",
                                       overflow: "hidden",
+                                      opacity: isDeleted ? 0.75 : 1,
                                     }}
                                   >
                                     {/* Card content */}
                                     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 5 }}>
                                       {/* Row 1: ID + type */}
                                       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                                        <span data-testid={`text-display-id-${item.id}`} style={{ fontFamily: "monospace", fontWeight: 700, color: "#f97316", fontSize: 13, flexShrink: 0 }}>
+                                        <span data-testid={`text-display-id-${item.id}`} style={{ fontFamily: "monospace", fontWeight: 700, color: isDeleted ? "#dc2626" : "#f97316", fontSize: 13, flexShrink: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
                                           {item.displayId}
                                         </span>
-                                        <span style={{ fontSize: 11, fontWeight: 700, color: "#44403c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{item.type}</span>
-                                        {item.isReuse && (
+                                        <span style={{ fontSize: 11, fontWeight: 700, color: isDeleted ? "#a8a29e" : "#44403c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>{item.type}</span>
+                                        {item.isReuse && !isDeleted && (
                                           <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "2px 7px", flexShrink: 0 }}>
                                             Reaproveit.
                                           </span>
@@ -577,16 +604,21 @@ export default function PainelGeral() {
                                       </div>
                                       {/* Row 2: description — allow up to 2 lines on mobile */}
                                       {item.description && (
-                                        <span style={{ fontSize: 12, color: "#44403c", fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as React.CSSProperties}>
+                                        <span style={{ fontSize: 12, color: isDeleted ? "#a8a29e" : "#44403c", fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as React.CSSProperties}>
                                           {item.description}
                                         </span>
                                       )}
                                       {/* Row 3: status pill */}
                                       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                                        <StatusPill status={item.status} />
+                                        <StatusPill status={isDeleted ? "deleted" : item.status} />
+                                        {isDeleted && item.deletedAt && (
+                                          <span style={{ fontSize: 10, color: "#a8a29e" }}>
+                                            {format(new Date(item.deletedAt), "dd/MM/yyyy", { locale: ptBR })}
+                                          </span>
+                                        )}
                                       </div>
-                                      {/* Row 4: sponsors (sub-row, only shown when present) */}
-                                      {item.sponsors && item.sponsors.length > 0 && (
+                                      {/* Row 4: sponsors */}
+                                      {!isDeleted && item.sponsors && item.sponsors.length > 0 && (
                                         <div style={{ minWidth: 0, overflow: "hidden" }}>
                                           <SponsorChips sponsors={item.sponsors} variant="colored" size="sm" max={2} />
                                         </div>
@@ -594,32 +626,47 @@ export default function PainelGeral() {
                                     </div>
                                     {/* Action buttons — compact on mobile */}
                                     <div style={{ display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
-                                      <button
-                                        onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
-                                        data-testid={`button-view-${item.id}`}
-                                        style={{
-                                          background: "none", border: "1px solid #e7e5e4", cursor: "pointer",
-                                          borderRadius: 6, color: "#a8a29e",
-                                          display: "flex", alignItems: "center", justifyContent: "center",
-                                          height: 36, width: 36,
-                                        }}
-                                      >
-                                        <Eye style={{ width: 15, height: 15 }} />
-                                      </button>
-                                      {isAdmin && (
+                                      {!isDeleted && (
                                         <button
-                                          onClick={(e) => { e.stopPropagation(); setDeleteConfirmItemId(item.id); }}
-                                          data-testid={`button-delete-${item.id}`}
-                                          title="Excluir peça (Admin)"
+                                          onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
+                                          data-testid={`button-view-${item.id}`}
                                           style={{
-                                            background: "none", border: "1px solid #fecaca", cursor: "pointer",
+                                            background: "none", border: "1px solid #e7e5e4", cursor: "pointer",
                                             borderRadius: 6, color: "#a8a29e",
                                             display: "flex", alignItems: "center", justifyContent: "center",
-                                            height: 32, width: 36,
+                                            height: 36, width: 36,
                                           }}
                                         >
-                                          <Trash2 style={{ width: 14, height: 14 }} />
+                                          <Eye style={{ width: 15, height: 15 }} />
                                         </button>
+                                      )}
+                                      {!isDeleted && canDeleteAny && (
+                                        canDeleteItem(item.status) ? (
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); setDeleteConfirmItemId(item.id); }}
+                                            data-testid={`button-delete-${item.id}`}
+                                            title="Excluir peça"
+                                            style={{
+                                              background: "none", border: "1px solid #fecaca", cursor: "pointer",
+                                              borderRadius: 6, color: "#a8a29e",
+                                              display: "flex", alignItems: "center", justifyContent: "center",
+                                              height: 32, width: 36,
+                                            }}
+                                          >
+                                            <Trash2 style={{ width: 14, height: 14 }} />
+                                          </button>
+                                        ) : (
+                                          <span
+                                            title="Exclusão bloqueada — peça já está em Arte ou produção"
+                                            style={{
+                                              border: "1px solid #e7e5e4", borderRadius: 6, color: "#d1cdc9",
+                                              display: "flex", alignItems: "center", justifyContent: "center",
+                                              height: 32, width: 36, cursor: "not-allowed",
+                                            }}
+                                          >
+                                            <Trash2 style={{ width: 14, height: 14 }} />
+                                          </span>
+                                        )
                                       )}
                                     </div>
                                   </div>
@@ -715,47 +762,56 @@ export default function PainelGeral() {
                             {/* ── Items within this type ── */}
                             {typeItems.map((item: any) => {
                               const idx = globalIdx++;
+                              const isDeleted = !!item.deletedAt;
                               return (
                                 <Fragment key={item.id}>
                                   <tr
                                     data-testid={`item-row-${item.id}`}
-                                    onClick={() => setSelectedItem(item)}
+                                    onClick={() => !isDeleted && setSelectedItem(item)}
                                     style={{
                                       borderBottom: "1px solid #f0f0ef",
-                                       backgroundColor: idx % 2 === 1 ? "#f6f4f1" : "#ffffff",
-                                       borderLeft: "3px solid transparent",
-                                      cursor: "pointer",
+                                      backgroundColor: isDeleted ? "#fff5f5" : (idx % 2 === 1 ? "#f6f4f1" : "#ffffff"),
+                                      borderLeft: `3px solid ${isDeleted ? "#fecaca" : "transparent"}`,
+                                      cursor: isDeleted ? "default" : "pointer",
+                                      opacity: isDeleted ? 0.75 : 1,
                                       transition: "transform 0.15s, background-color 0.15s",
                                     }}
                                     onMouseEnter={(e) => {
+                                      if (isDeleted) return;
                                       (e.currentTarget as HTMLTableRowElement).style.transform = "translateY(-1px)";
-                                       (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "#fff7ed";
-                                       (e.currentTarget as HTMLTableRowElement).style.borderLeftColor = "#f97316";
+                                      (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "#fff7ed";
+                                      (e.currentTarget as HTMLTableRowElement).style.borderLeftColor = "#f97316";
                                     }}
                                     onMouseLeave={(e) => {
+                                      if (isDeleted) return;
                                       (e.currentTarget as HTMLTableRowElement).style.transform = "none";
-                                       (e.currentTarget as HTMLTableRowElement).style.backgroundColor = idx % 2 === 1 ? "#f6f4f1" : "#ffffff";
-                                       (e.currentTarget as HTMLTableRowElement).style.borderLeftColor = "transparent";
+                                      (e.currentTarget as HTMLTableRowElement).style.backgroundColor = idx % 2 === 1 ? "#f6f4f1" : "#ffffff";
+                                      (e.currentTarget as HTMLTableRowElement).style.borderLeftColor = "transparent";
                                     }}
                                   >
                                     {/* ID */}
                                     <td style={{ padding: "10px 18px 10px 20px", whiteSpace: "nowrap" }}>
                                       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                        <span data-testid={`text-display-id-${item.id}`} style={{ fontFamily: "monospace", fontWeight: 700, color: "#f97316", fontSize: 13 }}>
+                                        <span data-testid={`text-display-id-${item.id}`} style={{ fontFamily: "monospace", fontWeight: 700, color: isDeleted ? "#dc2626" : "#f97316", fontSize: 13, textDecoration: isDeleted ? "line-through" : "none" }}>
                                           {item.displayId}
                                         </span>
-                                        {item.isReuse && (
+                                        {isDeleted && item.deletedAt && (
+                                          <span style={{ fontSize: 10, color: "#a8a29e" }}>
+                                            Excluído {format(new Date(item.deletedAt), "dd/MM/yy", { locale: ptBR })}
+                                          </span>
+                                        )}
+                                        {!isDeleted && item.isReuse && (
                                           <span style={{ display: "inline-block", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "2px 7px", width: "fit-content" }}>
                                             Reaproveit.
                                           </span>
                                         )}
-                                        {item.referenceUrl && (
+                                        {!isDeleted && item.referenceUrl && (
                                           <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 700, color: "#2563eb", textDecoration: "none", backgroundColor: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 3, padding: "2px 6px", width: "fit-content" }} data-testid={`link-reference-painel-${item.id}`}>
                                             <Paperclip style={{ width: 9, height: 9 }} />
                                             Ref. visual
                                           </a>
                                         )}
-                                        {item.bookUrl && (
+                                        {!isDeleted && item.bookUrl && (
                                           <a href={item.bookUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Abrir book de aprovação (PDF) enviado pela Arte" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 700, color: "#6d28d9", textDecoration: "none", backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 3, padding: "2px 6px", width: "fit-content" }} data-testid={`link-book-painel-${item.id}`}>
                                             <FileText style={{ width: 9, height: 9 }} />
                                             Book
@@ -764,17 +820,17 @@ export default function PainelGeral() {
                                       </div>
                                     </td>
 
-                                            {/* Descrição */}
+                                    {/* Descrição */}
                                     <td style={{ padding: "10px 18px", maxWidth: 260 }}>
                                       <div style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
                                         {item.description ? (
-                                          <span style={{ fontSize: 12, color: "#44403c", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0 }}>
+                                          <span style={{ fontSize: 12, color: isDeleted ? "#a8a29e" : "#44403c", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
                                             {item.description}
                                           </span>
                                         ) : (
                                           <span style={{ color: "#c4bfbb", fontSize: 12 }}>—</span>
                                         )}
-                                        {item.observations && (
+                                        {!isDeleted && item.observations && (
                                           <span style={{ display: "inline-flex", alignItems: "center", gap: 3, flexShrink: 0, fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "#78716c", backgroundColor: "#f0ede9", border: "1px solid #e2ddd8", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>
                                             ↩ {item.observations}
                                           </span>
@@ -784,7 +840,7 @@ export default function PainelGeral() {
 
                                     {/* Medidas */}
                                     <td style={{ padding: "10px 18px", whiteSpace: "nowrap" }}>
-                                      {(item.visualWidth && item.visualHeight) || (item.fileWidth && item.fileHeight) ? (
+                                      {!isDeleted && ((item.visualWidth && item.visualHeight) || (item.fileWidth && item.fileHeight)) ? (
                                         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                                           {item.visualWidth && item.visualHeight && (
                                             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
@@ -810,47 +866,62 @@ export default function PainelGeral() {
 
                                     {/* Patrocinador */}
                                     <td style={{ padding: "10px 18px" }}>
-                                      <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={4} />
+                                      {!isDeleted && <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={4} />}
                                     </td>
 
                                     {/* Status */}
                                     <td style={{ padding: "10px 18px", whiteSpace: "nowrap" }}>
-                                      <StatusPill status={item.status} />
+                                      <StatusPill status={isDeleted ? "deleted" : item.status} />
                                     </td>
 
                                     {/* Ação */}
                                     <td style={{ padding: "10px 18px", textAlign: "right" }}>
                                       <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
-                                          data-testid={`button-view-${item.id}`}
-                                          style={{
-                                            background: "none", border: "none", cursor: "pointer",
-                                            padding: 4, borderRadius: 4, color: "#a8a29e",
-                                            display: "flex", alignItems: "center", justifyContent: "center",
-                                            transition: "color 0.15s",
-                                          }}
-                                          onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#f97316")}
-                                          onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#a8a29e")}
-                                        >
-                                          <Eye style={{ width: 16, height: 16 }} />
-                                        </button>
-                                        {isAdmin && (
+                                        {!isDeleted && (
                                           <button
-                                            onClick={(e) => { e.stopPropagation(); setDeleteConfirmItemId(item.id); }}
-                                            data-testid={`button-delete-${item.id}`}
-                                            title="Excluir peça (Admin)"
+                                            onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
+                                            data-testid={`button-view-${item.id}`}
                                             style={{
                                               background: "none", border: "none", cursor: "pointer",
                                               padding: 4, borderRadius: 4, color: "#a8a29e",
                                               display: "flex", alignItems: "center", justifyContent: "center",
                                               transition: "color 0.15s",
                                             }}
-                                            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#dc2626")}
+                                            onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#f97316")}
                                             onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#a8a29e")}
                                           >
-                                            <Trash2 style={{ width: 15, height: 15 }} />
+                                            <Eye style={{ width: 16, height: 16 }} />
                                           </button>
+                                        )}
+                                        {!isDeleted && canDeleteAny && (
+                                          canDeleteItem(item.status) ? (
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); setDeleteConfirmItemId(item.id); }}
+                                              data-testid={`button-delete-${item.id}`}
+                                              title="Excluir peça"
+                                              style={{
+                                                background: "none", border: "none", cursor: "pointer",
+                                                padding: 4, borderRadius: 4, color: "#a8a29e",
+                                                display: "flex", alignItems: "center", justifyContent: "center",
+                                                transition: "color 0.15s",
+                                              }}
+                                              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#dc2626")}
+                                              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#a8a29e")}
+                                            >
+                                              <Trash2 style={{ width: 15, height: 15 }} />
+                                            </button>
+                                          ) : (
+                                            <span
+                                              title="Exclusão bloqueada — peça já está em Arte ou produção"
+                                              style={{
+                                                padding: 4, color: "#d1cdc9",
+                                                display: "flex", alignItems: "center", justifyContent: "center",
+                                                cursor: "not-allowed",
+                                              }}
+                                            >
+                                              <Trash2 style={{ width: 15, height: 15 }} />
+                                            </span>
+                                          )
                                         )}
                                       </div>
                                     </td>
@@ -890,7 +961,7 @@ export default function PainelGeral() {
         onOpenChange={(open) => !open && setSelectedItem(null)}
       />
 
-      {/* ── Delete confirmation (Admin only) ── */}
+      {/* ── Delete confirmation (Admin ou Solicitação, respeitando canDeleteItem) ── */}
       <AlertDialog open={!!deleteConfirmItemId} onOpenChange={open => { if (!open) setDeleteConfirmItemId(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>

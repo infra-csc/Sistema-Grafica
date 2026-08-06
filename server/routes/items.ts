@@ -69,6 +69,20 @@ export function registerItemRoutes(app: Express): void {
     }
   });
 
+  // Get deleted (soft-deleted) items — admin e solicitacao only
+  app.get("/api/items/deleted", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "admin" && req.userRole !== "solicitacao") {
+        return res.status(403).json({ error: "Sem permissão para ver peças excluídas" });
+      }
+      const deletedItems = await storage.getDeletedItems();
+      const enriched = await enrichItemsWithEventsAndSponsors(deletedItems);
+      res.json(enriched);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get pending items with event and sponsors (for Arte module) - MUST come BEFORE /:eventId route
   app.get("/api/items/pending", requireAuth, async (req, res) => {
     try {

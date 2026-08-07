@@ -169,7 +169,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
       <div style={{ marginBottom: 28, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
         <div>
           <h1 data-testid="title-calendario" style={{
-            fontSize: 38, fontWeight: 800, color: P.text, margin: 0,
+            fontSize: 26, fontWeight: 800, color: P.text, margin: 0,
             textTransform: "uppercase", letterSpacing: "-0.03em",
             fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1,
           }}>
@@ -181,12 +181,12 @@ export default function Calendario() {  const isMobile = useIsMobile();
         </div>
 
         {/* View switcher */}
-        <div style={{ display: "flex", backgroundColor: "#eeeeed", borderRadius: 10, padding: 4, gap: 2 }}>
+        <div style={{ display: "flex", backgroundColor: "#eeeeed", borderRadius: 12, padding: 4, gap: 2 }}>
           {(["mes", "semana", "lista"] as const).map(v => (
             <button key={v} onClick={() => setActiveView(v)}
               style={{
-                padding: "6px 18px", borderRadius: 7, border: "none", cursor: "pointer",
-                fontSize: 12, fontWeight: 700,
+                padding: "6px 18px", borderRadius: 8, border: "none", cursor: "pointer",
+                fontSize: 13, fontWeight: 700,
                 backgroundColor: activeView === v ? "#ffffff" : "transparent",
                 color: activeView === v ? P.text : P.muted,
                 boxShadow: activeView === v ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
@@ -204,7 +204,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
           marginBottom: 20,
           backgroundColor: "#fef2f2",
           borderLeft: "6px solid #dc2626",
-          borderRadius: 10,
+          borderRadius: 12,
           border: "1px solid #fca5a5",
           padding: "14px 20px",
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
@@ -216,7 +216,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
             </span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontSize: 10, fontWeight: 900, color: "#ffffff", backgroundColor: "#dc2626", borderRadius: 100, padding: "2px 10px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            <span style={{ fontSize: 10, fontWeight: 900, color: "#ffffff", backgroundColor: "#dc2626", borderRadius: 999, padding: "2px 10px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
               Crítico
             </span>
             <button onClick={() => { setSelectedDate(new Date(urgentEvents[0].truckDepartureDate)); setDialogOpen(true); }}
@@ -228,7 +228,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
       )}
 
       {/* ── Main Calendar Card ── */}
-      <div style={{ backgroundColor: P.surface, borderRadius: 14, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.06)", marginBottom: 28 }}>
+      <div style={{ backgroundColor: P.surface, borderRadius: 12, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.06)", marginBottom: 28 }}>
 
         {/* Navigation bar */}
         <div style={{ padding: "20px 32px", backgroundColor: "#f9f9f8", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
@@ -252,10 +252,10 @@ export default function Calendario() {  const isMobile = useIsMobile();
               <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: P.muted }} />
               <input placeholder="Filtrar evento..."
                 value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                style={{ paddingLeft: 32, paddingRight: 12, height: 36, width: 200, backgroundColor: "#eeeeed", border: "none", borderRadius: 8, fontSize: 12, color: P.text, outline: "none" }} />
+                style={{ paddingLeft: 32, paddingRight: 12, height: 36, width: 200, backgroundColor: "#eeeeed", border: "none", borderRadius: 8, fontSize: 13, color: P.text }} />
             </div>
             <button onClick={() => setCurrentDate(new Date())} data-testid="button-today"
-              style={{ padding: "7px 20px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: P.text, fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+              style={{ padding: "7px 20px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: P.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
               onMouseEnter={e => (e.currentTarget.style.backgroundColor = P.bg)}
               onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#ffffff")}>
               Hoje
@@ -301,7 +301,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
                     borderRight: col !== 6 ? "1px solid #eeeeed" : undefined,
                     borderBottom: "1px solid #eeeeed",
                   }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: "#d1cdc9" }}>{String(outsideDay).padStart(2,"0")}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "#d1cdc9" }}>{String(outsideDay).padStart(2,"0")}</span>
                   </div>
                 );
               }
@@ -324,9 +324,22 @@ export default function Calendario() {  const isMobile = useIsMobile();
               const hasAny  = allCellItems.length > 0;
 
               return (
+                /* Abrir o dia era só no clique: por teclado o calendário não
+                   abria nada. Só os dias com algo marcado viram controle — os
+                   vazios não fazem nada e não devem entrar na tabulação. */
                 <div
                   key={day}
                   data-testid={`calendar-day-${day}`}
+                  {...(hasAny ? {
+                    role: "button" as const,
+                    tabIndex: 0,
+                    "aria-label": `Dia ${day} — ver eventos`,
+                    onKeyDown: (e: React.KeyboardEvent) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault(); setSelectedDate(date); setDialogOpen(true);
+                      }
+                    },
+                  } : {})}
                   onClick={() => { if (hasAny) { setSelectedDate(date); setDialogOpen(true); } }}
                   style={{
                     height: 90, padding: "7px 7px",
@@ -353,7 +366,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
                         fontSize: 11, fontWeight: 900,
                       }}>{day}</span>
                     ) : (
-                      <span style={{ fontSize: 12, fontWeight: 800, color: P.text }}>{String(day).padStart(2,"0")}</span>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: P.text }}>{String(day).padStart(2,"0")}</span>
                     )}
                   </div>
 
@@ -378,7 +391,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
                             gap: 4, padding: "2px 6px",
                             backgroundColor: isCrit ? "#fef2f2" : "#ffffff",
                             borderLeft: `3px solid ${color}`,
-                            borderRadius: 4,
+                            borderRadius: 6,
                             boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
                             overflow: "hidden", cursor: "pointer",
                           }}
@@ -392,7 +405,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
                             </span>
                           </div>
                           {isUrgent && (
-                            <span style={{ fontSize: 8, fontWeight: 900, color: "#ffffff", backgroundColor: isCrit ? "#dc2626" : "#f97316", borderRadius: 3, padding: "1px 4px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                            <span style={{ fontSize: 10, fontWeight: 900, color: "#ffffff", backgroundColor: isCrit ? "#dc2626" : "#f97316", borderRadius: 6, padding: "1px 4px", whiteSpace: "nowrap", flexShrink: 0 }}>
                               {msToHM(remaining)}
                             </span>
                           )}
@@ -409,7 +422,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
                             display: "flex", alignItems: "center", gap: 4, padding: "2px 6px",
                             backgroundColor: `${dtype.color}12`,
                             borderLeft: `3px dashed ${dtype.color}`,
-                            borderRadius: 4,
+                            borderRadius: 6,
                             overflow: "hidden", cursor: "pointer",
                           }}
                         >
@@ -422,7 +435,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
                     }
                   })}
                   {allCellItems.length > 2 && (
-                    <span style={{ fontSize: 9, color: P.muted, paddingLeft: 2 }}>+{allCellItems.length - 2} mais</span>
+                    <span style={{ fontSize: 10, color: P.muted, paddingLeft: 2 }}>+{allCellItems.length - 2} mais</span>
                   )}
                 </div>
               );
@@ -452,7 +465,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
           {/* Deadline legend */}
           {DEADLINE_TYPES.map(dt => (
             <div key={dt.key} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <div style={{ width: 14, height: 9, borderRadius: 2, borderLeft: `3px dashed ${dt.color}`, backgroundColor: `${dt.color}15` }} />
+              <div style={{ width: 14, height: 9, borderRadius: 6, borderLeft: `3px dashed ${dt.color}`, backgroundColor: `${dt.color}15` }} />
               <span style={{ fontSize: 10, fontWeight: 700, color: P.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>{dt.short}</span>
             </div>
           ))}
@@ -478,7 +491,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr minmax(220px, 300px)", gap: 20, alignItems: "start" }}>
 
         {/* Próximos Eventos */}
-        <div style={{ backgroundColor: "#f0efee", borderRadius: 14, padding: 24, position: "relative", overflow: "hidden" }}>
+        <div style={{ backgroundColor: "#f0efee", borderRadius: 12, padding: 24, position: "relative", overflow: "hidden" }}>
           {/* watermark icon */}
           <div style={{ position: "absolute", right: -20, bottom: -20, opacity: 0.05, pointerEvents: "none" }}>
             <Truck style={{ width: 160, height: 160, color: "#1c1917" }} />
@@ -497,7 +510,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
                   return (
                     <div key={ev.id}
                       data-testid={`upcoming-event-${ev.id}`}
-                      onClick={() => setLocation(`/eventos/${ev.id}`)}
+                      role="link" tabIndex={0} aria-label={`Abrir evento ${ev.name}`} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); setLocation(`/eventos/${ev.id}`); } }} onClick={() => setLocation(`/eventos/${ev.id}`)}
                       style={{ backgroundColor: "#ffffff", borderRadius: 8, padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderLeft: `4px solid ${color}`, cursor: "pointer" }}
                       onMouseEnter={e => (e.currentTarget.style.backgroundColor = P.bg)}
                       onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#ffffff")}>
@@ -507,7 +520,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
                           Saída: {dep.toLocaleDateString("pt-BR")} às {dep.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                         </p>
                       </div>
-                      <span style={{ fontSize: 10, fontWeight: 700, color, backgroundColor: `${color}18`, borderRadius: 100, padding: "3px 10px", whiteSpace: "nowrap", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color, backgroundColor: `${color}18`, borderRadius: 999, padding: "3px 10px", whiteSpace: "nowrap", textTransform: "uppercase", letterSpacing: "0.05em" }}>
                         {PRIO_LABEL[prioKey(ev)]}
                       </span>
                     </div>
@@ -519,7 +532,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
         </div>
 
         {/* Resumo do Mês */}
-        <div style={{ backgroundColor: "#1c1917", borderRadius: 14, padding: 24, color: "#ffffff" }}>
+        <div style={{ backgroundColor: "#1c1917", borderRadius: 12, padding: 24, color: "#ffffff" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
             <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#ffffff", textTransform: "uppercase", letterSpacing: "-0.01em", fontFamily: "'Space Grotesk', sans-serif" }}>
               Resumo do Mês
@@ -535,7 +548,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
             ].map(({ label, value, color }, i, arr) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.08)" : "none" }}>
                 <span style={{ fontSize: 13, color: "rgba(255,255,255,0.55)" }}>{label}</span>
-                <span style={{ fontSize: 16, fontWeight: 800, color }}>{value}</span>
+                <span style={{ fontSize: 15, fontWeight: 800, color }}>{value}</span>
               </div>
             ))}
           </div>
@@ -568,7 +581,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
               return (
                 <div key={`${ev.id}-${ev._type}`}
                   data-testid={`dialog-event-${ev.id}-${ev._type}`}
-                  onClick={() => { setDialogOpen(false); setLocation(`/eventos/${ev.id}`); }}
+                  role="link" tabIndex={0} aria-label={`Abrir evento ${ev.name}`} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); setDialogOpen(false); setLocation(`/eventos/${ev.id}`); } }} onClick={() => { setDialogOpen(false); setLocation(`/eventos/${ev.id}`); }}
                   style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", backgroundColor: P.surface, border: `1px solid ${P.border}`, borderLeft: `4px solid ${color}`, borderRadius: 8, cursor: "pointer" }}
                   onMouseEnter={e => (e.currentTarget.style.backgroundColor = P.bg)}
                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = P.surface)}
@@ -578,12 +591,12 @@ export default function Calendario() {  const isMobile = useIsMobile();
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                      <p style={{ fontSize: 14, fontWeight: 600, color: P.text, margin: 0 }}>{ev.name}</p>
-                      <span style={{ fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", color: P.secondary, backgroundColor: P.bg, border: `1px solid ${P.border}`, borderRadius: 4, padding: "2px 6px" }}>
+                      <p style={{ fontSize: 15, fontWeight: 600, color: P.text, margin: 0 }}>{ev.name}</p>
+                      <span style={{ fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", color: P.secondary, backgroundColor: P.bg, border: `1px solid ${P.border}`, borderRadius: 6, padding: "2px 6px" }}>
                         {PRIO_LABEL[pk]}
                       </span>
                     </div>
-                    <p style={{ fontSize: 12, color: P.muted, margin: "4px 0 0" }}>
+                    <p style={{ fontSize: 13, color: P.muted, margin: "4px 0 0" }}>
                       {isStart ? "Início: " : "Saída do caminhão: "}
                       <strong style={{ color: P.secondary }}>
                         {isStart ? dateTime.toLocaleDateString("pt-BR") : dateTime.toLocaleDateString("pt-BR", { timeZone: 'UTC' })}
@@ -609,6 +622,10 @@ export default function Calendario() {  const isMobile = useIsMobile();
                   {deadlines.map(({ event, dtype }) => (
                     <div key={`${event.id}-${dtype.key}`}
                       data-testid={`dialog-deadline-${event.id}-${dtype.key}`}
+                      role="link"
+                      tabIndex={0}
+                      aria-label={`Abrir evento ${event.name}`}
+                      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); setDialogOpen(false); setLocation(`/eventos/${event.id}`); } }}
                       onClick={() => { setDialogOpen(false); setLocation(`/eventos/${event.id}`); }}
                       style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", backgroundColor: `${dtype.color}08`, border: `1px solid ${P.border}`, borderLeft: `4px solid ${dtype.color}`, borderRadius: 8, cursor: "pointer" }}
                       onMouseEnter={e => (e.currentTarget.style.backgroundColor = `${dtype.color}14`)}
@@ -619,12 +636,12 @@ export default function Calendario() {  const isMobile = useIsMobile();
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-                          <p style={{ fontSize: 14, fontWeight: 600, color: P.text, margin: 0 }}>{event.name}</p>
-                          <span style={{ fontSize: 10, fontWeight: 700, whiteSpace: "nowrap", color: "#ffffff", backgroundColor: dtype.color, borderRadius: 4, padding: "2px 8px" }}>
+                          <p style={{ fontSize: 15, fontWeight: 600, color: P.text, margin: 0 }}>{event.name}</p>
+                          <span style={{ fontSize: 10, fontWeight: 700, whiteSpace: "nowrap", color: "#ffffff", backgroundColor: dtype.color, borderRadius: 6, padding: "2px 8px" }}>
                             {dtype.short}
                           </span>
                         </div>
-                        <p style={{ fontSize: 12, color: P.muted, margin: "4px 0 0" }}>
+                        <p style={{ fontSize: 13, color: P.muted, margin: "4px 0 0" }}>
                           Prazo: <strong style={{ color: P.secondary }}>{dtype.label}</strong>
                         </p>
                       </div>

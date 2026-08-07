@@ -14,7 +14,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 const tiInput: React.CSSProperties = {
   width: "100%", padding: "14px 16px",
   backgroundColor: "#f0efee", border: "none", borderRadius: 8,
-  fontSize: 13, color: T.text, outline: "none",
+  fontSize: 13, color: T.text,
   transition: "all 0.2s", fontFamily: "inherit",
 };
 
@@ -23,7 +23,7 @@ const sectionLabel = (n: string, title: string) => (
     <span style={{ fontSize: 10, fontWeight: 900, color: T.accent, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "0.12em" }}>
       {n}
     </span>
-    <span style={{ fontSize: 9, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.18em" }}>
+    <span style={{ fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.18em" }}>
       {title}
     </span>
     <div style={{ flex: 1, height: 1, backgroundColor: T.border }} />
@@ -203,14 +203,14 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
           <span style={{ fontSize: 10, fontWeight: 900, color: T.accent, textTransform: "uppercase", letterSpacing: "0.2em", fontFamily: "'Space Grotesk', sans-serif" }}>
             Console de Gerenciamento
           </span>
-          <h1 style={{ fontSize: 42, fontWeight: 900, color: T.text, margin: "6px 0 0", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", lineHeight: 1 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 900, color: T.text, margin: "6px 0 0", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", lineHeight: 1 }}>
             Gerenciamento de Patrocinadores
           </h1>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
           <div style={{ textAlign: "right" }}>
             <p style={{ fontSize: 10, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", margin: "0 0 4px" }}>Total Parceiros</p>
-            <p style={{ fontSize: 28, fontWeight: 900, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>{sponsors.length}</p>
+            <p style={{ fontSize: 26, fontWeight: 900, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>{sponsors.length}</p>
           </div>
           <div style={{ width: 1, height: 44, backgroundColor: T.border }} />
           {/* Contas sem executivo: clicar filtra a lista para resolver. */}
@@ -225,7 +225,7 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
                 style={{ textAlign: "right", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit" }}
               >
                 <p style={{ fontSize: 10, fontWeight: 900, color: ativo ? T.accent : T.muted, textTransform: "uppercase", letterSpacing: "0.16em", margin: "0 0 4px" }}>Sem Executivo</p>
-                <p style={{ fontSize: 28, fontWeight: 900, color: semExec > 0 ? "#b45309" : T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>
+                <p style={{ fontSize: 26, fontWeight: 900, color: semExec > 0 ? "#b45309" : T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>
                   {semExec}
                 </p>
               </button>
@@ -293,10 +293,10 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
         ) : filtered.length === 0 ? (
           <div style={{ padding: "72px 0", textAlign: "center" }}>
             <Building2 style={{ width: 44, height: 44, color: T.muted, margin: "0 auto 12px" }} />
-            <p style={{ fontSize: 14, fontWeight: 700, color: T.second, margin: "0 0 6px" }}>
+            <p style={{ fontSize: 15, fontWeight: 700, color: T.second, margin: "0 0 6px" }}>
               {search ? "Nenhum patrocinador encontrado" : "Nenhum patrocinador cadastrado"}
             </p>
-            <p style={{ fontSize: 12, color: T.muted, margin: 0 }}>
+            <p style={{ fontSize: 13, color: T.muted, margin: 0 }}>
               {search ? "Tente buscar por outro termo" : "Clique em \"Novo Patrocinador\" para começar"}
             </p>
           </div>
@@ -311,15 +311,23 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
                     { key: "executive", label: "Executivo Responsável" },
                     { key: "events", label: "Eventos" },
                   ] as const).map(col => (
+                    /* Ordenar a tabela só existia no clique: por teclado não
+                       havia como reordenar nada. aria-sort informa a ordem
+                       atual, que até aqui só a setinha comunicava. */
                     <th
                       key={col.key}
                       style={{ ...thStyle, cursor: "pointer", userSelect: "none" }}
+                      tabIndex={0}
+                      aria-sort={sortBy === col.key ? (sortDir === "asc" ? "ascending" : "descending") : "none"}
                       onClick={() => toggleSort(col.key)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSort(col.key); }
+                      }}
                       title={`Ordenar por ${col.label.toLowerCase()}`}
                     >
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
                         {col.label}
-                        <span style={{ opacity: sortBy === col.key ? 1 : 0.25, fontSize: 9 }}>
+                        <span style={{ opacity: sortBy === col.key ? 1 : 0.25, fontSize: 10 }}>
                           {sortBy === col.key && sortDir === "desc" ? "▼" : "▲"}
                         </span>
                       </span>
@@ -341,7 +349,7 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
                       data-testid={`sponsor-item-${sponsor.id}`}
                       onMouseEnter={() => setHoveredRow(sponsor.id)}
                       onMouseLeave={() => setHoveredRow(null)}
-                      onClick={() => openEdit(sponsor)}
+                      tabIndex={0} aria-label={`Editar ${sponsor.name}`} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); openEdit(sponsor); } }} onClick={() => openEdit(sponsor)}
                       title="Clique para editar"
                       style={{ borderBottom: i < paginated.length - 1 ? `1px solid ${T.low}` : "none", backgroundColor: isHover ? "rgba(249,115,22,0.03)" : "transparent", transition: "background 0.1s", cursor: "pointer" }}
                     >
@@ -358,7 +366,7 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
 
                       {/* Empresa */}
                       <td style={{ padding: "16px 20px" }}>
-                        <span style={{ fontSize: 12, color: T.second }}>
+                        <span style={{ fontSize: 13, color: T.second }}>
                           {sponsor.company || <span style={{ color: T.muted, fontStyle: "italic" }}>—</span>}
                         </span>
                       </td>
@@ -366,18 +374,18 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
                       {/* Executivo responsável */}
                       <td style={{ padding: "16px 20px" }}>
                         {execName(sponsor) ? (
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, color: T.text, fontWeight: 600 }}>
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: T.text, fontWeight: 600 }}>
                             <span style={{
                               width: 22, height: 22, borderRadius: "50%", backgroundColor: T.low,
                               display: "inline-flex", alignItems: "center", justifyContent: "center",
-                              fontSize: 9, fontWeight: 800, color: T.second, flexShrink: 0,
+                              fontSize: 10, fontWeight: 800, color: T.second, flexShrink: 0,
                             }}>
                               {execName(sponsor).split(" ").filter(Boolean).slice(0, 2).map(n => n[0]?.toUpperCase()).join("")}
                             </span>
                             {execName(sponsor)}
                           </span>
                         ) : (
-                          <span style={{ color: T.muted, fontStyle: "italic", fontSize: 12 }}>não atribuído</span>
+                          <span style={{ color: T.muted, fontStyle: "italic", fontSize: 13 }}>não atribuído</span>
                         )}
                       </td>
 
@@ -386,10 +394,10 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
                         {(() => {
                           const u = usage[sponsor.id];
                           if (!u || u.events === 0) {
-                            return <span title="Nunca vinculado a um evento" style={{ fontSize: 10, fontWeight: 800, color: "#b45309", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 4, padding: "2px 8px", whiteSpace: "nowrap" }}>sem evento</span>;
+                            return <span title="Nunca vinculado a um evento" style={{ fontSize: 10, fontWeight: 800, color: "#b45309", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "2px 8px", whiteSpace: "nowrap" }}>sem evento</span>;
                           }
                           return (
-                            <span title={`${u.items} peça(s) vinculada(s)`} style={{ fontSize: 12, color: T.text, fontWeight: 700, whiteSpace: "nowrap" }}>
+                            <span title={`${u.items} peça(s) vinculada(s)`} style={{ fontSize: 13, color: T.text, fontWeight: 700, whiteSpace: "nowrap" }}>
                               {u.events} <span style={{ fontWeight: 500, color: T.muted }}>{u.events === 1 ? "evento" : "eventos"}</span>
                               {u.items > 0 && <span style={{ color: T.muted, fontWeight: 500 }}> · {u.items} pç</span>}
                             </span>
@@ -399,21 +407,21 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
 
                       {/* Contato */}
                       <td style={{ padding: "16px 20px" }}>
-                        <span style={{ fontSize: 12, fontWeight: 500, color: T.text }}>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: T.text }}>
                           {sponsor.contactPerson || <span style={{ color: T.muted, fontStyle: "italic" }}>—</span>}
                         </span>
                       </td>
 
                       {/* Email */}
                       <td style={{ padding: "16px 20px" }}>
-                        <span style={{ fontSize: 12, color: T.second, fontFamily: "'DM Mono', monospace" }}>
+                        <span style={{ fontSize: 13, color: T.second, fontFamily: "'DM Mono', monospace" }}>
                           {sponsor.email || <span style={{ color: T.muted, fontStyle: "italic", fontFamily: "inherit" }}>—</span>}
                         </span>
                       </td>
 
                       {/* Telefone */}
                       <td style={{ padding: "16px 20px" }}>
-                        <span style={{ fontSize: 12, color: T.second, fontFamily: "'DM Mono', monospace" }}>
+                        <span style={{ fontSize: 13, color: T.second, fontFamily: "'DM Mono', monospace" }}>
                           {sponsor.phone || <span style={{ color: T.muted, fontStyle: "italic", fontFamily: "inherit" }}>—</span>}
                         </span>
                       </td>
@@ -423,7 +431,7 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
                         <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, opacity: isHover ? 1 : 0, transition: "opacity 0.15s" }}>
                           <button
                             data-testid={`button-edit-${sponsor.id}`}
-                            onClick={() => openEdit(sponsor)}
+                            tabIndex={0} aria-label={`Editar ${sponsor.name}`} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); openEdit(sponsor); } }} onClick={() => openEdit(sponsor)}
                             style={{ padding: 8, backgroundColor: "transparent", border: "none", borderRadius: 6, cursor: "pointer", color: T.muted, display: "flex", alignItems: "center", transition: "all 0.12s" }}
                             onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; e.currentTarget.style.color = T.accent; }}
                             onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.muted; }}
@@ -597,7 +605,7 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
                                       onChange={e => field.onChange("#" + e.target.value.replace(/^#/, ""))}
                                       placeholder="F97316"
                                       data-testid="input-color"
-                                      style={{ ...tiInput, paddingLeft: 28, fontFamily: "'DM Mono', monospace", fontSize: 12 }}
+                                      style={{ ...tiInput, paddingLeft: 28, fontFamily: "'DM Mono', monospace", fontSize: 13 }}
                                       onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
                                       onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
                                     />

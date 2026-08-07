@@ -51,7 +51,7 @@ const PAGE_SIZE = 10;
 const tiInput: React.CSSProperties = {
   width: "100%", padding: "11px 14px",
   backgroundColor: "#f0efee", border: "none", borderRadius: 6,
-  fontSize: 13, color: T.text, outline: "none",
+  fontSize: 13, color: T.text,
   transition: "all 0.2s",
 };
 
@@ -60,7 +60,7 @@ const filterSel: React.CSSProperties = {
   padding: "8px 12px", backgroundColor: T.surface,
   border: `1px solid ${T.border}`, borderRadius: 6,
   fontSize: 11, fontWeight: 700, color: T.second,
-  cursor: "pointer", outline: "none",
+  cursor: "pointer",
   appearance: "none", WebkitAppearance: "none",
 };
 
@@ -168,10 +168,10 @@ export default function Usuarios() {  const isMobile = useIsMobile();
       {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 28, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <h1 style={{ fontSize: 36, fontWeight: 900, color: T.text, margin: "0 0 6px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", textTransform: "uppercase", lineHeight: 1 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 900, color: T.text, margin: "0 0 6px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", textTransform: "uppercase", lineHeight: 1 }}>
             Gerenciamento de Usuários
           </h1>
-          <p style={{ fontSize: 14, color: T.second, margin: 0 }}>
+          <p style={{ fontSize: 15, color: T.second, margin: 0 }}>
             Gerencie usuários, perfis e permissões de acesso ao sistema
           </p>
         </div>
@@ -182,7 +182,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
             display: "flex", alignItems: "center", gap: 8,
             padding: "11px 22px", backgroundColor: T.dark, color: "#fff",
             border: "none", borderRadius: 6, cursor: "pointer",
-            fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em",
+            fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em",
             transition: "background 0.15s", whiteSpace: "nowrap",
           }}
           onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#292524")}
@@ -200,7 +200,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
             key={role}
             onClick={() => { setRoleFilter(roleFilter === role ? "all" : role); setPage(1); }}
             style={{
-              padding: "5px 14px", borderRadius: 100,
+              padding: "5px 14px", borderRadius: 999,
               backgroundColor: roleFilter === role ? cfg.bg : T.low,
               border: `1px solid ${roleFilter === role ? cfg.color + "40" : T.border}`,
               color: roleFilter === role ? cfg.color : T.second,
@@ -251,7 +251,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
       </div>
 
       {/* ── Table ── */}
-      <section style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden", marginBottom: 20 }}>
+      <section style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden", marginBottom: 20 }}>
         {isLoading ? (
           <div style={{ padding: "56px 0", textAlign: "center", fontSize: 13, color: T.muted }}>Carregando usuários...</div>
         ) : filtered.length === 0 ? (
@@ -264,7 +264,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
                   <tr style={{ backgroundColor: T.low, borderBottom: `1px solid ${T.border}` }}>
                     {["#", "Nome", "Email", "Perfil", "Status", "Criado em", "Ações"].map((h, i) => (
                       <th key={h} style={{
-                        padding: "12px 20px", fontSize: 9, fontWeight: 900,
+                        padding: "12px 20px", fontSize: 10, fontWeight: 900,
                         color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em",
                         textAlign: i === 6 ? "right" : "left",
                       }}>{h}</th>
@@ -304,12 +304,12 @@ export default function Usuarios() {  const isMobile = useIsMobile();
                         </td>
 
                         {/* Email */}
-                        <td style={{ padding: "14px 20px", fontSize: 12, color: T.second }}>{user.email}</td>
+                        <td style={{ padding: "14px 20px", fontSize: 13, color: T.second }}>{user.email}</td>
 
                         {/* Perfil badge */}
                         <td style={{ padding: "14px 20px" }}>
                           <span style={{
-                            padding: "3px 10px", borderRadius: 100,
+                            padding: "3px 10px", borderRadius: 999,
                             backgroundColor: cfg.bg, color: cfg.color,
                             fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
                           }}>
@@ -321,7 +321,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
                         <td style={{ padding: "14px 20px" }}>
                           {user.mustChangePassword ? (
                             <span style={{
-                              padding: "3px 8px", borderRadius: 4,
+                              padding: "3px 8px", borderRadius: 6,
                               border: "1px solid #fde68a", color: "#a16207",
                               backgroundColor: "#fefce8",
                               fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
@@ -337,7 +337,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
                         </td>
 
                         {/* Criado em */}
-                        <td style={{ padding: "14px 20px", fontSize: 12, color: T.second }}>
+                        <td style={{ padding: "14px 20px", fontSize: 13, color: T.second }}>
                           {format(new Date(user.createdAt), "dd/MM/yyyy", { locale: ptBR })}
                         </td>
 
@@ -384,7 +384,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
                 {Array.from({ length: totalPages }, (_, i) => i + 1).slice(Math.max(0, page - 3), Math.min(totalPages, page + 2)).map(p => (
                   <button key={p} onClick={() => setPage(p)}
                     style={{
-                      width: 28, height: 28, borderRadius: 5, border: p === page ? `1px solid ${T.border}` : "1px solid transparent",
+                      width: 28, height: 28, borderRadius: 6, border: p === page ? `1px solid ${T.border}` : "1px solid transparent",
                       backgroundColor: p === page ? T.surface : "transparent",
                       fontSize: 11, fontWeight: p === page ? 900 : 600,
                       color: p === page ? T.text : T.muted, cursor: "pointer",
@@ -405,13 +405,13 @@ export default function Usuarios() {  const isMobile = useIsMobile();
       {/* ── Bento grid ── */}
       <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16, marginTop: 24 }}>
         {/* Dark card — Relatório de Acessos */}
-        <div style={{ backgroundColor: T.dark, borderRadius: 10, padding: "28px 32px", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 200, position: "relative", overflow: "hidden" }}>
+        <div style={{ backgroundColor: T.dark, borderRadius: 12, padding: "28px 32px", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 200, position: "relative", overflow: "hidden" }}>
           <div style={{ position: "absolute", top: -40, right: -40, width: 180, height: 180, borderRadius: "50%", backgroundColor: T.accent, opacity: 0.12, filter: "blur(60px)" }} />
           <div>
-            <h3 style={{ fontSize: 24, fontWeight: 900, color: "#fff", margin: "0 0 8px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", textTransform: "uppercase", lineHeight: 1 }}>
+            <h3 style={{ fontSize: 22, fontWeight: 900, color: "#fff", margin: "0 0 8px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", textTransform: "uppercase", lineHeight: 1 }}>
               Controle de Acessos
             </h3>
-            <p style={{ fontSize: 12, color: "#746e69", margin: 0, maxWidth: 340 }}>
+            <p style={{ fontSize: 13, color: "#746e69", margin: 0, maxWidth: 340 }}>
               Monitore a atividade e o status de segurança dos usuários da plataforma em tempo real.
             </p>
           </div>
@@ -426,7 +426,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
                 );
               })}
               {users.length > 4 && (
-                <div style={{ width: 36, height: 36, borderRadius: "50%", backgroundColor: "#292524", border: `2px solid ${T.dark}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: "#d6d3d1", marginLeft: -10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", backgroundColor: "#292524", border: `2px solid ${T.dark}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10, fontWeight: 700, color: "#d6d3d1", marginLeft: -10 }}>
                   +{users.length - 4}
                 </div>
               )}
@@ -444,10 +444,10 @@ export default function Usuarios() {  const isMobile = useIsMobile();
         </div>
 
         {/* Light card — Nível de Segurança */}
-        <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, padding: "28px 28px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+        <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: "28px 28px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
           <div>
             <ShieldCheck style={{ width: 32, height: 32, color: T.accent, marginBottom: 12 }} />
-            <h3 style={{ fontSize: 17, fontWeight: 900, color: T.text, margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase", letterSpacing: "-0.02em" }}>
+            <h3 style={{ fontSize: 18, fontWeight: 900, color: T.text, margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase", letterSpacing: "-0.02em" }}>
               Nível de Segurança
             </h3>
             <p style={{ fontSize: 11, color: T.second, margin: 0 }}>
@@ -456,11 +456,11 @@ export default function Usuarios() {  const isMobile = useIsMobile();
           </div>
           <div style={{ marginTop: 20 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 8 }}>
-              <span style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Health Score</span>
-              <span style={{ fontSize: 28, fontWeight: 900, color: T.text, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", lineHeight: 1 }}>{secScore}%</span>
+              <span style={{ fontSize: 10, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Health Score</span>
+              <span style={{ fontSize: 26, fontWeight: 900, color: T.text, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", lineHeight: 1 }}>{secScore}%</span>
             </div>
-            <div style={{ width: "100%", height: 5, backgroundColor: T.low, borderRadius: 100, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${secScore}%`, backgroundColor: secScore >= 80 ? "#22c55e" : secScore >= 60 ? T.accent : "#ef4444", borderRadius: 100, transition: "width 0.5s" }} />
+            <div style={{ width: "100%", height: 5, backgroundColor: T.low, borderRadius: 999, overflow: "hidden" }}>
+              <div style={{ height: "100%", width: `${secScore}%`, backgroundColor: secScore >= 80 ? "#22c55e" : secScore >= 60 ? T.accent : "#ef4444", borderRadius: 999, transition: "width 0.5s" }} />
             </div>
             <p style={{ fontSize: 10, color: T.muted, margin: "8px 0 0" }}>
               {users.filter(u => u.mustChangePassword).length} usuário{users.filter(u => u.mustChangePassword).length !== 1 ? "s" : ""} com senha padrão pendente
@@ -475,7 +475,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
       {modalOpen && (
         <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(28,25,23,0.55)", backdropFilter: "blur(4px)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
           onClick={e => { if (e.target === e.currentTarget && window.confirm("Descartar as alterações deste formulário?")) setModalOpen(false); }}>
-          <div style={{ backgroundColor: T.surface, width: "100%", maxWidth: 520, borderRadius: 10, overflow: "hidden", boxShadow: "0 24px 64px -12px rgba(0,0,0,0.3)" }}>
+          <div style={{ backgroundColor: T.surface, width: "100%", maxWidth: 520, borderRadius: 12, overflow: "hidden", boxShadow: "0 24px 64px -12px rgba(0,0,0,0.3)" }}>
             {/* Modal header */}
             <div style={{ backgroundColor: T.low, padding: "20px 28px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
               <div>
@@ -501,7 +501,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
                 {/* Nome */}
                 <FormField control={form.control} name="name" render={({ field }) => (
                   <FormItem>
-                    <div style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 }}>Nome Completo</div>
+                    <div style={{ fontSize: 10, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 }}>Nome Completo</div>
                     <FormControl>
                       <input {...field} placeholder="Ex: Roberto Carlos" data-testid="input-name"
                         style={tiInput}
@@ -517,7 +517,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                   <FormField control={form.control} name="email" render={({ field }) => (
                     <FormItem>
-                      <div style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 }}>Email</div>
+                      <div style={{ fontSize: 10, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 }}>Email</div>
                       <FormControl>
                         <input {...field} type="email" placeholder="email@norte.com" data-testid="input-email"
                           style={tiInput}
@@ -531,7 +531,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
 
                   <FormField control={form.control} name="role" render={({ field }) => (
                     <FormItem>
-                      <div style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 }}>Perfil</div>
+                      <div style={{ fontSize: 10, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 }}>Perfil</div>
                       <FormControl>
                         <select {...field} data-testid="select-role"
                           style={{ ...tiInput, appearance: "none", WebkitAppearance: "none", cursor: "pointer" }}
@@ -576,14 +576,14 @@ export default function Usuarios() {  const isMobile = useIsMobile();
       {deletingUser && (
         <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(28,25,23,0.55)", backdropFilter: "blur(4px)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
           onClick={e => { if (e.target === e.currentTarget) setDeletingUser(null); }}>
-          <div style={{ backgroundColor: T.surface, width: "100%", maxWidth: 420, borderRadius: 10, overflow: "hidden", boxShadow: "0 24px 64px -12px rgba(0,0,0,0.3)", borderLeft: "4px solid #ef4444" }}>
+          <div style={{ backgroundColor: T.surface, width: "100%", maxWidth: 420, borderRadius: 12, overflow: "hidden", boxShadow: "0 24px 64px -12px rgba(0,0,0,0.3)", borderLeft: "4px solid #ef4444" }}>
             <div style={{ padding: "24px 28px", display: "flex", gap: 14, alignItems: "flex-start" }}>
               <div style={{ width: 40, height: 40, borderRadius: "50%", backgroundColor: "#fef2f2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <AlertTriangle style={{ width: 18, height: 18, color: "#ef4444" }} />
               </div>
               <div style={{ flex: 1 }}>
                 <h4 style={{ fontSize: 15, fontWeight: 800, color: T.text, margin: "0 0 6px", fontFamily: "'Space Grotesk', sans-serif" }}>Excluir Usuário?</h4>
-                <p style={{ fontSize: 12, color: T.second, margin: "0 0 20px", lineHeight: 1.5 }}>
+                <p style={{ fontSize: 13, color: T.second, margin: "0 0 20px", lineHeight: 1.5 }}>
                   Tem certeza que deseja excluir <strong style={{ color: T.text }}>{deletingUser.name}</strong>? Esta ação não pode ser desfeita e o usuário perderá acesso imediato.
                 </p>
                 <div style={{ display: "flex", gap: 16, alignItems: "center" }}>

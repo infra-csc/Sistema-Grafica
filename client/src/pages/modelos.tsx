@@ -315,10 +315,10 @@ export default function Modelos() {  const isMobile = useIsMobile();
   const catGroups = catalogOptions.filter(o => o.kind === "group").map(o => o.value);
 
   // Unique values for filter chips
-  const allGroups = [...new Set([...catGroups, ...standardItems.map((s: any) => s.group).filter(Boolean)])].sort() as string[];
-  const allTypes  = [...new Set(standardItems.map((s: any) => s.type).filter(Boolean))].sort() as string[];
-  const allMats     = [...new Set([...materials,  ...catMats,     ...standardItems.map((s: any) => s.material).filter(Boolean)])].sort() as string[];
-  const allFinishes = [...new Set([...finishes,   ...catFinishes, ...standardItems.map((s: any) => s.finish).filter(Boolean)])].sort() as string[];
+  const allGroups = Array.from(new Set([...catGroups, ...standardItems.map((s: any) => s.group).filter(Boolean)])).sort() as string[];
+  const allTypes  = Array.from(new Set(standardItems.map((s: any) => s.type).filter(Boolean))).sort() as string[];
+  const allMats     = Array.from(new Set([...materials,  ...catMats,     ...standardItems.map((s: any) => s.material).filter(Boolean)])).sort() as string[];
+  const allFinishes = Array.from(new Set([...finishes,   ...catFinishes, ...standardItems.map((s: any) => s.finish).filter(Boolean)])).sort() as string[];
 
   const filteredItems = standardItems.filter((item) => {
     const q = searchTerm.toLowerCase();
@@ -360,8 +360,8 @@ export default function Modelos() {  const isMobile = useIsMobile();
   /* ── shared field style ── */
   const fieldStyle: React.CSSProperties = {
     width: "100%", padding: "11px 14px", backgroundColor: "#f0efee",
-    border: "none", borderRadius: 10, fontSize: 13, color: "#1c1917",
-    outline: "none", fontFamily: "'Plus Jakarta Sans', sans-serif",
+    border: "none", borderRadius: 12, fontSize: 13, color: "#1c1917",
+    fontFamily: "'Plus Jakarta Sans', sans-serif",
   };
   const labelStyle: React.CSSProperties = {
     display: "block", fontSize: 10, fontWeight: 700, color: "#746e69",
@@ -391,7 +391,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               data-testid="input-search-models"
-              style={{ paddingLeft: 38, paddingRight: 14, height: 40, width: 280, backgroundColor: "#e8e8e7", border: "none", borderRadius: 10, fontSize: 13, color: "#1c1917", outline: "none" }}
+              style={{ paddingLeft: 38, paddingRight: 14, height: 40, width: 280, backgroundColor: "#e8e8e7", border: "none", borderRadius: 12, fontSize: 13, color: "#1c1917" }}
             />
           </div>
 
@@ -399,7 +399,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
           <button
             data-testid="button-manage-categories"
             onClick={() => setManageOpen(true)}
-            style={{ display: "flex", alignItems: "center", gap: 6, backgroundColor: "transparent", color: "#57534e", border: "1.5px solid #d6d3d1", borderRadius: 10, padding: "0 16px", height: 40, fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+            style={{ display: "flex", alignItems: "center", gap: 6, backgroundColor: "transparent", color: "#57534e", border: "1.5px solid #d6d3d1", borderRadius: 12, padding: "0 16px", height: 40, fontSize: 13, fontWeight: 600, cursor: "pointer" }}
             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f5f4f0"; }}
             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
           >
@@ -411,7 +411,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
           <button
             data-testid="button-new-model"
             onClick={() => { setEditingItem(null); setFormData({ ...EMPTY_FORM }); setOpen(true); }}
-            style={{ display: "flex", alignItems: "center", gap: 6, backgroundColor: "#1c1917", color: "#ffffff", border: "none", borderRadius: 10, padding: "0 18px", height: 40, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}
+            style={{ display: "flex", alignItems: "center", gap: 6, backgroundColor: "#1c1917", color: "#ffffff", border: "none", borderRadius: 12, padding: "0 18px", height: 40, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}
             onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#000000")}
             onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1c1917")}
           >
@@ -442,7 +442,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
           {activeFilters > 0 && (
             <button
               onClick={() => { setFilterGroup(""); setFilterType(""); setFilterMaterial(""); setFilterFinish(""); }}
-              style={{ height: 36, paddingLeft: 12, paddingRight: 12, fontSize: 12, fontWeight: 600, color: "#746e69", background: "none", border: "1px solid #e7e5e4", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, alignSelf: "flex-end" }}
+              style={{ height: 36, paddingLeft: 12, paddingRight: 12, fontSize: 13, fontWeight: 600, color: "#746e69", background: "none", border: "1px solid #e7e5e4", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, alignSelf: "flex-end" }}
             >
               <X style={{ width: 11, height: 11 }} />
               Limpar ({activeFilters})
@@ -457,17 +457,17 @@ export default function Modelos() {  const isMobile = useIsMobile();
           <div style={{ width: 32, height: 32, border: "3px solid #e7e5e4", borderTopColor: "#f97316", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
         </div>
       ) : standardItems.length === 0 ? (
-        <div style={{ backgroundColor: "#ffffff", borderRadius: 14, padding: "64px 32px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.04)" }}>
+        <div style={{ backgroundColor: "#ffffff", borderRadius: 12, padding: "64px 32px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.04)" }}>
           <Layers style={{ width: 40, height: 40, color: "#d4d0cc", margin: "0 auto 14px" }} />
           <p style={{ fontSize: 15, fontWeight: 600, color: "#1c1917", margin: "0 0 6px" }}>Nenhum modelo criado</p>
           <p style={{ fontSize: 13, color: "#746e69", margin: "0 0 20px" }}>Crie modelos para reutilizar configurações de itens</p>
           <button onClick={() => setOpen(true)}
-            style={{ backgroundColor: "#1c1917", color: "#ffffff", border: "none", borderRadius: 10, padding: "9px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            style={{ backgroundColor: "#1c1917", color: "#ffffff", border: "none", borderRadius: 12, padding: "9px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
             <Plus style={{ width: 14, height: 14 }} /> Criar Primeiro Modelo
           </button>
         </div>
       ) : (
-        <div style={{ backgroundColor: "#ffffff", borderRadius: 14, boxShadow: "0 4px 20px rgba(0,0,0,0.04)" }}>
+        <div style={{ backgroundColor: "#ffffff", borderRadius: 12, boxShadow: "0 4px 20px rgba(0,0,0,0.04)" }}>
 
           {/* Tool strip */}
           <div style={{ padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "rgba(243,244,243,0.4)", borderBottom: "1px solid #e7e5e4" }}>
@@ -485,7 +485,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
             </div>
             {filteredItems.length === 0 && searchTerm && (
               <button onClick={() => setSearchTerm("")}
-                style={{ fontSize: 12, color: "#746e69", background: "none", border: "1px solid #e7e5e4", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
+                style={{ fontSize: 13, color: "#746e69", background: "none", border: "1px solid #e7e5e4", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
                 Limpar busca
               </button>
             )}
@@ -494,7 +494,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
           {filteredItems.length === 0 ? (
             <div style={{ padding: "48px 24px", textAlign: "center" }}>
               <Search style={{ width: 32, height: 32, color: "#d4d0cc", margin: "0 auto 12px" }} />
-              <p style={{ fontSize: 14, fontWeight: 600, color: "#1c1917", margin: "0 0 4px" }}>Nenhum modelo encontrado</p>
+              <p style={{ fontSize: 15, fontWeight: 600, color: "#1c1917", margin: "0 0 4px" }}>Nenhum modelo encontrado</p>
               <p style={{ fontSize: 13, color: "#746e69", margin: "0 0 16px" }}>
                 {searchTerm && activeFilters > 0
                   ? "Nenhum modelo corresponde à busca e aos filtros atuais"
@@ -505,7 +505,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
               {activeFilters > 0 && (
                 <button
                   onClick={() => { setFilterGroup(""); setFilterType(""); setFilterMaterial(""); setFilterFinish(""); }}
-                  style={{ fontSize: 12, fontWeight: 600, color: "#746e69", background: "none", border: "1px solid #e7e5e4", borderRadius: 8, padding: "6px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                  style={{ fontSize: 13, fontWeight: 600, color: "#746e69", background: "none", border: "1px solid #e7e5e4", borderRadius: 8, padding: "6px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
                   <X style={{ width: 11, height: 11 }} /> Limpar filtros
                 </button>
               )}
@@ -550,7 +550,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                         {/* Grupo */}
                         <td style={{ padding: "18px 24px", whiteSpace: "nowrap" }}>
                           {item.group ? (
-                            <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", borderRadius: 100, padding: "3px 10px", display: "inline-block", backgroundColor: "#f0f9ff", color: "#0369a1", whiteSpace: "nowrap" }}>
+                            <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", borderRadius: 999, padding: "3px 10px", display: "inline-block", backgroundColor: "#f0f9ff", color: "#0369a1", whiteSpace: "nowrap" }}>
                               {item.group}
                             </span>
                           ) : <span style={{ color: "#d4d0cc", fontSize: 13 }}>—</span>}
@@ -559,7 +559,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                         {/* Tipo */}
                         <td style={{ padding: "18px 24px" }}>
                           {item.type ? (
-                            <span style={{ ...pillStyle, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", borderRadius: 100, padding: "3px 10px", display: "inline-block", whiteSpace: "nowrap" }}>
+                            <span style={{ ...pillStyle, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", borderRadius: 999, padding: "3px 10px", display: "inline-block", whiteSpace: "nowrap" }}>
                               {item.type}
                             </span>
                           ) : <span style={{ color: "#d4d0cc", fontSize: 13 }}>—</span>}
@@ -568,30 +568,30 @@ export default function Modelos() {  const isMobile = useIsMobile();
                         {/* Medidas */}
                         <td style={{ padding: "18px 24px", whiteSpace: "nowrap" }}>
                           {item.hasVariableMeasurement ? (
-                            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: "#eff6ff", color: "#1d4ed8", borderRadius: 100, padding: "3px 10px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                            <span style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: "#eff6ff", color: "#1d4ed8", borderRadius: 999, padding: "3px 10px", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
                               <Ruler style={{ width: 10, height: 10 }} /> Variável
                             </span>
                           ) : (item.area || item.visual || item.fileWidth || item.fileHeight) ? (
                             <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                               {(item.area || item.visual) && (
                                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                  <span style={{ fontSize: 9, fontWeight: 700, color: "#746e69", backgroundColor: "#f5f4f0", borderRadius: 3, padding: "1px 5px", letterSpacing: "0.06em" }}>VIS</span>
-                                  <span style={{ fontSize: 12, fontWeight: 600, color: "#1c1917", fontFamily: "monospace" }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: "#746e69", backgroundColor: "#f5f4f0", borderRadius: 6, padding: "1px 5px", letterSpacing: "0.06em" }}>VIS</span>
+                                  <span style={{ fontSize: 13, fontWeight: 600, color: "#1c1917", fontFamily: "monospace" }}>
                                     {item.area ?? "—"} × {item.visual ?? "—"}m
                                   </span>
                                 </div>
                               )}
                               {(item.fileWidth || item.fileHeight) && (
                                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                  <span style={{ fontSize: 9, fontWeight: 700, color: "#b45309", backgroundColor: "#FDF3E7", borderRadius: 3, padding: "1px 5px", letterSpacing: "0.06em" }}>ARQ</span>
-                                  <span style={{ fontSize: 12, fontWeight: 600, color: "#57534e", fontFamily: "monospace" }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, color: "#b45309", backgroundColor: "#FDF3E7", borderRadius: 6, padding: "1px 5px", letterSpacing: "0.06em" }}>ARQ</span>
+                                  <span style={{ fontSize: 13, fontWeight: 600, color: "#57534e", fontFamily: "monospace" }}>
                                     {item.fileWidth ?? "—"} × {item.fileHeight ?? "—"}m
                                   </span>
                                 </div>
                               )}
                             </div>
                           ) : (
-                            <span style={{ fontSize: 12, color: "#d4d0cc" }}>—</span>
+                            <span style={{ fontSize: 13, color: "#d4d0cc" }}>—</span>
                           )}
                         </td>
 
@@ -647,7 +647,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
           {/* Header */}
           <div style={{ padding: "24px 32px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", borderBottom: "1px solid #f5f4f0", flexShrink: 0 }}>
             <div>
-              <h3 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#1c1917", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: "#1c1917", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
                 {editingItem ? "Editar Modelo de Item" : "Novo Modelo de Item"}
               </h3>
               <p style={{ margin: "5px 0 0", fontSize: 10, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.1em" }}>
@@ -711,7 +711,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                           display: "inline-flex", alignItems: "center", gap: 6,
                           backgroundColor: "#dbeafe", color: "#1d4ed8",
                           borderRadius: 6, padding: "2px 10px 2px 8px",
-                          fontSize: 12, fontWeight: 700,
+                          fontSize: 13, fontWeight: 700,
                         }}>
                           <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#3b82f6", flexShrink: 0 }} />
                           {formData.group}
@@ -736,13 +736,13 @@ export default function Modelos() {  const isMobile = useIsMobile();
                               <button
                                 type="button"
                                 onClick={() => { setFormData({ ...formData, group: customGroupInput }); setCustomGroupInput(""); setGroupPopoverOpen(false); }}
-                                style={{ width: "100%", padding: "8px 12px", backgroundColor: "#1d4ed8", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}
+                                style={{ width: "100%", padding: "8px 12px", backgroundColor: "#1d4ed8", color: "#fff", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}
                               >
                                 + Criar grupo "{customGroupInput}"
                               </button>
                             </div>
                           ) : (
-                            <p style={{ padding: "12px 16px", fontSize: 12, color: "#746e69", margin: 0 }}>Nenhum grupo cadastrado</p>
+                            <p style={{ padding: "12px 16px", fontSize: 13, color: "#746e69", margin: 0 }}>Nenhum grupo cadastrado</p>
                           )}
                         </CommandEmpty>
                         {allGroups.length > 0 && (
@@ -757,7 +757,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                                   display: "inline-flex", alignItems: "center", gap: 6,
                                   backgroundColor: formData.group === g ? "#dbeafe" : "#f0f9ff",
                                   color: "#1d4ed8", borderRadius: 6,
-                                  padding: "2px 10px 2px 8px", fontSize: 12, fontWeight: 600,
+                                  padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: 600,
                                   marginRight: 8,
                                 }}>
                                   <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "#3b82f6", flexShrink: 0 }} />
@@ -775,7 +775,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                               onSelect={() => { setFormData({ ...formData, group: customGroupInput }); setCustomGroupInput(""); setGroupPopoverOpen(false); }}
                             >
                               <Plus style={{ width: 14, height: 14, marginRight: 8, color: "#1d4ed8" }} />
-                              <span style={{ fontSize: 12, color: "#1d4ed8", fontWeight: 600 }}>Criar "{customGroupInput}"</span>
+                              <span style={{ fontSize: 13, color: "#1d4ed8", fontWeight: 600 }}>Criar "{customGroupInput}"</span>
                             </CommandItem>
                           </CommandGroup>
                         )}
@@ -796,12 +796,26 @@ export default function Modelos() {  const isMobile = useIsMobile();
 
               {/* Toggle Medida Variável — col-span-2 */}
               <div style={{ gridColumn: "1 / -1", display: "flex", alignItems: "center", paddingBottom: 4 }}>
+                {/* Interruptor desenhado com <div>: não havia campo por trás,
+                    então alternar "medida variável" era exclusivamente com
+                    mouse. role="switch" dá o papel que a aparência promete e
+                    aria-checked informa o estado. */}
                 <label
+                  role="switch"
+                  tabIndex={0}
+                  aria-checked={formData.hasVariableMeasurement}
+                  aria-label="Medida variável"
                   onClick={() => setFormData({ ...formData, hasVariableMeasurement: !formData.hasVariableMeasurement, area: !formData.hasVariableMeasurement ? "" : formData.area, visual: !formData.hasVariableMeasurement ? "" : formData.visual, fileWidth: "", fileHeight: "" })}
+                  onKeyDown={e => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setFormData({ ...formData, hasVariableMeasurement: !formData.hasVariableMeasurement, area: !formData.hasVariableMeasurement ? "" : formData.area, visual: !formData.hasVariableMeasurement ? "" : formData.visual, fileWidth: "", fileHeight: "" });
+                    }
+                  }}
                   style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}
                 >
                   <div
-                    style={{ position: "relative", width: 40, height: 22, borderRadius: 100, backgroundColor: formData.hasVariableMeasurement ? "#f97316" : "#d6d3d1", transition: "background-color 0.2s", cursor: "pointer", flexShrink: 0 }}
+                    style={{ position: "relative", width: 40, height: 22, borderRadius: 999, backgroundColor: formData.hasVariableMeasurement ? "#f97316" : "#d6d3d1", transition: "background-color 0.2s", cursor: "pointer", flexShrink: 0 }}
                   >
                     <div style={{ position: "absolute", top: 3, left: formData.hasVariableMeasurement ? 21 : 3, width: 16, height: 16, borderRadius: "50%", backgroundColor: "#ffffff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
                   </div>
@@ -815,7 +829,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
               <div style={{ gridColumn: "1 / -1" }}>
                 <label style={{ ...labelStyle, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
                   Medidas Visuais
-                  <span style={{ fontSize: 9, fontWeight: 700, color: "#746e69", backgroundColor: "#f5f4f0", borderRadius: 4, padding: "2px 6px", letterSpacing: "0.06em" }}>VIS.</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "#746e69", backgroundColor: "#f5f4f0", borderRadius: 6, padding: "2px 6px", letterSpacing: "0.06em" }}>VIS.</span>
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
@@ -858,7 +872,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
               <div style={{ gridColumn: "1 / -1" }}>
                 <label style={{ ...labelStyle, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
                   Medidas do Arquivo
-                  <span style={{ fontSize: 9, fontWeight: 700, color: "#b45309", backgroundColor: "#FDF3E7", borderRadius: 4, padding: "2px 6px", letterSpacing: "0.06em" }}>ARQ.</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: "#b45309", backgroundColor: "#FDF3E7", borderRadius: 6, padding: "2px 6px", letterSpacing: "0.06em" }}>ARQ.</span>
                   <span style={{ fontSize: 10, fontWeight: 500, color: "#746e69", textTransform: "none", letterSpacing: 0 }}>— pré-preenchido igual ao visual</span>
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -897,7 +911,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                     <button type="button" data-testid="input-model-material"
                       style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.material ? "#1c1917" : "#a8a29e" }}>
                       {formData.material ? (
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: "#fff7ed", color: "#c2410c", borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 12, fontWeight: 600 }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: "#fff7ed", color: "#c2410c", borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: 600 }}>
                           <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "#f97316", flexShrink: 0 }} />
                           {formData.material}
                         </span>
@@ -916,13 +930,13 @@ export default function Modelos() {  const isMobile = useIsMobile();
                             <div style={{ padding: "8px 12px" }}>
                               <button type="button"
                                 onClick={() => { setFormData({ ...formData, material: customMaterialInput }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}
-                                style={{ width: "100%", padding: "8px 12px", backgroundColor: "#c2410c", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
+                                style={{ width: "100%", padding: "8px 12px", backgroundColor: "#c2410c", color: "#fff", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
                                 <Plus style={{ width: 13, height: 13, display: "inline", marginRight: 6 }} />
                                 Criar "{customMaterialInput}"
                               </button>
                             </div>
                           ) : (
-                            <p style={{ padding: "12px 16px", fontSize: 12, color: "#746e69", margin: 0 }}>Nenhum material cadastrado</p>
+                            <p style={{ padding: "12px 16px", fontSize: 13, color: "#746e69", margin: 0 }}>Nenhum material cadastrado</p>
                           )}
                         </CommandEmpty>
                         {allMats.length > 0 && (
@@ -930,7 +944,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                             {allMats.map(m => (
                               <CommandItem key={m} value={m}
                                 onSelect={() => { setFormData({ ...formData, material: m }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}>
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: formData.material === m ? "#fed7aa" : "#fff7ed", color: "#c2410c", borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 12, fontWeight: 600, marginRight: 8 }}>
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: formData.material === m ? "#fed7aa" : "#fff7ed", color: "#c2410c", borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: 600, marginRight: 8 }}>
                                   <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "#f97316", flexShrink: 0 }} />
                                   {m}
                                 </span>
@@ -944,7 +958,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                             <CommandItem value={`__new__${customMaterialInput}`}
                               onSelect={() => { setFormData({ ...formData, material: customMaterialInput }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}>
                               <Plus style={{ width: 14, height: 14, marginRight: 8, color: "#ea580c" }} />
-                              <span style={{ fontSize: 12, color: "#ea580c", fontWeight: 600 }}>Criar "{customMaterialInput}"</span>
+                              <span style={{ fontSize: 13, color: "#ea580c", fontWeight: 600 }}>Criar "{customMaterialInput}"</span>
                             </CommandItem>
                           </CommandGroup>
                         )}
@@ -968,7 +982,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                     <button type="button" data-testid="input-model-finish"
                       style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.finish ? "#1c1917" : "#a8a29e" }}>
                       {formData.finish ? (
-                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: "#f5f4f0", color: "#57534e", borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 12, fontWeight: 600 }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: "#f5f4f0", color: "#57534e", borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: 600 }}>
                           <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "#a8a29e", flexShrink: 0 }} />
                           {formData.finish}
                         </span>
@@ -987,13 +1001,13 @@ export default function Modelos() {  const isMobile = useIsMobile();
                             <div style={{ padding: "8px 12px" }}>
                               <button type="button"
                                 onClick={() => { setFormData({ ...formData, finish: customFinishInput }); setCustomFinishInput(""); setFinishPopoverOpen(false); }}
-                                style={{ width: "100%", padding: "8px 12px", backgroundColor: "#57534e", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
+                                style={{ width: "100%", padding: "8px 12px", backgroundColor: "#57534e", color: "#fff", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
                                 <Plus style={{ width: 13, height: 13, display: "inline", marginRight: 6 }} />
                                 Criar "{customFinishInput}"
                               </button>
                             </div>
                           ) : (
-                            <p style={{ padding: "12px 16px", fontSize: 12, color: "#746e69", margin: 0 }}>Nenhum acabamento cadastrado</p>
+                            <p style={{ padding: "12px 16px", fontSize: 13, color: "#746e69", margin: 0 }}>Nenhum acabamento cadastrado</p>
                           )}
                         </CommandEmpty>
                         {allFinishes.length > 0 && (
@@ -1001,7 +1015,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                             {allFinishes.map(f => (
                               <CommandItem key={f} value={f}
                                 onSelect={() => { setFormData({ ...formData, finish: f }); setCustomFinishInput(""); setFinishPopoverOpen(false); }}>
-                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: formData.finish === f ? "#e7e5e4" : "#f5f4f0", color: "#57534e", borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 12, fontWeight: 600, marginRight: 8 }}>
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: formData.finish === f ? "#e7e5e4" : "#f5f4f0", color: "#57534e", borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: 600, marginRight: 8 }}>
                                   <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "#a8a29e", flexShrink: 0 }} />
                                   {f}
                                 </span>
@@ -1015,7 +1029,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                             <CommandItem value={`__new__${customFinishInput}`}
                               onSelect={() => { setFormData({ ...formData, finish: customFinishInput }); setCustomFinishInput(""); setFinishPopoverOpen(false); }}>
                               <Plus style={{ width: 14, height: 14, marginRight: 8, color: "#746e69" }} />
-                              <span style={{ fontSize: 12, color: "#746e69", fontWeight: 600 }}>Criar "{customFinishInput}"</span>
+                              <span style={{ fontSize: 13, color: "#746e69", fontWeight: 600 }}>Criar "{customFinishInput}"</span>
                             </CommandItem>
                           </CommandGroup>
                         )}
@@ -1062,17 +1076,17 @@ export default function Modelos() {  const isMobile = useIsMobile();
         <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.45)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(2px)" }}
           onClick={e => { if (e.target === e.currentTarget) { setManageOpen(false); setMgEditingGroup(null); setMgEditingFinish(null); setMgEditingMaterial(null); setMgDeleteGroupConfirm(null); setMgDeleteFinishConfirm(null); setMgDeleteMaterialConfirm(null); } }}>
           {/* ── Modal card ── */}
-          <div style={{ backgroundColor: "#ffffff", borderRadius: 20, width: 580, maxWidth: "95vw", maxHeight: "85vh", display: "flex", flexDirection: "column", boxShadow: "0 32px 80px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.06)" }}>
+          <div style={{ backgroundColor: "#ffffff", borderRadius: 999, width: 580, maxWidth: "95vw", maxHeight: "85vh", display: "flex", flexDirection: "column", boxShadow: "0 32px 80px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.06)" }}>
 
             {/* Header */}
             <div style={{ padding: "24px 28px 0" }}>
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
                 <div>
                   <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#1c1917", letterSpacing: "-0.03em" }}>Gerenciar Categorias</h2>
-                  <p style={{ margin: "4px 0 0", fontSize: 12, color: "#746e69" }}>Renomeie ou remova categorias dos modelos em lote</p>
+                  <p style={{ margin: "4px 0 0", fontSize: 13, color: "#746e69" }}>Renomeie ou remova categorias dos modelos em lote</p>
                 </div>
                 <button onClick={() => { setManageOpen(false); setMgEditingGroup(null); setMgEditingFinish(null); setMgEditingMaterial(null); setMgDeleteGroupConfirm(null); setMgDeleteFinishConfirm(null); setMgDeleteMaterialConfirm(null); }}
-                  style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid #e7e5e4", background: "#fafaf9", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#746e69", flexShrink: 0, marginTop: 2 }}>
+                  style={{ width: 34, height: 34, borderRadius: 12, border: "1px solid #e7e5e4", background: "#fafaf9", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#746e69", flexShrink: 0, marginTop: 2 }}>
                   <X style={{ width: 15, height: 15 }} />
                 </button>
               </div>
@@ -1121,7 +1135,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                   onStartEdit: () => void; onStartDelete: () => void;
                 }) {
                   return (
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 10, backgroundColor: isDeleting ? "#fff5f5" : "#fafaf9", border: `1px solid ${isDeleting ? "#fecaca" : "#f0efec"}`, transition: "all 0.15s" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 12, backgroundColor: isDeleting ? "#fff5f5" : "#fafaf9", border: `1px solid ${isDeleting ? "#fecaca" : "#f0efec"}`, transition: "all 0.15s" }}>
                       {/* Dot */}
                       <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: accentColor, flexShrink: 0, opacity: isDeleting ? 0.4 : 1 }} />
 
@@ -1129,7 +1143,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                         <>
                           <input autoFocus value={editValue} onChange={e => onEditChange(e.target.value)}
                             onKeyDown={e => { if (e.key === "Enter") onEditConfirm(); if (e.key === "Escape") onEditCancel(); }}
-                            style={{ flex: 1, fontSize: 13, fontWeight: 600, borderRadius: 8, padding: "5px 10px", border: `1.5px solid ${accentColor}`, outline: "none", color: "#1c1917", background: accentBg }}
+                            style={{ flex: 1, fontSize: 13, fontWeight: 600, borderRadius: 8, padding: "5px 10px", border: `1.5px solid ${accentColor}`, color: "#1c1917", background: accentBg }}
                           />
                           <button onClick={onEditConfirm} disabled={isPendingRename}
                             style={{ width: 30, height: 30, borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: accentColor, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
@@ -1145,14 +1159,14 @@ export default function Modelos() {  const isMobile = useIsMobile();
                           <div style={{ flex: 1 }}>
                             <span style={{ fontSize: 13, fontWeight: 600, color: "#dc2626" }}>Remover </span>
                             <span style={{ fontSize: 13, fontWeight: 800, color: "#dc2626" }}>"{name}"</span>
-                            <span style={{ fontSize: 12, color: "#ef4444" }}> de {count} {count === 1 ? "modelo" : "modelos"}?</span>
+                            <span style={{ fontSize: 13, color: "#ef4444" }}> de {count} {count === 1 ? "modelo" : "modelos"}?</span>
                           </div>
                           <button onClick={onDeleteConfirm} disabled={isPendingDelete}
-                            style={{ padding: "5px 14px", borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: "#dc2626", color: "#fff", fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                            style={{ padding: "5px 14px", borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: "#dc2626", color: "#fff", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
                             Remover
                           </button>
                           <button onClick={onDeleteCancel}
-                            style={{ padding: "5px 14px", borderRadius: 8, border: "1px solid #e7e5e4", cursor: "pointer", backgroundColor: "#fff", color: "#746e69", fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
+                            style={{ padding: "5px 14px", borderRadius: 8, border: "1px solid #e7e5e4", cursor: "pointer", backgroundColor: "#fff", color: "#746e69", fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
                             Cancelar
                           </button>
                         </>
@@ -1205,7 +1219,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                         onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); submitNew(); } }}
                         placeholder={`Adicionar ${addLabel}...`}
                         data-testid="input-new-catalog-option"
-                        style={{ flex: 1, padding: "9px 12px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#faf9f8", fontSize: 13, color: "#1c1917", outline: "none" }}
+                        style={{ flex: 1, padding: "9px 12px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#faf9f8", fontSize: 13, color: "#1c1917" }}
                       />
                       <button type="button" onClick={submitNew} disabled={createCatalogOptionMutation.isPending || !newCatValue.trim()}
                         data-testid="button-add-catalog-option"

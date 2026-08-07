@@ -238,7 +238,7 @@ export function EventFilterDropdown({
           {/* Footer multi-select */}
           {multiple && values!.length > 0 && (
             <div style={{ padding: "8px 12px", borderTop: "1px solid #F3F4F6", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: 11, color: "#78716c" }}>
+              <span style={{ fontSize: 11, color: "#746e69" }}>
                 {values!.length} {values!.length === 1 ? "evento" : "eventos"} selecionados
               </span>
               <button onClick={() => onValuesChange!([])} style={{ fontSize: 11, fontWeight: 700, color: "#F97316", background: "none", border: "none", cursor: "pointer", padding: "2px 6px" }}>

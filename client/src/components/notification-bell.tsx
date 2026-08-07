@@ -197,7 +197,7 @@ export function NotificationBell({ notifications, onMarkAsRead, onViewAll }: Not
           {/* List */}
           <div style={{ maxHeight: 400, overflowY: "auto", overflowX: "hidden" }}>
             {notifications.length === 0 ? (
-              <div style={{ padding: 24, textAlign: "center", color: "#a8a29e", fontSize: 13 }}>
+              <div style={{ padding: 24, textAlign: "center", color: "#746e69", fontSize: 13 }}>
                 Nenhuma notificação
               </div>
             ) : (

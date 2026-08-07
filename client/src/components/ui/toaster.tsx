@@ -68,7 +68,7 @@ function NorteToast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => v
           </div>
         )}
         {toast.description && (
-          <div style={{ fontSize: 12, color: "#78716c", lineHeight: 1.45, maxHeight: 80, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" }}>
+          <div style={{ fontSize: 12, color: "#746e69", lineHeight: 1.45, maxHeight: 80, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 4, WebkitBoxOrient: "vertical" }}>
             {toast.description}
           </div>
         )}
@@ -77,7 +77,7 @@ function NorteToast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => v
       {/* Close */}
       <button
         onClick={e => { e.stopPropagation(); dismiss() }}
-        style={{ width: 24, height: 24, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#a8a29e", flexShrink: 0, marginTop: 1 }}
+        style={{ width: 24, height: 24, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#746e69", flexShrink: 0, marginTop: 1 }}
         onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f5f4f0"; (e.currentTarget as HTMLButtonElement).style.color = "#57534e" }}
         onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#a8a29e" }}
       >

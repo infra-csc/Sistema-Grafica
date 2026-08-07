@@ -42,13 +42,13 @@ export function CloneItemsDialog({
               Clonar Peças de Outro Evento
             </DialogTitle>
           </div>
-          <DialogDescription style={{ fontSize: 12, color: '#78716c', margin: 0, paddingLeft: 28 }}>
+          <DialogDescription style={{ fontSize: 12, color: '#746e69', margin: 0, paddingLeft: 28 }}>
             Copia todos os itens de um evento anterior para este evento
           </DialogDescription>
         </div>
 
         <div style={{ padding: '24px 28px' }}>
-          <label style={{ fontSize: 11, fontWeight: 700, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 8 }}>
+          <label style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 8 }}>
             Selecionar evento de origem
           </label>
           <select

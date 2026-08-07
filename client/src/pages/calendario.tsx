@@ -277,7 +277,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
                 backgroundColor: "#f9f9f8",
                 borderBottom: "1px solid #eeeeed",
                 borderRight: d !== "SÁB" ? "1px solid #eeeeed" : undefined,
-                fontSize: 10, fontWeight: 900, color: "#a8a29e",
+                fontSize: 10, fontWeight: 900, color: "#746e69",
                 textTransform: "uppercase", letterSpacing: "0.18em",
               }}>
                 {d}

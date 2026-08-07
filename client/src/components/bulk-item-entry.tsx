@@ -206,11 +206,11 @@ function TipoSelect({ value, groupedOptions, onChange, rowIndex, onNavigateNext 
         <div style={{ position: 'absolute', top: 'calc(100% + 3px)', left: 0, zIndex: 600, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 8, boxShadow: '0 8px 28px rgba(0,0,0,0.13)', maxHeight: 260, overflowY: 'auto', minWidth: 220, padding: '4px', scrollbarWidth: 'thin', scrollbarColor: '#d6d3d1 #f5f5f4' }}>
           {filtered !== null ? (
             filtered.length === 0
-              ? <div style={{ padding: '10px 12px', fontSize: 12, color: '#a8a29e', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Nenhum resultado</div>
+              ? <div style={{ padding: '10px 12px', fontSize: 12, color: '#746e69', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Nenhum resultado</div>
               : filtered.map(renderOption)
           ) : (
             groupedOptions.length === 0
-              ? <div style={{ padding: '10px 12px', fontSize: 12, color: '#a8a29e', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Nenhum modelo cadastrado</div>
+              ? <div style={{ padding: '10px 12px', fontSize: 12, color: '#746e69', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Nenhum modelo cadastrado</div>
               : groupedOptions.map(({ group, items }) => (
                 <div key={group || '__nogroup'}>
                   {group && (
@@ -346,7 +346,7 @@ function ExistingItemsPanel({ items, standardItems = [], onDelete }: ExistingIte
       }}>
         <span style={{
           fontSize: '9px', fontWeight: '800', textTransform: 'uppercase',
-          letterSpacing: '0.14em', color: '#78716c',
+          letterSpacing: '0.14em', color: '#746e69',
           fontFamily: "'Space Grotesk', sans-serif", whiteSpace: 'nowrap',
         }}>
           Peças já lançadas
@@ -382,7 +382,7 @@ function ExistingItemsPanel({ items, standardItems = [], onDelete }: ExistingIte
             <button
               type="button"
               onClick={() => setQuery("")}
-              style={{ position: 'absolute', right: 6, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 0, padding: 0, color: '#a8a29e' }}
+              style={{ position: 'absolute', right: 6, background: 'none', border: 'none', cursor: 'pointer', lineHeight: 0, padding: 0, color: '#746e69' }}
             >
               <X size={10} />
             </button>
@@ -396,7 +396,7 @@ function ExistingItemsPanel({ items, standardItems = [], onDelete }: ExistingIte
         style={{ maxHeight: '176px', overflowY: 'auto', backgroundColor: '#fafaf9' }}
       >
         {filtered.length === 0 ? (
-          <div style={{ padding: '12px 16px', fontSize: '11px', color: '#a8a29e', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+          <div style={{ padding: '12px 16px', fontSize: '11px', color: '#746e69', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
             {query ? 'Nenhum item encontrado para esta busca.' : 'Nenhuma peça lançada ainda.'}
           </div>
         ) : (() => {
@@ -1316,7 +1316,7 @@ export function BulkItemEntry({
                 display: 'inline-flex', alignItems: 'center', gap: '6px',
                 padding: '6px 16px',
                 border: '1.5px dashed #d6d3d1', borderRadius: '6px',
-                backgroundColor: 'transparent', color: '#78716c',
+                backgroundColor: 'transparent', color: '#746e69',
                 fontSize: '11px', fontWeight: '700',
                 textTransform: 'uppercase', letterSpacing: '0.08em',
                 cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif",
@@ -1346,13 +1346,13 @@ export function BulkItemEntry({
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <div style={{ width: '7px', height: '7px', borderRadius: '99px', backgroundColor: '#f97316' }} />
-            <span style={{ fontSize: '10px', fontWeight: '700', color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Space Grotesk', sans-serif" }}>
+            <span style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Space Grotesk', sans-serif" }}>
               Cálculo Automático
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <div style={{ width: '7px', height: '7px', borderRadius: '99px', backgroundColor: validCount > 0 ? '#22c55e' : '#d6d3d1' }} />
-            <span style={{ fontSize: '10px', fontWeight: '700', color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Space Grotesk', sans-serif" }}>
+            <span style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Space Grotesk', sans-serif" }}>
               {validCount} {validCount === 1 ? 'Peça Válida' : 'Peças Válidas'}
             </span>
           </div>
@@ -1365,7 +1365,7 @@ export function BulkItemEntry({
             onClick={onCancel}
             style={{
               padding: '9px 20px', background: 'none', border: 'none',
-              color: '#78716c', fontSize: '13px', fontWeight: '600',
+              color: '#746e69', fontSize: '13px', fontWeight: '600',
               cursor: 'pointer', transition: 'color 0.12s',
             }}
             onMouseEnter={e => (e.currentTarget.style.color = '#1a1c1c')}

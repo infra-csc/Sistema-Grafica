@@ -21,9 +21,9 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 // ─── Status config ────────────────────────────────────────
 const STATUS_CONFIG: Record<string, { label: string; dot: string; bg: string; color: string; border: string }> = {
-  draft:                 { label: "Rascunho",           dot: "#78716c", bg: "#f5f5f4", color: "#78716c", border: "#e7e5e4" },
+  draft:                 { label: "Rascunho",           dot: "#78716c", bg: "#f5f5f4", color: "#746e69", border: "#e7e5e4" },
   requested:             { label: "Solicitado",         dot: "#f97316", bg: "#fff7ed", color: "#f97316", border: "#fef3c7" },
-  awaiting_linking:      { label: "Aguard. Vinculação", dot: "#78716c", bg: "#f5f5f4", color: "#78716c", border: "#e7e5e4" },
+  awaiting_linking:      { label: "Aguard. Vinculação", dot: "#78716c", bg: "#f5f5f4", color: "#746e69", border: "#e7e5e4" },
   awaiting_submission:   { label: "Aguard. Envio",      dot: "#0ea5e9", bg: "#f0f9ff", color: "#0ea5e9", border: "#e0f2fe" },
   awaiting_approval:     { label: "Aguard. Aprovação",  dot: "#f97316", bg: "#fff7ed", color: "#f97316", border: "#fef3c7" },
   awaiting_sponsor_approval: { label: "Aguard. Aprovação", dot: "#f97316", bg: "#fff7ed", color: "#f97316", border: "#fef3c7" },
@@ -46,7 +46,7 @@ const STATUS_CONFIG: Record<string, { label: string; dot: string; bg: string; co
 };
 
 function StatusPill({ status }: { status: string }) {
-  const cfg = STATUS_CONFIG[status] || { label: status, dot: "#a8a29e", bg: "#f5f5f4", color: "#78716c", border: "#e7e5e4" };
+  const cfg = STATUS_CONFIG[status] || { label: status, dot: "#a8a29e", bg: "#f5f5f4", color: "#746e69", border: "#e7e5e4" };
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 6,
@@ -68,7 +68,7 @@ function StatusPill({ status }: { status: string }) {
 const filterLabel: React.CSSProperties = {
   display: "block", fontSize: 9, fontWeight: 900,
   textTransform: "uppercase", letterSpacing: "0.11em",
-  color: "#a8a29e", marginBottom: 4,
+  color: "#746e69", marginBottom: 4,
 };
 
 export default function PainelGeral() {
@@ -238,7 +238,7 @@ export default function PainelGeral() {
         </div>
         <div>
           <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 27, fontWeight: 700, color: isActive ? color : "#1c1917", lineHeight: 1, margin: 0, letterSpacing: "-.05em" }}>{value}</p>
-          <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#78716c", marginTop: 4, lineHeight: 1.2 }}>{label}</p>
+          <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#746e69", marginTop: 4, lineHeight: 1.2 }}>{label}</p>
         </div>
       </div>
     );
@@ -277,7 +277,7 @@ export default function PainelGeral() {
           >
             Painel de Status Geral
           </h1>
-          <p style={{ fontSize: 13, color: "#78716c", fontWeight: 500, margin: "4px 0 0 0", display: isMobile ? "none" : "block" }}>
+          <p style={{ fontSize: 13, color: "#746e69", fontWeight: 500, margin: "4px 0 0 0", display: isMobile ? "none" : "block" }}>
             Acompanhamento em tempo real de todos os itens em produção
           </p>
         </div>
@@ -442,7 +442,7 @@ export default function PainelGeral() {
 
         {/* Counter + clear */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, ...(isMobile && { width: "100%" }) }}>
-          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 700, color: "#78716c", whiteSpace: "nowrap" }}>
+          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 700, color: "#746e69", whiteSpace: "nowrap" }}>
             <span style={{ color: "#1c1917", fontWeight: 900 }}>{filteredItems.length}</span>
             {" "}iten{filteredItems.length !== 1 ? "s" : ""}
           </span>
@@ -468,12 +468,12 @@ export default function PainelGeral() {
         ) : isError ? (
           <div style={{ backgroundColor: "#ffffff", border: "1px solid #fecaca", padding: 48, textAlign: "center" }}>
             <p style={{ color: "#b91c1c", fontSize: 14, fontWeight: 600, margin: "0 0 4px" }}>Não foi possível carregar os itens</p>
-            <p style={{ color: "#a8a29e", fontSize: 13, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
+            <p style={{ color: "#746e69", fontSize: 13, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
             <button onClick={() => refetch()} style={{ fontSize: 13, fontWeight: 600, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "8px 18px", cursor: "pointer" }}>Tentar novamente</button>
           </div>
         ) : filteredItems.length === 0 ? (
           <div style={{ backgroundColor: "#ffffff", border: "1px solid #e7e5e4", padding: 48, textAlign: "center" }}>
-            <p style={{ color: "#a8a29e", fontSize: 14 }}>Nenhum item encontrado</p>
+            <p style={{ color: "#746e69", fontSize: 14 }}>Nenhum item encontrado</p>
           </div>
         ) : (
           Object.entries(groupedItems).map(([eventKey, eventData]) => {
@@ -501,13 +501,13 @@ export default function PainelGeral() {
                       </h3>
                       <div style={{ display: "flex", gap: 14, marginTop: 5 }}>
                         {firstItem?.event?.startDate && (
-                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: "#78716c" }}>
+                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: "#746e69" }}>
                             <Calendar style={{ width: 11, height: 11, flexShrink: 0 }} />
                             Início: {format(parseDateLocal(firstItem.event.startDate), "dd MMM yyyy", { locale: ptBR })}
                           </span>
                         )}
                         {firstItem?.event?.truckDepartureDate && (
-                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: "#78716c" }}>
+                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: "#746e69" }}>
                             <Truck style={{ width: 11, height: 11, flexShrink: 0 }} />
                             Saída: {format(toUTCDisplayDate(firstItem.event.truckDepartureDate), "dd MMM yyyy 'às' HH:mm", { locale: ptBR })}
                           </span>
@@ -562,7 +562,7 @@ export default function PainelGeral() {
                                 <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#44403c", fontFamily: "'Space Grotesk', sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flex: 1 }}>
                                   {type}
                                 </span>
-                                <span style={{ fontSize: 9, fontWeight: 800, color: "#78716c", backgroundColor: "#e7e5e4", borderRadius: 999, padding: "2px 8px", textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>
+                                <span style={{ fontSize: 9, fontWeight: 800, color: "#746e69", backgroundColor: "#e7e5e4", borderRadius: 999, padding: "2px 8px", textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>
                                   {typeItems.length}
                                 </span>
                               </div>
@@ -612,7 +612,7 @@ export default function PainelGeral() {
                                       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                                         <StatusPill status={isDeleted ? "deleted" : item.status} />
                                         {isDeleted && item.deletedAt && (
-                                          <span style={{ fontSize: 10, color: "#a8a29e" }}>
+                                          <span style={{ fontSize: 10, color: "#746e69" }}>
                                             {format(new Date(item.deletedAt), "dd/MM/yyyy", { locale: ptBR })}
                                           </span>
                                         )}
@@ -632,7 +632,7 @@ export default function PainelGeral() {
                                           data-testid={`button-view-${item.id}`}
                                           style={{
                                             background: "none", border: "1px solid #e7e5e4", cursor: "pointer",
-                                            borderRadius: 6, color: "#a8a29e",
+                                            borderRadius: 6, color: "#746e69",
                                             display: "flex", alignItems: "center", justifyContent: "center",
                                             height: 36, width: 36,
                                           }}
@@ -648,7 +648,7 @@ export default function PainelGeral() {
                                             title="Excluir peça"
                                             style={{
                                               background: "none", border: "1px solid #fecaca", cursor: "pointer",
-                                              borderRadius: 6, color: "#a8a29e",
+                                              borderRadius: 6, color: "#746e69",
                                               display: "flex", alignItems: "center", justifyContent: "center",
                                               height: 32, width: 36,
                                             }}
@@ -747,7 +747,7 @@ export default function PainelGeral() {
                                   </span>
                                   <span style={{
                                     fontSize: 9, fontWeight: 800,
-                                    color: "#78716c",
+                                    color: "#746e69",
                                     backgroundColor: "#e7e5e4",
                                     borderRadius: 999,
                                     padding: "2px 8px",
@@ -796,7 +796,7 @@ export default function PainelGeral() {
                                           {item.displayId}
                                         </span>
                                         {isDeleted && item.deletedAt && (
-                                          <span style={{ fontSize: 10, color: "#a8a29e" }}>
+                                          <span style={{ fontSize: 10, color: "#746e69" }}>
                                             Excluído {format(new Date(item.deletedAt), "dd/MM/yy", { locale: ptBR })}
                                           </span>
                                         )}
@@ -831,7 +831,7 @@ export default function PainelGeral() {
                                           <span style={{ color: "#c4bfbb", fontSize: 12 }}>—</span>
                                         )}
                                         {!isDeleted && item.observations && (
-                                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, flexShrink: 0, fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "#78716c", backgroundColor: "#f0ede9", border: "1px solid #e2ddd8", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>
+                                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, flexShrink: 0, fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "#746e69", backgroundColor: "#f0ede9", border: "1px solid #e2ddd8", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>
                                             ↩ {item.observations}
                                           </span>
                                         )}
@@ -844,7 +844,7 @@ export default function PainelGeral() {
                                         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                                           {item.visualWidth && item.visualHeight && (
                                             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                              <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#a8a29e", width: 30 }}>VIS</span>
+                                              <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#746e69", width: 30 }}>VIS</span>
                                               <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: "#44403c" }}>
                                                 {item.visualWidth} × {item.visualHeight}
                                               </span>
@@ -852,15 +852,15 @@ export default function PainelGeral() {
                                           )}
                                           {item.fileWidth && item.fileHeight && (
                                             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                              <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#a8a29e", width: 30 }}>ARQ</span>
-                                              <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: "#78716c" }}>
+                                              <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#746e69", width: 30 }}>ARQ</span>
+                                              <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: "#746e69" }}>
                                                 {item.fileWidth} × {item.fileHeight}
                                               </span>
                                             </div>
                                           )}
                                         </div>
                                       ) : (
-                                        <span style={{ color: "#a8a29e", fontSize: 12 }}>—</span>
+                                        <span style={{ color: "#746e69", fontSize: 12 }}>—</span>
                                       )}
                                     </td>
 
@@ -883,7 +883,7 @@ export default function PainelGeral() {
                                             data-testid={`button-view-${item.id}`}
                                             style={{
                                               background: "none", border: "none", cursor: "pointer",
-                                              padding: 4, borderRadius: 4, color: "#a8a29e",
+                                              padding: 4, borderRadius: 4, color: "#746e69",
                                               display: "flex", alignItems: "center", justifyContent: "center",
                                               transition: "color 0.15s",
                                             }}
@@ -901,7 +901,7 @@ export default function PainelGeral() {
                                               title="Excluir peça"
                                               style={{
                                                 background: "none", border: "none", cursor: "pointer",
-                                                padding: 4, borderRadius: 4, color: "#a8a29e",
+                                                padding: 4, borderRadius: 4, color: "#746e69",
                                                 display: "flex", alignItems: "center", justifyContent: "center",
                                                 transition: "color 0.15s",
                                               }}

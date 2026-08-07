@@ -40,8 +40,8 @@ const TI = {
 };
 
 const statusConfig: Record<string, { label: string; bg: string; color: string; border: string }> = {
-  draft:                  { label: "Rascunho",           bg: "#f5f5f4", color: "#78716c", border: "#e7e5e4" },
-  requested:              { label: "Solicitado",         bg: "#f5f5f4", color: "#78716c", border: "#e7e5e4" },
+  draft:                  { label: "Rascunho",           bg: "#f5f5f4", color: "#746e69", border: "#e7e5e4" },
+  requested:              { label: "Solicitado",         bg: "#f5f5f4", color: "#746e69", border: "#e7e5e4" },
   awaiting_linking:       { label: "Ag. Vinculação",     bg: "#fef9c3", color: "#a16207", border: "#fde047" },
   awaiting_submission:    { label: "Ag. Envio",          bg: "#fef9c3", color: "#a16207", border: "#fde047" },
   awaiting_approval:      { label: "Ag. Aprovação",      bg: "#fef9c3", color: "#a16207", border: "#fde047" },
@@ -58,7 +58,7 @@ const statusConfig: Record<string, { label: string; bg: string; color: string; b
 };
 
 function StatusPill({ status }: { status: string }) {
-  const cfg = statusConfig[status] || { label: status, bg: "#f5f5f4", color: "#78716c", border: "#e7e5e4" };
+  const cfg = statusConfig[status] || { label: status, bg: "#f5f5f4", color: "#746e69", border: "#e7e5e4" };
   return (
     <span style={{
       display: "inline-flex", alignItems: "center",
@@ -447,8 +447,8 @@ export default function Grafica() {
 
   const renderNotesField = (placeholder: string) => (
     <div>
-      <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 8 }}>
-        Observação <span style={{ color: "#a8a29e", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>(opcional)</span>
+      <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
+        Observação <span style={{ color: "#746e69", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>(opcional)</span>
       </label>
       <textarea
         value={modalNotes}
@@ -463,8 +463,8 @@ export default function Grafica() {
 
   const renderPhotoPicker = (hint: string) => (
     <div>
-      <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 10 }}>
-        Fotos <span style={{ color: "#a8a29e", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>{hint}</span>
+      <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 10 }}>
+        Fotos <span style={{ color: "#746e69", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>{hint}</span>
       </label>
 
       <div style={{ display: "flex", gap: 10 }}>
@@ -479,8 +479,8 @@ export default function Grafica() {
             onError={onPhotoError}
           >
             <div style={{ width: "100%", padding: "14px 0", backgroundColor: "#f4f3f0", borderRadius: 8, border: "2px dashed #d6d3d1", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
-              <Camera style={{ width: 20, height: 20, color: "#78716c" }} />
-              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#78716c" }}>Tirar Foto</span>
+              <Camera style={{ width: 20, height: 20, color: "#746e69" }} />
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#746e69" }}>Tirar Foto</span>
             </div>
           </ObjectUploader>
         </div>
@@ -495,8 +495,8 @@ export default function Grafica() {
             onError={onPhotoError}
           >
             <div style={{ width: "100%", padding: "14px 0", backgroundColor: "#f4f3f0", borderRadius: 8, border: "2px dashed #d6d3d1", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
-              <ImagePlus style={{ width: 20, height: 20, color: "#78716c" }} />
-              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#78716c" }}>Anexar Fotos</span>
+              <ImagePlus style={{ width: 20, height: 20, color: "#746e69" }} />
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#746e69" }}>Anexar Fotos</span>
             </div>
           </ObjectUploader>
         </div>
@@ -1587,7 +1587,7 @@ export default function Grafica() {
           <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18, background: '#fafaf9' }}>
             {/* Responsável */}
             <div>
-              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#78716c', marginBottom: 10 }}>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#746e69', marginBottom: 10 }}>
                 Responsável pelo Recebimento *
               </label>
               <input
@@ -1605,8 +1605,8 @@ export default function Grafica() {
 
             {/* Comprovante fotográfico */}
             <div>
-              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#78716c', marginBottom: 10 }}>
-                Comprovante fotográfico <span style={{ textTransform: 'none', fontWeight: 400, color: '#a8a29e', letterSpacing: 0 }}>· opcional · mesmo para todas as peças</span>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#746e69', marginBottom: 10 }}>
+                Comprovante fotográfico <span style={{ textTransform: 'none', fontWeight: 400, color: '#746e69', letterSpacing: 0 }}>· opcional · mesmo para todas as peças</span>
               </label>
               <div style={{ display: 'flex', gap: 10 }}>
                 <div style={{ flex: 1 }}>
@@ -1620,8 +1620,8 @@ export default function Grafica() {
                     onError={onPhotoError}
                   >
                     <div style={{ width: '100%', padding: '12px 0', backgroundColor: '#f4f3f0', borderRadius: 8, border: '2px dashed #d6d3d1', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
-                      <Camera style={{ width: 18, height: 18, color: '#78716c' }} />
-                      <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#78716c' }}>Câmera</span>
+                      <Camera style={{ width: 18, height: 18, color: '#746e69' }} />
+                      <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Câmera</span>
                     </div>
                   </ObjectUploader>
                 </div>
@@ -1636,8 +1636,8 @@ export default function Grafica() {
                     onError={onPhotoError}
                   >
                     <div style={{ width: '100%', padding: '12px 0', backgroundColor: '#f4f3f0', borderRadius: 8, border: '2px dashed #d6d3d1', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
-                      <ImagePlus style={{ width: 18, height: 18, color: '#78716c' }} />
-                      <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#78716c' }}>Galeria</span>
+                      <ImagePlus style={{ width: 18, height: 18, color: '#746e69' }} />
+                      <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Galeria</span>
                     </div>
                   </ObjectUploader>
                 </div>
@@ -1662,8 +1662,8 @@ export default function Grafica() {
 
             {/* Observações */}
             <div>
-              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#78716c', marginBottom: 8 }}>
-                Observações <span style={{ textTransform: 'none', fontWeight: 400, color: '#a8a29e', letterSpacing: 0 }}>(opcional)</span>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#746e69', marginBottom: 8 }}>
+                Observações <span style={{ textTransform: 'none', fontWeight: 400, color: '#746e69', letterSpacing: 0 }}>(opcional)</span>
               </label>
               <textarea
                 value={bulkDeliveryNotes}
@@ -1694,7 +1694,7 @@ export default function Grafica() {
               <button
                 type="button"
                 onClick={() => setBulkDeliveryOpen(false)}
-                style={{ flex: 1, height: 48, borderRadius: 10, background: 'transparent', border: '1.5px solid #e7e5e4', color: '#78716c', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'background 0.12s' }}
+                style={{ flex: 1, height: 48, borderRadius: 10, background: 'transparent', border: '1.5px solid #e7e5e4', color: '#746e69', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'background 0.12s' }}
                 onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
               >
@@ -1814,7 +1814,7 @@ export default function Grafica() {
                       <div style={{ fontSize: 12, color: TI.secondary, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedItem.description}</div>
                     )}
                     {selectedItem.event?.name && (
-                      <div style={{ fontSize: 12, color: "#78716c", marginTop: 4, display: "flex", alignItems: "center", gap: 5 }}>
+                      <div style={{ fontSize: 12, color: "#746e69", marginTop: 4, display: "flex", alignItems: "center", gap: 5 }}>
                         <Calendar style={{ width: 11, height: 11, flexShrink: 0 }} />
                         {selectedItem.event.name}
                       </div>
@@ -1875,7 +1875,7 @@ export default function Grafica() {
             {selectedItem && modalType === "production" && (
               <form onSubmit={handleSubmitProduction} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                 <div>
-                  <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 10 }}>
+                  <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 10 }}>
                     Quantidade a Produzir
                   </label>
                   <div style={{ display: "flex", gap: 8 }}>
@@ -1893,7 +1893,7 @@ export default function Grafica() {
                       type="button"
                       onClick={() => setProductionData({ quantityProduced: selectedItem.quantity })}
                       data-testid="button-set-total"
-                      style={{ backgroundColor: "#e7e5e4", border: "none", borderRadius: 8, padding: "0 20px", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", color: "#78716c", cursor: "pointer", whiteSpace: "nowrap", transition: "background-color 0.15s" }}
+                      style={{ backgroundColor: "#e7e5e4", border: "none", borderRadius: 8, padding: "0 20px", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", color: "#746e69", cursor: "pointer", whiteSpace: "nowrap", transition: "background-color 0.15s" }}
                       onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#d6d3d1")}
                       onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#e7e5e4")}
                     >
@@ -1907,7 +1907,7 @@ export default function Grafica() {
                   <button
                     type="button"
                     onClick={() => { setSelectedItem(null); setModalType(null); }}
-                    style={{ flex: 1, padding: "12px 0", backgroundColor: "transparent", border: "none", color: "#78716c", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer", borderRadius: 8, transition: "background-color 0.15s" }}
+                    style={{ flex: 1, padding: "12px 0", backgroundColor: "transparent", border: "none", color: "#746e69", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer", borderRadius: 8, transition: "background-color 0.15s" }}
                     onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f4f3f0")}
                     onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent")}
                   >
@@ -1933,7 +1933,7 @@ export default function Grafica() {
 
                 {/* Responsável */}
                 <div>
-                  <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 10 }}>
+                  <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 10 }}>
                     Responsável pelo Recebimento *
                   </label>
                   {/* Campo livre: quem recebe muda a cada entrega, e a lista de
@@ -1952,8 +1952,8 @@ export default function Grafica() {
                 {/* Quantidade a entregar (entrega parcial) — só exibe se restar mais de 1 */}
                 {remainingDeliver(selectedItem) > 1 && (
                   <div>
-                    <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 8 }}>
-                      Quantidade a entregar agora <span style={{ color: "#a8a29e", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· já entregue {deliveredOf(selectedItem)}/{qtyOf(selectedItem)}, disponível {remainingDeliver(selectedItem)}</span>
+                    <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
+                      Quantidade a entregar agora <span style={{ color: "#746e69", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· já entregue {deliveredOf(selectedItem)}/{qtyOf(selectedItem)}, disponível {remainingDeliver(selectedItem)}</span>
                     </label>
                     <input type="number" min={1} max={remainingDeliver(selectedItem)} value={deliverQty}
                       onChange={e => setDeliverQty(Math.max(1, Math.min(remainingDeliver(selectedItem), parseInt(e.target.value) || 1)))}
@@ -1971,7 +1971,7 @@ export default function Grafica() {
                   <button
                     type="button"
                     onClick={() => { setSelectedItem(null); setModalType(null); }}
-                    style={{ flex: 1, padding: "12px 0", backgroundColor: "transparent", border: "none", color: "#78716c", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer", borderRadius: 8, transition: "background-color 0.15s" }}
+                    style={{ flex: 1, padding: "12px 0", backgroundColor: "transparent", border: "none", color: "#746e69", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer", borderRadius: 8, transition: "background-color 0.15s" }}
                     onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f4f3f0")}
                     onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent")}
                   >
@@ -1998,8 +1998,8 @@ export default function Grafica() {
                 </p>
                 {remainingConfer(selectedItem) > 1 && (
                   <div>
-                    <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", marginBottom: 8 }}>
-                      Quantidade a conferir agora <span style={{ color: "#a8a29e", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· já conferido {conferredOf(selectedItem)}/{qtyOf(selectedItem)}, faltam {remainingConfer(selectedItem)}</span>
+                    <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
+                      Quantidade a conferir agora <span style={{ color: "#746e69", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>· já conferido {conferredOf(selectedItem)}/{qtyOf(selectedItem)}, faltam {remainingConfer(selectedItem)}</span>
                     </label>
                     <input type="number" min={1} max={remainingConfer(selectedItem)} value={conferQty}
                       onChange={e => setConferQty(Math.max(1, Math.min(remainingConfer(selectedItem), parseInt(e.target.value) || 1)))}
@@ -2011,7 +2011,7 @@ export default function Grafica() {
                 {renderNotesField("Ex.: cor puxando para o escuro, ilhós faltando…")}
                 <div style={modalActionsStyle}>
                   <button type="button" onClick={() => { setSelectedItem(null); setModalType(null); }}
-                    style={{ flex: 1, padding: "12px 0", backgroundColor: "transparent", border: "none", color: "#78716c", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer", borderRadius: 8 }}>
+                    style={{ flex: 1, padding: "12px 0", backgroundColor: "transparent", border: "none", color: "#746e69", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer", borderRadius: 8 }}>
                     Cancelar
                   </button>
                   <button type="submit" disabled={conferMutation.isPending || !photos.length}

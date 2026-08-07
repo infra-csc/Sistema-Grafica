@@ -25,7 +25,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 const TI = {
   bg: "#fafaf9", surface: "#ffffff", border: "#e7e5e4",
-  text: "#1c1917", secondary: "#78716c", muted: "#a8a29e",
+  text: "#1c1917", secondary: "#746e69", muted: "#a8a29e",
   accent: "#f97316", dark: "#0c0a09",
 };
 
@@ -366,7 +366,7 @@ export default function Solicitacao() {
             <span style={{
               display: "inline-block", padding: "4px 12px",
               backgroundColor: "#1c1917", fontSize: 10, fontWeight: 700,
-              letterSpacing: "0.18em", textTransform: "uppercase", color: "#a8a29e",
+              letterSpacing: "0.18em", textTransform: "uppercase", color: "#746e69",
               borderLeft: "2px solid #f97316",
             }}>
               REVISÃO FINAL
@@ -385,7 +385,7 @@ export default function Solicitacao() {
                 border: "1px solid #292524",
               }}>
                 <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#f97316", flexShrink: 0 }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#78716c" }}>Aguardando:</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#746e69" }}>Aguardando:</span>
                 <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#fff" }}>{pendingItems.length}</span>
               </div>
               <div style={{
@@ -394,7 +394,7 @@ export default function Solicitacao() {
                 border: "1px solid #292524",
               }}>
                 <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#10b981", flexShrink: 0 }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#78716c" }}>Selecionadas:</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#746e69" }}>Selecionadas:</span>
                 <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#f97316" }}>{selectedItemIds.size}</span>
               </div>
             </div>
@@ -529,7 +529,7 @@ export default function Solicitacao() {
                 <div key={eventKey} style={{marginBottom:16}}>
                   {/* Event header */}
                   <div style={{padding:"8px 0 6px", borderBottom:"2px solid #f97316", marginBottom:8}}>
-                    <span style={{fontSize:11,fontWeight:900,textTransform:"uppercase",letterSpacing:"0.08em",color:"#78716c"}}>{evInfo?.name || "Sem Evento"}</span>
+                    <span style={{fontSize:11,fontWeight:900,textTransform:"uppercase",letterSpacing:"0.08em",color:"#746e69"}}>{evInfo?.name || "Sem Evento"}</span>
                   </div>
                   {eventItems.map((item:any) => (
                     <div key={item.id} onClick={() => openModal(item)}
@@ -541,12 +541,12 @@ export default function Solicitacao() {
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
                         <div style={{flex:1}}>
                           <span style={{fontSize:13,fontWeight:700,color:"#1c1917"}}>{item.type}</span>
-                          {item.description && <p style={{fontSize:12,color:"#78716c",margin:"2px 0 0"}}>{item.description}</p>}
+                          {item.description && <p style={{fontSize:12,color:"#746e69",margin:"2px 0 0"}}>{item.description}</p>}
                         </div>
-                        <span style={{fontSize:10,fontWeight:700,color:"#78716c",whiteSpace:"nowrap"}}>{item.quantity}×</span>
+                        <span style={{fontSize:10,fontWeight:700,color:"#746e69",whiteSpace:"nowrap"}}>{item.quantity}×</span>
                       </div>
                       <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-                        {item.sponsors?.map((s:any)=><span key={s.id} style={{fontSize:10,padding:"2px 6px",borderRadius:4,backgroundColor:"#f5f5f4",color:"#78716c",fontWeight:600}}>{s.name}</span>)}
+                        {item.sponsors?.map((s:any)=><span key={s.id} style={{fontSize:10,padding:"2px 6px",borderRadius:4,backgroundColor:"#f5f5f4",color:"#746e69",fontWeight:600}}>{s.name}</span>)}
                       </div>
                     </div>
                   ))}
@@ -586,7 +586,7 @@ export default function Solicitacao() {
                         textAlign: col.right ? "right" : col.center ? "center" : "left",
                         fontSize: 10, fontWeight: 900,
                         textTransform: "uppercase", letterSpacing: "0.1em",
-                        color: "#78716c",
+                        color: "#746e69",
                       }}
                     >
                       {col.label}
@@ -846,7 +846,7 @@ export default function Solicitacao() {
                                   title="Excluir peça"
                                   style={{
                                     background: "none", border: "none", cursor: "pointer",
-                                    color: "#a8a29e", padding: "4px",
+                                    color: "#746e69", padding: "4px",
                                     display: "flex", alignItems: "center",
                                     borderRadius: 4, transition: "color 0.15s",
                                   }}
@@ -919,7 +919,7 @@ export default function Solicitacao() {
                   {selectedItem?.approvalThumbUrl ? (
                     <FilePreview url={selectedItem.approvalThumbUrl} linkUrl={selectedItem.finalFileUrl || selectedItem.approvalThumbUrl} objectFit="contain" />
                   ) : (
-                    <div style={{ textAlign: "center", color: "#a8a29e" }}>
+                    <div style={{ textAlign: "center", color: "#746e69" }}>
                       <FileImage style={{ width: 40, height: 40, margin: "0 auto 8px" }} />
                       <p style={{ fontSize: 12 }}>Sem thumb disponível</p>
                     </div>
@@ -950,7 +950,7 @@ export default function Solicitacao() {
                     { label: "M²", value: selectedItem?.calculatedM2 || "—" },
                   ].map(({ label, value }) => (
                     <div key={label} style={{ backgroundColor: "#fff", padding: "10px 12px", borderRadius: 8, border: "1px solid #e7e5e4" }}>
-                      <p style={{ fontSize: 9, color: "#a8a29e", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0 }}>{label}</p>
+                      <p style={{ fontSize: 9, color: "#746e69", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0 }}>{label}</p>
                       <p style={{ fontSize: 11, fontWeight: 700, color: TI.text, margin: "3px 0 0" }}>{value}</p>
                     </div>
                   ))}
@@ -966,7 +966,7 @@ export default function Solicitacao() {
                     }}
                     title="Clique para editar a quantidade"
                   >
-                    <p style={{ fontSize: 9, color: "#a8a29e", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
+                    <p style={{ fontSize: 9, color: "#746e69", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
                       Quantidade
                       <span style={{ fontSize: 8, color: "#f97316", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em" }}>· editar</span>
                     </p>
@@ -1005,7 +1005,7 @@ export default function Solicitacao() {
                         </button>
                         <button
                           onClick={() => { setQuantityValue(selectedItem.quantity ?? 1); setEditingQuantity(false); }}
-                          style={{ padding: "2px 6px", fontSize: 9, fontWeight: 800, backgroundColor: "#f3f4f3", color: "#78716c", border: "none", borderRadius: 4, cursor: "pointer" }}
+                          style={{ padding: "2px 6px", fontSize: 9, fontWeight: 800, backgroundColor: "#f3f4f3", color: "#746e69", border: "none", borderRadius: 4, cursor: "pointer" }}
                           data-testid="button-cancel-quantity"
                         >
                           ✕
@@ -1125,7 +1125,7 @@ export default function Solicitacao() {
                         </button>
                         <button
                           onClick={() => { setShowReturnForm(false); setReturnObservations(""); }}
-                          style={{ padding: "10px 16px", borderRadius: 6, border: "1px solid #44403c", backgroundColor: "transparent", color: "#78716c", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                          style={{ padding: "10px 16px", borderRadius: 6, border: "1px solid #44403c", backgroundColor: "transparent", color: "#746e69", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
                         >
                           Cancelar
                         </button>
@@ -1386,7 +1386,7 @@ export default function Solicitacao() {
                   Reaproveitamento
                 </h3>
               </div>
-              <p style={{ margin: "0 0 20px", fontSize: 12, color: "#78716c" }}>
+              <p style={{ margin: "0 0 20px", fontSize: 12, color: "#746e69" }}>
                 {dialogItem.displayId} · {dialogItem.type} · <strong>{qty} un.</strong>
               </p>
 
@@ -1412,7 +1412,7 @@ export default function Solicitacao() {
               {/* Opção: reaproveitar parcialmente (só aparece se qty > 1) */}
               {qty > 1 && (
                 <div style={{ border: "1px solid #e7e5e4", borderRadius: 8, padding: "14px 16px" }}>
-                  <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 700, color: "#78716c", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                  <p style={{ margin: "0 0 10px", fontSize: 11, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.06em" }}>
                     Reaproveitar parcialmente
                   </p>
                   <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
@@ -1424,9 +1424,9 @@ export default function Solicitacao() {
                       onChange={e => setPartialReuseQty(Math.max(1, Math.min(qty - 1, parseInt(e.target.value) || 1)))}
                       style={{ width: 64, height: 34, padding: "0 8px", borderRadius: 6, border: "1px solid #d4d4d0", fontSize: 14, fontWeight: 700, textAlign: "center", outline: "none" }}
                     />
-                    <span style={{ fontSize: 12, color: "#78716c" }}>de {qty} un. reaproveitadas</span>
+                    <span style={{ fontSize: 12, color: "#746e69" }}>de {qty} un. reaproveitadas</span>
                   </div>
-                  <p style={{ margin: "0 0 10px", fontSize: 11, color: "#78716c" }}>
+                  <p style={{ margin: "0 0 10px", fontSize: 11, color: "#746e69" }}>
                     As outras <strong>{qty - partialReuseQty}</strong> un. seguirão para produção normal.
                   </p>
                   <button
@@ -1446,7 +1446,7 @@ export default function Solicitacao() {
 
               <button
                 onClick={() => setReuseDialogItemId(null)}
-                style={{ width: "100%", marginTop: 12, padding: "8px 0", background: "none", border: "none", fontSize: 12, color: "#a8a29e", cursor: "pointer" }}
+                style={{ width: "100%", marginTop: 12, padding: "8px 0", background: "none", border: "none", fontSize: 12, color: "#746e69", cursor: "pointer" }}
               >
                 Cancelar
               </button>

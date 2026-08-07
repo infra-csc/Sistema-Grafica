@@ -84,7 +84,7 @@ function EdBadge({ rate }: { rate: number }) {
   const cfg = rate >= 80
     ? { bg: T.dark,   color: "#fff",    label: "Ótimo"    }
     : rate >= 60
-    ? { bg: "#f5f5f4", color: "#78716c", label: "Regular"  }
+    ? { bg: "#f5f5f4", color: "#746e69", label: "Regular"  }
     : { bg: T.accent, color: "#fff",    label: "Crítico"  };
   return (
     <span style={{
@@ -472,7 +472,7 @@ export default function DashboardAnalises() {  const isMobile = useIsMobile();
                 <span style={{ fontSize: 28, fontWeight: 700, color: "#fff", fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>
                   {totalQty.toLocaleString("pt-BR")}
                 </span>
-                <span style={{ fontSize: 8, fontWeight: 900, color: "#78716c", textTransform: "uppercase", letterSpacing: "0.18em", marginTop: 5 }}>
+                <span style={{ fontSize: 8, fontWeight: 900, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.18em", marginTop: 5 }}>
                   Total Peças
                 </span>
               </div>
@@ -484,7 +484,7 @@ export default function DashboardAnalises() {  const isMobile = useIsMobile();
                 <div key={d.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #292524", paddingBottom: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: d.color, flexShrink: 0 }} />
-                    <span style={{ fontSize: 9, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em" }}>{d.label}</span>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.1em" }}>{d.label}</span>
                   </div>
                   <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: "#fff" }}>{d.pct}%</span>
                 </div>

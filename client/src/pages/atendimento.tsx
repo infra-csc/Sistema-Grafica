@@ -1054,7 +1054,7 @@ export default function Atendimento() {
               Fluxo de Verificação
             </span>
             <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#9d4300', display: 'inline-block' }} />
-            <span style={{ color: '#78716c', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <span style={{ color: '#746e69', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Aprovação do Patrocinador
             </span>
           </div>
@@ -1066,7 +1066,7 @@ export default function Atendimento() {
           }}>
             Aprovação do Patrocinador
           </h1>
-          <p style={{ color: '#78716c', fontSize: 14, fontWeight: 500, lineHeight: 1.5 }}>
+          <p style={{ color: '#746e69', fontSize: 14, fontWeight: 500, lineHeight: 1.5 }}>
             Valide e aprove ativos de marca com cada patrocinador.
           </p>
         </div>
@@ -1091,7 +1091,7 @@ export default function Atendimento() {
             <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: actionableCount ? '#c2410c' : '#78716c' }}>
               Aguardam
             </span>
-            <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#a8a29e' }}>
+            <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#746e69' }}>
               Aprovação
             </span>
           </div>
@@ -1121,7 +1121,7 @@ export default function Atendimento() {
             {tab.count != null && (
               <span style={{
                 backgroundColor: '#f5f5f4',
-                color: '#78716c',
+                color: '#746e69',
                 border: '1px solid #e7e5e4',
                 fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 10,
                 minWidth: 20, textAlign: 'center',
@@ -1158,7 +1158,7 @@ export default function Atendimento() {
           {searchTerm && (
             <button
               onClick={() => setSearchTerm("")}
-              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e' }}
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#746e69' }}
             >
               <X style={{ width: 14, height: 14 }} />
             </button>
@@ -1212,7 +1212,7 @@ export default function Atendimento() {
             style={{
               height: 46, padding: '0 16px', borderRadius: 8,
               backgroundColor: 'transparent', border: '1.5px solid #d4d0ca',
-              color: '#78716c', cursor: 'pointer',
+              color: '#746e69', cursor: 'pointer',
               display: 'flex', alignItems: 'center', gap: 6,
               fontSize: 13, fontWeight: 600, transition: 'all 0.15s',
               whiteSpace: 'nowrap', marginLeft: 'auto',
@@ -1336,7 +1336,7 @@ export default function Atendimento() {
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     <p style={{ fontSize: 14, fontWeight: 700, color: '#1c1917', margin: '0 0 4px' }}>Tudo aprovado</p>
-                    <p style={{ fontSize: 12, color: '#a8a29e', margin: 0 }}>Nenhuma peça pendente para esta combinação</p>
+                    <p style={{ fontSize: 12, color: '#746e69', margin: 0 }}>Nenhuma peça pendente para esta combinação</p>
                   </div>
                 </div>
               ) : (
@@ -1458,7 +1458,7 @@ export default function Atendimento() {
                               </span>
                             </div>
                             {item.description && (
-                              <p style={{ fontSize: 11, color: '#78716c', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <p style={{ fontSize: 11, color: '#746e69', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {item.description}
                               </p>
                             )}
@@ -1482,7 +1482,7 @@ export default function Atendimento() {
                   {/* ── Ações ── */}
                   {!batchShowRejectForm ? (
                     <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', padding: '14px 16px', background: '#fafaf9', borderRadius: 10, border: '1px solid #f0ede8', gap: isMobile ? 10 : 0 }}>
-                      <p style={{ fontSize: 12, color: '#78716c', margin: 0 }}>
+                      <p style={{ fontSize: 12, color: '#746e69', margin: 0 }}>
                         {batchSelectedItemIds.size > 0
                           ? <><strong style={{ color: '#1c1917' }}>{batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'peça' : 'peças'}</strong> prontas para decisão</>
                           : 'Selecione peças para aprovar ou recusar'}
@@ -1561,7 +1561,7 @@ export default function Atendimento() {
                       <div style={{ display: 'flex', gap: 8, marginTop: 12, justifyContent: 'flex-end' }}>
                         <button
                           onClick={() => { setBatchShowRejectForm(false); setBatchRejectReason(""); }}
-                          style={{ backgroundColor: '#ffffff', color: '#78716c', border: '1px solid #e7e5e4', borderRadius: 8, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                          style={{ backgroundColor: '#ffffff', color: '#746e69', border: '1px solid #e7e5e4', borderRadius: 8, padding: '10px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
                         >
                           Cancelar
                         </button>
@@ -1617,7 +1617,7 @@ export default function Atendimento() {
           <h3 style={{ fontSize: 18, fontWeight: 700, color: '#1c1917', margin: '0 0 8px' }}>
             {pendingItems.length === 0 ? "Nenhum item pendente" : "Nenhum resultado encontrado"}
           </h3>
-          <p style={{ color: '#78716c', fontSize: 14 }}>
+          <p style={{ color: '#746e69', fontSize: 14 }}>
             {pendingItems.length === 0
               ? "Não há itens aguardando aprovação do patrocinador no momento."
               : "Tente ajustar os filtros para ver mais resultados."}
@@ -1663,7 +1663,7 @@ export default function Atendimento() {
                   }}>
                     {ev?.name || 'Sem Evento'}
                     {ev?.startDate && (
-                      <span style={{ color: '#a8a29e', fontWeight: 500, marginLeft: 12, fontSize: 15 }}>
+                      <span style={{ color: '#746e69', fontWeight: 500, marginLeft: 12, fontSize: 15 }}>
                         {format(parseDateLocal(ev.startDate), "MMMM yyyy", { locale: ptBR })}
                       </span>
                     )}
@@ -1691,7 +1691,7 @@ export default function Atendimento() {
                   <span style={{
                     marginLeft: 'auto',
                     backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4',
-                    color: '#78716c', borderRadius: 100,
+                    color: '#746e69', borderRadius: 100,
                     fontSize: 11, fontWeight: 600, padding: '3px 10px',
                   }}>
                     {eventItems.length} {eventItems.length === 1 ? 'peça' : 'peças'}
@@ -1724,7 +1724,7 @@ export default function Atendimento() {
                         {showTypeHeader && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0 2px' }}>
                             <span style={{ fontSize: 11, fontWeight: 600, color: '#c4bfb8', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>Tipo:</span>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{item.type}</span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{item.type}</span>
                             <div style={{ flex: 1, height: 1, background: '#f0ede8' }} />
                           </div>
                         )}
@@ -1804,7 +1804,7 @@ export default function Atendimento() {
                                   </span>
                                 )}
                               </div>
-                              <p style={{ fontSize: 11, fontWeight: 600, color: '#a8a29e', textTransform: 'uppercase', margin: '3px 0 0', letterSpacing: '0.04em' }}>
+                              <p style={{ fontSize: 11, fontWeight: 600, color: '#746e69', textTransform: 'uppercase', margin: '3px 0 0', letterSpacing: '0.04em' }}>
                                 {item.displayId}{item.description ? ` • ${item.description}` : ''}
                               </p>
                               {item.referenceUrl && (
@@ -1818,7 +1818,7 @@ export default function Atendimento() {
                             {/* Col 2: Patrocinadores */}
                             <div style={{ minWidth: 0, overflow: 'hidden' }}>
                               {loadingSponsors ? (
-                                <span style={{ fontSize: 12, color: '#a8a29e' }}>...</span>
+                                <span style={{ fontSize: 12, color: '#746e69' }}>...</span>
                               ) : (
                                 <SponsorChips sponsors={sponsorsWithStatus(item)} variant="colored" size="sm" max={2} />
                               )}
@@ -1983,8 +1983,8 @@ export default function Atendimento() {
                           </div>
                           <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 12, alignItems: 'center', minWidth: 0 }}>
                             <div>
-                              <h5 style={{ fontSize: 13, fontWeight: 600, color: '#78716c', margin: 0 }}>{item.type}</h5>
-                              <p style={{ fontSize: 11, color: '#a8a29e', margin: '2px 0 0' }}>{item.displayId}</p>
+                              <h5 style={{ fontSize: 13, fontWeight: 600, color: '#746e69', margin: 0 }}>{item.type}</h5>
+                              <p style={{ fontSize: 11, color: '#746e69', margin: '2px 0 0' }}>{item.displayId}</p>
                             </div>
                             <SponsorChips sponsors={itemSps} variant="colored" size="sm" />
                             <span data-testid={`badge-aprovado-${item.id}`} style={{
@@ -2011,7 +2011,7 @@ export default function Atendimento() {
       {/* ─── ABA HISTÓRICO ──────────────────────────────────────── */}
       {activeTab === "history" && (() => {
         const evById = new Map((events as any[]).map((e: any) => [e.id, e]));
-        const FL: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 };
+        const FL: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 };
         const SEL = (active: boolean): React.CSSProperties => ({
           height: 38, border: `1.5px solid ${active ? '#c2610c' : '#e2e8f0'}`,
           borderRadius: 8, fontSize: 13, fontWeight: 500, background: '#fff',
@@ -2054,7 +2054,7 @@ export default function Atendimento() {
                   }}
                 />
                 {histSearchTerm && (
-                  <button onClick={() => setHistSearchTerm("")} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#a8a29e' }}>
+                  <button onClick={() => setHistSearchTerm("")} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#746e69' }}>
                     <X style={{ width: 13, height: 13 }} />
                   </button>
                 )}
@@ -2083,7 +2083,7 @@ export default function Atendimento() {
               <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6 }}>
                 {loadingSponsors
                   ? <Loader2 style={{ width: 14, height: 14, color: '#a8a29e' }} className="animate-spin" />
-                  : <span style={{ fontSize: 13, color: '#a8a29e', fontWeight: 600 }}>
+                  : <span style={{ fontSize: 13, color: '#746e69', fontWeight: 600 }}>
                       {historyItems.length} {historyItems.length === 1 ? 'resultado' : 'resultados'}
                     </span>}
               </div>
@@ -2098,7 +2098,7 @@ export default function Atendimento() {
               <div style={{ textAlign: 'center', padding: '64px 0' }}>
                 <CheckCircle style={{ width: 48, height: 48, color: '#86efac', margin: '0 auto 16px' }} />
                 <h3 style={{ fontSize: 18, fontWeight: 700, color: '#1c1917', margin: '0 0 8px' }}>Nenhuma peça encontrada</h3>
-                <p style={{ color: '#78716c', fontSize: 14 }}>
+                <p style={{ color: '#746e69', fontSize: 14 }}>
                   {hasHistFilters ? 'Tente ajustar os filtros.' : 'Ainda não há peças aprovadas pelo patrocinador.'}
                 </p>
               </div>
@@ -2108,7 +2108,7 @@ export default function Atendimento() {
                   const ev = evById.get(item.eventId);
                   const itemSps: any[] = itemSponsorsMap[item.id] || [];
                   const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
-                  const statusCfg = HIST_STATUS[item.status] || { label: item.status, bg: '#f3f4f3', color: '#78716c' };
+                  const statusCfg = HIST_STATUS[item.status] || { label: item.status, bg: '#f3f4f3', color: '#746e69' };
 
                   const sponsorApprovals = itemSps.map(sp => {
                     const appr = approvals.find(a => a.sponsorId === sp.id);
@@ -2140,7 +2140,7 @@ export default function Atendimento() {
                   // Pipeline de fluxo (10 etapas)
                   const PIPELINE_STAGES = [
                     { key: 'solicitado',   label: 'Solicitado',      color: '#f97316', statuses: ['draft','requested','solicitado'] },
-                    { key: 'vinculacao',   label: 'Vinculação',      color: '#78716c', statuses: ['awaiting_linking'] },
+                    { key: 'vinculacao',   label: 'Vinculação',      color: '#746e69', statuses: ['awaiting_linking'] },
                     { key: 'ag_aprovacao', label: 'Ag. Aprovação',   color: '#f97316', statuses: ['awaiting_submission','awaiting_approval','awaiting_sponsor_approval'] },
                     { key: 'aprovado',     label: 'Aprovado',        color: '#22c55e', statuses: ['sponsor_approved'] },
                     { key: 'finalizacao',  label: 'Finalização',     color: '#a855f7', statuses: ['awaiting_finalization','awaiting_creator_review'] },
@@ -2211,10 +2211,10 @@ export default function Atendimento() {
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
                               <span style={{ fontSize: 14, fontWeight: 700, color: '#1c1917', lineHeight: 1.2 }}>{item.type}</span>
-                              <span style={{ fontSize: 11, color: '#a8a29e', fontWeight: 500 }}>{item.displayId}</span>
+                              <span style={{ fontSize: 11, color: '#746e69', fontWeight: 500 }}>{item.displayId}</span>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: 11, color: '#78716c', fontWeight: 500 }}>{ev?.name || '—'}</span>
+                              <span style={{ fontSize: 11, color: '#746e69', fontWeight: 500 }}>{ev?.name || '—'}</span>
                               <span style={{
                                 fontSize: 11, fontWeight: 700,
                                 backgroundColor: statusCfg.bg, color: statusCfg.color, border: `1px solid ${statusCfg.border || statusCfg.bg}`,
@@ -2227,7 +2227,7 @@ export default function Atendimento() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6, background: '#f5f5f4', border: '1px solid #ebe8e4', cursor: 'pointer' }}>
                               <Eye style={{ width: 11, height: 11, color: '#a8a29e' }} />
-                              <span style={{ fontSize: 11, fontWeight: 600, color: '#78716c', whiteSpace: 'nowrap' }}>Ver detalhes</span>
+                              <span style={{ fontSize: 11, fontWeight: 600, color: '#746e69', whiteSpace: 'nowrap' }}>Ver detalhes</span>
                             </div>
                             {sponsorApprovals.length > 0 && (
                               <div style={{
@@ -2258,8 +2258,8 @@ export default function Atendimento() {
                               <Fragment key={i}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
                                   <span style={{ width: 7, height: 7, borderRadius: '50%', background: m.dot, flexShrink: 0, boxShadow: `0 0 0 2px ${m.dot}33` }} />
-                                  <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', whiteSpace: 'nowrap' }}>{m.label}{(m as any).sublabel && <span style={{ fontWeight: 500, color: '#a8a29e', marginLeft: 3 }}>({(m as any).sublabel})</span>}</span>
-                                  {m.date && <span style={{ fontSize: 11, color: '#a8a29e', whiteSpace: 'nowrap' }}>{m.date}{m.by ? ` · ${m.by}` : ''}</span>}
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', whiteSpace: 'nowrap' }}>{m.label}{(m as any).sublabel && <span style={{ fontWeight: 500, color: '#746e69', marginLeft: 3 }}>({(m as any).sublabel})</span>}</span>
+                                  {m.date && <span style={{ fontSize: 11, color: '#746e69', whiteSpace: 'nowrap' }}>{m.date}{m.by ? ` · ${m.by}` : ''}</span>}
                                 </div>
                                 {i < timelineMilestones.length - 1 && (
                                   <span style={{ display: 'flex', alignItems: 'center', margin: '0 8px', flexShrink: 0 }}>
@@ -2450,11 +2450,11 @@ export default function Atendimento() {
                             : `${approvedCount} de ${diSps.length} aprovaram`}
                         </span>
                       </div>
-                      {di.createdAt && <div style={{ fontSize: 11, color: '#a8a29e' }}>Criado em {fmtFull(di.createdAt)}</div>}
+                      {di.createdAt && <div style={{ fontSize: 11, color: '#746e69' }}>Criado em {fmtFull(di.createdAt)}</div>}
                     </div>
                   </div>
                   {diSps.length === 0
-                    ? <div style={{ padding: '32px 24px', textAlign: 'center', color: '#a8a29e', fontSize: 13 }}>Nenhum patrocinador vinculado</div>
+                    ? <div style={{ padding: '32px 24px', textAlign: 'center', color: '#746e69', fontSize: 13 }}>Nenhum patrocinador vinculado</div>
                     : diSps.map((sp: any, si: number) => {
                         const appr = diApprovals.find(a => a.sponsorId === sp.id);
                         const isApproved   = appr?.status === 'approved';
@@ -2483,7 +2483,7 @@ export default function Atendimento() {
                                   </span>
                                 </div>
                               )}
-                              {isApproved && !appr?.approvedAt && <span style={{ fontSize: 11, color: '#a8a29e' }}>Data não registrada</span>}
+                              {isApproved && !appr?.approvedAt && <span style={{ fontSize: 11, color: '#746e69' }}>Data não registrada</span>}
                               {isRejected && (
                                 <>
                                   {appr?.rejectedAt && (
@@ -2503,7 +2503,7 @@ export default function Atendimento() {
                                 </>
                               )}
                               {isNewVersion && <span style={{ fontSize: 11, color: '#92400e' }}>Nova versão de arte solicitada</span>}
-                              {!appr && <span style={{ fontSize: 11, color: '#a8a29e' }}>Aguardando resposta do patrocinador</span>}
+                              {!appr && <span style={{ fontSize: 11, color: '#746e69' }}>Aguardando resposta do patrocinador</span>}
                             </div>
                           </div>
                         );
@@ -2570,13 +2570,13 @@ export default function Atendimento() {
                         REVISÃO DE ATIVO {selectedItem.displayId}
                       </h2>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                           {ev?.name || 'Sem Evento'}
                         </span>
                         {ev?.truckDepartureDate && (
                           <>
                             <span style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: '#d6d3d1' }} />
-                            <span style={{ fontSize: 11, fontWeight: 700, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
                               Prazo · {format(toUTCDisplayDate(ev.truckDepartureDate), "dd/MM HH:mm")}
                             </span>
                           </>
@@ -2602,7 +2602,7 @@ export default function Atendimento() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                         {qIdx >= 0 && reviewQueue.length > 1 && (
                           <>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: '#a8a29e', whiteSpace: 'nowrap' }}>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: '#746e69', whiteSpace: 'nowrap' }}>
                               Peça {qIdx + 1} <span style={{ opacity: 0.5 }}>de</span> {reviewQueue.length}
                             </span>
                             <button
@@ -2632,7 +2632,7 @@ export default function Atendimento() {
                             width: 40, height: 40, borderRadius: '50%',
                             border: 'none', backgroundColor: 'transparent', cursor: 'pointer',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            color: '#78716c', transition: 'background-color 0.15s',
+                            color: '#746e69', transition: 'background-color 0.15s',
                           }}
                           onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f1f0ef'}
                           onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}
@@ -2655,7 +2655,7 @@ export default function Atendimento() {
                     overflowY: 'auto',
                   }}>
                     <div>
-                      <h4 style={{ fontSize: 11, fontWeight: 800, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
+                      <h4 style={{ fontSize: 11, fontWeight: 800, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
                         Especificações
                       </h4>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -2672,7 +2672,7 @@ export default function Atendimento() {
                           })() },
                         ].map(({ label, value }) => (
                           <div key={label} style={{ backgroundColor: '#ffffff', padding: '10px 12px', borderRadius: 8, border: '1px solid #f1f0ef' }}>
-                            <p style={{ fontSize: 11, color: '#a8a29e', fontWeight: 700, textTransform: 'uppercase', margin: '0 0 4px' }}>{label}</p>
+                            <p style={{ fontSize: 11, color: '#746e69', fontWeight: 700, textTransform: 'uppercase', margin: '0 0 4px' }}>{label}</p>
                             <p style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', margin: 0 }}>{value}</p>
                           </div>
                         ))}
@@ -2681,7 +2681,7 @@ export default function Atendimento() {
 
                     {/* Links para arquivos */}
                     <div>
-                      <h4 style={{ fontSize: 11, fontWeight: 800, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 12px' }}>
+                      <h4 style={{ fontSize: 11, fontWeight: 800, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 12px' }}>
                         Arquivos
                       </h4>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -2722,7 +2722,7 @@ export default function Atendimento() {
                           </a>
                         )}
                         {!thumbUrl && !finalUrl && (
-                          <p style={{ fontSize: 12, color: '#a8a29e' }}>Nenhum arquivo disponível</p>
+                          <p style={{ fontSize: 12, color: '#746e69' }}>Nenhum arquivo disponível</p>
                         )}
                       </div>
                     </div>
@@ -2741,14 +2741,14 @@ export default function Atendimento() {
                       ) : (
                         <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                           <Package style={{ width: 40, height: 40, color: '#a8a29e' }} />
-                          <p style={{ fontSize: 13, color: '#a8a29e', margin: 0 }}>Sem thumb de aprovação</p>
+                          <p style={{ fontSize: 13, color: '#746e69', margin: 0 }}>Sem thumb de aprovação</p>
                         </div>
                       )}
                     </div>
 
                     {/* Aprovações por Patrocinador */}
                     <div>
-                      <h4 style={{ fontSize: 11, fontWeight: 800, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
+                      <h4 style={{ fontSize: 11, fontWeight: 800, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
                         Decisão
                       </h4>
 
@@ -2782,7 +2782,7 @@ export default function Atendimento() {
                           <Loader2 style={{ width: 20, height: 20, color: '#a8a29e' }} className="animate-spin" />
                         </div>
                       ) : dialogSponsors.length === 0 ? (
-                        <p style={{ fontSize: 13, color: '#a8a29e' }}>Nenhum patrocinador vinculado</p>
+                        <p style={{ fontSize: 13, color: '#746e69' }}>Nenhum patrocinador vinculado</p>
                       ) : (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                           {dialogSponsors.map((sponsor: any) => {
@@ -2879,7 +2879,7 @@ export default function Atendimento() {
                                         display: 'flex', alignItems: 'center', gap: 6,
                                         padding: '8px 14px', borderRadius: 7,
                                         backgroundColor: '#fff', border: '1px solid #e7e5e4',
-                                        color: '#78716c', fontSize: 12, fontWeight: 700,
+                                        color: '#746e69', fontSize: 12, fontWeight: 700,
                                         cursor: revertApprovalMutation.isPending ? 'default' : 'pointer',
                                         opacity: revertApprovalMutation.isPending ? 0.5 : 1,
                                         minHeight: 36, transition: 'all 0.15s',
@@ -2940,7 +2940,7 @@ export default function Atendimento() {
                                         style={{
                                           flex: 1, height: 36, borderRadius: 8,
                                           background: '#fff', border: '1px solid #e7e5e4',
-                                          color: '#78716c', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                                          color: '#746e69', fontSize: 12, fontWeight: 700, cursor: 'pointer',
                                           transition: 'background 0.12s',
                                         }}
                                         onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
@@ -2987,12 +2987,12 @@ export default function Atendimento() {
                     backgroundColor: 'rgba(250,250,249,0.3)',
                     overflowY: 'auto',
                   }}>
-                    <h4 style={{ fontSize: 11, fontWeight: 800, color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 24px' }}>
+                    <h4 style={{ fontSize: 11, fontWeight: 800, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 24px' }}>
                       Histórico de Alterações
                     </h4>
 
                     {itemLogs.length === 0 ? (
-                      <p style={{ fontSize: 12, color: '#a8a29e' }}>Sem registros de histórico</p>
+                      <p style={{ fontSize: 12, color: '#746e69' }}>Sem registros de histórico</p>
                     ) : (
                       <div style={{ position: 'relative' }}>
                         {/* Linha vertical */}
@@ -3036,8 +3036,8 @@ export default function Atendimento() {
                                 <p style={{ fontSize: 11, fontWeight: 700, color: cfg.iconColor, margin: 0 }}>
                                   {cfg.label}
                                 </p>
-                                <p style={{ fontSize: 11, color: '#a8a29e', margin: '2px 0 0' }}>
-                                  {log.userName && <><span style={{ fontWeight: 600, color: '#78716c' }}>{log.userName}</span> · </>}
+                                <p style={{ fontSize: 11, color: '#746e69', margin: '2px 0 0' }}>
+                                  {log.userName && <><span style={{ fontWeight: 600, color: '#746e69' }}>{log.userName}</span> · </>}
                                   {format(new Date(log.createdAt), "dd MMM, yyyy 'às' HH:mm", { locale: ptBR })}
                                 </p>
                                 {log.details && (
@@ -3070,7 +3070,7 @@ export default function Atendimento() {
                     style={{
                       padding: '10px 20px', borderRadius: 8,
                       border: '1px solid #e7e5e4',
-                      backgroundColor: 'transparent', color: '#78716c',
+                      backgroundColor: 'transparent', color: '#746e69',
                       fontSize: 13, fontWeight: 600,
                       cursor: 'pointer', marginRight: 'auto',
                       transition: 'border-color 0.15s, color 0.15s',
@@ -3128,14 +3128,14 @@ export default function Atendimento() {
       <Dialog open={!!confirmApproveIndividual} onOpenChange={(open) => { if (!open) setConfirmApproveIndividual(null); }}>
         <DialogContent style={{ maxWidth: isMobile ? '95vw' : 380, width: isMobile ? '95vw' : undefined, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 24px 48px -12px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.04)' }}>
           <DialogTitle style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 18, fontWeight: 700, color: '#1c1917', margin: 0 }}>Confirmar Aprovação</DialogTitle>
-          <DialogDescription style={{ fontSize: 13, color: '#78716c', marginTop: 8 }}>
+          <DialogDescription style={{ fontSize: 13, color: '#746e69', marginTop: 8 }}>
             Aprovar a arte para o patrocinador <strong style={{ color: '#1c1917' }}>{confirmApproveIndividual?.sponsorName}</strong>?
             Esta ação não pode ser desfeita.
           </DialogDescription>
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <button
               onClick={() => setConfirmApproveIndividual(null)}
-              style={{ flex: 1, height: 40, borderRadius: 8, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              style={{ flex: 1, height: 40, borderRadius: 8, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', color: '#746e69', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
             >
               Cancelar
             </button>
@@ -3161,14 +3161,14 @@ export default function Atendimento() {
       <Dialog open={confirmApproveBatch} onOpenChange={(open) => { if (!open) setConfirmApproveBatch(false); }}>
         <DialogContent style={{ maxWidth: isMobile ? '95vw' : 380, width: isMobile ? '95vw' : undefined, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 24px 48px -12px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.04)' }}>
           <DialogTitle style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 18, fontWeight: 700, color: '#1c1917', margin: 0 }}>Confirmar Aprovação em Lote</DialogTitle>
-          <DialogDescription style={{ fontSize: 13, color: '#78716c', marginTop: 8 }}>
+          <DialogDescription style={{ fontSize: 13, color: '#746e69', marginTop: 8 }}>
             Aprovar <strong style={{ color: '#1c1917' }}>{batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'item' : 'itens'}</strong> para o patrocinador selecionado?
             Esta ação não pode ser desfeita.
           </DialogDescription>
           <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
             <button
               onClick={() => setConfirmApproveBatch(false)}
-              style={{ flex: 1, height: 40, borderRadius: 8, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', color: '#78716c', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              style={{ flex: 1, height: 40, borderRadius: 8, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', color: '#746e69', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
             >
               Cancelar
             </button>
@@ -3210,7 +3210,7 @@ export default function Atendimento() {
                 <div style={{ minWidth: 0 }}>
                   <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{batchPreviewItem.type}</p>
                   {batchPreviewItem.description && (
-                    <p style={{ margin: 0, fontSize: 12, color: '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{batchPreviewItem.description}</p>
+                    <p style={{ margin: 0, fontSize: 12, color: '#746e69', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{batchPreviewItem.description}</p>
                   )}
                 </div>
               </div>

@@ -230,7 +230,7 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
           )}
 
           <span style={{ fontSize: 13, fontWeight: 700, color: "#1c1917" }} data-testid="text-book-page-count">
-            {picked.size} <span style={{ fontWeight: 400, color: "#78716c" }}>de {numPages} {numPages === 1 ? "página" : "páginas"}</span>
+            {picked.size} <span style={{ fontWeight: 400, color: "#746e69" }}>de {numPages} {numPages === 1 ? "página" : "páginas"}</span>
           </span>
 
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
@@ -250,7 +250,7 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
           </div>
 
           {numPages > 0 && renderedCount < numPages && (
-            <span style={{ marginLeft: "auto", fontSize: 11, color: "#78716c", display: "inline-flex", alignItems: "center", gap: 6 }}>
+            <span style={{ marginLeft: "auto", fontSize: 11, color: "#746e69", display: "inline-flex", alignItems: "center", gap: 6 }}>
               <Loader2 style={{ width: 11, height: 11 }} className="animate-spin" />
               {renderedCount} de {numPages} pré-visualizadas
             </span>
@@ -313,7 +313,7 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
           </button>
           <button
             onClick={() => onOpenChange(false)}
-            style={{ width: "100%", height: 36, borderRadius: 8, background: "none", border: "none", color: "#78716c", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+            style={{ width: "100%", height: 36, borderRadius: 8, background: "none", border: "none", color: "#746e69", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
             Cancelar
           </button>
         </div>

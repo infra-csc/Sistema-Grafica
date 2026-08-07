@@ -590,7 +590,7 @@ export default function Eventos() {
         >
           Eventos
         </h1>
-        <p style={{ color: '#78716c', fontSize: '14px', margin: '6px 0 0 0', fontWeight: '500' }}>
+        <p style={{ color: '#746e69', fontSize: '14px', margin: '6px 0 0 0', fontWeight: '500' }}>
           Gerencie todos os eventos de produção gráfica
         </p>
 
@@ -608,7 +608,7 @@ export default function Eventos() {
                   <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '17px', fontWeight: '700', color: '#1c1917', margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1 }}>
                     {editingEvent ? "Editar Evento" : "Criar Novo Evento"}
                   </DialogTitle>
-                  <DialogDescription style={{ color: '#78716c', fontSize: '13px', margin: '4px 0 0 0', fontWeight: '400' }}>
+                  <DialogDescription style={{ color: '#746e69', fontSize: '13px', margin: '4px 0 0 0', fontWeight: '400' }}>
                     {editingEvent ? "Atualize as informações do evento." : "Preencha os detalhes do evento."}
                   </DialogDescription>
                 </div>
@@ -649,7 +649,7 @@ export default function Eventos() {
                             style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 40, backgroundColor: openStartDate ? '#ffffff' : '#e8e8e7', border: openStartDate ? '1px solid #f97316' : '1px solid transparent', borderRadius: '8px', padding: '0 12px', fontSize: '13px', color: formData.startDate ? '#1a1c1c' : '#a8a29e', fontFamily: "'Plus Jakarta Sans', sans-serif", cursor: 'pointer', textAlign: 'left' as const, boxShadow: openStartDate ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s' }}
                           >
                             <Calendar style={{ width: 14, height: 14, color: '#a8a29e', flexShrink: 0 }} />
-                            {formData.startDate ? fmtDateBR(formData.startDate) : <span style={{ color: '#a8a29e' }}>Selecionar data</span>}
+                            {formData.startDate ? fmtDateBR(formData.startDate) : <span style={{ color: '#746e69' }}>Selecionar data</span>}
                           </button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start" style={{ zIndex: 9999 }}>
@@ -677,7 +677,7 @@ export default function Eventos() {
                             <Truck style={{ width: 14, height: 14, color: '#a8a29e', flexShrink: 0 }} />
                             {formData.truckDepartureDate
                               ? `${fmtDateBR(formData.truckDepartureDate.slice(0, 10))} às ${formData.truckDepartureDate.slice(11, 16)}`
-                              : <span style={{ color: '#a8a29e' }}>Selecionar data e hora</span>}
+                              : <span style={{ color: '#746e69' }}>Selecionar data e hora</span>}
                           </button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start" style={{ zIndex: 9999 }}>
@@ -696,7 +696,7 @@ export default function Eventos() {
                           />
                           <div style={{ borderTop: '1px solid #f0efee', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
                             <Clock style={{ width: 12, height: 12, color: '#a8a29e', flexShrink: 0 }} />
-                            <span style={{ fontSize: 11, color: '#78716c', fontWeight: 600, flexShrink: 0 }}>Horário:</span>
+                            <span style={{ fontSize: 11, color: '#746e69', fontWeight: 600, flexShrink: 0 }}>Horário:</span>
                             <input
                               type="text"
                               inputMode="numeric"
@@ -761,7 +761,7 @@ export default function Eventos() {
                     <label style={{ fontSize: '10px', fontWeight: '700', color: '#625d5b', textTransform: 'uppercase', letterSpacing: '0.12em', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <Building2 style={{ width: '12px', height: '12px', color: '#f97316' }} />
                       Patrocinadores
-                      <span style={{ color: '#a8a29e', fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>(opcional)</span>
+                      <span style={{ color: '#746e69', fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>(opcional)</span>
                       {selectedSponsorIds.length > 0 && (
                         <span style={{ marginLeft: 'auto', fontSize: '10px', fontWeight: '700', color: '#f97316', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '20px', padding: '1px 8px', letterSpacing: 0, textTransform: 'none' }}>
                           {selectedSponsorIds.length} selecionado{selectedSponsorIds.length > 1 ? 's' : ''}
@@ -769,7 +769,7 @@ export default function Eventos() {
                       )}
                     </label>
                     {sponsors.length === 0 ? (
-                      <p style={{ fontSize: '13px', color: '#a8a29e', backgroundColor: '#f0efee', borderRadius: '8px', padding: '12px 16px' }}>
+                      <p style={{ fontSize: '13px', color: '#746e69', backgroundColor: '#f0efee', borderRadius: '8px', padding: '12px 16px' }}>
                         Nenhum patrocinador cadastrado.{" "}
                         <Link href="/patrocinadores" style={{ color: '#f97316', fontWeight: '600' }}>Cadastre agora</Link>
                       </p>
@@ -799,7 +799,7 @@ export default function Eventos() {
                               .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'))
                               .filter(s => !q || s.name.toLowerCase().includes(q) || (s.company || '').toLowerCase().includes(q));
                             if (filtered.length === 0) return (
-                              <p style={{ fontSize: '12px', color: '#a8a29e', textAlign: 'center', padding: '16px 12px' }}>
+                              <p style={{ fontSize: '12px', color: '#746e69', textAlign: 'center', padding: '16px 12px' }}>
                                 Nenhum resultado para "{sponsorSearch}"
                               </p>
                             );
@@ -840,7 +840,7 @@ export default function Eventos() {
                                       {sponsor.name}
                                     </span>
                                     {sponsor.company && (
-                                      <span style={{ fontSize: 10, color: '#a8a29e', display: 'block', lineHeight: 1.2 }}>{sponsor.company}</span>
+                                      <span style={{ fontSize: 10, color: '#746e69', display: 'block', lineHeight: 1.2 }}>{sponsor.company}</span>
                                     )}
                                   </div>
 
@@ -968,11 +968,11 @@ export default function Eventos() {
                                 </TooltipContent>
                               </Tooltip>
                             </span>
-                            <span style={{ fontSize: '10px', color: '#a8a29e', fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>{noStart ? 'preencha a saída do caminhão primeiro' : 'relativo à saída do caminhão'}</span>
+                            <span style={{ fontSize: '10px', color: '#746e69', fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>{noStart ? 'preencha a saída do caminhão primeiro' : 'relativo à saída do caminhão'}</span>
                           </div>
                           {prazosExpanded
-                            ? <ChevronUp style={{ width: '14px', height: '14px', color: '#78716c' }} />
-                            : <ChevronDown style={{ width: '14px', height: '14px', color: '#78716c' }} />
+                            ? <ChevronUp style={{ width: '14px', height: '14px', color: '#746e69' }} />
+                            : <ChevronDown style={{ width: '14px', height: '14px', color: '#746e69' }} />
                           }
                         </button>
                         {prazosExpanded && (
@@ -992,7 +992,7 @@ export default function Eventos() {
                                     <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: color, flexShrink: 0 }} />
                                     <div style={{ minWidth: 0 }}>
                                       <div style={{ fontSize: '12px', fontWeight: '600', color: '#1a1c1c', lineHeight: 1.2 }}>{label}</div>
-                                      <div style={{ fontSize: '10px', color: '#a8a29e', lineHeight: 1.2, marginTop: '1px' }}>{desc}</div>
+                                      <div style={{ fontSize: '10px', color: '#746e69', lineHeight: 1.2, marginTop: '1px' }}>{desc}</div>
                                     </div>
                                   </div>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
@@ -1028,7 +1028,7 @@ export default function Eventos() {
                                       )}
                                     </Popover>
                                     {!noStart && dateVal && (
-                                      <span style={{ fontSize: '10px', color: '#a8a29e', fontWeight: '500', minWidth: '32px' }}>{currentDays}d</span>
+                                      <span style={{ fontSize: '10px', color: '#746e69', fontWeight: '500', minWidth: '32px' }}>{currentDays}d</span>
                                     )}
                                   </div>
                                 </div>
@@ -1121,7 +1121,7 @@ export default function Eventos() {
           })}
           {selectedPriorities.length > 0 && (
             <button onClick={() => setSelectedPriorities([])} data-testid="button-clear-filters"
-              style={{ padding: '5px 10px', borderRadius: '99px', fontSize: '11px', cursor: 'pointer', border: 'none', backgroundColor: 'transparent', color: '#a8a29e' }}>
+              style={{ padding: '5px 10px', borderRadius: '99px', fontSize: '11px', cursor: 'pointer', border: 'none', backgroundColor: 'transparent', color: '#746e69' }}>
               Limpar
             </button>
           )}
@@ -1162,7 +1162,7 @@ export default function Eventos() {
 
           {(monthFilter !== "all" || next10DaysFilter) && (
             <button onClick={() => { setMonthFilter("all"); setNext10DaysFilter(false); }} data-testid="button-clear-date-filters"
-              style={{ padding: '5px 10px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', border: 'none', backgroundColor: 'transparent', color: '#a8a29e' }}>
+              style={{ padding: '5px 10px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', border: 'none', backgroundColor: 'transparent', color: '#746e69' }}>
               Limpar datas
             </button>
           )}
@@ -1191,7 +1191,7 @@ export default function Eventos() {
         <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '14px', padding: '72px 24px', textAlign: 'center' }}>
           <Package style={{ width: '44px', height: '44px', color: '#d4d0cb', margin: '0 auto 16px' }} />
           <h3 style={{ color: '#1c1917', fontSize: '17px', fontWeight: '700', marginBottom: '6px', fontFamily: "'Space Grotesk', sans-serif" }}>Nenhum evento criado</h3>
-          <p style={{ color: '#78716c', fontSize: '13px', marginBottom: '24px' }}>Comece criando seu primeiro evento de produção</p>
+          <p style={{ color: '#746e69', fontSize: '13px', marginBottom: '24px' }}>Comece criando seu primeiro evento de produção</p>
           <Button onClick={() => setOpen(true)} style={{ backgroundColor: '#f97316', color: '#ffffff', borderRadius: '10px', fontWeight: '700', boxShadow: '0 4px 14px rgba(249,115,22,0.25)' }}>
             <Plus className="h-4 w-4 mr-2" />
             Criar Primeiro Evento
@@ -1201,7 +1201,7 @@ export default function Eventos() {
         <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '14px', padding: '72px 24px', textAlign: 'center' }}>
           <Search style={{ width: '40px', height: '40px', color: '#d4d0cb', margin: '0 auto 16px' }} />
           <h3 style={{ color: '#1c1917', fontSize: '17px', fontWeight: '700', marginBottom: '6px', fontFamily: "'Space Grotesk', sans-serif" }}>Nenhum evento encontrado</h3>
-          <p style={{ color: '#78716c', fontSize: '13px' }}>Tente uma busca ou filtro diferente</p>
+          <p style={{ color: '#746e69', fontSize: '13px' }}>Tente uma busca ou filtro diferente</p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
@@ -1286,7 +1286,7 @@ export default function Eventos() {
                     {/* Datas */}
                     <div className="grid grid-cols-2 gap-4" style={{ margin: '4px 0', position: 'relative', zIndex: 1 }}>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <p style={{ fontSize: '10px', fontWeight: '700', color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Início</p>
+                        <p style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Início</p>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#44403c' }}>
                           <Calendar style={{ width: '14px', height: '14px', color: '#10b981', flexShrink: 0 }} />
                           <span style={{ fontSize: '12px', fontWeight: '700' }}>
@@ -1295,7 +1295,7 @@ export default function Eventos() {
                         </div>
                       </div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <p style={{ fontSize: '10px', fontWeight: '700', color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Saída Caminhão</p>
+                        <p style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Saída Caminhão</p>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <Truck style={{ width: '14px', height: '14px', color: '#10b981', flexShrink: 0 }} />
                           <span style={{ fontSize: '12px', fontWeight: '700', color: '#44403c' }}>
@@ -1352,7 +1352,7 @@ export default function Eventos() {
                   {/* Linha 1: badge prioridade + id */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     {!event.priority ? (
-                      <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.07em', color: '#a8a29e', backgroundColor: '#f3f4f3', padding: '4px 10px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.07em', color: '#746e69', backgroundColor: '#f3f4f3', padding: '4px 10px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <AlertCircle style={{ width: '10px', height: '10px' }} />
                         Sem prioridade
                       </span>
@@ -1376,7 +1376,7 @@ export default function Eventos() {
                   {/* Datas — label + ícone + valor */}
                   <div className="grid grid-cols-2 gap-4" style={{ margin: '4px 0' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <p style={{ fontSize: '10px', fontWeight: '700', color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Início</p>
+                      <p style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Início</p>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#44403c' }}>
                         <Calendar style={{ width: '14px', height: '14px', color: cardBorderHex, flexShrink: 0 }} />
                         <span style={{ fontSize: '12px', fontWeight: '700' }}>
@@ -1385,7 +1385,7 @@ export default function Eventos() {
                       </div>
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <p style={{ fontSize: '10px', fontWeight: '700', color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Saída Caminhão</p>
+                      <p style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Saída Caminhão</p>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} className={truckUrgency === 'urgent' ? 'animate-pulse' : ''}>
                         <Truck style={{ width: '14px', height: '14px', color: truckColor, flexShrink: 0 }} />
                         <span style={{ fontSize: '12px', fontWeight: '700', color: truckTextColor }}>
@@ -1430,7 +1430,7 @@ export default function Eventos() {
             </div>
 
             {/* Descrição com nome do evento */}
-            <AlertDialogDescription style={{ fontSize: "14px", color: "#78716c", lineHeight: 1.6, marginTop: "16px" }}>
+            <AlertDialogDescription style={{ fontSize: "14px", color: "#746e69", lineHeight: 1.6, marginTop: "16px" }}>
               Tem certeza que deseja excluir o evento{" "}
               <strong style={{ color: "#1a1c1c", fontWeight: "600" }}>
                 "{events.find((e: any) => e.id === deletingEventId)?.name || "este evento"}"
@@ -1469,7 +1469,7 @@ export default function Eventos() {
               Definir Prioridade
             </DialogTitle>
             {selectedEventForPriority && (
-              <span style={{ fontSize: '10px', fontWeight: '700', color: '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              <span style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                 {selectedEventForPriority.name.length > 20 ? selectedEventForPriority.name.slice(0, 20) + '…' : selectedEventForPriority.name}
               </span>
             )}
@@ -1528,7 +1528,7 @@ export default function Eventos() {
           <div style={{ backgroundColor: '#f3f4f3', borderTop: '1px solid #e7e5e4', padding: '12px 24px', display: 'flex', justifyContent: 'flex-end' }}>
             <button
               onClick={() => setPriorityDialogOpen(false)}
-              style={{ fontSize: '11px', fontWeight: '700', color: '#a8a29e', background: 'none', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.08em', transition: 'color 0.15s' }}
+              style={{ fontSize: '11px', fontWeight: '700', color: '#746e69', background: 'none', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.08em', transition: 'color 0.15s' }}
               onMouseEnter={e => (e.currentTarget.style.color = '#1c1917')}
               onMouseLeave={e => (e.currentTarget.style.color = '#a8a29e')}
             >

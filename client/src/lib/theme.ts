@@ -8,11 +8,25 @@ export const T = {
   border: "#e8e8e7",
   bdark: "#d6d3d1",
   text: "#1a1c1c",
-  second: "#78716c",
+  /**
+   * Texto secundário — metadados, legendas, rótulos de apoio.
+   *
+   * Era #78716c, escolhido medindo contra branco (4.80:1). Só que o app
+   * também escreve sobre as superfícies acinzentadas #f5f5f4 e #f3f4f3, onde
+   * aquele cinza cai para 4.40 e 4.35 e reprova o piso de 4.5:1 — foi
+   * exatamente esse erro que passou despercebido na tela da Arte.
+   *
+   * #746e69 é o cinza mais claro da mesma família quente que passa em TODAS as
+   * superfícies do app (4.56 no pior caso, #f3f4f3), então não existe mais
+   * "depende do fundo": onde couber texto secundário, este token serve.
+   * A diferença de peso para o anterior é imperceptível (L 0.159 vs 0.169).
+   */
+  second: "#746e69",
   /**
    * ATENÇÃO: apenas para elementos decorativos (ícones, separadores,
-   * placeholders). Sobre branco fica em ~2.5:1 e reprova WCAG AA como texto —
-   * para texto que precisa ser lido use `T.second`, que passa em ~4.8:1.
+   * placeholders) — nunca para texto. Fica entre 2.29 e 2.52:1 sobre as
+   * superfícies do app e reprova WCAG AA em todas elas. Para texto legível
+   * use `T.second`.
    */
   muted: "#a8a29e",
   accent: "#f97316",

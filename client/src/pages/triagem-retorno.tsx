@@ -491,7 +491,7 @@ export default function TriagemRetorno() {  const isMobile = useIsMobile();
   const filterLabel: React.CSSProperties = {
     display: "block", fontSize: 10, fontWeight: 900,
     textTransform: "uppercase", letterSpacing: "0.09em",
-    color: "#78716c", marginBottom: 8,
+    color: "#746e69", marginBottom: 8,
   };
   const selectTriggerStyle: React.CSSProperties = {
     backgroundColor: "#ffffff", border: "1px solid #e7e5e4",

@@ -932,7 +932,7 @@ export default function EventDetail() {
                         ? `#${editingItem.displayId?.toString().padStart(4, '0')} — ${editingItem.type}`
                         : (bulkMode ? "Entrada Rápida" : (formData.type || "Nova Peça"))}
                     </DialogTitle>
-                    <DialogDescription style={{ fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a8a29e', marginTop: '2px' }}>
+                    <DialogDescription style={{ fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69', marginTop: '2px' }}>
                       {editingItem
                         ? (editingItem.description ? editingItem.description : "Editar peça de produção")
                         : (bulkMode ? "Modo Lote — NORTE Apex" : (formData.type ? "Nova peça de produção" : "Selecione o tipo para começar"))}
@@ -990,7 +990,7 @@ export default function EventDetail() {
                       <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end' }}>
                         {/* Tipo de Item — flex-1 */}
                         <div style={{ flex: 1 }}>
-                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a8a29e' }}>
+                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69' }}>
                             Tipo de Peça
                           </label>
                           {editingTypeName ? (
@@ -1074,7 +1074,7 @@ export default function EventDetail() {
                               onClick={() => setEditingTypeName(true)}
                               data-testid="button-edit-type-name"
                               title="Editar nome do tipo"
-                              style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', cursor: 'pointer', color: '#a8a29e' }}
+                              style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', cursor: 'pointer', color: '#746e69' }}
                               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#e7e5e4'; (e.currentTarget as HTMLButtonElement).style.color = '#f97316'; }}
                               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f0efee'; (e.currentTarget as HTMLButtonElement).style.color = '#a8a29e'; }}
                             >
@@ -1086,7 +1086,7 @@ export default function EventDetail() {
                         </div>
                         {/* Quantidade — fixo 96px */}
                         <div style={{ width: '96px' }}>
-                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a8a29e' }}>Qtd</label>
+                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69' }}>Qtd</label>
                           <input
                             id="quantity"
                             type="number"
@@ -1104,7 +1104,7 @@ export default function EventDetail() {
 
                       {/* Descrição */}
                       <div>
-                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a8a29e' }}>Descrição <span style={{ color: '#c9c4c0', fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '10px' }}>(opcional)</span></label>
+                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69' }}>Descrição <span style={{ color: '#c9c4c0', fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '10px' }}>(opcional)</span></label>
                         <input
                           id="description"
                           type="text"
@@ -1124,7 +1124,7 @@ export default function EventDetail() {
                         <div style={{ paddingLeft: '16px', borderLeft: '4px solid #f97316', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                           <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#f97316' }}>Dimensões Visuais (m)</span>
                           <div>
-                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#a8a29e' }}>Largura</label>
+                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Largura</label>
                             <input id="visualWidth" type="number" step="0.01" min="0" value={formData.visualWidth} onChange={e => setFormData({ ...formData, visualWidth: e.target.value })} placeholder="Ex: 2.00" required data-testid="input-visual-width"
                               style={{ width: '100%', padding: '10px 14px', backgroundColor: '#fff', borderRadius: '8px', border: 'none', fontSize: '14px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', boxSizing: 'border-box' }}
                               onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249,115,22,0.20)')}
@@ -1132,7 +1132,7 @@ export default function EventDetail() {
                             />
                           </div>
                           <div>
-                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#a8a29e' }}>Altura</label>
+                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Altura</label>
                             <input id="visualHeight" type="number" step="0.01" min="0" value={formData.visualHeight} onChange={e => setFormData({ ...formData, visualHeight: e.target.value })} placeholder="Ex: 1.00" required data-testid="input-visual-height"
                               style={{ width: '100%', padding: '10px 14px', backgroundColor: '#fff', borderRadius: '8px', border: 'none', fontSize: '14px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', boxSizing: 'border-box' }}
                               onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249,115,22,0.20)')}
@@ -1142,9 +1142,9 @@ export default function EventDetail() {
                         </div>
                         {/* Dimensões Arquivo */}
                         <div style={{ paddingLeft: '16px', borderLeft: '4px solid #d6d3d1', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                          <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#78716c' }}>Dimensões Arquivo (m)</span>
+                          <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69' }}>Dimensões Arquivo (m)</span>
                           <div>
-                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#a8a29e' }}>Largura</label>
+                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Largura</label>
                             <input id="fileWidth" type="number" step="0.01" min="0" value={formData.fileWidth} onChange={e => setFormData({ ...formData, fileWidth: e.target.value })} placeholder="Ex: 1.90" required data-testid="input-file-width"
                               style={{ width: '100%', padding: '10px 14px', backgroundColor: '#fff', borderRadius: '8px', border: 'none', fontSize: '14px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', boxSizing: 'border-box' }}
                               onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(120,113,108,0.15)')}
@@ -1152,7 +1152,7 @@ export default function EventDetail() {
                             />
                           </div>
                           <div>
-                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#a8a29e' }}>Altura</label>
+                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Altura</label>
                             <input id="fileHeight" type="number" step="0.01" min="0" value={formData.fileHeight} onChange={e => setFormData({ ...formData, fileHeight: e.target.value })} placeholder="Ex: 0.90" required data-testid="input-file-height"
                               style={{ width: '100%', padding: '10px 14px', backgroundColor: '#fff', borderRadius: '8px', border: 'none', fontSize: '14px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', boxSizing: 'border-box' }}
                               onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(120,113,108,0.15)')}
@@ -1164,7 +1164,7 @@ export default function EventDetail() {
 
                       {/* Barra M² Total — dark */}
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#1c1917', borderRadius: '10px' }}>
-                        <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#78716c' }}>M² Total (calculado)</span>
+                        <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#746e69' }}>M² Total (calculado)</span>
                         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: '700', fontSize: '18px', color: formData.fileWidth && formData.fileHeight ? '#fff' : '#57534e' }}>
                           {formData.fileWidth && formData.fileHeight && formData.quantity
                             ? (formData.quantity * parseFloat(formData.fileWidth || "0") * parseFloat(formData.fileHeight || "0")).toFixed(2) + " m²"
@@ -1176,7 +1176,7 @@ export default function EventDetail() {
                       {/* Material | Acabamento */}
                       <div style={{ display: 'flex', gap: '16px' }}>
                         <div style={{ flex: 1 }}>
-                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a8a29e' }}>Material</label>
+                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69' }}>Material</label>
                           <Popover open={materialPopoverOpen} onOpenChange={setMaterialPopoverOpen}>
                             <PopoverTrigger asChild>
                               <button type="button" role="combobox" data-testid="select-material"
@@ -1209,7 +1209,7 @@ export default function EventDetail() {
                           </Popover>
                         </div>
                         <div style={{ flex: 1 }}>
-                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a8a29e' }}>Acabamento</label>
+                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69' }}>Acabamento</label>
                           <Popover open={finishPopoverOpen} onOpenChange={setFinishPopoverOpen}>
                             <PopoverTrigger asChild>
                               <button type="button" role="combobox" data-testid="select-finish"
@@ -1245,7 +1245,7 @@ export default function EventDetail() {
 
                       {/* Observações */}
                       <div>
-                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#a8a29e' }}>Observações <span style={{ color: '#c9c4c0', fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '10px' }}>(opcional)</span></label>
+                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69' }}>Observações <span style={{ color: '#c9c4c0', fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '10px' }}>(opcional)</span></label>
                         <textarea
                           id="observations"
                           value={formData.observations}
@@ -1546,7 +1546,7 @@ export default function EventDetail() {
                     <div key={groupName || '__sem_grupo__'}>
                       {/* Cabeçalho Grupo Pai */}
                       {groupName && (
-                        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#a8a29e', marginBottom: 6, paddingLeft: 2 }}>
+                        <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#746e69', marginBottom: 6, paddingLeft: 2 }}>
                           {groupName}
                         </div>
                       )}
@@ -1556,7 +1556,7 @@ export default function EventDetail() {
                           return (
                             <div key={typeName}>
                               {/* Sub-cabeçalho Tipo */}
-                              <div style={{ fontSize: 11, fontWeight: 600, color: '#78716c', marginBottom: 4, paddingLeft: 2 }}>
+                              <div style={{ fontSize: 11, fontWeight: 600, color: '#746e69', marginBottom: 4, paddingLeft: 2 }}>
                                 {typeName}
                               </div>
                               <div className="space-y-2">
@@ -1683,7 +1683,7 @@ export default function EventDetail() {
                   <DialogTitle style={{ fontSize: 17, fontWeight: 700, color: '#1c1917', margin: 0 }}>
                     Confirmar envio para vinculação
                   </DialogTitle>
-                  <DialogDescription style={{ fontSize: 13, color: '#78716c', marginTop: 3 }}>
+                  <DialogDescription style={{ fontSize: 13, color: '#746e69', marginTop: 3 }}>
                     {(() => {
                       const n = items.filter(i => i.status === 'draft').length;
                       return `${n} ${n === 1 ? 'item será enviado' : 'itens serão enviados'} para a fila de vinculação de patrocinadores.`;
@@ -1705,7 +1705,7 @@ export default function EventDetail() {
                 });
                 return Object.entries(byType).sort(([a],[b]) => a.localeCompare(b,'pt-BR')).map(([typeName, typeItems]) => (
                   <div key={typeName} style={{ marginBottom: 16 }}>
-                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a8a29e', marginBottom: 6 }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#746e69', marginBottom: 6 }}>
                       {typeName} · {typeItems.length} {typeItems.length === 1 ? 'item' : 'itens'}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -1718,7 +1718,7 @@ export default function EventDetail() {
                             <div style={{ fontSize: 13, fontWeight: 600, color: '#1c1917', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                               {item.type}{item.description ? ` — ${item.description}` : ''}
                             </div>
-                            <div style={{ fontSize: 11, color: '#78716c', marginTop: 1 }}>
+                            <div style={{ fontSize: 11, color: '#746e69', marginTop: 1 }}>
                               {item.quantity} {item.quantity === 1 ? 'un.' : 'un.'} · {item.visualWidth && item.visualHeight ? `${item.visualWidth}×${item.visualHeight}m` : item.material}
                             </div>
                           </div>
@@ -1768,7 +1768,7 @@ export default function EventDetail() {
         <div style={{ textAlign: 'center', padding: '64px 0' }}>
           <AlertCircle className="h-12 w-12 mx-auto mb-4" style={{ color: '#a8a29e' }} />
           <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#1c1917', marginBottom: '8px' }}>Nenhum item adicionado</h3>
-          <p style={{ color: '#78716c', marginBottom: '16px', fontSize: '14px' }}>Adicione itens ao evento para começar</p>
+          <p style={{ color: '#746e69', marginBottom: '16px', fontSize: '14px' }}>Adicione itens ao evento para começar</p>
           <button
             onClick={() => { setEditingItem(null); setBulkMode(true); setOpen(true); }}
             style={{ backgroundColor: '#1c1917', color: '#fff', padding: '10px 20px', borderRadius: '6px', fontWeight: '700', fontSize: '14px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
@@ -1780,7 +1780,7 @@ export default function EventDetail() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
           {isFetching && !loadingItems && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#a8a29e', fontSize: '13px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#746e69', fontSize: '13px' }}>
               <Loader2 className="h-3 w-3 animate-spin" />
               <span>Atualizando...</span>
             </div>
@@ -1810,7 +1810,7 @@ export default function EventDetail() {
                     {type}
                   </h2>
                   <div style={{ flex: 1, height: '2px', backgroundColor: '#f0efee' }} />
-                  <span style={{ backgroundColor: '#f3f4f3', color: '#a8a29e', fontSize: '10px', fontWeight: '700', padding: '4px 12px', borderRadius: '99px', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+                  <span style={{ backgroundColor: '#f3f4f3', color: '#746e69', fontSize: '10px', fontWeight: '700', padding: '4px 12px', borderRadius: '99px', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
                     {typeItems.length} {typeItems.length === 1 ? 'ITEM' : 'ITENS'}
                   </span>
                 </div>
@@ -1827,8 +1827,8 @@ export default function EventDetail() {
                             <StatusBadge status={item.status} />
                           </div>
                           <div style={{ fontWeight: 700, fontSize: 13, color: '#1c1917', marginBottom: 2 }}>{item.type}</div>
-                          {item.description && <div style={{ fontSize: 12, color: '#78716c', marginBottom: 4 }}>{item.description}</div>}
-                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: '#78716c' }}>
+                          {item.description && <div style={{ fontSize: 12, color: '#746e69', marginBottom: 4 }}>{item.description}</div>}
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: '#746e69' }}>
                             {item.quantity && <span>{item.quantity}×</span>}
                             {item.visualWidth && item.visualHeight && <span>{item.visualWidth}×{item.visualHeight}m</span>}
                             {item.material && <span>{item.material}</span>}
@@ -1836,7 +1836,7 @@ export default function EventDetail() {
                           {canEditLists && (
                             <div style={{ display: 'flex', gap: 6, marginTop: 8 }} onClick={e => e.stopPropagation()}>
                               <button onClick={() => { setEditingItem(item); setEditDialogOpen(true); }}
-                                style={{ flex: 1, minHeight: 44, borderRadius: 6, border: '1px solid #e7e5e4', background: '#fafaf9', fontSize: 12, fontWeight: 700, color: '#78716c', cursor: 'pointer' }}>
+                                style={{ flex: 1, minHeight: 44, borderRadius: 6, border: '1px solid #e7e5e4', background: '#fafaf9', fontSize: 12, fontWeight: 700, color: '#746e69', cursor: 'pointer' }}>
                                 Editar
                               </button>
                               <button onClick={() => setDeletingItemId(item.id)}
@@ -1869,7 +1869,7 @@ export default function EventDetail() {
                               padding: '14px 14px',
                               fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em',
                               // #a8a29e em 11px reprova AA (2,5:1 sobre #f9f9f8).
-                              color: '#78716c', whiteSpace: 'nowrap',
+                              color: '#746e69', whiteSpace: 'nowrap',
                               textAlign: col === 'Ações' ? 'right' : 'left',
                               width: col === 'Ações' ? 132 : undefined,
                             }}>
@@ -1929,7 +1929,7 @@ export default function EventDetail() {
                                 </Button>
                               )}
                               {(!canUploadReference || item.status === 'entregue') && !item.referenceUrl && (
-                                <span style={{ color: '#a8a29e', fontSize: 13 }}>—</span>
+                                <span style={{ color: '#746e69', fontSize: 13 }}>—</span>
                               )}
                             </div>
                           </td>
@@ -1943,7 +1943,7 @@ export default function EventDetail() {
                             {item.description ? (
                               <span style={{ fontWeight: '500', color: '#1a1c1c', fontSize: '13px' }}>{item.description}</span>
                             ) : (
-                              <span style={{ color: '#a8a29e', fontSize: '13px' }}>—</span>
+                              <span style={{ color: '#746e69', fontSize: '13px' }}>—</span>
                             )}
                           </td>
                           {/* Qtd */}
@@ -1951,7 +1951,7 @@ export default function EventDetail() {
                             {String(item.quantity).padStart(2, '0')}
                           </td>
                           {/* Dimensões */}
-                          <td style={{ padding: '14px 14px', fontSize: '12px', color: '#78716c', fontStyle: 'italic', whiteSpace: 'nowrap' }}>
+                          <td style={{ padding: '14px 14px', fontSize: '12px', color: '#746e69', fontStyle: 'italic', whiteSpace: 'nowrap' }}>
                             {(item.visualWidth && item.visualHeight) ? (
                               <>
                                 {item.visualWidth} × {item.visualHeight}m
@@ -1964,11 +1964,11 @@ export default function EventDetail() {
                             {parseFloat(item.calculatedM2 || '0').toFixed(2)}
                           </td>
                           {/* Material */}
-                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#78716c' }}>{item.material || '—'}</td>
+                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#746e69' }}>{item.material || '—'}</td>
                           {/* Acabamento */}
-                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#78716c' }}>{item.finish || '—'}</td>
+                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#746e69' }}>{item.finish || '—'}</td>
                           {/* Patrocinador */}
-                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#a8a29e' }}>—</td>
+                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#746e69' }}>—</td>
                           {/* Status */}
                           <td style={{ padding: '14px 14px' }}>
                             <StatusBadge status={item.status} />
@@ -2000,7 +2000,7 @@ export default function EventDetail() {
                                 </span>
                               ) : (
                                 <button
-                                  style={{ color: '#78716c', background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'color 0.15s, background-color 0.15s' }}
+                                  style={{ color: '#746e69', background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'color 0.15s, background-color 0.15s' }}
                                   onMouseEnter={e => { e.currentTarget.style.color = '#1a1c1c'; e.currentTarget.style.backgroundColor = '#f0efee'; }}
                                   onMouseLeave={e => { e.currentTarget.style.color = '#78716c'; e.currentTarget.style.backgroundColor = 'transparent'; }}
                                   onClick={e => { e.stopPropagation(); handleEditItem(item); }}
@@ -2013,7 +2013,7 @@ export default function EventDetail() {
                               {canDeleteAny && (
                                 canDeleteItem(item.status) ? (
                                   <button
-                                    style={{ color: '#78716c', background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'color 0.15s, background-color 0.15s' }}
+                                    style={{ color: '#746e69', background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'color 0.15s, background-color 0.15s' }}
                                     onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.backgroundColor = '#fef2f2'; }}
                                     onMouseLeave={e => { e.currentTarget.style.color = '#78716c'; e.currentTarget.style.backgroundColor = 'transparent'; }}
                                     onClick={e => { e.stopPropagation(); handleDeleteItem(item.id); }}
@@ -2061,13 +2061,13 @@ export default function EventDetail() {
             <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "20px", fontWeight: 900, letterSpacing: "-0.03em", color: "#1a1c1c" }}>
               Confirmar Exclusão
             </AlertDialogTitle>
-            <AlertDialogDescription style={{ fontSize: "14px", color: "#78716c", lineHeight: 1.6, marginTop: "6px" }}>
+            <AlertDialogDescription style={{ fontSize: "14px", color: "#746e69", lineHeight: 1.6, marginTop: "6px" }}>
               A peça será removida da lista, mas permanece no histórico de auditoria para rastreabilidade.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter style={{ padding: 0, display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px" }}>
             <AlertDialogCancel
-              style={{ padding: "9px 20px", backgroundColor: "transparent", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 600, color: "#78716c", cursor: "pointer" }}
+              style={{ padding: "9px 20px", backgroundColor: "transparent", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 600, color: "#746e69", cursor: "pointer" }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f3f4f3")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
             >
@@ -2100,7 +2100,7 @@ export default function EventDetail() {
                 <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "24px", fontWeight: 900, letterSpacing: "-0.03em", color: "#1a1c1c", lineHeight: 1.1 }}>
                   {editingItem ? `#${editingItem.displayId?.toString().padStart(4, '0')} — ${editingItem.type}` : "Editar Peça"}
                 </DialogTitle>
-                <DialogDescription style={{ fontSize: "14px", fontWeight: 500, color: "#78716c", marginTop: "2px" }}>
+                <DialogDescription style={{ fontSize: "14px", fontWeight: 500, color: "#746e69", marginTop: "2px" }}>
                   {editingItem?.description || "Atualize as informações da peça"}
                 </DialogDescription>
               </div>
@@ -2121,7 +2121,7 @@ export default function EventDetail() {
               {/* Linha 1: Tipo (3fr) | Qtd. (1fr) | M2 Total (1fr) */}
               <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr 1fr", gap: "16px" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>Tipo de Peça</label>
+                  <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>Tipo de Peça</label>
                   <input
                     value={formData.type}
                     onChange={(e) => setFormData({ ...formData, type: e.target.value })}
@@ -2133,7 +2133,7 @@ export default function EventDetail() {
                   />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>Qtd.</label>
+                  <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>Qtd.</label>
                   <input
                     type="number"
                     min="1"
@@ -2146,7 +2146,7 @@ export default function EventDetail() {
                   />
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>M2 Total</label>
+                  <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>M2 Total</label>
                   <input
                     readOnly
                     value={formData.fileWidth && formData.fileHeight
@@ -2189,7 +2189,7 @@ export default function EventDetail() {
 
               {/* Linha 2: Descrição */}
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>Descrição do Item</label>
+                <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>Descrição do Item</label>
                 <input
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -2203,7 +2203,7 @@ export default function EventDetail() {
 
               {/* Linha 3: Dimensões — painel bg */}
               <div style={{ backgroundColor: "rgba(243,244,243,0.6)", padding: "24px", borderRadius: "12px" }}>
-                <div style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e", marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
+                <div style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
                   <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#f97316", display: "inline-block", flexShrink: 0 }}></span>
                   Dimensões de Produção
                 </div>
@@ -2215,7 +2215,7 @@ export default function EventDetail() {
                     { label: "Arquivo Alt.", key: "fileHeight", orange: false, testId: "input-edit-file-height" },
                   ].map((dim) => (
                     <div key={dim.key} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                      <label style={{ fontSize: "10px", fontWeight: 700, color: "#78716c", display: "flex", alignItems: "center", gap: "5px" }}>
+                      <label style={{ fontSize: "10px", fontWeight: 700, color: "#746e69", display: "flex", alignItems: "center", gap: "5px" }}>
                         <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: dim.orange ? "#f97316" : "#a8a29e", display: "inline-block", flexShrink: 0 }}></span>
                         {dim.label}
                       </label>
@@ -2238,7 +2238,7 @@ export default function EventDetail() {
               {/* Linha 4: Material | Acabamento | Patrocinador */}
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: "16px" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>Material</label>
+                  <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>Material</label>
                   <input
                     list="edit-materials-list"
                     value={formData.material}
@@ -2259,7 +2259,7 @@ export default function EventDetail() {
                   )}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>Acabamento</label>
+                  <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>Acabamento</label>
                   <input
                     list="edit-finishes-list"
                     value={formData.finish}
@@ -2280,7 +2280,7 @@ export default function EventDetail() {
                   )}
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>Patrocinador</label>
+                  <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>Patrocinador</label>
                   <Select
                     value={formData.sponsorId || "none"}
                     onValueChange={(value) => setFormData({ ...formData, sponsorId: value === "none" ? "" : value })}
@@ -2307,7 +2307,7 @@ export default function EventDetail() {
 
               {/* Linha 5: Referência (opcional) */}
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>
+                <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>
                   Referência <span style={{ color: "#c9c4c0", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "10px" }}>(opcional — cole um print com Ctrl+V ou anexe uma imagem, em alta qualidade)</span>
                 </label>
                 {(localRefPreview || formData.referenceUrl) ? (
@@ -2357,7 +2357,7 @@ export default function EventDetail() {
 
               {/* Linha 6: Observações */}
               <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#a8a29e" }}>Observações Internas</label>
+                <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>Observações Internas</label>
                 <textarea
                   value={formData.observations}
                   onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
@@ -2397,7 +2397,7 @@ export default function EventDetail() {
                   setEditingItem(null);
                 }}
                 data-testid="button-cancel-edit"
-                style={{ padding: "10px 24px", backgroundColor: "transparent", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 700, color: "#78716c", cursor: "pointer", transition: "background-color 0.15s" }}
+                style={{ padding: "10px 24px", backgroundColor: "transparent", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 700, color: "#746e69", cursor: "pointer", transition: "background-color 0.15s" }}
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#e8e8e7")}
                 onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
               >

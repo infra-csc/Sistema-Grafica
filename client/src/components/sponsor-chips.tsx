@@ -42,10 +42,10 @@ const SIZE_STYLES = {
 
 const OVERFLOW_STYLES = {
   orange:  { bg: "#fed7aa", color: "#92400e" },
-  gray:    { bg: "#e7e5e4", color: "#78716c" },
+  gray:    { bg: "#e7e5e4", color: "#746e69" },
   plain:   { bg: "#e2e8f0", color: "#64748b" },
-  dark:    { bg: "#44403c", color: "#a8a29e" },
-  colored: { bg: "#e7e5e4", color: "#78716c" },
+  dark:    { bg: "#44403c", color: "#746e69" },
+  colored: { bg: "#e7e5e4", color: "#746e69" },
 };
 
 /** Convert a hex color to rgba with given alpha */
@@ -68,7 +68,7 @@ export function SponsorChips({
 
   if (!sponsors || sponsors.length === 0) {
     return (
-      <span style={{ fontSize: 12, color: "#a8a29e", fontStyle: "italic" }}>
+      <span style={{ fontSize: 12, color: "#746e69", fontStyle: "italic" }}>
         {emptyText}
       </span>
     );
@@ -103,7 +103,7 @@ export function SponsorChips({
         const st = s.approvalStatus;
         const stStyle = st === "approved" ? { color: "#15803d", bg: "#f0fdf4", bd: "#bbf7d0", title: "Aprovado" }
           : st === "rejected" ? { color: "#b91c1c", bg: "#fef2f2", bd: "#fecaca", title: "Reprovado" }
-          : st === "pending" ? { color: "#78716c", bg: "#f5f5f4", bd: "#e7e5e4", title: "Sem ação do patrocinador" }
+          : st === "pending" ? { color: "#746e69", bg: "#f5f5f4", bd: "#e7e5e4", title: "Sem ação do patrocinador" }
           : null;
         return (
           <span
@@ -149,7 +149,7 @@ export function SponsorChips({
           onClick={e => { e.stopPropagation(); setShowAll(false); }}
           style={{
             display: "inline-flex", alignItems: "center",
-            backgroundColor: "transparent", color: "#a8a29e",
+            backgroundColor: "transparent", color: "#746e69",
             border: "none", borderRadius: chip.borderRadius,
             cursor: "pointer", fontSize: sz.fontSize, fontWeight: 700,
             padding: sz.padding,

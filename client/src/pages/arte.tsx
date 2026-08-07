@@ -1961,7 +1961,7 @@ export default function Arte() {
           {correcaoSponsors.length > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 11, fontWeight: 600, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Filtrar:</span>
-              {[{ id: "all", name: "Todos", color: "#78716c" }, ...correcaoSponsors].map(sp => {
+              {[{ id: "all", name: "Todos", color: "#746e69" }, ...correcaoSponsors].map(sp => {
                 const isActive = correcaoSponsorFilter === sp.id;
                 return (
                   <button

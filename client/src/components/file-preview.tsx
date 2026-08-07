@@ -29,7 +29,7 @@ function ImageWithFallback({ url, linkUrl, objectFit }: { url: string; linkUrl?:
         <div style={{ width: 48, height: 48, borderRadius: 12, background: "#f4f4f3", display: "flex", alignItems: "center", justifyContent: "center" }}>
           <ImageOff style={{ width: 22, height: 22, color: "#a8a29e" }} />
         </div>
-        <p style={{ fontSize: 12, color: "#a8a29e", margin: 0, fontWeight: 500 }}>Imagem não disponível</p>
+        <p style={{ fontSize: 12, color: "#746e69", margin: 0, fontWeight: 500 }}>Imagem não disponível</p>
         {linkUrl && (
           <a href={linkUrl} target="_blank" rel="noopener noreferrer"
             style={{ fontSize: 11, fontWeight: 700, color: "#f97316", textDecoration: "none", borderBottom: "1px solid #fed7aa" }}>

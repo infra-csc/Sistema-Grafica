@@ -411,7 +411,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
             <h3 style={{ fontSize: 24, fontWeight: 900, color: "#fff", margin: "0 0 8px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", textTransform: "uppercase", lineHeight: 1 }}>
               Controle de Acessos
             </h3>
-            <p style={{ fontSize: 12, color: "#a8a29e", margin: 0, maxWidth: 340 }}>
+            <p style={{ fontSize: 12, color: "#746e69", margin: 0, maxWidth: 340 }}>
               Monitore a atividade e o status de segurança dos usuários da plataforma em tempo real.
             </p>
           </div>
@@ -426,7 +426,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
                 );
               })}
               {users.length > 4 && (
-                <div style={{ width: 36, height: 36, borderRadius: "50%", backgroundColor: "#292524", border: `2px solid ${T.dark}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: "#78716c", marginLeft: -10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", backgroundColor: "#292524", border: `2px solid ${T.dark}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: "#746e69", marginLeft: -10 }}>
                   +{users.length - 4}
                 </div>
               )}

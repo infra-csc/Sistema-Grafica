@@ -187,7 +187,7 @@ export default function Login() {
               fontSize: 36, fontWeight: 700, color: "#1c1917",
               letterSpacing: "-0.04em", margin: "0 0 8px 0",
             }}>Bem-vindo de volta</h3>
-            <p style={{ color: "#78716c", fontWeight: 500, fontSize: 14, margin: 0 }}>
+            <p style={{ color: "#746e69", fontWeight: 500, fontSize: 14, margin: 0 }}>
               Acesse o sistema pelo portal NORTE.
             </p>
           </header>
@@ -232,7 +232,7 @@ export default function Login() {
               <p style={{ margin: "0 0 4px 0", fontWeight: 700, fontSize: 15, color: "#1c1917" }}>
                 Login via Microsoft
               </p>
-              <p style={{ margin: 0, fontSize: 13, color: "#78716c", lineHeight: 1.5 }}>
+              <p style={{ margin: 0, fontSize: 13, color: "#746e69", lineHeight: 1.5 }}>
                 O acesso ao sistema é feito exclusivamente pelo portal NORTE. Use sua conta Microsoft corporativa para entrar.
               </p>
             </div>
@@ -249,7 +249,7 @@ export default function Login() {
               display: "flex", alignItems: "center", justifyContent: "space-between",
               padding: "10px 0",
               cursor: "pointer",
-              color: "#a8a29e",
+              color: "#746e69",
               fontSize: 12, fontWeight: 600,
               textTransform: "uppercase", letterSpacing: "0.08em",
               fontFamily: "inherit",
@@ -275,7 +275,7 @@ export default function Login() {
                 border: "1px solid #e7e5e4",
               }}
             >
-              <p style={{ margin: 0, fontSize: 12, color: "#78716c" }}>
+              <p style={{ margin: 0, fontSize: 12, color: "#746e69" }}>
                 Acesso de emergência para administradores do sistema.
               </p>
 
@@ -352,7 +352,7 @@ export default function Login() {
                     onClick={() => setShowPassword(v => !v)}
                     title={showPassword ? "Ocultar senha" : "Mostrar senha"}
                     aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
-                    style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#a8a29e", padding: 6, display: "flex", alignItems: "center" }}
+                    style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#746e69", padding: 6, display: "flex", alignItems: "center" }}
                   >
                     {showPassword ? <EyeOff style={{ width: 18, height: 18 }} /> : <Eye style={{ width: 18, height: 18 }} />}
                   </button>

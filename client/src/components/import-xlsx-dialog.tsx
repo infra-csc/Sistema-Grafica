@@ -204,7 +204,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
                   onChange({ ...row, suggestedSponsorIds: [...(row.suggestedSponsorIds ?? []), v] });
               }}
               onClick={e => e.stopPropagation()}
-              style={{ fontSize: 10, borderRadius: 5, border: '1px dashed #d0cdc9', backgroundColor: 'transparent', color: '#a8a29e', cursor: 'pointer', padding: '2px 5px', outline: 'none', maxWidth: 100 }}
+              style={{ fontSize: 10, borderRadius: 5, border: '1px dashed #d0cdc9', backgroundColor: 'transparent', color: '#746e69', cursor: 'pointer', padding: '2px 5px', outline: 'none', maxWidth: 100 }}
             >
               <option value="">+ Adicionar</option>
               {eventSponsorsList.filter(s => !(row.suggestedSponsorIds ?? []).includes(s.sponsorId)).map(s => (
@@ -306,7 +306,7 @@ export function ImportXlsxDialog({
               <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 800, letterSpacing: '-0.02em', color: '#1a1c1c', margin: 0, lineHeight: 1.2 }}>
                 Importar Peças
               </DialogTitle>
-              <DialogDescription style={{ fontSize: 10, color: '#a8a29e', margin: 0, marginTop: 1 }}>
+              <DialogDescription style={{ fontSize: 10, color: '#746e69', margin: 0, marginTop: 1 }}>
                 {importFileName || 'Formato padrão NORTE'}
               </DialogDescription>
             </div>
@@ -339,7 +339,7 @@ export function ImportXlsxDialog({
                 <CheckCircle2 style={{ width: 24, height: 24, color: '#16a34a' }} />
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: '#166534', fontFamily: "'Space Grotesk', sans-serif" }}>{importFile.name}</div>
-                  <div style={{ fontSize: 11, color: '#78716c', marginTop: 2 }}>{(importFile.size / 1024).toFixed(1)} KB</div>
+                  <div style={{ fontSize: 11, color: '#746e69', marginTop: 2 }}>{(importFile.size / 1024).toFixed(1)} KB</div>
                 </div>
                 <button
                   onClick={e => { e.preventDefault(); setImportFile(null); setImportPreview(null); setImportPreviewItems(null); }}
@@ -353,7 +353,7 @@ export function ImportXlsxDialog({
                 <Upload style={{ width: 20, height: 20, color: '#a8a29e' }} />
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 12, fontWeight: 600, color: '#44403c' }}>Arraste o .xlsx aqui</div>
-                  <div style={{ fontSize: 11, color: '#78716c', marginTop: 2 }}>ou clique para selecionar</div>
+                  <div style={{ fontSize: 11, color: '#746e69', marginTop: 2 }}>ou clique para selecionar</div>
                 </div>
               </>
             )}
@@ -382,13 +382,13 @@ export function ImportXlsxDialog({
                   ].map(s => (
                     <div key={s.l} style={{ backgroundColor: '#f5f4f2', border: '1px solid #e7e5e4', borderRadius: 8, padding: '10px 12px' }}>
                       <div style={{ fontSize: 20, fontWeight: 900, color: s.color, fontFamily: s.mono ? 'DM Mono, monospace' : "'Space Grotesk', sans-serif", lineHeight: 1 }}>{s.v}</div>
-                      <div style={{ fontSize: 9, color: '#a8a29e', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 4 }}>{s.l}</div>
+                      <div style={{ fontSize: 9, color: '#746e69', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 4 }}>{s.l}</div>
                     </div>
                   ))}
                 </div>
                 <div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                    <span style={{ fontSize: 11, color: '#78716c', fontWeight: 600 }}>Vinculação</span>
+                    <span style={{ fontSize: 11, color: '#746e69', fontWeight: 600 }}>Vinculação</span>
                     <span style={{ fontSize: 11, fontWeight: 700, color: linkPct === 100 ? '#16a34a' : '#d97706' }}>{linked}/{allItems.length}</span>
                   </div>
                   <div style={{ height: 5, backgroundColor: '#e7e5e4', borderRadius: 99, overflow: 'hidden' }}>
@@ -451,7 +451,7 @@ export function ImportXlsxDialog({
               )}
               <button
                 onClick={() => { setImportPreviewItems(null); setImportSearch(""); setImportDuplicateWarning?.(null); }}
-                style={{ width: '100%', padding: '9px 0', backgroundColor: 'transparent', color: '#78716c', border: '1px solid #e7e5e4', borderRadius: 9, fontWeight: 600, fontSize: 12, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif" }}
+                style={{ width: '100%', padding: '9px 0', backgroundColor: 'transparent', color: '#746e69', border: '1px solid #e7e5e4', borderRadius: 9, fontWeight: 600, fontSize: 12, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif" }}
               >
                 Trocar arquivo
               </button>
@@ -485,7 +485,7 @@ export function ImportXlsxDialog({
                   style={{ width: '100%', padding: '7px 12px 7px 28px', backgroundColor: '#f5f4f2', border: '1px solid #e7e5e4', borderRadius: 7, color: '#1a1c1c', fontSize: 12, outline: 'none', boxSizing: 'border-box' }}
                 />
               </div>
-              <span style={{ fontSize: 11, color: '#a8a29e', whiteSpace: 'nowrap', fontWeight: 600 }}>
+              <span style={{ fontSize: 11, color: '#746e69', whiteSpace: 'nowrap', fontWeight: 600 }}>
                 {importSearch
                   ? `${importPreviewItems.filter(i => i.description?.toLowerCase().includes(importSearch.toLowerCase()) || i.type?.toLowerCase().includes(importSearch.toLowerCase())).length} de ${importPreviewItems.length}`
                   : `${importPreviewItems.length} peças`
@@ -528,7 +528,7 @@ export function ImportXlsxDialog({
                       { label: 'Patrocinador', tip: 'Sugestão automática — clique para alterar' },
                       { label: '', tip: '' },
                     ].map((h, i) => (
-                      <th key={i} title={h.tip} style={{ padding: '9px 10px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: '#78716c', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>{h.label}</th>
+                      <th key={i} title={h.tip} style={{ padding: '9px 10px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>{h.label}</th>
                     ))}
                   </tr>
                 </thead>
@@ -555,7 +555,7 @@ export function ImportXlsxDialog({
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                   <div style={{ width: 3, height: 14, backgroundColor: '#D97A1E', borderRadius: 2 }} />
                                   <span style={{ fontWeight: 800, fontSize: 12, color: '#1a1c1c', fontFamily: "'Space Grotesk', sans-serif", textTransform: 'uppercase', letterSpacing: '0.04em' }}>{type}</span>
-                                  <span style={{ fontSize: 10, fontWeight: 600, color: '#78716c', backgroundColor: '#e8e6e3', borderRadius: 9999, padding: '1px 8px' }}>{groupItems.length}</span>
+                                  <span style={{ fontSize: 10, fontWeight: 600, color: '#746e69', backgroundColor: '#e8e6e3', borderRadius: 9999, padding: '1px 8px' }}>{groupItems.length}</span>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                                   {groupM2 > 0 && (
@@ -585,7 +585,7 @@ export function ImportXlsxDialog({
                 </tbody>
               </table>
               {importPreviewItems.length === 0 && (
-                <div style={{ padding: 60, textAlign: 'center', color: '#a8a29e', fontSize: 13 }}>
+                <div style={{ padding: 60, textAlign: 'center', color: '#746e69', fontSize: 13 }}>
                   <List style={{ width: 32, height: 32, color: '#d0cdc9', margin: '0 auto 12px' }} />
                   <div>Nenhuma peça para importar.</div>
                 </div>

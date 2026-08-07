@@ -33,7 +33,7 @@ function SearchableSelect({
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em" }}>{label}</span>
+      <span style={{ fontSize: 10, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.1em" }}>{label}</span>
       <FilterSelect
         label={label}
         allLabel={placeholder}
@@ -364,7 +364,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
     outline: "none", fontFamily: "'Plus Jakarta Sans', sans-serif",
   };
   const labelStyle: React.CSSProperties = {
-    display: "block", fontSize: 10, fontWeight: 700, color: "#78716c",
+    display: "block", fontSize: 10, fontWeight: 700, color: "#746e69",
     textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6, marginLeft: 2,
   };
 
@@ -377,7 +377,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
           <h1 style={{ fontSize: 22, fontWeight: 700, color: "#1c1917", margin: 0, letterSpacing: "-0.02em", fontFamily: "'Space Grotesk', sans-serif" }}>
             Modelos de Itens
           </h1>
-          <p style={{ fontSize: 13, color: "#78716c", margin: "4px 0 0" }}>
+          <p style={{ fontSize: 13, color: "#746e69", margin: "4px 0 0" }}>
             Catálogo de modelos reutilizáveis de peças gráficas
           </p>
         </div>
@@ -442,7 +442,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
           {activeFilters > 0 && (
             <button
               onClick={() => { setFilterGroup(""); setFilterType(""); setFilterMaterial(""); setFilterFinish(""); }}
-              style={{ height: 36, paddingLeft: 12, paddingRight: 12, fontSize: 12, fontWeight: 600, color: "#78716c", background: "none", border: "1px solid #e7e5e4", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, alignSelf: "flex-end" }}
+              style={{ height: 36, paddingLeft: 12, paddingRight: 12, fontSize: 12, fontWeight: 600, color: "#746e69", background: "none", border: "1px solid #e7e5e4", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, alignSelf: "flex-end" }}
             >
               <X style={{ width: 11, height: 11 }} />
               Limpar ({activeFilters})
@@ -460,7 +460,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
         <div style={{ backgroundColor: "#ffffff", borderRadius: 14, padding: "64px 32px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.04)" }}>
           <Layers style={{ width: 40, height: 40, color: "#d4d0cc", margin: "0 auto 14px" }} />
           <p style={{ fontSize: 15, fontWeight: 600, color: "#1c1917", margin: "0 0 6px" }}>Nenhum modelo criado</p>
-          <p style={{ fontSize: 13, color: "#78716c", margin: "0 0 20px" }}>Crie modelos para reutilizar configurações de itens</p>
+          <p style={{ fontSize: 13, color: "#746e69", margin: "0 0 20px" }}>Crie modelos para reutilizar configurações de itens</p>
           <button onClick={() => setOpen(true)}
             style={{ backgroundColor: "#1c1917", color: "#ffffff", border: "none", borderRadius: 10, padding: "9px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
             <Plus style={{ width: 14, height: 14 }} /> Criar Primeiro Modelo
@@ -478,14 +478,14 @@ export default function Modelos() {  const isMobile = useIsMobile();
               <div>
                 <span style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", display: "block" }}>
                   {filteredItems.length} modelo{filteredItems.length !== 1 ? "s" : ""}
-                  {searchTerm && <span style={{ color: "#a8a29e", fontWeight: 400 }}> — filtrado de {standardItems.length}</span>}
+                  {searchTerm && <span style={{ color: "#746e69", fontWeight: 400 }}> — filtrado de {standardItems.length}</span>}
                 </span>
-                <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.08em" }}>Total no Catálogo</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.08em" }}>Total no Catálogo</span>
               </div>
             </div>
             {filteredItems.length === 0 && searchTerm && (
               <button onClick={() => setSearchTerm("")}
-                style={{ fontSize: 12, color: "#78716c", background: "none", border: "1px solid #e7e5e4", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
+                style={{ fontSize: 12, color: "#746e69", background: "none", border: "1px solid #e7e5e4", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
                 Limpar busca
               </button>
             )}
@@ -495,7 +495,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
             <div style={{ padding: "48px 24px", textAlign: "center" }}>
               <Search style={{ width: 32, height: 32, color: "#d4d0cc", margin: "0 auto 12px" }} />
               <p style={{ fontSize: 14, fontWeight: 600, color: "#1c1917", margin: "0 0 4px" }}>Nenhum modelo encontrado</p>
-              <p style={{ fontSize: 13, color: "#78716c", margin: "0 0 16px" }}>
+              <p style={{ fontSize: 13, color: "#746e69", margin: "0 0 16px" }}>
                 {searchTerm && activeFilters > 0
                   ? "Nenhum modelo corresponde à busca e aos filtros atuais"
                   : searchTerm
@@ -505,7 +505,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
               {activeFilters > 0 && (
                 <button
                   onClick={() => { setFilterGroup(""); setFilterType(""); setFilterMaterial(""); setFilterFinish(""); }}
-                  style={{ fontSize: 12, fontWeight: 600, color: "#78716c", background: "none", border: "1px solid #e7e5e4", borderRadius: 8, padding: "6px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
+                  style={{ fontSize: 12, fontWeight: 600, color: "#746e69", background: "none", border: "1px solid #e7e5e4", borderRadius: 8, padding: "6px 14px", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5 }}>
                   <X style={{ width: 11, height: 11 }} /> Limpar filtros
                 </button>
               )}
@@ -519,7 +519,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                       <th key={col} style={{
                         padding: "14px 24px",
                         textAlign: col === "Ações" ? "right" : "left",
-                        fontSize: 10, fontWeight: 700, color: "#a8a29e",
+                        fontSize: 10, fontWeight: 700, color: "#746e69",
                         textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap",
                       }}>
                         {col}
@@ -543,7 +543,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                         <td style={{ padding: "18px 24px", minWidth: 200 }}>
                           <span style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", display: "block" }}>{item.name}</span>
                           {item.hasVariableMeasurement && (
-                            <span style={{ fontSize: 10, color: "#a8a29e", marginTop: 2, display: "block" }}>Medida variável</span>
+                            <span style={{ fontSize: 10, color: "#746e69", marginTop: 2, display: "block" }}>Medida variável</span>
                           )}
                         </td>
 
@@ -575,7 +575,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                             <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                               {(item.area || item.visual) && (
                                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                  <span style={{ fontSize: 9, fontWeight: 700, color: "#a8a29e", backgroundColor: "#f5f4f0", borderRadius: 3, padding: "1px 5px", letterSpacing: "0.06em" }}>VIS</span>
+                                  <span style={{ fontSize: 9, fontWeight: 700, color: "#746e69", backgroundColor: "#f5f4f0", borderRadius: 3, padding: "1px 5px", letterSpacing: "0.06em" }}>VIS</span>
                                   <span style={{ fontSize: 12, fontWeight: 600, color: "#1c1917", fontFamily: "monospace" }}>
                                     {item.area ?? "—"} × {item.visual ?? "—"}m
                                   </span>
@@ -650,7 +650,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
               <h3 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#1c1917", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em" }}>
                 {editingItem ? "Editar Modelo de Item" : "Novo Modelo de Item"}
               </h3>
-              <p style={{ margin: "5px 0 0", fontSize: 10, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em" }}>
+              <p style={{ margin: "5px 0 0", fontSize: 10, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.1em" }}>
                 Definição Técnica do Template
               </p>
             </div>
@@ -677,7 +677,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
               <div>
                 <label style={labelStyle}>
                   Tipo{" "}
-                  <span style={{ fontWeight: 400, color: "#a8a29e", textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
+                  <span style={{ fontWeight: 400, color: "#746e69", textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
                 </label>
                 <input
                   value={formData.type}
@@ -692,7 +692,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
               <div>
                 <label style={labelStyle}>
                   Grupo Pai{" "}
-                  <span style={{ fontWeight: 400, color: "#a8a29e", textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
+                  <span style={{ fontWeight: 400, color: "#746e69", textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
                 </label>
                 <Popover open={groupPopoverOpen} onOpenChange={open => { setGroupPopoverOpen(open); if (!open) setCustomGroupInput(""); }}>
                   <PopoverTrigger asChild>
@@ -742,7 +742,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                               </button>
                             </div>
                           ) : (
-                            <p style={{ padding: "12px 16px", fontSize: 12, color: "#a8a29e", margin: 0 }}>Nenhum grupo cadastrado</p>
+                            <p style={{ padding: "12px 16px", fontSize: 12, color: "#746e69", margin: 0 }}>Nenhum grupo cadastrado</p>
                           )}
                         </CommandEmpty>
                         {allGroups.length > 0 && (
@@ -787,7 +787,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                   <button
                     type="button"
                     onClick={() => setFormData({ ...formData, group: "" })}
-                    style={{ marginTop: 4, fontSize: 11, color: "#a8a29e", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+                    style={{ marginTop: 4, fontSize: 11, color: "#746e69", background: "none", border: "none", cursor: "pointer", padding: 0 }}
                   >
                     Limpar
                   </button>
@@ -815,11 +815,11 @@ export default function Modelos() {  const isMobile = useIsMobile();
               <div style={{ gridColumn: "1 / -1" }}>
                 <label style={{ ...labelStyle, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
                   Medidas Visuais
-                  <span style={{ fontSize: 9, fontWeight: 700, color: "#a8a29e", backgroundColor: "#f5f4f0", borderRadius: 4, padding: "2px 6px", letterSpacing: "0.06em" }}>VIS.</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "#746e69", backgroundColor: "#f5f4f0", borderRadius: 4, padding: "2px 6px", letterSpacing: "0.06em" }}>VIS.</span>
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
-                    <label style={{ ...labelStyle, color: "#a8a29e" }}>Largura — VIS. L</label>
+                    <label style={{ ...labelStyle, color: "#746e69" }}>Largura — VIS. L</label>
                     <input
                       type="number" step="0.01"
                       value={formData.area}
@@ -836,7 +836,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                     />
                   </div>
                   <div>
-                    <label style={{ ...labelStyle, color: "#a8a29e" }}>Altura — VIS. A</label>
+                    <label style={{ ...labelStyle, color: "#746e69" }}>Altura — VIS. A</label>
                     <input
                       type="number" step="0.01"
                       value={formData.visual}
@@ -859,11 +859,11 @@ export default function Modelos() {  const isMobile = useIsMobile();
                 <label style={{ ...labelStyle, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
                   Medidas do Arquivo
                   <span style={{ fontSize: 9, fontWeight: 700, color: "#D97A1E", backgroundColor: "#FDF3E7", borderRadius: 4, padding: "2px 6px", letterSpacing: "0.06em" }}>ARQ.</span>
-                  <span style={{ fontSize: 10, fontWeight: 500, color: "#a8a29e", textTransform: "none", letterSpacing: 0 }}>— pré-preenchido igual ao visual</span>
+                  <span style={{ fontSize: 10, fontWeight: 500, color: "#746e69", textTransform: "none", letterSpacing: 0 }}>— pré-preenchido igual ao visual</span>
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
-                    <label style={{ ...labelStyle, color: "#a8a29e" }}>Largura — ARQ. L</label>
+                    <label style={{ ...labelStyle, color: "#746e69" }}>Largura — ARQ. L</label>
                     <input
                       type="number" step="0.01"
                       value={formData.fileWidth}
@@ -875,7 +875,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                     />
                   </div>
                   <div>
-                    <label style={{ ...labelStyle, color: "#a8a29e" }}>Altura — ARQ. A</label>
+                    <label style={{ ...labelStyle, color: "#746e69" }}>Altura — ARQ. A</label>
                     <input
                       type="number" step="0.01"
                       value={formData.fileHeight}
@@ -922,7 +922,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                               </button>
                             </div>
                           ) : (
-                            <p style={{ padding: "12px 16px", fontSize: 12, color: "#a8a29e", margin: 0 }}>Nenhum material cadastrado</p>
+                            <p style={{ padding: "12px 16px", fontSize: 12, color: "#746e69", margin: 0 }}>Nenhum material cadastrado</p>
                           )}
                         </CommandEmpty>
                         {allMats.length > 0 && (
@@ -954,7 +954,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                 </Popover>
                 {formData.material && (
                   <button type="button" onClick={() => setFormData({ ...formData, material: "" })}
-                    style={{ marginTop: 4, fontSize: 11, color: "#a8a29e", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                    style={{ marginTop: 4, fontSize: 11, color: "#746e69", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
                     Limpar
                   </button>
                 )}
@@ -993,7 +993,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                               </button>
                             </div>
                           ) : (
-                            <p style={{ padding: "12px 16px", fontSize: 12, color: "#a8a29e", margin: 0 }}>Nenhum acabamento cadastrado</p>
+                            <p style={{ padding: "12px 16px", fontSize: 12, color: "#746e69", margin: 0 }}>Nenhum acabamento cadastrado</p>
                           )}
                         </CommandEmpty>
                         {allFinishes.length > 0 && (
@@ -1014,8 +1014,8 @@ export default function Modelos() {  const isMobile = useIsMobile();
                           <CommandGroup heading="Novo">
                             <CommandItem value={`__new__${customFinishInput}`}
                               onSelect={() => { setFormData({ ...formData, finish: customFinishInput }); setCustomFinishInput(""); setFinishPopoverOpen(false); }}>
-                              <Plus style={{ width: 14, height: 14, marginRight: 8, color: "#78716c" }} />
-                              <span style={{ fontSize: 12, color: "#78716c", fontWeight: 600 }}>Criar "{customFinishInput}"</span>
+                              <Plus style={{ width: 14, height: 14, marginRight: 8, color: "#746e69" }} />
+                              <span style={{ fontSize: 12, color: "#746e69", fontWeight: 600 }}>Criar "{customFinishInput}"</span>
                             </CommandItem>
                           </CommandGroup>
                         )}
@@ -1025,7 +1025,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                 </Popover>
                 {formData.finish && (
                   <button type="button" onClick={() => setFormData({ ...formData, finish: "" })}
-                    style={{ marginTop: 4, fontSize: 11, color: "#a8a29e", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                    style={{ marginTop: 4, fontSize: 11, color: "#746e69", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
                     Limpar
                   </button>
                 )}
@@ -1036,7 +1036,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
             {/* Footer */}
             <div style={{ padding: "20px 32px", backgroundColor: "rgba(243,244,243,0.5)", borderTop: "1px solid #f5f4f0", display: "flex", justifyContent: "flex-end", gap: 10 }}>
               <button type="button" onClick={handleCloseDialog}
-                style={{ padding: "10px 20px", backgroundColor: "transparent", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, color: "#78716c", cursor: "pointer" }}
+                style={{ padding: "10px 20px", backgroundColor: "transparent", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, color: "#746e69", cursor: "pointer" }}
                 onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#e7e5e4")}
                 onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent")}
               >
@@ -1069,10 +1069,10 @@ export default function Modelos() {  const isMobile = useIsMobile();
               <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 20 }}>
                 <div>
                   <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: "#1c1917", letterSpacing: "-0.03em" }}>Gerenciar Categorias</h2>
-                  <p style={{ margin: "4px 0 0", fontSize: 12, color: "#a8a29e" }}>Renomeie ou remova categorias dos modelos em lote</p>
+                  <p style={{ margin: "4px 0 0", fontSize: 12, color: "#746e69" }}>Renomeie ou remova categorias dos modelos em lote</p>
                 </div>
                 <button onClick={() => { setManageOpen(false); setMgEditingGroup(null); setMgEditingFinish(null); setMgEditingMaterial(null); setMgDeleteGroupConfirm(null); setMgDeleteFinishConfirm(null); setMgDeleteMaterialConfirm(null); }}
-                  style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid #e7e5e4", background: "#fafaf9", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#78716c", flexShrink: 0, marginTop: 2 }}>
+                  style={{ width: 34, height: 34, borderRadius: 10, border: "1px solid #e7e5e4", background: "#fafaf9", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#746e69", flexShrink: 0, marginTop: 2 }}>
                   <X style={{ width: 15, height: 15 }} />
                 </button>
               </div>
@@ -1136,7 +1136,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                             <Check style={{ width: 13, height: 13 }} />
                           </button>
                           <button onClick={onEditCancel}
-                            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #e7e5e4", cursor: "pointer", backgroundColor: "#ffffff", color: "#78716c", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #e7e5e4", cursor: "pointer", backgroundColor: "#ffffff", color: "#746e69", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                             <X style={{ width: 13, height: 13 }} />
                           </button>
                         </>
@@ -1152,14 +1152,14 @@ export default function Modelos() {  const isMobile = useIsMobile();
                             Remover
                           </button>
                           <button onClick={onDeleteCancel}
-                            style={{ padding: "5px 14px", borderRadius: 8, border: "1px solid #e7e5e4", cursor: "pointer", backgroundColor: "#fff", color: "#78716c", fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
+                            style={{ padding: "5px 14px", borderRadius: 8, border: "1px solid #e7e5e4", cursor: "pointer", backgroundColor: "#fff", color: "#746e69", fontSize: 12, fontWeight: 600, flexShrink: 0 }}>
                             Cancelar
                           </button>
                         </>
                       ) : (
                         <>
                           <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#1c1917" }}>{name}</span>
-                          <span style={{ fontSize: 11, fontWeight: 600, color: "#a8a29e", backgroundColor: "#f5f4f0", borderRadius: 6, padding: "2px 8px", marginRight: 2 }}>
+                          <span style={{ fontSize: 11, fontWeight: 600, color: "#746e69", backgroundColor: "#f5f4f0", borderRadius: 6, padding: "2px 8px", marginRight: 2 }}>
                             {count} {count === 1 ? "modelo" : "modelos"}
                           </span>
                           <button onClick={onStartEdit} title={`Renomear "${name}"`}
@@ -1215,7 +1215,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                     </div>
 
                     {tabCfg.items.length === 0 && (
-                      <p style={{ fontSize: 13, color: "#a8a29e", margin: "12px 0", textAlign: "center" }}>{tabCfg.empty}</p>
+                      <p style={{ fontSize: 13, color: "#746e69", margin: "12px 0", textAlign: "center" }}>{tabCfg.empty}</p>
                     )}
                     {tabCfg.items.map(name => {
                       const count = manageTab === "group"
@@ -1271,7 +1271,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
         <AlertDialogContent style={{ backgroundColor: "#ffffff", borderRadius: 12 }}>
           <AlertDialogHeader>
             <AlertDialogTitle style={{ color: "#1c1917", fontWeight: 700 }}>Confirmar Exclusão</AlertDialogTitle>
-            <AlertDialogDescription style={{ color: "#78716c" }}>
+            <AlertDialogDescription style={{ color: "#746e69" }}>
               Tem certeza que deseja excluir o modelo <strong style={{ color: "#1c1917" }}>{deleteConfirm?.name}</strong>?
               <br /><br />Esta ação não pode ser desfeita.
             </AlertDialogDescription>

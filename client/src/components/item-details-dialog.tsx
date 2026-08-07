@@ -597,7 +597,7 @@ export function ItemDetailsDialog({
               <h3 style={{
                 fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10,
                 textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 18px 0",
-                display: "flex", alignItems: "center", gap: 6, color: "#78716c",
+                display: "flex", alignItems: "center", gap: 6, color: "#746e69",
               }}>
                 <Calendar style={{ width: 13, height: 13, color: "#fd761a" }} />
                 Informações do Evento
@@ -651,7 +651,7 @@ export function ItemDetailsDialog({
                       { label: "Acabamento", field: "finish" },
                     ].map(({ label, field }) => (
                       <div key={field}>
-                        <label style={{ fontSize: 11, color: "#a8a29e", display: "block", marginBottom: 4 }}>{label}</label>
+                        <label style={{ fontSize: 11, color: "#746e69", display: "block", marginBottom: 4 }}>{label}</label>
                         <Input value={editedItem?.[field] || ""} onChange={(e) => handleEditChange(field, e.target.value)} className="h-8 text-sm" />
                       </div>
                     ))}
@@ -686,7 +686,7 @@ export function ItemDetailsDialog({
                 <h3 style={{
                   fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10,
                   textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 16px 0",
-                  display: "flex", alignItems: "center", gap: 6, color: "#78716c",
+                  display: "flex", alignItems: "center", gap: 6, color: "#746e69",
                 }}>
                   <ShieldCheck style={{ width: 13, height: 13, color: "#fd761a" }} />
                   Patrocinadores Vinculados
@@ -718,7 +718,7 @@ export function ItemDetailsDialog({
                           <div>
                             <span style={{ fontWeight: 700, fontSize: 14, color: "#1a1c1c", display: "block" }}>{s.name}</span>
                             {approval?.approvedAt ? (
-                              <span style={{ fontSize: 10, color: "#78716c", fontFamily: "'DM Mono', monospace" }}>
+                              <span style={{ fontSize: 10, color: "#746e69", fontFamily: "'DM Mono', monospace" }}>
                                 {format(new Date(approval.approvedAt), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}
                                 {approval.approvedBy ? ` · ${approval.approvedBy}` : ""}
                               </span>
@@ -751,7 +751,7 @@ export function ItemDetailsDialog({
                               style={{
                                 display: "flex", alignItems: "center", justifyContent: "center",
                                 width: 26, height: 26, borderRadius: 999, border: "1px solid #e7e5e4",
-                                backgroundColor: "#ffffff", color: "#78716c", cursor: revertingSponsorId === s.id ? "default" : "pointer",
+                                backgroundColor: "#ffffff", color: "#746e69", cursor: revertingSponsorId === s.id ? "default" : "pointer",
                                 opacity: revertingSponsorId === s.id ? 0.5 : 1, flexShrink: 0,
                               }}
                             >
@@ -786,7 +786,7 @@ export function ItemDetailsDialog({
               padding: 24, borderRadius: 10,
             }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: "#78716c", margin: 0 }}>
+                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69", margin: 0 }}>
                   Aprovação de Arte
                 </h3>
                 <FileImage style={{ width: 20, height: 20, color: "#9d4300" }} />
@@ -879,7 +879,7 @@ export function ItemDetailsDialog({
               padding: 24, borderRadius: 10,
             }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: "#78716c", margin: 0 }}>
+                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69", margin: 0 }}>
                   Arquivo Final
                 </h3>
                 <FolderOpen style={{ width: 20, height: 20, color: "#006398" }} />
@@ -955,7 +955,7 @@ export function ItemDetailsDialog({
 
           {/* ── Dados de Produção ── */}
           <section>
-            <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 14px 0", display: "flex", alignItems: "center", gap: 6, color: "#78716c" }}>
+            <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 14px 0", display: "flex", alignItems: "center", gap: 6, color: "#746e69" }}>
               <Package style={{ width: 13, height: 13, color: "#fd761a" }} />
               Dados de Produção
             </h3>
@@ -964,7 +964,7 @@ export function ItemDetailsDialog({
                 <thead>
                   <tr style={{ backgroundColor: "#fafaf9", borderBottom: "1px solid #f0ede9" }}>
                     {["Quantidade", "Total M²", "Dimensões Visuais", "Dimensões Arquivo", "Medida"].map(col => (
-                      <th key={col} style={{ padding: "11px 16px", fontSize: 9, fontWeight: 900, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.1em" }}>{col}</th>
+                      <th key={col} style={{ padding: "11px 16px", fontSize: 9, fontWeight: 900, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.1em" }}>{col}</th>
                     ))}
                   </tr>
                 </thead>
@@ -995,15 +995,15 @@ export function ItemDetailsDialog({
                             ["Entregue", item.deliveredQty, "#7e22ce"],
                           ] as const).filter(([, v]) => v > 0).map(([label, value, color]) => (
                             <div key={label}>
-                              <span style={{ fontSize: 9, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</span>
+                              <span style={{ fontSize: 9, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</span>
                               <p style={{ fontSize: 14, fontWeight: 700, color, margin: "2px 0 0 0", fontFamily: "'DM Mono', monospace" }}>
-                                {value}<span style={{ color: "#a8a29e", fontWeight: 400 }}>/{item.quantity}</span>
+                                {value}<span style={{ color: "#746e69", fontWeight: 400 }}>/{item.quantity}</span>
                               </p>
                             </div>
                           ))}
                           {item.receivedBy && (
                             <div>
-                              <span style={{ fontSize: 9, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.07em" }}>Recebido por</span>
+                              <span style={{ fontSize: 9, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.07em" }}>Recebido por</span>
                               <p style={{ fontSize: 14, fontWeight: 700, color: "#1a1c1c", margin: "2px 0 0 0" }}>{item.receivedBy}</p>
                             </div>
                           )}
@@ -1025,7 +1025,7 @@ export function ItemDetailsDialog({
             <div style={{ display: "grid", gridTemplateColumns: hasFlowPhotos && hasObservations ? "1fr 1fr" : "1fr", gap: 32 }}>
               {hasFlowPhotos && (
                 <section>
-                  <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 14px 0", display: "flex", alignItems: "center", gap: 6, color: "#78716c" }}>
+                  <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 14px 0", display: "flex", alignItems: "center", gap: 6, color: "#746e69" }}>
                     <Camera style={{ width: 13, height: 13, color: "#fd761a" }} />
                     Registros da Gráfica
                   </h3>
@@ -1073,7 +1073,7 @@ export function ItemDetailsDialog({
               )}
               {hasObservations && (
                 <section>
-                  <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 14px 0", display: "flex", alignItems: "center", gap: 6, color: "#78716c" }}>
+                  <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 14px 0", display: "flex", alignItems: "center", gap: 6, color: "#746e69" }}>
                     <FileText style={{ width: 13, height: 13, color: "#fd761a" }} />
                     Observações
                   </h3>
@@ -1094,7 +1094,7 @@ export function ItemDetailsDialog({
               {/* Rastreabilidade Temporal */}
               {hasTimestamps && (
                 <div>
-                  <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 16px 0", display: "flex", alignItems: "center", gap: 6, color: "#78716c" }}>
+                  <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 16px 0", display: "flex", alignItems: "center", gap: 6, color: "#746e69" }}>
                     <Clock style={{ width: 13, height: 13, color: "#fd761a" }} />
                     Rastreabilidade Temporal
                   </h3>
@@ -1130,7 +1130,7 @@ export function ItemDetailsDialog({
 
               {/* Histórico / Audit */}
               <div>
-                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 16px 0", display: "flex", alignItems: "center", gap: 6, color: "#78716c" }}>
+                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 16px 0", display: "flex", alignItems: "center", gap: 6, color: "#746e69" }}>
                   <History style={{ width: 13, height: 13, color: "#fd761a" }} />
                   Histórico
                 </h3>
@@ -1190,13 +1190,13 @@ export function ItemDetailsDialog({
           display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 12,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: "#a8a29e", letterSpacing: "0.04em" }}>
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: "#746e69", letterSpacing: "0.04em" }}>
               {item.displayId}
             </span>
             {item.updatedAt && (
               <>
                 <div style={{ width: 1, height: 12, backgroundColor: "#e7e5e4" }} />
-                <span style={{ fontSize: 10, color: "#a8a29e" }}>
+                <span style={{ fontSize: 10, color: "#746e69" }}>
                   Atualizado {format(new Date(item.updatedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
                 </span>
               </>

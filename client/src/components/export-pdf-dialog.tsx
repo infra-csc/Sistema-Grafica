@@ -216,7 +216,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                 WCAG AA — texto pequeno é justamente o que menos pode perder
                 contraste. */}
             <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #ebe8e4" }}>
-              <p style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c", margin: 0 }}>
+              <p style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", margin: 0 }}>
                 Opções
               </p>
             </div>
@@ -289,7 +289,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                       <button onClick={() => setUngroupedKeys(new Set(groupsInSelection.map(g => g.key)))} style={{ background: "none", border: "none", padding: 0, fontSize: 11, fontWeight: 700, color: "#7c3aed", cursor: "pointer" }}>Nenhum</button>
                     </div>
                   </div>
-                  <p style={{ fontSize: 11, color: "#78716c", margin: "0 0 12px", lineHeight: 1.5 }}>
+                  <p style={{ fontSize: 11, color: "#746e69", margin: "0 0 12px", lineHeight: 1.5 }}>
                     Grupos marcados saem juntos numa página. Desmarcados, uma peça por página.
                   </p>
                   <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
@@ -340,7 +340,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                     </div>
                     <div>
                       <p style={{ fontSize: 12, fontWeight: 600, color: "#1c1917", margin: 0 }}>Página de capa por evento</p>
-                      <p style={{ fontSize: 11, color: "#78716c", margin: 0 }}>{eventCount} eventos no PDF</p>
+                      <p style={{ fontSize: 11, color: "#746e69", margin: 0 }}>{eventCount} eventos no PDF</p>
                     </div>
                   </div>
                 </div>
@@ -354,7 +354,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                   <div style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: "#f5f5f4", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <FileText style={{ width: 20, height: 20, color: "#d4d0ca" }} />
                   </div>
-                  <p style={{ fontSize: 12, color: "#78716c", margin: 0, textAlign: "center", lineHeight: 1.5 }}>
+                  <p style={{ fontSize: 12, color: "#746e69", margin: 0, textAlign: "center", lineHeight: 1.5 }}>
                     Selecione peças ao lado<br />para configurar o layout
                   </p>
                 </div>
@@ -466,7 +466,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                   atenção que o próprio "Gerar PDF". */}
               <button
                 onClick={() => onOpenChange(false)}
-                style={{ width: "100%", height: 36, flexShrink: 0, borderRadius: 8, background: "none", border: "none", color: "#78716c", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+                style={{ width: "100%", height: 36, flexShrink: 0, borderRadius: 8, background: "none", border: "none", color: "#746e69", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
                 Cancelar
               </button>
             </div>
@@ -488,7 +488,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6, marginRight: 4, flexShrink: 0 }}>
                 <SlidersHorizontal style={{ width: 13, height: 13, color: "#a8a29e" }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#a8a29e", textTransform: "uppercase", letterSpacing: "0.08em" }}>Filtros</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.08em" }}>Filtros</span>
               </div>
               <FilterSelect showAllLabelWhenEmpty hideWhenEmpty={false} accent="violet"
                 label="Evento" allLabel="Todos os eventos"
@@ -515,7 +515,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
               {hasFilters && (
                 <button
                   onClick={clearFilters}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 32, padding: "0 12px", borderRadius: 8, background: "none", border: "1px solid #e4e0db", color: "#78716c", cursor: "pointer", fontSize: 11, fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap" }}>
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 32, padding: "0 12px", borderRadius: 8, background: "none", border: "1px solid #e4e0db", color: "#746e69", cursor: "pointer", fontSize: 11, fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap" }}>
                   <X style={{ width: 11, height: 11 }} />
                   {activeFilterCount > 1 ? `${activeFilterCount} filtros` : "Limpar filtro"}
                 </button>
@@ -531,7 +531,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
             }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: "#292524" }}>
-                  {selected.length} <span style={{ fontWeight: 400, color: "#a8a29e" }}>de {filtered.length} {filtered.length === 1 ? "peça" : "peças"}</span>
+                  {selected.length} <span style={{ fontWeight: 400, color: "#746e69" }}>de {filtered.length} {filtered.length === 1 ? "peça" : "peças"}</span>
                 </span>
                 <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                   <button
@@ -549,7 +549,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                   </button>
                 </div>
               </div>
-              <span style={{ fontSize: 11, color: "#78716c" }}>
+              <span style={{ fontSize: 11, color: "#746e69" }}>
                 {/* Descreve os dados da seleção, não a origem escolhida: uma peça
                     coberta por book continua coberta mesmo quando a exportação
                     sai pelas artes. */}
@@ -565,8 +565,8 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                   <FileText style={{ width: 26, height: 26, color: "#d4d0ca" }} />
                 </div>
                 <div style={{ textAlign: "center" }}>
-                  <p style={{ fontSize: 14, fontWeight: 700, color: "#78716c", margin: "0 0 4px" }}>Nenhuma peça encontrada</p>
-                  <p style={{ fontSize: 12, color: "#a8a29e", margin: 0 }}>Ajuste os filtros acima</p>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: "#746e69", margin: "0 0 4px" }}>Nenhuma peça encontrada</p>
+                  <p style={{ fontSize: 12, color: "#746e69", margin: 0 }}>Ajuste os filtros acima</p>
                 </div>
                 {hasFilters && (
                   <button onClick={clearFilters} style={{ fontSize: 12, fontWeight: 700, color: "#7c3aed", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
@@ -632,7 +632,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                                 </span>
                               )}
                         </div>
-                        <div style={{ fontSize: 11, color: "#78716c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <div style={{ fontSize: 11, color: "#746e69", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {item.event?.name || ""}{item.description ? ` · ${item.description}` : ""}
                         </div>
                       </div>

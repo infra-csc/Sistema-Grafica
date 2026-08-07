@@ -25,6 +25,7 @@ import { ptBR } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
 import { Undo2 } from "lucide-react";
+import { ModalHeader, ModalFooter, modalSurface } from "@/components/modal-shell";
 
 interface SponsorApproval {
   id: string;
@@ -1047,14 +1048,14 @@ export default function Atendimento() {
             <span style={{
               backgroundColor: 'transparent', color: '#c2410c',
               fontSize: 11, fontWeight: 700,
-              padding: '2px 8px', borderRadius: 4,
+              padding: '2px 8px', borderRadius: 6,
               letterSpacing: '0.08em', textTransform: 'uppercase',
               border: '1px solid #fed7aa',
             }}>
               Fluxo de Verificação
             </span>
             <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#9d4300', display: 'inline-block' }} />
-            <span style={{ color: '#746e69', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            <span style={{ color: '#746e69', fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               Aprovação do Patrocinador
             </span>
           </div>
@@ -1066,7 +1067,7 @@ export default function Atendimento() {
           }}>
             Aprovação do Patrocinador
           </h1>
-          <p style={{ color: '#746e69', fontSize: 14, fontWeight: 500, lineHeight: 1.5 }}>
+          <p style={{ color: '#746e69', fontSize: 15, fontWeight: 500, lineHeight: 1.5 }}>
             Valide e aprove ativos de marca com cada patrocinador.
           </p>
         </div>
@@ -1082,7 +1083,7 @@ export default function Atendimento() {
         >
           <span style={{
             fontFamily: "'Space Grotesk', sans-serif",
-            fontSize: 36, fontWeight: 900, lineHeight: 1,
+            fontSize: 26, fontWeight: 900, lineHeight: 1,
             color: actionableCount ? '#f97316' : '#746e69',
           }}>
             {actionableCount ?? '—'}
@@ -1111,7 +1112,7 @@ export default function Atendimento() {
               padding: '10px 20px', border: 'none', cursor: 'pointer',
               backgroundColor: 'transparent',
               borderBottom: activeTab === tab.key ? '2px solid #f97316' : '2px solid transparent',
-              fontSize: 14, fontWeight: activeTab === tab.key ? 700 : 500,
+              fontSize: 15, fontWeight: activeTab === tab.key ? 700 : 500,
               color: activeTab === tab.key ? '#c2410c' : '#746e69',
               display: 'flex', alignItems: 'center', gap: 8,
               marginBottom: -1, transition: 'color 0.15s',
@@ -1123,7 +1124,7 @@ export default function Atendimento() {
                 backgroundColor: '#f5f5f4',
                 color: '#746e69',
                 border: '1px solid #e7e5e4',
-                fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 10,
+                fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 12,
                 minWidth: 20, textAlign: 'center',
               }}>
                 {tab.count}
@@ -1151,7 +1152,7 @@ export default function Atendimento() {
             style={{
               width: '100%', paddingLeft: 40, paddingRight: 16, paddingTop: 12, paddingBottom: 12,
               backgroundColor: '#ffffff', borderRadius: 8, border: 'none',
-              outline: 'none', fontSize: 14, fontWeight: 500, color: '#1c1917',
+              fontSize: 15, fontWeight: 500, color: '#1c1917',
               boxSizing: 'border-box',
             }}
           />
@@ -1230,19 +1231,19 @@ export default function Atendimento() {
       {activeTab === "pending" && !loadingSponsors && batchEligibleSponsors.length > 0 && (
         <section
           data-testid="section-batch-sponsor"
-          style={{ marginBottom: 32, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 14 }}
+          style={{ marginBottom: 32, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12 }}
         >
           {/* ── Header do painel ── */}
-          <div style={{ background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', padding: isMobile ? '16px 16px' : '20px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderRadius: '13px 13px 0 0', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+          <div style={{ background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', padding: isMobile ? '16px 16px' : '20px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderRadius: '12px 12px 0 0', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 10, background: 'linear-gradient(135deg, #f97316, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(249,115,22,0.35)' }}>
+              <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #f97316, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(249,115,22,0.35)' }}>
                 <Zap style={{ width: 18, height: 18, color: '#ffffff' }} />
               </div>
               <div>
-                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em', margin: 0, color: '#ffffff' }}>
+                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 800, letterSpacing: '-0.02em', margin: 0, color: '#ffffff' }}>
                   Aprovação em Lote
                 </h3>
-                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 12, margin: 0 }}>
+                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, margin: 0 }}>
                   {batchEligibleSponsors.length} {batchEligibleSponsors.length === 1 ? 'patrocinador com' : 'patrocinadores com'} itens pendentes
                 </p>
               </div>
@@ -1330,13 +1331,13 @@ export default function Atendimento() {
             {/* ── Área de itens ── */}
             {batchSponsorId && batchEventId ? (
               batchItemCount === 0 ? (
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '36px 0', gap: 10, backgroundColor: '#f9f9f8', borderRadius: 10, border: '1px dashed #e7e5e4' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '36px 0', gap: 10, backgroundColor: '#f9f9f8', borderRadius: 12, border: '1px dashed #e7e5e4' }}>
                   <div style={{ width: 44, height: 44, borderRadius: 12, background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <CheckCircle style={{ width: 22, height: 22, color: '#16a34a' }} />
                   </div>
                   <div style={{ textAlign: 'center' }}>
-                    <p style={{ fontSize: 14, fontWeight: 700, color: '#1c1917', margin: '0 0 4px' }}>Tudo aprovado</p>
-                    <p style={{ fontSize: 12, color: '#746e69', margin: 0 }}>Nenhuma peça pendente para esta combinação</p>
+                    <p style={{ fontSize: 15, fontWeight: 700, color: '#1c1917', margin: '0 0 4px' }}>Tudo aprovado</p>
+                    <p style={{ fontSize: 13, color: '#746e69', margin: 0 }}>Nenhuma peça pendente para esta combinação</p>
                   </div>
                 </div>
               ) : (
@@ -1357,7 +1358,7 @@ export default function Atendimento() {
                     </label>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                       {batchEligibleItems.filter((i: any) => !i.approvalThumbUrl).length > 0 && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#b45309', fontWeight: 600, background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 20, padding: '2px 10px' }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#b45309', fontWeight: 600, background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 999, padding: '2px 10px' }}>
                           <AlertCircle style={{ width: 11, height: 11 }} />
                           {batchEligibleItems.filter((i: any) => !i.approvalThumbUrl).length} sem arte
                         </span>
@@ -1388,7 +1389,7 @@ export default function Atendimento() {
                             padding: '10px 14px',
                             backgroundColor: isChecked ? '#fff7ed' : '#ffffff',
                             border: `1.5px solid ${isChecked ? '#fb923c' : '#f0ede8'}`,
-                            borderRadius: 10, cursor: 'pointer',
+                            borderRadius: 12, cursor: 'pointer',
                             transition: 'border-color 0.12s, background-color 0.12s',
                           }}
                         >
@@ -1450,7 +1451,7 @@ export default function Atendimento() {
                           {/* Info */}
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
-                              <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#9a3412', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 4, padding: '1px 6px', flexShrink: 0 }}>
+                              <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 700, color: '#9a3412', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 6, padding: '1px 6px', flexShrink: 0 }}>
                                 {item.displayId}
                               </span>
                               <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -1466,10 +1467,10 @@ export default function Atendimento() {
                           {/* Status thumb */}
                           <div style={{ flexShrink: 0 }}>
                             {hasThumb
-                              ? <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#15803d', fontWeight: 700, background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 20, padding: '2px 8px' }}>
+                              ? <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#15803d', fontWeight: 700, background: '#dcfce7', border: '1px solid #bbf7d0', borderRadius: 999, padding: '2px 8px' }}>
                                   <CheckCircle style={{ width: 10, height: 10 }} /> Arte OK
                                 </span>
-                              : <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#92400e', fontWeight: 700, background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 20, padding: '2px 8px' }}>
+                              : <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#92400e', fontWeight: 700, background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 999, padding: '2px 8px' }}>
                                   <AlertCircle style={{ width: 11, height: 11 }} /> Sem arte
                                 </span>
                             }
@@ -1481,8 +1482,8 @@ export default function Atendimento() {
 
                   {/* ── Ações ── */}
                   {!batchShowRejectForm ? (
-                    <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', padding: '14px 16px', background: '#fafaf9', borderRadius: 10, border: '1px solid #f0ede8', gap: isMobile ? 10 : 0 }}>
-                      <p style={{ fontSize: 12, color: '#746e69', margin: 0 }}>
+                    <div style={{ display: 'flex', alignItems: isMobile ? 'stretch' : 'center', flexDirection: isMobile ? 'column' : 'row', justifyContent: 'space-between', padding: '14px 16px', background: '#fafaf9', borderRadius: 12, border: '1px solid #f0ede8', gap: isMobile ? 10 : 0 }}>
+                      <p style={{ fontSize: 13, color: '#746e69', margin: 0 }}>
                         {batchSelectedItemIds.size > 0
                           ? <><strong style={{ color: '#1c1917' }}>{batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'peça' : 'peças'}</strong> prontas para decisão</>
                           : 'Selecione peças para aprovar ou recusar'}
@@ -1495,7 +1496,7 @@ export default function Atendimento() {
                           style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
                             backgroundColor: '#ffffff', color: '#dc2626',
-                            border: '1.5px solid #fca5a5', borderRadius: 9,
+                            border: '1.5px solid #fca5a5', borderRadius: 8,
                             padding: '10px 18px', fontSize: 13, fontWeight: 700,
                             cursor: batchSelectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
                             opacity: batchSelectedItemIds.size === 0 ? 0.4 : 1,
@@ -1514,8 +1515,11 @@ export default function Atendimento() {
                           data-testid="button-batch-approve"
                           style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                            background: batchSelectedItemIds.size === 0 ? '#e7e5e4' : 'linear-gradient(135deg, #22c55e, #16a34a)',
-                            color: '#ffffff', border: 'none', borderRadius: 9,
+                            background: batchSelectedItemIds.size === 0 ? '#f5f5f4' : 'linear-gradient(135deg, #15803d, #166534)',
+                            // O branco era fixo: sobre o fundo do estado
+                            // desabilitado o rótulo simplesmente sumia.
+                            color: batchSelectedItemIds.size === 0 ? '#57534e' : '#ffffff',
+                            border: 'none', borderRadius: 8,
                             padding: '10px 22px', fontSize: 13, fontWeight: 800,
                             cursor: batchSelectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
                             boxShadow: batchSelectedItemIds.size > 0 ? '0 4px 12px rgba(34,197,94,0.35)' : 'none',
@@ -1523,7 +1527,7 @@ export default function Atendimento() {
                             transition: 'filter 0.15s, box-shadow 0.15s',
                             minHeight: isMobile ? 44 : undefined,
                           }}
-                          onMouseEnter={e => { if (batchSelectedItemIds.size > 0) e.currentTarget.style.filter = 'brightness(1.08)'; }}
+                          onMouseEnter={e => { if (batchSelectedItemIds.size > 0) e.currentTarget.style.filter = 'brightness(0.9)'; }}
                           onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
                         >
                           {batchSponsorMutation.isPending
@@ -1534,7 +1538,7 @@ export default function Atendimento() {
                       </div>
                     </div>
                   ) : (
-                    <div style={{ backgroundColor: '#fef2f2', border: '1.5px solid #fca5a5', borderRadius: 10, padding: '18px 20px' }}>
+                    <div style={{ backgroundColor: '#fef2f2', border: '1.5px solid #fca5a5', borderRadius: 12, padding: '18px 20px' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
                         <div style={{ width: 32, height: 32, borderRadius: 8, background: '#fee2e2', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           <XCircle style={{ width: 16, height: 16, color: '#dc2626' }} />
@@ -1554,7 +1558,7 @@ export default function Atendimento() {
                           width: '100%', backgroundColor: '#ffffff',
                           border: `1.5px solid ${batchRejectReason.trim() === "" ? '#fca5a5' : '#e7e5e4'}`,
                           color: '#1c1917', borderRadius: 8, padding: '10px 12px',
-                          fontSize: 13, resize: 'vertical', outline: 'none',
+                          fontSize: 13, resize: 'vertical',
                           boxSizing: 'border-box', lineHeight: 1.5,
                         }}
                       />
@@ -1590,15 +1594,15 @@ export default function Atendimento() {
               )
             ) : (
               /* Estado vazio — orientação de uso */
-              <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '20px 24px', backgroundColor: '#fff7ed', borderRadius: 10, border: '1px solid #fed7aa' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '20px 24px', backgroundColor: '#fff7ed', borderRadius: 12, border: '1px solid #fed7aa' }}>
                 <div style={{ width: 48, height: 48, borderRadius: 12, background: 'linear-gradient(135deg, #f97316, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(249,115,22,0.25)' }}>
                   <Zap style={{ width: 22, height: 22, color: '#ffffff' }} />
                 </div>
                 <div>
-                  <p style={{ fontSize: 14, fontWeight: 700, color: '#9a3412', margin: '0 0 3px' }}>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: '#9a3412', margin: '0 0 3px' }}>
                     {batchSponsorId ? 'Selecione o evento' : 'Selecione o patrocinador'}
                   </p>
-                  <p style={{ fontSize: 12, color: '#c2410c', margin: 0, lineHeight: 1.5, opacity: 0.8 }}>
+                  <p style={{ fontSize: 13, color: '#c2410c', margin: 0, lineHeight: 1.5, opacity: 0.8 }}>
                     {batchSponsorId
                       ? `${batchEligibleEvents.length} evento${batchEligibleEvents.length !== 1 ? 's' : ''} com peças pendentes para o patrocinador selecionado.`
                       : `${batchEligibleSponsors.length} patrocinador${batchEligibleSponsors.length !== 1 ? 'es' : ''} aguardam decisão — escolha um para iniciar o lote.`}
@@ -1617,7 +1621,7 @@ export default function Atendimento() {
           <h3 style={{ fontSize: 18, fontWeight: 700, color: '#1c1917', margin: '0 0 8px' }}>
             {pendingItems.length === 0 ? "Nenhum item pendente" : "Nenhum resultado encontrado"}
           </h3>
-          <p style={{ color: '#746e69', fontSize: 14 }}>
+          <p style={{ color: '#746e69', fontSize: 15 }}>
             {pendingItems.length === 0
               ? "Não há itens aguardando aprovação do patrocinador no momento."
               : "Tente ajustar os filtros para ver mais resultados."}
@@ -1631,9 +1635,21 @@ export default function Atendimento() {
             const ev = getEventInfo(eventId);
             return (
               <div key={eventId}>
-                {/* Group Header — clicável para recolher/expandir o evento */}
+                {/* Group Header — recolhe/expande o evento.
+                    Era só onClick num <div>: recolher grupo, que é o principal
+                    recurso de navegação desta tela, existia apenas para quem
+                    usa mouse. */}
                 <div
+                  role="button"
+                  tabIndex={0}
+                  aria-expanded={!collapsedEvents.has(eventId)}
                   onClick={() => toggleEventCollapsed(eventId)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      toggleEventCollapsed(eventId);
+                    }
+                  }}
                   data-testid={`toggle-event-${eventId}`}
                   title={collapsedEvents.has(eventId) ? 'Expandir evento' : 'Recolher evento'}
                   style={{
@@ -1683,7 +1699,7 @@ export default function Atendimento() {
                       ? { bg: '#FDF0E8', border: '#FDDBC4', text: '#C97B4B' }
                       : { bg: '#F3F2F0', border: '#E7E3DC', text: '#6F6A63' };
                     return (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 99, padding: '3px 10px', fontSize: 11, fontWeight: 700, color: s.text, whiteSpace: 'nowrap' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 999, padding: '3px 10px', fontSize: 11, fontWeight: 700, color: s.text, whiteSpace: 'nowrap' }}>
                         Aprovação de Layout · {ds}{diff >= 0 && diff <= 14 && <span title={`Prazo em ${diff} ${diff === 1 ? 'dia' : 'dias'}`} style={{ opacity: 0.7, fontWeight: 500 }}> ({diff}d)</span>}
                       </span>
                     );
@@ -1691,7 +1707,7 @@ export default function Atendimento() {
                   <span style={{
                     marginLeft: 'auto',
                     backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4',
-                    color: '#746e69', borderRadius: 100,
+                    color: '#746e69', borderRadius: 999,
                     fontSize: 11, fontWeight: 600, padding: '3px 10px',
                   }}>
                     {eventItems.length} {eventItems.length === 1 ? 'peça' : 'peças'}
@@ -1716,7 +1732,7 @@ export default function Atendimento() {
                       <Fragment key={item.id}>
                         {showGroupHeader && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0 4px', marginTop: 4 }}>
-                            <div style={{ width: 3, height: 16, borderRadius: 2, background: '#f97316', flexShrink: 0 }} />
+                            <div style={{ width: 3, height: 16, borderRadius: 999, background: '#f97316', flexShrink: 0 }} />
                             <span style={{ fontSize: 11, fontWeight: 800, color: '#1c1917', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{itemGroupName}</span>
                             <div style={{ flex: 1, height: 1, background: '#f0ede8' }} />
                           </div>
@@ -1746,7 +1762,7 @@ export default function Atendimento() {
 
                           {/* Thumbnail */}
                           <div style={{
-                            width: isMobile ? 52 : 80, height: isMobile ? 52 : 80, flexShrink: 0, borderRadius: 10,
+                            width: isMobile ? 52 : 80, height: isMobile ? 52 : 80, flexShrink: 0, borderRadius: 12,
                             overflow: 'hidden', backgroundColor: '#f5f5f4', position: 'relative',
                             border: '1px solid #ede9e4',
                           }}>
@@ -1795,7 +1811,7 @@ export default function Atendimento() {
                             {/* Col 1: Título e ID */}
                             <div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                <h5 style={{ fontSize: 14, fontWeight: 700, color: isFullyApproved ? '#746e69' : '#1c1917', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <h5 style={{ fontSize: 15, fontWeight: 700, color: isFullyApproved ? '#746e69' : '#1c1917', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {item.type}
                                 </h5>
                                 {item.isReuse && (
@@ -1808,7 +1824,7 @@ export default function Atendimento() {
                                 {item.displayId}{item.description ? ` • ${item.description}` : ''}
                               </p>
                               {item.referenceUrl && (
-                                <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600, color: '#2563eb', textDecoration: 'none', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 4, padding: '2px 7px', marginTop: 4 }} data-testid={`link-reference-atendimento-${item.id}`}>
+                                <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600, color: '#2563eb', textDecoration: 'none', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '2px 7px', marginTop: 4 }} data-testid={`link-reference-atendimento-${item.id}`}>
                                   <Paperclip style={{ width: 10, height: 10 }} />
                                   Ref. visual
                                 </a>
@@ -1818,7 +1834,7 @@ export default function Atendimento() {
                             {/* Col 2: Patrocinadores */}
                             <div style={{ minWidth: 0, overflow: 'hidden' }}>
                               {loadingSponsors ? (
-                                <span style={{ fontSize: 12, color: '#746e69' }}>...</span>
+                                <span style={{ fontSize: 13, color: '#746e69' }}>...</span>
                               ) : (
                                 <SponsorChips sponsors={sponsorsWithStatus(item)} variant="colored" size="sm" max={2} />
                               )}
@@ -1829,7 +1845,7 @@ export default function Atendimento() {
                               {isFullyApproved ? (
                                 <span style={{
                                   display: 'inline-flex', alignItems: 'center', gap: 6,
-                                  padding: '4px 10px', borderRadius: 5,
+                                  padding: '4px 10px', borderRadius: 6,
                                   backgroundColor: '#f1f5f9', color: '#475569',
                                   fontSize: 11, fontWeight: 700,
                                 }}>
@@ -1841,7 +1857,7 @@ export default function Atendimento() {
                                   title="A arte está em correção — você será notificado quando a nova versão estiver pronta"
                                   style={{
                                     display: 'inline-flex', alignItems: 'center', gap: 6,
-                                    padding: '4px 10px', borderRadius: 5,
+                                    padding: '4px 10px', borderRadius: 6,
                                     backgroundColor: '#f1f5f9', color: '#475569',
                                     fontSize: 11, fontWeight: 700,
                                   }}>
@@ -1921,7 +1937,7 @@ export default function Atendimento() {
             <button
               onClick={() => setPendVisible(v => v + PAGE_SIZE)}
               data-testid="button-load-more-pending"
-              style={{ marginTop: 4, marginBottom: 8, padding: '12px 0', width: '100%', borderRadius: 10, border: '1px solid #e7e5e4', background: '#ffffff', color: '#c2410c', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+              style={{ marginTop: 4, marginBottom: 8, padding: '12px 0', width: '100%', borderRadius: 12, border: '1px solid #e7e5e4', background: '#ffffff', color: '#c2410c', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
             >
               Carregar mais ({pendingGroup.length - pendVisible} restantes)
             </button>
@@ -1991,7 +2007,7 @@ export default function Atendimento() {
                               display: 'inline-flex', alignItems: 'center', gap: 4,
                               fontSize: 11, fontWeight: 700, color: '#15803d',
                               backgroundColor: '#f0fdf4', border: '1px solid #86efac',
-                              padding: '3px 10px', borderRadius: 5,
+                              padding: '3px 10px', borderRadius: 6,
                             }}>
                               <CheckCircle style={{ width: 11, height: 11 }} /> APROVADO
                             </span>
@@ -2015,7 +2031,7 @@ export default function Atendimento() {
         const SEL = (active: boolean): React.CSSProperties => ({
           height: 38, border: `1.5px solid ${active ? '#c2610c' : '#e2e8f0'}`,
           borderRadius: 8, fontSize: 13, fontWeight: 500, background: '#fff',
-          color: active ? '#c2610c' : '#374151', cursor: 'pointer', outline: 'none',
+          color: active ? '#c2610c' : '#374151', cursor: 'pointer',
         });
         const periodOptions = [
           { value: '7d',  label: 'Últimos 7 dias' },
@@ -2049,7 +2065,7 @@ export default function Atendimento() {
                   style={{
                     width: '100%', paddingLeft: 36, paddingRight: histSearchTerm ? 32 : 12, paddingTop: 9, paddingBottom: 9,
                     backgroundColor: '#ffffff', borderRadius: 8, border: '1px solid #e7e5e4',
-                    outline: 'none', fontSize: 13, fontWeight: 500, color: '#1c1917',
+                    fontSize: 13, fontWeight: 500, color: '#1c1917',
                     boxSizing: 'border-box',
                   }}
                 />
@@ -2098,7 +2114,7 @@ export default function Atendimento() {
               <div style={{ textAlign: 'center', padding: '64px 0' }}>
                 <CheckCircle style={{ width: 48, height: 48, color: '#86efac', margin: '0 auto 16px' }} />
                 <h3 style={{ fontSize: 18, fontWeight: 700, color: '#1c1917', margin: '0 0 8px' }}>Nenhuma peça encontrada</h3>
-                <p style={{ color: '#746e69', fontSize: 14 }}>
+                <p style={{ color: '#746e69', fontSize: 15 }}>
                   {hasHistFilters ? 'Tente ajustar os filtros.' : 'Ainda não há peças aprovadas pelo patrocinador.'}
                 </p>
               </div>
@@ -2161,8 +2177,20 @@ export default function Atendimento() {
                   ].filter(Boolean) as { dot: string; label: string; date: string | null; by?: string | null }[];
 
                   return (
+                    /* Cartão do histórico: abre o detalhe de aprovações. Era um
+                       <div> com onClick, então por teclado o histórico inteiro
+                       ficava sem como ser aberto. */
                     <div key={item.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Ver histórico de aprovações de ${item.displayId}`}
                       onClick={() => setHistDetailItem({ ...item, _ev: ev })}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setHistDetailItem({ ...item, _ev: ev });
+                        }
+                      }}
                       style={{
                         background: '#fff', borderRadius: 12,
                         border: `1px solid ${allApproved ? '#d1fae5' : '#ede9e6'}`,
@@ -2210,7 +2238,7 @@ export default function Atendimento() {
                           {/* Identidade */}
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: 14, fontWeight: 700, color: '#1c1917', lineHeight: 1.2 }}>{item.type}</span>
+                              <span style={{ fontSize: 15, fontWeight: 700, color: '#1c1917', lineHeight: 1.2 }}>{item.type}</span>
                               <span style={{ fontSize: 11, color: '#746e69', fontWeight: 500 }}>{item.displayId}</span>
                             </div>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
@@ -2218,7 +2246,7 @@ export default function Atendimento() {
                               <span style={{
                                 fontSize: 11, fontWeight: 700,
                                 backgroundColor: statusCfg.bg, color: statusCfg.color, border: `1px solid ${statusCfg.border || statusCfg.bg}`,
-                                padding: '2px 8px', borderRadius: 5, whiteSpace: 'nowrap', lineHeight: 1.5,
+                                padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap', lineHeight: 1.5,
                               }}>{statusCfg.label}</span>
                             </div>
                           </div>
@@ -2277,9 +2305,9 @@ export default function Atendimento() {
                           {/* stepper: linha absoluta + dots + labels */}
                           <div className="pipeline-scroll"><div style={{ position: 'relative', minWidth: 500 }}>
                             {/* linha conectora de fundo */}
-                            <div style={{ position: 'absolute', top: 5, left: 0, right: 0, height: 2, background: '#ede9e4', borderRadius: 1 }} />
+                            <div style={{ position: 'absolute', top: 5, left: 0, right: 0, height: 2, background: '#ede9e4', borderRadius: 999 }} />
                             {/* linha preenchida até etapa atual */}
-                            <div style={{ position: 'absolute', top: 5, left: 0, height: 2, borderRadius: 1, background: '#c4bfb8', width: `${currentPipelineIdx / (PIPELINE_STAGES.length - 1) * 100}%`, transition: 'width 0.3s' }} />
+                            <div style={{ position: 'absolute', top: 5, left: 0, height: 2, borderRadius: 999, background: '#c4bfb8', width: `${currentPipelineIdx / (PIPELINE_STAGES.length - 1) * 100}%`, transition: 'width 0.3s' }} />
                             {/* dots */}
                             <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', zIndex: 1 }}>
                               {PIPELINE_STAGES.map((stage, si) => {
@@ -2363,7 +2391,7 @@ export default function Atendimento() {
                   <button
                     onClick={() => setHistVisible(v => v + PAGE_SIZE)}
                     data-testid="button-load-more-history"
-                    style={{ marginTop: 8, padding: '12px 0', width: '100%', borderRadius: 10, border: '1px solid #e7e5e4', background: '#ffffff', color: '#c2410c', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                    style={{ marginTop: 8, padding: '12px 0', width: '100%', borderRadius: 12, border: '1px solid #e7e5e4', background: '#ffffff', color: '#c2410c', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
                   >
                     Carregar mais ({historyItems.length - histVisible} restantes)
                   </button>
@@ -2376,7 +2404,7 @@ export default function Atendimento() {
 
       {/* ─── MODAL HISTÓRICO DE APROVAÇÕES ─────────────────────── */}
       <Dialog open={!!histDetailItem} onOpenChange={open => { if (!open) setHistDetailItem(null); }}>
-        <DialogContent className="p-0 gap-0" style={{ maxWidth: 620, width: '95vw', borderRadius: 16, border: 'none', boxShadow: '0 32px 64px -16px rgba(0,0,0,0.28), 0 0 0 1px rgba(0,0,0,0.05)', overflow: 'hidden' }}>
+        <DialogContent style={modalSurface(620)}>
           <DialogTitle className="sr-only">Histórico de aprovações</DialogTitle>
           <DialogDescription className="sr-only">Log completo de aprovações por patrocinador</DialogDescription>
           {histDetailItem && (() => {
@@ -2391,7 +2419,7 @@ export default function Atendimento() {
               <>
                 {/* Header escuro */}
                 <div style={{ padding: '20px 24px 16px', background: 'linear-gradient(135deg,#1c1917,#292524)', display: 'flex', alignItems: 'center', gap: 14 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 10, overflow: 'hidden', flexShrink: 0, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, overflow: 'hidden', flexShrink: 0, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {(di.approvalThumbUrl || di.finalPreviewUrl)
                       ? <>
                           <img
@@ -2412,7 +2440,7 @@ export default function Atendimento() {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                      <h2 style={{ fontSize: 16, fontWeight: 800, color: '#fff', margin: 0, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'capitalize' }}>{di.type}</h2>
+                      <h2 style={{ fontSize: 15, fontWeight: 800, color: '#fff', margin: 0, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'capitalize' }}>{di.type}</h2>
                       <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', fontWeight: 500, flexShrink: 0 }}>{di.displayId}</span>
                     </div>
                     <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)' }}>{ev?.name || '—'}</span>
@@ -2435,7 +2463,7 @@ export default function Atendimento() {
                     }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 1, lineHeight: 1 }}>
                         <span style={{ fontSize: 22, fontWeight: 800, color: allApp ? '#15803d' : '#374151' }}>{approvedCount}</span>
-                        <span style={{ fontSize: 12, fontWeight: 500, color: allApp ? '#86efac' : '#746e69' }}>/{diSps.length}</span>
+                        <span style={{ fontSize: 13, fontWeight: 500, color: allApp ? '#86efac' : '#746e69' }}>/{diSps.length}</span>
                       </div>
                       <span style={{ fontSize: 11, color: allApp ? '#22c55e' : '#6b7280', fontWeight: 700, marginTop: 2, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
                         {allApp ? (diSps.length === 1 ? 'aprovou' : 'todos') : 'parcial'}
@@ -2472,7 +2500,7 @@ export default function Atendimento() {
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                                 <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', textTransform: 'capitalize' }}>{sp.name}</span>
-                                <span style={{ fontSize: 11, fontWeight: 600, color: statusColor, background: statusBg, border: `1px solid ${statusBorder}`, borderRadius: 5, padding: '2px 8px', whiteSpace: 'nowrap' }}>{statusLabel}</span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: statusColor, background: statusBg, border: `1px solid ${statusBorder}`, borderRadius: 6, padding: '2px 8px', whiteSpace: 'nowrap' }}>{statusLabel}</span>
                               </div>
                               {isApproved && appr?.approvedAt && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -2553,7 +2581,7 @@ export default function Atendimento() {
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
                     <div style={{
-                      width: 40, height: 40, borderRadius: 10, overflow: 'hidden', flexShrink: 0,
+                      width: 40, height: 40, borderRadius: 12, overflow: 'hidden', flexShrink: 0,
                       backgroundColor: '#0c0a09', display: 'flex', alignItems: 'center', justifyContent: 'center',
                       border: '1px solid #2c2a28',
                     }}>
@@ -2564,7 +2592,7 @@ export default function Atendimento() {
                     <div>
                       <h2 style={{
                         fontFamily: "'Space Grotesk', sans-serif",
-                        fontSize: 20, fontWeight: 900, letterSpacing: '-0.03em',
+                        fontSize: 18, fontWeight: 900, letterSpacing: '-0.03em',
                         color: '#1c1917', margin: 0, lineHeight: 1,
                       }}>
                         REVISÃO DE ATIVO {selectedItem.displayId}
@@ -2590,7 +2618,7 @@ export default function Atendimento() {
                     const hasPrev = qIdx > 0;
                     const hasNext = qIdx >= 0 && qIdx < reviewQueue.length - 1;
                     const navBtn = (enabled: boolean): React.CSSProperties => ({
-                      width: 40, height: 40, borderRadius: 10,
+                      width: 40, height: 40, borderRadius: 12,
                       border: '1px solid #e7e5e4',
                       backgroundColor: '#ffffff',
                       cursor: enabled ? 'pointer' : 'not-allowed',
@@ -2722,7 +2750,7 @@ export default function Atendimento() {
                           </a>
                         )}
                         {!thumbUrl && !finalUrl && (
-                          <p style={{ fontSize: 12, color: '#746e69' }}>Nenhum arquivo disponível</p>
+                          <p style={{ fontSize: 13, color: '#746e69' }}>Nenhum arquivo disponível</p>
                         )}
                       </div>
                     </div>
@@ -2759,7 +2787,7 @@ export default function Atendimento() {
                           backgroundColor: '#f8fafc', border: '1px solid #e2e8f0',
                         }}>
                           <RotateCcw style={{ width: 14, height: 14, color: '#64748b', flexShrink: 0 }} />
-                          <p style={{ fontSize: 12, color: '#475569', margin: 0, fontWeight: 500 }}>
+                          <p style={{ fontSize: 13, color: '#475569', margin: 0, fontWeight: 500 }}>
                             Decisões registradas — a Arte está preparando uma nova versão.
                           </p>
                         </div>
@@ -2771,7 +2799,7 @@ export default function Atendimento() {
                           backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0',
                         }}>
                           <CheckCircle style={{ width: 14, height: 14, color: '#15803d', flexShrink: 0 }} />
-                          <p style={{ fontSize: 12, color: '#15803d', margin: 0, fontWeight: 600 }}>
+                          <p style={{ fontSize: 13, color: '#15803d', margin: 0, fontWeight: 600 }}>
                             Todos os patrocinadores aprovaram este ativo.
                           </p>
                         </div>
@@ -2798,7 +2826,7 @@ export default function Atendimento() {
                               <div
                                 key={sponsor.id}
                                 style={{
-                                  padding: '14px 16px', borderRadius: 10,
+                                  padding: '14px 16px', borderRadius: 12,
                                   border: '1.5px solid',
                                   borderColor: isApproved ? '#86efac' : isRejected ? '#fecaca' : '#e7e5e4',
                                   backgroundColor: isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : '#fafaf9',
@@ -2835,9 +2863,9 @@ export default function Atendimento() {
                                         onClick={() => setRejectingSponsorId(sponsor.id)}
                                         disabled={individualRejectMutation.isPending}
                                         style={{
-                                          padding: '8px 16px', borderRadius: 7,
+                                          padding: '8px 16px', borderRadius: 8,
                                           backgroundColor: '#fef2f2', border: '1px solid #fecaca',
-                                          color: '#b91c1c', fontSize: 12, fontWeight: 700,
+                                          color: '#b91c1c', fontSize: 13, fontWeight: 700,
                                           cursor: 'pointer', transition: 'all 0.15s',
                                           minHeight: 36,
                                           width: isMobile ? '100%' : undefined,
@@ -2850,9 +2878,9 @@ export default function Atendimento() {
                                         disabled={individualApproveMutation.isPending}
                                         data-testid={`button-approve-sponsor-${sponsor.id}`}
                                         style={{
-                                          padding: '8px 16px', borderRadius: 7,
+                                          padding: '8px 16px', borderRadius: 8,
                                           backgroundColor: '#f0fdf4', border: '1px solid #86efac',
-                                          color: '#15803d', fontSize: 12, fontWeight: 700,
+                                          color: '#15803d', fontSize: 13, fontWeight: 700,
                                           cursor: 'pointer', transition: 'all 0.15s',
                                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                                           minHeight: 36,
@@ -2877,9 +2905,9 @@ export default function Atendimento() {
                                       data-testid={`button-revert-approval-${sponsor.id}`}
                                       style={{
                                         display: 'flex', alignItems: 'center', gap: 6,
-                                        padding: '8px 14px', borderRadius: 7,
+                                        padding: '8px 14px', borderRadius: 8,
                                         backgroundColor: '#fff', border: '1px solid #e7e5e4',
-                                        color: '#746e69', fontSize: 12, fontWeight: 700,
+                                        color: '#746e69', fontSize: 13, fontWeight: 700,
                                         cursor: revertApprovalMutation.isPending ? 'default' : 'pointer',
                                         opacity: revertApprovalMutation.isPending ? 0.5 : 1,
                                         minHeight: 36, transition: 'all 0.15s',
@@ -2897,7 +2925,7 @@ export default function Atendimento() {
                                 {isRejected && approval?.rejectionReason && (
                                   <div style={{ marginTop: 10, padding: '10px 12px', backgroundColor: '#fff', borderRadius: 8, border: '1px solid #fecaca', borderLeft: '3px solid #dc2626' }}>
                                     <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#fca5a5', margin: '0 0 4px' }}>Motivo</p>
-                                    <p style={{ fontSize: 12, fontStyle: 'italic', color: '#57534e', margin: 0, lineHeight: 1.5 }}>
+                                    <p style={{ fontSize: 13, fontStyle: 'italic', color: '#57534e', margin: 0, lineHeight: 1.5 }}>
                                       "{approval.rejectionReason}"
                                     </p>
                                   </div>
@@ -2908,7 +2936,7 @@ export default function Atendimento() {
                                   <div style={{ marginTop: 12 }}>
                                     {/* Label */}
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
-                                      <div style={{ width: 2, height: 12, borderRadius: 1, backgroundColor: '#dc2626', flexShrink: 0 }} />
+                                      <div style={{ width: 2, height: 12, borderRadius: 999, backgroundColor: '#dc2626', flexShrink: 0 }} />
                                       <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#dc2626' }}>Motivo da reprovação</span>
                                       <span style={{ fontSize: 11, color: '#fca5a5', fontWeight: 700, lineHeight: 1 }}>*</span>
                                     </div>
@@ -2926,7 +2954,7 @@ export default function Atendimento() {
                                         fontFamily: 'inherit', color: '#1c1917',
                                         backgroundColor: '#fff',
                                         border: `1.5px solid ${rejectionReason.trim() ? '#dc2626' : '#e7e5e4'}`,
-                                        borderRadius: 8, resize: 'none', outline: 'none', lineHeight: 1.5,
+                                        borderRadius: 8, resize: 'none', lineHeight: 1.5,
                                         transition: 'border-color 0.15s, box-shadow 0.15s',
                                       }}
                                       onFocus={e => { e.currentTarget.style.borderColor = '#dc2626'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(220,38,38,0.08)'; }}
@@ -2940,7 +2968,7 @@ export default function Atendimento() {
                                         style={{
                                           flex: 1, height: 36, borderRadius: 8,
                                           background: '#fff', border: '1px solid #e7e5e4',
-                                          color: '#746e69', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                                          color: '#746e69', fontSize: 13, fontWeight: 700, cursor: 'pointer',
                                           transition: 'background 0.12s',
                                         }}
                                         onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
@@ -2956,7 +2984,7 @@ export default function Atendimento() {
                                           flex: 2, height: 36, borderRadius: 8, border: 'none',
                                           backgroundColor: rejectionReason.trim() === "" ? '#e7e5e4' : '#dc2626',
                                           color: rejectionReason.trim() === "" ? '#a8a29e' : '#fff',
-                                          fontSize: 12, fontWeight: 800,
+                                          fontSize: 13, fontWeight: 800,
                                           cursor: rejectionReason.trim() === "" ? 'not-allowed' : 'pointer',
                                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
                                           transition: 'background-color 0.15s, box-shadow 0.15s',
@@ -2992,7 +3020,7 @@ export default function Atendimento() {
                     </h4>
 
                     {itemLogs.length === 0 ? (
-                      <p style={{ fontSize: 12, color: '#746e69' }}>Sem registros de histórico</p>
+                      <p style={{ fontSize: 13, color: '#746e69' }}>Sem registros de histórico</p>
                     ) : (
                       <div style={{ position: 'relative' }}>
                         {/* Linha vertical */}
@@ -3126,19 +3154,22 @@ export default function Atendimento() {
 
       {/* ── CONFIRMAÇÃO: Aprovar Individual ─────────────────────────────── */}
       <Dialog open={!!confirmApproveIndividual} onOpenChange={(open) => { if (!open) setConfirmApproveIndividual(null); }}>
-        <DialogContent style={{ maxWidth: isMobile ? '95vw' : 380, width: isMobile ? '95vw' : undefined, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 24px 48px -12px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.04)' }}>
-          <DialogTitle style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 18, fontWeight: 700, color: '#1c1917', margin: 0 }}>Confirmar Aprovação</DialogTitle>
-          <DialogDescription style={{ fontSize: 13, color: '#746e69', marginTop: 8 }}>
-            Aprovar a arte para o patrocinador <strong style={{ color: '#1c1917' }}>{confirmApproveIndividual?.sponsorName}</strong>?
-            Esta ação não pode ser desfeita.
-          </DialogDescription>
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <button
-              onClick={() => setConfirmApproveIndividual(null)}
-              style={{ flex: 1, height: 40, borderRadius: 8, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', color: '#746e69', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-            >
-              Cancelar
-            </button>
+        <DialogContent style={modalSurface(440)}>
+          <DialogTitle className="sr-only">Confirmar aprovação</DialogTitle>
+          <ModalHeader
+            variant="confirm"
+            icon={CheckCircle}
+            tint="#15803d"
+            title="Confirmar aprovação"
+            onClose={() => setConfirmApproveIndividual(null)}
+          />
+          <div style={{ padding: '20px 24px' }}>
+            <DialogDescription style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0 }}>
+              Aprovar a arte para o patrocinador <strong style={{ color: '#1c1917' }}>{confirmApproveIndividual?.sponsorName}</strong>?
+              Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </div>
+          <ModalFooter>
             <button
               onClick={() => {
                 if (confirmApproveIndividual) {
@@ -3148,30 +3179,39 @@ export default function Atendimento() {
               }}
               disabled={individualApproveMutation.isPending}
               data-testid="button-confirm-approve-individual"
-              style={{ flex: 1, height: 40, borderRadius: 8, backgroundColor: '#15803d', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              style={{ width: '100%', height: 44, borderRadius: 8, backgroundColor: '#15803d', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
-              <CheckCircle style={{ width: 14, height: 14 }} />
+              <CheckCircle style={{ width: 15, height: 15 }} />
               Aprovar
             </button>
-          </div>
+            <button
+              onClick={() => setConfirmApproveIndividual(null)}
+              style={{ width: '100%', height: 36, borderRadius: 8, background: 'none', border: 'none', color: '#746e69', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            >
+              Cancelar
+            </button>
+          </ModalFooter>
         </DialogContent>
       </Dialog>
 
       {/* ── CONFIRMAÇÃO: Aprovar em Lote ────────────────────────────────── */}
       <Dialog open={confirmApproveBatch} onOpenChange={(open) => { if (!open) setConfirmApproveBatch(false); }}>
-        <DialogContent style={{ maxWidth: isMobile ? '95vw' : 380, width: isMobile ? '95vw' : undefined, borderRadius: 12, backgroundColor: '#ffffff', border: 'none', boxShadow: '0 24px 48px -12px rgba(0,0,0,0.18), 0 0 0 1px rgba(0,0,0,0.04)' }}>
-          <DialogTitle style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 18, fontWeight: 700, color: '#1c1917', margin: 0 }}>Confirmar Aprovação em Lote</DialogTitle>
-          <DialogDescription style={{ fontSize: 13, color: '#746e69', marginTop: 8 }}>
-            Aprovar <strong style={{ color: '#1c1917' }}>{batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'item' : 'itens'}</strong> para o patrocinador selecionado?
-            Esta ação não pode ser desfeita.
-          </DialogDescription>
-          <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-            <button
-              onClick={() => setConfirmApproveBatch(false)}
-              style={{ flex: 1, height: 40, borderRadius: 8, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', color: '#746e69', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
-            >
-              Cancelar
-            </button>
+        <DialogContent style={modalSurface(440)}>
+          <DialogTitle className="sr-only">Confirmar aprovação em lote</DialogTitle>
+          <ModalHeader
+            variant="confirm"
+            icon={CheckCircle}
+            tint="#15803d"
+            title="Confirmar aprovação em lote"
+            onClose={() => setConfirmApproveBatch(false)}
+          />
+          <div style={{ padding: '20px 24px' }}>
+            <DialogDescription style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0 }}>
+              Aprovar <strong style={{ color: '#1c1917' }}>{batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'item' : 'itens'}</strong> para o patrocinador selecionado?
+              Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </div>
+          <ModalFooter>
             <button
               onClick={() => {
                 batchSponsorMutation.mutate({ sponsorId: batchSponsorId, eventId: batchEventId, action: "approve" });
@@ -3179,12 +3219,18 @@ export default function Atendimento() {
               }}
               disabled={batchSponsorMutation.isPending}
               data-testid="button-confirm-batch-approve"
-              style={{ flex: 1, height: 40, borderRadius: 8, backgroundColor: '#15803d', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}
+              style={{ width: '100%', height: 44, borderRadius: 8, backgroundColor: '#15803d', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
-              <CheckCircle style={{ width: 14, height: 14 }} />
-              Aprovar Seleção
+              <CheckCircle style={{ width: 15, height: 15 }} />
+              Aprovar seleção
             </button>
-          </div>
+            <button
+              onClick={() => setConfirmApproveBatch(false)}
+              style={{ width: '100%', height: 36, borderRadius: 8, background: 'none', border: 'none', color: '#746e69', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+            >
+              Cancelar
+            </button>
+          </ModalFooter>
         </DialogContent>
       </Dialog>
 
@@ -3198,19 +3244,19 @@ export default function Atendimento() {
 
       {/* Preview da arte no lote — abre pela miniatura, sem mexer na seleção */}
       <Dialog open={!!batchPreviewItem} onOpenChange={o => !o && setBatchPreviewItem(null)}>
-        <DialogContent className="p-0 gap-0" style={{ maxWidth: 900, width: '95vw', borderRadius: 14, overflow: 'hidden' }}>
+        <DialogContent className="p-0 gap-0" style={{ maxWidth: 900, width: '95vw', borderRadius: 12, overflow: 'hidden' }}>
           <DialogTitle className="sr-only">Arte da peça</DialogTitle>
           <DialogDescription className="sr-only">Visualização ampliada da arte enviada</DialogDescription>
           {batchPreviewItem && (
             <>
               <div style={{ padding: '16px 20px', borderBottom: '1px solid #f0ede8', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 800, color: '#9a3412', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 4, padding: '2px 6px' }}>
+                <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 800, color: '#9a3412', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 6, padding: '2px 6px' }}>
                   {batchPreviewItem.displayId}
                 </span>
                 <div style={{ minWidth: 0 }}>
-                  <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{batchPreviewItem.type}</p>
+                  <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{batchPreviewItem.type}</p>
                   {batchPreviewItem.description && (
-                    <p style={{ margin: 0, fontSize: 12, color: '#746e69', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{batchPreviewItem.description}</p>
+                    <p style={{ margin: 0, fontSize: 13, color: '#746e69', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{batchPreviewItem.description}</p>
                   )}
                 </div>
               </div>

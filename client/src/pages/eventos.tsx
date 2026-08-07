@@ -586,11 +586,11 @@ export default function Eventos() {
       <div>
         <h1
           data-testid="title-eventos"
-          style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.03em', fontSize: '40px', fontWeight: '700', color: '#1c1917', margin: 0, lineHeight: 1.1 }}
+          style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.03em', fontSize: '26px', fontWeight: '700', color: '#1c1917', margin: 0, lineHeight: 1.1 }}
         >
           Eventos
         </h1>
-        <p style={{ color: '#746e69', fontSize: '14px', margin: '6px 0 0 0', fontWeight: '500' }}>
+        <p style={{ color: '#746e69', fontSize: '15px', margin: '6px 0 0 0', fontWeight: '500' }}>
           Gerencie todos os eventos de produção gráfica
         </p>
 
@@ -605,7 +605,7 @@ export default function Eventos() {
                 {/* Faixa laranja */}
                 <div style={{ height: '4px', background: 'linear-gradient(90deg, #f97316 0%, #fb923c 100%)' }} />
                 <div style={{ padding: '20px 24px 18px', borderBottom: '1px solid #d4cfc9', backgroundColor: '#f9f8f7' }}>
-                  <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '17px', fontWeight: '700', color: '#1c1917', margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1 }}>
+                  <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '18px', fontWeight: '700', color: '#1c1917', margin: 0, textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1 }}>
                     {editingEvent ? "Editar Evento" : "Criar Novo Evento"}
                   </DialogTitle>
                   <DialogDescription style={{ color: '#746e69', fontSize: '13px', margin: '4px 0 0 0', fontWeight: '400' }}>
@@ -629,7 +629,7 @@ export default function Eventos() {
                       placeholder="Ex: Circuitinho BSB 2024"
                       required
                       data-testid="input-event-name"
-                      style={{ width: '100%', backgroundColor: '#e8e8e7', border: 'none', borderRadius: '6px', padding: '12px 16px', fontSize: '14px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', transition: 'box-shadow 0.15s, background-color 0.15s' }}
+                      style={{ width: '100%', backgroundColor: '#e8e8e7', border: 'none', borderRadius: '6px', padding: '12px 16px', fontSize: '15px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'box-shadow 0.15s, background-color 0.15s' }}
                       onFocus={e => { e.currentTarget.style.boxShadow = '0 0 0 2px rgba(253,118,26,0.25)'; e.currentTarget.style.backgroundColor = '#ffffff'; }}
                       onBlur={e => { e.currentTarget.style.boxShadow = 'none'; e.currentTarget.style.backgroundColor = '#e8e8e7'; }}
                     />
@@ -732,7 +732,7 @@ export default function Eventos() {
                                   setFormData({ ...formData, truckDepartureDate: `${datePart}T${h}:${mi}` });
                                 }
                               }}
-                              style={{ width: 68, height: 34, textAlign: 'center', border: '1px solid #e7e5e4', borderRadius: 6, fontSize: 14, fontWeight: 700, outline: 'none', fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '0.05em' }}
+                              style={{ width: 68, height: 34, textAlign: 'center', border: '1px solid #e7e5e4', borderRadius: 6, fontSize: 15, fontWeight: 700, fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '0.05em' }}
                               onFocus={e => { e.currentTarget.style.borderColor = '#f97316'; e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249,115,22,0.18)'; }}
                             />
                             <button
@@ -763,7 +763,7 @@ export default function Eventos() {
                       Patrocinadores
                       <span style={{ color: '#746e69', fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>(opcional)</span>
                       {selectedSponsorIds.length > 0 && (
-                        <span style={{ marginLeft: 'auto', fontSize: '10px', fontWeight: '700', color: '#f97316', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '20px', padding: '1px 8px', letterSpacing: 0, textTransform: 'none' }}>
+                        <span style={{ marginLeft: 'auto', fontSize: '10px', fontWeight: '700', color: '#f97316', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '999px', padding: '1px 8px', letterSpacing: 0, textTransform: 'none' }}>
                           {selectedSponsorIds.length} selecionado{selectedSponsorIds.length > 1 ? 's' : ''}
                         </span>
                       )}
@@ -787,7 +787,7 @@ export default function Eventos() {
                             style={{
                               width: '100%', paddingLeft: 28, paddingRight: 10, paddingTop: 7, paddingBottom: 7,
                               backgroundColor: '#ffffff', border: 'none', borderRadius: '6px',
-                              fontSize: '12px', color: '#1a1c1c', outline: 'none', boxSizing: 'border-box',
+                              fontSize: '13px', color: '#1a1c1c', boxSizing: 'border-box',
                             }}
                           />
                         </div>
@@ -799,7 +799,7 @@ export default function Eventos() {
                               .sort((a, b) => (a.name || '').localeCompare(b.name || '', 'pt-BR'))
                               .filter(s => !q || s.name.toLowerCase().includes(q) || (s.company || '').toLowerCase().includes(q));
                             if (filtered.length === 0) return (
-                              <p style={{ fontSize: '12px', color: '#746e69', textAlign: 'center', padding: '16px 12px' }}>
+                              <p style={{ fontSize: '13px', color: '#746e69', textAlign: 'center', padding: '16px 12px' }}>
                                 Nenhum resultado para "{sponsorSearch}"
                               </p>
                             );
@@ -866,7 +866,7 @@ export default function Eventos() {
                                           fontWeight: 700,
                                           letterSpacing: '0.05em',
                                           textTransform: 'uppercase',
-                                          borderRadius: '99px',
+                                          borderRadius: '999px',
                                           border: `1.5px solid ${quotaOpt ? quotaOpt.color : '#d8d5d2'}`,
                                           backgroundColor: quotaOpt ? quotaOpt.color + '18' : '#f0efee',
                                           color: quotaOpt ? quotaOpt.color : '#78716c',
@@ -963,7 +963,7 @@ export default function Eventos() {
                                     <HelpCircle style={{ width: '12px', height: '12px', color: '#a8a29e' }} />
                                   </span>
                                 </TooltipTrigger>
-                                <TooltipContent side="top" style={{ maxWidth: '220px', fontSize: '12px', lineHeight: '1.5' }}>
+                                <TooltipContent side="top" style={{ maxWidth: '220px', fontSize: '13px', lineHeight: '1.5' }}>
                                   Prazos que caírem no <strong>sábado</strong> são antecipados para <strong>sexta-feira</strong>. Os que caírem no <strong>domingo</strong> são adiados para <strong>segunda-feira</strong>. Exceção: Produção Gráfica funciona todos os dias.
                                 </TooltipContent>
                               </Tooltip>
@@ -991,7 +991,7 @@ export default function Eventos() {
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
                                     <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: color, flexShrink: 0 }} />
                                     <div style={{ minWidth: 0 }}>
-                                      <div style={{ fontSize: '12px', fontWeight: '600', color: '#1a1c1c', lineHeight: 1.2 }}>{label}</div>
+                                      <div style={{ fontSize: '13px', fontWeight: '600', color: '#1a1c1c', lineHeight: 1.2 }}>{label}</div>
                                       <div style={{ fontSize: '10px', color: '#746e69', lineHeight: 1.2, marginTop: '1px' }}>{desc}</div>
                                     </div>
                                   </div>
@@ -1002,7 +1002,7 @@ export default function Eventos() {
                                           type="button"
                                           data-testid={`input-${key}`}
                                           disabled={noStart}
-                                          style={{ display: 'flex', alignItems: 'center', gap: 5, height: 30, padding: '0 10px', borderRadius: '6px', border: openPrazoKey === key ? '1px solid #f97316' : '1px solid transparent', backgroundColor: noStart ? '#f0efee' : (openPrazoKey === key ? '#ffffff' : '#e8e8e7'), fontSize: '12px', fontWeight: '600', color: noStart ? '#a8a29e' : (dateVal ? '#1a1c1c' : '#746e69'), cursor: noStart ? 'not-allowed' : 'pointer', boxShadow: openPrazoKey === key ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s', fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap' as const }}
+                                          style={{ display: 'flex', alignItems: 'center', gap: 5, height: 30, padding: '0 10px', borderRadius: '6px', border: openPrazoKey === key ? '1px solid #f97316' : '1px solid transparent', backgroundColor: noStart ? '#f0efee' : (openPrazoKey === key ? '#ffffff' : '#e8e8e7'), fontSize: '13px', fontWeight: '600', color: noStart ? '#a8a29e' : (dateVal ? '#1a1c1c' : '#746e69'), cursor: noStart ? 'not-allowed' : 'pointer', boxShadow: openPrazoKey === key ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s', fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap' as const }}
                                         >
                                           <Calendar style={{ width: 11, height: 11, color: noStart ? '#c4bfbb' : '#a8a29e', flexShrink: 0 }} />
                                           {dateVal ? fmtDateBR(dateVal) : (noStart ? '—' : 'Selecionar')}
@@ -1047,7 +1047,7 @@ export default function Eventos() {
                   <button
                     type="button"
                     onClick={handleCloseDialog}
-                    style={{ fontSize: '12px', fontWeight: '700', color: '#625d5b', background: 'transparent', border: 'none', cursor: 'pointer', padding: '8px 16px', textTransform: 'uppercase', letterSpacing: '0.04em', borderRadius: '6px', transition: 'background-color 0.15s, color 0.15s', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                    style={{ fontSize: '13px', fontWeight: '700', color: '#625d5b', background: 'transparent', border: 'none', cursor: 'pointer', padding: '8px 16px', textTransform: 'uppercase', letterSpacing: '0.04em', borderRadius: '6px', transition: 'background-color 0.15s, color 0.15s', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                     onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e8e8e7'; e.currentTarget.style.color = '#1c1917'; }}
                     onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#625d5b'; }}
                   >
@@ -1057,9 +1057,9 @@ export default function Eventos() {
                     type="submit"
                     disabled={createEventMutation.isPending || updateEventMutation.isPending}
                     data-testid="button-submit-event"
-                    style={{ backgroundColor: '#1c1917', color: '#ffffff', borderRadius: '6px', fontWeight: '700', fontSize: '12px', padding: '10px 32px', textTransform: 'uppercase', letterSpacing: '0.04em', border: 'none', cursor: createEventMutation.isPending || updateEventMutation.isPending ? 'not-allowed' : 'pointer', transition: 'filter 0.15s, transform 0.1s', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-                    onMouseEnter={e => { if (!createEventMutation.isPending && !updateEventMutation.isPending) e.currentTarget.style.filter = 'brightness(1.25)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+                    style={{ backgroundColor: '#1c1917', color: '#ffffff', borderRadius: '6px', fontWeight: '700', fontSize: '13px', padding: '10px 32px', textTransform: 'uppercase', letterSpacing: '0.04em', border: 'none', cursor: createEventMutation.isPending || updateEventMutation.isPending ? 'not-allowed' : 'pointer', transition: 'filter 0.15s, transform 0.1s', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                    onMouseEnter={e => { if (!createEventMutation.isPending && !updateEventMutation.isPending) e.currentTarget.style.backgroundColor = '#292524'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#1c1917'; }}
                     onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.97)')}
                     onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
                   >
@@ -1085,7 +1085,7 @@ export default function Eventos() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             data-testid="input-search-events"
-            style={{ paddingLeft: '32px', paddingRight: '12px', height: '32px', width: isMobile ? '100%' : '200px', border: '1px solid #e7e5e4', borderRadius: '99px', backgroundColor: '#ffffff', fontSize: '12px', color: '#1c1917', outline: 'none', fontFamily: 'inherit' }}
+            style={{ paddingLeft: '32px', paddingRight: '12px', height: '32px', width: isMobile ? '100%' : '200px', border: '1px solid #e7e5e4', borderRadius: '999px', backgroundColor: '#ffffff', fontSize: '13px', color: '#1c1917', fontFamily: 'inherit' }}
             onFocus={e => { e.currentTarget.style.borderColor = '#fd761a'; e.currentTarget.style.boxShadow = '0 0 0 3px rgba(253,118,26,0.12)'; }}
             onBlur={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.boxShadow = 'none'; }}
           />
@@ -1105,8 +1105,8 @@ export default function Eventos() {
                 data-testid={`filter-priority-${priority}`}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '6px',
-                  padding: '5px 13px', borderRadius: '99px',
-                  fontSize: '12px', fontWeight: '700', cursor: 'pointer',
+                  padding: '5px 13px', borderRadius: '999px',
+                  fontSize: '13px', fontWeight: '700', cursor: 'pointer',
                   border: `1px solid ${isSelected ? config.hex : 'transparent'}`,
                   backgroundColor: isSelected ? config.hex : '#e2e2e2',
                   color: isSelected ? '#ffffff' : '#57534e',
@@ -1121,7 +1121,7 @@ export default function Eventos() {
           })}
           {selectedPriorities.length > 0 && (
             <button onClick={() => setSelectedPriorities([])} data-testid="button-clear-filters"
-              style={{ padding: '5px 10px', borderRadius: '99px', fontSize: '11px', cursor: 'pointer', border: 'none', backgroundColor: 'transparent', color: '#746e69' }}>
+              style={{ padding: '5px 10px', borderRadius: '999px', fontSize: '11px', cursor: 'pointer', border: 'none', backgroundColor: 'transparent', color: '#746e69' }}>
               Limpar
             </button>
           )}
@@ -1133,7 +1133,7 @@ export default function Eventos() {
         {/* Grupo data */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
           <Select value={monthFilter} onValueChange={setMonthFilter}>
-            <SelectTrigger style={{ backgroundColor: '#e2e2e2', border: 'none', borderRadius: '99px', fontSize: '12px', fontWeight: '600', color: '#57534e', height: '32px', padding: '0 12px', width: '170px' }} data-testid="select-month-filter">
+            <SelectTrigger style={{ backgroundColor: '#e2e2e2', border: 'none', borderRadius: '999px', fontSize: '13px', fontWeight: '600', color: '#57534e', height: '32px', padding: '0 12px', width: '170px' }} data-testid="select-month-filter">
               <SelectValue placeholder="Mês de saída" />
             </SelectTrigger>
             <SelectContent>
@@ -1148,8 +1148,8 @@ export default function Eventos() {
             data-testid="button-next-10-days-filter"
             style={{
               display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '5px 13px', borderRadius: '99px',
-              fontSize: '12px', fontWeight: '700', cursor: 'pointer',
+              padding: '5px 13px', borderRadius: '999px',
+              fontSize: '13px', fontWeight: '700', cursor: 'pointer',
               border: 'none',
               backgroundColor: next10DaysFilter ? '#1c1917' : '#e2e2e2',
               color: next10DaysFilter ? '#ffffff' : '#57534e',
@@ -1175,7 +1175,7 @@ export default function Eventos() {
         <Button
           data-testid="button-create-event"
           onClick={() => { setEditingEvent(null); setOpen(true); }}
-          style={{ flexShrink: 0, backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: '10px', fontWeight: '700', fontSize: '13px', padding: '0 18px', height: '34px', gap: '7px', boxShadow: '0 2px 8px rgba(249,115,22,0.28)', display: 'flex', alignItems: 'center' }}
+          style={{ flexShrink: 0, backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: '12px', fontWeight: '700', fontSize: '13px', padding: '0 18px', height: '34px', gap: '7px', boxShadow: '0 2px 8px rgba(249,115,22,0.28)', display: 'flex', alignItems: 'center' }}
         >
           <Plus style={{ width: '14px', height: '14px' }} />
           Novo Evento
@@ -1188,19 +1188,19 @@ export default function Eventos() {
           <div style={{ width: '32px', height: '32px', border: '3px solid #e7e5e4', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
         </div>
       ) : events.length === 0 ? (
-        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '14px', padding: '72px 24px', textAlign: 'center' }}>
+        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '12px', padding: '72px 24px', textAlign: 'center' }}>
           <Package style={{ width: '44px', height: '44px', color: '#d4d0cb', margin: '0 auto 16px' }} />
-          <h3 style={{ color: '#1c1917', fontSize: '17px', fontWeight: '700', marginBottom: '6px', fontFamily: "'Space Grotesk', sans-serif" }}>Nenhum evento criado</h3>
+          <h3 style={{ color: '#1c1917', fontSize: '18px', fontWeight: '700', marginBottom: '6px', fontFamily: "'Space Grotesk', sans-serif" }}>Nenhum evento criado</h3>
           <p style={{ color: '#746e69', fontSize: '13px', marginBottom: '24px' }}>Comece criando seu primeiro evento de produção</p>
-          <Button onClick={() => setOpen(true)} style={{ backgroundColor: '#c2410c', color: '#ffffff', borderRadius: '10px', fontWeight: '700', boxShadow: '0 4px 14px rgba(249,115,22,0.25)' }}>
+          <Button onClick={() => setOpen(true)} style={{ backgroundColor: '#c2410c', color: '#ffffff', borderRadius: '12px', fontWeight: '700', boxShadow: '0 4px 14px rgba(249,115,22,0.25)' }}>
             <Plus className="h-4 w-4 mr-2" />
             Criar Primeiro Evento
           </Button>
         </div>
       ) : filteredEvents.length === 0 ? (
-        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '14px', padding: '72px 24px', textAlign: 'center' }}>
+        <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '12px', padding: '72px 24px', textAlign: 'center' }}>
           <Search style={{ width: '40px', height: '40px', color: '#d4d0cb', margin: '0 auto 16px' }} />
-          <h3 style={{ color: '#1c1917', fontSize: '17px', fontWeight: '700', marginBottom: '6px', fontFamily: "'Space Grotesk', sans-serif" }}>Nenhum evento encontrado</h3>
+          <h3 style={{ color: '#1c1917', fontSize: '18px', fontWeight: '700', marginBottom: '6px', fontFamily: "'Space Grotesk', sans-serif" }}>Nenhum evento encontrado</h3>
           <p style={{ color: '#746e69', fontSize: '13px' }}>Tente uma busca ou filtro diferente</p>
         </div>
       ) : (
@@ -1245,6 +1245,14 @@ export default function Eventos() {
                       boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                       transition: 'box-shadow 0.3s ease, transform 0.3s ease',
                     }}
+                    /* Os cards SÃO a navegação desta tela. Como div sem foco,
+                       abrir um evento era impossível sem mouse. role="link"
+                       porque a ação é navegar — links respondem a Enter, não
+                       a Espaço. */
+                    role="link"
+                    tabIndex={0}
+                    aria-label={`Abrir evento ${event.name}`}
+                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setLocation(`/eventos/${event.id}`); } }}
                     onClick={() => setLocation(`/eventos/${event.id}`)}
                     onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 20px 40px rgba(0,0,0,0.1)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)'; }}
                     onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}
@@ -1289,7 +1297,7 @@ export default function Eventos() {
                         <p style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Início</p>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#44403c' }}>
                           <Calendar style={{ width: '14px', height: '14px', color: '#10b981', flexShrink: 0 }} />
-                          <span style={{ fontSize: '12px', fontWeight: '700' }}>
+                          <span style={{ fontSize: '13px', fontWeight: '700' }}>
                             {event.startDate ? parseDateLocal(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '') : '—'}
                           </span>
                         </div>
@@ -1298,7 +1306,7 @@ export default function Eventos() {
                         <p style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Saída Caminhão</p>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <Truck style={{ width: '14px', height: '14px', color: '#10b981', flexShrink: 0 }} />
-                          <span style={{ fontSize: '12px', fontWeight: '700', color: '#44403c' }}>
+                          <span style={{ fontSize: '13px', fontWeight: '700', color: '#44403c' }}>
                             {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', timeZone: 'UTC' }).replace('.', '')}
                             {' · '}
                             {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
@@ -1313,8 +1321,8 @@ export default function Eventos() {
                         <span style={{ fontSize: '11px', fontWeight: '700', color: '#57534e' }}>{deliveredCount}/{itemCount} Peças</span>
                         <span style={{ fontSize: '11px', fontWeight: '800', color: '#10b981' }}>Finalizado</span>
                       </div>
-                      <div style={{ width: '100%', backgroundColor: '#f0efee', borderRadius: '99px', height: '8px', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', backgroundColor: '#10b981', borderRadius: '99px', width: '100%' }} />
+                      <div style={{ width: '100%', backgroundColor: '#f0efee', borderRadius: '999px', height: '8px', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', backgroundColor: '#10b981', borderRadius: '999px', width: '100%' }} />
                       </div>
                     </div>
                   </div>
@@ -1333,6 +1341,10 @@ export default function Eventos() {
                     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                     transition: 'box-shadow 0.3s ease, transform 0.3s ease',
                   }}
+                  role="link"
+                  tabIndex={0}
+                  aria-label={`Abrir evento ${event.name}`}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setLocation(`/eventos/${event.id}`); } }}
                   onClick={() => setLocation(`/eventos/${event.id}`)}
                   onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 20px 40px rgba(0,0,0,0.1)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}
@@ -1379,7 +1391,7 @@ export default function Eventos() {
                       <p style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Início</p>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#44403c' }}>
                         <Calendar style={{ width: '14px', height: '14px', color: cardBorderHex, flexShrink: 0 }} />
-                        <span style={{ fontSize: '12px', fontWeight: '700' }}>
+                        <span style={{ fontSize: '13px', fontWeight: '700' }}>
                           {event.startDate ? parseDateLocal(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '') : '—'}
                         </span>
                       </div>
@@ -1388,7 +1400,7 @@ export default function Eventos() {
                       <p style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Saída Caminhão</p>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} className={truckUrgency === 'urgent' ? 'animate-pulse' : ''}>
                         <Truck style={{ width: '14px', height: '14px', color: truckColor, flexShrink: 0 }} />
-                        <span style={{ fontSize: '12px', fontWeight: '700', color: truckTextColor }}>
+                        <span style={{ fontSize: '13px', fontWeight: '700', color: truckTextColor }}>
                           {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', timeZone: 'UTC' }).replace('.', '')}
                           {' · '}
                           {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
@@ -1403,8 +1415,8 @@ export default function Eventos() {
                       <span style={{ fontSize: '11px', fontWeight: '700', color: '#57534e' }}>{deliveredCount}/{itemCount} Entregues</span>
                       <span style={{ fontSize: '11px', fontWeight: '800', color: '#1c1917' }}>{progressPct}%</span>
                     </div>
-                    <div style={{ width: '100%', backgroundColor: '#f0efee', borderRadius: '99px', height: '8px', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', backgroundColor: progressColor, borderRadius: '99px', width: `${progressPct}%`, transition: 'width 0.4s ease' }} />
+                    <div style={{ width: '100%', backgroundColor: '#f0efee', borderRadius: '999px', height: '8px', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', backgroundColor: progressColor, borderRadius: '999px', width: `${progressPct}%`, transition: 'width 0.4s ease' }} />
                     </div>
                   </div>
                 </div>
@@ -1417,20 +1429,20 @@ export default function Eventos() {
       <AlertDialog open={!!deletingEventId} onOpenChange={() => setDeletingEventId(null)}>
         <AlertDialogContent style={{ maxWidth: "420px", backgroundColor: "#ffffff", borderRadius: "16px", padding: "0", border: "none", boxShadow: "0 16px 32px -12px rgba(26,28,28,0.2)", overflow: "hidden" }}>
           <div style={{ padding: "32px 32px 8px 32px" }}>
-            <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "20px", fontWeight: "700", letterSpacing: "-0.02em", color: "#1c1917", margin: 0 }}>
+            <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "18px", fontWeight: "700", letterSpacing: "-0.02em", color: "#1c1917", margin: 0 }}>
               Confirmar Exclusão
             </AlertDialogTitle>
 
             {/* Banner aviso — borda esquerda laranja */}
             <div style={{ marginTop: "24px", padding: "16px", backgroundColor: "#fff7ed", borderLeft: "4px solid #f97316", borderRadius: "0 8px 8px 0", display: "flex", alignItems: "flex-start", gap: "12px" }}>
               <AlertTriangle style={{ width: "18px", height: "18px", color: "#f97316", flexShrink: 0, marginTop: "1px" }} />
-              <p style={{ fontSize: "12px", fontWeight: "600", color: "#783200", margin: 0, lineHeight: 1.6 }}>
+              <p style={{ fontSize: "13px", fontWeight: "600", color: "#783200", margin: 0, lineHeight: 1.6 }}>
                 Todas as peças associadas a este evento também serão removidas permanentemente.
               </p>
             </div>
 
             {/* Descrição com nome do evento */}
-            <AlertDialogDescription style={{ fontSize: "14px", color: "#746e69", lineHeight: 1.6, marginTop: "16px" }}>
+            <AlertDialogDescription style={{ fontSize: "15px", color: "#746e69", lineHeight: 1.6, marginTop: "16px" }}>
               Tem certeza que deseja excluir o evento{" "}
               <strong style={{ color: "#1a1c1c", fontWeight: "600" }}>
                 "{events.find((e: any) => e.id === deletingEventId)?.name || "este evento"}"
@@ -1441,7 +1453,7 @@ export default function Eventos() {
 
           <AlertDialogFooter style={{ padding: "16px 32px 32px 32px", display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px" }}>
             <AlertDialogCancel
-              style={{ padding: "9px 24px", backgroundColor: "transparent", border: "1px solid #e0c0b1", borderRadius: "6px", fontSize: "12px", fontWeight: "700", color: "#625d5b", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif", transition: "background-color 0.15s" }}
+              style={{ padding: "9px 24px", backgroundColor: "transparent", border: "1px solid #e0c0b1", borderRadius: "6px", fontSize: "13px", fontWeight: "700", color: "#625d5b", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif", transition: "background-color 0.15s" }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f3f4f3")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
             >
@@ -1450,9 +1462,9 @@ export default function Eventos() {
             <AlertDialogAction
               onClick={() => deletingEventId && deleteEventMutation.mutate(deletingEventId)}
               data-testid="button-confirm-delete-event"
-              style={{ padding: "9px 24px", backgroundColor: "#ba1a1a", border: "none", borderRadius: "6px", fontSize: "12px", fontWeight: "700", color: "#ffffff", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif", display: "flex", alignItems: "center", gap: "8px", transition: "filter 0.15s" }}
-              onMouseEnter={(e) => (e.currentTarget.style.filter = "brightness(1.1)")}
-              onMouseLeave={(e) => (e.currentTarget.style.filter = "brightness(1)")}
+              style={{ padding: "9px 24px", backgroundColor: "#ba1a1a", border: "none", borderRadius: "6px", fontSize: "13px", fontWeight: "700", color: "#ffffff", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif", display: "flex", alignItems: "center", gap: "8px", transition: "filter 0.15s" }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#991b1b")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#ba1a1a")}
             >
               <Trash2 style={{ width: "14px", height: "14px" }} />
               {deleteEventMutation.isPending ? "Excluindo..." : "Excluir"}
@@ -1462,10 +1474,10 @@ export default function Eventos() {
       </AlertDialog>
 
       <Dialog open={priorityDialogOpen} onOpenChange={setPriorityDialogOpen}>
-        <DialogContent className="sm:max-w-md p-0 gap-0" style={{ borderRadius: '14px', overflow: 'hidden' }}>
+        <DialogContent className="sm:max-w-md p-0 gap-0" style={{ borderRadius: '12px', overflow: 'hidden' }}>
           {/* Cabeçalho */}
           <div style={{ backgroundColor: '#f3f4f3', borderBottom: '1px solid #e7e5e4', padding: '18px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '16px', fontWeight: '700', color: '#1c1917', margin: 0, textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
+            <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '15px', fontWeight: '700', color: '#1c1917', margin: 0, textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
               Definir Prioridade
             </DialogTitle>
             {selectedEventForPriority && (
@@ -1493,7 +1505,7 @@ export default function Eventos() {
                     height: '72px',
                     display: 'flex', alignItems: 'center', gap: '12px',
                     padding: '0 16px',
-                    borderRadius: '10px',
+                    borderRadius: '12px',
                     border: isSelected ? `2px solid ${hoverBorder}` : '2px solid #e7e5e4',
                     backgroundColor: isSelected ? hoverBg : '#ffffff',
                     cursor: 'pointer',

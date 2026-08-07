@@ -95,7 +95,7 @@ export function CloneItemsDialog({
             onClick={onConfirmClone}
             disabled={!cloneSourceId || isCloning}
             data-testid="button-confirm-clone"
-            style={{ backgroundColor: '#6366f1', color: '#ffffff' }}
+            style={{ backgroundColor: '#4f46e5', color: '#ffffff' }}
           >
             {isCloning ? (
               <><Loader2 className="h-4 w-4 mr-2 animate-spin" /> Clonando...</>

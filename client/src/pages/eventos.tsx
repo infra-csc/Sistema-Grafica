@@ -769,7 +769,7 @@ export default function Eventos() {
                       )}
                     </label>
                     {sponsors.length === 0 ? (
-                      <p style={{ fontSize: '13px', color: '#746e69', backgroundColor: '#f0efee', borderRadius: '8px', padding: '12px 16px' }}>
+                      <p style={{ fontSize: '13px', color: '#57534e', backgroundColor: '#f0efee', borderRadius: '8px', padding: '12px 16px' }}>
                         Nenhum patrocinador cadastrado.{" "}
                         <Link href="/patrocinadores" style={{ color: '#f97316', fontWeight: '600' }}>Cadastre agora</Link>
                       </p>
@@ -1175,7 +1175,7 @@ export default function Eventos() {
         <Button
           data-testid="button-create-event"
           onClick={() => { setEditingEvent(null); setOpen(true); }}
-          style={{ flexShrink: 0, backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: '10px', fontWeight: '700', fontSize: '13px', padding: '0 18px', height: '34px', gap: '7px', boxShadow: '0 2px 8px rgba(249,115,22,0.28)', display: 'flex', alignItems: 'center' }}
+          style={{ flexShrink: 0, backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: '10px', fontWeight: '700', fontSize: '13px', padding: '0 18px', height: '34px', gap: '7px', boxShadow: '0 2px 8px rgba(249,115,22,0.28)', display: 'flex', alignItems: 'center' }}
         >
           <Plus style={{ width: '14px', height: '14px' }} />
           Novo Evento
@@ -1192,7 +1192,7 @@ export default function Eventos() {
           <Package style={{ width: '44px', height: '44px', color: '#d4d0cb', margin: '0 auto 16px' }} />
           <h3 style={{ color: '#1c1917', fontSize: '17px', fontWeight: '700', marginBottom: '6px', fontFamily: "'Space Grotesk', sans-serif" }}>Nenhum evento criado</h3>
           <p style={{ color: '#746e69', fontSize: '13px', marginBottom: '24px' }}>Comece criando seu primeiro evento de produção</p>
-          <Button onClick={() => setOpen(true)} style={{ backgroundColor: '#f97316', color: '#ffffff', borderRadius: '10px', fontWeight: '700', boxShadow: '0 4px 14px rgba(249,115,22,0.25)' }}>
+          <Button onClick={() => setOpen(true)} style={{ backgroundColor: '#c2410c', color: '#ffffff', borderRadius: '10px', fontWeight: '700', boxShadow: '0 4px 14px rgba(249,115,22,0.25)' }}>
             <Plus className="h-4 w-4 mr-2" />
             Criar Primeiro Evento
           </Button>

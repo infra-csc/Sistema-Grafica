@@ -366,7 +366,7 @@ export default function Solicitacao() {
             <span style={{
               display: "inline-block", padding: "4px 12px",
               backgroundColor: "#1c1917", fontSize: 10, fontWeight: 700,
-              letterSpacing: "0.18em", textTransform: "uppercase", color: "#746e69",
+              letterSpacing: "0.18em", textTransform: "uppercase", color: "#d6d3d1",
               borderLeft: "2px solid #f97316",
             }}>
               REVISÃO FINAL

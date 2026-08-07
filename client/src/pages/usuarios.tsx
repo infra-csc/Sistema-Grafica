@@ -241,7 +241,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
         />
         {(search || roleFilter !== "all") && (
           <button onClick={() => { setSearch(""); setRoleFilter("all"); setPage(1); }}
-            style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, cursor: "pointer", fontSize: 10, fontWeight: 800, color: "#dc2626", textTransform: "uppercase" }}>
+            style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, cursor: "pointer", fontSize: 10, fontWeight: 800, color: "#b91c1c", textTransform: "uppercase" }}>
             <X style={{ width: 10, height: 10 }} /> Limpar
           </button>
         )}
@@ -426,7 +426,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
                 );
               })}
               {users.length > 4 && (
-                <div style={{ width: 36, height: 36, borderRadius: "50%", backgroundColor: "#292524", border: `2px solid ${T.dark}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: "#746e69", marginLeft: -10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", backgroundColor: "#292524", border: `2px solid ${T.dark}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 9, fontWeight: 700, color: "#d6d3d1", marginLeft: -10 }}>
                   +{users.length - 4}
                 </div>
               )}

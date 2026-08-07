@@ -218,7 +218,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
               type="button"
               title="Vincular todos os patrocinadores do evento"
               onClick={e => { e.stopPropagation(); onChange({ ...row, suggestedSponsorIds: eventSponsorsList.map(s => s.sponsorId) }); }}
-              style={{ fontSize: 10, fontWeight: 700, borderRadius: 5, border: '1px solid #bbf7d0', backgroundColor: '#f0fdf4', color: '#16a34a', cursor: 'pointer', padding: '2px 7px', outline: 'none', whiteSpace: 'nowrap' }}
+              style={{ fontSize: 10, fontWeight: 700, borderRadius: 5, border: '1px solid #bbf7d0', backgroundColor: '#f0fdf4', color: '#15803d', cursor: 'pointer', padding: '2px 7px', outline: 'none', whiteSpace: 'nowrap' }}
             >
               Todos
             </button>
@@ -504,7 +504,7 @@ export function ImportXlsxDialog({
                         : r
                     ) : prev);
                   }}
-                  style={{ fontSize: 11, fontWeight: 700, borderRadius: 7, border: '1px solid #bbf7d0', backgroundColor: '#f0fdf4', color: '#16a34a', cursor: 'pointer', padding: '6px 11px', outline: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}
+                  style={{ fontSize: 11, fontWeight: 700, borderRadius: 7, border: '1px solid #bbf7d0', backgroundColor: '#f0fdf4', color: '#15803d', cursor: 'pointer', padding: '6px 11px', outline: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}
                 >
                   + Todos patrocinadores
                 </button>
@@ -555,7 +555,7 @@ export function ImportXlsxDialog({
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                   <div style={{ width: 3, height: 14, backgroundColor: '#D97A1E', borderRadius: 2 }} />
                                   <span style={{ fontWeight: 800, fontSize: 12, color: '#1a1c1c', fontFamily: "'Space Grotesk', sans-serif", textTransform: 'uppercase', letterSpacing: '0.04em' }}>{type}</span>
-                                  <span style={{ fontSize: 10, fontWeight: 600, color: '#746e69', backgroundColor: '#e8e6e3', borderRadius: 9999, padding: '1px 8px' }}>{groupItems.length}</span>
+                                  <span style={{ fontSize: 10, fontWeight: 600, color: '#57534e', backgroundColor: '#e8e6e3', borderRadius: 9999, padding: '1px 8px' }}>{groupItems.length}</span>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                                   {groupM2 > 0 && (

@@ -434,7 +434,7 @@ function ExistingItemsPanel({ items, standardItems = [], onDelete }: ExistingIte
                     <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif", flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {type}
                     </span>
-                    <span style={{ fontSize: '9px', fontWeight: '700', color: '#9D978F', backgroundColor: '#e7e3de', borderRadius: 999, padding: '1px 6px', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>
+                    <span style={{ fontSize: '9px', fontWeight: '700', color: '#57534e', backgroundColor: '#e7e3de', borderRadius: 999, padding: '1px 6px', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>
                       {typeItems.length}
                     </span>
                   </div>
@@ -827,7 +827,7 @@ export function BulkItemEntry({
                           </span>
                           <span style={{
                             fontSize: '9px', fontWeight: '700',
-                            color: '#9D978F', backgroundColor: '#e7e3de',
+                            color: '#57534e', backgroundColor: '#e7e3de',
                             borderRadius: 999, padding: '1px 6px',
                             fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0,
                           }}>
@@ -848,7 +848,7 @@ export function BulkItemEntry({
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                                 {item.isReuse && (
                                   <span style={{
-                                    fontSize: '8px', fontWeight: '800', backgroundColor: '#059669',
+                                    fontSize: '8px', fontWeight: '800', backgroundColor: '#047857',
                                     color: '#ffffff', borderRadius: '3px', padding: '1px 6px',
                                     textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0,
                                     fontFamily: "'Space Grotesk', sans-serif",
@@ -886,7 +886,7 @@ export function BulkItemEntry({
                                 <span style={{ fontSize: '11px', color: '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                                   {item.material}
                                 </span>
-                                <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif", backgroundColor: '#FDF3E7', borderRadius: '4px', padding: '2px 7px' }}>
+                                <span style={{ fontSize: '11px', fontWeight: '700', color: '#b45309', fontFamily: "'Space Grotesk', sans-serif", backgroundColor: '#FDF3E7', borderRadius: '4px', padding: '2px 7px' }}>
                                   {item.quantity}x
                                 </span>
                               </div>
@@ -933,7 +933,7 @@ export function BulkItemEntry({
                             <div key={type}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 12px', backgroundColor: '#f0ede8', borderTop: (!group && gi === 0) ? 'none' : '1px solid #E7E3DC', borderBottom: '1px solid #E7E3DC' }}>
                                 <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif", flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{type}</span>
-                                <span style={{ fontSize: '9px', fontWeight: '700', color: '#9D978F', backgroundColor: '#e7e3de', borderRadius: 999, padding: '1px 6px', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>{typeItems.length}</span>
+                                <span style={{ fontSize: '9px', fontWeight: '700', color: '#57534e', backgroundColor: '#e7e3de', borderRadius: 999, padding: '1px 6px', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>{typeItems.length}</span>
                               </div>
                               {typeItems.map((item) => {
                                 const isConflict = duplicateConfirm.duplicates.some(d => d.existingItem.id === item.id);

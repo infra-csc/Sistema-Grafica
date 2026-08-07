@@ -184,7 +184,7 @@ export function NotificationBell({ notifications, onMarkAsRead, onViewAll }: Not
             </h3>
             {unreadCount > 0 && (
               <span style={{
-                fontSize: 10, fontWeight: 700, color: "#f97316",
+                fontSize: 10, fontWeight: 700, color: "#c2410c",
                 backgroundColor: "#fff7ed",
                 padding: "2px 8px", borderRadius: 4,
                 textTransform: "uppercase", letterSpacing: "0.05em",

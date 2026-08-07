@@ -348,7 +348,7 @@ export default function DashboardAnalises() {  const isMobile = useIsMobile();
                     padding: "8px 14px",
                     backgroundColor: "#fef2f2", border: "1px solid #fecaca",
                     borderRadius: 6, cursor: "pointer",
-                    fontSize: 10, fontWeight: 800, color: "#dc2626",
+                    fontSize: 10, fontWeight: 800, color: "#b91c1c",
                     textTransform: "uppercase", letterSpacing: "0.1em",
                     whiteSpace: "nowrap", transition: "all 0.15s",
                   }}

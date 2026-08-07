@@ -901,7 +901,7 @@ export default function EventDetail() {
                 setOpen(true);
               }}
               data-testid="button-add-item"
-              style={{ backgroundColor: '#D97A1E', color: '#ffffff', padding: '11px 24px', borderRadius: '9px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: 'none', cursor: 'pointer', transition: 'background-color 0.18s, box-shadow 0.18s, transform 0.1s', letterSpacing: '0.03em', whiteSpace: 'nowrap', flexShrink: 0, boxShadow: '0 1px 3px rgba(217,122,30,0.25)', fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ backgroundColor: '#b45309', color: '#ffffff', padding: '11px 24px', borderRadius: '9px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: 'none', cursor: 'pointer', transition: 'background-color 0.18s, box-shadow 0.18s, transform 0.1s', letterSpacing: '0.03em', whiteSpace: 'nowrap', flexShrink: 0, boxShadow: '0 1px 3px rgba(217,122,30,0.25)', fontFamily: "'Space Grotesk', sans-serif" }}
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#C96D16'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(217,122,30,0.35)'; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#D97A1E'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(217,122,30,0.25)'; }}
               onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.97)')}
@@ -1074,7 +1074,7 @@ export default function EventDetail() {
                               onClick={() => setEditingTypeName(true)}
                               data-testid="button-edit-type-name"
                               title="Editar nome do tipo"
-                              style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', cursor: 'pointer', color: '#746e69' }}
+                              style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', cursor: 'pointer', color: '#57534e' }}
                               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#e7e5e4'; (e.currentTarget as HTMLButtonElement).style.color = '#f97316'; }}
                               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f0efee'; (e.currentTarget as HTMLButtonElement).style.color = '#a8a29e'; }}
                             >
@@ -1936,7 +1936,7 @@ export default function EventDetail() {
                           {/* Descrição */}
                           <td style={{ padding: '14px 14px' }}>
                             {item.isReuse && !['em_producao','produzido','entregue'].includes(item.status) && (
-                              <div style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: "#059669", color: "#ffffff", borderRadius: 4, padding: "2px 7px", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
+                              <div style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: "#047857", color: "#ffffff", borderRadius: 4, padding: "2px 7px", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
                                 <RotateCcw style={{ width: 9, height: 9 }} /> Reaproveit.
                               </div>
                             )}
@@ -2076,7 +2076,7 @@ export default function EventDetail() {
             <AlertDialogAction
               onClick={() => deletingItemId && deleteItemMutation.mutate(deletingItemId)}
               data-testid="button-confirm-delete-item"
-              style={{ padding: "9px 20px", backgroundColor: "#ef4444", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 700, color: "#ffffff", cursor: "pointer", transition: "background-color 0.15s" }}
+              style={{ padding: "9px 20px", backgroundColor: "#b91c1c", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 700, color: "#ffffff", cursor: "pointer", transition: "background-color 0.15s" }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#dc2626")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#ef4444")}
             >
@@ -2407,7 +2407,7 @@ export default function EventDetail() {
                 type="submit"
                 disabled={updateItemMutation.isPending}
                 data-testid="button-save-edit"
-                style={{ padding: "10px 32px", backgroundColor: "#f97316", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 700, color: "#ffffff", cursor: "pointer", boxShadow: "0 4px 12px rgba(249,115,22,0.25)", transition: "filter 0.15s, transform 0.1s", opacity: updateItemMutation.isPending ? 0.7 : 1 }}
+                style={{ padding: "10px 32px", backgroundColor: "#c2410c", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 700, color: "#ffffff", cursor: "pointer", boxShadow: "0 4px 12px rgba(249,115,22,0.25)", transition: "filter 0.15s, transform 0.1s", opacity: updateItemMutation.isPending ? 0.7 : 1 }}
                 onMouseEnter={(e) => { if (!updateItemMutation.isPending) e.currentTarget.style.filter = "brightness(1.08)"; }}
                 onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; }}
                 onMouseDown={(e) => { e.currentTarget.style.transform = "scale(0.97)"; }}

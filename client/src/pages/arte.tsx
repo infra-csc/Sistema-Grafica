@@ -1658,7 +1658,7 @@ export default function Arte() {
                               </span>
                               {tabId === "finalizados" && <StatusBadge status={item.status} />}
                               {tabId === "criar-aprovacoes" && item.rejectedBySponsor && (
-                                <span style={{ fontSize: 11, fontWeight: 700, color: '#dc2626', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '2px 7px' }} data-testid={`badge-rejected-sponsor-${item.id}`}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: '#b91c1c', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '2px 7px' }} data-testid={`badge-rejected-sponsor-${item.id}`}>
                                   REPROV.
                                 </span>
                               )}
@@ -3671,7 +3671,7 @@ export default function Arte() {
                             {linked > 0 && <span style={{ padding: '2px 8px', borderRadius: 999, backgroundColor: '#dcfce7', color: '#15803d', fontSize: 11, fontWeight: 700, border: '1px solid #bbf7d0' }}>{linked} vinculado{linked !== 1 ? 's' : ''}</span>}
                             {unlinked > 0 && <span style={{ padding: '2px 8px', borderRadius: 999, backgroundColor: '#fff7ed', color: '#c2410c', fontSize: 11, fontWeight: 700, border: '1px solid #fed7aa' }}>{unlinked} sem vínculo</span>}
                             {done > 0 && <span style={{ padding: '2px 8px', borderRadius: 999, backgroundColor: '#f5f3ff', color: '#7c3aed', fontSize: 11, fontWeight: 700, border: '1px solid #ddd6fe' }}>{done} enviado{done !== 1 ? 's' : ''}</span>}
-                            {err > 0 && <span style={{ padding: '2px 8px', borderRadius: 999, backgroundColor: '#fef2f2', color: '#dc2626', fontSize: 11, fontWeight: 700, border: '1px solid #fecaca' }}>{err} erro{err !== 1 ? 's' : ''}</span>}
+                            {err > 0 && <span style={{ padding: '2px 8px', borderRadius: 999, backgroundColor: '#fef2f2', color: '#b91c1c', fontSize: 11, fontWeight: 700, border: '1px solid #fecaca' }}>{err} erro{err !== 1 ? 's' : ''}</span>}
                           </>
                         );
                       })()}

@@ -1196,7 +1196,7 @@ export default function Grafica() {
                           <div style={{ fontSize: 11, color: TI.secondary, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>{item.observations}</div>
                         )}
                         {item.referenceUrl && (
-                          <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência do solicitante" style={{ display: "inline-flex", alignItems: "center", gap: 3, marginTop: 3, fontSize: 10, fontWeight: 700, color: "#f97316", textDecoration: "none", backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 3, padding: "1px 5px" }} data-testid={`link-reference-grafica-${item.id}`}>
+                          <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência do solicitante" style={{ display: "inline-flex", alignItems: "center", gap: 3, marginTop: 3, fontSize: 10, fontWeight: 700, color: "#c2410c", textDecoration: "none", backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 3, padding: "1px 5px" }} data-testid={`link-reference-grafica-${item.id}`}>
                             <img src={item.referenceUrl} style={{ width: 12, height: 12, objectFit: "cover", borderRadius: 2 }} alt="" onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                             REF
                           </a>
@@ -1405,7 +1405,7 @@ export default function Grafica() {
                               title={`Conferir (faltam ${remainingConfer(item)} de ${qtyOf(item)})`}
                               data-testid={`button-confer-${item.id}`}
                               style={{
-                                backgroundColor: "#0891b2", color: "#ffffff",
+                                backgroundColor: "#0e7490", color: "#ffffff",
                                 border: "none", borderRadius: 6, height: 30, padding: "0 12px",
                                 fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
                                 cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
@@ -1893,7 +1893,7 @@ export default function Grafica() {
                       type="button"
                       onClick={() => setProductionData({ quantityProduced: selectedItem.quantity })}
                       data-testid="button-set-total"
-                      style={{ backgroundColor: "#e7e5e4", border: "none", borderRadius: 8, padding: "0 20px", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", color: "#746e69", cursor: "pointer", whiteSpace: "nowrap", transition: "background-color 0.15s" }}
+                      style={{ backgroundColor: "#e7e5e4", border: "none", borderRadius: 8, padding: "0 20px", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", color: "#57534e", cursor: "pointer", whiteSpace: "nowrap", transition: "background-color 0.15s" }}
                       onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#d6d3d1")}
                       onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#e7e5e4")}
                     >

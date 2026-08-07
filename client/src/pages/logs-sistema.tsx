@@ -230,7 +230,7 @@ export default function LogsSistema() {  const isMobile = useIsMobile();
         {activeFilters > 0 && (
           <button
             onClick={clearFilters}
-            style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, cursor: "pointer", fontSize: 10, fontWeight: 800, color: "#dc2626", textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}
+            style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 12px", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 6, cursor: "pointer", fontSize: 10, fontWeight: 800, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}
           >
             <X style={{ width: 10, height: 10 }} />
             Limpar ({activeFilters})

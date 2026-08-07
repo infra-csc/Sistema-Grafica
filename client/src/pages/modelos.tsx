@@ -583,7 +583,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                               )}
                               {(item.fileWidth || item.fileHeight) && (
                                 <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                  <span style={{ fontSize: 9, fontWeight: 700, color: "#D97A1E", backgroundColor: "#FDF3E7", borderRadius: 3, padding: "1px 5px", letterSpacing: "0.06em" }}>ARQ</span>
+                                  <span style={{ fontSize: 9, fontWeight: 700, color: "#b45309", backgroundColor: "#FDF3E7", borderRadius: 3, padding: "1px 5px", letterSpacing: "0.06em" }}>ARQ</span>
                                   <span style={{ fontSize: 12, fontWeight: 600, color: "#57534e", fontFamily: "monospace" }}>
                                     {item.fileWidth ?? "—"} × {item.fileHeight ?? "—"}m
                                   </span>
@@ -858,7 +858,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
               <div style={{ gridColumn: "1 / -1" }}>
                 <label style={{ ...labelStyle, marginBottom: 10, display: "flex", alignItems: "center", gap: 8 }}>
                   Medidas do Arquivo
-                  <span style={{ fontSize: 9, fontWeight: 700, color: "#D97A1E", backgroundColor: "#FDF3E7", borderRadius: 4, padding: "2px 6px", letterSpacing: "0.06em" }}>ARQ.</span>
+                  <span style={{ fontSize: 9, fontWeight: 700, color: "#b45309", backgroundColor: "#FDF3E7", borderRadius: 4, padding: "2px 6px", letterSpacing: "0.06em" }}>ARQ.</span>
                   <span style={{ fontSize: 10, fontWeight: 500, color: "#746e69", textTransform: "none", letterSpacing: 0 }}>— pré-preenchido igual ao visual</span>
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
@@ -1044,7 +1044,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
               </button>
               <button type="submit" disabled={createStandardItemMutation.isPending}
                 data-testid="button-submit-model"
-                style={{ padding: "10px 28px", backgroundColor: "#f97316", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, color: "#ffffff", cursor: createStandardItemMutation.isPending ? "not-allowed" : "pointer", opacity: createStandardItemMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s" }}
+                style={{ padding: "10px 28px", backgroundColor: "#c2410c", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, color: "#ffffff", cursor: createStandardItemMutation.isPending ? "not-allowed" : "pointer", opacity: createStandardItemMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s" }}
                 onMouseEnter={e => { if (!createStandardItemMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#ea580c"; }}
                 onMouseLeave={e => { if (!createStandardItemMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f97316"; }}
               >

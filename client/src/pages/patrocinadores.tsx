@@ -279,7 +279,7 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
 
             {(search || execFilter !== "all") && (
               <button onClick={() => { setSearch(""); setExecFilter("all"); setPage(1); }}
-                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, cursor: "pointer", fontSize: 10, fontWeight: 900, color: "#dc2626", textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>
+                style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, cursor: "pointer", fontSize: 10, fontWeight: 900, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>
                 <X style={{ width: 10, height: 10 }} />
                 Limpar ({filtered.length})
               </button>

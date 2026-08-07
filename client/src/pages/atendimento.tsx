@@ -1830,7 +1830,7 @@ export default function Atendimento() {
                                 <span style={{
                                   display: 'inline-flex', alignItems: 'center', gap: 6,
                                   padding: '4px 10px', borderRadius: 5,
-                                  backgroundColor: '#f1f5f9', color: '#64748b',
+                                  backgroundColor: '#f1f5f9', color: '#475569',
                                   fontSize: 11, fontWeight: 700,
                                 }}>
                                   <CheckCircle style={{ width: 12, height: 12 }} />
@@ -1869,7 +1869,7 @@ export default function Atendimento() {
                                   data-testid={`button-history-${item.id}`}
                                   style={{
                                     padding: '8px 20px', borderRadius: 8,
-                                    backgroundColor: '#f1f5f9', border: 'none', color: '#64748b',
+                                    backgroundColor: '#f1f5f9', border: 'none', color: '#475569',
                                     fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
                                     cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
                                     transition: 'background-color 0.15s',
@@ -2837,7 +2837,7 @@ export default function Atendimento() {
                                         style={{
                                           padding: '8px 16px', borderRadius: 7,
                                           backgroundColor: '#fef2f2', border: '1px solid #fecaca',
-                                          color: '#dc2626', fontSize: 12, fontWeight: 700,
+                                          color: '#b91c1c', fontSize: 12, fontWeight: 700,
                                           cursor: 'pointer', transition: 'all 0.15s',
                                           minHeight: 36,
                                           width: isMobile ? '100%' : undefined,
@@ -3104,7 +3104,7 @@ export default function Atendimento() {
                         data-testid="button-approve-item"
                         style={{
                           padding: '10px 28px', borderRadius: 8, border: 'none',
-                          backgroundColor: '#f97316', color: '#ffffff',
+                          backgroundColor: '#c2410c', color: '#ffffff',
                           fontSize: 13, fontWeight: 800,
                           cursor: 'pointer',
                           display: 'flex', alignItems: 'center', gap: 6,

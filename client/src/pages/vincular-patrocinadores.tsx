@@ -1899,7 +1899,7 @@ export default function VincularPatrocinadores() {
         <div style={{ position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 640, padding: '0 24px', zIndex: 50 }}>
           <div style={{ backgroundColor: '#1c1917', color: '#ffffff', padding: '14px 20px', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 16px 48px rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ width: 40, height: 40, backgroundColor: '#f97316', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: '#ffffff', flexShrink: 0 }}>
+              <div style={{ width: 40, height: 40, backgroundColor: '#c2410c', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: '#ffffff', flexShrink: 0 }}>
                 {selectedItemIds.size}
               </div>
               <div>
@@ -1944,7 +1944,7 @@ export default function VincularPatrocinadores() {
               <button
                 onClick={handleOpenBulkApplyDialog}
                 data-testid="button-apply-bulk-sponsors"
-                style={{ backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, textTransform: 'uppercase', letterSpacing: '-0.01em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
+                style={{ backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, textTransform: 'uppercase', letterSpacing: '-0.01em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
                 onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
                 onMouseLeave={e => (e.currentTarget.style.filter = 'none')}
               >
@@ -2275,13 +2275,13 @@ export default function VincularPatrocinadores() {
                                           })}
                                           {!isExpanded && overflow > 0 && (
                                             <button onClick={(e) => { e.stopPropagation(); toggleSponsorExpand(item.id); }}
-                                              style={{ padding: '3px 6px', backgroundColor: '#f0efee', color: '#746e69', fontSize: 11, fontWeight: 700, borderRadius: 4, border: '1px solid #e7e5e4', cursor: 'pointer' }}>
+                                              style={{ padding: '3px 6px', backgroundColor: '#f0efee', color: '#57534e', fontSize: 11, fontWeight: 700, borderRadius: 4, border: '1px solid #e7e5e4', cursor: 'pointer' }}>
                                               +{overflow}
                                             </button>
                                           )}
                                           {isExpanded && validLinked.length > LIMIT && (
                                             <button onClick={(e) => { e.stopPropagation(); toggleSponsorExpand(item.id); }}
-                                              style={{ padding: '3px 6px', backgroundColor: '#f0efee', color: '#746e69', fontSize: 11, fontWeight: 700, borderRadius: 4, border: '1px solid #e7e5e4', cursor: 'pointer' }}>
+                                              style={{ padding: '3px 6px', backgroundColor: '#f0efee', color: '#57534e', fontSize: 11, fontWeight: 700, borderRadius: 4, border: '1px solid #e7e5e4', cursor: 'pointer' }}>
                                               menos
                                             </button>
                                           )}
@@ -2558,7 +2558,7 @@ export default function VincularPatrocinadores() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                   <div style={{
                     width: 32, height: 32, borderRadius: '50%',
-                    backgroundColor: '#f97316',
+                    backgroundColor: '#c2410c',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     fontSize: 13, fontWeight: 700, color: '#ffffff',
                   }}>{n}</div>
@@ -2578,7 +2578,7 @@ export default function VincularPatrocinadores() {
                   <button
                     onClick={openSendModalForBulk}
                     disabled={sendToArteMutation.isPending}
-                    style={{ backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 6, height: 36, padding: '0 18px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: sendToArteMutation.isPending ? 0.7 : 1 }}
+                    style={{ backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: 6, height: 36, padding: '0 18px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: sendToArteMutation.isPending ? 0.7 : 1 }}
                   >
                     <Send style={{ width: 13, height: 13 }} />
                     {sendToArteMutation.isPending ? 'Enviando...' : `Vincular e Enviar ${n} item${n !== 1 ? 's' : ''}`}
@@ -2897,7 +2897,7 @@ export default function VincularPatrocinadores() {
                                         <button
                                           onClick={() => linkSponsorToItem(item.id, sponsor.id)}
                                           disabled={saveLinkingMutation.isPending}
-                                          style={{ backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 6, height: 34, padding: '0 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                                          style={{ backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: 6, height: 34, padding: '0 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
                                           onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#ea580c')}
                                           onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316')}
                                           data-testid={`sp-btn-link-${item.id}`}
@@ -3079,7 +3079,7 @@ export default function VincularPatrocinadores() {
                 onClick={handleSaveEventSponsors}
                 disabled={manageEventSponsorsMutation.isPending}
                 data-testid="button-save-event-sponsors"
-                style={{ height: 36, padding: '0 16px', backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                style={{ height: 36, padding: '0 16px', backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
               >
                 {manageEventSponsorsMutation.isPending ? "Salvando..." : "Salvar"}
               </button>
@@ -3255,7 +3255,7 @@ export default function VincularPatrocinadores() {
             <button
               onClick={handleApplyBulkSponsors}
               data-testid="button-confirm-bulk-apply"
-              style={{ padding: '9px 20px', backgroundColor: '#f97316', color: '#ffffff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px rgba(249,115,22,0.3)' }}
+              style={{ padding: '9px 20px', backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px rgba(249,115,22,0.3)' }}
               onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.08)')}
               onMouseLeave={e => (e.currentTarget.style.filter = 'none')}
             >

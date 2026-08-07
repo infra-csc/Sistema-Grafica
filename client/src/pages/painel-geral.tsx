@@ -517,7 +517,7 @@ export default function PainelGeral() {
                   </div>
                   <span style={{
                     padding: "4px 11px", borderRadius: 999,
-                    backgroundColor: "#fff7ed", color: "#f97316",
+                    backgroundColor: "#fff7ed", color: "#c2410c",
                     border: "1px solid #fed7aa",
                     fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em",
                     whiteSpace: "nowrap",
@@ -562,7 +562,7 @@ export default function PainelGeral() {
                                 <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#44403c", fontFamily: "'Space Grotesk', sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flex: 1 }}>
                                   {type}
                                 </span>
-                                <span style={{ fontSize: 9, fontWeight: 800, color: "#746e69", backgroundColor: "#e7e5e4", borderRadius: 999, padding: "2px 8px", textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>
+                                <span style={{ fontSize: 9, fontWeight: 800, color: "#57534e", backgroundColor: "#e7e5e4", borderRadius: 999, padding: "2px 8px", textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>
                                   {typeItems.length}
                                 </span>
                               </div>
@@ -747,7 +747,7 @@ export default function PainelGeral() {
                                   </span>
                                   <span style={{
                                     fontSize: 9, fontWeight: 800,
-                                    color: "#746e69",
+                                    color: "#57534e",
                                     backgroundColor: "#e7e5e4",
                                     borderRadius: 999,
                                     padding: "2px 8px",
@@ -831,7 +831,7 @@ export default function PainelGeral() {
                                           <span style={{ color: "#c4bfbb", fontSize: 12 }}>—</span>
                                         )}
                                         {!isDeleted && item.observations && (
-                                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, flexShrink: 0, fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "#746e69", backgroundColor: "#f0ede9", border: "1px solid #e2ddd8", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>
+                                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, flexShrink: 0, fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "#57534e", backgroundColor: "#f0ede9", border: "1px solid #e2ddd8", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>
                                             ↩ {item.observations}
                                           </span>
                                         )}

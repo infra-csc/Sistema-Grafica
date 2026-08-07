@@ -61,6 +61,54 @@ export const R = {
   pill: 999, // pílulas e círculos
 } as const;
 
+/** Luminância relativa de um hex de 6 dígitos. */
+function luminance(hex: string): number {
+  const channel = (i: number) => {
+    const c = parseInt(hex.substr(i, 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+}
+
+function normalizeHex(value?: string | null): string | null {
+  const hex = (value ?? "").trim();
+  const full = /^#[0-9a-fA-F]{3}$/.test(hex)
+    ? `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`
+    : hex;
+  return /^#[0-9a-fA-F]{6}$/.test(full) ? full.toLowerCase() : null;
+}
+
+/**
+ * Escurece `color` até ele alcançar 4.5:1 sobre `bg`, preservando a matiz.
+ *
+ * O padrão de "pill" do patrocinador pinta o fundo com a cor a 10% e o texto
+ * com a cor cheia. Isso funciona nos tons escuros da paleta e falha em 9 das
+ * 12 cores oferecidas: o amarelo (#eab308) fica em 1.79:1 sobre o próprio
+ * fundo. Como a cor é dado do usuário, não há valor fixo a corrigir — o
+ * ajuste tem de ser calculado.
+ *
+ * Escala os canais na direção do preto em passos pequenos: mantém a
+ * identidade da marca (um pill vermelho continua vermelho) e só troca o brilho
+ * pelo necessário.
+ */
+export function darkenToContrast(color?: string | null, bg = "#ffffff", target = 4.5): string {
+  const fg = normalizeHex(color);
+  const back = normalizeHex(bg);
+  if (!fg || !back) return "#1c1917";
+
+  const lb = luminance(back);
+  const ratio = (l: number) => (Math.max(l, lb) + 0.05) / (Math.min(l, lb) + 0.05);
+  if (ratio(luminance(fg)) >= target) return fg;
+
+  const rgb = [1, 3, 5].map(i => parseInt(fg.substr(i, 2), 16));
+  for (let k = 95; k >= 0; k -= 5) {
+    const escala = rgb.map(c => Math.round((c * k) / 100));
+    const hex = `#${escala.map(c => c.toString(16).padStart(2, "0")).join("")}`;
+    if (ratio(luminance(hex)) >= target) return hex;
+  }
+  return "#1c1917";
+}
+
 /**
  * Escolhe entre texto claro e escuro para ficar legível sobre `bg`.
  *

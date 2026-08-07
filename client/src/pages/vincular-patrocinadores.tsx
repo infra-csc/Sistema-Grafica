@@ -28,7 +28,7 @@ import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useAuth } from "@/contexts/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ModalHeader, ModalFooter, modalSurface } from "@/components/modal-shell";
-import { R, onColor } from "@/lib/theme";
+import { R, onColor, darkenToContrast } from "@/lib/theme";
 
 type ItemChanges = {
   sponsorIds: string[];
@@ -139,13 +139,23 @@ const hexToRgba = (hex: string, alpha: number = 1): string => {
   return `rgba(${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}, ${alpha})`;
 };
 
-// Função para obter cor do patrocinador a partir dos dados
+// Função para obter cor do patrocinador a partir dos dados.
+//
+// O pill pinta o fundo com a cor a 10% e escrevia com a cor cheia. Isso só
+// funciona nos tons escuros: medindo a paleta que a tela de patrocinadores
+// oferece, 9 das 12 cores reprovam sobre o próprio fundo, e o amarelo
+// (#eab308) fica em 1.79:1 — ilegível. Como a cor é escolhida por quem
+// cadastra, não existe valor fixo a corrigir; `darkenToContrast` escurece só
+// o necessário e mantém a matiz, então um pill vermelho segue vermelho.
 const getSponsorColorStyle = (sponsor: any) => {
-  const color = sponsor?.color || "#3b82f6";
+  const color = sponsor?.color || "#2563eb";
+  // O fundo é a cor a 10% sobre branco — é contra ele que o texto é medido.
+  const [r, g, b] = [1, 3, 5].map(i => parseInt((color as string).substr(i, 2), 16) || 0);
+  const fundoSolido = `#${[r, g, b].map(c => Math.round(0.1 * c + 0.9 * 255).toString(16).padStart(2, "0")).join("")}`;
   return {
     backgroundColor: hexToRgba(color, 0.1),
     borderColor: hexToRgba(color, 0.3),
-    color: color,
+    color: darkenToContrast(color, fundoSolido),
   };
 };
 
@@ -1692,7 +1702,7 @@ export default function VincularPatrocinadores() {
           // deixa a barra legível e faz "rascunho" e "pronto" terem aqui a
           // mesma cor que têm no resto do sistema.
           const segs = [
-            { key: 'PENDENTE', color: '#a8a29e', pct: (contextStatusCounts.PENDENTE / total) * 100 },
+            { key: 'PENDENTE', color: '#746e69', pct: (contextStatusCounts.PENDENTE / total) * 100 },
             { key: 'RASCUNHO', color: '#c2410c', pct: (contextStatusCounts.RASCUNHO / total) * 100 },
             { key: 'PRONTO',   color: '#15803d', pct: (contextStatusCounts.PRONTO   / total) * 100 },
             { key: 'ENVIADO',  color: '#1c1917', pct: (contextStatusCounts.ENVIADO  / total) * 100 },
@@ -2014,7 +2024,12 @@ export default function VincularPatrocinadores() {
                   </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexShrink: 0 }}>
-                  <div style={{ display: 'flex', gap: 18, fontSize: 11, fontWeight: 500, color: '#746e69' }}>
+                  {/* #746e69 é o cinza de texto secundário sobre superfície
+                      clara; aqui o fundo é o #1c1917 do <header> e a data
+                      ficava em 3.18:1 — escuro sobre escuro. Sobre preto o
+                      papel se inverte: #a8a29e, que é decorativo no claro,
+                      passa em 6.34:1. */}
+                  <div style={{ display: 'flex', gap: 18, fontSize: 11, fontWeight: 600, color: '#746e69' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <Calendar style={{ width: 13, height: 13 }} />
                       <span>{format(parseDateLocal(event.startDate), "dd MMM yyyy", { locale: ptBR }).toUpperCase()}</span>
@@ -2028,9 +2043,16 @@ export default function VincularPatrocinadores() {
                     onClick={() => handleOpenSponsorDialog(event)}
                     data-testid={`button-manage-event-sponsors-${event.id}`}
                     title={eventSponsors.length === 0 ? 'Adicionar patrocinadores a este evento' : `${eventSponsors.length} ${eventSponsors.length === 1 ? 'patrocinador' : 'patrocinadores'} neste evento`}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 12px', borderRadius: 6, cursor: 'pointer', backgroundColor: 'rgba(255,255,255,0.1)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)', fontSize: 11, fontWeight: 600 }}>
-                    <Building2 style={{ width: 12, height: 12 }} />
-                    {eventSponsors.length === 0 ? 'Adicionar Pat.' : `${eventSponsors.length} Pat.`}
+                    /* "Adicionar Pat." e "3 Pat." abreviavam o que o botão faz
+                       para caber; num cabeçalho que já reserva espaço de sobra,
+                       a abreviação só custava clareza. */
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 30, padding: '0 12px', borderRadius: R.sm, cursor: 'pointer', backgroundColor: 'rgba(255,255,255,0.1)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.18)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}>
+                    <Building2 style={{ width: 13, height: 13 }} />
+                    {eventSponsors.length === 0
+                      ? 'Adicionar patrocinadores'
+                      : `${eventSponsors.length} ${eventSponsors.length === 1 ? 'patrocinador' : 'patrocinadores'}`}
                   </button>
                 </div>
               </header>
@@ -2215,7 +2237,7 @@ export default function VincularPatrocinadores() {
                             </td>
                             <td className="px-3 py-3">
                               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1c1c' }}>Qty: {String(item.quantity).padStart(2, '0')}</span>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1c1c' }}>Qtd {String(item.quantity).padStart(2, '0')}</span>
                                 <span style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
                                   {parseFloat(item.calculatedM2).toFixed(2)} m²
                                 </span>
@@ -2226,8 +2248,8 @@ export default function VincularPatrocinadores() {
                               {currentSkipApproval ? (
                                 /* "Sem Patrocinador" */
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <span style={{ padding: '3px 8px', backgroundColor: '#fffbeb', color: '#92400e', border: '1px solid #fcd34d', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', borderRadius: 6, letterSpacing: '0.04em' }}>
-                                    Sem Pat.
+                                  <span style={{ padding: '3px 8px', backgroundColor: '#fffbeb', color: '#92400e', border: '1px solid #fcd34d', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', borderRadius: R.sm, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
+                                    Sem patrocinador
                                   </span>
                                   {isEditable && (
                                     <button onClick={() => toggleItemSkipApproval(item)} data-testid={`btn-undo-skip-${item.id}`}
@@ -2246,7 +2268,12 @@ export default function VincularPatrocinadores() {
                                   const LIMIT = 3;
                                   const visible = isExpanded ? validLinked : validLinked.slice(0, LIMIT);
                                   const overflow = validLinked.length - LIMIT;
-                                  const canUnlink = uiStatus === 'PRONTO' && isEditable;
+                                  // Este ramo só roda com uiStatus === 'ENVIADO', então comparar
+                                  // com 'PRONTO' era sempre falso: o botão de desvincular abaixo
+                                  // nunca aparecia, e o próprio comentário do bloco diz que aqui é
+                                  // somente leitura. Mantido como constante para deixar explícito
+                                  // — era o erro de tipo que o tsc apontava neste arquivo.
+                                  const canUnlink = false;
                                   return (
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
                                       {validLinked.length === 0 ? (
@@ -2254,16 +2281,17 @@ export default function VincularPatrocinadores() {
                                       ) : (
                                         <>
                                           {visible.map((sp: any) => {
-                                            const colorStyle = getSponsorColorStyle(sp);
-                                            const bg = uiStatus === 'ENVIADO' ? '#e8e8e7' : colorStyle.backgroundColor;
-                                            const fg = uiStatus === 'ENVIADO' ? '#78716c' : colorStyle.color;
                                             return (
                                               <span key={sp.id} style={{
-                                                display: 'inline-flex', alignItems: 'center', gap: canUnlink ? 3 : 0,
-                                                padding: canUnlink ? '3px 4px 3px 7px' : '3px 7px',
-                                                backgroundColor: bg, color: fg,
+                                                display: 'inline-flex', alignItems: 'center',
+                                                padding: '3px 7px',
+                                                // Peça já enviada some do fluxo de edição: o pill
+                                                // fica neutro para não competir com as linhas que
+                                                // ainda pedem ação. #57534e sobre #e8e8e7 dá 5.3:1
+                                                // (o #78716c anterior ficava em 3.91).
+                                                backgroundColor: '#e8e8e7', color: '#57534e',
                                                 fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-                                                borderRadius: 6, letterSpacing: '0.04em', whiteSpace: 'nowrap',
+                                                borderRadius: R.sm, letterSpacing: '0.04em', whiteSpace: 'nowrap',
                                               }}>
                                                 {sp.name}
                                                 {canUnlink && (

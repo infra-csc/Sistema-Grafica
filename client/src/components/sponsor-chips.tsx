@@ -24,7 +24,7 @@ const VARIANT_STYLES = {
     bg: "#f5f5f4", color: "#57534e", border: "1px solid #e7e5e4", borderRadius: 4,
   },
   plain: {
-    bg: "#f1f5f9", color: "#475569", border: "1px solid #e2e8f0", borderRadius: 6,
+    bg: "#f5f5f4", color: "#57534e", border: "1px solid #e7e5e4", borderRadius: 6,
   },
   dark: {
     bg: "#292524", color: "#e7e5e4", border: "1px solid #44403c", borderRadius: 4,
@@ -43,7 +43,7 @@ const SIZE_STYLES = {
 const OVERFLOW_STYLES = {
   orange:  { bg: "#fed7aa", color: "#92400e" },
   gray:    { bg: "#e7e5e4", color: "#746e69" },
-  plain:   { bg: "#e2e8f0", color: "#64748b" },
+  plain:   { bg: "#e7e5e4", color: "#746e69" },
   dark:    { bg: "#44403c", color: "#746e69" },
   colored: { bg: "#e7e5e4", color: "#746e69" },
 };

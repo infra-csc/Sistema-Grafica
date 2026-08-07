@@ -175,7 +175,7 @@ export function FilterSelect({
     gap: 6, height: 36,
     padding: "0 10px 0 12px",
     backgroundColor: open || isActive ? C.bg50 : "#ffffff",
-    border: isActive ? `1.5px solid ${C.border}` : open ? `1.5px solid ${C.border}` : "1px solid #e2e8f0",
+    border: isActive ? `1.5px solid ${C.border}` : open ? `1.5px solid ${C.border}` : "1px solid #e7e5e4",
     borderRadius: 7,
     cursor: disabled ? "not-allowed" : "pointer",
     opacity: disabled ? 0.6 : 1,

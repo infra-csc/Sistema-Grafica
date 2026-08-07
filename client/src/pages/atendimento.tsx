@@ -900,7 +900,7 @@ export default function Atendimento() {
             const statusLabel = a.status === 'approved' ? 'Aprovado' : a.status === 'rejected' ? 'Reprovado' : 'Pendente';
             const sp = itemSponsors.find((s: any) => s.id === a.sponsorId);
             const sponsorName = a.sponsor?.name || sp?.name || '—';
-            const dotColor = sp?.color || a.sponsor?.color || '#94a3b8';
+            const dotColor = sp?.color || a.sponsor?.color || '#746e69';
             return `<div class="appr-row"><span class="appr-left"><span class="sp-dot" style="background:${dotColor}"></span><span class="appr-name">${sponsorName}</span></span><span class="appr-status" style="color:${statusColor}">${statusLabel}</span></div>`;
           }).join("")
         : itemSponsors.length
@@ -908,7 +908,7 @@ export default function Atendimento() {
               const c = s.color || "#3b82f6";
               return `<div class="appr-row"><span class="sp-chip" style="border-color:${c}33;background:${c}11"><span class="sp-dot" style="background:${c}"></span>${s.name}</span><span class="appr-status" style="color:#ea580c">Pendente</span></div>`;
             }).join("")
-          : `<span style="color:#94a3b8;font-size:12px">Sem patrocinadores</span>`;
+          : `<span style="color:#746e69;font-size:12px">Sem patrocinadores</span>`;
 
       const pageNum = `${idx + 1} / ${sorted.length}`;
       const itemName = item.description || item.type || "Sem nome";
@@ -976,7 +976,7 @@ export default function Atendimento() {
       <style>
         @page { size: A4 portrait; margin: 0; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'DM Sans', 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        body { font-family: 'DM Sans', 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #1c1917; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
         /* min-height + sem overflow:hidden: conteúdo que exceder a folha flui
            para a próxima página em vez de ser cortado. */
@@ -993,8 +993,8 @@ export default function Atendimento() {
         .hdr-right { flex-shrink: 0; }
         .id-chip { font-family: 'DM Mono', 'Courier New', monospace; font-size: 16px; font-weight: 700; color: #ffffff; background: #f97316; padding: 6px 14px; border-radius: 8px; letter-spacing: 0.02em; }
 
-        .piece-title-bar { padding: 16px 32px; background: #ffffff; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
-        .piece-name { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 800; color: #0f172a; line-height: 1.2; letter-spacing: -0.02em; }
+        .piece-title-bar { padding: 16px 32px; background: #ffffff; border-bottom: 1px solid #e7e5e4; flex-shrink: 0; }
+        .piece-name { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 800; color: #1c1917; line-height: 1.2; letter-spacing: -0.02em; }
         .title-meta { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; align-items: center; }
         .type-badge { display: inline-block; background: #fff7ed; border: 1px solid #fed7aa; color: #c2410c; border-radius: 100px; font-size: 11px; font-weight: 600; padding: 3px 12px; }
         .event-badge { display: inline-block; background: #f0f9ff; border: 1px solid #bae6fd; color: #0369a1; border-radius: 100px; font-size: 11px; font-weight: 600; padding: 3px 12px; }
@@ -1002,35 +1002,35 @@ export default function Atendimento() {
         .body { display: flex; gap: 24px; flex: 1; padding: 24px 32px; min-height: 0; }
 
         .col-img { flex: 0 0 58%; display: flex; flex-direction: column; }
-        .img-frame { flex: 1; border-radius: 12px; border: 1px solid #e2e8f0; overflow: hidden; background: #f8fafc; display: flex; align-items: center; justify-content: center; min-height: 200px; max-height: 380px; }
+        .img-frame { flex: 1; border-radius: 12px; border: 1px solid #e7e5e4; overflow: hidden; background: #fafaf9; display: flex; align-items: center; justify-content: center; min-height: 200px; max-height: 380px; }
         .ref-img { width: 100%; height: 100%; object-fit: contain; display: block; }
         .no-img { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 40px 20px; width: 100%; }
         .no-img-icon { font-size: 28px; font-weight: 800; color: #cbd5e1; font-family: 'DM Mono', monospace; }
-        .no-img-sub { font-size: 11px; color: #94a3b8; }
-        .img-caption { font-size: 10px; color: #94a3b8; text-align: center; margin-top: 7px; }
+        .no-img-sub { font-size: 11px; color: #746e69; }
+        .img-caption { font-size: 10px; color: #746e69; text-align: center; margin-top: 7px; }
 
         .col-info { flex: 0 0 42%; display: flex; flex-direction: column; }
-        .info-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; flex: 1; }
+        .info-card { background: #fafaf9; border: 1px solid #e7e5e4; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; flex: 1; }
 
-        .sec-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #94a3b8; margin-bottom: 10px; }
-        .sep { height: 1px; background: #e2e8f0; margin: 14px 0; }
+        .sec-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #746e69; margin-bottom: 10px; }
+        .sep { height: 1px; background: #e7e5e4; margin: 14px 0; }
         .field { margin-bottom: 12px; }
         .field:last-child { margin-bottom: 0; }
-        .fld-lbl { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #94a3b8; margin-bottom: 2px; }
-        .fld-val { font-size: 14px; font-weight: 700; color: #0f172a; line-height: 1.3; }
+        .fld-lbl { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #746e69; margin-bottom: 2px; }
+        .fld-val { font-size: 14px; font-weight: 700; color: #1c1917; line-height: 1.3; }
         .qty-val { font-size: 16px; font-weight: 800; color: #f97316; }
 
         .approvals { display: flex; flex-direction: column; gap: 8px; }
-        .appr-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; }
+        .appr-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: #fff; border: 1px solid #e7e5e4; border-radius: 8px; }
         .appr-left { display: flex; align-items: center; gap: 7px; }
-        .appr-name { font-size: 12px; font-weight: 600; color: #0f172a; }
+        .appr-name { font-size: 12px; font-weight: 600; color: #1c1917; }
         .appr-status { font-size: 11px; font-weight: 700; }
         .sp-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #1c1917; padding: 2px 8px; border-radius: 20px; border: 1px solid transparent; }
         .sp-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 
-        .doc-footer { flex-shrink: 0; padding: 12px 32px; border-top: 1px solid #e2e8f0; background: #f8fafc; display: flex; align-items: center; justify-content: space-between; }
-        .ft-gen { font-size: 9px; color: #94a3b8; }
-        .ft-pg { font-size: 9px; color: #94a3b8; font-family: 'DM Mono', monospace; }
+        .doc-footer { flex-shrink: 0; padding: 12px 32px; border-top: 1px solid #e7e5e4; background: #fafaf9; display: flex; align-items: center; justify-content: space-between; }
+        .ft-gen { font-size: 9px; color: #746e69; }
+        .ft-pg { font-size: 9px; color: #746e69; font-family: 'DM Mono', monospace; }
       </style>
     </head><body>${pages}</body></html>`);
     win.document.close();
@@ -1750,13 +1750,13 @@ export default function Atendimento() {
                         className="group"
                         style={{
                           backgroundColor: '#ffffff', borderRadius: 12,
-                          boxShadow: `0 1px 3px rgba(0,0,0,0.06), inset 4px 0 0 ${isFullyApproved ? '#d6d3d1' : hasArteBlock ? '#94a3b8' : '#f97316'}`,
+                          boxShadow: `0 1px 3px rgba(0,0,0,0.06), inset 4px 0 0 ${isFullyApproved ? '#d6d3d1' : hasArteBlock ? '#746e69' : '#f97316'}`,
                           overflow: 'hidden',
                           opacity: isFullyApproved ? 0.75 : 1,
                           transition: 'box-shadow 0.2s',
                         }}
-                        onMouseEnter={e => { if (!isFullyApproved) (e.currentTarget as HTMLDivElement).style.boxShadow = `0 4px 12px rgba(0,0,0,0.1), inset 4px 0 0 ${hasArteBlock ? '#94a3b8' : '#f97316'}`; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = `0 1px 3px rgba(0,0,0,0.06), inset 4px 0 0 ${isFullyApproved ? '#d6d3d1' : hasArteBlock ? '#94a3b8' : '#f97316'}`; }}
+                        onMouseEnter={e => { if (!isFullyApproved) (e.currentTarget as HTMLDivElement).style.boxShadow = `0 4px 12px rgba(0,0,0,0.1), inset 4px 0 0 ${hasArteBlock ? '#746e69' : '#f97316'}`; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = `0 1px 3px rgba(0,0,0,0.06), inset 4px 0 0 ${isFullyApproved ? '#d6d3d1' : hasArteBlock ? '#746e69' : '#f97316'}`; }}
                       >
                         <div style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', padding: isMobile ? 14 : 20, gap: isMobile ? 12 : 24, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
 
@@ -1846,7 +1846,7 @@ export default function Atendimento() {
                                 <span style={{
                                   display: 'inline-flex', alignItems: 'center', gap: 6,
                                   padding: '4px 10px', borderRadius: 6,
-                                  backgroundColor: '#f1f5f9', color: '#475569',
+                                  backgroundColor: '#f5f5f4', color: '#57534e',
                                   fontSize: 11, fontWeight: 700,
                                 }}>
                                   <CheckCircle style={{ width: 12, height: 12 }} />
@@ -1858,7 +1858,7 @@ export default function Atendimento() {
                                   style={{
                                     display: 'inline-flex', alignItems: 'center', gap: 6,
                                     padding: '4px 10px', borderRadius: 6,
-                                    backgroundColor: '#f1f5f9', color: '#475569',
+                                    backgroundColor: '#f5f5f4', color: '#57534e',
                                     fontSize: 11, fontWeight: 700,
                                   }}>
                                   <RotateCcw style={{ width: 12, height: 12 }} />
@@ -1885,7 +1885,7 @@ export default function Atendimento() {
                                   data-testid={`button-history-${item.id}`}
                                   style={{
                                     padding: '8px 20px', borderRadius: 8,
-                                    backgroundColor: '#f1f5f9', border: 'none', color: '#475569',
+                                    backgroundColor: '#f5f5f4', border: 'none', color: '#57534e',
                                     fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
                                     cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
                                     transition: 'background-color 0.15s',
@@ -1893,8 +1893,8 @@ export default function Atendimento() {
                                     width: isMobile ? '100%' : undefined,
                                     justifyContent: isMobile ? 'center' : undefined,
                                   }}
-                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e2e8f0'; }}
-                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
+                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e7e5e4'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; }}
                                 >
                                   <Eye style={{ width: 12, height: 12 }} />
                                   Histórico
@@ -2029,7 +2029,7 @@ export default function Atendimento() {
         const evById = new Map((events as any[]).map((e: any) => [e.id, e]));
         const FL: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 };
         const SEL = (active: boolean): React.CSSProperties => ({
-          height: 38, border: `1.5px solid ${active ? '#c2610c' : '#e2e8f0'}`,
+          height: 38, border: `1.5px solid ${active ? '#c2610c' : '#e7e5e4'}`,
           borderRadius: 8, fontSize: 13, fontWeight: 500, background: '#fff',
           color: active ? '#c2610c' : '#374151', cursor: 'pointer',
         });
@@ -2488,7 +2488,7 @@ export default function Atendimento() {
                         const isApproved   = appr?.status === 'approved';
                         const isRejected   = appr?.status === 'rejected';
                         const isNewVersion = appr?.status === 'new_version_pending';
-                        const c = sp.color || '#94a3b8';
+                        const c = sp.color || '#746e69';
                         const statusLabel = isApproved ? 'Aprovado' : isRejected ? 'Reprovado' : isNewVersion ? 'Nova versão' : 'Aguardando';
                         const statusColor = isApproved ? '#15803d' : isRejected ? '#b91c1c' : isNewVersion ? '#92400e' : '#6b7280';
                         const statusBg    = isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : isNewVersion ? '#fffbeb' : '#f5f5f4';
@@ -2784,10 +2784,10 @@ export default function Atendimento() {
                         <div style={{
                           display: 'flex', alignItems: 'center', gap: 10,
                           padding: '10px 14px', borderRadius: 8, marginBottom: 16,
-                          backgroundColor: '#f8fafc', border: '1px solid #e2e8f0',
+                          backgroundColor: '#fafaf9', border: '1px solid #e7e5e4',
                         }}>
-                          <RotateCcw style={{ width: 14, height: 14, color: '#64748b', flexShrink: 0 }} />
-                          <p style={{ fontSize: 13, color: '#475569', margin: 0, fontWeight: 500 }}>
+                          <RotateCcw style={{ width: 14, height: 14, color: '#746e69', flexShrink: 0 }} />
+                          <p style={{ fontSize: 13, color: '#57534e', margin: 0, fontWeight: 500 }}>
                             Decisões registradas — a Arte está preparando uma nova versão.
                           </p>
                         </div>

@@ -90,7 +90,7 @@ export function EventFilterDropdown({
           display: "flex", alignItems: "center", gap: 6,
           height: 36, padding: "0 10px 0 12px",
           backgroundColor: open || isActive ? "#FFF7ED" : "#ffffff",
-          border: isActive ? "1.5px solid #FB923C" : open ? "1.5px solid #FB923C" : "1px solid #e2e8f0",
+          border: isActive ? "1.5px solid #FB923C" : open ? "1.5px solid #FB923C" : "1px solid #e7e5e4",
           borderRadius: 7, cursor: "pointer",
           fontSize: 13, fontWeight: isActive ? 600 : 400,
           color: isActive ? "#C2410C" : "#1c1917",

@@ -278,7 +278,7 @@ function ExistingItemsPanel({ items, standardItems = [], onDelete }: ExistingIte
         style={{
           display: 'flex', alignItems: 'center', gap: '6px',
           padding: '5px 8px',
-          borderBottom: '1px solid #f1f5f9',
+          borderBottom: '1px solid #f5f5f4',
           backgroundColor: hovered ? '#fff7ed' : 'transparent',
           transition: 'background-color 0.1s',
           minWidth: 0,
@@ -294,19 +294,19 @@ function ExistingItemsPanel({ items, standardItems = [], onDelete }: ExistingIte
         </span>
         {/* Tipo */}
         <span style={{
-          fontSize: '11px', fontWeight: '700', color: '#1e293b',
+          fontSize: '11px', fontWeight: '700', color: '#292524',
           fontFamily: "'Plus Jakarta Sans', sans-serif",
           minWidth: '110px', flexShrink: 0,
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>
           {item.type}
           {item.quantity > 1 && (
-            <span style={{ fontWeight: '500', color: '#94a3b8', marginLeft: '3px' }}>×{item.quantity}</span>
+            <span style={{ fontWeight: '500', color: '#746e69', marginLeft: '3px' }}>×{item.quantity}</span>
           )}
         </span>
         {/* Descrição */}
         <span style={{
-          fontSize: '11px', color: '#64748b',
+          fontSize: '11px', color: '#746e69',
           fontFamily: "'Plus Jakarta Sans', sans-serif",
           flex: 1, minWidth: 0,
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',

@@ -572,7 +572,7 @@ export default function Arte() {
   const PDF_STYLES = `
         @page { size: A4 landscape; margin: 0; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'DM Sans', 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #0f172a; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        body { font-family: 'DM Sans', 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #1c1917; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 
         .page { width: 100vw; min-height: 100vh; display: flex; flex-direction: column; break-after: page; page-break-after: always; background: #ffffff; overflow: hidden; }
         .page:last-child { break-after: avoid; page-break-after: avoid; }
@@ -584,7 +584,7 @@ export default function Arte() {
         .ap-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
         .ap-noimg { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
         .ap-noimg-ic { font-size: 34px; font-weight: 800; color: #cbd5e1; font-family: 'DM Mono', monospace; }
-        .ap-noimg-sub { font-size: 12px; color: #94a3b8; }
+        .ap-noimg-sub { font-size: 12px; color: #746e69; }
         .ap-caption { flex-shrink: 0; text-align: center; padding-top: 14px; font-family: 'DM Sans', Arial, sans-serif; font-size: 13pt; font-weight: 600; color: #1c1917; }
 
         /* ── Página de grupo (várias artes) ── */
@@ -637,7 +637,7 @@ export default function Arte() {
       toast({ title: "Pop-up bloqueado", description: "Permita pop-ups para este site e tente novamente", variant: "destructive" });
       return;
     }
-    win.document.write(`<p style="font-family:sans-serif;color:#64748b;padding:24px">Preparando exportação…</p>`);
+    win.document.write(`<p style="font-family:sans-serif;color:#746e69;padding:24px">Preparando exportação…</p>`);
 
     const thumbCount = items.filter(i => i.approvalThumbUrl && !/\.pdf$/i.test(i.approvalThumbUrl)).length;
     if (thumbCount > 0) {

@@ -155,12 +155,12 @@ function UserAvatar({ name }: { name?: string }) {
         width: 28, height: 28, borderRadius: "50%",
         backgroundColor: "#e8e8e7",
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 9, fontWeight: 800, color: unknown ? P.muted : P.text,
+        fontSize: 10, fontWeight: 800, color: unknown ? P.muted : P.text,
         flexShrink: 0, letterSpacing: "0.02em",
       }}>
         {initials}
       </div>
-      <span style={{ fontSize: 12, fontWeight: 700, color: unknown ? P.muted : P.text, whiteSpace: "nowrap" }}>
+      <span style={{ fontSize: 13, fontWeight: 700, color: unknown ? P.muted : P.text, whiteSpace: "nowrap" }}>
         {display}
       </span>
     </div>
@@ -187,7 +187,7 @@ interface TimelineEvent {
 /* ── Description builder ── */
 function buildDescription(e: TimelineEvent) {
   const ID = e.itemDisplayId
-    ? <code style={{ fontFamily: "monospace", fontWeight: 700, color: P.second, fontSize: 12 }}>{e.itemDisplayId}</code>
+    ? <code style={{ fontFamily: "monospace", fontWeight: 700, color: P.second, fontSize: 13 }}>{e.itemDisplayId}</code>
     : null;
 
   switch (e.type) {
@@ -625,7 +625,7 @@ export default function Historico() {  const isMobile = useIsMobile();
   const selectStyle: React.CSSProperties = {
     backgroundColor: "#ffffff", border: "none", borderRadius: 8,
     padding: "9px 14px", fontSize: 13, fontWeight: 600,
-    color: P.text, cursor: "pointer", outline: "none",
+    color: P.text, cursor: "pointer",
     appearance: "none", WebkitAppearance: "none", minWidth: 168,
   };
 
@@ -637,7 +637,7 @@ export default function Historico() {  const isMobile = useIsMobile();
         <div style={{
           width: 56, height: 56, flexShrink: 0,
           backgroundColor: "#fff7ed",
-          borderRadius: 14,
+          borderRadius: 12,
           display: "flex", alignItems: "center", justifyContent: "center",
           boxShadow: "0 1px 4px rgba(249,115,22,0.18)",
         }}>
@@ -645,7 +645,7 @@ export default function Historico() {  const isMobile = useIsMobile();
         </div>
         <div>
           <h1 style={{
-            fontSize: 32, fontWeight: 700, color: P.text, margin: 0,
+            fontSize: 26, fontWeight: 700, color: P.text, margin: 0,
             letterSpacing: "-0.02em", fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1.1,
           }}>
             Histórico de Atividades
@@ -681,7 +681,7 @@ export default function Historico() {  const isMobile = useIsMobile();
               style={{
                 width: "100%", paddingLeft: 34, paddingRight: 12, paddingTop: 9, paddingBottom: 9,
                 backgroundColor: "#ffffff", border: "none", borderRadius: 8,
-                fontSize: 13, color: P.text, outline: "none",
+                fontSize: 13, color: P.text,
                 boxSizing: "border-box",
               }}
             />
@@ -736,7 +736,7 @@ export default function Historico() {  const isMobile = useIsMobile();
             marginLeft: "auto",
           }}>
             <span style={{ fontSize: 10, fontWeight: 800, color: P.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Total</span>
-            <span style={{ fontSize: 14, fontWeight: 900, color: P.accent }}>{filtered.length}</span>
+            <span style={{ fontSize: 15, fontWeight: 900, color: P.accent }}>{filtered.length}</span>
           </div>
         </div>
 
@@ -776,9 +776,21 @@ export default function Historico() {  const isMobile = useIsMobile();
               const isLast = idx === pageItems.length - 1;
 
               return (
+                /* A linha do histórico leva ao evento no clique, mas era um
+                   div sem foco: por teclado o histórico não navegava para
+                   lugar nenhum. role="link" porque a ação é navegar, e só
+                   quando existe evento para onde ir. */
                 <div
                   key={entry.id}
                   data-testid={`timeline-event-${idx}`}
+                  {...(entry.eventId ? {
+                    role: "link" as const,
+                    tabIndex: 0,
+                    "aria-label": `Abrir evento deste registro`,
+                    onKeyDown: (e: React.KeyboardEvent) => {
+                      if (e.key === "Enter") { e.preventDefault(); setLocation(`/eventos/${entry.eventId}`); }
+                    },
+                  } : {})}
                   onClick={entry.eventId ? () => setLocation(`/eventos/${entry.eventId}`) : undefined}
                   style={{
                     display: "grid", gridTemplateColumns: "2fr 5fr 2fr 3fr",
@@ -793,9 +805,9 @@ export default function Historico() {  const isMobile = useIsMobile();
                   <div>
                     <span style={{
                       display: "inline-flex", alignItems: "center", gap: 6,
-                      padding: "4px 10px", borderRadius: 100,
+                      padding: "4px 10px", borderRadius: 999,
                       backgroundColor: cfg.bg, border: `1px solid ${cfg.border}`,
-                      fontSize: 9, fontWeight: 800, color: cfg.color,
+                      fontSize: 10, fontWeight: 800, color: cfg.color,
                       textTransform: "uppercase", letterSpacing: "0.04em",
                       whiteSpace: "nowrap",
                     }}>
@@ -811,7 +823,7 @@ export default function Historico() {  const isMobile = useIsMobile();
 
                   {/* Data / Hora */}
                   <div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: P.text }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: P.text }}>
                       {format(entry.timestamp, "dd MMM, HH:mm", { locale: ptBR })}
                     </div>
                     <div style={{ fontSize: 10, color: P.muted, marginTop: 2 }}>
@@ -837,7 +849,7 @@ export default function Historico() {  const isMobile = useIsMobile();
             borderTop: `1px solid ${P.border}`,
             display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
           }}>
-            <span style={{ fontSize: 12, color: P.second }}>
+            <span style={{ fontSize: 13, color: P.second }}>
               Exibindo <strong style={{ color: P.text }}>{Math.min((safePage - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(safePage * PAGE_SIZE, filtered.length)}</strong> de <strong style={{ color: P.text }}>{filtered.length}</strong> registros
             </span>
 
@@ -859,7 +871,7 @@ export default function Historico() {  const isMobile = useIsMobile();
                   data-testid={`button-page-${p}`}
                   style={{
                     padding: "4px 10px", borderRadius: 6, border: "none",
-                    fontSize: 12, fontWeight: p === safePage ? 900 : 700,
+                    fontSize: 13, fontWeight: p === safePage ? 900 : 700,
                     cursor: "pointer",
                     backgroundColor: p === safePage ? P.accent : "transparent",
                     color: p === safePage ? "#ffffff" : P.second,

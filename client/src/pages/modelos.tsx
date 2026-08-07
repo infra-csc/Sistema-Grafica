@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -1072,11 +1072,14 @@ export default function Modelos() {  const isMobile = useIsMobile();
       </Dialog>
 
       {/* ── Manage Categories Modal ── */}
-      {manageOpen && (
-        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.45)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", backdropFilter: "blur(2px)" }}
-          onClick={e => { if (e.target === e.currentTarget) { setManageOpen(false); setMgEditingGroup(null); setMgEditingFinish(null); setMgEditingMaterial(null); setMgDeleteGroupConfirm(null); setMgDeleteFinishConfirm(null); setMgDeleteMaterialConfirm(null); } }}>
-          {/* ── Modal card ── */}
-          <div style={{ backgroundColor: "#ffffff", borderRadius: 999, width: 580, maxWidth: "95vw", maxHeight: "85vh", display: "flex", flexDirection: "column", boxShadow: "0 32px 80px rgba(0,0,0,0.22), 0 0 0 1px rgba(0,0,0,0.06)" }}>
+      <Dialog open={manageOpen} onOpenChange={o => { if (!o) { setManageOpen(false); setMgEditingGroup(null); setMgEditingFinish(null); setMgEditingMaterial(null); } }}>
+        <DialogContent className="p-0 gap-0 border-none" style={{ maxWidth: 580, width: "96vw", borderRadius: 16, overflow: "hidden" }}>
+          <DialogTitle className="sr-only">Gerenciar categorias</DialogTitle>
+          <DialogDescription className="sr-only">Grupos, materiais e acabamentos usados nos modelos</DialogDescription>
+
+
+          {manageOpen && (
+          <div style={{ display: "flex", flexDirection: "column", maxHeight: "85vh", overflow: "hidden" }}>
 
             {/* Header */}
             <div style={{ padding: "24px 28px 0" }}>
@@ -1277,8 +1280,9 @@ export default function Modelos() {  const isMobile = useIsMobile();
               })()}
             </div>
           </div>
-        </div>
-      )}
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* ── Delete Confirm ── */}
       <AlertDialog open={!!deleteConfirm} onOpenChange={open => !open && setDeleteConfirm(null)}>

@@ -1,3 +1,4 @@
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { FilterSelect } from "@/components/filter-select";
@@ -472,10 +473,25 @@ export default function Usuarios() {  const isMobile = useIsMobile();
       {/* ══════════════════════════════
           MODAL: Criar / Editar
       ══════════════════════════════ */}
-      {modalOpen && (
-        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(28,25,23,0.55)", backdropFilter: "blur(4px)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
-          onClick={e => { if (e.target === e.currentTarget && window.confirm("Descartar as alterações deste formulário?")) setModalOpen(false); }}>
-          <div style={{ backgroundColor: T.surface, width: "100%", maxWidth: 520, borderRadius: 12, overflow: "hidden", boxShadow: "0 24px 64px -12px rgba(0,0,0,0.3)" }}>
+      {/* Formulário inteiro num overlay manual: o Tab escapava para a página
+          atrás no meio do preenchimento, Esc não fazia nada e o foco não
+          voltava ao fechar. O aviso de descarte, que antes só existia no
+          clique fora, agora vale também para Esc — é o Dialog que decide
+          quando fechar. */}
+      <Dialog
+        open={modalOpen}
+        onOpenChange={o => {
+          if (o) return;
+          if (window.confirm("Descartar as alterações deste formulário?")) setModalOpen(false);
+        }}
+      >
+        <DialogContent
+          className="p-0 gap-0 border-none"
+          style={{ maxWidth: 520, width: "96vw", borderRadius: 12, overflow: "hidden", boxShadow: "0 24px 64px -12px rgba(0,0,0,0.3)" }}
+        >
+          <DialogTitle className="sr-only">{editingUser ? "Editar usuário" : "Novo usuário"}</DialogTitle>
+          <DialogDescription className="sr-only">Dados de acesso e perfil do usuário</DialogDescription>
+          <div>
             {/* Modal header */}
             <div style={{ backgroundColor: T.low, padding: "20px 28px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
               <div>
@@ -567,16 +583,23 @@ export default function Usuarios() {  const isMobile = useIsMobile();
               </form>
             </Form>
           </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
 
       {/* ══════════════════════════════
           MODAL: Confirmar Exclusão
       ══════════════════════════════ */}
-      {deletingUser && (
-        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(28,25,23,0.55)", backdropFilter: "blur(4px)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
-          onClick={e => { if (e.target === e.currentTarget) setDeletingUser(null); }}>
-          <div style={{ backgroundColor: T.surface, width: "100%", maxWidth: 420, borderRadius: 12, overflow: "hidden", boxShadow: "0 24px 64px -12px rgba(0,0,0,0.3)", borderLeft: "4px solid #ef4444" }}>
+      {/* Era um overlay manual: fechava só clicando fora, sem Esc, sem prender
+          o foco e sem devolvê-lo depois. Numa confirmação de exclusão isso
+          importa duas vezes — é onde a pessoa mais precisa poder recuar. */}
+      <Dialog open={!!deletingUser} onOpenChange={o => { if (!o) setDeletingUser(null); }}>
+        <DialogContent
+          className="p-0 gap-0 border-none"
+          style={{ maxWidth: 420, width: "96vw", borderRadius: 12, overflow: "hidden", boxShadow: "0 24px 64px -12px rgba(0,0,0,0.3)", borderLeft: "4px solid #b91c1c" }}
+        >
+          <DialogTitle className="sr-only">Excluir usuário</DialogTitle>
+          <DialogDescription className="sr-only">Confirme a exclusão do usuário</DialogDescription>
+          {deletingUser && (
             <div style={{ padding: "24px 28px", display: "flex", gap: 14, alignItems: "flex-start" }}>
               <div style={{ width: 40, height: 40, borderRadius: "50%", backgroundColor: "#fef2f2", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                 <AlertTriangle style={{ width: 18, height: 18, color: "#ef4444" }} />
@@ -603,9 +626,9 @@ export default function Usuarios() {  const isMobile = useIsMobile();
                 </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

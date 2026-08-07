@@ -1,3 +1,4 @@
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -487,12 +488,14 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
       {/* ══════════════════════════════
           MODAL: Criar / Editar
       ══════════════════════════════ */}
-      {modalOpen && (
-        <div
-          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(28,25,23,0.6)", backdropFilter: "blur(5px)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16, overflowY: "auto" }}
-          onClick={e => { if (e.target === e.currentTarget && window.confirm("Descartar as alterações deste formulário?")) closeModal(); }}
-        >
-          <div style={{ backgroundColor: T.surface, width: "100%", maxWidth: isMobile ? "95vw" : 640, borderRadius: 12, overflow: "hidden", boxShadow: "0 32px 80px -16px rgba(0,0,0,0.35)", display: "flex", flexDirection: "column", maxHeight: "90vh", margin: "auto" }}>
+      <Dialog open={modalOpen} onOpenChange={o => { if (!o && window.confirm("Descartar as alterações deste formulário?")) closeModal(); }}>
+
+        <DialogContent className="p-0 gap-0 border-none" style={{ maxWidth: 640, width: "96vw", borderRadius: 12, overflow: "hidden" }}>
+          <DialogTitle className="sr-only">{editingSponsor ? "Editar patrocinador" : "Novo patrocinador"}</DialogTitle>
+          <DialogDescription className="sr-only">Dados de contato, identidade visual e executivo responsável</DialogDescription>
+
+
+          <div>
 
             {/* Header */}
             <div style={{ padding: "28px 32px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexShrink: 0 }}>
@@ -701,17 +704,21 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
               </button>
             </div>
           </div>
-        </div>
-      )}
+
+        </DialogContent>
+      </Dialog>
 
       {/* ══════════════════════════════
           MODAL: Confirmar Exclusão
       ══════════════════════════════ */}
-      {deletingSponsor && (
-        <div
-          style={{ position: "fixed", inset: 0, backgroundColor: "rgba(28,25,23,0.65)", backdropFilter: "blur(5px)", zIndex: 60, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
-          onClick={e => { if (e.target === e.currentTarget) setDeletingSponsor(null); }}
-        >
+      <Dialog open={!!deletingSponsor} onOpenChange={o => { if (!o) setDeletingSponsor(null); }}>
+        <DialogContent className="p-0 gap-0 border-none" style={{ maxWidth: 440, width: "96vw", borderRadius: 12, overflow: "hidden" }}>
+          <DialogTitle className="sr-only">Excluir patrocinador</DialogTitle>
+          <DialogDescription className="sr-only">Confirme a exclusão do patrocinador</DialogDescription>
+          {deletingSponsor && (
+
+
+
           <div data-testid="dialog-confirm-delete" style={{ backgroundColor: T.surface, width: "100%", maxWidth: 440, borderRadius: 12, overflow: "hidden", boxShadow: "0 32px 80px -16px rgba(0,0,0,0.35)" }}>
             <div style={{ backgroundColor: "#ef4444", padding: "14px 24px", display: "flex", alignItems: "center", gap: 10 }}>
               <AlertTriangle style={{ width: 18, height: 18, color: "#fff", flexShrink: 0 }} />
@@ -741,8 +748,9 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
               </button>
             </div>
           </div>
-        </div>
-      )}
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

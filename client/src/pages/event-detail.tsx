@@ -50,6 +50,7 @@ import { useEventImport, useEventClone } from "@/hooks/use-event-import";
 import { useEventReference } from "@/hooks/use-event-reference";
 import { useEventItemFlags } from "@/hooks/use-event-item-flags";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { ModalHeader, modalSurface } from "@/components/modal-shell";
 
 const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
 const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];
@@ -834,7 +835,7 @@ export default function EventDetail() {
       <Link href="/eventos">
         <a
           data-testid="button-back"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', fontWeight: '500', color: '#9D978F', marginBottom: '22px', textDecoration: 'none', transition: 'color 0.15s', letterSpacing: '0.02em' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '13px', fontWeight: '500', color: '#9D978F', marginBottom: '22px', textDecoration: 'none', transition: 'color 0.15s', letterSpacing: '0.02em' }}
           onMouseEnter={e => (e.currentTarget.style.color = '#D97A1E')}
           onMouseLeave={e => (e.currentTarget.style.color = '#9D978F')}
         >
@@ -852,7 +853,7 @@ export default function EventDetail() {
             </p>
             <h1
               data-testid="title-event-name"
-              style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 30, fontWeight: 800, letterSpacing: '-0.04em', textTransform: 'uppercase', color: '#1F1D1A', lineHeight: 1.05, margin: 0 }}
+              style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 800, letterSpacing: '-0.04em', textTransform: 'uppercase', color: '#1F1D1A', lineHeight: 1.05, margin: 0 }}
             >
               {event.name}
             </h1>
@@ -862,7 +863,7 @@ export default function EventDetail() {
             <button
               onClick={() => setImportDialogOpen(true)}
               data-testid="button-import-xlsx"
-              style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '9px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
             >
@@ -874,7 +875,7 @@ export default function EventDetail() {
             <button
               onClick={() => setCloneDialogOpen(true)}
               data-testid="button-clone-event"
-              style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '9px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
             >
@@ -886,7 +887,7 @@ export default function EventDetail() {
             <button
               onClick={() => window.open(`/api/events/${eventId}/export-items`, '_blank')}
               data-testid="button-export-xlsx"
-              style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '9px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
             >
@@ -901,7 +902,7 @@ export default function EventDetail() {
                 setOpen(true);
               }}
               data-testid="button-add-item"
-              style={{ backgroundColor: '#b45309', color: '#ffffff', padding: '11px 24px', borderRadius: '9px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: 'none', cursor: 'pointer', transition: 'background-color 0.18s, box-shadow 0.18s, transform 0.1s', letterSpacing: '0.03em', whiteSpace: 'nowrap', flexShrink: 0, boxShadow: '0 1px 3px rgba(217,122,30,0.25)', fontFamily: "'Space Grotesk', sans-serif" }}
+              style={{ backgroundColor: '#b45309', color: '#ffffff', padding: '11px 24px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: 'none', cursor: 'pointer', transition: 'background-color 0.18s, box-shadow 0.18s, transform 0.1s', letterSpacing: '0.03em', whiteSpace: 'nowrap', flexShrink: 0, boxShadow: '0 1px 3px rgba(217,122,30,0.25)', fontFamily: "'Space Grotesk', sans-serif" }}
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#C96D16'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(217,122,30,0.35)'; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#D97A1E'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(217,122,30,0.25)'; }}
               onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.97)')}
@@ -1003,13 +1004,13 @@ export default function EventDetail() {
                                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setEditingTypeName(false); } if (e.key === 'Escape') setEditingTypeName(false); }}
                                 onBlur={() => setEditingTypeName(false)}
                                 data-testid="input-type-name-edit"
-                                style={{ flex: 1, padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: '1.5px solid #f97316', outline: 'none', fontSize: '14px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                                style={{ flex: 1, padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '12px', border: '1.5px solid #f97316', fontSize: '15px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                               />
                               <button
                                 type="button"
                                 onMouseDown={() => setEditingTypeName(false)}
                                 data-testid="button-confirm-type-name"
-                                style={{ padding: '0 14px', backgroundColor: '#c2410c', borderRadius: '10px', border: 'none', cursor: 'pointer', color: '#fff', fontWeight: 700, fontSize: 13, flexShrink: 0 }}
+                                style={{ padding: '0 14px', backgroundColor: '#c2410c', borderRadius: '12px', border: 'none', cursor: 'pointer', color: '#fff', fontWeight: 700, fontSize: 13, flexShrink: 0 }}
                               >
                                 OK
                               </button>
@@ -1023,7 +1024,7 @@ export default function EventDetail() {
                                 role="combobox"
                                 aria-expanded={typePopoverOpen}
                                 data-testid="select-item-type"
-                                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '14px', color: formData.type ? '#1a1c1c' : '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '15px', color: formData.type ? '#1a1c1c' : '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                               >
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formData.type || "Selecione o tipo"}</span>
                                 <ChevronsUpDown className="h-4 w-4 flex-shrink-0 ml-2" style={{ color: '#a8a29e' }} />
@@ -1074,7 +1075,7 @@ export default function EventDetail() {
                               onClick={() => setEditingTypeName(true)}
                               data-testid="button-edit-type-name"
                               title="Editar nome do tipo"
-                              style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', cursor: 'pointer', color: '#57534e' }}
+                              style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, backgroundColor: '#f0efee', borderRadius: '12px', border: 'none', cursor: 'pointer', color: '#57534e' }}
                               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#e7e5e4'; (e.currentTarget as HTMLButtonElement).style.color = '#f97316'; }}
                               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f0efee'; (e.currentTarget as HTMLButtonElement).style.color = '#746e69'; }}
                             >
@@ -1095,7 +1096,7 @@ export default function EventDetail() {
                             onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) })}
                             required
                             data-testid="input-quantity"
-                            style={{ width: '100%', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', fontSize: '14px', color: '#1a1c1c', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none' }}
+                            style={{ width: '100%', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '12px', border: 'none', fontSize: '15px', color: '#1a1c1c', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                             onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249,115,22,0.15)')}
                             onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
                           />
@@ -1112,7 +1113,7 @@ export default function EventDetail() {
                           onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                           placeholder="Ex: Banner Frontlit Entrada Principal"
                           data-testid="input-description"
-                          style={{ width: '100%', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', fontSize: '14px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', boxSizing: 'border-box' }}
+                          style={{ width: '100%', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '12px', border: 'none', fontSize: '15px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", boxSizing: 'border-box' }}
                           onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249,115,22,0.15)')}
                           onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
                         />
@@ -1124,17 +1125,17 @@ export default function EventDetail() {
                         <div style={{ paddingLeft: '16px', borderLeft: '4px solid #f97316', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                           <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#f97316' }}>Dimensões Visuais (m)</span>
                           <div>
-                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Largura</label>
+                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Largura</label>
                             <input id="visualWidth" type="number" step="0.01" min="0" value={formData.visualWidth} onChange={e => setFormData({ ...formData, visualWidth: e.target.value })} placeholder="Ex: 2.00" required data-testid="input-visual-width"
-                              style={{ width: '100%', padding: '10px 14px', backgroundColor: '#fff', borderRadius: '8px', border: 'none', fontSize: '14px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', boxSizing: 'border-box' }}
+                              style={{ width: '100%', padding: '10px 14px', backgroundColor: '#fff', borderRadius: '8px', border: 'none', fontSize: '15px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", boxSizing: 'border-box' }}
                               onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249,115,22,0.20)')}
                               onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
                             />
                           </div>
                           <div>
-                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Altura</label>
+                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Altura</label>
                             <input id="visualHeight" type="number" step="0.01" min="0" value={formData.visualHeight} onChange={e => setFormData({ ...formData, visualHeight: e.target.value })} placeholder="Ex: 1.00" required data-testid="input-visual-height"
-                              style={{ width: '100%', padding: '10px 14px', backgroundColor: '#fff', borderRadius: '8px', border: 'none', fontSize: '14px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', boxSizing: 'border-box' }}
+                              style={{ width: '100%', padding: '10px 14px', backgroundColor: '#fff', borderRadius: '8px', border: 'none', fontSize: '15px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", boxSizing: 'border-box' }}
                               onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249,115,22,0.20)')}
                               onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
                             />
@@ -1144,17 +1145,17 @@ export default function EventDetail() {
                         <div style={{ paddingLeft: '16px', borderLeft: '4px solid #d6d3d1', display: 'flex', flexDirection: 'column', gap: '12px' }}>
                           <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69' }}>Dimensões Arquivo (m)</span>
                           <div>
-                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Largura</label>
+                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Largura</label>
                             <input id="fileWidth" type="number" step="0.01" min="0" value={formData.fileWidth} onChange={e => setFormData({ ...formData, fileWidth: e.target.value })} placeholder="Ex: 1.90" required data-testid="input-file-width"
-                              style={{ width: '100%', padding: '10px 14px', backgroundColor: '#fff', borderRadius: '8px', border: 'none', fontSize: '14px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', boxSizing: 'border-box' }}
+                              style={{ width: '100%', padding: '10px 14px', backgroundColor: '#fff', borderRadius: '8px', border: 'none', fontSize: '15px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", boxSizing: 'border-box' }}
                               onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(120,113,108,0.15)')}
                               onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
                             />
                           </div>
                           <div>
-                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '9px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Altura</label>
+                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Altura</label>
                             <input id="fileHeight" type="number" step="0.01" min="0" value={formData.fileHeight} onChange={e => setFormData({ ...formData, fileHeight: e.target.value })} placeholder="Ex: 0.90" required data-testid="input-file-height"
-                              style={{ width: '100%', padding: '10px 14px', backgroundColor: '#fff', borderRadius: '8px', border: 'none', fontSize: '14px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', boxSizing: 'border-box' }}
+                              style={{ width: '100%', padding: '10px 14px', backgroundColor: '#fff', borderRadius: '8px', border: 'none', fontSize: '15px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", boxSizing: 'border-box' }}
                               onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(120,113,108,0.15)')}
                               onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
                             />
@@ -1163,7 +1164,7 @@ export default function EventDetail() {
                       </div>
 
                       {/* Barra M² Total — dark */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#1c1917', borderRadius: '10px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#1c1917', borderRadius: '12px' }}>
                         <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#746e69' }}>M² Total (calculado)</span>
                         <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: '700', fontSize: '18px', color: formData.fileWidth && formData.fileHeight ? '#fff' : '#57534e' }}>
                           {formData.fileWidth && formData.fileHeight && formData.quantity
@@ -1180,7 +1181,7 @@ export default function EventDetail() {
                           <Popover open={materialPopoverOpen} onOpenChange={setMaterialPopoverOpen}>
                             <PopoverTrigger asChild>
                               <button type="button" role="combobox" data-testid="select-material"
-                                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '14px', color: formData.material ? '#1a1c1c' : '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '15px', color: formData.material ? '#1a1c1c' : '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                               >
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formData.material || "Selecionar"}</span>
                                 <ChevronsUpDown className="h-4 w-4 flex-shrink-0 ml-2" style={{ color: '#a8a29e' }} />
@@ -1213,7 +1214,7 @@ export default function EventDetail() {
                           <Popover open={finishPopoverOpen} onOpenChange={setFinishPopoverOpen}>
                             <PopoverTrigger asChild>
                               <button type="button" role="combobox" data-testid="select-finish"
-                                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '14px', color: formData.finish ? '#1a1c1c' : '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '15px', color: formData.finish ? '#1a1c1c' : '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                               >
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formData.finish || "Selecionar"}</span>
                                 <ChevronsUpDown className="h-4 w-4 flex-shrink-0 ml-2" style={{ color: '#a8a29e' }} />
@@ -1253,7 +1254,7 @@ export default function EventDetail() {
                           placeholder="Informações adicionais para produção..."
                           rows={2}
                           data-testid="textarea-observations"
-                          style={{ width: '100%', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', fontSize: '14px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
+                          style={{ width: '100%', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '12px', border: 'none', fontSize: '15px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", resize: 'vertical', boxSizing: 'border-box' }}
                           onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249,115,22,0.15)')}
                           onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
                         />
@@ -1265,7 +1266,7 @@ export default function EventDetail() {
                       <button
                         type="button"
                         onClick={handleCloseDialog}
-                        style={{ flex: 1, padding: '12px', border: '1px solid #e7e5e4', borderRadius: '10px', backgroundColor: '#fff', color: '#57534e', fontWeight: '700', fontSize: '14px', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'background-color 0.15s' }}
+                        style={{ flex: 1, padding: '12px', border: '1px solid #e7e5e4', borderRadius: '12px', backgroundColor: '#fff', color: '#57534e', fontWeight: '700', fontSize: '15px', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'background-color 0.15s' }}
                         onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f9f9f8')}
                         onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#fff')}
                       >
@@ -1274,7 +1275,7 @@ export default function EventDetail() {
                       <button
                         type="submit"
                         disabled={createItemMutation.isPending || updateItemMutation.isPending}
-                        style={{ flex: 2, padding: '12px', border: 'none', borderRadius: '10px', backgroundColor: createItemMutation.isPending || updateItemMutation.isPending ? '#57534e' : '#1c1917', color: '#fff', fontWeight: '700', fontSize: '14px', cursor: createItemMutation.isPending || updateItemMutation.isPending ? 'not-allowed' : 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'background-color 0.15s' }}
+                        style={{ flex: 2, padding: '12px', border: 'none', borderRadius: '12px', backgroundColor: createItemMutation.isPending || updateItemMutation.isPending ? '#57534e' : '#1c1917', color: '#fff', fontWeight: '700', fontSize: '15px', cursor: createItemMutation.isPending || updateItemMutation.isPending ? 'not-allowed' : 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'background-color 0.15s' }}
                         onMouseEnter={e => { if (!createItemMutation.isPending && !updateItemMutation.isPending) e.currentTarget.style.backgroundColor = '#f97316'; }}
                         onMouseLeave={e => { if (!createItemMutation.isPending && !updateItemMutation.isPending) e.currentTarget.style.backgroundColor = '#1c1917'; }}
                         data-testid="button-submit-item"
@@ -1373,13 +1374,13 @@ export default function EventDetail() {
                     <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.14em', color: TI.label, marginBottom: '7px', fontFamily: "'Space Grotesk', sans-serif" }}>
                       Saída do Caminhão
                     </div>
-                    <div style={{ fontSize: '23px', fontWeight: '800', color: TI.title, fontFamily: "'Manrope', sans-serif", lineHeight: 1.1, letterSpacing: '-0.03em' }}>
+                    <div style={{ fontSize: '22px', fontWeight: '800', color: TI.title, fontFamily: "'Manrope', sans-serif", lineHeight: 1.1, letterSpacing: '-0.03em' }}>
                       {depLabel}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '6px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: '500', color: TI.secondary, fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '0.01em' }}>{depTime}</span>
+                      <span style={{ fontSize: '13px', fontWeight: '500', color: TI.secondary, fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '0.01em' }}>{depTime}</span>
                       <span style={{ width: '3px', height: '3px', borderRadius: '50%', backgroundColor: TI.line, display: 'inline-block', flexShrink: 0 }} />
-                      <span style={{ fontSize: '12px', fontWeight: '600', color: countdownColor, letterSpacing: '0.01em' }}>
+                      <span style={{ fontSize: '13px', fontWeight: '600', color: countdownColor, letterSpacing: '0.01em' }}>
                         {countdownText}
                       </span>
                     </div>
@@ -1399,11 +1400,11 @@ export default function EventDetail() {
                     <div style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.14em', color: TI.label, marginBottom: '7px', fontFamily: "'Space Grotesk', sans-serif" }}>
                       Dia do Evento
                     </div>
-                    <div style={{ fontSize: '23px', fontWeight: '800', color: TI.title, fontFamily: "'Manrope', sans-serif", lineHeight: 1.1, letterSpacing: '-0.03em' }}>
+                    <div style={{ fontSize: '22px', fontWeight: '800', color: TI.title, fontFamily: "'Manrope', sans-serif", lineHeight: 1.1, letterSpacing: '-0.03em' }}>
                       {startLabel}
                     </div>
                     <div style={{ marginTop: '6px' }}>
-                      <span style={{ fontSize: '12px', fontWeight: '500', color: TI.secondary, fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '0.01em' }}>Início do evento</span>
+                      <span style={{ fontSize: '13px', fontWeight: '500', color: TI.secondary, fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '0.01em' }}>Início do evento</span>
                     </div>
                   </div>
                 </div>
@@ -1476,7 +1477,7 @@ export default function EventDetail() {
 
                           {/* Label */}
                           <span style={{
-                            fontSize: '9px', fontWeight: labelW, textTransform: 'uppercase',
+                            fontSize: '10px', fontWeight: labelW, textTransform: 'uppercase',
                             letterSpacing: '0.07em', color: labelCol,
                             textAlign: 'center', lineHeight: 1.45,
                             fontFamily: "'Space Grotesk', sans-serif",
@@ -1672,26 +1673,22 @@ export default function EventDetail() {
 
         {/* ── Modal de confirmação de envio com lista de itens ── */}
         <Dialog open={submitConfirmOpen} onOpenChange={setSubmitConfirmOpen}>
-          <DialogContent style={{ maxWidth: 560, padding: 0, gap: 0, borderRadius: 14, overflow: 'hidden' }}>
-            {/* Header */}
-            <DialogHeader style={{ padding: '24px 28px 16px', borderBottom: '1px solid #e7e5e4' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: '#fff7ed', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Check style={{ width: 20, height: 20, color: '#f97316' }} />
-                </div>
-                <div>
-                  <DialogTitle style={{ fontSize: 17, fontWeight: 700, color: '#1c1917', margin: 0 }}>
-                    Confirmar envio para vinculação
-                  </DialogTitle>
-                  <DialogDescription style={{ fontSize: 13, color: '#746e69', marginTop: 3 }}>
-                    {(() => {
-                      const n = items.filter(i => i.status === 'draft').length;
-                      return `${n} ${n === 1 ? 'item será enviado' : 'itens serão enviados'} para a fila de vinculação de patrocinadores.`;
-                    })()}
-                  </DialogDescription>
-                </div>
-              </div>
-            </DialogHeader>
+          <DialogContent style={modalSurface(560)}>
+            <DialogTitle className="sr-only">Confirmar envio para vinculação</DialogTitle>
+            <DialogDescription className="sr-only">
+              Revise os itens antes de enviá-los para a vinculação de patrocinadores
+            </DialogDescription>
+            <ModalHeader
+              variant="confirm"
+              icon={Check}
+              tint="#c2410c"
+              title="Confirmar envio para vinculação"
+              subtitle={(() => {
+                const n = items.filter(i => i.status === 'draft').length;
+                return `${n} ${n === 1 ? 'item será enviado' : 'itens serão enviados'} para a fila de vinculação.`;
+              })()}
+              onClose={() => setSubmitConfirmOpen(false)}
+            />
 
             {/* Lista de itens */}
             <div style={{ maxHeight: 340, overflowY: 'auto', padding: '16px 28px' }}>
@@ -1734,7 +1731,7 @@ export default function EventDetail() {
             <div style={{ padding: '14px 28px 24px', borderTop: '1px solid #e7e5e4' }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, padding: '10px 12px', marginBottom: 16 }}>
                 <AlertCircle style={{ width: 14, height: 14, color: '#f97316', flexShrink: 0, marginTop: 1 }} />
-                <p style={{ fontSize: 12, color: '#92400e', margin: 0, lineHeight: 1.5 }}>
+                <p style={{ fontSize: 13, color: '#92400e', margin: 0, lineHeight: 1.5 }}>
                   Após o envio, os itens irão para a fila de <strong>Vincular Patrocinadores</strong>. Esta ação não pode ser desfeita.
                 </p>
               </div>
@@ -1768,10 +1765,10 @@ export default function EventDetail() {
         <div style={{ textAlign: 'center', padding: '64px 0' }}>
           <AlertCircle className="h-12 w-12 mx-auto mb-4" style={{ color: '#a8a29e' }} />
           <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#1c1917', marginBottom: '8px' }}>Nenhum item adicionado</h3>
-          <p style={{ color: '#746e69', marginBottom: '16px', fontSize: '14px' }}>Adicione itens ao evento para começar</p>
+          <p style={{ color: '#746e69', marginBottom: '16px', fontSize: '15px' }}>Adicione itens ao evento para começar</p>
           <button
             onClick={() => { setEditingItem(null); setBulkMode(true); setOpen(true); }}
-            style={{ backgroundColor: '#1c1917', color: '#fff', padding: '10px 20px', borderRadius: '6px', fontWeight: '700', fontSize: '14px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+            style={{ backgroundColor: '#1c1917', color: '#fff', padding: '10px 20px', borderRadius: '6px', fontWeight: '700', fontSize: '15px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
           >
             <Plus className="h-4 w-4" />
             Adicionar Primeiro Item
@@ -1793,7 +1790,7 @@ export default function EventDetail() {
                   <span style={{
                     backgroundColor: '#dbeafe', color: '#1d4ed8',
                     fontSize: '11px', fontWeight: '900', letterSpacing: '0.12em',
-                    textTransform: 'uppercase', padding: '4px 14px', borderRadius: '99px',
+                    textTransform: 'uppercase', padding: '4px 14px', borderRadius: '999px',
                     fontFamily: "'Space Grotesk', sans-serif", whiteSpace: 'nowrap',
                   }}>
                     {group}
@@ -1810,7 +1807,7 @@ export default function EventDetail() {
                     {type}
                   </h2>
                   <div style={{ flex: 1, height: '2px', backgroundColor: '#f0efee' }} />
-                  <span style={{ backgroundColor: '#f3f4f3', color: '#746e69', fontSize: '10px', fontWeight: '700', padding: '4px 12px', borderRadius: '99px', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+                  <span style={{ backgroundColor: '#f3f4f3', color: '#746e69', fontSize: '10px', fontWeight: '700', padding: '4px 12px', borderRadius: '999px', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
                     {typeItems.length} {typeItems.length === 1 ? 'ITEM' : 'ITENS'}
                   </span>
                 </div>
@@ -1820,14 +1817,26 @@ export default function EventDetail() {
                   {isMobile ? (
                     <div style={{ padding: '8px' }}>
                       {typeItems.map(item => (
+                        /* Card com onClick e sem foco: no celular o toque
+                           resolve, mas com teclado externo (ou leitor de tela)
+                           não havia como abrir a peça. O ID vira o alvo
+                           focável — é o rótulo natural do card.
+                           #f97316 sobre branco dá 2.80:1; o laranja de ação
+                           escuro passa e mantém a identidade. */
                         <div key={item.id} onClick={() => setSelectedItemForDetails(item)}
                           style={{ backgroundColor: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, padding: '12px 12px', marginBottom: 8, cursor: 'pointer' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                            <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#f97316', fontSize: 13 }}>{item.displayId}</span>
+                            <button
+                              onClick={e => { e.stopPropagation(); setSelectedItemForDetails(item); }}
+                              aria-label={`Ver detalhes da peça ${item.displayId}`}
+                              style={{ fontFamily: 'monospace', fontWeight: 700, color: '#c2410c', fontSize: 13, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                            >
+                              {item.displayId}
+                            </button>
                             <StatusBadge status={item.status} />
                           </div>
                           <div style={{ fontWeight: 700, fontSize: 13, color: '#1c1917', marginBottom: 2 }}>{item.type}</div>
-                          {item.description && <div style={{ fontSize: 12, color: '#746e69', marginBottom: 4 }}>{item.description}</div>}
+                          {item.description && <div style={{ fontSize: 13, color: '#746e69', marginBottom: 4 }}>{item.description}</div>}
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: '#746e69' }}>
                             {item.quantity && <span>{item.quantity}×</span>}
                             {item.visualWidth && item.visualHeight && <span>{item.visualWidth}×{item.visualHeight}m</span>}
@@ -1836,7 +1845,7 @@ export default function EventDetail() {
                           {canEditLists && (
                             <div style={{ display: 'flex', gap: 6, marginTop: 8 }} onClick={e => e.stopPropagation()}>
                               <button onClick={() => { setEditingItem(item); setEditDialogOpen(true); }}
-                                style={{ flex: 1, minHeight: 44, borderRadius: 6, border: '1px solid #e7e5e4', background: '#fafaf9', fontSize: 12, fontWeight: 700, color: '#746e69', cursor: 'pointer' }}>
+                                style={{ flex: 1, minHeight: 44, borderRadius: 6, border: '1px solid #e7e5e4', background: '#fafaf9', fontSize: 13, fontWeight: 700, color: '#746e69', cursor: 'pointer' }}>
                                 Editar
                               </button>
                               <button onClick={() => setDeletingItemId(item.id)}
@@ -1890,19 +1899,27 @@ export default function EventDetail() {
                           data-testid={`row-item-${item.id}`}
                         >
                           {/* ID */}
+                          {/* A linha abre o detalhe no clique, mas <tr> não
+                              recebe foco: sem mouse não havia como abrir peça
+                              nenhuma. O ID é o alvo focável.
+                              displayId já vem com a cerquilha do backend
+                              ("#2341"); prefixar de novo mostrava "##2341". */}
                           <td style={{ padding: '14px 14px' }}>
-                            <span style={{ fontWeight: '700', color: '#f97316', fontSize: '12px', fontFamily: 'monospace' }} data-testid={`text-display-id-${item.id}`}>
-                              {/* displayId já vem com a cerquilha do backend
-                                  ("#2341"); prefixar de novo mostrava "##2341". */}
+                            <button
+                              onClick={e => { e.stopPropagation(); setSelectedItemForDetails(item); }}
+                              aria-label={`Ver detalhes da peça ${item.displayId}`}
+                              style={{ fontWeight: 700, color: '#c2410c', fontSize: '13px', fontFamily: 'monospace', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                              data-testid={`text-display-id-${item.id}`}
+                            >
                               {item.displayId}
-                            </span>
+                            </button>
                           </td>
                           {/* Ref. */}
                           <td style={{ padding: '14px 14px' }} onClick={e => e.stopPropagation()}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                               {item.referenceUrl && (
                                 <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Ver referência" data-testid={`link-reference-table-${item.id}`}>
-                                  <img src={item.referenceUrl} style={{ height: 32, width: 32, objectFit: 'cover', borderRadius: 4, border: '1px solid #e7e5e4' }} alt="Referência visual" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                  <img src={item.referenceUrl} style={{ height: 32, width: 32, objectFit: 'cover', borderRadius: 6, border: '1px solid #e7e5e4' }} alt="Referência visual" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                                 </a>
                               )}
                               {canUploadReference && item.status !== 'entregue' && (
@@ -1912,7 +1929,19 @@ export default function EventDetail() {
                                   buttonVariant="ghost"
                                   buttonClassName="h-7 w-7 p-0"
                                 >
-                                  <Paperclip style={{ width: 13, height: 13, color: item.referenceUrl ? '#f97316' : '#a8a29e' }} title={item.referenceUrl ? "Substituir referência" : "Adicionar referência"} />
+                                  {/* O `title` estava no ícone lucide, que não
+                                      aceita a prop e a descartava: a dica nunca
+                                      apareceu. Num <span> ela funciona, e o
+                                      aria-label nomeia o controle para quem usa
+                                      leitor de tela. #f97316 sobre branco dá
+                                      2.80:1 — o laranja escuro passa. */}
+                                  <span
+                                    title={item.referenceUrl ? "Substituir referência" : "Adicionar referência"}
+                                    aria-label={item.referenceUrl ? "Substituir referência" : "Adicionar referência"}
+                                    style={{ display: 'inline-flex' }}
+                                  >
+                                    <Paperclip style={{ width: 13, height: 13, color: item.referenceUrl ? '#c2410c' : '#746e69' }} />
+                                  </span>
                                 </ObjectUploader>
                               )}
                               {canUploadReference && item.referenceUrl && item.status !== 'entregue' && (
@@ -1936,7 +1965,7 @@ export default function EventDetail() {
                           {/* Descrição */}
                           <td style={{ padding: '14px 14px' }}>
                             {item.isReuse && !['em_producao','produzido','entregue'].includes(item.status) && (
-                              <div style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: "#047857", color: "#ffffff", borderRadius: 4, padding: "2px 7px", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
+                              <div style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: "#047857", color: "#ffffff", borderRadius: 6, padding: "2px 7px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
                                 <RotateCcw style={{ width: 9, height: 9 }} /> Reaproveit.
                               </div>
                             )}
@@ -1951,7 +1980,7 @@ export default function EventDetail() {
                             {String(item.quantity).padStart(2, '0')}
                           </td>
                           {/* Dimensões */}
-                          <td style={{ padding: '14px 14px', fontSize: '12px', color: '#746e69', fontStyle: 'italic', whiteSpace: 'nowrap' }}>
+                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#746e69', fontStyle: 'italic', whiteSpace: 'nowrap' }}>
                             {(item.visualWidth && item.visualHeight) ? (
                               <>
                                 {item.visualWidth} × {item.visualHeight}m
@@ -2058,16 +2087,16 @@ export default function EventDetail() {
       <AlertDialog open={!!deletingItemId} onOpenChange={() => setDeletingItemId(null)}>
         <AlertDialogContent style={{ maxWidth: "400px", backgroundColor: "#ffffff", borderRadius: "16px", padding: "32px", border: "none", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
           <AlertDialogHeader style={{ padding: 0, marginBottom: "24px" }}>
-            <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "20px", fontWeight: 900, letterSpacing: "-0.03em", color: "#1a1c1c" }}>
+            <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "18px", fontWeight: 900, letterSpacing: "-0.03em", color: "#1a1c1c" }}>
               Confirmar Exclusão
             </AlertDialogTitle>
-            <AlertDialogDescription style={{ fontSize: "14px", color: "#746e69", lineHeight: 1.6, marginTop: "6px" }}>
+            <AlertDialogDescription style={{ fontSize: "15px", color: "#746e69", lineHeight: 1.6, marginTop: "6px" }}>
               A peça será removida da lista, mas permanece no histórico de auditoria para rastreabilidade.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter style={{ padding: 0, display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px" }}>
             <AlertDialogCancel
-              style={{ padding: "9px 20px", backgroundColor: "transparent", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 600, color: "#746e69", cursor: "pointer" }}
+              style={{ padding: "9px 20px", backgroundColor: "transparent", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: 600, color: "#746e69", cursor: "pointer" }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f3f4f3")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
             >
@@ -2076,7 +2105,7 @@ export default function EventDetail() {
             <AlertDialogAction
               onClick={() => deletingItemId && deleteItemMutation.mutate(deletingItemId)}
               data-testid="button-confirm-delete-item"
-              style={{ padding: "9px 20px", backgroundColor: "#b91c1c", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 700, color: "#ffffff", cursor: "pointer", transition: "background-color 0.15s" }}
+              style={{ padding: "9px 20px", backgroundColor: "#b91c1c", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: 700, color: "#ffffff", cursor: "pointer", transition: "background-color 0.15s" }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#dc2626")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#ef4444")}
             >
@@ -2093,14 +2122,14 @@ export default function EventDetail() {
           {/* Cabeçalho */}
           <DialogHeader style={{ padding: "24px 28px", borderBottom: "1px solid #eeeeed" }}>
             <div className="flex items-start gap-4">
-              <div style={{ backgroundColor: "#fff7ed", padding: "12px", borderRadius: "10px", flexShrink: 0 }}>
+              <div style={{ backgroundColor: "#fff7ed", padding: "12px", borderRadius: "12px", flexShrink: 0 }}>
                 <Pencil className="h-5 w-5" style={{ color: "#f97316" }} />
               </div>
               <div>
-                <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "24px", fontWeight: 900, letterSpacing: "-0.03em", color: "#1a1c1c", lineHeight: 1.1 }}>
+                <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "22px", fontWeight: 900, letterSpacing: "-0.03em", color: "#1a1c1c", lineHeight: 1.1 }}>
                   {editingItem ? `#${editingItem.displayId?.toString().padStart(4, '0')} — ${editingItem.type}` : "Editar Peça"}
                 </DialogTitle>
-                <DialogDescription style={{ fontSize: "14px", fontWeight: 500, color: "#746e69", marginTop: "2px" }}>
+                <DialogDescription style={{ fontSize: "15px", fontWeight: 500, color: "#746e69", marginTop: "2px" }}>
                   {editingItem?.description || "Atualize as informações da peça"}
                 </DialogDescription>
               </div>
@@ -2127,7 +2156,7 @@ export default function EventDetail() {
                     onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                     placeholder="Ex: Banner Lona Frontlight"
                     data-testid="input-edit-type"
-                    style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "14px", fontWeight: 500, color: "#1a1c1c", outline: "none", transition: "box-shadow 0.15s" }}
+                    style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c", transition: "box-shadow 0.15s" }}
                     onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
                     onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
                   />
@@ -2140,7 +2169,7 @@ export default function EventDetail() {
                     value={formData.quantity}
                     onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
                     data-testid="input-edit-quantity"
-                    style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "14px", fontWeight: 500, color: "#1a1c1c", outline: "none", transition: "box-shadow 0.15s" }}
+                    style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c", transition: "box-shadow 0.15s" }}
                     onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
                     onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
                   />
@@ -2153,7 +2182,7 @@ export default function EventDetail() {
                       ? calculateM2(formData.quantity, parseFloat(formData.fileWidth) || 0, parseFloat(formData.fileHeight) || 0).toFixed(2) + " m²"
                       : "—"
                     }
-                    style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "14px", fontWeight: 700, color: formData.fileWidth && formData.fileHeight ? "#f97316" : "#746e69", outline: "none", cursor: "default" }}
+                    style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 700, color: formData.fileWidth && formData.fileHeight ? "#f97316" : "#746e69", cursor: "default" }}
                   />
                 </div>
               </div>
@@ -2165,7 +2194,7 @@ export default function EventDetail() {
                 style={{
                   backgroundColor: formData.isReuse ? "#059669" : "#f3f4f3",
                   border: `2px solid ${formData.isReuse ? "#047857" : "#e5e7eb"}`,
-                  padding: "14px 18px", borderRadius: "10px",
+                  padding: "14px 18px", borderRadius: "12px",
                   display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
                   cursor: "pointer", transition: "all 0.15s",
                 }}
@@ -2175,8 +2204,8 @@ export default function EventDetail() {
                     <RotateCcw style={{ width: 18, height: 18, color: formData.isReuse ? "#ffffff" : "#6b7280" }} />
                   </div>
                   <div>
-                    <p style={{ fontSize: "14px", fontWeight: 700, color: formData.isReuse ? "#ffffff" : "#374151", margin: 0 }}>Reaproveitamento</p>
-                    <p style={{ fontSize: "12px", color: formData.isReuse ? "rgba(255,255,255,0.8)" : "#9ca3af", margin: 0 }}>Gráfica entrega direto — sem etapa de produção</p>
+                    <p style={{ fontSize: "15px", fontWeight: 700, color: formData.isReuse ? "#ffffff" : "#374151", margin: 0 }}>Reaproveitamento</p>
+                    <p style={{ fontSize: "13px", color: formData.isReuse ? "rgba(255,255,255,0.8)" : "#9ca3af", margin: 0 }}>Gráfica entrega direto — sem etapa de produção</p>
                   </div>
                 </div>
                 <Checkbox
@@ -2195,7 +2224,7 @@ export default function EventDetail() {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Ex: Banner para fachada lateral com ilhós"
                   data-testid="input-edit-description"
-                  style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "14px", fontWeight: 500, color: "#1a1c1c", outline: "none", transition: "box-shadow 0.15s" }}
+                  style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c", transition: "box-shadow 0.15s" }}
                   onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
                   onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
                 />
@@ -2226,7 +2255,7 @@ export default function EventDetail() {
                         onChange={(e) => setFormData({ ...formData, [dim.key]: e.target.value })}
                         placeholder="0.00"
                         data-testid={dim.testId}
-                        style={{ width: "100%", backgroundColor: "#ffffff", border: "none", borderRadius: "8px", padding: "8px 12px", fontSize: "14px", fontWeight: 500, color: "#1a1c1c", outline: "none", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", transition: "box-shadow 0.15s" }}
+                        style={{ width: "100%", backgroundColor: "#ffffff", border: "none", borderRadius: "8px", padding: "8px 12px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", transition: "box-shadow 0.15s" }}
                         onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
                         onBlur={(e) => (e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.08)")}
                       />
@@ -2245,7 +2274,7 @@ export default function EventDetail() {
                     onChange={(e) => setFormData({ ...formData, material: e.target.value })}
                     placeholder="Selecione ou escreva..."
                     data-testid="input-edit-material"
-                    style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "14px", fontWeight: 500, color: "#1a1c1c", outline: "none", transition: "box-shadow 0.15s" }}
+                    style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c", transition: "box-shadow 0.15s" }}
                     onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
                     onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
                   />
@@ -2266,7 +2295,7 @@ export default function EventDetail() {
                     onChange={(e) => setFormData({ ...formData, finish: e.target.value })}
                     placeholder="Selecione ou escreva..."
                     data-testid="input-edit-finish"
-                    style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "14px", fontWeight: 500, color: "#1a1c1c", outline: "none", transition: "box-shadow 0.15s" }}
+                    style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c", transition: "box-shadow 0.15s" }}
                     onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
                     onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
                   />
@@ -2364,7 +2393,7 @@ export default function EventDetail() {
                   placeholder="Reforço, instruções especiais ou observações de produção..."
                   rows={3}
                   data-testid="textarea-edit-observations"
-                  style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "14px", fontWeight: 500, color: "#1a1c1c", outline: "none", resize: "none", fontFamily: "inherit", transition: "box-shadow 0.15s" }}
+                  style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c", resize: "none", fontFamily: "inherit", transition: "box-shadow 0.15s" }}
                   onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
                   onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
                 />
@@ -2375,7 +2404,7 @@ export default function EventDetail() {
                 <div style={{ backgroundColor: "#fffbeb", borderLeft: "4px solid #fbbf24", padding: "14px 16px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-                    <p style={{ fontSize: "14px", fontWeight: 500, color: "#92400e" }}>Pular aprovação técnica <span style={{ fontSize: "12px", color: "#b45309" }}>(Apenas Administrativo)</span></p>
+                    <p style={{ fontSize: "15px", fontWeight: 500, color: "#92400e" }}>Pular aprovação técnica <span style={{ fontSize: "13px", color: "#b45309" }}>(Apenas Administrativo)</span></p>
                   </div>
                   <Checkbox
                     id="skip-approval-edit"
@@ -2397,7 +2426,7 @@ export default function EventDetail() {
                   setEditingItem(null);
                 }}
                 data-testid="button-cancel-edit"
-                style={{ padding: "10px 24px", backgroundColor: "transparent", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 700, color: "#746e69", cursor: "pointer", transition: "background-color 0.15s" }}
+                style={{ padding: "10px 24px", backgroundColor: "transparent", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: 700, color: "#746e69", cursor: "pointer", transition: "background-color 0.15s" }}
                 onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#e8e8e7")}
                 onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
               >
@@ -2407,9 +2436,9 @@ export default function EventDetail() {
                 type="submit"
                 disabled={updateItemMutation.isPending}
                 data-testid="button-save-edit"
-                style={{ padding: "10px 32px", backgroundColor: "#c2410c", border: "none", borderRadius: "8px", fontSize: "14px", fontWeight: 700, color: "#ffffff", cursor: "pointer", boxShadow: "0 4px 12px rgba(249,115,22,0.25)", transition: "filter 0.15s, transform 0.1s", opacity: updateItemMutation.isPending ? 0.7 : 1 }}
-                onMouseEnter={(e) => { if (!updateItemMutation.isPending) e.currentTarget.style.filter = "brightness(1.08)"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.filter = "none"; }}
+                style={{ padding: "10px 32px", backgroundColor: "#c2410c", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: 700, color: "#ffffff", cursor: "pointer", boxShadow: "0 4px 12px rgba(249,115,22,0.25)", transition: "filter 0.15s, transform 0.1s", opacity: updateItemMutation.isPending ? 0.7 : 1 }}
+                onMouseEnter={(e) => { if (!updateItemMutation.isPending) e.currentTarget.style.backgroundColor = "#9a3412"; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#c2410c"; }}
                 onMouseDown={(e) => { e.currentTarget.style.transform = "scale(0.97)"; }}
                 onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
               >

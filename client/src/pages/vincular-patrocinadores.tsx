@@ -1557,7 +1557,7 @@ export default function VincularPatrocinadores() {
                   setAutoLinkConfirming(false);
                 }
               }}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 20px', backgroundColor: !autoLinkPreview || autoLinkPreview.length === 0 ? '#e7e5e4' : '#4f46e5', color: !autoLinkPreview || autoLinkPreview.length === 0 ? '#a8a29e' : '#ffffff', fontWeight: 700, fontSize: 13, borderRadius: 6, border: 'none', cursor: !autoLinkPreview || autoLinkPreview.length === 0 ? 'not-allowed' : 'pointer' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 20px', backgroundColor: !autoLinkPreview || autoLinkPreview.length === 0 ? '#e7e5e4' : '#4f46e5', color: !autoLinkPreview || autoLinkPreview.length === 0 ? '#746e69' : '#ffffff', fontWeight: 700, fontSize: 13, borderRadius: 6, border: 'none', cursor: !autoLinkPreview || autoLinkPreview.length === 0 ? 'not-allowed' : 'pointer' }}
               data-testid="button-auto-link-confirm"
             >
               <Zap style={{ width: 13, height: 13 }} />
@@ -1607,7 +1607,7 @@ export default function VincularPatrocinadores() {
             /* Secundário e não preenchido: só a ação primária ("Enviar para
                Arte") fica sólida. Dois botões cheios lado a lado disputavam a
                atenção e nada indicava qual era o caminho principal da tela. */
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, height: 44, padding: '0 18px', backgroundColor: '#fff', color: eventFilter.length !== 1 ? '#a8a29e' : '#4338ca', fontWeight: 700, fontSize: 13, borderRadius: R.md, border: `1px solid ${eventFilter.length !== 1 ? '#e7e5e4' : '#c7d2fe'}`, cursor: eventFilter.length !== 1 ? 'not-allowed' : 'pointer' }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, height: 44, padding: '0 18px', backgroundColor: '#fff', color: eventFilter.length !== 1 ? '#746e69' : '#4338ca', fontWeight: 700, fontSize: 13, borderRadius: R.md, border: `1px solid ${eventFilter.length !== 1 ? '#e7e5e4' : '#c7d2fe'}`, cursor: eventFilter.length !== 1 ? 'not-allowed' : 'pointer' }}
             onMouseEnter={e => { if (eventFilter.length === 1) e.currentTarget.style.backgroundColor = '#eef2ff'; }}
             onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#fff'; }}
             title={eventFilter.length !== 1 ? 'Selecione exatamente um evento para usar o auto-vínculo' : 'Vincular patrocinadores automaticamente pela cota'}
@@ -1649,7 +1649,7 @@ export default function VincularPatrocinadores() {
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
               height: 44, padding: '0 20px',
               backgroundColor: contextStatusCounts.PRONTO === 0 ? '#f5f5f4' : '#c2410c',
-              color: contextStatusCounts.PRONTO === 0 ? '#78716c' : '#ffffff',
+              color: contextStatusCounts.PRONTO === 0 ? '#746e69' : '#ffffff',
               borderRadius: R.md,
               border: 'none',
               fontWeight: 800, fontSize: 13, letterSpacing: '-0.01em',
@@ -1687,10 +1687,14 @@ export default function VincularPatrocinadores() {
         {/* Barra segmentada: PENDENTE | RASCUNHO | PRONTO | ENVIADO */}
         {(() => {
           const total = totalItems || 1;
+          // Os tons claros (#fb923c, #4ade80) ficavam em 1.4–1.8:1 contra o
+          // trilho: os segmentos quase sumiam. Usar os mesmos tons dos badges
+          // deixa a barra legível e faz "rascunho" e "pronto" terem aqui a
+          // mesma cor que têm no resto do sistema.
           const segs = [
-            { key: 'PENDENTE', color: '#d4d0cc', pct: (contextStatusCounts.PENDENTE / total) * 100 },
-            { key: 'RASCUNHO', color: '#fb923c', pct: (contextStatusCounts.RASCUNHO / total) * 100 },
-            { key: 'PRONTO',   color: '#4ade80', pct: (contextStatusCounts.PRONTO   / total) * 100 },
+            { key: 'PENDENTE', color: '#a8a29e', pct: (contextStatusCounts.PENDENTE / total) * 100 },
+            { key: 'RASCUNHO', color: '#c2410c', pct: (contextStatusCounts.RASCUNHO / total) * 100 },
+            { key: 'PRONTO',   color: '#15803d', pct: (contextStatusCounts.PRONTO   / total) * 100 },
             { key: 'ENVIADO',  color: '#1c1917', pct: (contextStatusCounts.ENVIADO  / total) * 100 },
           ].filter(s => s.pct > 0);
           return (
@@ -1711,27 +1715,30 @@ export default function VincularPatrocinadores() {
         {/* Row 2: 3 cartões de status acionáveis */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 16 }}>
 
-          {/* PENDENTE */}
-          <div style={{ backgroundColor: '#ffffff', borderRadius: 8, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: '3px solid #d4d0cc' }}>
+          {/* PENDENTE — a borda de destaque agora usa a mesma cor do rótulo do
+              cartão. Antes borda e rótulo discordavam (#d4d0cc contra #746e69,
+              #fb923c contra #c2410c), o que fazia a faixa lateral parecer
+              decoração solta em vez de código de cor do status. */}
+          <div style={{ backgroundColor: '#ffffff', borderRadius: R.md, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, borderLeft: '3px solid #a8a29e' }}>
             <div>
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Sem ação</p>
-              <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1c1c', lineHeight: 1 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 6px' }}>Sem ação</p>
+              <p style={{ fontSize: 22, fontWeight: 800, color: '#1a1c1c', lineHeight: 1, margin: 0, letterSpacing: '-0.03em' }}>
                 {contextStatusCounts.PENDENTE}
-                <span style={{ fontSize: 11, fontWeight: 500, color: '#746e69', marginLeft: 4 }}>{contextStatusCounts.PENDENTE !== 1 ? 'itens' : 'item'}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#746e69', marginLeft: 5, letterSpacing: 0 }}>{contextStatusCounts.PENDENTE !== 1 ? 'itens' : 'item'}</span>
               </p>
-              <p style={{ fontSize: 11, color: '#746e69', marginTop: 2 }}>Aguardando vinculação</p>
+              <p style={{ fontSize: 11, color: '#746e69', margin: '5px 0 0' }}>Aguardando vinculação</p>
             </div>
           </div>
 
           {/* RASCUNHO */}
-          <div style={{ backgroundColor: '#ffffff', borderRadius: 8, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: '3px solid #fb923c' }}>
+          <div style={{ backgroundColor: '#ffffff', borderRadius: R.md, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, borderLeft: '3px solid #c2410c' }}>
             <div>
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Rascunho</p>
-              <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1c1c', lineHeight: 1 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 6px' }}>Rascunho</p>
+              <p style={{ fontSize: 22, fontWeight: 800, color: '#1a1c1c', lineHeight: 1, margin: 0, letterSpacing: '-0.03em' }}>
                 {contextStatusCounts.RASCUNHO}
-                <span style={{ fontSize: 11, fontWeight: 500, color: '#746e69', marginLeft: 4 }}>{contextStatusCounts.RASCUNHO !== 1 ? 'itens' : 'item'}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#746e69', marginLeft: 5, letterSpacing: 0 }}>{contextStatusCounts.RASCUNHO !== 1 ? 'itens' : 'item'}</span>
               </p>
-              <p style={{ fontSize: 11, color: '#746e69', marginTop: 2 }}>Patrocinador adicionado, não salvo</p>
+              <p style={{ fontSize: 11, color: '#746e69', margin: '5px 0 0' }}>Patrocinador adicionado, não salvo</p>
             </div>
             {contextStatusCounts.RASCUNHO > 0 && (
               <button
@@ -1745,22 +1752,27 @@ export default function VincularPatrocinadores() {
                 }}
                 disabled={saveLinkingMutation.isPending}
                 title="Salvar todos os rascunhos"
-                style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 6, cursor: 'pointer', color: '#c2410c', display: 'flex', alignItems: 'center', padding: '6px 8px', flexShrink: 0 }}
+                /* Só o `title` nomeava o botão: leitor de tela anunciava um
+                   botão sem rótulo. E 26px de alvo é pequeno demais para uma
+                   ação em lote — 34px é confortável sem virar destaque. */
+                aria-label="Salvar todos os rascunhos"
+                data-testid="button-save-all-drafts"
+                style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: R.md, cursor: 'pointer', color: '#c2410c', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, flexShrink: 0 }}
               >
-                <Save style={{ width: 14, height: 14 }} />
+                <Save style={{ width: 15, height: 15 }} />
               </button>
             )}
           </div>
 
           {/* PRONTO */}
-          <div style={{ backgroundColor: '#ffffff', borderRadius: 8, padding: '12px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderLeft: '3px solid #4ade80' }}>
+          <div style={{ backgroundColor: '#ffffff', borderRadius: R.md, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, borderLeft: '3px solid #15803d' }}>
             <div>
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>Pronto para Envio</p>
-              <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1c1c', lineHeight: 1 }}>
+              <p style={{ fontSize: 11, fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 6px' }}>Pronto para envio</p>
+              <p style={{ fontSize: 22, fontWeight: 800, color: '#1a1c1c', lineHeight: 1, margin: 0, letterSpacing: '-0.03em' }}>
                 {contextStatusCounts.PRONTO}
-                <span style={{ fontSize: 11, fontWeight: 500, color: '#746e69', marginLeft: 4 }}>{contextStatusCounts.PRONTO !== 1 ? 'itens' : 'item'}</span>
+                <span style={{ fontSize: 11, fontWeight: 600, color: '#746e69', marginLeft: 5, letterSpacing: 0 }}>{contextStatusCounts.PRONTO !== 1 ? 'itens' : 'item'}</span>
               </p>
-              <p style={{ fontSize: 11, color: '#746e69', marginTop: 2 }}>Salvo, aguardando envio à Arte</p>
+              <p style={{ fontSize: 11, color: '#746e69', margin: '5px 0 0' }}>Salvo, aguardando envio à Arte</p>
             </div>
             {contextStatusCounts.PRONTO > 0 && (
               <button
@@ -1773,9 +1785,11 @@ export default function VincularPatrocinadores() {
                 }}
                 disabled={sendToArteMutation.isPending}
                 title="Enviar todos para Arte"
-                style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, cursor: 'pointer', color: '#166534', display: 'flex', alignItems: 'center', padding: '6px 8px', flexShrink: 0 }}
+                aria-label="Enviar todos os itens prontos para Arte"
+                data-testid="button-send-all-ready"
+                style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: R.md, cursor: 'pointer', color: '#166534', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, flexShrink: 0 }}
               >
-                <Send style={{ width: 14, height: 14 }} />
+                <Send style={{ width: 15, height: 15 }} />
               </button>
             )}
           </div>
@@ -1784,7 +1798,11 @@ export default function VincularPatrocinadores() {
       </div>
 
       {/* ── Tab Switcher (underline) ── */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #e7e5e4', marginBottom: 20 }}>
+      {/* role/aria-selected: eram dois <button> soltos. Sem a semântica de
+          abas, o leitor de tela anuncia "botão Por Item" sem dizer que existe
+          um par nem qual está ativo — exatamente a informação que a sublinha
+          entrega a quem enxerga. */}
+      <div role="tablist" aria-label="Modo de visualização" style={{ display: 'flex', borderBottom: '1px solid #e7e5e4', marginBottom: 20 }}>
         {[
           { id: "por-item",         label: "Por Item",         icon: <ClipboardList style={{ width: 14, height: 14 }} /> },
           { id: "por-patrocinador", label: "Por Patrocinador", icon: <Building2 style={{ width: 14, height: 14 }} /> },
@@ -1793,6 +1811,9 @@ export default function VincularPatrocinadores() {
           return (
             <button
               key={tab.id}
+              role="tab"
+              aria-selected={active}
+              data-testid={`tab-${tab.id}`}
               onClick={() => setViewMode(tab.id as "por-item" | "por-patrocinador")}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
@@ -1800,13 +1821,13 @@ export default function VincularPatrocinadores() {
                 cursor: 'pointer', fontSize: 13,
                 fontWeight: active ? 800 : 700,
                 letterSpacing: '-0.02em', textTransform: 'uppercase',
-                color: active ? '#1c1917' : '#a8a29e',
+                color: active ? '#1c1917' : '#746e69',
                 borderBottom: active ? '2px solid #1c1917' : '2px solid transparent',
                 marginBottom: -1,
                 transition: 'color 0.15s',
               }}
               onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = '#1c1917'; }}
-              onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = '#a8a29e'; }}
+              onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = '#746e69'; }}
             >
               {tab.icon}
               {tab.label}
@@ -2328,7 +2349,7 @@ export default function VincularPatrocinadores() {
                                               display: 'inline-flex', alignItems: 'center', gap: 3,
                                               padding: '3px 7px',
                                               backgroundColor: allSelected ? '#1c1917' : '#f0efee',
-                                              color: allSelected ? '#ffffff' : '#78716c',
+                                              color: allSelected ? '#ffffff' : '#746e69',
                                               fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
                                               borderRadius: 6, border: `1px solid ${allSelected ? '#1c1917' : '#d6d3d1'}`,
                                               cursor: 'pointer', letterSpacing: '0.03em',
@@ -2406,7 +2427,7 @@ export default function VincularPatrocinadores() {
                                               display: 'inline-flex', alignItems: 'center', gap: 3,
                                               background: 'none', border: 'none', padding: 0,
                                               fontSize: 11, fontWeight: item.isReuse ? 700 : 400,
-                                              color: item.isReuse ? '#065f46' : '#a8a29e',
+                                              color: item.isReuse ? '#065f46' : '#746e69',
                                               cursor: 'pointer', textDecoration: item.isReuse ? 'none' : 'underline',
                                             }}
                                           >
@@ -2901,7 +2922,7 @@ export default function VincularPatrocinadores() {
                                             title="Desvincular"
                                             style={{ backgroundColor: 'transparent', border: '1px solid #e7e5e4', color: '#746e69', borderRadius: 6, height: 34, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
                                             onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#fca5a5'; b.style.color = '#dc2626'; }}
-                                            onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#e7e5e4'; b.style.color = '#78716c'; }}
+                                            onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#e7e5e4'; b.style.color = '#746e69'; }}
                                             data-testid={`sp-btn-unlink-${item.id}-${sponsor.id}`}
                                           >
                                             <X style={{ width: 11, height: 11 }} /> Desvincular
@@ -3387,7 +3408,7 @@ export default function VincularPatrocinadores() {
                   }}>
                     {/* Index number */}
                     <div style={{ width: 26, height: 26, borderRadius: 6, background: hasSponsor ? '#f4f4f3' : '#fef3c7', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: hasSponsor ? '#78716c' : '#92400e' }}>{idx + 1}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: hasSponsor ? '#746e69' : '#92400e' }}>{idx + 1}</span>
                     </div>
 
                     <div style={{ flex: 1, minWidth: 0 }}>

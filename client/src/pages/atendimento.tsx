@@ -1083,12 +1083,12 @@ export default function Atendimento() {
           <span style={{
             fontFamily: "'Space Grotesk', sans-serif",
             fontSize: 36, fontWeight: 900, lineHeight: 1,
-            color: actionableCount ? '#f97316' : '#a8a29e',
+            color: actionableCount ? '#f97316' : '#746e69',
           }}>
             {actionableCount ?? '—'}
           </span>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: actionableCount ? '#c2410c' : '#78716c' }}>
+            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: actionableCount ? '#c2410c' : '#746e69' }}>
               Aguardam
             </span>
             <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#746e69' }}>
@@ -1112,7 +1112,7 @@ export default function Atendimento() {
               backgroundColor: 'transparent',
               borderBottom: activeTab === tab.key ? '2px solid #f97316' : '2px solid transparent',
               fontSize: 14, fontWeight: activeTab === tab.key ? 700 : 500,
-              color: activeTab === tab.key ? '#c2410c' : '#78716c',
+              color: activeTab === tab.key ? '#c2410c' : '#746e69',
               display: 'flex', alignItems: 'center', gap: 8,
               marginBottom: -1, transition: 'color 0.15s',
             }}
@@ -1218,7 +1218,7 @@ export default function Atendimento() {
               whiteSpace: 'nowrap', marginLeft: 'auto',
             }}
             onMouseEnter={e => { e.currentTarget.style.borderColor = '#a8a29e'; e.currentTarget.style.color = '#1c1917'; }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#d4d0ca'; e.currentTarget.style.color = '#78716c'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#d4d0ca'; e.currentTarget.style.color = '#746e69'; }}
           >
             <Printer style={{ width: 15, height: 15 }} />
             Exportar PDF
@@ -1362,7 +1362,7 @@ export default function Atendimento() {
                           {batchEligibleItems.filter((i: any) => !i.approvalThumbUrl).length} sem arte
                         </span>
                       )}
-                      <span style={{ fontSize: 13, fontWeight: 700, color: batchSelectedItemIds.size > 0 ? '#ea580c' : '#a8a29e' }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: batchSelectedItemIds.size > 0 ? '#ea580c' : '#746e69' }}>
                         {batchSelectedItemIds.size} / {batchItemCount} selecionadas
                       </span>
                     </div>
@@ -1795,7 +1795,7 @@ export default function Atendimento() {
                             {/* Col 1: Título e ID */}
                             <div>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                <h5 style={{ fontSize: 14, fontWeight: 700, color: isFullyApproved ? '#78716c' : '#1c1917', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <h5 style={{ fontSize: 14, fontWeight: 700, color: isFullyApproved ? '#746e69' : '#1c1917', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {item.type}
                                 </h5>
                                 {item.isReuse && (
@@ -2239,7 +2239,7 @@ export default function Atendimento() {
                                 <span style={{ fontSize: 15, fontWeight: 800, color: allApproved ? '#15803d' : '#374151', lineHeight: 1 }}>
                                   {approvedOnes.length} <span style={{ fontSize: 11, fontWeight: 500, opacity: 0.55 }}>de</span> {sponsorApprovals.length}
                                 </span>
-                                <span style={{ fontSize: 11, color: allApproved ? '#22c55e' : '#9ca3af', fontWeight: 700, marginTop: 2 }}>
+                                <span style={{ fontSize: 11, color: allApproved ? '#22c55e' : '#6b7280', fontWeight: 700, marginTop: 2 }}>
                                   {allApproved ? 'todos' : 'aprovaram'}
                                 </span>
                               </div>
@@ -2435,9 +2435,9 @@ export default function Atendimento() {
                     }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 1, lineHeight: 1 }}>
                         <span style={{ fontSize: 22, fontWeight: 800, color: allApp ? '#15803d' : '#374151' }}>{approvedCount}</span>
-                        <span style={{ fontSize: 12, fontWeight: 500, color: allApp ? '#86efac' : '#a8a29e' }}>/{diSps.length}</span>
+                        <span style={{ fontSize: 12, fontWeight: 500, color: allApp ? '#86efac' : '#746e69' }}>/{diSps.length}</span>
                       </div>
-                      <span style={{ fontSize: 11, color: allApp ? '#22c55e' : '#9ca3af', fontWeight: 700, marginTop: 2, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                      <span style={{ fontSize: 11, color: allApp ? '#22c55e' : '#6b7280', fontWeight: 700, marginTop: 2, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
                         {allApp ? (diSps.length === 1 ? 'aprovou' : 'todos') : 'parcial'}
                       </span>
                     </div>
@@ -3076,7 +3076,7 @@ export default function Atendimento() {
                       transition: 'border-color 0.15s, color 0.15s',
                     }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = '#a8a29e'; e.currentTarget.style.color = '#1c1917'; }}
-                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.color = '#78716c'; }}
+                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.color = '#746e69'; }}
                   >
                     Fechar
                   </button>

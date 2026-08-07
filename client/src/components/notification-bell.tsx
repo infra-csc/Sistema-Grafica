@@ -244,7 +244,7 @@ export function NotificationBell({ notifications, onMarkAsRead, onViewAll }: Not
                       </p>
                       <p style={{
                         fontSize: 10, fontWeight: 500,
-                        color: isDeadline && !n.isRead ? "#f87171" : "#a8a29e",
+                        color: isDeadline && !n.isRead ? "#f87171" : "#746e69",
                         margin: 0,
                       }}>
                         {fmtTime(n.createdAt)} · {cfg.label}

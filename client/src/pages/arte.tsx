@@ -1799,7 +1799,7 @@ export default function Arte() {
                                   color: '#57534e', transition: 'all 0.15s',
                                 }}
                                 onMouseEnter={e => { e.currentTarget.style.color = '#7c3aed'; e.currentTarget.style.borderColor = '#7c3aed'; }}
-                                onMouseLeave={e => { e.currentTarget.style.color = '#a8a29e'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
+                                onMouseLeave={e => { e.currentTarget.style.color = '#746e69'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
                               >
                                 <Printer style={{ width: 14, height: 14 }} />
                               </button>
@@ -1814,7 +1814,7 @@ export default function Arte() {
                                   color: '#57534e', transition: 'all 0.15s',
                                 }}
                                 onMouseEnter={e => { e.currentTarget.style.color = '#f97316'; e.currentTarget.style.borderColor = '#f97316'; }}
-                                onMouseLeave={e => { e.currentTarget.style.color = '#a8a29e'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
+                                onMouseLeave={e => { e.currentTarget.style.color = '#746e69'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
                               >
                                 <Eye style={{ width: 14, height: 14 }} />
                               </button>
@@ -1853,7 +1853,7 @@ export default function Arte() {
                                     color: '#57534e', transition: 'all 0.15s',
                                   }}
                                   onMouseEnter={e => { e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#dc2626'; }}
-                                  onMouseLeave={e => { e.currentTarget.style.color = '#a8a29e'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.color = '#746e69'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
                                 >
                                   <Ban style={{ width: 14, height: 14 }} />
                                 </button>
@@ -1973,7 +1973,7 @@ export default function Arte() {
                       height: 32, padding: '0 13px', borderRadius: 999,
                       border: isActive ? '1.5px solid #ba1a1a' : '1px solid #e7e5e4',
                       backgroundColor: isActive ? '#fef2f2' : '#ffffff',
-                      color: isActive ? '#ba1a1a' : '#78716c',
+                      color: isActive ? '#ba1a1a' : '#746e69',
                       fontSize: 12, fontWeight: isActive ? 700 : 500,
                       cursor: 'pointer', transition: 'all 0.15s',
                     }}
@@ -2130,7 +2130,7 @@ export default function Arte() {
                         whiteSpace: 'nowrap',
                       }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#44403c'; (e.currentTarget as HTMLElement).style.borderColor = '#c7c3be'; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#a8a29e'; (e.currentTarget as HTMLElement).style.borderColor = '#ebe8e3'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#746e69'; (e.currentTarget as HTMLElement).style.borderColor = '#ebe8e3'; }}
                     >
                       <Eye style={{ width: 12, height: 12 }} />
                       Ver versão
@@ -2268,7 +2268,7 @@ export default function Arte() {
                   {/* top accent — always visible, brighter when tab is active */}
                   <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: stat.accentColor, opacity: isActiveCard ? 1 : stat.value > 0 ? 0.45 : 0.18, borderRadius: '12px 12px 0 0' }} />
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: isActiveCard ? stat.accentColor : stat.value > 0 ? '#44403c' : '#a8a29e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{stat.label}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: isActiveCard ? stat.accentColor : stat.value > 0 ? '#44403c' : '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{stat.label}</span>
                     <span style={{ width: 26, height: 26, borderRadius: 6, backgroundColor: stat.value > 0 ? `${stat.accentColor}18` : stat.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       <Icon style={{ width: 13, height: 13, color: stat.value > 0 ? stat.accentColor : '#c4bfbb' }} />
                     </span>
@@ -2276,7 +2276,7 @@ export default function Arte() {
                   <span style={{ fontSize: 34, fontWeight: 800, color: isActiveCard ? stat.accentColor : stat.value > 0 ? '#1c1917' : '#b8b4b0', letterSpacing: '-0.05em', lineHeight: 1, fontFamily: '"Space Grotesk",sans-serif' }}>
                     {stat.value}
                   </span>
-                  <div style={{ fontSize: 11, color: stat.value > 0 ? '#78716c' : '#b8b4b0' }}>{stat.sub}</div>
+                  <div style={{ fontSize: 11, color: stat.value > 0 ? '#746e69' : '#b8b4b0' }}>{stat.sub}</div>
                   <div style={{ height: 3, borderRadius: 6, backgroundColor: '#e7e5e4', overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: `${pct}%`, backgroundColor: stat.accentColor, borderRadius: 6 }} />
                   </div>
@@ -2332,7 +2332,7 @@ export default function Arte() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
               {['Hoje', '7 dias', '15 dias', '30 dias', 'Todos'].map(p => (
                 <button key={p} onClick={() => setPeriodFilter(p)}
-                  style={{ height: 30, padding: '0 11px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: periodFilter === p ? 700 : 500, background: periodFilter === p ? '#ffffff' : 'transparent', color: periodFilter === p ? '#1c1917' : '#78716c', boxShadow: periodFilter === p ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.12s' }}>
+                  style={{ height: 30, padding: '0 11px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: periodFilter === p ? 700 : 500, background: periodFilter === p ? '#ffffff' : 'transparent', color: periodFilter === p ? '#1c1917' : '#746e69', boxShadow: periodFilter === p ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.12s' }}>
                   {p}
                 </button>
               ))}
@@ -2410,7 +2410,7 @@ export default function Arte() {
                     data-testid={tab.testId}
                     style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 18px', border: 'none', cursor: 'pointer', borderBottom: isActive ? `2px solid ${accent}` : '2px solid transparent', marginBottom: -1, background: isActive ? `${accent}0d` : 'transparent', color: isActive ? accent : '#78716c', fontWeight: isActive ? 700 : 500, fontSize: 13, whiteSpace: 'nowrap', borderRadius: '6px 6px 0 0', transition: 'all 0.14s' }}
                     onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = '#1c1917'; }}
-                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = '#78716c'; }}
+                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = '#746e69'; }}
                   >
                     {TabIcon && <TabIcon style={{ width: 13, height: 13, flexShrink: 0 }} />}
                     {tab.label}
@@ -3136,7 +3136,7 @@ export default function Arte() {
                 onClick={() => { setShowBulkDialog(false); setSharedPdfUrl(""); }}
                 style={{ padding: '6px', backgroundColor: '#f3f4f3', border: 'none', borderRadius: '50%', cursor: 'pointer', color: '#57534e', lineHeight: 1, flexShrink: 0 }}
                 onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
-                onMouseLeave={e => { e.currentTarget.style.color = '#78716c'; }}
+                onMouseLeave={e => { e.currentTarget.style.color = '#746e69'; }}
               >
                 <X style={{ width: 18, height: 18 }} />
               </button>
@@ -3444,7 +3444,7 @@ export default function Arte() {
                       <div style={{ width: 16, height: 16, borderRadius: 6, flexShrink: 0, border: `2px solid ${on ? '#f97316' : '#d4d4d0'}`, background: on ? '#f97316' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.12s' }}>
                         {on && <Check style={{ width: 9, height: 9, color: '#fff' }} />}
                       </div>
-                      <span style={{ fontFamily: '"Space Grotesk", monospace', fontSize: 11, fontWeight: 700, color: on ? '#c2410c' : '#a8a29e', background: on ? '#fed7aa' : '#f0efee', padding: '2px 7px', borderRadius: 6, flexShrink: 0, letterSpacing: '0.01em', transition: 'all 0.12s' }}>{item.displayId}</span>
+                      <span style={{ fontFamily: '"Space Grotesk", monospace', fontSize: 11, fontWeight: 700, color: on ? '#c2410c' : '#746e69', background: on ? '#fed7aa' : '#f0efee', padding: '2px 7px', borderRadius: 6, flexShrink: 0, letterSpacing: '0.01em', transition: 'all 0.12s' }}>{item.displayId}</span>
                       <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden' }}>
                           {groupOf(item.type) && (
@@ -3472,7 +3472,7 @@ export default function Arte() {
             <button onClick={() => setShowBookModal(false)}
               style={{ height: 40, padding: '0 16px', borderRadius: 8, background: 'transparent', border: 'none', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'color 0.12s' }}
               onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = '#78716c'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#746e69'; }}
             >Cancelar</button>
             {/* Filled — Salvar book */}
             <button
@@ -3825,7 +3825,7 @@ export default function Arte() {
                                           height: 32, borderRadius: 6,
                                           border: `1px solid ${isLinked ? '#93c5fd' : '#e7e5e4'}`,
                                           backgroundColor: '#ffffff', fontSize: 11, fontWeight: 600,
-                                          color: linked ? '#1c1917' : '#78716c', padding: '0 8px', cursor: 'pointer',
+                                          color: linked ? '#1c1917' : '#746e69', padding: '0 8px', cursor: 'pointer',
                                         }}>
                                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                             {linked
@@ -3944,7 +3944,7 @@ export default function Arte() {
                     onClick={() => { if (!bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); setBulkThumbEventFilter("all"); } }}
                     style={{ height: 38, padding: '0 16px', borderRadius: 6, background: 'transparent', border: 'none', color: '#57534e', cursor: 'pointer', fontSize: 13, fontWeight: 600, transition: 'color 0.12s' }}
                     onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
-                    onMouseLeave={e => { e.currentTarget.style.color = '#78716c'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = '#746e69'; }}
                   >Cancelar</button>
 
                   {/* Outline — Salvar como rascunho (secundário) */}
@@ -3957,7 +3957,7 @@ export default function Arte() {
                       height: 36, padding: '0 16px', borderRadius: 6,
                       backgroundColor: '#ffffff',
                       border: `1.5px solid ${isDisabled ? '#e7e5e4' : '#ddd6fe'}`,
-                      color: isDisabled ? '#a8a29e' : '#7c3aed',
+                      color: isDisabled ? '#746e69' : '#7c3aed',
                       fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6,
                       cursor: isDisabled ? 'not-allowed' : 'pointer', transition: 'all 0.15s',
                     }}
@@ -3982,7 +3982,7 @@ export default function Arte() {
                       height: 40, padding: '0 20px', borderRadius: 8,
                       background: isDisabled ? '#e7e5e4' : 'linear-gradient(135deg,#16a34a,#15803d)',
                       border: 'none',
-                      color: isDisabled ? '#a8a29e' : '#ffffff',
+                      color: isDisabled ? '#746e69' : '#ffffff',
                       fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 7,
                       cursor: isDisabled ? 'not-allowed' : 'pointer',
                       boxShadow: isDisabled ? 'none' : '0 4px 12px rgba(21,128,61,0.28)',

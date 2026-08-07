@@ -1023,7 +1023,7 @@ export default function EventDetail() {
                                 role="combobox"
                                 aria-expanded={typePopoverOpen}
                                 data-testid="select-item-type"
-                                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '14px', color: formData.type ? '#1a1c1c' : '#a8a29e', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '14px', color: formData.type ? '#1a1c1c' : '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                               >
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formData.type || "Selecione o tipo"}</span>
                                 <ChevronsUpDown className="h-4 w-4 flex-shrink-0 ml-2" style={{ color: '#a8a29e' }} />
@@ -1076,7 +1076,7 @@ export default function EventDetail() {
                               title="Editar nome do tipo"
                               style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', cursor: 'pointer', color: '#57534e' }}
                               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#e7e5e4'; (e.currentTarget as HTMLButtonElement).style.color = '#f97316'; }}
-                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f0efee'; (e.currentTarget as HTMLButtonElement).style.color = '#a8a29e'; }}
+                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f0efee'; (e.currentTarget as HTMLButtonElement).style.color = '#746e69'; }}
                             >
                               <Pencil style={{ width: 15, height: 15 }} />
                             </button>
@@ -1180,7 +1180,7 @@ export default function EventDetail() {
                           <Popover open={materialPopoverOpen} onOpenChange={setMaterialPopoverOpen}>
                             <PopoverTrigger asChild>
                               <button type="button" role="combobox" data-testid="select-material"
-                                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '14px', color: formData.material ? '#1a1c1c' : '#a8a29e', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '14px', color: formData.material ? '#1a1c1c' : '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                               >
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formData.material || "Selecionar"}</span>
                                 <ChevronsUpDown className="h-4 w-4 flex-shrink-0 ml-2" style={{ color: '#a8a29e' }} />
@@ -1213,7 +1213,7 @@ export default function EventDetail() {
                           <Popover open={finishPopoverOpen} onOpenChange={setFinishPopoverOpen}>
                             <PopoverTrigger asChild>
                               <button type="button" role="combobox" data-testid="select-finish"
-                                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '14px', color: formData.finish ? '#1a1c1c' : '#a8a29e', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '10px', border: 'none', cursor: 'pointer', fontSize: '14px', color: formData.finish ? '#1a1c1c' : '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                               >
                                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formData.finish || "Selecionar"}</span>
                                 <ChevronsUpDown className="h-4 w-4 flex-shrink-0 ml-2" style={{ color: '#a8a29e' }} />
@@ -1989,7 +1989,7 @@ export default function EventDetail() {
                                   data-testid={`button-reuse-item-${item.id}`}
                                   style={{ background: item.isReuse ? '#d1fae5' : 'none', border: item.isReuse ? '1px solid #6ee7b7' : 'none', borderRadius: '6px', padding: '6px', cursor: 'pointer', color: item.isReuse ? '#065f46' : '#78716c', transition: 'all 0.15s', display: 'flex', alignItems: 'center' }}
                                   onMouseEnter={e => { if (!item.isReuse) { e.currentTarget.style.color = '#065f46'; e.currentTarget.style.backgroundColor = '#d1fae5'; } }}
-                                  onMouseLeave={e => { if (!item.isReuse) { e.currentTarget.style.color = '#78716c'; e.currentTarget.style.backgroundColor = 'transparent'; } }}
+                                  onMouseLeave={e => { if (!item.isReuse) { e.currentTarget.style.color = '#746e69'; e.currentTarget.style.backgroundColor = 'transparent'; } }}
                                 >
                                   <RotateCcw className="h-4 w-4" />
                                 </button>
@@ -2002,7 +2002,7 @@ export default function EventDetail() {
                                 <button
                                   style={{ color: '#746e69', background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'color 0.15s, background-color 0.15s' }}
                                   onMouseEnter={e => { e.currentTarget.style.color = '#1a1c1c'; e.currentTarget.style.backgroundColor = '#f0efee'; }}
-                                  onMouseLeave={e => { e.currentTarget.style.color = '#78716c'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.color = '#746e69'; e.currentTarget.style.backgroundColor = 'transparent'; }}
                                   onClick={e => { e.stopPropagation(); handleEditItem(item); }}
                                   data-testid={`button-edit-item-${item.id}`}
                                   title="Editar peça" aria-label="Editar peça"
@@ -2015,7 +2015,7 @@ export default function EventDetail() {
                                   <button
                                     style={{ color: '#746e69', background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'color 0.15s, background-color 0.15s' }}
                                     onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.backgroundColor = '#fef2f2'; }}
-                                    onMouseLeave={e => { e.currentTarget.style.color = '#78716c'; e.currentTarget.style.backgroundColor = 'transparent'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.color = '#746e69'; e.currentTarget.style.backgroundColor = 'transparent'; }}
                                     onClick={e => { e.stopPropagation(); handleDeleteItem(item.id); }}
                                     data-testid={`button-delete-item-${item.id}`}
                                     title="Excluir peça" aria-label="Excluir peça"
@@ -2153,7 +2153,7 @@ export default function EventDetail() {
                       ? calculateM2(formData.quantity, parseFloat(formData.fileWidth) || 0, parseFloat(formData.fileHeight) || 0).toFixed(2) + " m²"
                       : "—"
                     }
-                    style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "14px", fontWeight: 700, color: formData.fileWidth && formData.fileHeight ? "#f97316" : "#a8a29e", outline: "none", cursor: "default" }}
+                    style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "14px", fontWeight: 700, color: formData.fileWidth && formData.fileHeight ? "#f97316" : "#746e69", outline: "none", cursor: "default" }}
                   />
                 </div>
               </div>

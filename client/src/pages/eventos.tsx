@@ -646,7 +646,7 @@ export default function Eventos() {
                           <button
                             type="button"
                             data-testid="input-start-date"
-                            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 40, backgroundColor: openStartDate ? '#ffffff' : '#e8e8e7', border: openStartDate ? '1px solid #f97316' : '1px solid transparent', borderRadius: '8px', padding: '0 12px', fontSize: '13px', color: formData.startDate ? '#1a1c1c' : '#a8a29e', fontFamily: "'Plus Jakarta Sans', sans-serif", cursor: 'pointer', textAlign: 'left' as const, boxShadow: openStartDate ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s' }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 40, backgroundColor: openStartDate ? '#ffffff' : '#e8e8e7', border: openStartDate ? '1px solid #f97316' : '1px solid transparent', borderRadius: '8px', padding: '0 12px', fontSize: '13px', color: formData.startDate ? '#1a1c1c' : '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif", cursor: 'pointer', textAlign: 'left' as const, boxShadow: openStartDate ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s' }}
                           >
                             <Calendar style={{ width: 14, height: 14, color: '#a8a29e', flexShrink: 0 }} />
                             {formData.startDate ? fmtDateBR(formData.startDate) : <span style={{ color: '#746e69' }}>Selecionar data</span>}
@@ -672,7 +672,7 @@ export default function Eventos() {
                           <button
                             type="button"
                             data-testid="input-truck-date"
-                            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 40, backgroundColor: openTruckDate ? '#ffffff' : '#e8e8e7', border: openTruckDate ? '1px solid #f97316' : '1px solid transparent', borderRadius: '8px', padding: '0 12px', fontSize: '13px', color: formData.truckDepartureDate ? '#1a1c1c' : '#a8a29e', fontFamily: "'Plus Jakarta Sans', sans-serif", cursor: 'pointer', textAlign: 'left' as const, boxShadow: openTruckDate ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s' }}
+                            style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', height: 40, backgroundColor: openTruckDate ? '#ffffff' : '#e8e8e7', border: openTruckDate ? '1px solid #f97316' : '1px solid transparent', borderRadius: '8px', padding: '0 12px', fontSize: '13px', color: formData.truckDepartureDate ? '#1a1c1c' : '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif", cursor: 'pointer', textAlign: 'left' as const, boxShadow: openTruckDate ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s' }}
                           >
                             <Truck style={{ width: 14, height: 14, color: '#a8a29e', flexShrink: 0 }} />
                             {formData.truckDepartureDate
@@ -1002,7 +1002,7 @@ export default function Eventos() {
                                           type="button"
                                           data-testid={`input-${key}`}
                                           disabled={noStart}
-                                          style={{ display: 'flex', alignItems: 'center', gap: 5, height: 30, padding: '0 10px', borderRadius: '6px', border: openPrazoKey === key ? '1px solid #f97316' : '1px solid transparent', backgroundColor: noStart ? '#f0efee' : (openPrazoKey === key ? '#ffffff' : '#e8e8e7'), fontSize: '12px', fontWeight: '600', color: noStart ? '#a8a29e' : (dateVal ? '#1a1c1c' : '#a8a29e'), cursor: noStart ? 'not-allowed' : 'pointer', boxShadow: openPrazoKey === key ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s', fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap' as const }}
+                                          style={{ display: 'flex', alignItems: 'center', gap: 5, height: 30, padding: '0 10px', borderRadius: '6px', border: openPrazoKey === key ? '1px solid #f97316' : '1px solid transparent', backgroundColor: noStart ? '#f0efee' : (openPrazoKey === key ? '#ffffff' : '#e8e8e7'), fontSize: '12px', fontWeight: '600', color: noStart ? '#a8a29e' : (dateVal ? '#1a1c1c' : '#746e69'), cursor: noStart ? 'not-allowed' : 'pointer', boxShadow: openPrazoKey === key ? '0 0 0 2px rgba(249,115,22,0.18)' : 'none', transition: 'all 0.15s', fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap' as const }}
                                         >
                                           <Calendar style={{ width: 11, height: 11, color: noStart ? '#c4bfbb' : '#a8a29e', flexShrink: 0 }} />
                                           {dateVal ? fmtDateBR(dateVal) : (noStart ? '—' : 'Selecionar')}
@@ -1530,7 +1530,7 @@ export default function Eventos() {
               onClick={() => setPriorityDialogOpen(false)}
               style={{ fontSize: '11px', fontWeight: '700', color: '#746e69', background: 'none', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.08em', transition: 'color 0.15s' }}
               onMouseEnter={e => (e.currentTarget.style.color = '#1c1917')}
-              onMouseLeave={e => (e.currentTarget.style.color = '#a8a29e')}
+              onMouseLeave={e => (e.currentTarget.style.color = '#746e69')}
             >
               Cancelar
             </button>

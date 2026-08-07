@@ -833,7 +833,7 @@ export default function Solicitacao() {
                                   }}
                                   onMouseLeave={e => {
                                     if (!item.isReuse) {
-                                      (e.currentTarget as HTMLButtonElement).style.color = "#a8a29e";
+                                      (e.currentTarget as HTMLButtonElement).style.color = "#746e69";
                                       (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
                                     }
                                   }}
@@ -851,7 +851,7 @@ export default function Solicitacao() {
                                     borderRadius: 4, transition: "color 0.15s",
                                   }}
                                   onMouseEnter={e => (e.currentTarget.style.color = "#ef4444")}
-                                  onMouseLeave={e => (e.currentTarget.style.color = "#a8a29e")}
+                                  onMouseLeave={e => (e.currentTarget.style.color = "#746e69")}
                                 >
                                   <Trash2 style={{ width: 15, height: 15 }} />
                                 </button>

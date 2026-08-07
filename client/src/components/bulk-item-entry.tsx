@@ -1072,7 +1072,7 @@ export function BulkItemEntry({
                     paddingBottom: '10px', paddingLeft: '5px', paddingRight: '5px',
                     fontSize: '10px', fontWeight: '800',
                     textTransform: 'uppercase', letterSpacing: '0.1em',
-                    color: col.orange ? '#f97316' : '#a8a29e',
+                    color: col.orange ? '#f97316' : '#746e69',
                     whiteSpace: 'nowrap', fontFamily: "'Space Grotesk', sans-serif",
                     width: col.w || undefined,
                   }}>
@@ -1323,7 +1323,7 @@ export function BulkItemEntry({
                 transition: 'border-color 0.12s, color 0.12s',
               }}
               onMouseEnter={e => { e.currentTarget.style.borderColor = '#f97316'; e.currentTarget.style.color = '#f97316'; }}
-              onMouseLeave={e => { e.currentTarget.style.borderColor = '#d6d3d1'; e.currentTarget.style.color = '#78716c'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = '#d6d3d1'; e.currentTarget.style.color = '#746e69'; }}
               data-testid="button-add-row"
             >
               <Plus size={13} />
@@ -1369,7 +1369,7 @@ export function BulkItemEntry({
               cursor: 'pointer', transition: 'color 0.12s',
             }}
             onMouseEnter={e => (e.currentTarget.style.color = '#1a1c1c')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#78716c')}
+            onMouseLeave={e => (e.currentTarget.style.color = '#746e69')}
           >
             Cancelar
           </button>

@@ -311,7 +311,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                             {on && <CheckCircle style={{ width: 10, height: 10, color: "#fff" }} />}
                           </div>
                           <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: "#1c1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textTransform: "capitalize" }}>{g.key}</span>
-                          <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: on ? "#7c3aed" : "#a8a29e" }}>
+                          <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: on ? "#7c3aed" : "#746e69" }}>
                             {on ? Math.ceil(g.count / MAX_ITEMS_PER_COMBINED_PAGE) : g.count} pág.
                           </span>
                         </div>

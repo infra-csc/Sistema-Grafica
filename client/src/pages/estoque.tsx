@@ -702,7 +702,7 @@ function MapaGalpao({ value, onSelect, onClose }: {
                     style={{
                       height: 40, borderRadius: 8, border: "none",
                       background: isSelected ? "#f97316" : isHov ? "#fff7ed" : "#f8fafc",
-                      color: isSelected ? "#fff" : isHov ? "#f97316" : "#94a3b8",
+                      color: isSelected ? "#fff" : isHov ? "#f97316" : "#64748b",
                       fontSize: 9, fontWeight: 700, cursor: "pointer",
                       fontFamily: "DM Mono, monospace",
                       transition: "all 0.12s",

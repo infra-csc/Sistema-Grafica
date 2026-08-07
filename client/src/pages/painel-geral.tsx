@@ -595,7 +595,7 @@ export default function PainelGeral() {
                                         <span data-testid={`text-display-id-${item.id}`} style={{ fontFamily: "monospace", fontWeight: 700, color: isDeleted ? "#dc2626" : "#f97316", fontSize: 13, flexShrink: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
                                           {item.displayId}
                                         </span>
-                                        <span style={{ fontSize: 11, fontWeight: 700, color: isDeleted ? "#a8a29e" : "#44403c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>{item.type}</span>
+                                        <span style={{ fontSize: 11, fontWeight: 700, color: isDeleted ? "#746e69" : "#44403c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>{item.type}</span>
                                         {item.isReuse && !isDeleted && (
                                           <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "2px 7px", flexShrink: 0 }}>
                                             Reaproveit.
@@ -604,7 +604,7 @@ export default function PainelGeral() {
                                       </div>
                                       {/* Row 2: description — allow up to 2 lines on mobile */}
                                       {item.description && (
-                                        <span style={{ fontSize: 12, color: isDeleted ? "#a8a29e" : "#44403c", fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as React.CSSProperties}>
+                                        <span style={{ fontSize: 12, color: isDeleted ? "#746e69" : "#44403c", fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as React.CSSProperties}>
                                           {item.description}
                                         </span>
                                       )}
@@ -824,7 +824,7 @@ export default function PainelGeral() {
                                     <td style={{ padding: "10px 18px", maxWidth: 260 }}>
                                       <div style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
                                         {item.description ? (
-                                          <span style={{ fontSize: 12, color: isDeleted ? "#a8a29e" : "#44403c", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
+                                          <span style={{ fontSize: 12, color: isDeleted ? "#746e69" : "#44403c", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
                                             {item.description}
                                           </span>
                                         ) : (
@@ -888,7 +888,7 @@ export default function PainelGeral() {
                                               transition: "color 0.15s",
                                             }}
                                             onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#f97316")}
-                                            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#a8a29e")}
+                                            onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#746e69")}
                                           >
                                             <Eye style={{ width: 16, height: 16 }} />
                                           </button>
@@ -906,7 +906,7 @@ export default function PainelGeral() {
                                                 transition: "color 0.15s",
                                               }}
                                               onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#dc2626")}
-                                              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#a8a29e")}
+                                              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#746e69")}
                                             >
                                               <Trash2 style={{ width: 15, height: 15 }} />
                                             </button>

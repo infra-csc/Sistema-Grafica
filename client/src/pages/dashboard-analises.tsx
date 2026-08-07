@@ -7,7 +7,7 @@ import {
   PieChart, Pie, Cell,
 } from "recharts";
 import {
-  TrendingUp, ChevronRight, Download, Share2,
+  TrendingUp, ChevronRight, Download,
 } from "lucide-react";
 import { format, subDays, subMonths, isAfter, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -45,7 +45,7 @@ const WF_GROUPS = [
   { label: "Produção",     keys: ["inProduction", "produced"],                      color: T.accent },
   { label: "Aprovação",    keys: ["awaiting_approval", "awaiting_sponsor_approval", "sponsor_approved", "awaiting_finalization", "awaiting_creator_review", "awaiting_final_review", "ready_for_production", "pronto_para_producao", "approved"], color: "#ffffff" },
   { label: "Planejamento", keys: ["requested", "awaiting_linking", "awaiting_submission"], color: "#3b82f6" },
-  { label: "Entregue",     keys: ["delivered"],                                     color: "#6b7280" },
+  { label: "Entregue",     keys: ["delivered"],                                     color: "#a8a29e" },
 ];
 
 /* ── Status labels ── */
@@ -73,8 +73,8 @@ const selStyle: React.CSSProperties = {
   backgroundColor: "transparent",
   border: "none", borderBottom: `2px solid ${T.bdark}`,
   borderRadius: 0,
-  fontSize: 12, fontWeight: 700, color: T.text,
-  cursor: "pointer", outline: "none",
+  fontSize: 13, fontWeight: 700, color: T.text,
+  cursor: "pointer",
   appearance: "none", WebkitAppearance: "none",
   transition: "border-color 0.15s",
 };
@@ -88,7 +88,7 @@ function EdBadge({ rate }: { rate: number }) {
     : { bg: T.accent, color: "#fff",    label: "Crítico"  };
   return (
     <span style={{
-      padding: "3px 8px", fontSize: 9, fontWeight: 900,
+      padding: "3px 8px", fontSize: 10, fontWeight: 900,
       textTransform: "uppercase", letterSpacing: "0.1em", fontStyle: "italic",
       backgroundColor: cfg.bg, color: cfg.color,
     }}>
@@ -101,7 +101,7 @@ function EdBadge({ rate }: { rate: number }) {
 const ChartTip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ backgroundColor: T.dark, color: "#fff", borderRadius: 4, padding: "8px 12px", fontSize: 11 }}>
+    <div style={{ backgroundColor: T.dark, color: "#fff", borderRadius: 6, padding: "8px 12px", fontSize: 11 }}>
       <div style={{ fontWeight: 700, marginBottom: 4 }}>{label}</div>
       {payload.map((p: any, i: number) => (
         <div key={i} style={{ color: p.color === T.dark ? "#ccc" : p.color }}>{p.name}: {p.value}</div>
@@ -220,6 +220,57 @@ export default function DashboardAnalises() {  const isMobile = useIsMobile();
     return list.slice(0, 4);
   }, [events, fItems]);
 
+  /* ── Exportação ──────────────────────────────────────────────────────
+     "Exportar" e "Partilhar" eram botões sem onClick: pareciam ações e não
+     faziam nada. Exportar é a que faz sentido aqui — quem abre esta tela
+     costuma precisar levar os números para uma reunião ou planilha.
+     O arquivo leva o mesmo recorte que está na tela (os filtros aplicados),
+     senão o número exportado não bate com o número exibido.
+
+     CSV com ponto e vírgula e BOM: o Excel em pt-BR lê vírgula como separador
+     decimal, e sem o BOM ele abre os acentos quebrados. */
+  const exportarCsv = () => {
+    const esc = (v: unknown) => {
+      const t = String(v ?? "");
+      return /[";\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+    };
+    const linha = (cols: unknown[]) => cols.map(esc).join(";");
+    const periodoLabel = PERIODS.find(p => p.value === period)?.label ?? period;
+
+    const blocos: string[] = [];
+    blocos.push(linha(["Análises & Performance"]));
+    blocos.push(linha(["Gerado em", format(new Date(), "dd/MM/yyyy HH:mm", { locale: ptBR })]));
+    blocos.push(linha(["Período", periodoLabel]));
+    blocos.push("");
+
+    blocos.push(linha(["INDICADORES"]));
+    blocos.push(linha(["Indicador", "Valor"]));
+    KPI.forEach(k => blocos.push(linha([k.label, k.value])));
+    blocos.push("");
+
+    blocos.push(linha(["POR TIPO DE PEÇA"]));
+    blocos.push(linha(["Tipo", "Total", "Entregues", "Taxa de entrega (%)"]));
+    byType.forEach(t => blocos.push(linha([t.type, t.total, t.delivered, t.rate.toFixed(1).replace(".", ",")])));
+    blocos.push("");
+
+    blocos.push(linha(["EVOLUÇÃO MENSAL"]));
+    blocos.push(linha(["Mês", "Produção", "Entregas"]));
+    monthlyData.forEach(m => blocos.push(linha([m.label, m.producao, m.entregas])));
+    blocos.push("");
+
+    blocos.push(linha(["PATROCINADORES COM MAIS PEÇAS"]));
+    blocos.push(linha(["Patrocinador", "Peças"]));
+    topSponsors.forEach(s => blocos.push(linha([s.name, s.qty])));
+
+    const blob = new Blob(["﻿" + blocos.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Análises ${format(new Date(), "dd-MM-yyyy")}.csv`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 30_000);
+  };
+
   /* ── KPI card data ── */
   const KPI = [
     { label: "Total de Peças",   value: totalQty.toLocaleString("pt-BR"),          delta: "",         pct: Math.min(100, (totalQty / Math.max(totalQty, 1)) * 100), accent: true  },
@@ -242,17 +293,21 @@ export default function DashboardAnalises() {  const isMobile = useIsMobile();
 
       {/* ── Header row: title + export buttons ── */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 28 }}>
-        <h2 style={{ fontSize: 20, fontWeight: 700, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", fontStyle: "italic" }}>
+        <h2 style={{ fontSize: 18, fontWeight: 700, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", fontStyle: "italic" }}>
           Análises &amp; Performance
         </h2>
-        <div style={{ display: "flex", gap: 8 }}>
-          <button style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", background: T.surface, border: `1px solid ${T.bdark}`, cursor: "pointer", fontSize: 9, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em" }}>
-            <Download style={{ width: 13, height: 13 }} /> Exportar
-          </button>
-          <button style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", background: T.surface, border: `1px solid ${T.bdark}`, cursor: "pointer", fontSize: 9, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em" }}>
-            <Share2 style={{ width: 13, height: 13 }} /> Partilhar
-          </button>
-        </div>
+        {/* "Partilhar" saiu: não tinha onClick e não existe para onde
+            compartilhar. Um botão que não faz nada custa mais confiança do que
+            entrega — e o termo é português europeu, fora do resto da interface.
+            O rótulo a 9px também era o menor texto da tela. */}
+        <button
+          onClick={exportarCsv}
+          data-testid="button-export-analises"
+          title="Baixar os números desta tela em CSV, com os filtros aplicados"
+          style={{ display: "flex", alignItems: "center", gap: 7, height: 34, padding: "0 14px", background: T.surface, border: `1px solid ${T.bdark}`, borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 800, color: T.text, textTransform: "uppercase", letterSpacing: "0.08em" }}
+        >
+          <Download style={{ width: 14, height: 14 }} /> Exportar CSV
+        </button>
       </div>
 
       {/* ── Global filters — card branco Titanium ── */}
@@ -269,7 +324,7 @@ export default function DashboardAnalises() {  const isMobile = useIsMobile();
           return (
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
-                <span style={{ fontSize: 9, fontWeight: 900, color: active ? T.accent : T.muted, textTransform: "uppercase", letterSpacing: "0.16em", transition: "color 0.15s" }}>
+                <span style={{ fontSize: 10, fontWeight: 900, color: active ? T.accent : T.muted, textTransform: "uppercase", letterSpacing: "0.16em", transition: "color 0.15s" }}>
                   {label}
                 </span>
                 {active && (
@@ -301,7 +356,7 @@ export default function DashboardAnalises() {  const isMobile = useIsMobile();
           <div style={{
             backgroundColor: T.surface,
             border: `1px solid ${T.bdark}`,
-            borderRadius: 10,
+            borderRadius: 12,
             padding: "18px 20px",
             marginBottom: 24,
             display: "flex", alignItems: "flex-end", gap: 16,
@@ -383,11 +438,11 @@ export default function DashboardAnalises() {  const isMobile = useIsMobile();
             onMouseEnter={e => (e.currentTarget.style.transform = "translateY(-3px)")}
             onMouseLeave={e => (e.currentTarget.style.transform = "translateY(0)")}
           >
-            <p style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em", color: T.muted, margin: "0 0 14px" }}>
+            <p style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em", color: T.muted, margin: "0 0 14px" }}>
               {card.label}
             </p>
             <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 14 }}>
-              <h3 style={{ fontSize: 28, fontWeight: 700, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1 }}>
+              <h3 style={{ fontSize: 26, fontWeight: 700, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1 }}>
                 {card.value}
               </h3>
               {card.delta && (
@@ -411,21 +466,21 @@ export default function DashboardAnalises() {  const isMobile = useIsMobile();
         <div style={{ backgroundColor: T.surface, border: `1px solid ${T.bdark}`, padding: "32px 28px 24px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 28 }}>
             <div>
-              <h3 style={{ fontSize: 19, fontWeight: 700, color: T.text, margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", fontStyle: "italic" }}>
+              <h3 style={{ fontSize: 18, fontWeight: 700, color: T.text, margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", fontStyle: "italic" }}>
                 Velocidade de Produção vs. Entregas
               </h3>
-              <p style={{ fontSize: 9, color: T.muted, margin: 0, textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 700 }}>
+              <p style={{ fontSize: 10, color: T.muted, margin: 0, textTransform: "uppercase", letterSpacing: "0.12em", fontWeight: 700 }}>
                 Fluxo de materiais consolidado por mês
               </p>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ width: 10, height: 10, backgroundColor: T.accent }} />
-                <span style={{ fontSize: 9, fontWeight: 900, color: T.text, textTransform: "uppercase", letterSpacing: "0.12em" }}>Produção</span>
+                <span style={{ fontSize: 10, fontWeight: 900, color: T.text, textTransform: "uppercase", letterSpacing: "0.12em" }}>Produção</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                 <span style={{ width: 10, height: 10, backgroundColor: T.dark }} />
-                <span style={{ fontSize: 9, fontWeight: 900, color: T.text, textTransform: "uppercase", letterSpacing: "0.12em" }}>Entregas</span>
+                <span style={{ fontSize: 10, fontWeight: 900, color: T.text, textTransform: "uppercase", letterSpacing: "0.12em" }}>Entregas</span>
               </div>
             </div>
           </div>
@@ -441,8 +496,8 @@ export default function DashboardAnalises() {  const isMobile = useIsMobile();
                   <stop offset="100%" stopColor={T.dark} stopOpacity={0} />
                 </linearGradient>
               </defs>
-              <XAxis dataKey="label" tick={{ fontSize: 9, fontWeight: 900, fill: T.muted, fontFamily: "'DM Mono'", letterSpacing: "0.06em" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 9, fill: T.muted }} axisLine={false} tickLine={false} allowDecimals={false} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fontWeight: 900, fill: T.muted, fontFamily: "'DM Mono'", letterSpacing: "0.06em" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: T.muted }} axisLine={false} tickLine={false} allowDecimals={false} />
               <Tooltip content={<ChartTip />} />
               <Area type="monotone" dataKey="producao" name="Produção" stroke={T.accent} strokeWidth={3} fill="url(#gProd)" dot={false} />
               <Area type="monotone" dataKey="entregas"  name="Entregas"  stroke={T.dark}   strokeWidth={2.5} fill="url(#gDel)"  dot={false} />
@@ -469,10 +524,10 @@ export default function DashboardAnalises() {  const isMobile = useIsMobile();
                 </PieChart>
               </ResponsiveContainer>
               <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-                <span style={{ fontSize: 28, fontWeight: 700, color: "#fff", fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>
+                <span style={{ fontSize: 26, fontWeight: 700, color: "#fff", fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>
                   {totalQty.toLocaleString("pt-BR")}
                 </span>
-                <span style={{ fontSize: 8, fontWeight: 900, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.18em", marginTop: 5 }}>
+                <span style={{ fontSize: 10, fontWeight: 900, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.18em", marginTop: 5 }}>
                   Total Peças
                 </span>
               </div>
@@ -484,7 +539,7 @@ export default function DashboardAnalises() {  const isMobile = useIsMobile();
                 <div key={d.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderBottom: "1px solid #292524", paddingBottom: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: d.color, flexShrink: 0 }} />
-                    <span style={{ fontSize: 9, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.1em" }}>{d.label}</span>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.1em" }}>{d.label}</span>
                   </div>
                   <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: "#fff" }}>{d.pct}%</span>
                 </div>
@@ -503,22 +558,22 @@ export default function DashboardAnalises() {  const isMobile = useIsMobile();
         {/* Eficiência por Categoria */}
         <div style={{ backgroundColor: T.surface, border: `1px solid ${T.bdark}`, overflow: "hidden" }}>
           <div style={{ padding: "20px 28px", borderBottom: `1px solid ${T.low}`, backgroundColor: "rgba(245,245,244,0.5)", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <h3 style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em", fontStyle: "italic" }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em", fontStyle: "italic" }}>
               Eficiência por Categoria
             </h3>
-            <span style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Dados em tempo real</span>
+            <span style={{ fontSize: 10, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Dados em tempo real</span>
           </div>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ backgroundColor: T.low }}>
                 {["Categoria", "Volume", "Eficiência", "Status"].map(h => (
-                  <th key={h} style={{ padding: "12px 20px", fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", textAlign: "left" }}>{h}</th>
+                  <th key={h} style={{ padding: "12px 20px", fontSize: 10, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", textAlign: "left" }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {byType.length === 0 ? (
-                <tr><td colSpan={4} style={{ padding: "32px 20px", textAlign: "center", fontSize: 12, color: T.muted }}>Nenhum dado disponível</td></tr>
+                <tr><td colSpan={4} style={{ padding: "32px 20px", textAlign: "center", fontSize: 13, color: T.muted }}>Nenhum dado disponível</td></tr>
               ) : byType.slice(0, 5).map((row, idx) => (
                 <tr key={row.type}
                   style={{ borderBottom: idx < Math.min(byType.length, 5) - 1 ? `1px solid ${T.low}` : "none", transition: "background 0.1s" }}
@@ -560,11 +615,11 @@ export default function DashboardAnalises() {  const isMobile = useIsMobile();
         {/* Central Operacional — status board */}
         <div style={{ backgroundColor: T.surface, border: `1px solid ${T.bdark}`, padding: "24px 28px" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
-            <h3 style={{ fontSize: 17, fontWeight: 700, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em", fontStyle: "italic" }}>
+            <h3 style={{ fontSize: 18, fontWeight: 700, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em", fontStyle: "italic" }}>
               Central Operacional
             </h3>
             {alerts.length > 0 && (
-              <span style={{ padding: "3px 10px", backgroundColor: T.accent, color: "#fff", fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", fontStyle: "italic" }}>
+              <span style={{ padding: "3px 10px", backgroundColor: T.accent, color: "#fff", fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", fontStyle: "italic" }}>
                 {alerts.length} alerta{alerts.length > 1 ? "s" : ""}
               </span>
             )}
@@ -600,10 +655,10 @@ export default function DashboardAnalises() {  const isMobile = useIsMobile();
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <p style={{ fontSize: 9, fontWeight: 900, color: T.accent, textTransform: "uppercase", letterSpacing: "0.14em", margin: "0 0 5px" }}>
+                  <p style={{ fontSize: 10, fontWeight: 900, color: T.accent, textTransform: "uppercase", letterSpacing: "0.14em", margin: "0 0 5px" }}>
                     {a.tag}
                   </p>
-                  <h4 style={{ fontSize: 12, fontWeight: 700, color: T.text, textTransform: "uppercase", letterSpacing: "0.04em", margin: "0 0 5px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <h4 style={{ fontSize: 13, fontWeight: 700, color: T.text, textTransform: "uppercase", letterSpacing: "0.04em", margin: "0 0 5px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {a.title}
                   </h4>
                   <p style={{ fontSize: 10, color: T.second, margin: 0, lineHeight: 1.4 }}>
@@ -620,7 +675,7 @@ export default function DashboardAnalises() {  const isMobile = useIsMobile();
           {/* Top sponsors compact list */}
           {topSponsors.length > 0 && (
             <div style={{ marginTop: 24, paddingTop: 20, borderTop: `1px solid ${T.low}` }}>
-              <p style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", margin: "0 0 14px" }}>
+              <p style={{ fontSize: 10, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", margin: "0 0 14px" }}>
                 Top Patrocinadores
               </p>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>

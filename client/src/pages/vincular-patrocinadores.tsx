@@ -2209,9 +2209,20 @@ export default function VincularPatrocinadores() {
                               />
                             </td>
                             <td className="px-3 py-3">
-                              <div className="font-mono whitespace-nowrap" style={{ fontSize: 11, fontWeight: 700, color: '#746e69' }} data-testid={`text-display-id-${item.id}`}>
+                              {/* A linha inteira abre o detalhe no clique, mas
+                                  <tr> não recebe foco: por teclado não havia
+                                  como abrir peça nenhuma. O ID vira o alvo
+                                  focável — é o rótulo natural da linha e não
+                                  acrescenta ruído visual. */}
+                              <button
+                                onClick={e => { e.stopPropagation(); setSelectedItemForDetails(item); }}
+                                aria-label={`Ver detalhes da peça ${item.displayId}`}
+                                className="font-mono whitespace-nowrap"
+                                style={{ fontSize: 11, fontWeight: 700, color: '#746e69', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                                data-testid={`text-display-id-${item.id}`}
+                              >
                                 {item.displayId}
-                              </div>
+                              </button>
                             </td>
                             <td className="px-3 py-3" style={{ minWidth: 180 }}>
                               <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -2613,7 +2624,7 @@ export default function VincularPatrocinadores() {
                     {n} item{n !== 1 ? 's' : ''} selecionado{n !== 1 ? 's' : ''}
                   </span>
                   <span style={{ width: 1, height: 20, backgroundColor: 'rgba(255,255,255,0.2)', display: 'inline-block' }} />
-                  <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.5)' }}>Ações em lote aplicadas a todos os itens selecionados.</span>
+                  <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Ações em lote aplicadas a todos os itens selecionados.</span>
                 </div>
                 <div style={{ display: 'flex', gap: 8 }}>
                   <button
@@ -2683,7 +2694,7 @@ export default function VincularPatrocinadores() {
                           <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: '#f97316', display: 'inline-block' }} />
                           {eventSponsorList.length} Patrocinadores Ativos
                         </span>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                           {eventPct}% vinculado
                         </span>
                       </div>
@@ -2759,10 +2770,27 @@ export default function VincularPatrocinadores() {
                   return (
                     <div key={sponsor.id} style={{ borderTop: '1px solid #e7e5e4' }}>
 
-                      {/* Nível 2 — Linha do Patrocinador */}
+                      {/* Nível 2 — Linha do Patrocinador.
+                          Era um <div> com onClick: dava para colapsar o grupo
+                          só com o mouse. Sem foco nem tecla, quem navega por
+                          teclado não conseguia recolher nada — e numa tela com
+                          dezenas de grupos, colapsar é o principal recurso de
+                          navegação. role/tabIndex/aria-expanded devolvem isso e
+                          ainda anunciam o estado. */}
                       <div
+                        role="button"
+                        tabIndex={0}
+                        aria-expanded={!isCollapsed}
+                        aria-label={`${sponsor.name} — ${isCollapsed ? 'expandir' : 'recolher'} itens`}
+                        data-testid={`toggle-sponsor-group-${event.id}-${sponsor.id}`}
                         style={{ padding: '14px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, backgroundColor: '#fafaf9', cursor: 'pointer' }}
                         onClick={() => toggleSponsorGroupCollapse(groupKey)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            toggleSponsorGroupCollapse(groupKey);
+                          }
+                        }}
                         onMouseEnter={e => ((e.currentTarget as HTMLElement).style.backgroundColor = '#f5f4f0')}
                         onMouseLeave={e => ((e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9')}
                       >
@@ -2803,14 +2831,24 @@ export default function VincularPatrocinadores() {
                             </div>
                             {sentWithoutLinkItems.length > 0 && (
                               <div style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                {sentWithoutLinkItems.length} enviado{sentWithoutLinkItems.length !== 1 ? 's' : ''} s/ vínculo
+                                {sentWithoutLinkItems.length} enviado{sentWithoutLinkItems.length !== 1 ? 's' : ''} sem vínculo
                               </div>
                             )}
                             {sentWithoutLinkItems.length === 0 && <div style={{ marginBottom: 4 }} />}
-                            <div style={{ width: 120, height: 4, backgroundColor: '#e7e5e4', borderRadius: 999, overflow: 'hidden' }}>
+                            {/* #f97316 e #16a34a ficavam em 1.8 e 2.6:1 contra o
+                                próprio trilho: o preenchimento mal se destacava
+                                do vazio. Mesmos tons do resto do sistema. */}
+                            <div
+                              role="progressbar"
+                              aria-valuenow={linkPct}
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-label={`${linkedItems.length} de ${effectiveTotal} itens vinculados`}
+                              style={{ width: 120, height: 4, backgroundColor: '#e7e5e4', borderRadius: R.pill, overflow: 'hidden' }}
+                            >
                               <div style={{
-                                height: '100%', borderRadius: 999,
-                                backgroundColor: allLinked ? '#16a34a' : nearCompletion ? '#0284c7' : '#f97316',
+                                height: '100%', borderRadius: R.pill,
+                                backgroundColor: allLinked ? '#15803d' : nearCompletion ? '#0369a1' : '#c2410c',
                                 width: `${linkPct}%`, transition: 'width 0.4s',
                               }} />
                             </div>
@@ -2831,9 +2869,11 @@ export default function VincularPatrocinadores() {
                             </span>
                           )}
 
-                          {/* Chevron */}
+                          {/* Chevron — é o único indicador de que o grupo
+                              abre/fecha, então precisa alcançar o piso de 3:1
+                              de elemento gráfico; #a8a29e ficava em 2.4. */}
                           <ChevronDown style={{
-                            width: 16, height: 16, color: '#a8a29e',
+                            width: 16, height: 16, color: '#746e69',
                             transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
                             transition: 'transform 0.2s',
                             flexShrink: 0,
@@ -2850,9 +2890,12 @@ export default function VincularPatrocinadores() {
                           <table style={{ width: '100%', minWidth: isMobile ? 620 : undefined, borderCollapse: 'collapse' }}>
                             <thead>
                               <tr style={{ backgroundColor: 'rgba(231,229,228,0.4)', borderBottom: '1px solid #e7e5e4' }}>
-                                <th style={{ padding: '10px 16px', width: 40 }}>
-                                  <input type="checkbox" style={{ display: 'none' }} />
-                                </th>
+                                {/* Coluna do marcador de linha. Tinha um
+                                    <input type="checkbox"> com display:none —
+                                    markup morto que o leitor de tela ainda
+                                    encontrava como campo sem rótulo. */}
+                                <th style={{ padding: '10px 16px', width: 40 }} />
+
                                 {['ID', 'Peça', 'Detalhes', 'Status de Vínculo', 'Ações'].map(col => (
                                   <th key={col} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{col}</th>
                                 ))}
@@ -2881,11 +2924,19 @@ export default function VincularPatrocinadores() {
                                         data-testid={`sp-checkbox-${item.id}`}
                                       />
                                     </td>
-                                    {/* ID */}
+                                    {/* ID — também é o alvo focável desta linha,
+                                        pelo mesmo motivo da tabela por item.
+                                        #f97316 sobre branco dá 2.80:1; o tom de
+                                        ação escuro mantém o laranja e passa. */}
                                     <td style={{ padding: '12px 16px' }}>
-                                      <span style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: '#f97316', fontWeight: 700, letterSpacing: '0.04em' }}>
+                                      <button
+                                        onClick={e => { e.stopPropagation(); setSelectedItemForDetails(item); }}
+                                        aria-label={`Ver detalhes da peça ${item.displayId}`}
+                                        style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: '#c2410c', fontWeight: 700, letterSpacing: '0.04em', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                                        data-testid={`sp-item-display-id-${item.id}`}
+                                      >
                                         {item.displayId}
-                                      </span>
+                                      </button>
                                     </td>
                                     {/* Peça */}
                                     <td style={{ padding: '12px 16px', minWidth: 200 }}>
@@ -3393,7 +3444,7 @@ export default function VincularPatrocinadores() {
                     <CheckCircle2 style={{ width: 14, height: 14, color: '#4ade80', flexShrink: 0 }} />
                     <div>
                       <p style={{ fontSize: 15, fontWeight: 700, color: '#4ade80', lineHeight: 1, fontFamily: 'Space Grotesk, sans-serif' }}>{withSponsors}</p>
-                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>com patrocinador</p>
+                      <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>com patrocinador</p>
                     </div>
                   </div>
                   {withoutSponsors > 0 && (
@@ -3401,7 +3452,7 @@ export default function VincularPatrocinadores() {
                       <AlertTriangle style={{ width: 14, height: 14, color: '#fbbf24', flexShrink: 0 }} />
                       <div>
                         <p style={{ fontSize: 15, fontWeight: 700, color: '#fbbf24', lineHeight: 1, fontFamily: 'Space Grotesk, sans-serif' }}>{withoutSponsors}</p>
-                        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>sem patrocinador</p>
+                        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>sem patrocinador</p>
                       </div>
                     </div>
                   )}

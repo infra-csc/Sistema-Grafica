@@ -28,7 +28,7 @@ import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useAuth } from "@/contexts/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ModalHeader, ModalFooter, modalSurface } from "@/components/modal-shell";
-import { R } from "@/lib/theme";
+import { R, onColor } from "@/lib/theme";
 
 type ItemChanges = {
   sponsorIds: string[];
@@ -1931,8 +1931,8 @@ export default function VincularPatrocinadores() {
                     disabled={saveLinkingMutation.isPending}
                     data-testid="button-save-selected"
                     style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: saveLinkingMutation.isPending ? 0.7 : 1 }}
-                    onMouseEnter={e => { if (!saveLinkingMutation.isPending) e.currentTarget.style.filter = 'brightness(1.1)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
+                    onMouseEnter={e => { if (!saveLinkingMutation.isPending) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
                   >
                     <Save style={{ width: 14, height: 14 }} />
                     {saveLinkingMutation.isPending ? 'Salvando...' : `Salvar ${dirtySelected.length} rascunho${dirtySelected.length !== 1 ? 's' : ''}`}
@@ -1943,8 +1943,8 @@ export default function VincularPatrocinadores() {
                 onClick={handleOpenBulkApplyDialog}
                 data-testid="button-apply-bulk-sponsors"
                 style={{ backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, textTransform: 'uppercase', letterSpacing: '-0.01em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-                onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.1)')}
-                onMouseLeave={e => (e.currentTarget.style.filter = 'none')}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#9a3412')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#c2410c')}
               >
                 <Users style={{ width: 14, height: 14 }} />
                 Aplicar Patrocinadores
@@ -2652,9 +2652,9 @@ export default function VincularPatrocinadores() {
                             width: 32, height: 32, borderRadius: '50%',
                             border: '2px solid #1c1917',
                             marginLeft: idx === 0 ? 0 : -10,
-                            backgroundColor: s.color || '#3b82f6',
+                            backgroundColor: s.color || '#2563eb',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 11, fontWeight: 700, color: '#ffffff',
+                            fontSize: 11, fontWeight: 700, color: onColor(s.color || '#2563eb'),
                             zIndex: visibleSponsors.length - idx,
                             position: 'relative',
                             flexShrink: 0,
@@ -2682,8 +2682,11 @@ export default function VincularPatrocinadores() {
 
                 {/* ── Nível 2+3: Grupos de Patrocinador ── */}
                 {sponsorGroups.length === 0 ? (
-                  <div style={{ padding: '24px 22px', textAlign: 'center', color: '#746e69', fontSize: 13 }}>
-                    Adicione patrocinadores ao evento para poder vincular
+                  <div style={{ padding: '28px 22px', textAlign: 'center', borderTop: '1px solid #e7e5e4' }}>
+                    <p style={{ fontSize: 13, color: '#57534e', margin: 0, lineHeight: 1.6 }}>
+                      Este evento ainda não tem patrocinadores.<br />
+                      Use <strong style={{ color: '#1c1917' }}>Patrocinadores do evento</strong> para definir quem participa.
+                    </p>
                   </div>
                 ) : sponsorGroups.map(({ sponsor, items: linkedItems, pendingItems }) => {
                   const allItems = [...linkedItems, ...pendingItems];
@@ -2726,20 +2729,20 @@ export default function VincularPatrocinadores() {
                           </div>
                           {/* Ícone colorido do patrocinador */}
                           <div style={{
-                            width: 32, height: 32, borderRadius: 6,
-                            backgroundColor: sponsor.color || '#3b82f6',
+                            width: 32, height: 32, borderRadius: R.sm,
+                            backgroundColor: sponsor.color || '#2563eb',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 13, fontWeight: 700, color: '#ffffff', flexShrink: 0,
+                            fontSize: 13, fontWeight: 700, color: onColor(sponsor.color || '#2563eb'), flexShrink: 0,
                           }}>
                             {sponsor.name.charAt(0).toUpperCase()}
                           </div>
-                          <div>
-                            <div style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', textTransform: 'uppercase', letterSpacing: '-0.01em' }}>
-                              {sponsor.name}
-                            </div>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 1 }}>
-                              Patrocinador
-                            </div>
+                          {/* A legenda "Patrocinador" abaixo de cada nome era
+                              ruído puro: esta visão inteira agrupa por
+                              patrocinador e cada linha já traz o avatar de
+                              marca. Uma linha de texto por grupo, sem
+                              informação nenhuma. */}
+                          <div style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', textTransform: 'uppercase', letterSpacing: '-0.01em' }}>
+                            {sponsor.name}
                           </div>
                         </div>
 
@@ -3272,8 +3275,8 @@ export default function VincularPatrocinadores() {
               onClick={handleApplyBulkSponsors}
               data-testid="button-confirm-bulk-apply"
               style={{ padding: '9px 20px', backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px rgba(249,115,22,0.3)' }}
-              onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.08)')}
-              onMouseLeave={e => (e.currentTarget.style.filter = 'none')}
+              onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#9a3412')}
+              onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#c2410c')}
             >
               Aplicar em Lote
             </button>
@@ -3302,7 +3305,7 @@ export default function VincularPatrocinadores() {
 
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 18, position: 'relative' }}>
               {/* Icon badge */}
-              <div style={{ width: 52, height: 52, borderRadius: 12, background: 'linear-gradient(135deg, #f97316, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 16px rgba(249,115,22,0.4)' }}>
+              <div style={{ width: 52, height: 52, borderRadius: 12, background: 'linear-gradient(135deg, #c2410c, #9a3412)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 16px rgba(249,115,22,0.4)' }}>
                 <Send style={{ width: 22, height: 22, color: '#ffffff' }} />
               </div>
               <div style={{ flex: 1 }}>
@@ -3471,16 +3474,19 @@ export default function VincularPatrocinadores() {
                 disabled={isSending || sendToArteMutation.isPending}
                 style={{
                   padding: '11px 26px',
-                  background: (isSending || sendToArteMutation.isPending) ? '#fdba74' : 'linear-gradient(135deg, #f97316, #ea580c)',
-                  color: '#ffffff', border: 'none', borderRadius: 12,
-                  fontSize: 15, fontWeight: 700, cursor: (isSending || sendToArteMutation.isPending) ? 'not-allowed' : 'pointer',
+                  background: (isSending || sendToArteMutation.isPending) ? '#f5f5f4' : 'linear-gradient(135deg, #c2410c, #9a3412)',
+                  color: (isSending || sendToArteMutation.isPending) ? '#57534e' : '#ffffff',
+                  border: 'none', borderRadius: R.md,
+                  fontSize: 15, fontWeight: 700, cursor: (isSending || sendToArteMutation.isPending) ? 'wait' : 'pointer',
                   display: 'flex', alignItems: 'center', gap: 9,
-                  boxShadow: (isSending || sendToArteMutation.isPending) ? 'none' : '0 4px 12px rgba(249,115,22,0.35)',
+                  boxShadow: (isSending || sendToArteMutation.isPending) ? 'none' : '0 4px 12px rgba(194,65,12,0.30)',
                   letterSpacing: '-0.01em', fontFamily: 'Space Grotesk, sans-serif',
-                  transition: 'box-shadow 0.15s, filter 0.15s',
+                  transition: 'background 0.15s, box-shadow 0.15s',
                 }}
-                onMouseEnter={e => { if (!(isSending || sendToArteMutation.isPending)) e.currentTarget.style.filter = 'brightness(1.08)'; }}
-                onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
+                /* Escurece em vez de clarear: brightness(1.08) sobre o laranja
+                   reduzia o contraste do rótulo branco justo ao apontar. */
+                onMouseEnter={e => { if (!(isSending || sendToArteMutation.isPending)) e.currentTarget.style.background = 'linear-gradient(135deg, #9a3412, #7c2d12)'; }}
+                onMouseLeave={e => { if (!(isSending || sendToArteMutation.isPending)) e.currentTarget.style.background = 'linear-gradient(135deg, #c2410c, #9a3412)'; }}
               >
                 <Send style={{ width: 15, height: 15 }} />
                 {(isSending || sendToArteMutation.isPending)

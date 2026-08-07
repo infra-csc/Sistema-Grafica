@@ -61,6 +61,37 @@ export const R = {
   pill: 999, // pílulas e círculos
 } as const;
 
+/**
+ * Escolhe entre texto claro e escuro para ficar legível sobre `bg`.
+ *
+ * A cor do patrocinador é escolhida por quem cadastra, então nenhuma auditoria
+ * estática enxerga esse par. Medindo a paleta oferecida na tela de
+ * patrocinadores, o branco fixo que estava em uso reprova em 8 das 12 cores —
+ * sobre o amarelo (#eab308) a inicial fica em 1.92:1, praticamente invisível.
+ *
+ * Compara o contraste real dos dois candidatos e devolve o melhor, em vez de
+ * usar um limiar de luminância: o limiar erra justamente nos tons médios
+ * (índigo, roxo), onde a diferença entre as opções é pequena.
+ */
+export function onColor(bg?: string | null): string {
+  const hex = (bg ?? "").trim();
+  const full = /^#[0-9a-fA-F]{3}$/.test(hex)
+    ? `#${hex[1]}${hex[1]}${hex[2]}${hex[2]}${hex[3]}${hex[3]}`
+    : hex;
+  if (!/^#[0-9a-fA-F]{6}$/.test(full)) return "#ffffff";
+
+  const channel = (i: number) => {
+    const c = parseInt(full.substr(i, 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  };
+  const lum = 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
+  const against = (l: number) =>
+    (Math.max(lum, l) + 0.05) / (Math.min(lum, l) + 0.05);
+
+  // Luminâncias de #ffffff e de T.dark (#1c1917).
+  return against(1) >= against(0.0157) ? "#ffffff" : "#1c1917";
+}
+
 /** Elevação em três degraus, do rente ao flutuante. */
 export const SHADOW = {
   sm: "0 1px 2px rgba(28,25,23,0.06)",

@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { ModalHeader, modalSurface } from "@/components/modal-shell";
 
 const TI = {
   bg: "#fafaf9",
@@ -64,7 +65,7 @@ function StatusPill({ status }: { status: string }) {
       display: "inline-flex", alignItems: "center",
       backgroundColor: cfg.bg, color: cfg.color,
       border: `1px solid ${cfg.border}`,
-      borderRadius: 100, padding: "3px 10px",
+      borderRadius: 999, padding: "3px 10px",
       fontSize: 10, fontWeight: 800,
       textTransform: "uppercase", letterSpacing: "0.05em",
       whiteSpace: "nowrap",
@@ -456,7 +457,7 @@ export default function Grafica() {
         placeholder={placeholder}
         rows={2}
         data-testid="input-notes"
-        style={{ width: "100%", padding: "10px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 13, color: TI.text, outline: "none", resize: "vertical", fontFamily: "inherit" }}
+        style={{ width: "100%", padding: "10px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 13, color: TI.text, resize: "vertical", fontFamily: "inherit" }}
       />
     </div>
   );
@@ -596,7 +597,7 @@ export default function Grafica() {
       return;
     }
     setIsBulkSubmitting(true);
-    const ids = [...bulkSelectedIds];
+    const ids = Array.from(bulkSelectedIds);
     try {
       // allSettled, não all: com Promise.all a primeira falha rejeitava, mas as
       // demais requisições já tinham sido enviadas e concluíam. A tela mostrava
@@ -745,9 +746,23 @@ export default function Grafica() {
         ].map(kpi => {
           const isActive = statusFilter.includes(kpi.filterVal);
           return (
+            /* Os KPIs são o filtro principal desta tela: clicar num deles é
+               como se filtra por status. Eram <div> com onClick, então quem
+               navega por teclado não conseguia filtrar de jeito nenhum.
+               aria-pressed comunica qual está ativo — que hoje só a cor diz. */
             <div
               key={kpi.label}
+              role="button"
+              tabIndex={0}
+              aria-pressed={isActive}
+              aria-label={`Filtrar por ${kpi.label}`}
               onClick={() => setStatusFilter(isActive ? [] : [kpi.filterVal])}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setStatusFilter(isActive ? [] : [kpi.filterVal]);
+                }
+              }}
               data-testid={kpi.testId}
               style={{
                 backgroundColor: isActive ? kpi.borderColor : TI.surface,
@@ -763,7 +778,7 @@ export default function Grafica() {
               onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLDivElement).style.backgroundColor = `${kpi.borderColor}0f`; }}
               onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLDivElement).style.backgroundColor = TI.surface; }}
             >
-              <div style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: isActive ? "rgba(255,255,255,0.7)" : TI.muted, marginBottom: isMobile ? 3 : 6, fontFamily: "'Space Grotesk', sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kpi.label}</div>
+              <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: isActive ? "rgba(255,255,255,0.7)" : TI.muted, marginBottom: isMobile ? 3 : 6, fontFamily: "'Space Grotesk', sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kpi.label}</div>
               <div style={{ fontSize: isMobile ? 22 : 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: isActive ? "#ffffff" : kpi.numColor, lineHeight: 1 }}>{kpi.value}</div>
               {!isMobile && <div style={{ fontSize: 11, color: isActive ? "rgba(255,255,255,0.6)" : TI.secondary, marginTop: 4 }}>{isActive ? "Clique para limpar" : kpi.sub}</div>}
             </div>
@@ -771,7 +786,14 @@ export default function Grafica() {
         })}
         {/* Total — dark card, clica para resetar */}
         <div
+          role="button"
+          tabIndex={0}
+          aria-pressed={statusFilter.length === 0}
+          aria-label="Mostrar todos os status"
           onClick={() => setStatusFilter([])}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStatusFilter([]); }
+          }}
           data-testid="stat-total"
           style={{
             backgroundColor: TI.text, borderLeft: `4px solid ${TI.accent}`, borderRadius: 8,
@@ -783,14 +805,14 @@ export default function Grafica() {
           onMouseEnter={e => ((e.currentTarget as HTMLDivElement).style.opacity = "0.85")}
           onMouseLeave={e => ((e.currentTarget as HTMLDivElement).style.opacity = "1")}
         >
-          <div style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(255,255,255,0.4)", marginBottom: isMobile ? 3 : 6, fontFamily: "'Space Grotesk', sans-serif" }}>Total</div>
+          <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(255,255,255,0.6)", marginBottom: isMobile ? 3 : 6, fontFamily: "'Space Grotesk', sans-serif" }}>Total</div>
           <div style={{ fontSize: isMobile ? 22 : 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: "#ffffff", lineHeight: 1 }}>{stats.total}</div>
-          {!isMobile && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.4)", marginTop: 4 }}>{statusFilter.length === 0 ? "Todos selecionados" : "Ver todos"}</div>}
+          {!isMobile && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>{statusFilter.length === 0 ? "Todos selecionados" : "Ver todos"}</div>}
         </div>
       </div>
 
       {/* ── Filters Bar ── */}
-      <div style={{ backgroundColor: "#f3f4f3", borderRadius: 10, padding: "12px 14px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+      <div style={{ backgroundColor: "#f3f4f3", borderRadius: 12, padding: "12px 14px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
         {/* Search */}
         <div style={{ position: "relative", flex: "1", minWidth: 200 }}>
           <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: TI.muted }} />
@@ -800,7 +822,7 @@ export default function Grafica() {
             value={searchFilter}
             onChange={e => setSearchFilter(e.target.value)}
             data-testid="input-search-filter"
-            style={{ width: "100%", paddingLeft: 32, paddingRight: 12, paddingTop: 8, paddingBottom: 8, backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, color: TI.text, outline: "none", boxSizing: "border-box" }}
+            style={{ width: "100%", paddingLeft: 32, paddingRight: 12, paddingTop: 8, paddingBottom: 8, backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, color: TI.text, boxSizing: "border-box" }}
           />
         </div>
 
@@ -847,7 +869,7 @@ export default function Grafica() {
             onClick={() => setNext10DaysFilter(v => !v)}
             data-testid="button-next-10-days-filter"
             style={{
-              width: 38, height: 20, borderRadius: 100, border: "none", cursor: "pointer", position: "relative",
+              width: 38, height: 20, borderRadius: 999, border: "none", cursor: "pointer", position: "relative",
               backgroundColor: next10DaysFilter ? TI.accent : "#d6d3d1", transition: "background-color 0.2s",
             }}
           >
@@ -863,7 +885,7 @@ export default function Grafica() {
         <button
           onClick={() => setShowAdvancedFilters(v => !v)}
           data-testid="button-toggle-advanced-filters"
-          style={{ display: "flex", alignItems: "center", gap: 5, backgroundColor: showAdvancedFilters ? TI.text : "transparent", color: showAdvancedFilters ? "#ffffff" : TI.secondary, border: `1px solid ${showAdvancedFilters ? TI.text : TI.border}`, borderRadius: 6, padding: "7px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all 0.15s" }}
+          style={{ display: "flex", alignItems: "center", gap: 5, backgroundColor: showAdvancedFilters ? TI.text : "transparent", color: showAdvancedFilters ? "#ffffff" : TI.secondary, border: `1px solid ${showAdvancedFilters ? TI.text : TI.border}`, borderRadius: 6, padding: "7px 12px", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.15s" }}
         >
           <Filter style={{ width: 13, height: 13 }} />
           Filtros
@@ -892,7 +914,7 @@ export default function Grafica() {
             ))}
             {(typeFilter.length > 0 || materialFilter.length > 0 || finishFilter.length > 0) && (
               <div style={{ gridColumn: "1 / -1" }}>
-                <button onClick={() => { setTypeFilter([]); setMaterialFilter([]); setFinishFilter([]); }} data-testid="button-reset-advanced-filters" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 12, color: "#dc2626", fontWeight: 600 }}>
+                <button onClick={() => { setTypeFilter([]); setMaterialFilter([]); setFinishFilter([]); }} data-testid="button-reset-advanced-filters" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#dc2626", fontWeight: 600 }}>
                   Limpar filtros avançados
                 </button>
               </div>
@@ -902,7 +924,7 @@ export default function Grafica() {
       </div>
 
       {/* ── Tabela Principal ── */}
-      <div style={{ backgroundColor: TI.surface, border: `1px solid ${TI.border}`, borderRadius: 10 }}>
+      <div style={{ backgroundColor: TI.surface, border: `1px solid ${TI.border}`, borderRadius: 12 }}>
         {isLoading ? (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 48 }}>
             <div style={{ width: 32, height: 32, border: `3px solid ${TI.border}`, borderTopColor: TI.accent, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
@@ -938,7 +960,7 @@ export default function Grafica() {
                           {item.event?.name || 'Sem Evento'}
                         </span>
                         {item.event && (
-                          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'rgba(255,255,255,0.5)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', gap: 4 }}>
                             <Calendar style={{ width: 10, height: 10 }} />
                             {parseDateLocal(item.event.startDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
                           </span>
@@ -954,11 +976,24 @@ export default function Grafica() {
                       minHeight: item.approvalThumbUrl && !bulkDeliveryMode ? 104 : 74,
                       background: isSelected ? '#fff7ed' : '#fff',
                       border: `1.5px solid ${isSelected ? TI.accent : TI.border}`,
-                      borderRadius: showEvHeader ? '0 0 10px 10px' : 10,
+                      borderRadius: showEvHeader ? '0 0 12px 12px' : 12,
                       overflow: 'hidden',
                       cursor: bulkDeliveryMode && canDeliverItem ? 'pointer' : undefined,
                       transition: 'border-color 0.12s, background 0.12s',
                     }}
+                    /* O "checkbox" da esquerda é um <div> desenhado, não um
+                       campo: em modo de entrega em lote não havia como marcar
+                       peça alguma sem mouse. role/aria-checked dão ao card o
+                       papel que a caixinha só aparenta ter. */
+                    {...(bulkDeliveryMode && canDeliverItem ? {
+                      role: 'checkbox' as const,
+                      tabIndex: 0,
+                      'aria-checked': isSelected,
+                      'aria-label': `Selecionar ${item.displayId} para entrega`,
+                      onKeyDown: (e: React.KeyboardEvent) => {
+                        if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBulkItem(item.id); }
+                      },
+                    } : {})}
                     onClick={bulkDeliveryMode && canDeliverItem ? () => toggleBulkItem(item.id) : undefined}
                   >
                     {/* Left stripe / checkbox */}
@@ -1002,9 +1037,9 @@ export default function Grafica() {
                           {item.displayId}
                         </span>
                         <StatusPill status={item.status} />
-                        {item.isReuse && <span style={{ fontSize: 9, fontWeight: 800, color: '#059669', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 4, padding: '2px 6px' }}>REAPROV.</span>}
+                        {item.isReuse && <span style={{ fontSize: 10, fontWeight: 800, color: '#059669', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, padding: '2px 6px' }}>REAPROV.</span>}
                       </div>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: TI.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color: TI.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</div>
                       {item.observations && (
                         <div style={{ fontSize: 11, color: '#d97706', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
                           <AlertCircle style={{ width: 10, height: 10 }} />{item.observations}
@@ -1018,7 +1053,7 @@ export default function Grafica() {
                         {canDeliverItem && (
                           <button
                             onClick={e => { e.stopPropagation(); openDeliveryModal(item); }}
-                            style={{ padding: '11px 14px', borderRadius: 8, background: TI.accent, border: 'none', color: '#fff', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            style={{ padding: '11px 14px', borderRadius: 8, background: TI.accent, border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
                           >
                             <Truck style={{ width: 13, height: 13 }} />
                             {deliveredOf(item) > 0 ? `Entregar ${remainingDeliver(item)}` : 'Entregar'}
@@ -1027,14 +1062,14 @@ export default function Grafica() {
                         {canConfer(item) && (
                           <button
                             onClick={e => { e.stopPropagation(); openConferenceModal(item); }}
-                            style={{ padding: '11px 14px', borderRadius: 8, background: '#0891b2', border: 'none', color: '#fff', fontSize: 12, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            style={{ padding: '11px 14px', borderRadius: 8, background: '#0891b2', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
                           >
                             <CheckCircle style={{ width: 13, height: 13 }} />
                             Conferir
                           </button>
                         )}
                         {isDelivered(item) && (
-                          <span style={{ fontSize: 12, color: '#15803d', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700, padding: '4px 8px' }}>
+                          <span style={{ fontSize: 13, color: '#15803d', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700, padding: '4px 8px' }}>
                             <Check style={{ width: 13, height: 13 }} /> Entregue
                           </span>
                         )}
@@ -1052,7 +1087,7 @@ export default function Grafica() {
             <thead>
               <tr style={{ backgroundColor: TI.text }}>
                 {["ID", "Descrição", "QTD", "REAPROV.", "PROD", "Dimensões (V × A)", "M² a produzir", "Material", "Status", ""].map(col => (
-                  <th key={col} style={{ padding: "13px 16px", textAlign: col === "" ? "right" : "left", fontSize: 9, fontWeight: 900, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
+                  <th key={col} style={{ padding: "13px 16px", textAlign: col === "" ? "right" : "left", fontSize: 10, fontWeight: 900, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
                     {col}
                   </th>
                 ))}
@@ -1085,18 +1120,18 @@ export default function Grafica() {
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <Package style={{ width: 16, height: 16, color: TI.accent }} />
-                              <span style={{ fontSize: 12, fontWeight: 800, color: "#ffffff", textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: "'Space Grotesk', sans-serif" }}>
+                              <span style={{ fontSize: 13, fontWeight: 800, color: "#ffffff", textTransform: "uppercase", letterSpacing: "0.05em", fontFamily: "'Space Grotesk', sans-serif" }}>
                                 {item.event?.name || "Sem Evento"}
                               </span>
                             </div>
                             {item.event && (
                               <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "rgba(255,255,255,0.45)" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "rgba(255,255,255,0.6)" }}>
                                   <Calendar style={{ width: 12, height: 12 }} />
                                   Início: <strong style={{ color: "rgba(255,255,255,0.7)" }}>{parseDateLocal(item.event.startDate).toLocaleDateString("pt-BR")}</strong>
                                 </div>
-                                <span style={{ color: "rgba(255,255,255,0.2)", fontSize: 10 }}>|</span>
-                                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "rgba(255,255,255,0.45)" }}>
+                                <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 10 }}>|</span>
+                                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "rgba(255,255,255,0.6)" }}>
                                   <Truck style={{ width: 12, height: 12 }} />
                                   Saída: <strong style={{ color: "rgba(255,255,255,0.7)" }}>
                                     {new Date(item.event.truckDepartureDate).toLocaleDateString("pt-BR", { timeZone: 'UTC' })} às {new Date(item.event.truckDepartureDate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: 'UTC' })}
@@ -1117,7 +1152,7 @@ export default function Grafica() {
                                     ? { bg: "rgba(255,160,50,0.22)", border: "rgba(255,160,50,0.38)", text: "#ffc78a" }
                                     : { bg: "rgba(255,255,255,0.12)", border: "rgba(255,255,255,0.2)", text: "rgba(255,255,255,0.72)" };
                                   return (
-                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 99, padding: "3px 9px", fontSize: 10, fontWeight: 700, color: s.text, letterSpacing: "0.04em", whiteSpace: "nowrap" }}>
+                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 999, padding: "3px 9px", fontSize: 10, fontWeight: 700, color: s.text, letterSpacing: "0.04em", whiteSpace: "nowrap" }}>
                                       Produção Gráfica · {ds}{diff >= 0 && diff <= 14 && <span style={{ opacity: 0.65, fontWeight: 500 }}> ({diff}d)</span>}
                                     </span>
                                   );
@@ -1134,7 +1169,7 @@ export default function Grafica() {
                       <tr style={{ backgroundColor: "#f4f3f0" }}>
                         <td colSpan={10} style={{ padding: "6px 16px" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <div style={{ width: 3, height: 14, backgroundColor: TI.accent, borderRadius: 2, flexShrink: 0 }} />
+                            <div style={{ width: 3, height: 14, backgroundColor: TI.accent, borderRadius: 999, flexShrink: 0 }} />
                             <span style={{ fontSize: 11, fontWeight: 700, color: TI.text }}>{item.type}</span>
                           </div>
                         </td>
@@ -1150,10 +1185,20 @@ export default function Grafica() {
                       data-testid={`row-item-${item.id}`}
                     >
                       {/* ID */}
+                      {/* A linha abre o detalhe no clique, mas <tr> não recebe
+                          foco: sem mouse não havia como abrir peça nenhuma.
+                          O ID vira o alvo focável — é o rótulo natural da linha.
+                          #059669 sobre branco dá 3.77:1; o verde escuro passa e
+                          continua sinalizando reaproveitamento. */}
                       <td style={{ padding: "13px 16px" }}>
-                        <span style={{ fontSize: 12, fontFamily: "'DM Mono', monospace", color: item.isReuse ? "#059669" : TI.accent, fontWeight: 700, letterSpacing: "0.04em" }} data-testid={`text-display-id-${item.id}`}>
+                        <button
+                          onClick={e => { e.stopPropagation(); setViewDetailsItem(item); }}
+                          aria-label={`Ver detalhes da peça ${item.displayId}`}
+                          style={{ fontSize: 13, fontFamily: "'DM Mono', monospace", color: item.isReuse ? "#047857" : TI.accent, fontWeight: 700, letterSpacing: "0.04em", background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                          data-testid={`text-display-id-${item.id}`}
+                        >
                           {item.displayId}
-                        </span>
+                        </button>
                       </td>
                       {/* Descrição — com a arte ao lado: a Gráfica identifica a
                           peça pelo desenho, não pelo texto, e antes era preciso
@@ -1182,22 +1227,22 @@ export default function Grafica() {
                             inclusive nas peças marcadas antes de reuseQty existir. */}
                         {(item.isReuse || reusedOf(item) > 0) && (
                           <div title={item.isReuse ? "Peça inteira reaproveitada" : `${reusedOf(item)} de ${qtyOf(item)} un. reaproveitadas`}
-                            style={{ display: "inline-flex", alignItems: "center", gap: 5, backgroundColor: item.isReuse ? "#059669" : "#10b981", color: "#ffffff", borderRadius: 5, padding: "3px 9px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>
+                            style={{ display: "inline-flex", alignItems: "center", gap: 5, backgroundColor: item.isReuse ? "#059669" : "#10b981", color: "#ffffff", borderRadius: 6, padding: "3px 9px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>
                             <RotateCcw style={{ width: 11, height: 11 }} />
                             {item.isReuse ? "Reaproveitamento" : `Reaproveitamento ${reusedOf(item)}/${qtyOf(item)}`}
                           </div>
                         )}
                         {item.description ? (
-                          <div style={{ fontSize: 12, color: item.isReuse ? "#065f46" : TI.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: item.isReuse ? 600 : 400 }}>{item.description}</div>
+                          <div style={{ fontSize: 13, color: item.isReuse ? "#065f46" : TI.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: item.isReuse ? 600 : 400 }}>{item.description}</div>
                         ) : (
-                          <div style={{ fontSize: 12, color: TI.muted }}>—</div>
+                          <div style={{ fontSize: 13, color: TI.muted }}>—</div>
                         )}
                         {item.observations && (
                           <div style={{ fontSize: 11, color: TI.secondary, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>{item.observations}</div>
                         )}
                         {item.referenceUrl && (
-                          <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência do solicitante" style={{ display: "inline-flex", alignItems: "center", gap: 3, marginTop: 3, fontSize: 10, fontWeight: 700, color: "#c2410c", textDecoration: "none", backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 3, padding: "1px 5px" }} data-testid={`link-reference-grafica-${item.id}`}>
-                            <img src={item.referenceUrl} style={{ width: 12, height: 12, objectFit: "cover", borderRadius: 2 }} alt="" onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                          <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência do solicitante" style={{ display: "inline-flex", alignItems: "center", gap: 3, marginTop: 3, fontSize: 10, fontWeight: 700, color: "#c2410c", textDecoration: "none", backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 6, padding: "1px 5px" }} data-testid={`link-reference-grafica-${item.id}`}>
+                            <img src={item.referenceUrl} style={{ width: 12, height: 12, objectFit: "cover", borderRadius: 999 }} alt="" onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                             REF
                           </a>
                         )}
@@ -1206,7 +1251,7 @@ export default function Grafica() {
                           <div
                             title={`Anterior: ${item.previousFinalFileUrl}`}
                             data-testid={`badge-arquivo-atualizado-${item.id}`}
-                            style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 4, fontSize: 10, fontWeight: 800, color: "#92400e", backgroundColor: "#fef3c7", border: "1px solid #fbbf24", borderRadius: 3, padding: "2px 7px", textTransform: "uppercase", letterSpacing: "0.06em" }}
+                            style={{ display: "inline-flex", alignItems: "center", gap: 4, marginTop: 4, fontSize: 10, fontWeight: 800, color: "#92400e", backgroundColor: "#fef3c7", border: "1px solid #fbbf24", borderRadius: 6, padding: "2px 7px", textTransform: "uppercase", letterSpacing: "0.06em" }}
                           >
                             ⚠ Arquivo atualizado
                           </div>
@@ -1245,7 +1290,7 @@ export default function Grafica() {
                             )}
                           </div>
                         ) : (
-                          <span style={{ fontSize: 12, color: TI.muted }}>—</span>
+                          <span style={{ fontSize: 13, color: TI.muted }}>—</span>
                         )}
                       </td>
                       {/* m² a produzir — o reaproveitado não vai para a impressora */}
@@ -1267,7 +1312,7 @@ export default function Grafica() {
                       </td>
                       {/* Material */}
                       <td style={{ padding: "13px 16px" }}>
-                        <div style={{ fontSize: 12, color: TI.text }}>{item.material}</div>
+                        <div style={{ fontSize: 13, color: TI.text }}>{item.material}</div>
                         {item.finish && <div style={{ fontSize: 11, color: TI.muted, marginTop: 2 }}>{item.finish}</div>}
                       </td>
                       {/* Status */}
@@ -1282,7 +1327,7 @@ export default function Grafica() {
                             onClick={() => setViewDetailsItem(item)}
                             title="Ver detalhes"
                             data-testid={`button-view-${item.id}`}
-                            style={{ background: "none", border: "none", cursor: "pointer", color: TI.muted, padding: 4, borderRadius: 4, display: "flex", alignItems: "center", transition: "color 0.15s" }}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: TI.muted, padding: 4, borderRadius: 6, display: "flex", alignItems: "center", transition: "color 0.15s" }}
                             onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.color = TI.text)}
                             onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.color = TI.muted)}
                           >
@@ -1318,7 +1363,7 @@ export default function Grafica() {
                                   onChange={e => setReuseQty(Math.max(1, Math.min(remainingReuse(item), parseInt(e.target.value) || 1)))}
                                   title={`Quantas unidades reaproveitar (até ${remainingReuse(item)})`}
                                   data-testid={`input-reuse-qty-${item.id}`}
-                                  style={{ width: 52, height: 26, padding: "0 6px", borderRadius: 5, border: `1px solid ${TI.border}`, fontSize: 11, fontWeight: 700, color: TI.text, textAlign: "center", outline: "none" }}
+                                  style={{ width: 52, height: 26, padding: "0 6px", borderRadius: 6, border: `1px solid ${TI.border}`, fontSize: 11, fontWeight: 700, color: TI.text, textAlign: "center" }}
                                 />
                                 <span style={{ fontSize: 10, color: TI.muted, whiteSpace: "nowrap" }}>de {remainingReuse(item)}</span>
                                 <button
@@ -1326,14 +1371,14 @@ export default function Grafica() {
                                   disabled={markReuseMutation.isPending}
                                   title="Confirmar reaproveitamento"
                                   data-testid={`button-reuse-confirm-${item.id}`}
-                                  style={{ backgroundColor: "#047857", color: "#fff", border: "none", borderRadius: 5, height: 26, padding: "0 8px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+                                  style={{ backgroundColor: "#047857", color: "#fff", border: "none", borderRadius: 6, height: 26, padding: "0 8px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
                                 >
                                   OK
                                 </button>
                                 <button
                                   onClick={() => setReuseConfirmItemId(null)}
                                   title="Cancelar"
-                                  style={{ background: "none", border: `1px solid ${TI.border}`, borderRadius: 5, height: 26, padding: "0 6px", fontSize: 10, fontWeight: 700, color: TI.muted, cursor: "pointer" }}
+                                  style={{ background: "none", border: `1px solid ${TI.border}`, borderRadius: 6, height: 26, padding: "0 6px", fontSize: 10, fontWeight: 700, color: TI.muted, cursor: "pointer" }}
                                 >
                                   <X style={{ width: 10, height: 10 }} />
                                 </button>
@@ -1343,7 +1388,7 @@ export default function Grafica() {
                                 onClick={e => { e.stopPropagation(); setReuseConfirmItemId(item.id); setReuseQty(remainingReuse(item)); }}
                                 title={`Reaproveitar (pula produção) — até ${remainingReuse(item)} un.`}
                                 data-testid={`button-reuse-${item.id}`}
-                                style={{ background: "none", border: "none", cursor: "pointer", color: "#059669", padding: 4, borderRadius: 4, display: "flex", alignItems: "center", transition: "color 0.15s" }}
+                                style={{ background: "none", border: "none", cursor: "pointer", color: "#059669", padding: 4, borderRadius: 6, display: "flex", alignItems: "center", transition: "color 0.15s" }}
                                 onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.color = "#065f46")}
                                 onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.color = "#059669")}
                               >
@@ -1366,21 +1411,21 @@ export default function Grafica() {
                                   value={correctReuseQty}
                                   onChange={e => setCorrectReuseQty(Math.max(0, Math.min(qtyOf(item) - 1, parseInt(e.target.value) || 0)))}
                                   title={`Quantas unidades reaproveitadas (0 a ${qtyOf(item) - 1})`}
-                                  style={{ width: 52, height: 26, padding: "0 6px", borderRadius: 5, border: "1px solid #fbbf24", fontSize: 11, fontWeight: 700, color: TI.text, textAlign: "center", outline: "none" }}
+                                  style={{ width: 52, height: 26, padding: "0 6px", borderRadius: 6, border: "1px solid #fbbf24", fontSize: 11, fontWeight: 700, color: TI.text, textAlign: "center" }}
                                 />
                                 <span style={{ fontSize: 10, color: TI.muted, whiteSpace: "nowrap" }}>de {qtyOf(item)}</span>
                                 <button
                                   onClick={() => correctReuseMutation.mutate({ itemId: item.id, correctedReuseQty: correctReuseQty })}
                                   disabled={correctReuseMutation.isPending}
                                   title="Confirmar correção"
-                                  style={{ backgroundColor: "#b45309", color: "#fff", border: "none", borderRadius: 5, height: 26, padding: "0 8px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+                                  style={{ backgroundColor: "#b45309", color: "#fff", border: "none", borderRadius: 6, height: 26, padding: "0 8px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
                                 >
                                   OK
                                 </button>
                                 <button
                                   onClick={() => setCorrectReuseItemId(null)}
                                   title="Cancelar"
-                                  style={{ background: "none", border: `1px solid ${TI.border}`, borderRadius: 5, height: 26, padding: "0 6px", fontSize: 10, fontWeight: 700, color: TI.muted, cursor: "pointer" }}
+                                  style={{ background: "none", border: `1px solid ${TI.border}`, borderRadius: 6, height: 26, padding: "0 6px", fontSize: 10, fontWeight: 700, color: TI.muted, cursor: "pointer" }}
                                 >
                                   <X style={{ width: 10, height: 10 }} />
                                 </button>
@@ -1389,7 +1434,7 @@ export default function Grafica() {
                               <button
                                 onClick={e => { e.stopPropagation(); setCorrectReuseItemId(item.id); setCorrectReuseQty(Math.max(0, qtyOf(item) - 1)); }}
                                 title="Corrigir reaproveitamento marcado por engano"
-                                style={{ background: "none", border: "none", cursor: "pointer", color: "#d97706", padding: 4, borderRadius: 4, display: "flex", alignItems: "center", transition: "color 0.15s" }}
+                                style={{ background: "none", border: "none", cursor: "pointer", color: "#d97706", padding: 4, borderRadius: 6, display: "flex", alignItems: "center", transition: "color 0.15s" }}
                                 onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.color = "#92400e")}
                                 onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.color = "#d97706")}
                               >
@@ -1451,7 +1496,7 @@ export default function Grafica() {
 
                           {/* Entregue */}
                           {isDelivered(item) && (
-                            <span style={{ fontSize: 12, color: "#15803d", display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 600 }}>
+                            <span style={{ fontSize: 13, color: "#15803d", display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 600 }}>
                               <Check style={{ width: 13, height: 13 }} /> Entregue
                             </span>
                           )}
@@ -1465,7 +1510,7 @@ export default function Grafica() {
                         <td colSpan={10} style={{ padding: "8px 16px" }}>
                           <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                             <AlertCircle style={{ width: 14, height: 14, color: "#d97706", marginTop: 1, flexShrink: 0 }} />
-                            <span style={{ fontSize: 12, color: "#92400e" }}>
+                            <span style={{ fontSize: 13, color: "#92400e" }}>
                               <strong>Observações:</strong> {item.observations}
                             </span>
                           </div>
@@ -1482,7 +1527,7 @@ export default function Grafica() {
 
         {/* Rodapé da tabela */}
         {filteredItems.length > 0 && (
-          <div style={{ borderTop: `1px solid ${TI.border}`, padding: "10px 16px", backgroundColor: "#fafaf9", fontSize: 12, color: TI.secondary }}>
+          <div style={{ borderTop: `1px solid ${TI.border}`, padding: "10px 16px", backgroundColor: "#fafaf9", fontSize: 13, color: TI.secondary }}>
             Exibindo <strong style={{ color: TI.text }}>{filteredItems.length}</strong> peça{filteredItems.length !== 1 ? "s" : ""} ·{" "}
             <strong style={{ color: TI.text }}>{Array.from(new Set(filteredItems.map((i: any) => i.eventId).filter(Boolean))).length}</strong> evento{Array.from(new Set(filteredItems.map((i: any) => i.eventId).filter(Boolean))).length !== 1 ? "s" : ""}
             {(() => {
@@ -1521,7 +1566,7 @@ export default function Grafica() {
               ? setBulkSelectedIds(new Set())
               : setBulkSelectedIds(new Set(deliverableInFilter.map((i: any) => i.id)))
             }
-            style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+            style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
           >
             {allDeliverableSelected ? 'Desmarcar' : `Sel. ${deliverableInFilter.length}`}
           </button>
@@ -1538,7 +1583,7 @@ export default function Grafica() {
             onClick={() => { if (bulkSelectedIds.size > 0) setBulkDeliveryOpen(true); }}
             disabled={bulkSelectedIds.size === 0}
             style={{
-              padding: '12px 18px', borderRadius: 10, border: 'none', flexShrink: 0,
+              padding: '12px 18px', borderRadius: 12, border: 'none', flexShrink: 0,
               background: bulkSelectedIds.size === 0 ? 'rgba(255,255,255,0.15)' : TI.accent,
               color: bulkSelectedIds.size === 0 ? 'rgba(255,255,255,0.35)' : '#fff',
               fontSize: 13, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif",
@@ -1564,24 +1609,20 @@ export default function Grafica() {
 
       {/* ── Dialog entrega em lote ── */}
       <Dialog open={bulkDeliveryOpen} onOpenChange={o => { if (!o) { setBulkDeliveryOpen(false); setBulkDeliveryPhotos([]); } }}>
-        <DialogContent style={{ padding: 0, gap: 0, maxWidth: 440, width: '95vw', borderRadius: 14, overflow: 'hidden', border: 'none', boxShadow: '0 24px 48px -12px rgba(28,25,23,0.22)' }}>
+        <DialogContent style={modalSurface(460)}>
           <DialogTitle className="sr-only">Confirmar Entrega em Lote</DialogTitle>
           <DialogDescription className="sr-only">Registre a entrega de múltiplas peças de uma vez</DialogDescription>
 
-          {/* Header dark */}
-          <div style={{ background: TI.text, padding: '20px 24px', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: TI.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Truck style={{ width: 18, height: 18, color: '#fff' }} />
-            </div>
-            <div>
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#fff', letterSpacing: '-0.02em', fontFamily: "'Space Grotesk', sans-serif" }}>
-                Entrega em Lote
-              </h2>
-              <p style={{ margin: '2px 0 0', fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>
-                {bulkSelectedIds.size} peça{bulkSelectedIds.size !== 1 ? 's' : ''} selecionada{bulkSelectedIds.size !== 1 ? 's' : ''}
-              </p>
-            </div>
-          </div>
+          {/* rgba(255,255,255,0.45) sobre o cabeçalho escuro media 4.48:1; a
+              primitiva usa 0.72, e de quebra o modal passa a ter a mesma
+              superfície e o mesmo cabeçalho do resto do app. */}
+          <ModalHeader
+            icon={Truck}
+            tint={TI.accent}
+            title="Entrega em lote"
+            subtitle={`${bulkSelectedIds.size} peça${bulkSelectedIds.size !== 1 ? 's' : ''} selecionada${bulkSelectedIds.size !== 1 ? 's' : ''}`}
+            onClose={() => setBulkDeliveryOpen(false)}
+          />
 
           {/* Body */}
           <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18, background: '#fafaf9' }}>
@@ -1597,7 +1638,7 @@ export default function Grafica() {
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleBulkDelivery(); } }}
                 placeholder="Nome de quem recebeu"
                 autoFocus
-                style={{ width: '100%', boxSizing: 'border-box', padding: '14px 16px', background: '#fff', border: '1.5px solid #e7e5e4', borderRadius: 10, fontSize: 15, fontWeight: 600, color: TI.text, outline: 'none', transition: 'border-color 0.15s, box-shadow 0.15s' }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '14px 16px', background: '#fff', border: '1.5px solid #e7e5e4', borderRadius: 12, fontSize: 15, fontWeight: 600, color: TI.text, transition: 'border-color 0.15s, box-shadow 0.15s' }}
                 onFocus={e => { e.currentTarget.style.borderColor = TI.accent; e.currentTarget.style.boxShadow = `0 0 0 3px ${TI.accent}22`; }}
                 onBlur={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.boxShadow = 'none'; }}
               />
@@ -1670,19 +1711,19 @@ export default function Grafica() {
                 onChange={e => setBulkDeliveryNotes(e.target.value)}
                 placeholder="Ex.: entregue na portaria, aguardando retirada..."
                 rows={2}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '12px 14px', background: '#fff', border: '1.5px solid #e7e5e4', borderRadius: 10, fontSize: 13, fontFamily: 'inherit', color: TI.text, outline: 'none', resize: 'none', lineHeight: 1.5 }}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '12px 14px', background: '#fff', border: '1.5px solid #e7e5e4', borderRadius: 12, fontSize: 13, fontFamily: 'inherit', color: TI.text, resize: 'none', lineHeight: 1.5 }}
               />
             </div>
 
             {/* Peças selecionadas */}
-            <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 10, maxHeight: 150, overflowY: 'auto' }}>
-              {[...bulkSelectedIds].map((itemId, idx) => {
+            <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, maxHeight: 150, overflowY: 'auto' }}>
+              {Array.from(bulkSelectedIds).map((itemId, idx) => {
                 const item = (filteredItems as any[]).find(i => i.id === itemId);
                 if (!item) return null;
                 return (
                   <div key={itemId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: idx < bulkSelectedIds.size - 1 ? '1px solid #f5f5f4' : 'none' }}>
                     <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: TI.accent, flexShrink: 0 }}>{item.displayId}</span>
-                    <span style={{ fontSize: 12, color: TI.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{item.type}</span>
+                    <span style={{ fontSize: 13, color: TI.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{item.type}</span>
                     <span style={{ fontSize: 11, color: TI.muted, flexShrink: 0 }}>{remainingDeliver(item)} un.</span>
                   </div>
                 );
@@ -1694,7 +1735,7 @@ export default function Grafica() {
               <button
                 type="button"
                 onClick={() => setBulkDeliveryOpen(false)}
-                style={{ flex: 1, height: 48, borderRadius: 10, background: 'transparent', border: '1.5px solid #e7e5e4', color: '#746e69', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'background 0.12s' }}
+                style={{ flex: 1, height: 48, borderRadius: 12, background: 'transparent', border: '1.5px solid #e7e5e4', color: '#746e69', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'background 0.12s' }}
                 onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
               >
@@ -1705,7 +1746,7 @@ export default function Grafica() {
                 onClick={handleBulkDelivery}
                 disabled={isBulkSubmitting || !bulkReceivedBy.trim()}
                 style={{
-                  flex: 2, height: 48, borderRadius: 10, border: 'none',
+                  flex: 2, height: 48, borderRadius: 12, border: 'none',
                   background: (!bulkReceivedBy.trim() || isBulkSubmitting) ? '#e7e5e4' : '#15803d',
                   color: (!bulkReceivedBy.trim() || isBulkSubmitting) ? '#a8a29e' : '#fff',
                   fontSize: 13, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif",
@@ -1737,22 +1778,27 @@ export default function Grafica() {
 
       {/* ── Modal de Produção / Entrega ── */}
       <Dialog open={!!selectedItem && !!modalType} onOpenChange={open => { if (!open) { setSelectedItem(null); setModalType(null); } }}>
-        <DialogContent style={{ padding: 0, gap: 0, maxWidth: 448, ...(isMobile && { width: '95vw' }), borderRadius: isMobile ? 16 : 12, overflow: "hidden" }}>
+        <DialogContent style={modalSurface(468)}>
+          <DialogTitle className="sr-only">
+            {modalType === "production" ? "Registrar produção"
+              : modalType === "conference" ? "Conferir peça"
+              : "Confirmar entrega"}
+          </DialogTitle>
 
-          {/* ── Header dark ── */}
-          <div style={{ backgroundColor: TI.text, padding: "24px" }}>
-            <h2 style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 24, fontWeight: 700, color: "#ffffff", textTransform: "uppercase", letterSpacing: "-0.02em", lineHeight: 1 }}>
-              {modalType === "production"
-                ? (selectedItem?.quantityProduced > 0 ? "Continuar Produção" : "Iniciar Produção")
-                : modalType === "conference" ? "Conferir Peça"
-                : "Confirmar Entrega"}
-            </h2>
-            <p style={{ margin: "6px 0 0", fontSize: 11, color: "rgba(255,255,255,0.4)", textTransform: "uppercase", letterSpacing: "0.1em", fontWeight: 600 }}>
-              {modalType === "production" ? "Registre a quantidade produzida"
-                : modalType === "conference" ? "Anexe a foto da conferência"
-                : "Registre a entrega do material"}
-            </p>
-          </div>
+          {/* rgba(255,255,255,0.4) media ~3.9:1 sobre o cabeçalho escuro — a
+              legenda que diz o que fazer era a coisa menos legível do modal. */}
+          <ModalHeader
+            icon={modalType === "production" ? Play : modalType === "conference" ? CheckCircle : Truck}
+            tint={TI.accent}
+            title={modalType === "production"
+              ? (selectedItem?.quantityProduced > 0 ? "Continuar produção" : "Iniciar produção")
+              : modalType === "conference" ? "Conferir peça"
+              : "Confirmar entrega"}
+            subtitle={modalType === "production" ? "Registre a quantidade produzida"
+              : modalType === "conference" ? "Anexe a foto da conferência"
+              : "Registre a entrega do material"}
+            onClose={() => { setSelectedItem(null); setModalType(null); }}
+          />
 
           {/* ── Corpo ── */}
           <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 20, overflowY: "auto", maxHeight: "calc(88vh - 112px)" }}>
@@ -1774,7 +1820,7 @@ export default function Grafica() {
                   // flexShrink 0 este bloco era espremido até uma linha fina
                   // quando o conteúdo passava da altura máxima.
                   flexShrink: 0,
-                  borderRadius: 10, overflow: "hidden",
+                  borderRadius: 12, overflow: "hidden",
                   backgroundColor: "#ffffff", border: `1px solid ${TI.border}`,
                 }}
               >
@@ -1784,10 +1830,10 @@ export default function Grafica() {
                   style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
                   onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                 />
-                <span style={{ position: "absolute", top: 8, left: 8, backgroundColor: "rgba(28,25,23,0.78)", color: "#fff", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", padding: "4px 8px", borderRadius: 5 }}>
+                <span style={{ position: "absolute", top: 8, left: 8, backgroundColor: "rgba(28,25,23,0.78)", color: "#fff", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", padding: "4px 8px", borderRadius: 6 }}>
                   Arte aprovada
                 </span>
-                <span style={{ position: "absolute", bottom: 8, right: 8, backgroundColor: "rgba(28,25,23,0.78)", color: "#fff", fontSize: 9, fontWeight: 700, padding: "4px 8px", borderRadius: 5, display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ position: "absolute", bottom: 8, right: 8, backgroundColor: "rgba(28,25,23,0.78)", color: "#fff", fontSize: 10, fontWeight: 700, padding: "4px 8px", borderRadius: 6, display: "flex", alignItems: "center", gap: 4 }}>
                   <Search style={{ width: 10, height: 10 }} /> Ampliar
                 </span>
               </a>
@@ -1795,7 +1841,7 @@ export default function Grafica() {
 
             {/* Card de identificação */}
             {selectedItem && (
-              <div style={{ backgroundColor: "#f4f3f0", borderRadius: 10, padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ backgroundColor: "#f4f3f0", borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
                 <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
                   <div style={{ backgroundColor: "#ffffff", borderRadius: 8, padding: 8, boxShadow: "0 1px 4px rgba(0,0,0,0.08)", flexShrink: 0 }}>
                     {modalType === "production"
@@ -1809,12 +1855,12 @@ export default function Grafica() {
                       <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, color: selectedItem.isReuse ? '#059669' : TI.accent }}>{selectedItem.displayId}</span>
                       <StatusPill status={selectedItem.status} />
                     </div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: TI.text }}>{selectedItem.type}</div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: TI.text }}>{selectedItem.type}</div>
                     {selectedItem.description && selectedItem.description !== selectedItem.type && (
-                      <div style={{ fontSize: 12, color: TI.secondary, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedItem.description}</div>
+                      <div style={{ fontSize: 13, color: TI.secondary, marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{selectedItem.description}</div>
                     )}
                     {selectedItem.event?.name && (
-                      <div style={{ fontSize: 12, color: "#746e69", marginTop: 4, display: "flex", alignItems: "center", gap: 5 }}>
+                      <div style={{ fontSize: 13, color: "#746e69", marginTop: 4, display: "flex", alignItems: "center", gap: 5 }}>
                         <Calendar style={{ width: 11, height: 11, flexShrink: 0 }} />
                         {selectedItem.event.name}
                       </div>
@@ -1824,28 +1870,28 @@ export default function Grafica() {
 
                 {/* Grade de specs */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                  <div style={{ background: '#fff', borderRadius: 7, padding: '8px 10px' }}>
-                    <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.muted, marginBottom: 3 }}>Material</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: TI.text }}>{selectedItem.material || '—'}</div>
+                  <div style={{ background: '#fff', borderRadius: 8, padding: '8px 10px' }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.muted, marginBottom: 3 }}>Material</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: TI.text }}>{selectedItem.material || '—'}</div>
                     {selectedItem.visualWidth && (
                       <div style={{ fontSize: 11, color: TI.secondary, marginTop: 1 }}>{selectedItem.visualWidth} × {selectedItem.visualHeight}m</div>
                     )}
                   </div>
-                  <div style={{ background: '#fff', borderRadius: 7, padding: '8px 10px' }}>
-                    <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.muted, marginBottom: 3 }}>Acabamento</div>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: TI.text }}>{selectedItem.finish || '—'}</div>
+                  <div style={{ background: '#fff', borderRadius: 8, padding: '8px 10px' }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.muted, marginBottom: 3 }}>Acabamento</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: TI.text }}>{selectedItem.finish || '—'}</div>
                     {Number(selectedItem.calculatedM2) > 0 && (
                       <div style={{ fontSize: 11, color: TI.secondary, marginTop: 1 }}>{m2ToProduce(selectedItem).toFixed(2)} m²</div>
                     )}
                   </div>
-                  <div style={{ background: '#fff', borderRadius: 7, padding: '8px 10px' }}>
-                    <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.muted, marginBottom: 2 }}>Quantidade</div>
+                  <div style={{ background: '#fff', borderRadius: 8, padding: '8px 10px' }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.muted, marginBottom: 2 }}>Quantidade</div>
                     <div style={{ fontSize: 18, fontWeight: 800, color: TI.text, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{qtyOf(selectedItem)}<span style={{ fontSize: 11, fontWeight: 500, color: TI.muted, marginLeft: 3 }}>un.</span></div>
                     {selectedItem.isReuse && <div style={{ fontSize: 10, color: '#059669', marginTop: 2, fontWeight: 600 }}>Reaproveitado</div>}
                   </div>
                   {(modalType === "conference" || modalType === "delivery") && (
-                    <div style={{ background: modalType === "conference" ? '#ecfeff' : '#fff7ed', borderRadius: 7, padding: '8px 10px', border: `1px solid ${modalType === "conference" ? '#a5f3fc' : '#fed7aa'}` }}>
-                      <div style={{ fontSize: 9, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: modalType === "conference" ? '#0e7490' : '#c2410c', marginBottom: 2 }}>
+                    <div style={{ background: modalType === "conference" ? '#ecfeff' : '#fff7ed', borderRadius: 8, padding: '8px 10px', border: `1px solid ${modalType === "conference" ? '#a5f3fc' : '#fed7aa'}` }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: modalType === "conference" ? '#0e7490' : '#c2410c', marginBottom: 2 }}>
                         {modalType === "conference" ? "A Conferir" : "A Entregar"}
                       </div>
                       <div style={{ fontSize: 18, fontWeight: 800, color: modalType === "conference" ? '#0891b2' : TI.accent, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>
@@ -1863,9 +1909,9 @@ export default function Grafica() {
 
                 {/* Observações */}
                 {selectedItem.observations && (
-                  <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 7, padding: '8px 10px', display: 'flex', gap: 7, alignItems: 'flex-start' }}>
+                  <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '8px 10px', display: 'flex', gap: 7, alignItems: 'flex-start' }}>
                     <AlertCircle style={{ width: 12, height: 12, color: '#d97706', flexShrink: 0, marginTop: 1 }} />
-                    <span style={{ fontSize: 12, color: '#92400e', lineHeight: 1.4 }}>{selectedItem.observations}</span>
+                    <span style={{ fontSize: 13, color: '#92400e', lineHeight: 1.4 }}>{selectedItem.observations}</span>
                   </div>
                 )}
               </div>
@@ -1887,7 +1933,7 @@ export default function Grafica() {
                       onChange={e => setProductionData({ quantityProduced: parseInt(e.target.value) || 0 })}
                       required
                       data-testid="input-quantity-produced"
-                      style={{ flex: 1, textAlign: "center", fontFamily: "'Space Grotesk', sans-serif", fontSize: 28, fontWeight: 700, color: TI.text, backgroundColor: "#f4f3f0", border: "none", borderRadius: 8, padding: "16px 12px", outline: "none" }}
+                      style={{ flex: 1, textAlign: "center", fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: TI.text, backgroundColor: "#f4f3f0", border: "none", borderRadius: 8, padding: "16px 12px" }}
                     />
                     <button
                       type="button"
@@ -1945,7 +1991,7 @@ export default function Grafica() {
                     placeholder="Nome de quem recebeu"
                     autoFocus
                     data-testid="input-received-by"
-                    style={{ width: "100%", padding: "12px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 13, fontWeight: 500, color: TI.text, outline: "none" }}
+                    style={{ width: "100%", padding: "12px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 13, fontWeight: 500, color: TI.text }}
                   />
                 </div>
 
@@ -1957,7 +2003,7 @@ export default function Grafica() {
                     </label>
                     <input type="number" min={1} max={remainingDeliver(selectedItem)} value={deliverQty}
                       onChange={e => setDeliverQty(Math.max(1, Math.min(remainingDeliver(selectedItem), parseInt(e.target.value) || 1)))}
-                      style={{ width: "100%", padding: "10px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 15, fontWeight: 700, color: TI.text, outline: "none" }} />
+                      style={{ width: "100%", padding: "10px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 15, fontWeight: 700, color: TI.text }} />
                   </div>
                 )}
 
@@ -1993,7 +2039,7 @@ export default function Grafica() {
 
             {selectedItem && modalType === "conference" && (
               <form onSubmit={handleSubmitConference} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                <p style={{ fontSize: 12, color: "#57534e", margin: 0 }}>
+                <p style={{ fontSize: 13, color: "#57534e", margin: 0 }}>
                   Confira a peça produzida e anexe a foto. Pode conferir parcialmente — depois é só conferir o restante.
                 </p>
                 {remainingConfer(selectedItem) > 1 && (
@@ -2003,7 +2049,7 @@ export default function Grafica() {
                     </label>
                     <input type="number" min={1} max={remainingConfer(selectedItem)} value={conferQty}
                       onChange={e => setConferQty(Math.max(1, Math.min(remainingConfer(selectedItem), parseInt(e.target.value) || 1)))}
-                      style={{ width: "100%", padding: "10px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 15, fontWeight: 700, color: TI.text, outline: "none" }} />
+                      style={{ width: "100%", padding: "10px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 15, fontWeight: 700, color: TI.text }} />
                   </div>
                 )}
                 {renderPhotoPicker("· obrigatória, pode anexar várias")}

@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/contexts/auth-context";
 import { ModalHeader, modalSurface } from "@/components/modal-shell";
 
 const TI = {
@@ -77,6 +78,8 @@ function StatusPill({ status }: { status: string }) {
 
 
 export default function Grafica() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [modalType, setModalType] = useState<"production" | "delivery" | "conference" | null>(null);
@@ -1399,18 +1402,28 @@ export default function Grafica() {
 
                           {/* Corrigir reaproveitamento — para quando a marcação foi
                               feita errada, total ou parcial, e a peça ainda não
-                              começou a ser conferida nem entregue. */}
-                          {isProduced(item) && reusedTotalOf(item) > 0
+                              começou a ser conferida nem entregue.
+                              O `isProduced` sozinho escondia o caso mais comum:
+                              a quantidade sai errada e o erro é notado antes de
+                              produzir, com a peça em "Pronto p/ Produção". O
+                              admin corrige em qualquer etapa anterior à
+                              conferência; para a Gráfica segue como estava. */}
+                          {(isProduced(item) || isAdmin) && reusedTotalOf(item) > 0
                             && conferredOf(item) === 0 && deliveredOf(item) === 0 && (
                             correctReuseItemId === item.id ? (
                               <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>
+                                {/* O teto era quantidade-1, então quem marcou
+                                    parcial por engano não conseguia voltar para
+                                    reaproveitamento total. O admin alcança o
+                                    total; para a Gráfica o limite continua
+                                    sendo o parcial. */}
                                 <input
                                   type="number"
                                   min={0}
-                                  max={qtyOf(item) - 1}
+                                  max={isAdmin ? qtyOf(item) : qtyOf(item) - 1}
                                   value={correctReuseQty}
-                                  onChange={e => setCorrectReuseQty(Math.max(0, Math.min(qtyOf(item) - 1, parseInt(e.target.value) || 0)))}
-                                  title={`Quantas unidades reaproveitadas (0 a ${qtyOf(item) - 1})`}
+                                  onChange={e => setCorrectReuseQty(Math.max(0, Math.min(isAdmin ? qtyOf(item) : qtyOf(item) - 1, parseInt(e.target.value) || 0)))}
+                                  title={`Quantas unidades reaproveitadas (0 a ${isAdmin ? qtyOf(item) : qtyOf(item) - 1})`}
                                   style={{ width: 52, height: 26, padding: "0 6px", borderRadius: 6, border: "1px solid #fbbf24", fontSize: 11, fontWeight: 700, color: TI.text, textAlign: "center" }}
                                 />
                                 <span style={{ fontSize: 10, color: TI.muted, whiteSpace: "nowrap" }}>de {qtyOf(item)}</span>

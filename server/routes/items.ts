@@ -2121,7 +2121,15 @@ export function registerItemRoutes(app: Express): void {
       const current = await storage.getItem(req.params.id);
       if (!current) return res.status(404).json({ error: "Item not found" });
 
-      if (current.status !== "produced" && current.status !== "produzido") {
+      // O que realmente impede a correção é a peça já ter sido conferida ou
+      // entregue — é aí que o número vira contagem física. O status por si só
+      // não impedia nada, mas travava o caso mais comum: a quantidade foi
+      // digitada errada e o erro só é notado antes de produzir, com a peça em
+      // "Pronto p/ Produção". O admin passa a corrigir em qualquer etapa
+      // anterior à conferência; Gráfica e Solicitação seguem restritas a
+      // "Produzido", que é o momento em que elas encostam na peça.
+      const isAdmin = (req as any).userRole === "admin";
+      if (!isAdmin && current.status !== "produced" && current.status !== "produzido") {
         return res.status(409).json({ error: "Correção disponível apenas para peças com status Produzido" });
       }
       if ((current.conferredQty || 0) > 0) {
@@ -2137,23 +2145,29 @@ export function registerItemRoutes(app: Express): void {
         return res.status(409).json({ error: "Peça não tem reaproveitamento para corrigir" });
       }
 
-      // Só faz sentido corrigir para MENOS que o total: reaproveitar tudo é o
-      // que já estava valendo. Por isso o intervalo aceito é 0..quantidade-1.
+      // O intervalo ia até quantidade-1, o que impedia justamente o caminho
+      // inverso: quem marcou parcial por engano não conseguia voltar para
+      // reaproveitamento total. O admin alcança o total; para os demais o
+      // limite continua sendo o parcial, que é o que a operação deles cobre.
+      const maximo = isAdmin ? current.quantity : current.quantity - 1;
       const correctedReuseQty = Number(req.body?.correctedReuseQty);
-      if (isNaN(correctedReuseQty) || correctedReuseQty < 0 || correctedReuseQty >= current.quantity) {
+      if (isNaN(correctedReuseQty) || correctedReuseQty < 0 || correctedReuseQty > maximo) {
         return res.status(400).json({
-          error: `Quantidade corrigida inválida (deve ser entre 0 e ${current.quantity - 1})`,
+          error: `Quantidade corrigida inválida (deve ser entre 0 e ${maximo})`,
         });
       }
 
+      // Reaproveitar tudo pula a produção; qualquer valor menor deixa sobra e
+      // manda a peça de volta para a fila.
+      const reaproveitaTudo = correctedReuseQty === current.quantity;
+
       const item = await storage.updateItem(req.params.id, {
         reuseQty: correctedReuseQty,
-        isReuse: false,
-        // Sempre sobra o que produzir, então a peça volta para a fila da produção.
-        status: "ready_for_production" as const,
+        isReuse: reaproveitaTudo,
+        status: reaproveitaTudo ? ("produced" as const) : ("ready_for_production" as const),
         // A produção lançada antes da marcação errada não vale mais para a
         // quantidade que agora precisa ser impressa.
-        quantityProduced: null,
+        quantityProduced: reaproveitaTudo ? current.quantity : null,
       });
       if (!item) return res.status(404).json({ error: "Item not found" });
 
@@ -2164,7 +2178,9 @@ export function registerItemRoutes(app: Express): void {
         item.id,
         correctedReuseQty === 0
           ? `Reaproveitamento removido por correção — peça voltou para Pronto para Produção (${current.quantity} un. a produzir)`
-          : `Reaproveitamento corrigido: ${correctedReuseQty}/${current.quantity} un. reaproveitadas, ${current.quantity - correctedReuseQty} a produzir`
+          : reaproveitaTudo
+          ? `Reaproveitamento corrigido para total: ${current.quantity}/${current.quantity} un. — peça pula a produção`
+          : `Reaproveitamento corrigido de ${current.reuseQty || (current.isReuse ? current.quantity : 0)} para ${correctedReuseQty}/${current.quantity} un. reaproveitadas, ${current.quantity - correctedReuseQty} a produzir`
       );
 
       broadcast({ type: "item_updated", item });

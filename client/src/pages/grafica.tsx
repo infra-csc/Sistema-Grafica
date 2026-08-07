@@ -1412,6 +1412,11 @@ export default function Grafica() {
                             && conferredOf(item) === 0 && deliveredOf(item) === 0 && (
                             correctReuseItemId === item.id ? (
                               <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>
+                                {/* Rótulo explícito: sem ele este campo fica ao
+                                    lado do de "Produzir", que também é um
+                                    número seguido de "de N" — dava para digitar
+                                    no lugar errado sem perceber. */}
+                                <span style={{ fontSize: 11, fontWeight: 700, color: "#b45309", whiteSpace: "nowrap" }}>Reaprov.:</span>
                                 {/* O teto era quantidade-1, então quem marcou
                                     parcial por engano não conseguia voltar para
                                     reaproveitamento total. O admin alcança o
@@ -1422,7 +1427,10 @@ export default function Grafica() {
                                   min={0}
                                   max={isAdmin ? qtyOf(item) : qtyOf(item) - 1}
                                   value={correctReuseQty}
+                                  autoFocus
+                                  onFocus={e => e.currentTarget.select()}
                                   onChange={e => setCorrectReuseQty(Math.max(0, Math.min(isAdmin ? qtyOf(item) : qtyOf(item) - 1, parseInt(e.target.value) || 0)))}
+                                  aria-label="Quantidade reaproveitada corrigida"
                                   title={`Quantas unidades reaproveitadas (0 a ${isAdmin ? qtyOf(item) : qtyOf(item) - 1})`}
                                   style={{ width: 52, height: 26, padding: "0 6px", borderRadius: 6, border: "1px solid #fbbf24", fontSize: 11, fontWeight: 700, color: TI.text, textAlign: "center" }}
                                 />
@@ -1444,14 +1452,23 @@ export default function Grafica() {
                                 </button>
                               </div>
                             ) : (
+                              /* Era um ícone solto com o texto só no `title`:
+                                 ninguém achava o caminho para corrigir. Com
+                                 rótulo, a ação fica óbvia ao lado do número
+                                 errado. E o campo abre com a quantidade ATUAL,
+                                 não com quantidade-1 — quem corrige parte do
+                                 valor que está lá, não de um chute. */
                               <button
-                                onClick={e => { e.stopPropagation(); setCorrectReuseItemId(item.id); setCorrectReuseQty(Math.max(0, qtyOf(item) - 1)); }}
-                                title="Corrigir reaproveitamento marcado por engano"
-                                style={{ background: "none", border: "none", cursor: "pointer", color: "#d97706", padding: 4, borderRadius: 6, display: "flex", alignItems: "center", transition: "color 0.15s" }}
-                                onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.color = "#92400e")}
-                                onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.color = "#d97706")}
+                                onClick={e => { e.stopPropagation(); setCorrectReuseItemId(item.id); setCorrectReuseQty(reusedTotalOf(item)); }}
+                                title="Corrigir a quantidade reaproveitada desta peça"
+                                aria-label={`Corrigir reaproveitamento de ${item.displayId}`}
+                                data-testid={`button-correct-reuse-${item.id}`}
+                                style={{ background: "#fff7ed", border: "1px solid #fed7aa", cursor: "pointer", color: "#b45309", height: 26, padding: "0 9px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", transition: "background-color 0.15s" }}
+                                onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#ffedd5")}
+                                onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#fff7ed")}
                               >
-                                <RotateCcw style={{ width: 14, height: 14 }} />
+                                <RotateCcw style={{ width: 12, height: 12 }} />
+                                Corrigir reaprov.
                               </button>
                             )
                           )}

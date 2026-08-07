@@ -1892,7 +1892,9 @@ export default function EventDetail() {
                           {/* ID */}
                           <td style={{ padding: '14px 14px' }}>
                             <span style={{ fontWeight: '700', color: '#f97316', fontSize: '12px', fontFamily: 'monospace' }} data-testid={`text-display-id-${item.id}`}>
-                              #{item.displayId}
+                              {/* displayId já vem com a cerquilha do backend
+                                  ("#2341"); prefixar de novo mostrava "##2341". */}
+                              {item.displayId}
                             </span>
                           </td>
                           {/* Ref. */}

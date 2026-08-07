@@ -182,43 +182,69 @@ export interface IStorage {
 export class DatabaseStorage implements IStorage {
   private displayIdSequenceInitialized: Promise<void> | null = null;
 
+  /**
+   * Cria a sequence se faltar e a alinha com o maior display_id já gravado.
+   *
+   * A versão anterior só criava a sequence e, se ela já existisse, retornava
+   * sem olhar a tabela. Bastava a sequence ficar atrás dos dados uma vez — uma
+   * restauração de banco, uma cópia do ambiente, linhas reinseridas — para
+   * `nextval` passar a devolver números já usados, e aí toda criação de peça
+   * morria com "duplicate key value violates unique constraint
+   * items_display_id_unique". Como nada reconciliava, o erro era permanente:
+   * era exatamente a falha na importação da planilha.
+   *
+   * GREATEST garante que a sincronização nunca ande para trás — se a sequence
+   * já está à frente (peças criadas e depois removidas de vez), ela fica onde
+   * está em vez de reemitir ids antigos.
+   */
+  private async syncDisplayIdSequence(): Promise<void> {
+    await db.execute(sql.raw(`CREATE SEQUENCE IF NOT EXISTS item_display_id_seq START WITH 1`));
+
+    const maxResult = await db.execute(sql`
+      SELECT COALESCE(MAX(CAST(SUBSTRING(display_id FROM '#(\\d+)') AS INTEGER)), 0) AS max_num
+        FROM items
+       WHERE display_id ~ '^#\\d+$'
+    `);
+    const maxNum = Number(maxResult.rows[0]?.max_num ?? 0);
+
+    const seqResult = await db.execute(sql`SELECT last_value, is_called FROM item_display_id_seq`);
+    const lastValue = Number(seqResult.rows[0]?.last_value ?? 1);
+    const isCalled  = Boolean(seqResult.rows[0]?.is_called);
+    // Numa sequence recém-criada, is_called é falso e o próximo nextval devolve
+    // o próprio last_value — daí o -1 para comparar as duas grandezas na mesma
+    // escala. Sem isso, um banco zerado pularia o #0001.
+    const alreadyIssued = isCalled ? lastValue : lastValue - 1;
+
+    if (maxNum > alreadyIssued) {
+      await db.execute(sql`SELECT setval('item_display_id_seq', ${maxNum}, true)`);
+    }
+  }
+
   private async ensureDisplayIdSequence(): Promise<void> {
-    // Lazy initialization - apenas inicializa uma vez
+    // Lazy initialization - apenas inicializa uma vez por processo
     if (this.displayIdSequenceInitialized) {
       return this.displayIdSequenceInitialized;
     }
 
     this.displayIdSequenceInitialized = (async () => {
       try {
-        // Verificar se sequence já existe
-        const seqExists = await db.execute(sql`
-          SELECT 1 FROM pg_sequences 
-          WHERE schemaname = 'public' AND sequencename = 'item_display_id_seq'
-        `);
-
-        if (seqExists.rows.length > 0) {
-          return; // Sequence já existe
-        }
-
-        // Calcular próximo ID baseado nos items existentes
-        const maxIdResult = await db.execute(sql`
-          SELECT MAX(CAST(SUBSTRING(display_id FROM '#(\\d+)') AS INTEGER)) as max_num
-          FROM items
-          WHERE display_id ~ '^#\\d+$'
-        `);
-
-        const maxNum = maxIdResult.rows[0]?.max_num;
-        const startValue = maxNum != null && Number(maxNum) > 0 ? Number(maxNum) + 1 : 1;
-
-        // Criar sequence com valor inicial dinâmico
-        await db.execute(sql.raw(`CREATE SEQUENCE IF NOT EXISTS item_display_id_seq START WITH ${startValue}`));
+        await this.syncDisplayIdSequence();
       } catch (error) {
-        console.error('Erro ao criar sequence item_display_id_seq:', error);
-        throw error; // Re-throw para que a promise seja rejeitada
+        console.error('Erro ao preparar sequence item_display_id_seq:', error);
+        // Sem isto, uma falha transitória (o banco ainda subindo, por exemplo)
+        // ficaria memorizada na promise e nenhuma peça mais seria criada até
+        // reiniciar o servidor.
+        this.displayIdSequenceInitialized = null;
+        throw error;
       }
     })();
 
     return this.displayIdSequenceInitialized;
+  }
+
+  /** Verdadeiro para a violação de unicidade do display_id. */
+  private isDisplayIdConflict(error: any): boolean {
+    return error?.code === "23505" && String(error?.constraint ?? error?.message ?? "").includes("display_id");
   }
 
   // Events
@@ -323,52 +349,72 @@ export class DatabaseStorage implements IStorage {
     return `#${String(nextNumber).padStart(4, '0')}`;
   }
 
+  /**
+   * Rede de segurança para a corrida entre processos: dois servidores podem ter
+   * sincronizado a sequence antes de a outra instância gravar suas linhas. Uma
+   * colisão isolada não deve derrubar a importação inteira da planilha — vale
+   * mais ressincronizar e repetir com ids novos.
+   */
+  private async withDisplayIdRetry<T>(run: () => Promise<T>): Promise<T> {
+    try {
+      return await run();
+    } catch (error: any) {
+      if (!this.isDisplayIdConflict(error)) throw error;
+      await this.syncDisplayIdSequence();
+      return await run();
+    }
+  }
+
   async createItem(insertItem: InsertItem): Promise<Item> {
-    const displayId = await this.generateNextDisplayId();
-    
-    const [item] = await db
-      .insert(items)
-      .values({
-        ...insertItem,
-        displayId,
-        area: String(insertItem.area),
-        visual: String(insertItem.visual),
-        calculatedM2: String(insertItem.calculatedM2),
-      })
-      .returning();
-    return item;
+    return this.withDisplayIdRetry(async () => {
+      const displayId = await this.generateNextDisplayId();
+
+      const [item] = await db
+        .insert(items)
+        .values({
+          ...insertItem,
+          displayId,
+          area: String(insertItem.area),
+          visual: String(insertItem.visual),
+          calculatedM2: String(insertItem.calculatedM2),
+        })
+        .returning();
+      return item;
+    });
   }
 
   async createBulkItems(insertItems: InsertItem[]): Promise<Item[]> {
     if (insertItems.length === 0) {
       return [];
     }
-    
-    // Gerar todos os displayIds em uma única query (generate_series + nextval),
-    // em vez de um await sequencial por item — a sequence garante atomicidade
-    // e ordem, então isso é seguro e evita N round-trips ao banco.
-    await this.ensureDisplayIdSequence();
-    const seqResult = await db.execute(sql`
-      SELECT nextval('item_display_id_seq') as next_id
-      FROM generate_series(1, ${insertItems.length})
-    `);
-    const displayIds: string[] = seqResult.rows.map((row: any) =>
-      `#${String(Number(row.next_id)).padStart(4, '0')}`
-    );
 
-    const normalizedItems = insertItems.map((item, index) => ({
-      ...item,
-      displayId: displayIds[index],
-      area: String(item.area),
-      visual: String(item.visual),
-      calculatedM2: String(item.calculatedM2),
-    }));
-    
-    const createdItems = await db
-      .insert(items)
-      .values(normalizedItems)
-      .returning();
-    return createdItems;
+    return this.withDisplayIdRetry(async () => {
+      // Gerar todos os displayIds em uma única query (generate_series + nextval),
+      // em vez de um await sequencial por item — a sequence garante atomicidade
+      // e ordem, então isso é seguro e evita N round-trips ao banco.
+      await this.ensureDisplayIdSequence();
+      const seqResult = await db.execute(sql`
+        SELECT nextval('item_display_id_seq') as next_id
+        FROM generate_series(1, ${insertItems.length})
+      `);
+      const displayIds: string[] = seqResult.rows.map((row: any) =>
+        `#${String(Number(row.next_id)).padStart(4, '0')}`
+      );
+
+      const normalizedItems = insertItems.map((item, index) => ({
+        ...item,
+        displayId: displayIds[index],
+        area: String(item.area),
+        visual: String(item.visual),
+        calculatedM2: String(item.calculatedM2),
+      }));
+
+      const createdItems = await db
+        .insert(items)
+        .values(normalizedItems)
+        .returning();
+      return createdItems;
+    });
   }
 
   async updateItem(id: string, data: Partial<InsertItem>): Promise<Item | undefined> {

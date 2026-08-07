@@ -631,7 +631,7 @@ export default function Solicitacao() {
                                 {event?.name || "Sem Evento"}
                               </span>
                               <span style={{
-                                backgroundColor: "#ea580c", color: "#fff",
+                                backgroundColor: "#c2410c", color: "#fff",
                                 fontSize: 9, fontWeight: 900,
                                 padding: "1px 8px", borderRadius: 999,
                                 textTransform: "uppercase", letterSpacing: "0.04em",
@@ -998,7 +998,7 @@ export default function Solicitacao() {
                         <button
                           onClick={() => updateQuantityMutation.mutate({ itemId: selectedItem.id, quantity: quantityValue })}
                           disabled={updateQuantityMutation.isPending}
-                          style={{ padding: "2px 8px", fontSize: 9, fontWeight: 800, backgroundColor: "#f97316", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", textTransform: "uppercase" }}
+                          style={{ padding: "2px 8px", fontSize: 9, fontWeight: 800, backgroundColor: "#c2410c", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", textTransform: "uppercase" }}
                           data-testid="button-confirm-quantity"
                         >
                           {updateQuantityMutation.isPending ? "..." : "OK"}

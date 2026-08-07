@@ -916,7 +916,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                             <div style={{ padding: "8px 12px" }}>
                               <button type="button"
                                 onClick={() => { setFormData({ ...formData, material: customMaterialInput }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}
-                                style={{ width: "100%", padding: "8px 12px", backgroundColor: "#ea580c", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
+                                style={{ width: "100%", padding: "8px 12px", backgroundColor: "#c2410c", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
                                 <Plus style={{ width: 13, height: 13, display: "inline", marginRight: 6 }} />
                                 Criar "{customMaterialInput}"
                               </button>

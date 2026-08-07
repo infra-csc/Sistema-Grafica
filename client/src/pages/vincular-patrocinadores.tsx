@@ -1371,12 +1371,16 @@ export default function VincularPatrocinadores() {
     });
   };
 
+  // Carregamento e vazio usavam classes utilitárias e um <h1> simples, num
+  // arquivo onde todo o resto é estilo inline com a paleta stone: os dois
+  // estados pareciam de outro produto. E o vazio só afirmava que não havia
+  // nada, sem dizer por quê nem o que fazer — quem cai aqui fica sem saída.
   if (itemsLoading) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Carregando items...</p>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+          <div className="animate-spin" style={{ width: 34, height: 34, borderRadius: R.pill, border: '3px solid #ebe8e4', borderTopColor: '#c2410c' }} />
+          <p style={{ fontSize: 13, color: '#57534e', margin: 0 }}>Carregando peças…</p>
         </div>
       </div>
     );
@@ -1384,19 +1388,20 @@ export default function VincularPatrocinadores() {
 
   if (visibleItems.length === 0) {
     return (
-      <div className="container mx-auto p-6 max-w-6xl">
-        <div className="mb-6">
-          <h1 className="text-2xl font-bold">Vincular Patrocinadores</h1>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', padding: 24 }}>
+        <div style={{ maxWidth: 420, textAlign: 'center' }}>
+          <div style={{ width: 64, height: 64, borderRadius: R.lg, backgroundColor: '#f5f5f4', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
+            <CheckCircle2 style={{ width: 28, height: 28, color: '#a8a29e' }} />
+          </div>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#1a1c1c', margin: '0 0 8px', letterSpacing: '-0.02em' }}>
+            Nada para vincular agora
+          </h2>
+          <p style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0 }}>
+            Esta tela mostra apenas peças de eventos que ainda vão acontecer.
+            Assim que a Solicitação cadastrar peças em um evento futuro, elas
+            aparecem aqui para receber os patrocinadores.
+          </p>
         </div>
-
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-16">
-            <CheckCircle2 className="h-12 w-12 text-muted-foreground mb-3" />
-            <p className="text-muted-foreground">
-              Nenhum item de eventos futuros encontrado
-            </p>
-          </CardContent>
-        </Card>
       </div>
     );
   }
@@ -1567,7 +1572,7 @@ export default function VincularPatrocinadores() {
         <div>
           {/* Breadcrumb */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <span style={{ display: 'inline-block', padding: '3px 10px', backgroundColor: '#f97316', color: '#fff', fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', borderRadius: 6 }}>
+            <span style={{ display: 'inline-block', padding: '3px 10px', backgroundColor: '#c2410c', color: '#fff', fontSize: 11, fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', borderRadius: 6 }}>
               Fluxo de Verificação
             </span>
             <span style={{ fontSize: 11, color: '#746e69', fontWeight: 500 }}>•</span>
@@ -1599,16 +1604,19 @@ export default function VincularPatrocinadores() {
                 setAutoLinkLoading(false);
               }
             }}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 18px', backgroundColor: eventFilter.length !== 1 ? '#e7e5e4' : '#4f46e5', color: eventFilter.length !== 1 ? '#a8a29e' : '#ffffff', fontWeight: 700, fontSize: 13, borderRadius: 6, border: 'none', cursor: eventFilter.length !== 1 ? 'not-allowed' : 'pointer' }}
-            onMouseEnter={e => { if (eventFilter.length === 1) e.currentTarget.style.filter = 'brightness(1.1)'; }}
-            onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
+            /* Secundário e não preenchido: só a ação primária ("Enviar para
+               Arte") fica sólida. Dois botões cheios lado a lado disputavam a
+               atenção e nada indicava qual era o caminho principal da tela. */
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, height: 44, padding: '0 18px', backgroundColor: '#fff', color: eventFilter.length !== 1 ? '#a8a29e' : '#4338ca', fontWeight: 700, fontSize: 13, borderRadius: R.md, border: `1px solid ${eventFilter.length !== 1 ? '#e7e5e4' : '#c7d2fe'}`, cursor: eventFilter.length !== 1 ? 'not-allowed' : 'pointer' }}
+            onMouseEnter={e => { if (eventFilter.length === 1) e.currentTarget.style.backgroundColor = '#eef2ff'; }}
+            onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#fff'; }}
             title={eventFilter.length !== 1 ? 'Selecione exatamente um evento para usar o auto-vínculo' : 'Vincular patrocinadores automaticamente pela cota'}
           >
-            <Zap style={{ width: 13, height: 13 }} />
-            Auto-vincular por Cota
+            <Zap style={{ width: 14, height: 14 }} />
+            Auto-vincular por cota
           </button>
           <button
-            style={{ padding: '10px 20px', backgroundColor: '#ffffff', color: '#44403c', fontWeight: 600, fontSize: 13, borderRadius: 6, border: '1px solid #e7e5e4', cursor: 'pointer' }}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 44, padding: '0 20px', backgroundColor: '#ffffff', color: '#44403c', fontWeight: 700, fontSize: 13, borderRadius: R.md, border: '1px solid #e7e5e4', cursor: 'pointer' }}
             onMouseEnter={e => { (e.currentTarget.style.backgroundColor = '#fafaf9'); (e.currentTarget.style.borderColor = '#d6d3d1'); }}
             onMouseLeave={e => { (e.currentTarget.style.backgroundColor = '#ffffff'); (e.currentTarget.style.borderColor = '#e7e5e4'); }}
           >
@@ -1631,33 +1639,36 @@ export default function VincularPatrocinadores() {
                   : 'Nenhum item está pronto para envio. Vincule e salve patrocinadores primeiro.'
                 : undefined
             }
+            /* Uma linha e a mesma altura (44) dos outros dois: com duas linhas
+               e minWidth 180 este botão ficava bem mais alto que os vizinhos e
+               a barra saía desalinhada. A legenda "Conclui sua etapa de
+               vinculação" não dizia nada que o rótulo já não dissesse; o que
+               falta saber quando está desabilitado — por que não dá para
+               enviar — já está no `title`. */
             style={{
-              display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2,
-              padding: '10px 18px',
-              backgroundColor: contextStatusCounts.PRONTO === 0 ? 'transparent' : '#f97316',
-              color: contextStatusCounts.PRONTO === 0 ? '#a8a29e' : '#ffffff',
-              borderRadius: 8,
-              border: contextStatusCounts.PRONTO === 0 ? '1.5px dashed #d4d0cc' : 'none',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              height: 44, padding: '0 20px',
+              backgroundColor: contextStatusCounts.PRONTO === 0 ? '#f5f5f4' : '#c2410c',
+              color: contextStatusCounts.PRONTO === 0 ? '#78716c' : '#ffffff',
+              borderRadius: R.md,
+              border: 'none',
+              fontWeight: 800, fontSize: 13, letterSpacing: '-0.01em',
               cursor: contextStatusCounts.PRONTO === 0 ? 'not-allowed' : 'pointer',
-              minWidth: 180,
+              boxShadow: contextStatusCounts.PRONTO === 0 ? 'none' : '0 2px 8px rgba(194,65,12,0.24)',
             }}
-            onMouseEnter={e => { if (contextStatusCounts.PRONTO > 0) (e.currentTarget.style.filter = 'brightness(1.1)'); }}
-            onMouseLeave={e => (e.currentTarget.style.filter = 'none')}
+            /* brightness(1.1) clareava o laranja e reduzia o contraste do texto
+               branco justamente no momento do apontamento. Escurecer mantém a
+               leitura e ainda dá a sensação de "apertar". */
+            onMouseEnter={e => { if (contextStatusCounts.PRONTO > 0) e.currentTarget.style.backgroundColor = '#9a3412'; }}
+            onMouseLeave={e => { if (contextStatusCounts.PRONTO > 0) e.currentTarget.style.backgroundColor = '#c2410c'; }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
-              <Send style={{ width: 13, height: 13, flexShrink: 0 }} />
-              <span style={{ fontWeight: 700, fontSize: 13, letterSpacing: '-0.01em' }}>
-                Enviar para Arte
-                {contextStatusCounts.PRONTO > 0 && (
-                  <span style={{ marginLeft: 6, backgroundColor: 'rgba(255,255,255,0.25)', borderRadius: 6, padding: '1px 6px', fontSize: 11 }}>
-                    {contextStatusCounts.PRONTO}
-                  </span>
-                )}
+            <Send style={{ width: 14, height: 14, flexShrink: 0 }} />
+            Enviar para Arte
+            {contextStatusCounts.PRONTO > 0 && (
+              <span style={{ backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: R.sm, padding: '2px 7px', fontSize: 11, fontWeight: 800 }}>
+                {contextStatusCounts.PRONTO}
               </span>
-            </div>
-            <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.8, paddingLeft: 20, letterSpacing: 0 }}>
-              {contextStatusCounts.PRONTO === 0 ? 'Nenhum item pronto' : 'Conclui sua etapa de vinculação'}
-            </span>
+            )}
           </button>
         </div>
       </div>
@@ -2577,8 +2588,21 @@ export default function VincularPatrocinadores() {
 
           {/* ── Lista de eventos → patrocinadores → itens ── */}
           {sponsorGroupedData.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '48px 0', color: '#746e69', fontSize: 15 }}>
-              Nenhum evento com patrocinadores encontrado
+            /* Antes era uma frase solta no meio do branco. Esta visão agrupa
+               por patrocinador, então ficar vazia quase sempre significa que os
+               eventos ainda não têm patrocinador vinculado — dizer isso poupa
+               o usuário de procurar o que não existe. */
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '56px 24px' }}>
+              <div style={{ width: 56, height: 56, borderRadius: R.lg, backgroundColor: '#f5f5f4', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                <Building2 style={{ width: 24, height: 24, color: '#a8a29e' }} />
+              </div>
+              <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1c1c', margin: '0 0 6px' }}>
+                Nenhum evento com patrocinadores
+              </p>
+              <p style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0, maxWidth: 380 }}>
+                Use “Patrocinadores do evento” para definir quem participa de
+                cada evento — depois eles aparecem agrupados aqui.
+              </p>
             </div>
           ) : sponsorGroupedData.map(({ event, sponsorGroups, totalItems: evTotal, linkedCount }) => {
             const eventSponsorList = getEventSponsors(event.id);
@@ -2936,7 +2960,7 @@ export default function VincularPatrocinadores() {
                 value={sponsorModalSearch}
                 onChange={e => setSponsorModalSearch(e.target.value)}
                 placeholder="Buscar patrocinador..."
-                style={{ width: '100%', height: 36, paddingLeft: 32, paddingRight: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#fafaf9', color: '#1c1917', fontSize: 13, outline: 'none', boxSizing: 'border-box' }}
+                style={{ width: '100%', height: 36, paddingLeft: 32, paddingRight: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#fafaf9', color: '#1c1917', fontSize: 13, boxSizing: 'border-box' }}
               />
               {sponsorModalSearch && (
                 <button onClick={() => setSponsorModalSearch('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0, color: '#746e69' }}>
@@ -2972,8 +2996,11 @@ export default function VincularPatrocinadores() {
 
               if (sorted.length === 0) {
                 return (
-                  <div style={{ textAlign: 'center', padding: '32px 0', color: '#746e69', fontSize: 13 }}>
-                    {sponsorModalSearch ? 'Nenhum resultado para a busca' : 'Nenhum patrocinador cadastrado'}
+                  <div style={{ textAlign: 'center', padding: '40px 0', color: '#57534e', fontSize: 13 }}>
+                    <Search style={{ width: 22, height: 22, color: '#d4d0ca', margin: '0 auto 10px', display: 'block' }} />
+                    {sponsorModalSearch
+                      ? <>Nenhum patrocinador com “{sponsorModalSearch}”</>
+                      : 'Nenhum patrocinador cadastrado'}
                   </div>
                 );
               }
@@ -3111,7 +3138,7 @@ export default function VincularPatrocinadores() {
                 placeholder="Buscar patrocinador..."
                 value={bulkSponsorSearch}
                 onChange={e => setBulkSponsorSearch(e.target.value)}
-                style={{ width: '100%', paddingLeft: 32, paddingRight: 12, paddingTop: 8, paddingBottom: 8, borderRadius: 8, border: '1.5px solid #e7e5e4', fontSize: 13, color: '#1a1c1c', outline: 'none', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
+                style={{ width: '100%', paddingLeft: 32, paddingRight: 12, paddingTop: 8, paddingBottom: 8, borderRadius: 8, border: '1.5px solid #e7e5e4', fontSize: 13, color: '#1a1c1c', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
                 onFocus={e => (e.currentTarget.style.borderColor = '#f97316')}
                 onBlur={e => (e.currentTarget.style.borderColor = '#e7e5e4')}
               />
@@ -3165,8 +3192,9 @@ export default function VincularPatrocinadores() {
                 return a.name.localeCompare(b.name, 'pt-BR');
               });
               if (sorted.length === 0) return (
-                <p style={{ fontSize: 13, textAlign: 'center', padding: '20px 0', color: '#746e69' }}>
-                  {q ? `Nenhum resultado para "${bulkSponsorSearch}"` : 'Nenhum patrocinador cadastrado para este evento'}
+                <p style={{ fontSize: 13, textAlign: 'center', padding: '36px 0', color: '#57534e', margin: 0 }}>
+                  <Search style={{ width: 22, height: 22, color: '#d4d0ca', margin: '0 auto 10px', display: 'block' }} />
+                  {q ? `Nenhum patrocinador com “${bulkSponsorSearch}”` : 'Nenhum patrocinador cadastrado para este evento'}
                 </p>
               );
               const selectedOnes = sorted.filter((s: any) => bulkSelectedSponsors.includes(s.id));

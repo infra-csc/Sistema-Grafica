@@ -728,7 +728,7 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
               <button data-testid="button-confirm-delete"
                 onClick={() => deleteMutation.mutate(deletingSponsor.id)}
                 disabled={deleteMutation.isPending}
-                style={{ padding: "10px 24px", backgroundColor: "#ef4444", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: "'Space Grotesk', sans-serif", opacity: deleteMutation.isPending ? 0.6 : 1 }}>
+                style={{ padding: "10px 24px", backgroundColor: "#b91c1c", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.1em", fontFamily: "'Space Grotesk', sans-serif", opacity: deleteMutation.isPending ? 0.6 : 1 }}>
                 {deleteMutation.isPending ? "Excluindo..." : "Sim, Excluir"}
               </button>
             </div>

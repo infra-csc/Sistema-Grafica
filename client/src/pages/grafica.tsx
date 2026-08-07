@@ -1326,7 +1326,7 @@ export default function Grafica() {
                                   disabled={markReuseMutation.isPending}
                                   title="Confirmar reaproveitamento"
                                   data-testid={`button-reuse-confirm-${item.id}`}
-                                  style={{ backgroundColor: "#059669", color: "#fff", border: "none", borderRadius: 5, height: 26, padding: "0 8px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+                                  style={{ backgroundColor: "#047857", color: "#fff", border: "none", borderRadius: 5, height: 26, padding: "0 8px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
                                 >
                                   OK
                                 </button>
@@ -1373,7 +1373,7 @@ export default function Grafica() {
                                   onClick={() => correctReuseMutation.mutate({ itemId: item.id, correctedReuseQty: correctReuseQty })}
                                   disabled={correctReuseMutation.isPending}
                                   title="Confirmar correção"
-                                  style={{ backgroundColor: "#d97706", color: "#fff", border: "none", borderRadius: 5, height: 26, padding: "0 8px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+                                  style={{ backgroundColor: "#b45309", color: "#fff", border: "none", borderRadius: 5, height: 26, padding: "0 8px", fontSize: 10, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
                                 >
                                   OK
                                 </button>

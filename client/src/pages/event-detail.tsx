@@ -1009,7 +1009,7 @@ export default function EventDetail() {
                                 type="button"
                                 onMouseDown={() => setEditingTypeName(false)}
                                 data-testid="button-confirm-type-name"
-                                style={{ padding: '0 14px', backgroundColor: '#f97316', borderRadius: '10px', border: 'none', cursor: 'pointer', color: '#fff', fontWeight: 700, fontSize: 13, flexShrink: 0 }}
+                                style={{ padding: '0 14px', backgroundColor: '#c2410c', borderRadius: '10px', border: 'none', cursor: 'pointer', color: '#fff', fontWeight: 700, fontSize: 13, flexShrink: 0 }}
                               >
                                 OK
                               </button>

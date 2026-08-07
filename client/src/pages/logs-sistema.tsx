@@ -65,15 +65,15 @@ const PAGE_SIZE = 20;
 const tiInput: React.CSSProperties = {
   width: "100%", padding: "9px 12px 9px 34px",
   backgroundColor: "#f0efee", border: "none", borderRadius: 6,
-  fontSize: 12, color: T.text, outline: "none",
+  fontSize: 13, color: T.text,
   transition: "all 0.2s",
 };
 
 const filterSel: React.CSSProperties = {
   padding: "9px 12px", backgroundColor: "#f0efee",
   border: "none", borderRadius: 6,
-  fontSize: 12, fontWeight: 600, color: T.text,
-  cursor: "pointer", outline: "none",
+  fontSize: 13, fontWeight: 600, color: T.text,
+  cursor: "pointer",
   appearance: "none", WebkitAppearance: "none",
   transition: "all 0.2s",
 };
@@ -150,10 +150,10 @@ export default function LogsSistema() {  const isMobile = useIsMobile();
       {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 24, gap: 16, flexWrap: "wrap" }}>
         <div>
-          <h1 style={{ fontSize: 36, fontWeight: 900, color: T.text, margin: "0 0 6px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", textTransform: "uppercase", lineHeight: 1 }}>
+          <h1 style={{ fontSize: 26, fontWeight: 900, color: T.text, margin: "0 0 6px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", textTransform: "uppercase", lineHeight: 1 }}>
             Logs do Sistema
           </h1>
-          <p style={{ fontSize: 14, color: T.second, margin: 0 }}>
+          <p style={{ fontSize: 15, color: T.second, margin: 0 }}>
             Rastreamento completo de acessos e atividades administrativas
           </p>
         </div>
@@ -186,7 +186,7 @@ export default function LogsSistema() {  const isMobile = useIsMobile();
       </div>
 
       {/* ── Filter bar ── */}
-      <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, padding: "14px 16px", marginBottom: 16, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+      <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: "14px 16px", marginBottom: 16, display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
         {/* Search */}
         <div style={{ position: "relative", flex: "1 1 240px", minWidth: 200 }}>
           <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: T.muted }} />
@@ -243,7 +243,7 @@ export default function LogsSistema() {  const isMobile = useIsMobile();
       </div>
 
       {/* ── Table ── */}
-      <section style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden" }}>
+      <section style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden" }}>
         {isLoading ? (
           <div style={{ padding: "64px 0", textAlign: "center", fontSize: 13, color: T.muted }}>
             Carregando logs...
@@ -265,7 +265,7 @@ export default function LogsSistema() {  const isMobile = useIsMobile();
                       { label: "Descrição",     w: undefined },
                       { label: "Entidade",      w: 120 },
                     ].map(col => (
-                      <th key={col.label} style={{ padding: "11px 18px", fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", whiteSpace: "nowrap", width: col.w }}>
+                      <th key={col.label} style={{ padding: "11px 18px", fontSize: 10, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", whiteSpace: "nowrap", width: col.w }}>
                         {col.label}
                       </th>
                     ))}
@@ -303,11 +303,11 @@ export default function LogsSistema() {  const isMobile = useIsMobile();
                               width: 30, height: 30, borderRadius: "50%",
                               backgroundColor: avatarCfg.bg, color: avatarCfg.color,
                               display: "flex", alignItems: "center", justifyContent: "center",
-                              fontSize: 9, fontWeight: 800, flexShrink: 0,
+                              fontSize: 10, fontWeight: 800, flexShrink: 0,
                             }}>
                               {init}
                             </div>
-                            <span style={{ fontSize: 12, fontWeight: 700, color: T.text, whiteSpace: "nowrap" }}>
+                            <span style={{ fontSize: 13, fontWeight: 700, color: T.text, whiteSpace: "nowrap" }}>
                               {log.userName}
                             </span>
                           </div>
@@ -316,9 +316,9 @@ export default function LogsSistema() {  const isMobile = useIsMobile();
                         {/* Tipo de Ação */}
                         <td style={{ padding: "13px 18px" }}>
                           <span style={{
-                            padding: "3px 9px", borderRadius: 100,
+                            padding: "3px 9px", borderRadius: 999,
                             backgroundColor: aCfg.bg, color: aCfg.color,
-                            fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
+                            fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
                             whiteSpace: "nowrap",
                           }}>
                             {aCfg.label}
@@ -326,7 +326,7 @@ export default function LogsSistema() {  const isMobile = useIsMobile();
                         </td>
 
                         {/* Descrição */}
-                        <td style={{ padding: "13px 18px", fontSize: 12, color: T.second, maxWidth: 380 }}>
+                        <td style={{ padding: "13px 18px", fontSize: 13, color: T.second, maxWidth: 380 }}>
                           <span style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                             {description}
                           </span>
@@ -337,7 +337,7 @@ export default function LogsSistema() {  const isMobile = useIsMobile();
                           <div style={{ fontSize: 11, fontWeight: 700, color: T.second, textTransform: "capitalize" }}>
                             {ENTITY_LABELS[log.entityType] ?? log.entityType}
                           </div>
-                          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 9, color: T.muted, marginTop: 1 }}>
+                          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: T.muted, marginTop: 1 }}>
                             {log.entityId.slice(0, 8)}…
                           </div>
                         </td>
@@ -370,7 +370,7 @@ export default function LogsSistema() {  const isMobile = useIsMobile();
                       key={p}
                       onClick={() => setPage(p)}
                       style={{
-                        width: 28, height: 28, borderRadius: 5,
+                        width: 28, height: 28, borderRadius: 6,
                         border: p === page ? `1px solid ${T.border}` : "1px solid transparent",
                         backgroundColor: p === page ? T.surface : "transparent",
                         fontSize: 11, fontWeight: p === page ? 900 : 600,

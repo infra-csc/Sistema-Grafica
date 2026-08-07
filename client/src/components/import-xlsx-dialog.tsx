@@ -74,12 +74,12 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
               if (e.key === 'Enter') { update(field, (e.target as HTMLInputElement).value); setEditField(null); }
               if (e.key === 'Escape') setEditField(null);
             }}
-            style={{ width: '100%', border: 'none', borderBottom: '2px solid #f97316', padding: '0 2px', fontSize: 12, outline: 'none', backgroundColor: 'transparent', fontFamily: opts?.mono ? 'DM Mono, monospace' : 'inherit' }}
+            style={{ width: '100%', border: 'none', borderBottom: '2px solid #f97316', padding: '0 2px', fontSize: 13, backgroundColor: 'transparent', fontFamily: opts?.mono ? 'DM Mono, monospace' : 'inherit' }}
           />
         ) : (
           <span style={{
             color: display === '—' ? '#d0cdc9' : (opts?.dim ? '#9c9490' : '#1a1c1c'),
-            fontSize: 12,
+            fontSize: 13,
             fontFamily: opts?.mono ? 'DM Mono, monospace' : 'inherit',
             display: 'block',
             overflow: 'hidden',
@@ -102,14 +102,14 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
         <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
           {editingW ? (
             <input autoFocus defaultValue={valW ?? ''} onBlur={e => { update(fieldW, e.target.value); setEditField(null); }} onKeyDown={e => { if (e.key==='Enter'){update(fieldW,(e.target as HTMLInputElement).value);setEditField(null);} if(e.key==='Escape')setEditField(null); }}
-              style={{ width: 44, border: 'none', borderBottom: '2px solid #f97316', fontSize: 11, padding: '0 2px', outline: 'none', backgroundColor: 'transparent', fontFamily: 'DM Mono, monospace', color: '#1a1c1c' }} />
+              style={{ width: 44, border: 'none', borderBottom: '2px solid #f97316', fontSize: 11, padding: '0 2px', backgroundColor: 'transparent', fontFamily: 'DM Mono, monospace', color: '#1a1c1c' }} />
           ) : (
             <span onClick={() => setEditField(fieldW)} title="Clique para editar" style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: dimStyle ? '#9c9490' : '#1a1c1c', cursor: 'text', minWidth: 24 }}>{dispW}</span>
           )}
           <span style={{ color: '#d0cdc9', fontSize: 10, userSelect: 'none' }}>×</span>
           {editingH ? (
             <input autoFocus defaultValue={valH ?? ''} onBlur={e => { update(fieldH, e.target.value); setEditField(null); }} onKeyDown={e => { if (e.key==='Enter'){update(fieldH,(e.target as HTMLInputElement).value);setEditField(null);} if(e.key==='Escape')setEditField(null); }}
-              style={{ width: 44, border: 'none', borderBottom: '2px solid #f97316', fontSize: 11, padding: '0 2px', outline: 'none', backgroundColor: 'transparent', fontFamily: 'DM Mono, monospace', color: '#1a1c1c' }} />
+              style={{ width: 44, border: 'none', borderBottom: '2px solid #f97316', fontSize: 11, padding: '0 2px', backgroundColor: 'transparent', fontFamily: 'DM Mono, monospace', color: '#1a1c1c' }} />
           ) : (
             <span onClick={() => setEditField(fieldH)} title="Clique para editar" style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: dimStyle ? '#9c9490' : '#1a1c1c', cursor: 'text', minWidth: 24 }}>{dispH}</span>
           )}
@@ -137,7 +137,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
 
       {/* M² */}
       <td style={{ padding: '8px 10px', borderBottom: '1px solid #f0efed', whiteSpace: 'nowrap', backgroundColor: rowBg }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: m2Color, fontFamily: 'DM Mono, monospace', letterSpacing: '-0.02em' }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: m2Color, fontFamily: 'DM Mono, monospace', letterSpacing: '-0.02em' }}>
           {m2 > 0 ? m2.toFixed(2) : '—'}
         </span>
       </td>
@@ -154,9 +154,9 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
           <input autoFocus defaultValue={row.observations ?? ''}
             onBlur={e => { update('observations', e.target.value); setEditField(null); }}
             onKeyDown={e => { if (e.key === 'Enter') { update('observations', (e.target as HTMLInputElement).value); setEditField(null); } if (e.key === 'Escape') setEditField(null); }}
-            style={{ width: '100%', border: 'none', borderBottom: '2px solid #f97316', padding: '0 2px', fontSize: 12, outline: 'none', backgroundColor: 'transparent' }} />
+            style={{ width: '100%', border: 'none', borderBottom: '2px solid #f97316', padding: '0 2px', fontSize: 13, backgroundColor: 'transparent' }} />
         ) : (
-          <span style={{ color: row.observations ? '#9c9490' : '#d0cdc9', fontSize: 12, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ color: row.observations ? '#9c9490' : '#d0cdc9', fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {row.observations || '—'}
           </span>
         )}
@@ -165,7 +165,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
           onClick={e => { e.stopPropagation(); onChange({ ...row, reuse: !row.reuse }); }}
           style={{
             marginTop: 3, display: 'block',
-            fontSize: 9, fontWeight: 700, padding: '1px 7px', borderRadius: 9999, cursor: 'pointer',
+            fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 999, cursor: 'pointer',
             border: `1px solid ${row.reuse ? '#22c55e' : '#e2deda'}`,
             backgroundColor: row.reuse ? '#f0fdf4' : 'transparent',
             color: row.reuse ? '#16a34a' : '#c4bfbb',
@@ -204,7 +204,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
                   onChange({ ...row, suggestedSponsorIds: [...(row.suggestedSponsorIds ?? []), v] });
               }}
               onClick={e => e.stopPropagation()}
-              style={{ fontSize: 10, borderRadius: 5, border: '1px dashed #d0cdc9', backgroundColor: 'transparent', color: '#746e69', cursor: 'pointer', padding: '2px 5px', outline: 'none', maxWidth: 100 }}
+              style={{ fontSize: 10, borderRadius: 6, border: '1px dashed #d0cdc9', backgroundColor: 'transparent', color: '#746e69', cursor: 'pointer', padding: '2px 5px', maxWidth: 100 }}
             >
               <option value="">+ Adicionar</option>
               {eventSponsorsList.filter(s => !(row.suggestedSponsorIds ?? []).includes(s.sponsorId)).map(s => (
@@ -218,7 +218,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
               type="button"
               title="Vincular todos os patrocinadores do evento"
               onClick={e => { e.stopPropagation(); onChange({ ...row, suggestedSponsorIds: eventSponsorsList.map(s => s.sponsorId) }); }}
-              style={{ fontSize: 10, fontWeight: 700, borderRadius: 5, border: '1px solid #bbf7d0', backgroundColor: '#f0fdf4', color: '#15803d', cursor: 'pointer', padding: '2px 7px', outline: 'none', whiteSpace: 'nowrap' }}
+              style={{ fontSize: 10, fontWeight: 700, borderRadius: 6, border: '1px solid #bbf7d0', backgroundColor: '#f0fdf4', color: '#15803d', cursor: 'pointer', padding: '2px 7px', whiteSpace: 'nowrap' }}
             >
               Todos
             </button>
@@ -292,18 +292,18 @@ export function ImportXlsxDialog({
     <Dialog open={open} onOpenChange={(v) => { if (!v) onOpenChangeClose(); }}>
       <DialogContent
         className="[&>button:last-child]:right-4 [&>button:last-child]:top-4 [&>button:last-child]:z-50"
-        style={{ maxWidth: '98vw', width: importPreviewItems ? 1320 : 540, maxHeight: '92vh', padding: 0, gap: 0, borderRadius: 14, overflow: 'visible', transition: 'width 0.3s' }}
+        style={{ maxWidth: '98vw', width: importPreviewItems ? 1320 : 540, maxHeight: '92vh', padding: 0, gap: 0, borderRadius: 12, overflow: 'visible', transition: 'width 0.3s' }}
       >
-        <div style={{ display: 'flex', flexDirection: 'row', height: '100%', maxHeight: '92vh', overflow: 'hidden', borderRadius: 14 }}>
+        <div style={{ display: 'flex', flexDirection: 'row', height: '100%', maxHeight: '92vh', overflow: 'hidden', borderRadius: 12 }}>
         {/* ── Left sidebar ── */}
         <div style={{ width: 260, minWidth: 260, backgroundColor: '#ffffff', borderRight: '1px solid #e7e5e4', display: 'flex', flexDirection: 'column', padding: '22px 18px', gap: 16, overflowY: 'auto', flexShrink: 0 }}>
           {/* Title */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <div style={{ width: 30, height: 30, borderRadius: 7, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <div style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <FileSpreadsheet style={{ width: 15, height: 15, color: '#16a34a' }} />
             </div>
             <div>
-              <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 800, letterSpacing: '-0.02em', color: '#1a1c1c', margin: 0, lineHeight: 1.2 }}>
+              <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 800, letterSpacing: '-0.02em', color: '#1a1c1c', margin: 0, lineHeight: 1.2 }}>
                 Importar Peças
               </DialogTitle>
               <DialogDescription style={{ fontSize: 10, color: '#746e69', margin: 0, marginTop: 1 }}>
@@ -319,7 +319,7 @@ export function ImportXlsxDialog({
             style={{
               display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
               border: '2px dashed', borderColor: importFile ? '#16a34a' : '#d4d0cc',
-              borderRadius: 10, padding: '18px 12px', cursor: 'pointer',
+              borderRadius: 12, padding: '18px 12px', cursor: 'pointer',
               backgroundColor: importFile ? '#f0fdf4' : '#fafaf9', transition: 'all 0.2s',
             }}
             onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderColor = '#16a34a'; e.currentTarget.style.backgroundColor = '#f0fdf4'; }}
@@ -338,7 +338,7 @@ export function ImportXlsxDialog({
               <>
                 <CheckCircle2 style={{ width: 24, height: 24, color: '#16a34a' }} />
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#166534', fontFamily: "'Space Grotesk', sans-serif" }}>{importFile.name}</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#166534', fontFamily: "'Space Grotesk', sans-serif" }}>{importFile.name}</div>
                   <div style={{ fontSize: 11, color: '#746e69', marginTop: 2 }}>{(importFile.size / 1024).toFixed(1)} KB</div>
                 </div>
                 <button
@@ -352,7 +352,7 @@ export function ImportXlsxDialog({
               <>
                 <Upload style={{ width: 20, height: 20, color: '#a8a29e' }} />
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#44403c' }}>Arraste o .xlsx aqui</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: '#44403c' }}>Arraste o .xlsx aqui</div>
                   <div style={{ fontSize: 11, color: '#746e69', marginTop: 2 }}>ou clique para selecionar</div>
                 </div>
               </>
@@ -381,8 +381,8 @@ export function ImportXlsxDialog({
                     { l: 'Vinculados', v: `${linkPct}%`,           color: linkPct === 100 ? '#16a34a' : '#d97706', mono: false },
                   ].map(s => (
                     <div key={s.l} style={{ backgroundColor: '#f5f4f2', border: '1px solid #e7e5e4', borderRadius: 8, padding: '10px 12px' }}>
-                      <div style={{ fontSize: 20, fontWeight: 900, color: s.color, fontFamily: s.mono ? 'DM Mono, monospace' : "'Space Grotesk', sans-serif", lineHeight: 1 }}>{s.v}</div>
-                      <div style={{ fontSize: 9, color: '#746e69', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 4 }}>{s.l}</div>
+                      <div style={{ fontSize: 18, fontWeight: 900, color: s.color, fontFamily: s.mono ? 'DM Mono, monospace' : "'Space Grotesk', sans-serif", lineHeight: 1 }}>{s.v}</div>
+                      <div style={{ fontSize: 10, color: '#746e69', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.07em', marginTop: 4 }}>{s.l}</div>
                     </div>
                   ))}
                 </div>
@@ -391,8 +391,8 @@ export function ImportXlsxDialog({
                     <span style={{ fontSize: 11, color: '#746e69', fontWeight: 600 }}>Vinculação</span>
                     <span style={{ fontSize: 11, fontWeight: 700, color: linkPct === 100 ? '#16a34a' : '#d97706' }}>{linked}/{allItems.length}</span>
                   </div>
-                  <div style={{ height: 5, backgroundColor: '#e7e5e4', borderRadius: 99, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${linkPct}%`, backgroundColor: linkPct === 100 ? '#16a34a' : '#d97706', borderRadius: 99, transition: 'width 0.4s' }} />
+                  <div style={{ height: 5, backgroundColor: '#e7e5e4', borderRadius: 999, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${linkPct}%`, backgroundColor: linkPct === 100 ? '#16a34a' : '#d97706', borderRadius: 999, transition: 'width 0.4s' }} />
                   </div>
                 </div>
               </>
@@ -416,7 +416,7 @@ export function ImportXlsxDialog({
               disabled={!importFile || previewXlsxPending}
               onClick={() => { if (importFile) onPreview(importFile); }}
               data-testid="button-preview-import"
-              style={{ width: '100%', padding: '11px 0', backgroundColor: importFile ? '#16a34a' : '#e7e5e4', color: importFile ? '#fff' : '#a8a29e', border: 'none', borderRadius: 9, fontWeight: 800, fontSize: 13, cursor: importFile ? 'pointer' : 'not-allowed', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+              style={{ width: '100%', padding: '11px 0', backgroundColor: importFile ? '#16a34a' : '#e7e5e4', color: importFile ? '#fff' : '#a8a29e', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: importFile ? 'pointer' : 'not-allowed', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
               {previewXlsxPending ? (
                 <><Loader2 style={{ width: 15, height: 15, animation: 'spin 1s linear infinite' }} /> Processando...</>
@@ -451,7 +451,7 @@ export function ImportXlsxDialog({
               )}
               <button
                 onClick={() => { setImportPreviewItems(null); setImportSearch(""); setImportDuplicateWarning?.(null); }}
-                style={{ width: '100%', padding: '9px 0', backgroundColor: 'transparent', color: '#746e69', border: '1px solid #e7e5e4', borderRadius: 9, fontWeight: 600, fontSize: 12, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif" }}
+                style={{ width: '100%', padding: '9px 0', backgroundColor: 'transparent', color: '#746e69', border: '1px solid #e7e5e4', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif" }}
               >
                 Trocar arquivo
               </button>
@@ -459,7 +459,7 @@ export function ImportXlsxDialog({
                 disabled={!importPreviewItems.length || confirmImportPending || !!importDuplicateWarning}
                 onClick={() => { if (importPreviewItems.length > 0) onConfirmImport(importPreviewItems, importFileName); }}
                 data-testid="button-confirm-import"
-                style={{ width: '100%', padding: '11px 0', backgroundColor: importDuplicateWarning ? '#a8a29e' : '#1c1917', color: '#fff', border: 'none', borderRadius: 9, fontWeight: 800, fontSize: 13, cursor: importDuplicateWarning ? 'not-allowed' : 'pointer', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                style={{ width: '100%', padding: '11px 0', backgroundColor: importDuplicateWarning ? '#a8a29e' : '#1c1917', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: importDuplicateWarning ? 'not-allowed' : 'pointer', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
               >
                 {confirmImportPending ? (
                   <><Loader2 style={{ width: 15, height: 15, animation: 'spin 1s linear infinite' }} /> Importando...</>
@@ -482,7 +482,7 @@ export function ImportXlsxDialog({
                   value={importSearch}
                   onChange={e => setImportSearch(e.target.value)}
                   placeholder="Filtrar peças ou grupos..."
-                  style={{ width: '100%', padding: '7px 12px 7px 28px', backgroundColor: '#f5f4f2', border: '1px solid #e7e5e4', borderRadius: 7, color: '#1a1c1c', fontSize: 12, outline: 'none', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '7px 12px 7px 28px', backgroundColor: '#f5f4f2', border: '1px solid #e7e5e4', borderRadius: 8, color: '#1a1c1c', fontSize: 13, boxSizing: 'border-box' }}
                 />
               </div>
               <span style={{ fontSize: 11, color: '#746e69', whiteSpace: 'nowrap', fontWeight: 600 }}>
@@ -504,7 +504,7 @@ export function ImportXlsxDialog({
                         : r
                     ) : prev);
                   }}
-                  style={{ fontSize: 11, fontWeight: 700, borderRadius: 7, border: '1px solid #bbf7d0', backgroundColor: '#f0fdf4', color: '#15803d', cursor: 'pointer', padding: '6px 11px', outline: 'none', whiteSpace: 'nowrap', flexShrink: 0 }}
+                  style={{ fontSize: 11, fontWeight: 700, borderRadius: 8, border: '1px solid #bbf7d0', backgroundColor: '#f0fdf4', color: '#15803d', cursor: 'pointer', padding: '6px 11px', whiteSpace: 'nowrap', flexShrink: 0 }}
                 >
                   + Todos patrocinadores
                 </button>
@@ -513,7 +513,7 @@ export function ImportXlsxDialog({
 
             {/* Table */}
             <div style={{ flex: 1, overflow: 'auto' }}>
-              <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse', fontSize: 12 }}>
+              <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ backgroundColor: '#f5f4f2', position: 'sticky', top: 0, zIndex: 2, boxShadow: '0 1px 0 #e8e6e3' }}>
                     {[
@@ -553,9 +553,9 @@ export function ImportXlsxDialog({
                             <td colSpan={10} style={{ padding: '9px 14px 8px', background: 'linear-gradient(90deg, #F0EEEC 0%, #F5F4F2 100%)', borderTop: gIdx > 0 ? '2px solid #E2DEDA' : undefined, borderBottom: '1px solid #e2deda' }}>
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  <div style={{ width: 3, height: 14, backgroundColor: '#D97A1E', borderRadius: 2 }} />
-                                  <span style={{ fontWeight: 800, fontSize: 12, color: '#1a1c1c', fontFamily: "'Space Grotesk', sans-serif", textTransform: 'uppercase', letterSpacing: '0.04em' }}>{type}</span>
-                                  <span style={{ fontSize: 10, fontWeight: 600, color: '#57534e', backgroundColor: '#e8e6e3', borderRadius: 9999, padding: '1px 8px' }}>{groupItems.length}</span>
+                                  <div style={{ width: 3, height: 14, backgroundColor: '#D97A1E', borderRadius: 6 }} />
+                                  <span style={{ fontWeight: 800, fontSize: 13, color: '#1a1c1c', fontFamily: "'Space Grotesk', sans-serif", textTransform: 'uppercase', letterSpacing: '0.04em' }}>{type}</span>
+                                  <span style={{ fontSize: 10, fontWeight: 600, color: '#57534e', backgroundColor: '#e8e6e3', borderRadius: 999, padding: '1px 8px' }}>{groupItems.length}</span>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
                                   {groupM2 > 0 && (

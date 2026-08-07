@@ -1,3 +1,4 @@
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Copy, Trash2, Loader2, ArrowRight, ChevronDown, Check, Search, X, RotateCcw } from "lucide-react";
@@ -88,9 +89,9 @@ const fieldStyle: React.CSSProperties = {
   backgroundColor: '#f3f4f3',
   border: '1.5px solid transparent',
   borderRadius: '6px',
-  fontSize: '12px',
+  fontSize: '13px',
   padding: '5px 8px',
-  outline: 'none',
+ 
   fontFamily: "'Plus Jakarta Sans', sans-serif",
   color: '#1a1c1c',
   boxSizing: 'border-box',
@@ -161,7 +162,7 @@ function TipoSelect({ value, groupedOptions, onChange, rowIndex, onNavigateNext 
         onMouseDown={e => { e.preventDefault(); onChange(opt); closeDropdown(); onNavigateNext(); }}
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '7px 10px', borderRadius: 6, fontSize: 12,
+          padding: '7px 10px', borderRadius: 6, fontSize: 13,
           fontWeight: sel ? 700 : 500,
           color: sel ? '#f97316' : '#1c1917',
           backgroundColor: sel ? '#fff7ed' : 'transparent',
@@ -185,7 +186,7 @@ function TipoSelect({ value, groupedOptions, onChange, rowIndex, onNavigateNext 
       }}
     >
       <div style={{ position: 'relative', display: 'flex' }}>
-        <div style={{ width: '3px', flexShrink: 0, backgroundColor: '#f97316', borderRadius: '4px 0 0 4px', alignSelf: 'stretch' }} />
+        <div style={{ width: '3px', flexShrink: 0, backgroundColor: '#f97316', borderRadius: '6px 0 0 6px', alignSelf: 'stretch' }} />
         <input
           ref={inputRef}
           value={open ? search : value}
@@ -206,15 +207,15 @@ function TipoSelect({ value, groupedOptions, onChange, rowIndex, onNavigateNext 
         <div style={{ position: 'absolute', top: 'calc(100% + 3px)', left: 0, zIndex: 600, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 8, boxShadow: '0 8px 28px rgba(0,0,0,0.13)', maxHeight: 260, overflowY: 'auto', minWidth: 220, padding: '4px', scrollbarWidth: 'thin', scrollbarColor: '#d6d3d1 #f5f5f4' }}>
           {filtered !== null ? (
             filtered.length === 0
-              ? <div style={{ padding: '10px 12px', fontSize: 12, color: '#746e69', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Nenhum resultado</div>
+              ? <div style={{ padding: '10px 12px', fontSize: 13, color: '#746e69', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Nenhum resultado</div>
               : filtered.map(renderOption)
           ) : (
             groupedOptions.length === 0
-              ? <div style={{ padding: '10px 12px', fontSize: 12, color: '#746e69', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Nenhum modelo cadastrado</div>
+              ? <div style={{ padding: '10px 12px', fontSize: 13, color: '#746e69', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>Nenhum modelo cadastrado</div>
               : groupedOptions.map(({ group, items }) => (
                 <div key={group || '__nogroup'}>
                   {group && (
-                    <div style={{ padding: '5px 10px 3px', fontSize: 9, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0369a1', fontFamily: "'Space Grotesk', sans-serif", backgroundColor: '#f0f9ff', borderRadius: 4, margin: '4px 2px 2px' }}>
+                    <div style={{ padding: '5px 10px 3px', fontSize: 10, fontWeight: 900, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0369a1', fontFamily: "'Space Grotesk', sans-serif", backgroundColor: '#f0f9ff', borderRadius: 6, margin: '4px 2px 2px' }}>
                       {group}
                     </div>
                   )}
@@ -321,7 +322,7 @@ function ExistingItemsPanel({ items, standardItems = [], onDelete }: ExistingIte
             title="Excluir item"
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              padding: '2px', borderRadius: '4px', lineHeight: 0,
+              padding: '2px', borderRadius: '6px', lineHeight: 0,
               color: '#fca5a5', flexShrink: 0,
               visibility: hovered ? 'visible' : 'hidden',
             }}
@@ -336,7 +337,7 @@ function ExistingItemsPanel({ items, standardItems = [], onDelete }: ExistingIte
   }
 
   return (
-    <div style={{ marginBottom: '24px', border: '1px solid #e7e5e4', borderRadius: '10px', overflow: 'hidden' }}>
+    <div style={{ marginBottom: '24px', border: '1px solid #e7e5e4', borderRadius: '12px', overflow: 'hidden' }}>
       {/* ── Sticky header ── */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 10,
@@ -345,16 +346,16 @@ function ExistingItemsPanel({ items, standardItems = [], onDelete }: ExistingIte
         backgroundColor: '#f5f5f4', borderBottom: '1px solid #e7e5e4',
       }}>
         <span style={{
-          fontSize: '9px', fontWeight: '800', textTransform: 'uppercase',
+          fontSize: '10px', fontWeight: '800', textTransform: 'uppercase',
           letterSpacing: '0.14em', color: '#746e69',
           fontFamily: "'Space Grotesk', sans-serif", whiteSpace: 'nowrap',
         }}>
           Peças já lançadas
         </span>
         <span style={{
-          fontSize: '9px', fontWeight: '800',
+          fontSize: '10px', fontWeight: '800',
           backgroundColor: '#1c1917', color: '#fff',
-          borderRadius: '99px', padding: '1px 7px',
+          borderRadius: '999px', padding: '1px 7px',
           fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0,
         }}>
           {items.length}
@@ -373,7 +374,7 @@ function ExistingItemsPanel({ items, standardItems = [], onDelete }: ExistingIte
             placeholder="Filtrar..."
             style={{
               fontSize: '11px', fontFamily: "'Plus Jakarta Sans', sans-serif",
-              backgroundColor: '#ebe9e7', border: 'none', outline: 'none',
+              backgroundColor: '#ebe9e7', border: 'none',
               borderRadius: '6px', padding: '4px 24px 4px 24px',
               color: '#1a1c1c', width: '140px',
             }}
@@ -422,7 +423,7 @@ function ExistingItemsPanel({ items, standardItems = [], onDelete }: ExistingIte
               {/* Grupo Pai header */}
               {group && (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '4px 8px', backgroundColor: '#e0f2fe', borderTop: '1px solid #bae6fd', borderBottom: '1px solid #bae6fd' }}>
-                  <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0369a1', fontFamily: "'Space Grotesk', sans-serif" }}>
+                  <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0369a1', fontFamily: "'Space Grotesk', sans-serif" }}>
                     {group}
                   </span>
                 </div>
@@ -431,10 +432,10 @@ function ExistingItemsPanel({ items, standardItems = [], onDelete }: ExistingIte
                 <div key={type}>
                   {/* Type sub-header */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '4px 8px', backgroundColor: '#f0ede8', borderTop: '1px solid #e7e3dc', borderBottom: '1px solid #e7e3dc' }}>
-                    <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif", flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif", flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {type}
                     </span>
-                    <span style={{ fontSize: '9px', fontWeight: '700', color: '#57534e', backgroundColor: '#e7e3de', borderRadius: 999, padding: '1px 6px', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>
+                    <span style={{ fontSize: '10px', fontWeight: '700', color: '#57534e', backgroundColor: '#e7e3de', borderRadius: 999, padding: '1px 6px', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>
                       {typeItems.length}
                     </span>
                   </div>
@@ -728,25 +729,31 @@ export function BulkItemEntry({
         }}>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '12px' }}>
             <Loader2 className="h-10 w-10 animate-spin" style={{ color: '#f97316' }} />
-            <span style={{ fontSize: '14px', fontWeight: '700', color: '#1a1c1c', fontFamily: "'Space Grotesk', sans-serif" }}>
+            <span style={{ fontSize: '15px', fontWeight: '700', color: '#1a1c1c', fontFamily: "'Space Grotesk', sans-serif" }}>
               Salvando peças...
             </span>
           </div>
         </div>
       )}
 
-      {/* ── RESUMO / CONFIRMAÇÃO DE LOTE ── */}
-      {duplicateConfirm && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 9999,
-          backgroundColor: 'rgba(28,25,23,0.65)', backdropFilter: 'blur(6px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: '24px',
-        }}>
+      {/* ── RESUMO / CONFIRMAÇÃO DE LOTE ──
+          Era um overlay montado à mão: sem Esc, sem armadilha de foco (o Tab
+          percorria o formulário atrás do escurecido), o foco não voltava ao
+          fechar e a página seguia rolando por baixo. É a última conferência
+          antes de gravar um lote inteiro de peças — justamente onde a pessoa
+          precisa poder desistir com uma tecla. */}
+      <Dialog open={!!duplicateConfirm} onOpenChange={o => { if (!o) setDuplicateConfirm(null); }}>
+        <DialogContent
+          className="p-0 gap-0 border-none"
+          style={{ maxWidth: 520, width: '96vw', borderRadius: 12, overflow: 'hidden', backgroundColor: '#F7F6F3', boxShadow: '0 24px 64px rgba(0,0,0,0.28)' }}
+        >
+          <DialogTitle className="sr-only">Revisão do lote</DialogTitle>
+          <DialogDescription className="sr-only">Confira as peças antes de gravar o lote</DialogDescription>
+          {/* A guarda continua necessária: o Dialog monta o conteúdo antes de
+              `duplicateConfirm` existir, e todo o corpo abaixo lê esse objeto. */}
+          {duplicateConfirm && (
           <div style={{
-            backgroundColor: '#F7F6F3', borderRadius: '14px',
-            boxShadow: '0 24px 64px rgba(0,0,0,0.28)',
-            width: '100%', maxWidth: '520px', maxHeight: '85vh',
+            maxHeight: '85vh',
             display: 'flex', flexDirection: 'column', overflow: 'hidden',
           }}>
 
@@ -755,7 +762,7 @@ export function BulkItemEntry({
               padding: '22px 28px 18px',
               borderBottom: '1px solid #E7E3DC',
               backgroundColor: '#fff',
-              borderRadius: '14px 14px 0 0',
+              borderRadius: '12px 12px 0 0',
             }}>
               <p style={{
                 margin: 0, fontSize: '11px', fontWeight: '700', letterSpacing: '0.10em',
@@ -804,7 +811,7 @@ export function BulkItemEntry({
                       <div key={group || '__nogroup'}>
                         {group && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '4px 12px', backgroundColor: '#e0f2fe', borderBottom: '1px solid #bae6fd' }}>
-                            <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0369a1', fontFamily: "'Space Grotesk', sans-serif" }}>{group}</span>
+                            <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0369a1', fontFamily: "'Space Grotesk', sans-serif" }}>{group}</span>
                           </div>
                         )}
                         {Object.entries(groupMap[group]).map(([type, typeItems], gi) => (
@@ -818,7 +825,7 @@ export function BulkItemEntry({
                           borderBottom: '1px solid #E7E3DC',
                         }}>
                           <span style={{
-                            fontSize: '9px', fontWeight: '900',
+                            fontSize: '10px', fontWeight: '900',
                             textTransform: 'uppercase', letterSpacing: '0.12em',
                             color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif",
                             flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -826,7 +833,7 @@ export function BulkItemEntry({
                             {type}
                           </span>
                           <span style={{
-                            fontSize: '9px', fontWeight: '700',
+                            fontSize: '10px', fontWeight: '700',
                             color: '#57534e', backgroundColor: '#e7e3de',
                             borderRadius: 999, padding: '1px 6px',
                             fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0,
@@ -848,8 +855,8 @@ export function BulkItemEntry({
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0 }}>
                                 {item.isReuse && (
                                   <span style={{
-                                    fontSize: '8px', fontWeight: '800', backgroundColor: '#047857',
-                                    color: '#ffffff', borderRadius: '3px', padding: '1px 6px',
+                                    fontSize: '10px', fontWeight: '800', backgroundColor: '#047857',
+                                    color: '#ffffff', borderRadius: '6px', padding: '1px 6px',
                                     textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0,
                                     fontFamily: "'Space Grotesk', sans-serif",
                                     display: 'inline-flex', alignItems: 'center', gap: 3,
@@ -859,8 +866,8 @@ export function BulkItemEntry({
                                 )}
                                 {isDup && (
                                   <span style={{
-                                    fontSize: '8px', fontWeight: '800', backgroundColor: '#fde68a',
-                                    color: '#92400e', borderRadius: '3px', padding: '1px 5px',
+                                    fontSize: '10px', fontWeight: '800', backgroundColor: '#fde68a',
+                                    color: '#92400e', borderRadius: '6px', padding: '1px 5px',
                                     textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0,
                                     fontFamily: "'Space Grotesk', sans-serif",
                                   }}>Dup</span>
@@ -870,7 +877,7 @@ export function BulkItemEntry({
                                     {dupMatch.existingItem.displayId}
                                   </span>
                                 )}
-                                <span style={{ fontSize: '12px', fontWeight: '700', color: isDup ? '#92400e' : '#1F1D1A', fontFamily: "'Space Grotesk', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <span style={{ fontSize: '13px', fontWeight: '700', color: isDup ? '#92400e' : '#1F1D1A', fontFamily: "'Space Grotesk', sans-serif", overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {item.type}
                                 </span>
                                 {item.description && (
@@ -886,7 +893,7 @@ export function BulkItemEntry({
                                 <span style={{ fontSize: '11px', color: '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                                   {item.material}
                                 </span>
-                                <span style={{ fontSize: '11px', fontWeight: '700', color: '#b45309', fontFamily: "'Space Grotesk', sans-serif", backgroundColor: '#FDF3E7', borderRadius: '4px', padding: '2px 7px' }}>
+                                <span style={{ fontSize: '11px', fontWeight: '700', color: '#b45309', fontFamily: "'Space Grotesk', sans-serif", backgroundColor: '#FDF3E7', borderRadius: '6px', padding: '2px 7px' }}>
                                   {item.quantity}x
                                 </span>
                               </div>
@@ -926,14 +933,14 @@ export function BulkItemEntry({
                         <div key={group || '__nogroup2'}>
                           {group && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '4px 12px', backgroundColor: '#e0f2fe', borderBottom: '1px solid #bae6fd' }}>
-                              <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0369a1', fontFamily: "'Space Grotesk', sans-serif" }}>{group}</span>
+                              <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#0369a1', fontFamily: "'Space Grotesk', sans-serif" }}>{group}</span>
                             </div>
                           )}
                           {Object.entries(gMap2[group]).map(([type, typeItems], gi) => (
                             <div key={type}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '7px', padding: '5px 12px', backgroundColor: '#f0ede8', borderTop: (!group && gi === 0) ? 'none' : '1px solid #E7E3DC', borderBottom: '1px solid #E7E3DC' }}>
-                                <span style={{ fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif", flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{type}</span>
-                                <span style={{ fontSize: '9px', fontWeight: '700', color: '#57534e', backgroundColor: '#e7e3de', borderRadius: 999, padding: '1px 6px', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>{typeItems.length}</span>
+                                <span style={{ fontSize: '10px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em', color: '#6F6A63', fontFamily: "'Space Grotesk', sans-serif", flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{type}</span>
+                                <span style={{ fontSize: '10px', fontWeight: '700', color: '#57534e', backgroundColor: '#e7e3de', borderRadius: 999, padding: '1px 6px', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>{typeItems.length}</span>
                               </div>
                               {typeItems.map((item) => {
                                 const isConflict = duplicateConfirm.duplicates.some(d => d.existingItem.id === item.id);
@@ -941,11 +948,11 @@ export function BulkItemEntry({
                                   <div key={item.id} style={{ backgroundColor: isConflict ? '#FEF9EC' : '#F7F6F3', borderBottom: '1px solid #E7E3DC', padding: '7px 12px', display: 'flex', alignItems: 'center', gap: '10px' }}>
                                     <span style={{ fontSize: '11px', fontWeight: '700', color: '#D97A1E', fontFamily: "'Space Grotesk', sans-serif", flexShrink: 0 }}>{item.displayId}</span>
                                     <div style={{ flex: 1, minWidth: 0 }}>
-                                      <span style={{ fontSize: '12px', fontWeight: isConflict ? '700' : '400', color: isConflict ? '#92400e' : '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</span>
+                                      <span style={{ fontSize: '13px', fontWeight: isConflict ? '700' : '400', color: isConflict ? '#92400e' : '#6F6A63', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</span>
                                       {item.description && <span style={{ fontSize: '11px', color: isConflict ? '#b45309' : '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.description}</span>}
                                     </div>
                                     <span style={{ fontSize: '11px', fontWeight: isConflict ? '700' : '400', color: isConflict ? '#D97A1E' : '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif", flexShrink: 0 }}>{item.quantity}x</span>
-                                    {isConflict && <span style={{ fontSize: '8px', fontWeight: '800', backgroundColor: '#fde68a', color: '#92400e', borderRadius: '3px', padding: '1px 5px', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}>Dup</span>}
+                                    {isConflict && <span style={{ fontSize: '10px', fontWeight: '800', backgroundColor: '#fde68a', color: '#92400e', borderRadius: '6px', padding: '1px 5px', textTransform: 'uppercase', letterSpacing: '0.06em', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}>Dup</span>}
                                   </div>
                                 );
                               })}
@@ -978,7 +985,7 @@ export function BulkItemEntry({
                           {dup.existingItem.displayId}
                         </span>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ fontSize: '12px', fontWeight: '600', color: '#92400e', fontFamily: "'Space Grotesk', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <span style={{ fontSize: '13px', fontWeight: '600', color: '#92400e', fontFamily: "'Space Grotesk', sans-serif", display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {dup.existingItem.type}
                           </span>
                           {dup.existingItem.description && (
@@ -993,7 +1000,7 @@ export function BulkItemEntry({
                       </div>
                     ))}
                   </div>
-                  <p style={{ fontSize: '12px', color: '#6F6A63', margin: '10px 0 0', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+                  <p style={{ fontSize: '13px', color: '#6F6A63', margin: '10px 0 0', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                     Você ainda pode confirmar — as peças serão criadas mesmo assim.
                   </p>
                 </div>
@@ -1009,7 +1016,7 @@ export function BulkItemEntry({
               borderRadius: '0 0 14px 14px',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px',
             }}>
-              <p style={{ margin: 0, fontSize: '12px', color: '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+              <p style={{ margin: 0, fontSize: '13px', color: '#9D978F', fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
                 {duplicateConfirm.valid.length} {duplicateConfirm.valid.length === 1 ? 'peça nova' : 'peças novas'} ·{' '}
                 {existingItems.length} existentes no evento
               </p>
@@ -1047,8 +1054,9 @@ export function BulkItemEntry({
             </div>
 
           </div>
-        </div>
-      )}
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* ── SCROLL AREA ── */}
       <div
@@ -1187,7 +1195,7 @@ export function BulkItemEntry({
                   <td style={{ padding: '2px 4px' }}>
                     <div style={{
                       backgroundColor: '#fff7ed', borderRadius: '6px',
-                      padding: '5px 8px', fontSize: '12px', fontWeight: '800',
+                      padding: '5px 8px', fontSize: '13px', fontWeight: '800',
                       color: row.calculatedM2 > 0 ? '#f97316' : '#fcd9b8',
                       textAlign: 'center', fontFamily: 'monospace',
                     }}>
@@ -1261,9 +1269,9 @@ export function BulkItemEntry({
                         data-testid={`input-replicate-count-${ri}`}
                         style={{
                           width: '28px', height: '26px',
-                          backgroundColor: '#f0efee', border: 'none', borderRadius: '4px',
+                          backgroundColor: '#f0efee', border: 'none', borderRadius: '6px',
                           fontSize: '11px', fontWeight: '700', textAlign: 'center',
-                          color: '#57534e', outline: 'none', padding: '0',
+                          color: '#57534e', padding: '0',
                           fontFamily: "'Plus Jakarta Sans', sans-serif",
                         }}
                       />
@@ -1271,7 +1279,7 @@ export function BulkItemEntry({
                         type="button"
                         onClick={() => duplicateRow(row.id)}
                         title={`Replicar ${getReplicateCount(row.id)}x`}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', borderRadius: '4px', color: '#c4bfbb', lineHeight: 0 }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', borderRadius: '6px', color: '#c4bfbb', lineHeight: 0 }}
                         onMouseEnter={e => (e.currentTarget.style.color = '#1a1c1c')}
                         onMouseLeave={e => (e.currentTarget.style.color = '#c4bfbb')}
                         data-testid={`button-duplicate-${ri}`}
@@ -1282,7 +1290,7 @@ export function BulkItemEntry({
                         type="button"
                         onClick={() => setRows(prev => prev.map(r => r.id === row.id ? { ...r, isReuse: !r.isReuse } : r))}
                         title={row.isReuse ? "Reaproveitamento ativo — clique para desativar" : "Marcar como reaproveitamento"}
-                        style={{ background: row.isReuse ? '#dcfce7' : 'none', border: row.isReuse ? '1px solid #86efac' : 'none', cursor: 'pointer', padding: '3px 5px', borderRadius: '4px', color: row.isReuse ? '#15803d' : '#c4bfbb', lineHeight: 0, transition: 'all 0.12s' }}
+                        style={{ background: row.isReuse ? '#dcfce7' : 'none', border: row.isReuse ? '1px solid #86efac' : 'none', cursor: 'pointer', padding: '3px 5px', borderRadius: '6px', color: row.isReuse ? '#15803d' : '#c4bfbb', lineHeight: 0, transition: 'all 0.12s' }}
                         onMouseEnter={e => { if (!row.isReuse) e.currentTarget.style.color = '#15803d'; }}
                         onMouseLeave={e => { if (!row.isReuse) e.currentTarget.style.color = '#c4bfbb'; }}
                         data-testid={`button-reuse-${ri}`}
@@ -1293,7 +1301,7 @@ export function BulkItemEntry({
                         type="button"
                         onClick={() => removeRow(row.id)}
                         title="Remover"
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', borderRadius: '4px', color: '#ddd9d5', lineHeight: 0 }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '3px', borderRadius: '6px', color: '#ddd9d5', lineHeight: 0 }}
                         onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
                         onMouseLeave={e => (e.currentTarget.style.color = '#ddd9d5')}
                         data-testid={`button-remove-${ri}`}
@@ -1345,13 +1353,13 @@ export function BulkItemEntry({
         {/* Status chips */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <div style={{ width: '7px', height: '7px', borderRadius: '99px', backgroundColor: '#f97316' }} />
+            <div style={{ width: '7px', height: '7px', borderRadius: '999px', backgroundColor: '#f97316' }} />
             <span style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Space Grotesk', sans-serif" }}>
               Cálculo Automático
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <div style={{ width: '7px', height: '7px', borderRadius: '99px', backgroundColor: validCount > 0 ? '#22c55e' : '#d6d3d1' }} />
+            <div style={{ width: '7px', height: '7px', borderRadius: '999px', backgroundColor: validCount > 0 ? '#22c55e' : '#d6d3d1' }} />
             <span style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', fontFamily: "'Space Grotesk', sans-serif" }}>
               {validCount} {validCount === 1 ? 'Peça Válida' : 'Peças Válidas'}
             </span>

@@ -3,14 +3,16 @@
 // a ela, e este acervo interessa a todo mundo.
 import { useMemo, useState, useEffect, useDeferredValue } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Camera, Truck, FileCheck, Search, X, ExternalLink, ChevronLeft, ChevronRight, ZoomIn } from "lucide-react";
+import { Camera, Truck, FileCheck, Search, X, ExternalLink, ChevronLeft, ChevronRight, ZoomIn, Download, Loader2 } from "lucide-react";
 import { Link } from "wouter";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { FilterSelect } from "@/components/filter-select";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { T, FS, R, SHADOW } from "@/lib/theme";
+import { toast } from "@/hooks/use-toast";
 
 const KIND = {
   conference: { label: "Conferência", color: "#0e7490", bg: "#ecfeff", border: "#a5f3fc", icon: FileCheck },
@@ -102,6 +104,7 @@ export default function Registros() {
   const clearAll = () => { setKindFilter([]); setEventFilter([]); setSearch(""); setPeriod("Todos"); };
 
   // Navegação do zoom: setas e Esc, como se espera de uma galeria.
+  // O Esc é do próprio Dialog; aqui ficam só as setas.
   const zoom = zoomIdx != null ? filtered[zoomIdx] : null;
   const stepZoom = (dir: 1 | -1) =>
     setZoomIdx(i => {
@@ -113,15 +116,48 @@ export default function Registros() {
   useEffect(() => {
     if (zoomIdx == null) return;
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setZoomIdx(null);
-      else if (e.key === "ArrowRight") stepZoom(1);
+      if (e.key === "ArrowRight") stepZoom(1);
       else if (e.key === "ArrowLeft") stepZoom(-1);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [zoomIdx, filtered.length]);
 
+  // Foto grande demora a chegar no 4G do galpão; sem indicação, a troca de
+  // imagem parece que travou porque a anterior fica na tela até a nova pintar.
+  const [zoomLoading, setZoomLoading] = useState(false);
+  useEffect(() => { if (zoomIdx != null) setZoomLoading(true); }, [zoomIdx]);
+
   const fmt = (d: any) => (d ? format(new Date(d), "dd/MM/yy HH:mm", { locale: ptBR }) : "—");
+
+  /** Texto que descreve a foto para quem não a vê. */
+  const altOf = (p: any) =>
+    [KIND[kindOf(p)].label, p.displayId, p.itemType, p.eventName].filter(Boolean).join(" — ");
+
+  // Baixar é a ação natural de um acervo: a foto vira anexo de e-mail, prova de
+  // entrega, comprovante. "Abrir original" só levava para outra aba, deixando o
+  // trabalho de salvar (e de nomear o arquivo) para o usuário.
+  const [baixando, setBaixando] = useState(false);
+  const baixar = async (p: any) => {
+    setBaixando(true);
+    try {
+      const url = srcOf(p);
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const ext = (blob.type.split("/")[1] || "jpg").replace("jpeg", "jpg");
+      const nome = [KIND[kindOf(p)].label, p.displayId, p.createdAt ? format(new Date(p.createdAt), "dd-MM-yy") : ""]
+        .filter(Boolean).join(" ").replace(/[\\/:*?"<>|]/g, "-");
+      const href = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = href; a.download = `${nome}.${ext}`; a.click();
+      setTimeout(() => URL.revokeObjectURL(href), 30_000);
+    } catch (e: any) {
+      toast({ title: "Não foi possível baixar", description: e?.message ?? "Tente abrir o original.", variant: "destructive" });
+    } finally {
+      setBaixando(false);
+    }
+  };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", backgroundColor: T.bg }}>
@@ -154,8 +190,13 @@ export default function Registros() {
                 <button key={label} className="group"
                   onClick={() => { setKindFilter(kind && !active ? [kind] : []); setVisible(PAGE_SIZE); }}
                   data-testid={`stat-${kind ?? "total"}`}
+                  aria-pressed={!!kind && active}
                   title={kind ? `Ver só ${label.toLowerCase()}` : "Ver tudo"}
-                  style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer", opacity: active || kindFilter.length === 0 ? 1 : 0.45, transition: "opacity 0.15s" }}>
+                  /* Estes contadores também são filtros. A 0.45 de opacidade o
+                     inativo caía para menos da metade do contraste e virava
+                     texto ilegível; 0.7 continua recuando sem sumir — e o
+                     aria-pressed diz qual está ativo a quem não vê a cor. */
+                  style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer", opacity: active || kindFilter.length === 0 ? 1 : 0.7, transition: "opacity 0.15s" }}>
                   <p style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: FS.h2, color, margin: 0, lineHeight: 1 }}>{n}</p>
                   <p className="group-hover:opacity-80" style={{ fontSize: FS.small, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: T.second, margin: "4px 0 0", borderBottom: active && kind ? `2px solid ${color}` : "2px solid transparent", paddingBottom: 2, transition: "border-color 0.15s" }}>{label}</p>
                 </button>
@@ -236,10 +277,20 @@ export default function Registros() {
           </div>
         ) : (
           <>
-            <p style={{ fontSize: FS.small, color: T.second, margin: "0 0 12px" }}>
-              Exibindo <strong style={{ color: T.text }}>{Math.min(visible, filtered.length)}</strong> de{" "}
-              <strong style={{ color: T.text }}>{filtered.length}</strong> registro{filtered.length !== 1 ? "s" : ""}
-            </p>
+            {/* A galeria já respondia a ← → e Esc, mas nada dizia isso: um
+                recurso que ninguém descobre é um recurso que não existe. */}
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap", margin: "0 0 12px" }}>
+              <p style={{ fontSize: FS.small, color: T.second, margin: 0 }}>
+                Exibindo <strong style={{ color: T.text }}>{Math.min(visible, filtered.length)}</strong> de{" "}
+                <strong style={{ color: T.text }}>{filtered.length}</strong> registro{filtered.length !== 1 ? "s" : ""}
+              </p>
+              {!isMobile && (
+                <p style={{ fontSize: FS.small, color: T.second, margin: 0 }}>
+                  Abra uma foto e use <kbd style={{ fontFamily: "inherit", fontWeight: 700, color: T.text }}>←</kbd>{" "}
+                  <kbd style={{ fontFamily: "inherit", fontWeight: 700, color: T.text }}>→</kbd> para percorrer
+                </p>
+              )}
+            </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 20 }}>
               {filtered.slice(0, visible).map((p, idx) => {
                 const k = KIND[kindOf(p)];
@@ -258,7 +309,10 @@ export default function Registros() {
                     >
                       {/* lazy: a grade carrega dezenas de fotos; sem isso o
                           navegador baixa todas de uma vez ao abrir a tela. */}
-                      <img src={srcOf(p)} alt={k.label} loading="lazy" decoding="async"
+                      {/* alt era só "Conferência"/"Entrega": um leitor de tela
+                          repetia a mesma palavra sessenta vezes ao percorrer a
+                          grade, sem dizer de que peça era cada foto. */}
+                      <img src={srcOf(p)} alt={altOf(p)} loading="lazy" decoding="async"
                         style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                         onError={e => {
                           const img = e.currentTarget as HTMLImageElement;
@@ -306,8 +360,14 @@ export default function Registros() {
                         <p style={{ fontSize: FS.small, color: T.second, margin: 0 }}>Sem evento</p>
                       )}
 
+                      {/* A observação é o que a Gráfica escreveu na hora — vale
+                          mais que os metadados. Fundo levíssimo em vez de só
+                          itálico, para separá-la do resto sem gritar.
+                          (#584237 era uma cor solta fora da paleta.) */}
                       {notes && (
-                        <p style={{ fontSize: FS.small, color: "#584237", fontStyle: "italic", margin: 0, lineHeight: 1.4 }}>"{notes}"</p>
+                        <p style={{ fontSize: FS.small, color: "#57534e", fontStyle: "italic", margin: 0, lineHeight: 1.45, backgroundColor: T.low, borderRadius: R.sm, padding: "6px 8px" }}>
+                          “{notes}”
+                        </p>
                       )}
 
                       <div style={{ marginTop: "auto", paddingTop: 6, borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", gap: 8 }}>
@@ -334,63 +394,103 @@ export default function Registros() {
         )}
       </div>
 
-      {/* ── Zoom ── */}
-      {zoom && (
-        <div
-          onClick={() => setZoomIdx(null)}
-          style={{ position: "fixed", inset: 0, zIndex: 60, backgroundColor: "rgba(28,25,23,0.85)", display: "flex", alignItems: "center", justifyContent: "center", padding: 32, cursor: "zoom-out" }}
+      {/* ── Zoom ──────────────────────────────────────────────────────────
+          Era um <div> fixo sobre a página. Como o recurso central da tela, é o
+          que mais sentia falta de ser um diálogo de verdade: o Tab passeava
+          pelos cartões atrás do escurecido, o fundo continuava rolando com a
+          roda do mouse, ao fechar o foco não voltava para o cartão de origem e
+          nada anunciava a abertura para leitor de tela. O Dialog do app resolve
+          os quatro de uma vez. */}
+      <Dialog open={zoom != null} onOpenChange={o => { if (!o) setZoomIdx(null); }}>
+        <DialogContent
+          className="max-w-none p-0 gap-0 border-none bg-transparent shadow-none [&>button]:hidden"
+          style={{ width: "96vw", maxWidth: 1280 }}
         >
-          {/* Setas laterais — a galeria se percorre sem fechar e reabrir */}
-          {zoomIdx! > 0 && (
-            <button onClick={e => { e.stopPropagation(); stepZoom(-1); }} title="Anterior (←)"
-              data-testid="button-zoom-prev"
-              style={{ position: "absolute", left: 16, width: 44, height: 44, borderRadius: "50%", border: "none", backgroundColor: "rgba(255,255,255,0.15)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <ChevronLeft style={{ width: 22, height: 22 }} />
-            </button>
-          )}
-          {zoomIdx! < filtered.length - 1 && (
-            <button onClick={e => { e.stopPropagation(); stepZoom(1); }} title="Próxima (→)"
-              data-testid="button-zoom-next"
-              style={{ position: "absolute", right: 16, width: 44, height: 44, borderRadius: "50%", border: "none", backgroundColor: "rgba(255,255,255,0.15)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <ChevronRight style={{ width: 22, height: 22 }} />
-            </button>
-          )}
+          <DialogTitle className="sr-only">
+            {zoom ? altOf(zoom) : "Registro"}
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Use as setas do teclado para percorrer os registros e Esc para fechar
+          </DialogDescription>
 
-          <div onClick={e => e.stopPropagation()} style={{ maxWidth: "90vw", maxHeight: "90vh", display: "flex", flexDirection: "column", gap: 12, cursor: "default" }}>
-            <img src={srcOf(zoom)} alt="Registro"
-              style={{ maxWidth: "100%", maxHeight: "78vh", objectFit: "contain", borderRadius: R.md, backgroundColor: "#ffffff", boxShadow: SHADOW.lg }} />
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, color: "#ffffff" }}>
-              <div>
-                <p style={{ fontSize: FS.strong, fontWeight: 700, margin: 0 }}>
-                  {zoom.displayId ? `${zoom.displayId} — ` : ""}{zoom.itemType || "Peça removida"}
-                </p>
-                <p style={{ fontSize: FS.small, opacity: 0.75, margin: 0 }}>
-                  {KIND[kindOf(zoom)].label} · {zoom.eventName || "Sem evento"} · {fmt(zoom.createdAt)}
-                  {zoom.uploadedBy && ` · por ${zoom.uploadedBy}`}
-                </p>
-                {(kindOf(zoom) === "conference" ? zoom.conferenceNotes : zoom.deliveryNotes) && (
-                  <p style={{ fontSize: FS.small, opacity: 0.85, fontStyle: "italic", margin: "4px 0 0" }}>
-                    "{kindOf(zoom) === "conference" ? zoom.conferenceNotes : zoom.deliveryNotes}"
-                  </p>
+          {zoom && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {zoomLoading && (
+                  <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <Loader2 className="animate-spin" style={{ width: 28, height: 28, color: "rgba(255,255,255,0.85)" }} />
+                  </div>
+                )}
+                <img
+                  src={srcOf(zoom)}
+                  alt={altOf(zoom)}
+                  onLoad={() => setZoomLoading(false)}
+                  onError={() => setZoomLoading(false)}
+                  data-testid="img-zoom"
+                  style={{ maxWidth: "100%", maxHeight: "72vh", objectFit: "contain", borderRadius: R.md, backgroundColor: "#ffffff", boxShadow: SHADOW.lg, opacity: zoomLoading ? 0.4 : 1, transition: "opacity 0.15s" }}
+                />
+
+                {/* Setas dentro da moldura da imagem: fora dela, em tela larga,
+                    ficavam a meio metro da foto. */}
+                {zoomIdx! > 0 && (
+                  <button onClick={() => stepZoom(-1)} title="Anterior (←)" aria-label="Registro anterior"
+                    data-testid="button-zoom-prev"
+                    style={{ position: "absolute", left: 12, width: 44, height: 44, borderRadius: R.pill, border: "none", backgroundColor: "rgba(28,25,23,0.55)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <ChevronLeft style={{ width: 22, height: 22 }} />
+                  </button>
+                )}
+                {zoomIdx! < filtered.length - 1 && (
+                  <button onClick={() => stepZoom(1)} title="Próxima (→)" aria-label="Próximo registro"
+                    data-testid="button-zoom-next"
+                    style={{ position: "absolute", right: 12, width: 44, height: 44, borderRadius: R.pill, border: "none", backgroundColor: "rgba(28,25,23,0.55)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <ChevronRight style={{ width: 22, height: 22 }} />
+                  </button>
                 )}
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: FS.small, opacity: 0.7, whiteSpace: "nowrap" }}>
-                  {zoomIdx! + 1} / {filtered.length}
-                </span>
-                <a href={srcOf(zoom)} target="_blank" rel="noopener noreferrer" className="hover:bg-white/25"
-                  style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 36, padding: "0 14px", borderRadius: R.md, backgroundColor: "rgba(255,255,255,0.15)", color: "#ffffff", fontSize: FS.small, fontWeight: 700, textDecoration: "none", transition: "background-color 0.15s" }}>
-                  <ExternalLink style={{ width: 13, height: 13 }} /> Original
-                </a>
-                <button onClick={() => setZoomIdx(null)} className="hover:bg-white/25"
-                  style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 36, padding: "0 14px", borderRadius: R.md, border: "none", backgroundColor: "rgba(255,255,255,0.15)", color: "#ffffff", fontSize: FS.small, fontWeight: 700, cursor: "pointer", transition: "background-color 0.15s" }}>
-                  <X style={{ width: 13, height: 13 }} /> Fechar
-                </button>
+
+              {/* Legenda + ações. flexWrap porque no celular três botões e o
+                  texto não cabem lado a lado. */}
+              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap", color: "#ffffff" }}>
+                <div style={{ minWidth: 0, flex: "1 1 260px" }}>
+                  <p style={{ fontSize: FS.strong, fontWeight: 700, margin: 0 }}>
+                    {zoom.displayId ? `${zoom.displayId} — ` : ""}{zoom.itemType || "Peça removida"}
+                  </p>
+                  <p style={{ fontSize: FS.small, color: "rgba(255,255,255,0.8)", margin: "2px 0 0" }}>
+                    {KIND[kindOf(zoom)].label} · {zoom.eventName || "Sem evento"} · {fmt(zoom.createdAt)}
+                    {zoom.uploadedBy && ` · por ${zoom.uploadedBy}`}
+                  </p>
+                  {(kindOf(zoom) === "conference" ? zoom.conferenceNotes : zoom.deliveryNotes) && (
+                    <p style={{ fontSize: FS.small, color: "rgba(255,255,255,0.9)", fontStyle: "italic", margin: "4px 0 0" }}>
+                      “{kindOf(zoom) === "conference" ? zoom.conferenceNotes : zoom.deliveryNotes}”
+                    </p>
+                  )}
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                  <span style={{ fontSize: FS.small, color: "rgba(255,255,255,0.8)", whiteSpace: "nowrap", marginRight: 4 }}>
+                    {zoomIdx! + 1} / {filtered.length}
+                  </span>
+                  <button onClick={() => baixar(zoom)} disabled={baixando} className="hover:bg-white/25"
+                    data-testid="button-zoom-download"
+                    style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 36, padding: "0 14px", borderRadius: R.md, border: "none", backgroundColor: "rgba(255,255,255,0.15)", color: "#ffffff", fontSize: FS.small, fontWeight: 700, cursor: baixando ? "wait" : "pointer", transition: "background-color 0.15s" }}>
+                    {baixando
+                      ? <><Loader2 className="animate-spin" style={{ width: 13, height: 13 }} /> Baixando…</>
+                      : <><Download style={{ width: 13, height: 13 }} /> Baixar</>}
+                  </button>
+                  <a href={srcOf(zoom)} target="_blank" rel="noopener noreferrer" className="hover:bg-white/25"
+                    style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 36, padding: "0 14px", borderRadius: R.md, backgroundColor: "rgba(255,255,255,0.15)", color: "#ffffff", fontSize: FS.small, fontWeight: 700, textDecoration: "none", transition: "background-color 0.15s" }}>
+                    <ExternalLink style={{ width: 13, height: 13 }} /> Original
+                  </a>
+                  <button onClick={() => setZoomIdx(null)} className="hover:bg-white/25" aria-label="Fechar"
+                    style={{ display: "flex", alignItems: "center", gap: 6, minHeight: 36, padding: "0 14px", borderRadius: R.md, border: "none", backgroundColor: "rgba(255,255,255,0.15)", color: "#ffffff", fontSize: FS.small, fontWeight: 700, cursor: "pointer", transition: "background-color 0.15s" }}>
+                    <X style={{ width: 13, height: 13 }} /> Fechar
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

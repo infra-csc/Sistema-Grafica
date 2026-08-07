@@ -1,4 +1,4 @@
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { FilePreview, isImageUrl, isPdf } from "@/components/file-preview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,15 +83,26 @@ function friendlyFileName(url: string): string {
 function PhotoLightbox({
   url, alt, onClose,
 }: { url: string; alt: string; onClose: () => void }) {
-  // Fecha com Escape
+  // Fecha com Escape.
+  //
+  // stopPropagation e captura: o lightbox vive dentro do Dialog do Radix, que
+  // também fecha no Escape. Sem interceptar antes, uma tecla fechava os dois —
+  // a foto E a ficha da peça por baixo, obrigando a reabrir tudo.
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      onClose();
+    };
+    window.addEventListener("keydown", handler, true);
+    return () => window.removeEventListener("keydown", handler, true);
   }, [onClose]);
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={alt || "Foto ampliada"}
       onClick={onClose}
       style={{
         position: "fixed", inset: 0, zIndex: 9999,
@@ -134,7 +145,7 @@ function PhotoLightbox({
           rel="noopener noreferrer"
           style={{
             display: "inline-flex", alignItems: "center", gap: 6,
-            color: "rgba(255,255,255,0.65)", fontSize: 12, textDecoration: "none",
+            color: "rgba(255,255,255,0.65)", fontSize: 13, textDecoration: "none",
             padding: "5px 12px", borderRadius: 6, backgroundColor: "rgba(255,255,255,0.1)",
             transition: "color 0.15s, background 0.15s",
           }}
@@ -185,7 +196,7 @@ function PhotoStrip({ urls, alt }: { urls: string[]; alt: string }) {
                   parent.appendChild(span);
                 }
               }} />
-            <span style={{ position: "absolute", bottom: 4, right: 4, backgroundColor: "rgba(0,0,0,0.55)", color: "#ffffff", padding: 4, borderRadius: 4, display: "flex" }}>
+            <span style={{ position: "absolute", bottom: 4, right: 4, backgroundColor: "rgba(0,0,0,0.55)", color: "#ffffff", padding: 4, borderRadius: 6, display: "flex" }}>
               <Eye style={{ width: 10, height: 10 }} />
             </span>
           </button>
@@ -446,15 +457,26 @@ export function ItemDetailsDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="max-w-6xl max-h-[90vh] overflow-y-auto p-0 gap-0"
-        style={{ backgroundColor: "#f9f9f8", borderRadius: 6, boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)" }}
+        /* raio 16: era 6, o único modal do app fora do degrau de modal. */
+        style={{ backgroundColor: "#f9f9f8", borderRadius: 16, boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)" }}
       >
+        {/* Sem DialogTitle o Radix anuncia um diálogo sem nome (e reclama no
+            console). Como o cabeçalho visual já mostra a peça, o título fica
+            só para leitor de tela. Este componente abre em cinco telas, então
+            a falta valia por cinco. */}
+        <DialogTitle className="sr-only">
+          {item?.displayId ? `Peça ${item.displayId}` : "Detalhes da peça"}
+        </DialogTitle>
+        <DialogDescription className="sr-only">
+          Especificações, arte, patrocinadores e histórico da peça
+        </DialogDescription>
         {/* ── Close button ── */}
         <button
           onClick={() => onOpenChange(false)}
           style={{
             position: "absolute", top: 16, right: 16, zIndex: 50,
             background: "rgba(255,255,255,0.1)", border: "none", cursor: "pointer",
-            color: "rgba(255,255,255,0.6)", padding: 6, borderRadius: 4,
+            color: "rgba(255,255,255,0.6)", padding: 6, borderRadius: 6,
             display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s",
           }}
           onMouseEnter={e => { e.currentTarget.style.color = "#ffffff"; e.currentTarget.style.background = "rgba(255,255,255,0.2)"; }}
@@ -471,26 +493,26 @@ export function ItemDetailsDialog({
           <div style={{ padding: "24px 32px 20px" }}>
             {/* ID chip inline */}
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
                 {item.displayId}
               </span>
               {/* Status + tag pills inline */}
-              <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(253,118,26,0.2)", color: "#fd761a", border: "1px solid rgba(253,118,26,0.3)", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(253,118,26,0.2)", color: "#fd761a", border: "1px solid rgba(253,118,26,0.3)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
                 {STATUS_LABELS[rawStatus] || rawStatus}
               </span>
               {(item.isReuse || item.reuseQty > 0) && (
-                <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(22,101,52,0.3)", color: "#4ade80", border: "1px solid rgba(22,101,52,0.4)", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(22,101,52,0.3)", color: "#4ade80", border: "1px solid rgba(22,101,52,0.4)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
                   {item.isReuse ? "Reaproveitamento" : `↩ ${item.reuseQty}/${item.quantity}`}
                 </span>
               )}
               {item.rejectedBySponsor && (
-                <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(186,26,26,0.25)", color: "#ff5449", border: "1px solid rgba(186,26,26,0.35)", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Reprov. Patrocinador</span>
+                <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(186,26,26,0.25)", color: "#ff5449", border: "1px solid rgba(186,26,26,0.35)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Reprov. Patrocinador</span>
               )}
               {item.rejectedByCreator && (
-                <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(186,26,26,0.25)", color: "#ff5449", border: "1px solid rgba(186,26,26,0.35)", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Reprov. Criador</span>
+                <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(186,26,26,0.25)", color: "#ff5449", border: "1px solid rgba(186,26,26,0.35)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Reprov. Criador</span>
               )}
               {item.skipApproval && (
-                <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Aprov. Ignorada</span>
+                <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Aprov. Ignorada</span>
               )}
             </div>
             <h1 style={{
@@ -523,7 +545,7 @@ export function ItemDetailsDialog({
                       {done ? <Check style={{ width: 11, height: 11, strokeWidth: 3 }} /> : <span>{s.idx + 1}</span>}
                     </div>
                     <span style={{
-                      fontSize: 8, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em",
+                      fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em",
                       color: (done || current) ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.25)",
                       whiteSpace: "nowrap",
                     }}>
@@ -575,7 +597,7 @@ export function ItemDetailsDialog({
                 href={item.referenceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: "#f97316", textDecoration: "none", padding: "5px 12px", backgroundColor: "rgba(249,115,22,0.08)", borderRadius: 4, border: "1px solid rgba(249,115,22,0.2)" }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 700, color: "#f97316", textDecoration: "none", padding: "5px 12px", backgroundColor: "rgba(249,115,22,0.08)", borderRadius: 6, border: "1px solid rgba(249,115,22,0.2)" }}
               >
                 <ExternalLink style={{ width: 12, height: 12 }} />
                 Ver imagem completa
@@ -593,7 +615,7 @@ export function ItemDetailsDialog({
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
 
             {/* Event info + Specs */}
-            <section style={{ backgroundColor: "#ffffff", padding: "20px 24px", borderRadius: 10 }}>
+            <section style={{ backgroundColor: "#ffffff", padding: "20px 24px", borderRadius: 12 }}>
               <h3 style={{
                 fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10,
                 textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 18px 0",
@@ -671,8 +693,8 @@ export function ItemDetailsDialog({
                       { label: "Medida",     value: item.measurement },
                     ].filter(x => x.value).map(({ label, value }) => (
                       <div key={label} style={{ backgroundColor: "#fafaf9", padding: "12px 14px", borderRadius: 8, border: "1px solid #f0ede9" }}>
-                        <p style={{ fontSize: 9, fontWeight: 700, color: "#8c7164", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px 0" }}>{label}</p>
-                        <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 14, color: "#1a1c1c", margin: 0 }}>{value}</p>
+                        <p style={{ fontSize: 10, fontWeight: 700, color: "#8c7164", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px 0" }}>{label}</p>
+                        <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 15, color: "#1a1c1c", margin: 0 }}>{value}</p>
                       </div>
                     ))}
                   </div>
@@ -682,7 +704,7 @@ export function ItemDetailsDialog({
 
             {/* Sponsors */}
             {item.sponsors && item.sponsors.length > 0 && (
-              <section style={{ backgroundColor: "#ffffff", padding: 24, borderRadius: 10 }}>
+              <section style={{ backgroundColor: "#ffffff", padding: 24, borderRadius: 12 }}>
                 <h3 style={{
                   fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10,
                   textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 16px 0",
@@ -711,12 +733,12 @@ export function ItemDetailsDialog({
                             width: 36, height: 36, backgroundColor: "#f5f4f1", borderRadius: 8,
                             display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
                           }}>
-                            <span style={{ fontSize: 16, fontWeight: 700, color: s.color || "#1c1917" }}>
+                            <span style={{ fontSize: 15, fontWeight: 700, color: s.color || "#1c1917" }}>
                               {(s.name || "?")[0].toUpperCase()}
                             </span>
                           </div>
                           <div>
-                            <span style={{ fontWeight: 700, fontSize: 14, color: "#1a1c1c", display: "block" }}>{s.name}</span>
+                            <span style={{ fontWeight: 700, fontSize: 15, color: "#1a1c1c", display: "block" }}>{s.name}</span>
                             {approval?.approvedAt ? (
                               <span style={{ fontSize: 10, color: "#746e69", fontFamily: "'DM Mono', monospace" }}>
                                 {format(new Date(approval.approvedAt), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}
@@ -783,7 +805,7 @@ export function ItemDetailsDialog({
             <section style={{
               background: "#ffffff",
               border: "1px solid #f0ede9", borderTop: "3px solid #fd761a",
-              padding: 24, borderRadius: 10,
+              padding: 24, borderRadius: 12,
             }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                 <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69", margin: 0 }}>
@@ -803,11 +825,11 @@ export function ItemDetailsDialog({
                     gap: 10, marginBottom: 16,
                   }}>
                     <div>
-                      <div style={{ position: "relative", aspectRatio: "16/9", backgroundColor: "rgba(255,255,255,0.4)", borderRadius: 4, overflow: "hidden" }}>
+                      <div style={{ position: "relative", aspectRatio: "16/9", backgroundColor: "rgba(255,255,255,0.4)", borderRadius: 6, overflow: "hidden" }}>
                         <FilePreview url={thumbUrl} linkUrl={thumbUrl} objectFit="cover" />
                       </div>
                       {conferencePhotos.length > 0 && (
-                        <p style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9d4300", margin: "6px 0 0", textAlign: "center" }}>
+                        <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9d4300", margin: "6px 0 0", textAlign: "center" }}>
                           Arte aprovada
                         </p>
                       )}
@@ -817,27 +839,27 @@ export function ItemDetailsDialog({
                       <div>
                         <a href={conferencePhotos[0]} target="_blank" rel="noopener noreferrer"
                           title="Abrir foto da conferência"
-                          style={{ display: "block", position: "relative", aspectRatio: "16/9", backgroundColor: "rgba(255,255,255,0.4)", borderRadius: 4, overflow: "hidden", border: "1px solid #a5f3fc" }}>
+                          style={{ display: "block", position: "relative", aspectRatio: "16/9", backgroundColor: "rgba(255,255,255,0.4)", borderRadius: 6, overflow: "hidden", border: "1px solid #a5f3fc" }}>
                           <img src={conferencePhotos[0]} alt="Foto da conferência"
                             style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                             onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                           {conferencePhotos.length > 1 && (
-                            <span style={{ position: "absolute", bottom: 4, right: 4, backgroundColor: "rgba(14,116,144,0.9)", color: "#fff", fontSize: 9, fontWeight: 800, padding: "2px 6px", borderRadius: 4 }}>
+                            <span style={{ position: "absolute", bottom: 4, right: 4, backgroundColor: "rgba(14,116,144,0.9)", color: "#fff", fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 6 }}>
                               +{conferencePhotos.length - 1}
                             </span>
                           )}
                         </a>
-                        <p style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#0e7490", margin: "6px 0 0", textAlign: "center" }}>
+                        <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#0e7490", margin: "6px 0 0", textAlign: "center" }}>
                           Conferido pela Gráfica
                         </p>
                       </div>
                     )}
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", color: "rgba(88,66,55,0.6)", margin: 0 }}>Arquivo de Aprovação</p>
+                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "rgba(88,66,55,0.6)", margin: 0 }}>Arquivo de Aprovação</p>
                     {/* O nome do arquivo no storage é um UUID; mostrá-lo cru não
                         informa nada. Só exibe quando for um nome de verdade. */}
-                    <p style={{ fontSize: 12, fontWeight: 500, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    <p style={{ fontSize: 13, fontWeight: 500, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                       {friendlyFileName(thumbUrl)}
                     </p>
                     {item.approvalThumbUpdatedAt && (
@@ -865,9 +887,9 @@ export function ItemDetailsDialog({
                   </div>
                 </>
               ) : (
-                <div style={{ aspectRatio: "16/9", backgroundColor: "rgba(255,255,255,0.3)", borderRadius: 4, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, border: "1px dashed rgba(157,67,0,0.2)" }}>
+                <div style={{ aspectRatio: "16/9", backgroundColor: "rgba(255,255,255,0.3)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, border: "1px dashed rgba(157,67,0,0.2)" }}>
                   <FileImage style={{ width: 32, height: 32, color: "rgba(157,67,0,0.3)" }} />
-                  <p style={{ fontSize: 12, color: "rgba(157,67,0,0.5)", margin: 0 }}>Nenhum arquivo enviado</p>
+                  <p style={{ fontSize: 13, color: "rgba(157,67,0,0.5)", margin: 0 }}>Nenhum arquivo enviado</p>
                 </div>
               )}
             </section>
@@ -876,7 +898,7 @@ export function ItemDetailsDialog({
             <section style={{
               background: "#ffffff",
               border: "1px solid #e8f4fb", borderTop: "3px solid #006398",
-              padding: 24, borderRadius: 10,
+              padding: 24, borderRadius: 12,
             }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
                 <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69", margin: 0 }}>
@@ -892,15 +914,15 @@ export function ItemDetailsDialog({
                       <FolderOpen style={{ width: 20, height: 20, color: "#006398", marginTop: 2, flexShrink: 0 }} />
                       <div style={{ overflow: "hidden" }}>
                         <p style={{
-                          fontSize: 9, fontWeight: 700, backgroundColor: "#006398", color: "#ffffff",
-                          padding: "2px 8px", borderRadius: 4, display: "inline-block",
+                          fontSize: 10, fontWeight: 700, backgroundColor: "#006398", color: "#ffffff",
+                          padding: "2px 8px", borderRadius: 6, display: "inline-block",
                           marginBottom: 8, textTransform: "uppercase", letterSpacing: "-0.04em",
                         }}>
                           PRONTO PARA IMPRESSÃO
                         </p>
                         {/* O nome original do arquivo é o que identifica a peça
                             para a Gráfica; a URL é um UUID e não diz nada. */}
-                        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, wordBreak: "break-all", color: "#003554", margin: 0, fontWeight: 700 }}>
+                        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, wordBreak: "break-all", color: "#003554", margin: 0, fontWeight: 700 }}>
                           {item.finalFileName || item.finalFileUrl}
                         </p>
                         {item.finalFileUpdatedAt && (
@@ -931,8 +953,8 @@ export function ItemDetailsDialog({
                         letterSpacing: "0.1em", textDecoration: "none",
                         transition: "filter 0.15s",
                       }}
-                      onMouseEnter={e => (e.currentTarget as HTMLAnchorElement).style.filter = "brightness(1.1)"}
-                      onMouseLeave={e => (e.currentTarget as HTMLAnchorElement).style.filter = "brightness(1)"}
+                      onMouseEnter={e => (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "#004f7a"}
+                      onMouseLeave={e => (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "#006398"}
                     >
                       <ExternalLink style={{ width: 14, height: 14, marginRight: 8 }} />
                       Abrir Arquivo Final
@@ -941,7 +963,7 @@ export function ItemDetailsDialog({
                 </>
               ) : (
                 <div style={{ padding: 24, backgroundColor: "#f5f9fc", borderRadius: 8, border: "1px dashed rgba(0,99,152,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <p style={{ fontSize: 12, color: "rgba(0,99,152,0.45)", margin: 0 }}>Arquivo final não informado</p>
+                  <p style={{ fontSize: 13, color: "rgba(0,99,152,0.45)", margin: 0 }}>Arquivo final não informado</p>
                 </div>
               )}
             </section>
@@ -959,26 +981,26 @@ export function ItemDetailsDialog({
               <Package style={{ width: 13, height: 13, color: "#fd761a" }} />
               Dados de Produção
             </h3>
-            <div style={{ overflow: "hidden", borderRadius: 10, border: "1px solid #f0ede9", backgroundColor: "#ffffff" }}>
+            <div style={{ overflow: "hidden", borderRadius: 12, border: "1px solid #f0ede9", backgroundColor: "#ffffff" }}>
               <table style={{ width: "100%", textAlign: "left", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ backgroundColor: "#fafaf9", borderBottom: "1px solid #f0ede9" }}>
                     {["Quantidade", "Total M²", "Dimensões Visuais", "Dimensões Arquivo", "Medida"].map(col => (
-                      <th key={col} style={{ padding: "11px 16px", fontSize: 9, fontWeight: 900, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.1em" }}>{col}</th>
+                      <th key={col} style={{ padding: "11px 16px", fontSize: 10, fontWeight: 900, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.1em" }}>{col}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   <tr style={{ borderTop: "1px solid #eeeeed" }}>
-                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 14, fontWeight: 700, color: "#1a1c1c" }}>{item.quantity || 0} un.</td>
-                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 14, color: "#57534e" }}>{item.calculatedM2 ?? "—"} m²</td>
-                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 14, color: "#57534e" }}>
+                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 15, fontWeight: 700, color: "#1a1c1c" }}>{item.quantity || 0} un.</td>
+                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 15, color: "#57534e" }}>{item.calculatedM2 ?? "—"} m²</td>
+                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 15, color: "#57534e" }}>
                       {item.visualWidth && item.visualHeight ? `${item.visualWidth} × ${item.visualHeight}` : "—"}
                     </td>
-                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 14, color: "#57534e" }}>
+                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 15, color: "#57534e" }}>
                       {item.fileWidth && item.fileHeight ? `${item.fileWidth} × ${item.fileHeight}` : "—"}
                     </td>
-                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 14, color: "#57534e" }}>{item.measurement || "—"}</td>
+                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 15, color: "#57534e" }}>{item.measurement || "—"}</td>
                   </tr>
                   {/* Andamento na Gráfica. Sem estas quantidades não dava para
                       saber quanto de uma peça já foi conferido ou entregue —
@@ -995,16 +1017,16 @@ export function ItemDetailsDialog({
                             ["Entregue", item.deliveredQty, "#7e22ce"],
                           ] as const).filter(([, v]) => v > 0).map(([label, value, color]) => (
                             <div key={label}>
-                              <span style={{ fontSize: 9, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</span>
-                              <p style={{ fontSize: 14, fontWeight: 700, color, margin: "2px 0 0 0", fontFamily: "'DM Mono', monospace" }}>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</span>
+                              <p style={{ fontSize: 15, fontWeight: 700, color, margin: "2px 0 0 0", fontFamily: "'DM Mono', monospace" }}>
                                 {value}<span style={{ color: "#746e69", fontWeight: 400 }}>/{item.quantity}</span>
                               </p>
                             </div>
                           ))}
                           {item.receivedBy && (
                             <div>
-                              <span style={{ fontSize: 9, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.07em" }}>Recebido por</span>
-                              <p style={{ fontSize: 14, fontWeight: 700, color: "#1a1c1c", margin: "2px 0 0 0" }}>{item.receivedBy}</p>
+                              <span style={{ fontSize: 10, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.07em" }}>Recebido por</span>
+                              <p style={{ fontSize: 15, fontWeight: 700, color: "#1a1c1c", margin: "2px 0 0 0" }}>{item.receivedBy}</p>
                             </div>
                           )}
                         </div>
@@ -1035,25 +1057,25 @@ export function ItemDetailsDialog({
                       e a observação. */}
                   {(showConferenceStrip || item.conferenceNotes) && (
                     <div style={{ marginBottom: (deliveryPhotos.length || item.deliveryNotes) ? 20 : 0 }}>
-                      <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#0e7490", margin: "0 0 8px 0" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#0e7490", margin: "0 0 8px 0" }}>
                         Conferência {conferencePhotos.length > 1 && `· ${conferencePhotos.length} fotos`}
                       </p>
                       {showConferenceStrip && <PhotoStrip urls={conferencePhotos} alt="Foto da conferência" />}
                       {item.conferenceNotes && (
-                        <p style={{ fontSize: 12, color: "#584237", fontStyle: "italic", lineHeight: 1.5, margin: "8px 0 0 0" }}>"{item.conferenceNotes}"</p>
+                        <p style={{ fontSize: 13, color: "#584237", fontStyle: "italic", lineHeight: 1.5, margin: "8px 0 0 0" }}>"{item.conferenceNotes}"</p>
                       )}
                     </div>
                   )}
 
                   {(deliveryPhotos.length > 0 || item.deliveryNotes) && (
                     <div>
-                      <p style={{ fontSize: 9, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#7e22ce", margin: "0 0 8px 0" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#7e22ce", margin: "0 0 8px 0" }}>
                         Entrega {deliveryPhotos.length > 1 && `· ${deliveryPhotos.length} fotos`}
                         {item.receivedBy && <span style={{ color: "#84756c", letterSpacing: 0, textTransform: "none", fontWeight: 400 }}> — recebido por {item.receivedBy}</span>}
                       </p>
                       <PhotoStrip urls={deliveryPhotos} alt="Foto da entrega" />
                       {item.deliveryNotes && (
-                        <p style={{ fontSize: 12, color: "#584237", fontStyle: "italic", lineHeight: 1.5, margin: "8px 0 0 0" }}>"{item.deliveryNotes}"</p>
+                        <p style={{ fontSize: 13, color: "#584237", fontStyle: "italic", lineHeight: 1.5, margin: "8px 0 0 0" }}>"{item.deliveryNotes}"</p>
                       )}
                     </div>
                   )}
@@ -1077,7 +1099,7 @@ export function ItemDetailsDialog({
                     <FileText style={{ width: 13, height: 13, color: "#fd761a" }} />
                     Observações
                   </h3>
-                  <div style={{ backgroundColor: "#fafaf9", padding: "14px 16px", borderRadius: 10, border: "1px solid #f0ede9" }}>
+                  <div style={{ backgroundColor: "#fafaf9", padding: "14px 16px", borderRadius: 12, border: "1px solid #f0ede9" }}>
                     <p style={{ color: "#584237", fontStyle: "italic", lineHeight: 1.6, fontSize: 13, margin: 0 }}>
                       "{item.observations}"
                     </p>
@@ -1103,7 +1125,7 @@ export function ItemDetailsDialog({
                       <thead>
                         <tr style={{ borderBottom: "1px solid #eeeeed" }}>
                           {["Etapa", "Data / Hora", "Responsável"].map(col => (
-                            <th key={col} style={{ paddingBottom: 12, fontSize: 9, fontWeight: 900, textTransform: "uppercase", color: "#8c7164", letterSpacing: "0.08em" }}>{col}</th>
+                            <th key={col} style={{ paddingBottom: 12, fontSize: 10, fontWeight: 900, textTransform: "uppercase", color: "#8c7164", letterSpacing: "0.08em" }}>{col}</th>
                           ))}
                         </tr>
                       </thead>
@@ -1114,10 +1136,10 @@ export function ItemDetailsDialog({
                               <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: row.dot, display: "inline-block", flexShrink: 0 }} />
                               {row.label}
                             </td>
-                            <td style={{ padding: "12px 16px", fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#57534e" }}>
+                            <td style={{ padding: "12px 16px", fontFamily: "'DM Mono', monospace", fontSize: 13, color: "#57534e" }}>
                               {format(new Date(row.value!), "dd MMM yy HH:mm", { locale: ptBR }).toUpperCase()}
                             </td>
-                            <td style={{ padding: "12px 0", fontSize: 12, color: "#8c7164" }}>
+                            <td style={{ padding: "12px 0", fontSize: 13, color: "#8c7164" }}>
                               {row.by || <span style={{ opacity: 0.4 }}>—</span>}
                             </td>
                           </tr>
@@ -1166,7 +1188,7 @@ export function ItemDetailsDialog({
                           backgroundColor: "#10b981",
                           boxShadow: "0 0 0 4px rgba(16,185,129,0.15)",
                         }} />
-                        <p style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "-0.04em", color: "#1a1c1c", margin: "0 0 2px 0" }}>
+                        <p style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "-0.04em", color: "#1a1c1c", margin: "0 0 2px 0" }}>
                           {deliveryLog.details || "Entregue"}
                         </p>
                         <p style={{ fontSize: 10, color: "#8c7164", margin: 0, fontFamily: "'DM Mono', monospace" }}>

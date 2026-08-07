@@ -66,7 +66,7 @@ function StatusPill({ status }: { status: string }) {
 
 // ─── Label style ──────────────────────────────────────────
 const filterLabel: React.CSSProperties = {
-  display: "block", fontSize: 9, fontWeight: 900,
+  display: "block", fontSize: 10, fontWeight: 900,
   textTransform: "uppercase", letterSpacing: "0.11em",
   color: "#746e69", marginBottom: 4,
 };
@@ -213,15 +213,28 @@ export default function PainelGeral() {
   }: { label: string; value: number; dot: string; color: string; filterKey: string }) => {
     const isActive = statusFilter.includes(filterKey);
     return (
+      /* Os cartões são o filtro por status desta tela. Como div com onClick,
+         filtrar era exclusivamente com mouse — e só a cor dizia qual estava
+         ativo, coisa que aria-pressed comunica a quem não a vê. */
       <div
+        role="button"
+        tabIndex={0}
+        aria-pressed={isActive}
+        aria-label={`Filtrar por ${label}`}
         onClick={() => setStatusFilter(isActive ? [] : [filterKey])}
+        onKeyDown={e => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setStatusFilter(isActive ? [] : [filterKey]);
+          }
+        }}
         data-testid={`stat-card-${filterKey}`}
         style={{
           position: "relative", overflow: "hidden",
           background: isActive ? `linear-gradient(135deg, ${color}18 0%, #ffffff 72%)` : "#ffffff",
           border: `1px solid ${isActive ? color : "#e7e5e4"}`,
           borderLeft: `4px solid ${isActive ? color : `${dot}90`}`,
-          borderRadius: 10,
+          borderRadius: 12,
           padding: "14px 15px 13px 14px", minHeight: 102,
           display: "flex", flexDirection: "column", justifyContent: "space-between",
           cursor: "pointer",
@@ -234,10 +247,10 @@ export default function PainelGeral() {
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: dot, boxShadow: `0 0 0 4px ${dot}18` }} />
-          {isActive && <span style={{ fontSize: 9, fontWeight: 900, letterSpacing: ".08em", color, textTransform: "uppercase" }}>Filtrado</span>}
+          {isActive && <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: ".08em", color, textTransform: "uppercase" }}>Filtrado</span>}
         </div>
         <div>
-          <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 27, fontWeight: 700, color: isActive ? color : "#1c1917", lineHeight: 1, margin: 0, letterSpacing: "-.05em" }}>{value}</p>
+          <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: isActive ? color : "#1c1917", lineHeight: 1, margin: 0, letterSpacing: "-.05em" }}>{value}</p>
           <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#746e69", marginTop: 4, lineHeight: 1.2 }}>{label}</p>
         </div>
       </div>
@@ -252,7 +265,7 @@ export default function PainelGeral() {
     padding: "0 12px",
     fontSize: 13, color: "#1c1917",
     fontFamily: "inherit",
-    outline: "none",
+   
     boxSizing: "border-box",
   };
 
@@ -284,7 +297,7 @@ export default function PainelGeral() {
         <button
           onClick={() => setShowExportPDFModal(true)}
           data-testid="button-export-pdf-painel"
-           style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, height: isMobile ? 44 : 40, minWidth: isMobile ? 44 : undefined, padding: isMobile ? "0 12px" : "0 16px", borderRadius: 7, backgroundColor: "#1c1917", border: "1px solid #1c1917", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer", boxShadow: "0 2px 0 #f97316" }}
+           style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, height: isMobile ? 44 : 40, minWidth: isMobile ? 44 : undefined, padding: isMobile ? "0 12px" : "0 16px", borderRadius: 8, backgroundColor: "#1c1917", border: "1px solid #1c1917", color: "#fff", fontSize: 13, fontWeight: 800, cursor: "pointer", boxShadow: "0 2px 0 #f97316" }}
         >
           <Printer style={{ width: 14, height: 14 }} />
           {!isMobile && "Exportar PDF"}
@@ -296,13 +309,20 @@ export default function PainelGeral() {
 
         {/* Total card — dark */}
         <div
+          role="button"
+          tabIndex={0}
+          aria-pressed={statusFilter.length === 0}
+          aria-label="Mostrar todos os status"
           onClick={() => setStatusFilter([])}
+          onKeyDown={e => {
+            if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setStatusFilter([]); }
+          }}
           data-testid="stat-total"
           style={{
              background: "linear-gradient(145deg, #292522, #1c1917)",
              border: `1px solid ${statusFilter.length === 0 ? "#f97316" : "#3b3531"}`,
             borderBottom: "3px solid #f97316",
-             borderRadius: 10,
+             borderRadius: 12,
              padding: "14px 15px", minHeight: 102,
             display: "flex", flexDirection: "column", justifyContent: "space-between",
             cursor: "pointer",
@@ -310,9 +330,9 @@ export default function PainelGeral() {
              transform: statusFilter.length === 0 ? "translateY(1px)" : "none",
           }}
         >
-           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /></svg>{statusFilter.length === 0 && <span style={{ fontSize: 9, color: "#f97316", fontWeight: 900, letterSpacing: ".08em" }}>BASELINE</span>}</div>
+           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /></svg>{statusFilter.length === 0 && <span style={{ fontSize: 10, color: "#f97316", fontWeight: 900, letterSpacing: ".08em" }}>BASELINE</span>}</div>
           <div>
-             <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 27, fontWeight: 700, color: "#f97316", lineHeight: 1, margin: 0, letterSpacing: "-.05em" }}>{stats.total}</p>
+             <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: "#f97316", lineHeight: 1, margin: 0, letterSpacing: "-.05em" }}>{stats.total}</p>
             <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "rgba(255,255,255,0.5)", marginTop: 4, lineHeight: 1.2 }}>Total</p>
           </div>
         </div>
@@ -348,7 +368,7 @@ export default function PainelGeral() {
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             data-testid="input-search"
-            style={{ ...inputStyle, paddingLeft: 28, height: 32, fontSize: 12 }}
+            style={{ ...inputStyle, paddingLeft: 28, height: 32, fontSize: 13 }}
           />
         </div>
 
@@ -442,14 +462,14 @@ export default function PainelGeral() {
 
         {/* Counter + clear */}
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, ...(isMobile && { width: "100%" }) }}>
-          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 12, fontWeight: 700, color: "#746e69", whiteSpace: "nowrap" }}>
+          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: "#746e69", whiteSpace: "nowrap" }}>
             <span style={{ color: "#1c1917", fontWeight: 900 }}>{filteredItems.length}</span>
             {" "}iten{filteredItems.length !== 1 ? "s" : ""}
           </span>
           {hasActiveFilters && (
             <button
               onClick={clearAllFilters}
-              style={{ display: "flex", alignItems: "center", gap: 4, background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 5, padding: "3px 10px", fontSize: 11, fontWeight: 700, color: "#f97316", cursor: "pointer", transition: "all 0.15s", whiteSpace: "nowrap", height: 32 }}
+              style={{ display: "flex", alignItems: "center", gap: 4, background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 700, color: "#f97316", cursor: "pointer", transition: "all 0.15s", whiteSpace: "nowrap", height: 32 }}
               onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#f97316"; (e.currentTarget as HTMLButtonElement).style.color = "#fff"; }}
               onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "#fff7ed"; (e.currentTarget as HTMLButtonElement).style.color = "#f97316"; }}
             >
@@ -467,20 +487,20 @@ export default function PainelGeral() {
           </div>
         ) : isError ? (
           <div style={{ backgroundColor: "#ffffff", border: "1px solid #fecaca", padding: 48, textAlign: "center" }}>
-            <p style={{ color: "#b91c1c", fontSize: 14, fontWeight: 600, margin: "0 0 4px" }}>Não foi possível carregar os itens</p>
+            <p style={{ color: "#b91c1c", fontSize: 15, fontWeight: 600, margin: "0 0 4px" }}>Não foi possível carregar os itens</p>
             <p style={{ color: "#746e69", fontSize: 13, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
             <button onClick={() => refetch()} style={{ fontSize: 13, fontWeight: 600, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "8px 18px", cursor: "pointer" }}>Tentar novamente</button>
           </div>
         ) : filteredItems.length === 0 ? (
           <div style={{ backgroundColor: "#ffffff", border: "1px solid #e7e5e4", padding: 48, textAlign: "center" }}>
-            <p style={{ color: "#746e69", fontSize: 14 }}>Nenhum item encontrado</p>
+            <p style={{ color: "#746e69", fontSize: 15 }}>Nenhum item encontrado</p>
           </div>
         ) : (
           Object.entries(groupedItems).map(([eventKey, eventData]) => {
             const gd = eventData as { eventId: string | null; eventName: string; items: any[] };
             const firstItem = gd.items[0];
             return (
-              <div key={eventKey} style={{ border: "1px solid #e2e2e2", borderRadius: 10, backgroundColor: "#ffffff", overflow: "hidden", boxShadow: "0 2px 8px rgba(28,25,23,0.07)" }}>
+              <div key={eventKey} style={{ border: "1px solid #e2e2e2", borderRadius: 12, backgroundColor: "#ffffff", overflow: "hidden", boxShadow: "0 2px 8px rgba(28,25,23,0.07)" }}>
 
                 {/* Group header */}
                 <div style={{
@@ -493,7 +513,7 @@ export default function PainelGeral() {
                     <div>
                       <h3 style={{
                         fontFamily: "'Space Grotesk', sans-serif",
-                        fontWeight: 800, fontSize: 14,
+                        fontWeight: 800, fontSize: 15,
                         textTransform: "uppercase", letterSpacing: "0.01em",
                         color: "#1c1917", margin: 0, lineHeight: 1,
                       }}>
@@ -549,8 +569,8 @@ export default function PainelGeral() {
                       return sortedGroups.map(group => (
                         <Fragment key={group || '__nogroup'}>
                           {group && (
-                            <div style={{ padding: "6px 4px 4px", marginTop: 6, borderLeft: "3px solid #3b82f6", paddingLeft: 8, backgroundColor: "#e7f0fb", borderRadius: "4px 4px 0 0", overflow: "hidden" }}>
-                              <span style={{ fontSize: 9, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#1d4ed8", fontFamily: "'Space Grotesk', sans-serif", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            <div style={{ padding: "6px 4px 4px", marginTop: 6, borderLeft: "3px solid #3b82f6", paddingLeft: 8, backgroundColor: "#e7f0fb", borderRadius: "6px 6px 0 0", overflow: "hidden" }}>
+                              <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#1d4ed8", fontFamily: "'Space Grotesk', sans-serif", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                 {group}
                               </span>
                             </div>
@@ -562,7 +582,7 @@ export default function PainelGeral() {
                                 <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#44403c", fontFamily: "'Space Grotesk', sans-serif", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, flex: 1 }}>
                                   {type}
                                 </span>
-                                <span style={{ fontSize: 9, fontWeight: 800, color: "#57534e", backgroundColor: "#e7e5e4", borderRadius: 999, padding: "2px 8px", textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>
+                                <span style={{ fontSize: 10, fontWeight: 800, color: "#57534e", backgroundColor: "#e7e5e4", borderRadius: 999, padding: "2px 8px", textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>
                                   {typeItems.length}
                                 </span>
                               </div>
@@ -592,19 +612,19 @@ export default function PainelGeral() {
                                     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 5 }}>
                                       {/* Row 1: ID + type */}
                                       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                                        <span data-testid={`text-display-id-${item.id}`} style={{ fontFamily: "monospace", fontWeight: 700, color: isDeleted ? "#dc2626" : "#f97316", fontSize: 13, flexShrink: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
+                                        <button onClick={e => { e.stopPropagation(); setSelectedItem(item); }} aria-label={`Ver detalhes da peça ${item.displayId}`} data-testid={`text-display-id-${item.id}`} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "monospace", fontWeight: 700, color: isDeleted ? "#b91c1c" : "#c2410c", fontSize: 13, flexShrink: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
                                           {item.displayId}
-                                        </span>
+                                        </button>
                                         <span style={{ fontSize: 11, fontWeight: 700, color: isDeleted ? "#746e69" : "#44403c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>{item.type}</span>
                                         {item.isReuse && !isDeleted && (
-                                          <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "2px 7px", flexShrink: 0 }}>
+                                          <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "2px 7px", flexShrink: 0 }}>
                                             Reaproveit.
                                           </span>
                                         )}
                                       </div>
                                       {/* Row 2: description — allow up to 2 lines on mobile */}
                                       {item.description && (
-                                        <span style={{ fontSize: 12, color: isDeleted ? "#746e69" : "#44403c", fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as React.CSSProperties}>
+                                        <span style={{ fontSize: 13, color: isDeleted ? "#746e69" : "#44403c", fontWeight: 500, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" } as React.CSSProperties}>
                                           {item.description}
                                         </span>
                                       )}
@@ -746,7 +766,7 @@ export default function PainelGeral() {
                                     {type}
                                   </span>
                                   <span style={{
-                                    fontSize: 9, fontWeight: 800,
+                                    fontSize: 10, fontWeight: 800,
                                     color: "#57534e",
                                     backgroundColor: "#e7e5e4",
                                     borderRadius: 999,
@@ -792,27 +812,27 @@ export default function PainelGeral() {
                                     {/* ID */}
                                     <td style={{ padding: "10px 18px 10px 20px", whiteSpace: "nowrap" }}>
                                       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                        <span data-testid={`text-display-id-${item.id}`} style={{ fontFamily: "monospace", fontWeight: 700, color: isDeleted ? "#dc2626" : "#f97316", fontSize: 13, textDecoration: isDeleted ? "line-through" : "none" }}>
+                                        <button onClick={e => { e.stopPropagation(); setSelectedItem(item); }} aria-label={`Ver detalhes da peça ${item.displayId}`} data-testid={`text-display-id-${item.id}`} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "monospace", fontWeight: 700, color: isDeleted ? "#b91c1c" : "#c2410c", fontSize: 13, textDecoration: isDeleted ? "line-through" : "none" }}>
                                           {item.displayId}
-                                        </span>
+                                        </button>
                                         {isDeleted && item.deletedAt && (
                                           <span style={{ fontSize: 10, color: "#746e69" }}>
                                             Excluído {format(new Date(item.deletedAt), "dd/MM/yy", { locale: ptBR })}
                                           </span>
                                         )}
                                         {!isDeleted && item.isReuse && (
-                                          <span style={{ display: "inline-block", fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "2px 7px", width: "fit-content" }}>
+                                          <span style={{ display: "inline-block", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "2px 7px", width: "fit-content" }}>
                                             Reaproveit.
                                           </span>
                                         )}
                                         {!isDeleted && item.referenceUrl && (
-                                          <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 700, color: "#2563eb", textDecoration: "none", backgroundColor: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 3, padding: "2px 6px", width: "fit-content" }} data-testid={`link-reference-painel-${item.id}`}>
+                                          <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 700, color: "#2563eb", textDecoration: "none", backgroundColor: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "2px 6px", width: "fit-content" }} data-testid={`link-reference-painel-${item.id}`}>
                                             <Paperclip style={{ width: 9, height: 9 }} />
                                             Ref. visual
                                           </a>
                                         )}
                                         {!isDeleted && item.bookUrl && (
-                                          <a href={item.bookUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Abrir book de aprovação (PDF) enviado pela Arte" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 9, fontWeight: 700, color: "#6d28d9", textDecoration: "none", backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 3, padding: "2px 6px", width: "fit-content" }} data-testid={`link-book-painel-${item.id}`}>
+                                          <a href={item.bookUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Abrir book de aprovação (PDF) enviado pela Arte" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 700, color: "#6d28d9", textDecoration: "none", backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 6, padding: "2px 6px", width: "fit-content" }} data-testid={`link-book-painel-${item.id}`}>
                                             <FileText style={{ width: 9, height: 9 }} />
                                             Book
                                           </a>
@@ -824,14 +844,14 @@ export default function PainelGeral() {
                                     <td style={{ padding: "10px 18px", maxWidth: 260 }}>
                                       <div style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
                                         {item.description ? (
-                                          <span style={{ fontSize: 12, color: isDeleted ? "#746e69" : "#44403c", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
+                                          <span style={{ fontSize: 13, color: isDeleted ? "#746e69" : "#44403c", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
                                             {item.description}
                                           </span>
                                         ) : (
-                                          <span style={{ color: "#c4bfbb", fontSize: 12 }}>—</span>
+                                          <span style={{ color: "#c4bfbb", fontSize: 13 }}>—</span>
                                         )}
                                         {!isDeleted && item.observations && (
-                                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, flexShrink: 0, fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "#57534e", backgroundColor: "#f0ede9", border: "1px solid #e2ddd8", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>
+                                          <span style={{ display: "inline-flex", alignItems: "center", gap: 3, flexShrink: 0, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "#57534e", backgroundColor: "#f0ede9", border: "1px solid #e2ddd8", borderRadius: 6, padding: "2px 6px", whiteSpace: "nowrap" }}>
                                             ↩ {item.observations}
                                           </span>
                                         )}
@@ -844,23 +864,23 @@ export default function PainelGeral() {
                                         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
                                           {item.visualWidth && item.visualHeight && (
                                             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                              <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#746e69", width: 30 }}>VIS</span>
-                                              <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: "#44403c" }}>
+                                              <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#746e69", width: 30 }}>VIS</span>
+                                              <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: "#44403c" }}>
                                                 {item.visualWidth} × {item.visualHeight}
                                               </span>
                                             </div>
                                           )}
                                           {item.fileWidth && item.fileHeight && (
                                             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                              <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#746e69", width: 30 }}>ARQ</span>
-                                              <span style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: "#746e69" }}>
+                                              <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#746e69", width: 30 }}>ARQ</span>
+                                              <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: "#746e69" }}>
                                                 {item.fileWidth} × {item.fileHeight}
                                               </span>
                                             </div>
                                           )}
                                         </div>
                                       ) : (
-                                        <span style={{ color: "#746e69", fontSize: 12 }}>—</span>
+                                        <span style={{ color: "#746e69", fontSize: 13 }}>—</span>
                                       )}
                                     </td>
 
@@ -883,7 +903,7 @@ export default function PainelGeral() {
                                             data-testid={`button-view-${item.id}`}
                                             style={{
                                               background: "none", border: "none", cursor: "pointer",
-                                              padding: 4, borderRadius: 4, color: "#746e69",
+                                              padding: 4, borderRadius: 6, color: "#746e69",
                                               display: "flex", alignItems: "center", justifyContent: "center",
                                               transition: "color 0.15s",
                                             }}
@@ -901,7 +921,7 @@ export default function PainelGeral() {
                                               title="Excluir peça"
                                               style={{
                                                 background: "none", border: "none", cursor: "pointer",
-                                                padding: 4, borderRadius: 4, color: "#746e69",
+                                                padding: 4, borderRadius: 6, color: "#746e69",
                                                 display: "flex", alignItems: "center", justifyContent: "center",
                                                 transition: "color 0.15s",
                                               }}

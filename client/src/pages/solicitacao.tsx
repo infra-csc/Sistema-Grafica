@@ -9,6 +9,8 @@ import { useToast } from "@/hooks/use-toast";
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -22,6 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useState, useMemo, useEffect, Fragment, useRef } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { ModalHeader, modalSurface } from "@/components/modal-shell";
 
 const TI = {
   bg: "#fafaf9", surface: "#ffffff", border: "#e7e5e4",
@@ -343,7 +346,7 @@ export default function Solicitacao() {
   if (itemsError) {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12, textAlign: "center", padding: "0 24px" }}>
-        <p style={{ fontSize: 16, fontWeight: 700, color: "#b91c1c", margin: 0 }}>Não foi possível carregar os itens</p>
+        <p style={{ fontSize: 15, fontWeight: 700, color: "#b91c1c", margin: 0 }}>Não foi possível carregar os itens</p>
         <p style={{ fontSize: 13, color: TI.muted, margin: 0 }}>Verifique sua conexão e tente novamente.</p>
         <button onClick={() => refetchItems()} style={{ marginTop: 4, background: TI.text, color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
       </div>
@@ -406,7 +409,7 @@ export default function Solicitacao() {
             padding: 24, borderRadius: 12, border: "1px solid #292524",
             width: isMobile ? "100%" : 280, display: "flex", flexDirection: "column", gap: 16, flexShrink: isMobile ? 1 : 0,
           }}>
-            <p style={{ fontSize: 9, fontWeight: 700, color: "#57534e", letterSpacing: "0.18em", textTransform: "uppercase", margin: 0 }}>AÇÃO RÁPIDA</p>
+            <p style={{ fontSize: 10, fontWeight: 700, color: "#57534e", letterSpacing: "0.18em", textTransform: "uppercase", margin: 0 }}>AÇÃO RÁPIDA</p>
             <button
               onClick={() => selectedItemIds.size > 0 && setBulkReleaseConfirmOpen(true)}
               disabled={selectedItemIds.size === 0}
@@ -454,7 +457,7 @@ export default function Solicitacao() {
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               data-testid="input-search"
-              style={{ width: "100%", paddingLeft: 34, paddingRight: searchTerm ? 32 : 12, paddingTop: 9, paddingBottom: 9, backgroundColor: "#f3f4f3", border: "none", borderRadius: 8, fontSize: 13, color: TI.text, outline: "none", boxSizing: "border-box" }}
+              style={{ width: "100%", paddingLeft: 34, paddingRight: searchTerm ? 32 : 12, paddingTop: 9, paddingBottom: 9, backgroundColor: "#f3f4f3", border: "none", borderRadius: 8, fontSize: 13, color: TI.text, boxSizing: "border-box" }}
             />
             {searchTerm && (
               <button onClick={() => setSearchTerm("")} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: TI.muted, padding: 0 }}>
@@ -491,7 +494,7 @@ export default function Solicitacao() {
 
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
             {filteredItems.length > 0 && (
-              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: TI.secondary, cursor: "pointer", userSelect: "none" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: TI.secondary, cursor: "pointer", userSelect: "none" }}>
                 <input
                   type="checkbox"
                   checked={selectedItemIds.size === filteredItems.length && filteredItems.length > 0}
@@ -514,7 +517,7 @@ export default function Solicitacao() {
         {filteredItems.length === 0 ? (
           <div style={{ backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 8, textAlign: "center", padding: "80px 24px" }}>
             <CheckCircle style={{ width: 48, height: 48, color: "#d1cfce", margin: "0 auto 16px" }} />
-            <p style={{ fontSize: 16, fontWeight: 700, color: TI.secondary, margin: "0 0 8px" }}>
+            <p style={{ fontSize: 15, fontWeight: 700, color: TI.secondary, margin: "0 0 8px" }}>
               {pendingItems.length === 0 ? "Tudo revisado!" : "Nenhum resultado encontrado"}
             </p>
             <p style={{ fontSize: 13, color: TI.muted, margin: 0 }}>
@@ -532,7 +535,15 @@ export default function Solicitacao() {
                     <span style={{fontSize:11,fontWeight:900,textTransform:"uppercase",letterSpacing:"0.08em",color:"#746e69"}}>{evInfo?.name || "Sem Evento"}</span>
                   </div>
                   {eventItems.map((item:any) => (
-                    <div key={item.id} onClick={() => openModal(item)}
+                    /* Card mobile: abria a peça só no toque. Sem foco nem
+                       tecla, teclado externo e leitor de tela não chegavam
+                       à revisão da peça. */
+                    <div key={item.id}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={`Revisar peça ${item.displayId}`}
+                      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openModal(item); } }}
+                      onClick={() => openModal(item)}
                       style={{backgroundColor:"#fff",border:"1px solid #e7e5e4",borderRadius:8,padding:"12px",marginBottom:8,cursor:"pointer",display:"flex",flexDirection:"column",gap:6}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                         <span style={{fontFamily:"monospace",fontWeight:700,color:"#f97316",fontSize:13}}>{item.displayId}</span>
@@ -541,12 +552,12 @@ export default function Solicitacao() {
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
                         <div style={{flex:1}}>
                           <span style={{fontSize:13,fontWeight:700,color:"#1c1917"}}>{item.type}</span>
-                          {item.description && <p style={{fontSize:12,color:"#746e69",margin:"2px 0 0"}}>{item.description}</p>}
+                          {item.description && <p style={{fontSize:13,color:"#746e69",margin:"2px 0 0"}}>{item.description}</p>}
                         </div>
                         <span style={{fontSize:10,fontWeight:700,color:"#746e69",whiteSpace:"nowrap"}}>{item.quantity}×</span>
                       </div>
                       <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-                        {item.sponsors?.map((s:any)=><span key={s.id} style={{fontSize:10,padding:"2px 6px",borderRadius:4,backgroundColor:"#f5f5f4",color:"#746e69",fontWeight:600}}>{s.name}</span>)}
+                        {item.sponsors?.map((s:any)=><span key={s.id} style={{fontSize:10,padding:"2px 6px",borderRadius:6,backgroundColor:"#f5f5f4",color:"#746e69",fontWeight:600}}>{s.name}</span>)}
                       </div>
                     </div>
                   ))}
@@ -632,7 +643,7 @@ export default function Solicitacao() {
                               </span>
                               <span style={{
                                 backgroundColor: "#c2410c", color: "#fff",
-                                fontSize: 9, fontWeight: 900,
+                                fontSize: 10, fontWeight: 900,
                                 padding: "1px 8px", borderRadius: 999,
                                 textTransform: "uppercase", letterSpacing: "0.04em",
                               }}>
@@ -640,7 +651,7 @@ export default function Solicitacao() {
                               </span>
                             </div>
                             {event && (
-                              <div style={{ display: "flex", gap: 12, fontSize: 9, color: "#57534e", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", flexWrap: "wrap", alignItems: "center" }}>
+                              <div style={{ display: "flex", gap: 12, fontSize: 10, color: "#57534e", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", flexWrap: "wrap", alignItems: "center" }}>
                                 {event.startDate && (
                                   <span>Início: <span style={{ color: "#d6d3d1" }}>{parseDateLocal(event.startDate).toLocaleDateString("pt-BR")}</span></span>
                                 )}
@@ -666,7 +677,7 @@ export default function Solicitacao() {
                                       ? { bg: "rgba(255,160,50,0.22)", border: "rgba(255,160,50,0.38)", text: "#ffc78a" }
                                       : { bg: "rgba(255,255,255,0.12)", border: "rgba(255,255,255,0.2)", text: "rgba(255,255,255,0.72)" };
                                     return (
-                                      <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 99, padding: "3px 9px", fontSize: 10, fontWeight: 700, color: s.text, letterSpacing: "0.04em", whiteSpace: "nowrap", textTransform: "none" }}>
+                                      <span key={label} style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 999, padding: "3px 9px", fontSize: 10, fontWeight: 700, color: s.text, letterSpacing: "0.04em", whiteSpace: "nowrap", textTransform: "none" }}>
                                         {label} · {ds}{diff >= 0 && diff <= 14 && <span style={{ opacity: 0.65, fontWeight: 500 }}> ({diff}d)</span>}
                                       </span>
                                     );
@@ -730,7 +741,7 @@ export default function Solicitacao() {
                             <td style={{ padding: "14px 16px" }}>
                               <span
                                 data-testid={`text-display-id-${item.id}`}
-                                style={{ fontFamily: "monospace", fontSize: 12, fontWeight: 700, color: "#c2410c", letterSpacing: "-0.02em" }}
+                                style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: "#c2410c", letterSpacing: "-0.02em" }}
                               >
                                 {item.displayId}
                               </span>
@@ -743,7 +754,7 @@ export default function Solicitacao() {
                                   {item.type}
                                 </span>
                                 {item.isReuse && (
-                                  <span style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "2px 7px" }}>
+                                  <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "2px 7px" }}>
                                     Reaproveit.
                                   </span>
                                 )}
@@ -756,7 +767,7 @@ export default function Solicitacao() {
                                 {item.description || "—"}
                               </span>
                               {item.referenceUrl && (
-                                <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Ver referência visual" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 9, fontWeight: 700, color: '#2563eb', textDecoration: 'none', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 3, padding: '2px 6px', marginTop: 4, marginLeft: 4 }} data-testid={`link-reference-solicitacao-${item.id}`}>
+                                <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Ver referência visual" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, color: '#2563eb', textDecoration: 'none', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '2px 6px', marginTop: 4, marginLeft: 4 }} data-testid={`link-reference-solicitacao-${item.id}`}>
                                   <Paperclip style={{ width: 9, height: 9 }} />
                                   Ref. visual
                                 </a>
@@ -765,7 +776,7 @@ export default function Solicitacao() {
 
                             {/* Qtd */}
                             <td style={{ padding: "14px 16px", textAlign: "center" }}>
-                              <span style={{ fontSize: 12, fontWeight: 700, color: TI.text }}>
+                              <span style={{ fontSize: 13, fontWeight: 700, color: TI.text }}>
                                 {item.quantity}
                               </span>
                             </td>
@@ -779,7 +790,7 @@ export default function Solicitacao() {
 
                             {/* M² */}
                             <td style={{ padding: "14px 16px" }}>
-                              <span style={{ fontSize: 12, fontWeight: 900, color: item.calculatedM2 ? TI.text : TI.muted }}>
+                              <span style={{ fontSize: 13, fontWeight: 900, color: item.calculatedM2 ? TI.text : TI.muted }}>
                                 {item.calculatedM2 || "—"}
                               </span>
                             </td>
@@ -792,8 +803,8 @@ export default function Solicitacao() {
                                   data-testid={`button-review-${item.id}`}
                                   style={{
                                     backgroundColor: "#1c1917", color: "#fff",
-                                    border: "none", borderRadius: 4,
-                                    fontSize: 9, fontWeight: 900,
+                                    border: "none", borderRadius: 6,
+                                    fontSize: 10, fontWeight: 900,
                                     textTransform: "uppercase", letterSpacing: "0.08em",
                                     padding: "6px 16px", cursor: "pointer",
                                     transition: "background-color 0.15s",
@@ -823,7 +834,7 @@ export default function Solicitacao() {
                                     color: item.isReuse ? "#15803d" : "#a8a29e",
                                     padding: "4px 6px",
                                     display: "flex", alignItems: "center",
-                                    borderRadius: 4, transition: "all 0.15s",
+                                    borderRadius: 6, transition: "all 0.15s",
                                   }}
                                   onMouseEnter={e => {
                                     if (!item.isReuse) {
@@ -848,7 +859,7 @@ export default function Solicitacao() {
                                     background: "none", border: "none", cursor: "pointer",
                                     color: "#746e69", padding: "4px",
                                     display: "flex", alignItems: "center",
-                                    borderRadius: 4, transition: "color 0.15s",
+                                    borderRadius: 6, transition: "color 0.15s",
                                   }}
                                   onMouseEnter={e => (e.currentTarget.style.color = "#ef4444")}
                                   onMouseLeave={e => (e.currentTarget.style.color = "#746e69")}
@@ -881,14 +892,14 @@ export default function Solicitacao() {
                   <button
                     onClick={() => setBulkReleaseConfirmOpen(true)}
                     data-testid="button-bulk-release-table"
-                    style={{ fontSize: 10, fontWeight: 700, padding: "5px 14px", borderRadius: 4, backgroundColor: "#1c1917", color: "#fff", border: "none", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em" }}
+                    style={{ fontSize: 10, fontWeight: 700, padding: "5px 14px", borderRadius: 6, backgroundColor: "#1c1917", color: "#fff", border: "none", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em" }}
                   >
                     Liberar {selectedItemIds.size}
                   </button>
                   <button
                     onClick={() => setBulkReturnConfirmOpen(true)}
                     data-testid="button-bulk-return-table"
-                    style={{ fontSize: 10, fontWeight: 700, padding: "5px 14px", borderRadius: 4, backgroundColor: "transparent", color: "#b91c1c", border: "1px solid #b91c1c", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em" }}
+                    style={{ fontSize: 10, fontWeight: 700, padding: "5px 14px", borderRadius: 6, backgroundColor: "transparent", color: "#b91c1c", border: "1px solid #b91c1c", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em" }}
                   >
                     Devolver {selectedItemIds.size}
                   </button>
@@ -921,7 +932,7 @@ export default function Solicitacao() {
                   ) : (
                     <div style={{ textAlign: "center", color: "#746e69" }}>
                       <FileImage style={{ width: 40, height: 40, margin: "0 auto 8px" }} />
-                      <p style={{ fontSize: 12 }}>Sem thumb disponível</p>
+                      <p style={{ fontSize: 13 }}>Sem thumb disponível</p>
                     </div>
                   )}
                 </div>
@@ -950,13 +961,19 @@ export default function Solicitacao() {
                     { label: "M²", value: selectedItem?.calculatedM2 || "—" },
                   ].map(({ label, value }) => (
                     <div key={label} style={{ backgroundColor: "#fff", padding: "10px 12px", borderRadius: 8, border: "1px solid #e7e5e4" }}>
-                      <p style={{ fontSize: 9, color: "#746e69", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0 }}>{label}</p>
+                      <p style={{ fontSize: 10, color: "#746e69", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0 }}>{label}</p>
                       <p style={{ fontSize: 11, fontWeight: 700, color: TI.text, margin: "3px 0 0" }}>{value}</p>
                     </div>
                   ))}
 
-                  {/* Quantidade — editável */}
+                  {/* Quantidade — editável.
+                      Era um <div> com onClick: editar a quantidade só existia
+                      para quem usa mouse, e o "· editar" a 8px era o menor
+                      texto do app. */}
                   <div
+                    role={editingQuantity ? undefined : "button"}
+                    tabIndex={editingQuantity ? undefined : 0}
+                    aria-label="Editar quantidade"
                     style={{ backgroundColor: "#fff", padding: "10px 12px", borderRadius: 8, border: "1px solid #e7e5e4", cursor: "pointer", position: "relative" }}
                     onClick={() => {
                       if (!editingQuantity) {
@@ -964,11 +981,19 @@ export default function Solicitacao() {
                         setTimeout(() => quantityInputRef.current?.select(), 50);
                       }
                     }}
+                    onKeyDown={e => {
+                      if (editingQuantity) return;
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        setEditingQuantity(true);
+                        setTimeout(() => quantityInputRef.current?.select(), 50);
+                      }
+                    }}
                     title="Clique para editar a quantidade"
                   >
-                    <p style={{ fontSize: 9, color: "#746e69", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
+                    <p style={{ fontSize: 10, color: "#746e69", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
                       Quantidade
-                      <span style={{ fontSize: 8, color: "#f97316", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em" }}>· editar</span>
+                      <span style={{ fontSize: 10, color: "#c2410c", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em" }}>· editar</span>
                     </p>
                     {editingQuantity ? (
                       <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }} onClick={e => e.stopPropagation()}>
@@ -989,7 +1014,7 @@ export default function Solicitacao() {
                           }}
                           style={{
                             width: 52, padding: "2px 6px", fontSize: 13, fontWeight: 700,
-                            border: "1.5px solid #f97316", borderRadius: 4, outline: "none",
+                            border: "1.5px solid #f97316", borderRadius: 6,
                             color: TI.text, background: "#fff9f5",
                           }}
                           data-testid="input-quantity-edit"
@@ -998,14 +1023,14 @@ export default function Solicitacao() {
                         <button
                           onClick={() => updateQuantityMutation.mutate({ itemId: selectedItem.id, quantity: quantityValue })}
                           disabled={updateQuantityMutation.isPending}
-                          style={{ padding: "2px 8px", fontSize: 9, fontWeight: 800, backgroundColor: "#c2410c", color: "#fff", border: "none", borderRadius: 4, cursor: "pointer", textTransform: "uppercase" }}
+                          style={{ padding: "2px 8px", fontSize: 10, fontWeight: 800, backgroundColor: "#c2410c", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", textTransform: "uppercase" }}
                           data-testid="button-confirm-quantity"
                         >
                           {updateQuantityMutation.isPending ? "..." : "OK"}
                         </button>
                         <button
                           onClick={() => { setQuantityValue(selectedItem.quantity ?? 1); setEditingQuantity(false); }}
-                          style={{ padding: "2px 6px", fontSize: 9, fontWeight: 800, backgroundColor: "#f3f4f3", color: "#746e69", border: "none", borderRadius: 4, cursor: "pointer" }}
+                          style={{ padding: "2px 6px", fontSize: 10, fontWeight: 800, backgroundColor: "#f3f4f3", color: "#746e69", border: "none", borderRadius: 6, cursor: "pointer" }}
                           data-testid="button-cancel-quantity"
                         >
                           ✕
@@ -1059,7 +1084,7 @@ export default function Solicitacao() {
                   <div style={{ backgroundColor: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, padding: "12px 16px", display: "flex", alignItems: "flex-start", gap: 12 }}>
                     <Recycle style={{ width: 18, height: 18, color: "#15803d", flexShrink: 0, marginTop: 1 }} />
                     <div>
-                      <p style={{ fontSize: 12, fontWeight: 800, color: "#166534", margin: 0, textTransform: "uppercase", letterSpacing: "0.05em" }}>Peça para Reaproveitamento</p>
+                      <p style={{ fontSize: 13, fontWeight: 800, color: "#166534", margin: 0, textTransform: "uppercase", letterSpacing: "0.05em" }}>Peça para Reaproveitamento</p>
                       <p style={{ fontSize: 11, color: "#166534", margin: "3px 0 0", opacity: 0.8 }}>
                         Esta peça não será enviada para nova produção gráfica. Verifique o arquivo de arte e libere normalmente.
                       </p>
@@ -1079,7 +1104,7 @@ export default function Solicitacao() {
                         flex: 1, padding: "14px 0", borderRadius: 6, border: "none",
                         backgroundColor: !selectedItem?.finalFileUrl ? "#292524" : "#9d4300",
                         color: !selectedItem?.finalFileUrl ? "#57534e" : "#fff",
-                        fontSize: 12, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em",
+                        fontSize: 13, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em",
                         cursor: !selectedItem?.finalFileUrl || creatorReviewMutation.isPending ? "not-allowed" : "pointer",
                       }}
                     >
@@ -1091,7 +1116,7 @@ export default function Solicitacao() {
                       style={{
                         flex: 1, padding: "14px 0", borderRadius: 6,
                         border: "1px solid #44403c", backgroundColor: "transparent",
-                        color: "#d6d3d1", fontSize: 12, fontWeight: 900,
+                        color: "#d6d3d1", fontSize: 13, fontWeight: 900,
                         textTransform: "uppercase", letterSpacing: "0.12em", cursor: "pointer",
                       }}
                     >
@@ -1110,7 +1135,7 @@ export default function Solicitacao() {
                         style={{
                           width: "100%", minHeight: 100, padding: 14, borderRadius: 8,
                           backgroundColor: "#1c1917", border: "1px solid #44403c",
-                          color: "#fff", fontSize: 13, resize: "none", outline: "none",
+                          color: "#fff", fontSize: 13, resize: "none",
                           fontFamily: "inherit", boxSizing: "border-box",
                         }}
                       />
@@ -1119,13 +1144,13 @@ export default function Solicitacao() {
                           onClick={() => setReturnConfirmOpen(true)}
                           disabled={returnToArteMutation.isPending}
                           data-testid="button-confirm-return"
-                          style={{ flex: 1, padding: "10px 0", borderRadius: 6, border: "none", backgroundColor: "#dc2626", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.08em" }}
+                          style={{ flex: 1, padding: "10px 0", borderRadius: 6, border: "none", backgroundColor: "#dc2626", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.08em" }}
                         >
                           {returnToArteMutation.isPending ? "Devolvendo..." : "Confirmar Devolução"}
                         </button>
                         <button
                           onClick={() => { setShowReturnForm(false); setReturnObservations(""); }}
-                          style={{ padding: "10px 16px", borderRadius: 6, border: "1px solid #44403c", backgroundColor: "transparent", color: "#746e69", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                          style={{ padding: "10px 16px", borderRadius: 6, border: "1px solid #44403c", backgroundColor: "transparent", color: "#746e69", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
                         >
                           Cancelar
                         </button>
@@ -1140,7 +1165,7 @@ export default function Solicitacao() {
                     <AlertCircle style={{ width: 14, height: 14, color: "#d97706", flexShrink: 0, marginTop: 1 }} />
                     <div>
                       <p style={{ fontSize: 11, fontWeight: 700, color: "#92400e", margin: 0 }}>Observações do item</p>
-                      <p style={{ fontSize: 12, color: "#78350f", margin: "4px 0 0" }}>{selectedItem.observations}</p>
+                      <p style={{ fontSize: 13, color: "#78350f", margin: "4px 0 0" }}>{selectedItem.observations}</p>
                     </div>
                   </div>
                 )}
@@ -1151,7 +1176,7 @@ export default function Solicitacao() {
                     HISTÓRICO
                   </h3>
                   {itemAuditLogs.length === 0 ? (
-                    <p style={{ fontSize: 12, color: TI.muted }}>Sem histórico disponível.</p>
+                    <p style={{ fontSize: 13, color: TI.muted }}>Sem histórico disponível.</p>
                   ) : (
                     <div style={{ position: "relative", paddingLeft: 24 }}>
                       {/* Vertical line */}
@@ -1186,10 +1211,10 @@ export default function Solicitacao() {
                               }} />
                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                                 <div>
-                                  <p style={{ fontSize: 12, fontWeight: 700, color: cfg.dot, margin: 0 }}>{cfg.label}</p>
+                                  <p style={{ fontSize: 13, fontWeight: 700, color: cfg.dot, margin: 0 }}>{cfg.label}</p>
                                   {log.userName && <p style={{ fontSize: 10, color: TI.secondary, margin: "2px 0 0" }}>{log.userName}</p>}
                                   {log.details && log.action && (
-                                    <p style={{ fontSize: 11, fontStyle: "italic", color: TI.secondary, backgroundColor: "#f3f4f3", padding: "6px 8px", borderRadius: 4, margin: "6px 0 0" }}>
+                                    <p style={{ fontSize: 11, fontStyle: "italic", color: TI.secondary, backgroundColor: "#f3f4f3", padding: "6px 8px", borderRadius: 6, margin: "6px 0 0" }}>
                                       "{log.details}"
                                     </p>
                                   )}
@@ -1211,9 +1236,9 @@ export default function Solicitacao() {
               <div style={{ padding: "14px 24px", backgroundColor: "#fafaf9", borderTop: "1px solid #f0efee", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <span style={{ fontSize: 10, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em" }}>Atalhos:</span>
-                  <span style={{ fontSize: 10, fontWeight: 900, backgroundColor: "#e7e5e4", padding: "2px 6px", borderRadius: 4, color: TI.text }}>Enter</span>
+                  <span style={{ fontSize: 10, fontWeight: 900, backgroundColor: "#e7e5e4", padding: "2px 6px", borderRadius: 6, color: TI.text }}>Enter</span>
                   <span style={{ fontSize: 10, color: TI.secondary }}>Liberar</span>
-                  <span style={{ fontSize: 10, fontWeight: 900, backgroundColor: "#e7e5e4", padding: "2px 6px", borderRadius: 4, color: TI.text }}>Esc</span>
+                  <span style={{ fontSize: 10, fontWeight: 900, backgroundColor: "#e7e5e4", padding: "2px 6px", borderRadius: 6, color: TI.text }}>Esc</span>
                   <span style={{ fontSize: 10, color: TI.secondary }}>Fechar</span>
                 </div>
                 <p style={{ fontSize: 10, fontWeight: 700, color: TI.muted, margin: 0 }}>NORTE v2.0</p>
@@ -1366,29 +1391,33 @@ export default function Solicitacao() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Diálogo: escolher reaproveitamento total ou parcial */}
-      {reuseDialogItemId && (() => {
-        const dialogItem = pendingItems.find(i => i.id === reuseDialogItemId);
-        if (!dialogItem) return null;
-        const qty = Number(dialogItem.quantity) || 1;
-        return (
-          <div
-            className="reuse-dialog-overlay" style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.45)", padding: 16 }}
-            onClick={() => setReuseDialogItemId(null)}
-          >
-            <div
-              className="reuse-dialog-panel" style={{ backgroundColor: "#ffffff", borderRadius: 12, padding: 28, width: Math.min(380, window.innerWidth - 32), boxShadow: "0 20px 60px rgba(0,0,0,0.25)" }}
-              onClick={e => e.stopPropagation()}
-            >
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                <Recycle style={{ width: 18, height: 18, color: "#15803d" }} />
-                <h3 style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 16, textTransform: "uppercase", letterSpacing: "-0.02em" }}>
-                  Reaproveitamento
-                </h3>
-              </div>
-              <p style={{ margin: "0 0 20px", fontSize: 12, color: "#746e69" }}>
-                {dialogItem.displayId} · {dialogItem.type} · <strong>{qty} un.</strong>
-              </p>
+      {/* Diálogo: escolher reaproveitamento total ou parcial.
+          Era um overlay <div> montado à mão: sem Esc, sem armadilha de foco
+          (o Tab passeava pela lista atrás), sem devolver o foco ao fechar, e a
+          página continuava rolando por baixo. A largura ainda vinha de
+          `window.innerWidth` lido na renderização — girar o celular deixava o
+          painel no tamanho antigo. */}
+      <Dialog open={!!reuseDialogItemId} onOpenChange={o => { if (!o) setReuseDialogItemId(null); }}>
+        <DialogContent style={modalSurface(420)}>
+          {(() => {
+            const dialogItem = pendingItems.find(i => i.id === reuseDialogItemId);
+            if (!dialogItem) return null;
+            const qty = Number(dialogItem.quantity) || 1;
+            return (
+              <>
+                <DialogTitle className="sr-only">Reaproveitamento</DialogTitle>
+                <DialogDescription className="sr-only">
+                  Escolha reaproveitar todas as unidades ou apenas parte delas
+                </DialogDescription>
+                <ModalHeader
+                  variant="confirm"
+                  icon={Recycle}
+                  tint="#15803d"
+                  title="Reaproveitamento"
+                  subtitle={`${dialogItem.displayId} · ${dialogItem.type} · ${qty} un.`}
+                  onClose={() => setReuseDialogItemId(null)}
+                />
+                <div style={{ padding: "20px 24px" }}>
 
               {/* Opção: reaproveitar tudo */}
               <button
@@ -1401,7 +1430,7 @@ export default function Solicitacao() {
                   width: "100%", padding: "12px 16px", marginBottom: 10,
                   backgroundColor: "#15803d", color: "#fff",
                   border: "none", borderRadius: 8, cursor: "pointer",
-                  fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
+                  fontSize: 13, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
                 }}
               >
@@ -1422,9 +1451,9 @@ export default function Solicitacao() {
                       max={qty - 1}
                       value={partialReuseQty}
                       onChange={e => setPartialReuseQty(Math.max(1, Math.min(qty - 1, parseInt(e.target.value) || 1)))}
-                      style={{ width: 64, height: 34, padding: "0 8px", borderRadius: 6, border: "1px solid #d4d4d0", fontSize: 14, fontWeight: 700, textAlign: "center", outline: "none" }}
+                      style={{ width: 64, height: 34, padding: "0 8px", borderRadius: 6, border: "1px solid #d4d4d0", fontSize: 15, fontWeight: 700, textAlign: "center" }}
                     />
-                    <span style={{ fontSize: 12, color: "#746e69" }}>de {qty} un. reaproveitadas</span>
+                    <span style={{ fontSize: 13, color: "#746e69" }}>de {qty} un. reaproveitadas</span>
                   </div>
                   <p style={{ margin: "0 0 10px", fontSize: 11, color: "#746e69" }}>
                     As outras <strong>{qty - partialReuseQty}</strong> un. seguirão para produção normal.
@@ -1444,16 +1473,18 @@ export default function Solicitacao() {
                 </div>
               )}
 
-              <button
-                onClick={() => setReuseDialogItemId(null)}
-                style={{ width: "100%", marginTop: 12, padding: "8px 0", background: "none", border: "none", fontSize: 12, color: "#746e69", cursor: "pointer" }}
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        );
-      })()}
+                  <button
+                    onClick={() => setReuseDialogItemId(null)}
+                    style={{ width: "100%", marginTop: 12, height: 36, background: "none", border: "none", fontSize: 13, color: "#746e69", cursor: "pointer" }}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       {/* Delete confirmation */}
       <AlertDialog open={!!deleteConfirmItemId} onOpenChange={open => { if (!open) setDeleteConfirmItemId(null); }}>

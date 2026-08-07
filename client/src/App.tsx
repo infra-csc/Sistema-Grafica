@@ -251,27 +251,44 @@ function AuthenticatedLayout() {
               onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
               onViewAll={() => setLocation("/historico")}
             />
-            {/* User avatar chip */}
+            {/* Quem está logado.
+                Era só o quadradinho com as iniciais e o nome no `title`: no
+                celular não há hover, então a informação simplesmente não
+                existia, e para leitor de tela o bloco era mudo. Em telas
+                largas o nome aparece ao lado — a barra tem espaço de sobra —
+                e o `aria-label` cobre o caso do quadrado sozinho. */}
             <div
-              title={user?.name}
-              style={{
-                width: 34, height: 34,
-                borderRadius: 6,
-                backgroundColor: "#1c1917",
-                display: "flex", alignItems: "center", justifyContent: "center",
-                marginLeft: 4,
-                boxShadow: "0 0 0 2px #e7e5e4, 0 0 0 4px #ffffff",
-                cursor: "default",
-                flexShrink: 0,
-              }}
+              style={{ display: "flex", alignItems: "center", gap: 10, marginLeft: 4 }}
+              aria-label={user?.name ? `Conectado como ${user.name}` : undefined}
             >
-              <span style={{
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: 12, fontWeight: 700,
-                color: "#f97316", letterSpacing: "-0.02em",
-              }}>
-                {userInitials}
-              </span>
+              <div className="hidden lg:block" style={{ textAlign: "right", lineHeight: 1.25 }}>
+                <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#1c1917", whiteSpace: "nowrap" }}>
+                  {user?.name}
+                </p>
+                <p style={{ margin: 0, fontSize: 11, color: "#746e69", textTransform: "capitalize" }}>
+                  {user?.role}
+                </p>
+              </div>
+              <div
+                title={user?.name}
+                style={{
+                  width: 34, height: 34,
+                  borderRadius: 8,
+                  backgroundColor: "#1c1917",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  boxShadow: "0 0 0 2px #e7e5e4, 0 0 0 4px #ffffff",
+                  cursor: "default",
+                  flexShrink: 0,
+                }}
+              >
+                <span style={{
+                  fontFamily: "'Space Grotesk', sans-serif",
+                  fontSize: 12, fontWeight: 700,
+                  color: "#fb923c", letterSpacing: "-0.02em",
+                }}>
+                  {userInitials}
+                </span>
+              </div>
             </div>
           </div>
         </header>

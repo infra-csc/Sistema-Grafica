@@ -73,7 +73,7 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
 const DEFAULT_CONFIG: TypeConfig = {
   Icon: Bell,
   border: "#a8a29e", bgRow: "transparent",
-  bgIcon: "#e7e5e4", iconColor: "#78716c",
+  bgIcon: "#e7e5e4", iconColor: "#746e69",
   label: "Sistema",
 };
 
@@ -120,6 +120,14 @@ export function NotificationBell({ notifications, onMarkAsRead, onViewAll }: Not
       {/* Bell trigger */}
       <button
         data-testid="button-notifications"
+        /* Só o ícone nomeava este botão: um leitor de tela anunciava "botão"
+           sem dizer do que se tratava nem quantas notificações havia. O "9+"
+           visual também não diz de quê — por isso ele fica aria-hidden e a
+           contagem entra aqui por extenso. */
+        aria-label={unreadCount > 0
+          ? `Notificações — ${unreadCount} não lida${unreadCount !== 1 ? "s" : ""}`
+          : "Notificações"}
+        aria-expanded={open}
         onClick={() => setOpen((p) => !p)}
         style={{
           position: "relative",
@@ -140,6 +148,7 @@ export function NotificationBell({ notifications, onMarkAsRead, onViewAll }: Not
         {unreadCount > 0 && (
           <span
             data-testid="badge-notification-count"
+            aria-hidden="true"
             style={{
               position: "absolute", top: 4, right: 4,
               backgroundColor: "#dc2626", color: "#ffffff",

@@ -70,7 +70,7 @@ const sectionLabelStyle: React.CSSProperties = {
   fontWeight: 700,
   textTransform: "uppercase",
   letterSpacing: "0.1em",
-  color: "#94a3b8",
+  color: "#746e69",
   padding: "0 14px",
   marginBottom: 4,
   marginTop: 0,
@@ -98,7 +98,7 @@ function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
             fontSize: 13,
             fontFamily: "'Plus Jakarta Sans', sans-serif",
             fontWeight: isActive ? 600 : 500,
-            color: isActive ? "#f97316" : "#475569",
+            color: isActive ? "#f97316" : "#57534e",
             backgroundColor: isActive ? "#fff7ed" : "transparent",
             textDecoration: "none",
             transition: "background-color 0.12s ease, color 0.12s ease",
@@ -106,21 +106,21 @@ function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
           }}
           onMouseEnter={(e) => {
             if (!isActive) {
-              (e.currentTarget as HTMLElement).style.backgroundColor = "#f8fafc";
-              (e.currentTarget as HTMLElement).style.color = "#1e293b";
+              (e.currentTarget as HTMLElement).style.backgroundColor = "#fafaf9";
+              (e.currentTarget as HTMLElement).style.color = "#292524";
             }
           }}
           onMouseLeave={(e) => {
             if (!isActive) {
               (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
-              (e.currentTarget as HTMLElement).style.color = "#475569";
+              (e.currentTarget as HTMLElement).style.color = "#57534e";
             }
           }}
         >
           <Icon
             style={{
               width: 18, height: 18, flexShrink: 0,
-              color: isActive ? "#f97316" : "#94a3b8",
+              color: isActive ? "#f97316" : "#746e69",
               filter: isActive ? "drop-shadow(0 0 3px rgba(249,115,22,0.25))" : "none",
               transition: "filter 0.12s ease, color 0.12s ease",
             }}
@@ -162,7 +162,7 @@ export function AppSidebar() {
     <Sidebar
       style={{
         backgroundColor: "#ffffff",
-        borderRight: "1px solid #e2e8f0",
+        borderRight: "1px solid #e7e5e4",
         height: "100vh",
       }}
     >
@@ -182,7 +182,7 @@ export function AppSidebar() {
               fontWeight: 800,
               letterSpacing: "-0.05em",
               textTransform: "uppercase",
-              color: "#0f172a",
+              color: "#1c1917",
               lineHeight: 0.9,
             }}>
               NORTE
@@ -193,7 +193,7 @@ export function AppSidebar() {
               fontWeight: 700,
               textTransform: "uppercase",
               letterSpacing: "0.25em",
-              color: "#94a3b8",
+              color: "#746e69",
               lineHeight: 1,
               marginTop: 3,
             }}>
@@ -275,7 +275,7 @@ export function AppSidebar() {
       <SidebarFooter
         style={{
           padding: "16px 16px",
-          borderTop: "1px solid #f1f5f9",
+          borderTop: "1px solid #f5f5f4",
           marginTop: "auto",
         }}
       >
@@ -283,7 +283,7 @@ export function AppSidebar() {
           {/* Avatar */}
           <div style={{
             width: 34, height: 34, borderRadius: "50%",
-            backgroundColor: "#0f172a",
+            backgroundColor: "#1c1917",
             display: "flex", alignItems: "center", justifyContent: "center",
             flexShrink: 0,
           }}>
@@ -297,14 +297,14 @@ export function AppSidebar() {
             <p style={{
               fontFamily: "'Plus Jakarta Sans', sans-serif",
               fontSize: 13, fontWeight: 700,
-              color: "#0f172a", margin: 0, lineHeight: 1.3,
+              color: "#1c1917", margin: 0, lineHeight: 1.3,
               overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
             }}>
               {user?.name ?? "Usuário"}
             </p>
             <p style={{
               fontFamily: "'Plus Jakarta Sans', sans-serif",
-              fontSize: 11, color: "#94a3b8",
+              fontSize: 11, color: "#746e69",
               margin: 0, lineHeight: 1.3, textTransform: "capitalize",
             }}>
               {user?.role ?? ""}
@@ -318,7 +318,7 @@ export function AppSidebar() {
             title="Sair"
             style={{
               background: "none", border: "none", cursor: "pointer",
-              padding: 6, borderRadius: 6, color: "#94a3b8",
+              padding: 6, borderRadius: 6, color: "#746e69",
               display: "flex", alignItems: "center", justifyContent: "center",
               transition: "color 0.15s ease, background-color 0.15s ease",
               flexShrink: 0,
@@ -328,7 +328,7 @@ export function AppSidebar() {
               (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#fef2f2";
             }}
             onMouseLeave={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8";
+              (e.currentTarget as HTMLButtonElement).style.color = "#746e69";
               (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
             }}
           >

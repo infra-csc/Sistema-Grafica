@@ -46,8 +46,14 @@ export default function Login() {
     return SSO_ERROR_MESSAGES[code] ?? null;
   });
 
+  // Chegar aqui expulso do meio do trabalho, sem explicação, faz parecer bug do
+  // sistema. O ?sessao=expirada vem de handleUnauthorized (lib/queryClient).
+  const [sessaoExpirada] = useState(
+    () => new URLSearchParams(search).get("sessao") === "expirada",
+  );
+
   useEffect(() => {
-    if (ssoError) {
+    if (ssoError || sessaoExpirada) {
       window.history.replaceState({}, "", "/login");
     }
   }, []);
@@ -191,6 +197,27 @@ export default function Login() {
               Acesse o sistema pelo portal NORTE.
             </p>
           </header>
+
+          {/* Sessão expirada — âmbar, não vermelho: não é erro do usuário nem
+              falha do sistema, é só a sessão que acabou. */}
+          {sessaoExpirada && !ssoError && (
+            <div
+              data-testid="banner-sessao-expirada"
+              style={{
+                display: "flex", alignItems: "flex-start", gap: 12,
+                backgroundColor: "#fffbeb", border: "1.5px solid #fde68a",
+                borderRadius: 8, padding: "14px 16px", marginBottom: 24,
+              }}
+            >
+              <AlertTriangle style={{ width: 18, height: 18, color: "#b45309", flexShrink: 0, marginTop: 1 }} />
+              <div>
+                <p style={{ margin: 0, fontWeight: 700, fontSize: 13, color: "#78350f" }}>Sua sessão expirou</p>
+                <p style={{ margin: "4px 0 0 0", fontSize: 12, color: "#92400e", lineHeight: 1.5 }}>
+                  Entre novamente para continuar de onde parou.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* SSO error banner */}
           {ssoError && (

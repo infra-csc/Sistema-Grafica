@@ -80,6 +80,11 @@ app.use(
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
+    // Sem `rolling`, o maxAge conta a partir do login e não da última
+    // atividade: quem usa o sistema todo dia era desconectado no sétimo dia
+    // sem motivo aparente, no meio do trabalho. Com ele, a janela de 7 dias
+    // reinicia a cada requisição e só expira depois de uma semana parado.
+    rolling: true,
     cookie: {
       secure: process.env.NODE_ENV === "production",
       httpOnly: true,

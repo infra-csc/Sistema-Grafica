@@ -1,16 +1,42 @@
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
-async function throwIfResNotOk(res: Response) {
-  if (!res.ok) {
-    const raw = (await res.text()) || res.statusText;
-    // Se a resposta for uma página HTML (ex: página 404 do Replit), não exibir
-    // o HTML bruto — substituir por mensagem genérica legível.
-    const isHtml = raw.trimStart().startsWith("<");
-    const text = isHtml
-      ? `Erro ${res.status} — servidor retornou resposta inesperada. Tente novamente.`
-      : raw;
-    throw new Error(text);
+/**
+ * Sessão expirada tem de levar para o login.
+ *
+ * `/api/auth/me` é buscado uma vez e nunca mais: o queryClient usa
+ * `staleTime: Infinity` e `refetchOnWindowFocus: false`. Enquanto o usuário
+ * navega, nada revalida a sessão — quando ela morre, as telas seguem
+ * desenhando o cache como se estivesse tudo bem e só a primeira gravação
+ * falha, com um toast de JSON cru ("Não autenticado") e nenhum caminho de
+ * volta. Era exatamente o erro ao salvar patrocinador.
+ */
+function handleUnauthorized() {
+  if (typeof window === "undefined") return;
+  if (window.location.pathname === "/login") return;
+  try { localStorage.removeItem("currentUser"); } catch { /* modo privado */ }
+  queryClient.clear();
+  window.location.replace("/login?sessao=expirada");
+}
+
+async function throwIfResNotOk(res: Response, url?: string) {
+  if (res.ok) return;
+
+  // A própria checagem de sessão responde 401 para quem nunca logou; ali o
+  // roteamento normal já manda para o login, e redirecionar aqui trocaria
+  // "faça login" por "sua sessão expirou" logo na primeira visita.
+  if (res.status === 401 && url !== "/api/auth/me") {
+    handleUnauthorized();
+    throw new Error("Sua sessão expirou. Entre novamente para continuar.");
   }
+
+  const raw = (await res.text()) || res.statusText;
+  // Se a resposta for uma página HTML (ex: página 404 do Replit), não exibir
+  // o HTML bruto — substituir por mensagem genérica legível.
+  const isHtml = raw.trimStart().startsWith("<");
+  const text = isHtml
+    ? `Erro ${res.status} — servidor retornou resposta inesperada. Tente novamente.`
+    : raw;
+  throw new Error(text);
 }
 
 // Helper to get current user name from localStorage
@@ -51,7 +77,7 @@ export async function apiRequest(
     credentials: "include",
   });
 
-  await throwIfResNotOk(res);
+  await throwIfResNotOk(res, url);
   return res;
 }
 
@@ -61,7 +87,8 @@ export const getQueryFn: <T>(options: {
 }) => QueryFunction<T> =
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
-    const res = await fetch(queryKey.join("/") as string, {
+    const url = queryKey.join("/") as string;
+    const res = await fetch(url, {
       credentials: "include",
       headers: {
         "x-user-name": getCurrentUserName(),
@@ -72,7 +99,7 @@ export const getQueryFn: <T>(options: {
       return null;
     }
 
-    await throwIfResNotOk(res);
+    await throwIfResNotOk(res, url);
     return await res.json();
   };
 

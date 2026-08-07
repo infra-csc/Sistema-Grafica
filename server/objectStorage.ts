@@ -97,6 +97,13 @@ export class ObjectStorageService {
   }
 
   // Downloads an object to the response.
+  //
+  // Aceita requisição de faixa (HTTP Range). Sem isso, todo consumidor precisa
+  // baixar o arquivo inteiro antes de usar qualquer parte dele: o book de um
+  // evento tem ~4,7 MB e levava uns 3s só de transferência antes de a primeira
+  // página aparecer — era a lentidão relatada ao abrir o book. O visualizador
+  // de PDF do navegador e o pdf.js sabem pedir só os trechos de que precisam,
+  // mas só fazem isso quando o servidor anuncia `Accept-Ranges`.
   async downloadObject(file: File, res: Response, cacheTtlSec: number = 3600) {
     try {
       // Get file metadata
@@ -106,16 +113,52 @@ export class ObjectStorageService {
       const isPublic = aclPolicy?.visibility === "public";
       const contentType = metadata.contentType || "application/octet-stream";
       const isPdf = contentType === "application/pdf" || file.name.endsWith(".pdf");
+      const size = Number(metadata.size ?? 0);
 
-      // Set appropriate headers
-      res.set({
+      const commonHeaders: Record<string, string> = {
         "Content-Type": isPdf ? "application/pdf" : contentType,
-        "Content-Length": metadata.size,
         "Cache-Control": `${isPublic ? "public" : "private"}, max-age=${cacheTtlSec}`,
+        "Accept-Ranges": "bytes",
         // Tell the browser to display the file inline (critical for PDFs in new tabs).
         // Without this, Chrome downloads the file silently and the tab shows blank.
         ...(isPdf && { "Content-Disposition": "inline; filename=\"document.pdf\"" }),
-      });
+      };
+
+      // "bytes=INICIO-FIM", com qualquer um dos lados opcional.
+      const range = /^bytes=(\d*)-(\d*)$/.exec(String(res.req.headers.range ?? ""));
+      if (range && size > 0) {
+        const [, rawStart, rawEnd] = range;
+        let start: number, end: number;
+        if (rawStart === "") {
+          // "bytes=-500" pede os últimos 500 bytes.
+          const suffix = Number(rawEnd);
+          start = Math.max(0, size - suffix);
+          end = size - 1;
+        } else {
+          start = Number(rawStart);
+          end = rawEnd === "" ? size - 1 : Math.min(Number(rawEnd), size - 1);
+        }
+
+        if (!Number.isFinite(start) || !Number.isFinite(end) || start > end || start >= size) {
+          res.status(416).set({ "Content-Range": `bytes */${size}` }).end();
+          return;
+        }
+
+        res.status(206).set({
+          ...commonHeaders,
+          "Content-Range": `bytes ${start}-${end}/${size}`,
+          "Content-Length": String(end - start + 1),
+        });
+        const partial = file.createReadStream({ start, end });
+        partial.on("error", (err) => {
+          console.error("Stream error:", err);
+          if (!res.headersSent) res.status(500).json({ error: "Error streaming file" });
+        });
+        partial.pipe(res);
+        return;
+      }
+
+      res.set({ ...commonHeaders, "Content-Length": String(size) });
 
       // Stream the file to the response
       const stream = file.createReadStream();

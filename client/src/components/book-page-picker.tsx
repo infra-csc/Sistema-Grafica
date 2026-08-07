@@ -82,21 +82,18 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
 
     (async () => {
       try {
-        const res = await fetch(convertGCSUrlToLocalPath(bookUrl));
-        if (!res.ok) throw new Error(`Não foi possível baixar o book (HTTP ${res.status}).`);
-        const bytes = await res.arrayBuffer();
-        if (genRef.current !== gen) return;
-        bytesRef.current = bytes;
-
         const pdfjs = await import("pdfjs-dist");
         // O worker do pdf.js precisa vir do próprio bundle: buscá-lo em CDN
         // quebraria em qualquer ambiente sem internet de saída.
         const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
         pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
-        // getDocument consome (detacha) o buffer que recebe, por isso a cópia —
-        // sem ela o recorte depois encontraria um ArrayBuffer vazio.
-        const doc = await pdfjs.getDocument({ data: bytes.slice(0) }).promise;
+        // Carrega por URL, não por bytes. Baixar os 4,7 MB inteiros antes de
+        // abrir custava ~3s de tela parada; por URL o pdf.js usa requisição de
+        // faixa (o servidor anuncia Accept-Ranges) e lê só o índice do PDF,
+        // então a grade de páginas aparece quase de imediato. O arquivo
+        // completo só é buscado se o usuário mandar recortar.
+        const doc = await pdfjs.getDocument({ url: convertGCSUrlToLocalPath(bookUrl) }).promise;
         if (genRef.current !== gen) return;
 
         docRef.current = doc;
@@ -151,9 +148,19 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
     setPicked(prev => { const s = new Set(prev); if (s.has(n)) s.delete(n); else s.add(n); return s; });
 
   const extract = async () => {
-    if (!bytesRef.current || picked.size === 0) return;
+    if (picked.size === 0) return;
     setExtracting(true);
     try {
+      // O arquivo completo só é necessário aqui — o pdf-lib precisa dele
+      // inteiro para copiar páginas. Buscar agora, e não na abertura, é o que
+      // permite a grade aparecer de imediato; e como o servidor manda
+      // Cache-Control, normalmente já veio do cache do navegador.
+      if (!bytesRef.current) {
+        const res = await fetch(convertGCSUrlToLocalPath(bookUrl));
+        if (!res.ok) throw new Error(`Não foi possível baixar o book (HTTP ${res.status}).`);
+        bytesRef.current = await res.arrayBuffer();
+      }
+
       const { PDFDocument } = await import("pdf-lib");
       const src = await PDFDocument.load(bytesRef.current.slice(0));
       const out = await PDFDocument.create();
@@ -274,7 +281,7 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
           {opening && !error && (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: "80px 0" }}>
               <Loader2 style={{ width: 26, height: 26, color: "#6d28d9" }} className="animate-spin" />
-              <p style={{ fontSize: 13, color: "#57534e", margin: 0 }}>Baixando o book…</p>
+              <p style={{ fontSize: 13, color: "#57534e", margin: 0 }}>Abrindo o book…</p>
             </div>
           )}
 

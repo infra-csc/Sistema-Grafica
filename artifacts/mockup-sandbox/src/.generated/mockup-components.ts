@@ -3,7 +3,7 @@ type ModuleMap = Record<string, () => Promise<Record<string, unknown>>>;
 export const modules: ModuleMap = {
   "./components/mockups/arte-redesign/ArteRedesign.tsx": () => import("../components/mockups/arte-redesign/ArteRedesign.tsx"),
   "./components/mockups/arte-redesign/ArteRedesignV2.tsx": () => import("../components/mockups/arte-redesign/ArteRedesignV2.tsx"),
+  "./components/mockups/vincular-redesign/VincularPatPage.tsx": () => import("../components/mockups/vincular-redesign/VincularPatPage.tsx"),
   "./components/mockups/import-xlsx/SplitPanel.tsx": () => import("../components/mockups/import-xlsx/SplitPanel.tsx"),
-  "./components/mockups/import-xlsx/StepWizard.tsx": () => import("../components/mockups/import-xlsx/StepWizard.tsx"),
-  "./components/mockups/vincular-redesign/VincularPatPage.tsx": () => import("../components/mockups/vincular-redesign/VincularPatPage.tsx")
+  "./components/mockups/import-xlsx/StepWizard.tsx": () => import("../components/mockups/import-xlsx/StepWizard.tsx")
 };

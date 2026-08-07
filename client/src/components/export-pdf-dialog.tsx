@@ -31,11 +31,20 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
   // contradiziam ("926 peças" no topo, "223 peças" no botão). Uma escolha só,
   // no topo do painel, elimina a contradição: ou o arquivo nasce das artes, ou
   // ele é o book que a Arte já enviou.
-  const [source, setSource] = useState<"artes" | "book">("artes");
+  //
+  // Começa no book: quando a peça tem book, ele é o arquivo que o patrocinador
+  // já aprovou, então é a saída certa na maioria das vezes — gerar das artes é
+  // a exceção. Quando não há book na seleção, o radio nem aparece e a
+  // exportação cai sozinha no caminho das artes (ver `useBook`), então o padrão
+  // nunca fica marcando uma origem impossível.
+  const [source, setSource] = useState<"artes" | "book">("book");
   const [pickerOpen, setPickerOpen] = useState(false);
 
   useEffect(() => {
-    if (open) { setExcludedIds(new Set()); setUngroupedKeys(new Set()); }
+    // Reabrir volta ao book: o padrão não pode depender do que foi escolhido na
+    // exportação anterior, senão quem trocou uma vez para "artes" nunca mais vê
+    // o book como padrão.
+    if (open) { setExcludedIds(new Set()); setUngroupedKeys(new Set()); setSource("book"); }
     // O seletor de páginas é irmão deste Dialog, não filho — fechar a exportação
     // não o desmontaria, e ele ficaria sozinho na tela sem o modal que o abriu.
     else setPickerOpen(false);

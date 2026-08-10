@@ -2,6 +2,7 @@
 import type { Express } from "express";
 import bcrypt from "bcryptjs";
 import { storage } from "../storage";
+import { pool } from "../db";
 import { insertUserSchema, loginSchema, changePasswordSchema } from "@shared/schema";
 import {
   requireAuth,
@@ -206,13 +207,28 @@ export function registerAuthRoutes(app: Express): void {
         return res.status(404).json({ error: "Usuário não encontrado" });
       }
 
+      // If the role changed, invalidate all active sessions for that user so
+      // they get the new role on their next login. Session data stores userId
+      // as a JSON string field inside the `sess` column.
+      if (validatedData.role !== undefined) {
+        try {
+          await pool.query(
+            `DELETE FROM session WHERE (sess->>'userId') = $1`,
+            [req.params.id]
+          );
+        } catch (sessionErr) {
+          // Non-fatal: log the error but don't fail the update response.
+          console.error("Failed to invalidate user sessions after role change:", sessionErr);
+        }
+      }
+
       // Create audit log
       await createAuditLog(
         req.userName!,
         'updated',
         'user',
         user.id,
-        `Usuário "${user.name}" atualizado`
+        `Usuário "${user.name}" atualizado${validatedData.role ? ` (perfil: ${validatedData.role})` : ""}`
       );
 
       // Don't send password hash to client

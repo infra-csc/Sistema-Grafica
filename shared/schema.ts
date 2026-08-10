@@ -197,7 +197,12 @@ export const notifications = pgTable("notifications", {
   targetRoles: text("target_roles").array().notNull().default(sql`ARRAY['admin', 'solicitacao', 'arte', 'grafica', 'atendimento']::text[]`), // Perfis que devem receber
   isRead: boolean("is_read").notNull().default(false),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
+}, (table) => [
+  // Notifications are queried ordered by date and filtered by isRead — without
+  // this index the table becomes a sequential scan as data grows.
+  index("IDX_notifications_created_at").on(table.createdAt),
+  index("IDX_notifications_is_read").on(table.isRead),
+]);
 
 // Production updates table (for Gráfica module)
 export const productionUpdates = pgTable("production_updates", {

@@ -263,8 +263,10 @@ export function registerEventRoutes(app: Express): void {
       }
       
       // Atomic status transition: draft/requested → awaiting_linking
+      // Cast is safe: draftItems was filtered to only draft/requested above.
+      type ItemStatus = Parameters<typeof storage.updateItemWithStatusCheck>[1];
       const updatePromises = draftItems.map(item => 
-        storage.updateItemWithStatusCheck(item.id, item.status, 'awaiting_linking')
+        storage.updateItemWithStatusCheck(item.id, item.status as ItemStatus, 'awaiting_linking')
       );
       const updatedItems = await Promise.all(updatePromises);
       

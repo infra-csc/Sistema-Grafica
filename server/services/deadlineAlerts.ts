@@ -49,10 +49,11 @@ export function startDeadlineAlerts(): void {
 
         const truckMs = new Date(event.truckDepartureDate).getTime();
 
+        type Role = "solicitacao" | "admin" | "arte" | "grafica" | "atendimento";
         const prazos: Array<{
           field: keyof typeof event;
           label: string;
-          roles: string[];
+          roles: Role[];
         }> = [
           { field: "deadlineListaImagens",   label: "Lista de Imagens",    roles: ["solicitacao", "admin"] },
           { field: "deadlineEntregaLayouts", label: "Entrega de Layouts",  roles: ["arte", "admin"] },

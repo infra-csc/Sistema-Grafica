@@ -55,9 +55,9 @@ import { broadcast, createAuditLog, updateEventStatus } from "../routes/shared";
       const ssEntry = zip.getEntry("xl/sharedStrings.xml");
       if (ssEntry) {
         const ssXml = ssEntry.getData().toString("utf8");
-        for (const siM of ssXml.matchAll(/<si>([\s\S]*?)<\/si>/g)) {
+        for (const siM of Array.from(ssXml.matchAll(/<si>([\s\S]*?)<\/si>/g)) as RegExpMatchArray[]) {
           const parts: string[] = [];
-          for (const tM of siM[1].matchAll(/<t[^>]*>([^<]*)<\/t>/g)) parts.push(tM[1]);
+          for (const tM of Array.from((siM[1] as string).matchAll(/<t[^>]*>([^<]*)<\/t>/g)) as RegExpMatchArray[]) parts.push(tM[1] as string);
           sharedStrings.push(parts.join(""));
         }
       }
@@ -67,13 +67,13 @@ import { broadcast, createAuditLog, updateEventStatus } from "../routes/shared";
          .replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&#(\d+);/g, (_,n) => String.fromCharCode(+n));
 
       type CellMap = Record<string, string>;
-      function parseSheet(sheetXml: string): Record<number, CellMap> {
+      const parseSheet = (sheetXml: string): Record<number, CellMap> => {
         const result: Record<number, CellMap> = {};
-        for (const rowM of sheetXml.matchAll(/<row r="(\d+)"[^>]*>([\s\S]*?)<\/row>/g)) {
+        for (const rowM of Array.from(sheetXml.matchAll(/<row r="(\d+)"[^>]*>([\s\S]*?)<\/row>/g))) {
           const rowNum = parseInt(rowM[1]);
           const cellMap: CellMap = {};
           // Parse each cell individually to handle all types: s, str, inlineStr, numeric
-          for (const cm of rowM[2].matchAll(/<c r="([A-Z]+)\d+"([^>]*)>([\s\S]*?)<\/c>/g)) {
+          for (const cm of Array.from(rowM[2].matchAll(/<c r="([A-Z]+)\d+"([^>]*)>([\s\S]*?)<\/c>/g))) {
             const col = cm[1];
             const attrs = cm[2];
             const content = cm[3];
@@ -85,7 +85,7 @@ import { broadcast, createAuditLog, updateEventStatus } from "../routes/shared";
               if (vM) val = decodeXml(sharedStrings[parseInt(vM[1])] ?? "");
             } else if (t === "inlineStr") {
               const parts: string[] = [];
-              for (const tM of content.matchAll(/<t[^>]*>([^<]*)<\/t>/g)) parts.push(tM[1]);
+              for (const tM of Array.from(content.matchAll(/<t[^>]*>([^<]*)<\/t>/g))) parts.push(tM[1]);
               val = decodeXml(parts.join(""));
             } else {
               // t="str" (formula string), t="" (number), t="b" (boolean), etc.
@@ -98,7 +98,7 @@ import { broadcast, createAuditLog, updateEventStatus } from "../routes/shared";
           if (Object.keys(cellMap).length > 0) result[rowNum] = cellMap;
         }
         return result;
-      }
+      };
 
       let rows: Record<number, CellMap> = {};
       let headerRow = -1;

@@ -132,6 +132,7 @@ export interface IStorage {
   
   // Event Sponsors (many-to-many relationship)
   getEventSponsors(eventId: string): Promise<EventSponsor[]>;
+  getAllEventSponsors(): Promise<EventSponsor[]>;
   addSponsorToEvent(eventSponsor: InsertEventSponsor): Promise<EventSponsor>;
   removeSponsorFromEvent(eventId: string, sponsorId: string): Promise<boolean>;
   
@@ -977,6 +978,16 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(eventSponsors)
       .where(eq(eventSponsors.eventId, eventId))
+      .orderBy(desc(eventSponsors.createdAt));
+  }
+
+  // Todos os vínculos evento↔patrocinador de uma vez — usado para montar a
+  // lista de /api/events sem 1 query por evento (N+1). Mesma ordem
+  // (createdAt desc) do getEventSponsors por evento.
+  async getAllEventSponsors(): Promise<EventSponsor[]> {
+    return await db
+      .select()
+      .from(eventSponsors)
       .orderBy(desc(eventSponsors.createdAt));
   }
 

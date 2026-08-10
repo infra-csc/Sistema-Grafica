@@ -7,7 +7,6 @@ import {
   ObjectAclPolicy,
   ObjectPermission,
   canAccessObject,
-  getObjectAclPolicy,
   setObjectAclPolicy,
 } from "./objectAcl";
 
@@ -108,16 +107,17 @@ export class ObjectStorageService {
     try {
       // Get file metadata
       const [metadata] = await file.getMetadata();
-      // Get the ACL policy for the object.
-      const aclPolicy = await getObjectAclPolicy(file);
-      const isPublic = aclPolicy?.visibility === "public";
       const contentType = metadata.contentType || "application/octet-stream";
       const isPdf = contentType === "application/pdf" || file.name.endsWith(".pdf");
       const size = Number(metadata.size ?? 0);
 
       const commonHeaders: Record<string, string> = {
         "Content-Type": isPdf ? "application/pdf" : contentType,
-        "Cache-Control": `${isPublic ? "public" : "private"}, max-age=${cacheTtlSec}`,
+        // Sempre `private`: estes objetos são servidos SÓ pela rota autenticada
+        // /objects/*. Antes usava `public` (porque todo upload é gravado com
+        // visibility "public"), o que permitiria um proxy/CDN compartilhado
+        // cachear e reentregar conteúdo de acesso restrito.
+        "Cache-Control": `private, max-age=${cacheTtlSec}`,
         "Accept-Ranges": "bytes",
         // Tell the browser to display the file inline (critical for PDFs in new tabs).
         // Without this, Chrome downloads the file silently and the tab shows blank.

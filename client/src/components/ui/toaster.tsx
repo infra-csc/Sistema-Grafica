@@ -104,7 +104,8 @@ export function Toaster() {
 
   useEffect(() => {
     const open = toasts.filter(t => t.open !== false)
-    setItems(open)
+    // Normalize variant: the hook type allows null but ToastItem only allows undefined.
+    setItems(open.map(t => ({ ...t, variant: t.variant ?? undefined })))
   }, [toasts])
 
   if (items.length === 0) return null

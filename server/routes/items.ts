@@ -1518,7 +1518,7 @@ export function registerItemRoutes(app: Express): void {
       
       res.json(item);
     } catch (error: any) {
-      res.status(400).json({ error: error.message });
+      res.status((error as any).httpStatus ?? 400).json({ error: error.message });
     }
   });
 
@@ -1964,7 +1964,7 @@ export function registerItemRoutes(app: Express): void {
 
       res.json(item);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status((error as any).httpStatus ?? 500).json({ error: error.message });
     }
   });
 
@@ -2092,7 +2092,7 @@ export function registerItemRoutes(app: Express): void {
       
       res.json(item);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status((error as any).httpStatus ?? 500).json({ error: error.message });
     }
   });
 
@@ -2372,7 +2372,7 @@ export function registerItemRoutes(app: Express): void {
       
       res.json(item);
     } catch (error: any) {
-      res.status(500).json({ error: error.message });
+      res.status((error as any).httpStatus ?? 500).json({ error: error.message });
     }
   });
 

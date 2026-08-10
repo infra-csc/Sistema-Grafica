@@ -460,7 +460,7 @@ export default function Arte() {
 
   // ── Pré-busca imagens como data URIs (resolve GCS 403 + timing) ─────────────
   const prefetchThumbsAsDataUris = async (items: any[]): Promise<Record<string, string>> => {
-    const rawUrls = [...new Set(items.map((i: any) => i.approvalThumbUrl).filter(Boolean) as string[])];
+    const rawUrls = Array.from(new Set(items.map((i: any) => i.approvalThumbUrl).filter(Boolean) as string[]));
     const out: Record<string, string> = {};
     await Promise.allSettled(rawUrls.map(async (rawUrl) => {
       if (/\.pdf$/i.test(rawUrl)) return;
@@ -990,7 +990,7 @@ export default function Arte() {
   const uniqueSponsors = useMemo(() => {
     const map = new Map<string, any>();
     allItems.forEach((item: any) => (item.sponsors ?? []).forEach((s: any) => { if (!map.has(s.id)) map.set(s.id, s); }));
-    return [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }, [allItems]);
 
   // Itens da fase/aba atual, sem aplicar os filtros de dropdown. É a base das

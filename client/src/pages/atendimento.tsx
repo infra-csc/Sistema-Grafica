@@ -847,7 +847,7 @@ export default function Atendimento() {
     }
 
     // Pré-busca todas as imagens como data URIs antes de abrir a janela
-    const rawUrls = [...new Set(itemsToExport.map(i => i.approvalThumbUrl).filter(Boolean) as string[])];
+    const rawUrls = Array.from(new Set(itemsToExport.map(i => i.approvalThumbUrl).filter(Boolean) as string[]));
     const thumbDataUris: Record<string, string> = {};
     const imgUrls = rawUrls.filter(u => !/\.pdf$/i.test(u));
     if (imgUrls.length > 0) {

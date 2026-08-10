@@ -72,7 +72,10 @@ export function registerAuthRoutes(app: Express): void {
         return res.status(401).json({ error: "Email ou senha inválidos" });
       }
 
-      // Set session
+      // Regenerate session ID before writing auth data — prevents session fixation.
+      await new Promise<void>((resolve, reject) =>
+        req.session.regenerate(err => err ? reject(err) : resolve())
+      );
       req.session.userId = user.id;
       req.session.userName = user.name;
       req.session.userRole = user.role;

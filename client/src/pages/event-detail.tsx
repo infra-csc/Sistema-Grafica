@@ -82,7 +82,8 @@ export default function EventDetail() {
   const [selectedItemsToLink, setSelectedItemsToLink] = useState<string[]>([]);
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, string[]>>({});
   const [selectedItemForDetails, setSelectedItemForDetails] = useState<any | null>(null);
-  const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);  const isMobile = useIsMobile();
+  const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
+  const isMobile = useIsMobile();
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -325,6 +326,8 @@ export default function EventDetail() {
         observations: "",
         sponsorId: "",
         skipApproval: false,
+        isReuse: false,
+        referenceUrl: "",
       });
       toast({
         title: "Peça adicionada",

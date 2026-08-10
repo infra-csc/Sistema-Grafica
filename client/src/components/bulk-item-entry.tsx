@@ -440,7 +440,7 @@ function ExistingItemsPanel({ items, standardItems = [], onDelete }: ExistingIte
                     </span>
                   </div>
                   <div>
-                    {typeItems.map(item => <ItemRow key={item.id} item={item} onDelete={onDelete} />)}
+                    {typeItems.map(item => <ItemRow key={item.id} item={item} />)}
                   </div>
                 </div>
               ))}

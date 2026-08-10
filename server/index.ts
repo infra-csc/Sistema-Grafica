@@ -112,6 +112,25 @@ app.use((_req, res, next) => {
   res.setHeader("X-XSS-Protection", "1; mode=block");
   res.setHeader("Referrer-Policy", "same-origin");
   res.setHeader("X-DNS-Prefetch-Control", "off");
+  // CSP — restricts which sources can load scripts/styles/frames.
+  // 'unsafe-inline' is required for React (inline event handlers + style props).
+  // Tighten to nonce-based in a future hardening pass if XSS risk increases.
+  res.setHeader(
+    "Content-Security-Policy",
+    [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https:",
+      "font-src 'self' data:",
+      "connect-src 'self' wss:",
+      "frame-ancestors 'none'",
+    ].join("; ")
+  );
+  // HSTS — force HTTPS for 1 year (production only; dev uses HTTP).
+  if (process.env.NODE_ENV === "production") {
+    res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
+  }
   next();
 });
 
@@ -211,6 +230,10 @@ app.post("/api/auth/sso-exchange", async (req: Request, res: Response) => {
   }>("SELECT id, name, email, role, must_change_password FROM users WHERE id = $1 LIMIT 1", [entry.userId]);
   if (!fullUser[0]) return res.status(404).json({ error: "Usuário não encontrado" });
 
+  // Regenerate session ID before writing auth data — prevents session fixation.
+  await new Promise<void>((resolve, reject) =>
+    req.session.regenerate(err => err ? reject(err) : resolve())
+  );
   req.session.userId   = entry.userId;
   req.session.userName = entry.userName;
   req.session.userRole = entry.userRole;

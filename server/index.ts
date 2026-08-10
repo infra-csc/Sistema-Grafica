@@ -60,6 +60,21 @@ async function seedUsers() {
   log("seed-users: done");
 }
 
+// ── Rede de segurança do processo ────────────────────────────────────────────
+// Sem estes handlers, uma Promise rejeitada sem catch (ou uma exceção lançada
+// fora do ciclo de request) derruba o processo Node SILENCIOSAMENTE — o servidor
+// some e o único rastro é o restart do Replit, sem log da causa. Aqui logamos a
+// causa e mantemos o servidor de pé. (Compromisso conhecido: continuar após um
+// uncaughtException pode deixar estado inconsistente; para um app interno,
+// priorizamos disponibilidade + visibilidade. Se preferir reinício limpo,
+// troque por process.exit(1) e deixe o Replit reiniciar.)
+process.on("unhandledRejection", (reason) => {
+  console.error("[unhandledRejection]", reason);
+});
+process.on("uncaughtException", (err) => {
+  console.error("[uncaughtException]", err);
+});
+
 const app = express();
 app.set("trust proxy", 1); // Replit sits behind a reverse proxy — needed for secure cookies
 // Compressão gzip: as listagens (itens, audit-logs) são JSON grande e repetitivo,
@@ -268,12 +283,23 @@ app.use((req, res, next) => {
   await fixStandardItemsMissingMaterial();
   const server = await registerRoutes(app);
 
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
+  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+    // Loga o erro completo no servidor sempre.
     console.error(err);
+    // Se a resposta já começou a ser enviada, não dá para reescrever o status/
+    // corpo — delega ao handler padrão do Express (senão dá "Cannot set headers
+    // after they are sent").
+    if (res.headersSent) return next(err);
+
+    const status = err.status || err.statusCode || 500;
+    // 5xx não expõe detalhe interno (constraint do Postgres, stack) ao cliente;
+    // erros de cliente (4xx com mensagem própria) podem devolver a mensagem.
+    // Chave `error` — consistente com o resto da API (antes era `message`, e o
+    // cliente que lia `.error` recebia undefined).
+    const message = status >= 500
+      ? "Erro interno do servidor"
+      : (err.message || "Erro na requisição");
+    res.status(status).json({ error: message });
   });
 
   // importantly only setup vite in development and after

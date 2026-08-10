@@ -33,8 +33,10 @@ const statusConfig = {
     icon: CheckCircle,
   },
   requested: {
-    label: "Rascunho",
-    shortLabel: "Rascunho",
+    // Era "Rascunho" — mesmo rótulo de `draft`, mas são status distintos.
+    // "Solicitado" alinha com o que o Painel Geral (StatusPill) já exibe.
+    label: "Solicitado",
+    shortLabel: "Solicitado",
     bg: "#fef3c7",
     text: "#b45309",
     border: "#fde68a",

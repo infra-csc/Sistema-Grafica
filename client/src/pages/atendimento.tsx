@@ -200,9 +200,14 @@ export default function Atendimento() {
       });
   }, [awaitingItems]);
 
-  // Carregar aprovações individuais de patrocinadores quando o dialog é aberto
+  // Carregar aprovações individuais de patrocinadores quando o dialog é aberto.
+  // Guarda de corrida (cancelled): ao aprovar, o fluxo avança para a próxima
+  // peça (setSelectedItem), disparando este efeito de novo. Sem a guarda, a
+  // resposta lenta da peça ANTERIOR podia chegar depois e sobrescrever as
+  // aprovações da peça atual — exibindo/decidindo sobre a peça errada.
   useEffect(() => {
     if (dialogOpen && selectedItem) {
+      let cancelled = false;
       setLoadingSponsorApprovals(true);
       setSponsorApprovals([]);
       setRejectionReason("");
@@ -211,13 +216,17 @@ export default function Atendimento() {
       apiRequest("GET", `/api/items/${selectedItem.id}/sponsor-approvals`)
         .then(response => response.json())
         .then((approvals: SponsorApproval[]) => {
+          if (cancelled) return;
           setSponsorApprovals(approvals);
           setLoadingSponsorApprovals(false);
         })
         .catch(error => {
+          if (cancelled) return;
           console.error('Error loading sponsor approvals:', error);
           setLoadingSponsorApprovals(false);
         });
+
+      return () => { cancelled = true; };
     }
   }, [dialogOpen, selectedItem]);
 

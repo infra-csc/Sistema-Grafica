@@ -208,6 +208,12 @@ export default function Arte() {
       return await apiRequest("PATCH", `/api/items/${itemId}/submit-for-approval`, { approvalThumbUrl });
     },
     onSuccess: () => {
+      // Esta tela lê ["/api/items"] e ["/api/items/resubmission-needed"] — sem
+      // invalidá-las, a peça continuava na tabela com o status velho até o
+      // WebSocket chegar (ou pra sempre, se ele não estivesse conectado).
+      // "/api/items/pending" é para outras telas (ex.: Atendimento).
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items/resubmission-needed"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
       setSelectedItem(null);
       setApprovalThumbUrl("");
@@ -257,6 +263,9 @@ export default function Arte() {
       );
     },
     onSuccess: (_, variables) => {
+      // Mesmas chaves do envio individual — a tabela da Arte lê "/api/items".
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items/resubmission-needed"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
       setShowBulkDialog(false);
       setSelectedItemIds(new Set());

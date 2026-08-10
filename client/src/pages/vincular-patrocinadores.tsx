@@ -618,16 +618,38 @@ export default function VincularPatrocinadores() {
       await apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, { sponsorIds });
     },
     onMutate: async ({ itemId, sponsorIds }) => {
+      // Snapshot do estado anterior para permitir rollback em caso de falha.
+      const prevItemSponsors = itemSponsorsMap[itemId];
+      const prevOriginalSponsors = originalSponsorsMap[itemId];
       // Atualização otimista — reflete imediatamente sem esperar o servidor
       setItemSponsorsMap(prev => ({ ...prev, [itemId]: sponsorIds }));
       setOriginalSponsorsMap(prev => ({ ...prev, [itemId]: sponsorIds }));
+      return { itemId, prevItemSponsors, prevOriginalSponsors };
     },
     onSuccess: (_, { itemId }) => {
       // Só invalida em background — não bloqueia a UI
       queryClient.invalidateQueries({ queryKey: ["/api/items", itemId, "sponsors"] });
       toast({ title: "Atualizado!", description: "Patrocinadores vinculados com sucesso" });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, _vars, context) => {
+      // Reverte o update otimista — sem isto, o mapa local ficaria mostrando
+      // patrocinadores que NÃO foram salvos, e loadedItemIdsRef impede a
+      // re-sincronização, deixando o dado errado permanente até um reload.
+      if (context) {
+        const { itemId, prevItemSponsors, prevOriginalSponsors } = context;
+        setItemSponsorsMap(prev => {
+          const next = { ...prev };
+          if (prevItemSponsors === undefined) delete next[itemId];
+          else next[itemId] = prevItemSponsors;
+          return next;
+        });
+        setOriginalSponsorsMap(prev => {
+          const next = { ...prev };
+          if (prevOriginalSponsors === undefined) delete next[itemId];
+          else next[itemId] = prevOriginalSponsors;
+          return next;
+        });
+      }
       toast({
         title: "Erro ao atualizar patrocinadores",
         description: error.message,

@@ -109,10 +109,16 @@ export default function Calendario() {  const isMobile = useIsMobile();
     const ds = date.toDateString();
     const result: Array<{ event: any; dtype: typeof DEADLINE_TYPES[number] }> = [];
     for (const ev of events) {
-      const start = parseDateLocal(ev.startDate);
+      // Prazos são ancorados na SAÍDA DO CAMINHÃO (não no início do evento) —
+      // mesma âncora dos chips de prazo (event-detail/arte/atendimento) e dos
+      // alertas do servidor (deadlineAlerts). Antes usava startDate: o
+      // calendário exibia o prazo num dia diferente de quando o alerta dispara.
+      if (!ev.truckDepartureDate) continue;
+      const base = new Date(ev.truckDepartureDate);
+      base.setHours(0, 0, 0, 0);
       for (const dt of DEADLINE_TYPES) {
         const offset: number = (ev as any)[dt.key] ?? DEADLINE_DEFAULTS[dt.key];
-        const d = new Date(start);
+        const d = new Date(base);
         d.setDate(d.getDate() + offset);
         if (d.toDateString() === ds) {
           result.push({ event: ev, dtype: dt });

@@ -42,10 +42,11 @@ export default function Solicitacao() {
   const quantityInputRef = useRef<HTMLInputElement>(null);
   const [showReturnForm, setShowReturnForm] = useState(false);
   const [releaseConfirmOpen, setReleaseConfirmOpen] = useState(false);
-  // "Devolver para Arte" já tinha campo de observação; "Liberar para Produção"
-  // não tinha nenhum — quem revisa e quer avisar algo à Gráfica (ex: "conferir
-  // cor de fundo") não tinha onde escrever.
-  const [releaseObservations, setReleaseObservations] = useState("");
+  // Campo de observação do card: precisa existir por conta própria, sem
+  // depender de "Liberar" ou "Devolver" — a pessoa pode querer deixar um
+  // recado (cor, acabamento, posição) sem estar pronta para tomar nenhuma das
+  // duas decisões ainda.
+  const [cardObservations, setCardObservations] = useState("");
   const [bulkReleaseConfirmOpen, setBulkReleaseConfirmOpen] = useState(false);
   const [bulkReturnConfirmOpen, setBulkReturnConfirmOpen] = useState(false);
   const [bulkReturnObservations, setBulkReturnObservations] = useState("");
@@ -84,13 +85,23 @@ export default function Solicitacao() {
     onError: (error: any) => toast({ title: "Erro ao atualizar quantidade", description: error.message, variant: "destructive" }),
   });
 
+  const updateObservationsMutation = useMutation({
+    mutationFn: async ({ itemId, observations }: { itemId: string; observations: string }) =>
+      await apiRequest("PATCH", `/api/items/${itemId}`, { observations }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setSelectedItem((prev: any) => prev ? { ...prev, observations: cardObservations } : prev);
+      toast({ title: "Observação salva" });
+    },
+    onError: (error: any) => toast({ title: "Erro ao salvar observação", description: error.message, variant: "destructive" }),
+  });
+
   const creatorReviewMutation = useMutation({
-    mutationFn: async ({ itemId, notes }: { itemId: string; notes?: string }) =>
-      await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, notes ? { notes } : {}),
+    mutationFn: async ({ itemId }: { itemId: string }) => await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
-      setModalOpen(false); setSelectedItem(null); setReleaseConfirmOpen(false); setReleaseObservations("");
+      setModalOpen(false); setSelectedItem(null); setReleaseConfirmOpen(false);
       toast({ title: "Peça liberada para produção!", description: "A peça foi revisada e liberada para a gráfica." });
     },
     onError: (error: any) => toast({ title: "Erro ao liberar peça", description: error.message, variant: "destructive" }),
@@ -327,6 +338,7 @@ export default function Solicitacao() {
     setEditingQuantity(false);
     setShowReturnForm(false);
     setReturnObservations("");
+    setCardObservations(item.observations || "");
     setModalOpen(true);
   };
 
@@ -1164,16 +1176,52 @@ export default function Solicitacao() {
                   )}
                 </div>
 
-                {/* Observations */}
-                {selectedItem?.observations && (
-                  <div style={{ backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "12px 14px", display: "flex", gap: 8 }}>
-                    <AlertCircle style={{ width: 14, height: 14, color: "#d97706", flexShrink: 0, marginTop: 1 }} />
-                    <div>
-                      <p style={{ fontSize: 11, fontWeight: 700, color: "#92400e", margin: 0 }}>Observações do item</p>
-                      <p style={{ fontSize: 13, color: "#78350f", margin: "4px 0 0" }}>{selectedItem.observations}</p>
-                    </div>
+                {/* Observações do item — campo próprio, sempre editável.
+                    Antes só existia como texto (se já houvesse algo escrito) e
+                    a única forma de gravar uma observação era pelo textarea
+                    de "Devolver para Arte", ou seja: só dava para anotar algo
+                    devolvendo a peça. Aqui a pessoa escreve e salva sem que
+                    isso implique liberar ou devolver nada. */}
+                <div style={{ backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "12px 14px", display: "flex", gap: 8 }}>
+                  <AlertCircle style={{ width: 14, height: 14, color: "#d97706", flexShrink: 0, marginTop: 2 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: "#92400e", margin: "0 0 6px" }}>Observações do item</p>
+                    <textarea
+                      placeholder="Deixe um recado sobre esta peça (cor, acabamento, posição...)"
+                      value={cardObservations}
+                      onChange={e => setCardObservations(e.target.value)}
+                      data-testid="textarea-item-observations"
+                      style={{
+                        width: "100%", minHeight: 60, padding: "8px 10px", borderRadius: 6,
+                        border: "1px solid #fde68a", backgroundColor: "#fffdf5",
+                        color: "#78350f", fontSize: 13, resize: "vertical",
+                        fontFamily: "inherit", boxSizing: "border-box",
+                      }}
+                    />
+                    {cardObservations !== (selectedItem?.observations || "") && (
+                      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                        <button
+                          onClick={() => selectedItem && updateObservationsMutation.mutate({ itemId: selectedItem.id, observations: cardObservations })}
+                          disabled={updateObservationsMutation.isPending}
+                          data-testid="button-save-observations"
+                          style={{
+                            padding: "6px 14px", borderRadius: 6, border: "none",
+                            backgroundColor: "#d97706", color: "#fff",
+                            fontSize: 12, fontWeight: 700, cursor: updateObservationsMutation.isPending ? "not-allowed" : "pointer",
+                          }}
+                        >
+                          {updateObservationsMutation.isPending ? "Salvando..." : "Salvar observação"}
+                        </button>
+                        <button
+                          onClick={() => setCardObservations(selectedItem?.observations || "")}
+                          style={{ padding: "6px 12px", borderRadius: 6, border: "none", background: "none", color: "#92400e", fontSize: 12, fontWeight: 600, cursor: "pointer" }}
+                        >
+                          Descartar
+                        </button>
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
 
                 {/* History timeline */}
                 <div>
@@ -1256,7 +1304,7 @@ export default function Solicitacao() {
       {/* ── CONFIRM DIALOGS ─────────────────────────────────────────────── */}
 
       {/* Release single */}
-      <AlertDialog open={releaseConfirmOpen} onOpenChange={o => { setReleaseConfirmOpen(o); if (!o) setReleaseObservations(""); }}>
+      <AlertDialog open={releaseConfirmOpen} onOpenChange={setReleaseConfirmOpen}>
         <AlertDialogContent className="review-confirm-content">
           <AlertDialogHeader>
             <AlertDialogTitle>Liberar para Produção</AlertDialogTitle>
@@ -1264,26 +1312,10 @@ export default function Solicitacao() {
               {selectedItem && <span><strong>{selectedItem.displayId}</strong> — {selectedItem.type} será liberado para produção.</span>}
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {/* Mesmo recurso que "Devolver para Arte" já tinha e "Liberar" não:
-              um lugar para avisar a Gráfica de algo pontual (cor, acabamento,
-              posição) sem precisar de outro canal. Fica no `observations` do
-              item, que já aparece na tela de revisão e é visível na Gráfica. */}
-          <textarea
-            placeholder="Observação para a Gráfica (opcional)"
-            value={releaseObservations}
-            onChange={e => setReleaseObservations(e.target.value)}
-            data-testid="textarea-release-observations"
-            style={{
-              width: "100%", minHeight: 80, padding: 12, borderRadius: 8,
-              border: `1px solid ${TI.border}`, backgroundColor: "#fafaf9",
-              color: TI.text, fontSize: 13, resize: "none",
-              fontFamily: "inherit", boxSizing: "border-box",
-            }}
-          />
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-release-cancel">Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => selectedItem && creatorReviewMutation.mutate({ itemId: selectedItem.id, notes: releaseObservations.trim() || undefined })}
+              onClick={() => selectedItem && creatorReviewMutation.mutate({ itemId: selectedItem.id })}
               style={{ backgroundColor: TI.text, color: "#fff" }}
               data-testid="button-release-confirm"
             >

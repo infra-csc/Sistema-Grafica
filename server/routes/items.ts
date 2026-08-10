@@ -1443,14 +1443,6 @@ export function registerItemRoutes(app: Express): void {
         });
       }
 
-      // Observação opcional para a Gráfica (ex: "conferir cor de fundo") — o
-      // botão "Liberar" não tinha campo nenhum para isso, só "Devolver para
-      // Arte" tinha. Some no mesmo lugar que já mostra `observations` na
-      // revisão e na tela da Gráfica.
-      const notes: string | undefined = typeof req.body?.notes === "string" && req.body.notes.trim()
-        ? req.body.notes.trim()
-        : undefined;
-
       // Reaproveitamento parcial: body pode trazer { reuseQty } quando a Solicitação
       // quer reaproveitar só algumas unidades, enviando o restante para produção.
       const rawReuseQty = req.body?.reuseQty != null ? Number(req.body.reuseQty) : undefined;
@@ -1474,15 +1466,13 @@ export function registerItemRoutes(app: Express): void {
         // sem registro de quantas unidades foram reaproveitadas, e a Gráfica
         // trata como legado.
         ...(isFullReuse ? { reuseQty: currentItem.quantity, isReuse: true } : {}),
-        ...(notes ? { observations: notes } : {}),
       });
-      
+
       if (!item) {
         return res.status(404).json({ error: "Item not found" });
       }
-      
+
       const event = await storage.getEvent(item.eventId);
-      const notesMsg = notes ? ` Observações para a Gráfica: ${notes}` : "";
 
       await createAuditLog(
         req.userName!,
@@ -1491,18 +1481,17 @@ export function registerItemRoutes(app: Express): void {
         item.id,
         // O parcial não era mencionado no log: a peça aparecia no histórico
         // apenas como "liberado para produção", sem registro do reaproveitamento.
-        (isFullReuse
+        isFullReuse
           ? `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("produced")} (reaproveitamento — não precisa produzir)`
           : isPartialReuse
             ? `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("ready_for_production")} (reaproveitamento parcial: ${rawReuseQty} un. de ${currentItem.quantity}, ${currentItem.quantity - rawReuseQty!} a produzir)`
             : `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("ready_for_production")} (liberado para produção)`
-        ) + notesMsg
       );
 
       // Notifica Arte e Gráfica que o item está liberado para produção
       const notification = await storage.createNotification({
         type: "arteApproved",
-        message: `Criador do evento liberou item para produção: ${item.type} - Evento: ${event?.name}${notesMsg}`,
+        message: `Criador do evento liberou item para produção: ${item.type} - Evento: ${event?.name}`,
         eventId: item.eventId,
         itemId: item.id,
         targetRoles: ["arte", "grafica"],

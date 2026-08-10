@@ -215,3 +215,12 @@ export const changePasswordRateLimiter = createRateLimiter({
   max: 10,
   message: "Muitas tentativas. Tente novamente em alguns minutos.",
 });
+
+// General write rate limiter — applied to all mutation routes (POST/PUT/PATCH/DELETE)
+// to slow down automated scripts without affecting normal human usage.
+// 300 mutations per 5 minutes per IP ≈ 1 req/sec sustained, well above any human.
+export const writeRateLimiter = createRateLimiter({
+  windowMs: 5 * 60 * 1000,
+  max: 300,
+  message: "Muitas requisições. Aguarde alguns minutos antes de continuar.",
+});

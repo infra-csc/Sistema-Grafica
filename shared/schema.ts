@@ -263,6 +263,8 @@ export const auditLogs = pgTable("audit_logs", {
   // A tabela só cresce e é lida ordenada por data (e filtrada por entidade) em
   // várias telas — sem índice o Postgres varre e ordena tudo a cada request.
   index("IDX_audit_logs_created_at").on(table.createdAt),
+  // Histórico por peça/evento (filtros por entityId são o caso mais comum).
+  index("IDX_audit_logs_entity_id").on(table.entityId),
 ]);
 
 // Inventory Assets table (Acervo)

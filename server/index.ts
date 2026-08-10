@@ -8,6 +8,7 @@ import { randomBytes } from "crypto";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { pool } from "./db";
+import { writeRateLimiter } from "./routes/shared";
 
 const PgSession = connectPgSimple(session);
 
@@ -101,6 +102,58 @@ app.use(
     },
   })
 );
+
+// ── Security headers ─────────────────────────────────────────────────────────
+// Applied to every response. Keeps the browser from doing dangerous things
+// with our content (sniffing MIME types, embedding in iframes, etc.).
+app.use((_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  res.setHeader("Referrer-Policy", "same-origin");
+  res.setHeader("X-DNS-Prefetch-Control", "off");
+  next();
+});
+
+// ── CSRF protection ──────────────────────────────────────────────────────────
+// For state-mutating requests, verify the Origin header matches the server host.
+// sameSite: 'lax' already blocks most cross-site CSRF; this is a second layer.
+// SSO exchange is exempt — it comes from the same app origin anyway.
+const CSRF_EXEMPT = new Set([
+  "/api/auth/sso-exchange", // SSO is same-origin AJAX; exempt to keep the flow clear
+]);
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const safe = ["GET", "HEAD", "OPTIONS", "TRACE"];
+  if (safe.includes(req.method)) return next();
+  if (!req.path.startsWith("/api/")) return next();
+  if (CSRF_EXEMPT.has(req.path)) return next();
+
+  const origin = req.headers.origin as string | undefined;
+  const host   = req.headers.host   as string | undefined;
+
+  // In development there is no Origin header on same-origin fetch — allow.
+  if (!origin) return next();
+
+  try {
+    const originHost = new URL(origin).host;
+    if (originHost === host) return next();
+    log(`[CSRF] blocked ${req.method} ${req.path} — origin ${origin} ≠ host ${host}`);
+    return res.status(403).json({ error: "Requisição bloqueada por política de segurança" });
+  } catch {
+    log(`[CSRF] blocked ${req.method} ${req.path} — invalid Origin: ${origin}`);
+    return res.status(403).json({ error: "Requisição bloqueada por política de segurança" });
+  }
+});
+
+// ── Write rate limiter ───────────────────────────────────────────────────────
+// Applied globally to all API mutation requests (POST/PUT/PATCH/DELETE).
+// Protects against automated scripts; normal human usage never approaches the limit.
+const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (!WRITE_METHODS.has(req.method)) return next();
+  if (!req.path.startsWith("/api/")) return next();
+  return writeRateLimiter(req, res, next);
+});
 
 // ── Portal SSO ───────────────────────────────────────────────────────────────
 // One-time exchange tokens: { userId, userName, userRole, expires }

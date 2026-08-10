@@ -9,15 +9,45 @@ export async function registerObjectRoutes(app: Express): Promise<void> {
   
   const { ObjectStorageService, ObjectNotFoundError } = await import("../objectStorage");
   
+  // Allowed content-type prefixes for uploads.
+  const ALLOWED_CONTENT_TYPE_PREFIXES = [
+    "image/",
+    "video/",
+    "application/pdf",
+    "application/zip",
+    "application/vnd.ms-excel",
+    "application/vnd.openxmlformats-officedocument",
+    "text/plain",
+    "application/octet-stream", // fallback for unknown binary (browsers may use this)
+  ];
+  const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB
+
   // Get upload URL for a new photo
   app.post("/api/objects/upload", requireAuth, async (req, res) => {
     try {
+      const { contentType, size } = req.body as { contentType?: string; size?: number };
+
+      // Validate content-type when provided by the client.
+      if (contentType) {
+        const allowed = ALLOWED_CONTENT_TYPE_PREFIXES.some((prefix) =>
+          contentType.startsWith(prefix)
+        );
+        if (!allowed) {
+          return res.status(400).json({ error: "Tipo de arquivo não permitido" });
+        }
+      }
+
+      // Validate file size when provided by the client.
+      if (typeof size === "number" && size > MAX_UPLOAD_BYTES) {
+        return res.status(400).json({ error: "Arquivo muito grande (máximo 50 MB)" });
+      }
+
       const objectStorageService = new ObjectStorageService();
       const uploadURL = await objectStorageService.getObjectEntityUploadURL();
       res.json({ uploadURL });
     } catch (error: any) {
       console.error("Error getting upload URL:", error);
-      res.status(500).json({ error: error.message });
+      res.status(500).json({ error: "Não foi possível gerar URL de upload" });
     }
   });
 

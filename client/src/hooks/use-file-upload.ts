@@ -51,11 +51,25 @@ export function useFileUpload({
     Array.from(event.target.files ?? []).filter(check);
 
   const putOne = async (file: File) => {
-    // Obter URL de upload
-    const { url } = await onGetUploadParameters();
+    // Validate file metadata server-side before obtaining the upload URL.
+    // The server checks content-type against an allowlist and enforces the
+    // size limit, so any bypass of client-side checks is caught here.
+    const metaRes = await fetch("/api/objects/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contentType: file.type || "application/octet-stream",
+        size: file.size,
+      }),
+    });
+    if (!metaRes.ok) {
+      const body = await metaRes.json().catch(() => ({})) as { error?: string };
+      throw new Error(body.error || "Tipo ou tamanho de arquivo não permitido");
+    }
+    const { uploadURL } = await metaRes.json() as { uploadURL: string };
 
     // Fazer upload do arquivo
-    const uploadResponse = await fetch(url, {
+    const uploadResponse = await fetch(uploadURL, {
       method: "PUT",
       body: file,
       headers: {
@@ -68,7 +82,7 @@ export function useFileUpload({
     }
 
     // Extrair a URL final do objeto (remover query params)
-    onComplete?.({ url: url.split("?")[0] });
+    onComplete?.({ url: uploadURL.split("?")[0] });
   };
 
   const finish = () => {

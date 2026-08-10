@@ -162,6 +162,9 @@ export function registerEventRoutes(app: Express): void {
   // Update event priority
   app.patch("/api/events/:id/priority", requireAuth, async (req, res) => {
     try {
+      if (req.userRole !== "admin" && req.userRole !== "atendimento") {
+        return res.status(403).json({ error: "Acesso negado" });
+      }
       const { priority } = req.body;
       
       if (!priority || !["baixa", "media", "alta", "urgente"].includes(priority)) {
@@ -193,6 +196,9 @@ export function registerEventRoutes(app: Express): void {
   // Delete event
   app.delete("/api/events/:id", requireAuth, async (req, res) => {
     try {
+      if (req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas administradores podem excluir eventos" });
+      }
       const event = await storage.getEvent(req.params.id);
       if (!event) {
         return res.status(404).json({ error: "Event not found" });

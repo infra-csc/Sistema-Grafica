@@ -59,10 +59,14 @@ export function registerItemRoutes(app: Express): void {
   // ============ ITEMS ============
 
   // Get all items with event data and sponsors
+  // SAFETY CAP: limit response to 1000 items until pagination is implemented.
+  // This prevents unbounded payloads as data grows. See backlog for cursor-based pagination.
+  const ITEMS_SAFETY_CAP = 1000;
   app.get("/api/items", requireAuth, async (req, res) => {
     try {
       const allItems = await storage.getAllItems();
-      const itemsWithEventsAndSponsors = await enrichItemsWithEventsAndSponsors(allItems);
+      const capped = allItems.length > ITEMS_SAFETY_CAP ? allItems.slice(0, ITEMS_SAFETY_CAP) : allItems;
+      const itemsWithEventsAndSponsors = await enrichItemsWithEventsAndSponsors(capped);
       res.json(itemsWithEventsAndSponsors);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -1905,6 +1909,9 @@ export function registerItemRoutes(app: Express): void {
   // Approve item (Arte module) - DEPRECATED: Use new approval workflow
   app.patch("/api/items/:id/approve", requireAuth, async (req, res) => {
     try {
+      if (req.userRole !== "solicitacao" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem liberar itens para produção" });
+      }
       const item = await storage.approveItem(req.params.id);
       if (!item) {
         return res.status(404).json({ error: "Item not found" });
@@ -1942,6 +1949,9 @@ export function registerItemRoutes(app: Express): void {
   // Start production (Gráfica module)
   app.patch("/api/items/:id/start-production", requireAuth, async (req, res) => {
     try {
+      if (req.userRole !== "grafica" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Gráfica podem iniciar produção" });
+      }
       const { quantityProduced } = req.body;
       
       if (!quantityProduced || quantityProduced <= 0) {

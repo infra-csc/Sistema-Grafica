@@ -40,8 +40,16 @@ async function fixStandardItemsMissingMaterial() {
 // existing user's password_hash on restart — that would silently reset
 // credentials for accounts that may have since changed their password.
 async function seedUsers() {
+  // SEED_PASSWORD must be provided via environment variable — never hardcode
+  // credentials in source code (which is in a public repository).
+  const seedPassword = process.env.SEED_PASSWORD;
+  if (!seedPassword) {
+    log("seed-users: SEED_PASSWORD not set — skipping password-based seed (SSO users are unaffected)");
+    return;
+  }
+
   const users = [
-    { name: "Administrador NORTE",                email: "admin@norte.com",                   role: "admin",       mustChange: false },
+    { name: "Administrador NORTE",                email: "admin@norte.com",                   role: "admin",       mustChange: true  },
     { name: "Pedro Telles",                       email: "pedro@nortemkt.com",                role: "admin",       mustChange: false },
     { name: "Guilherme Coelho do Nascimento",     email: "guilherme.nascimento@nortemkt.com", role: "admin",       mustChange: false },
     { name: "Agatha Nadolsky",                    email: "agatha.nadolsky@nortemkt.com",       role: "atendimento", mustChange: false },
@@ -49,7 +57,7 @@ async function seedUsers() {
     { name: "Jan Felipe",                         email: "jan.felipe@nortemkt.com",             role: "arte",        mustChange: false },
     { name: "Enzo Pedote Ascoli",                 email: "enzo.ascoli@nortemkt.com",            role: "atendimento", mustChange: false },
   ];
-  const hash = await bcrypt.hash("norte2026", 10);
+  const hash = await bcrypt.hash(seedPassword, 10);
   for (const u of users) {
     await pool.query(
       `INSERT INTO users (name, email, password_hash, role, must_change_password)

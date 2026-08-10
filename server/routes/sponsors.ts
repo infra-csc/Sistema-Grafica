@@ -178,6 +178,9 @@ export function registerSponsorRoutes(app: Express): void {
   });
 
   app.put("/api/quota-rules/global", requireAuth, (req, res) => {
+    if (req.userRole !== "admin" && req.userRole !== "atendimento") {
+      return res.status(403).json({ error: "Acesso negado" });
+    }
     try {
       const { quota, itemTypes } = req.body as { quota: string; itemTypes: string[] };
       if (!quota) return res.status(400).json({ error: "quota é obrigatório" });

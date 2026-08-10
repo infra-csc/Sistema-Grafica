@@ -163,6 +163,18 @@ export const requireAdmin = (req: any, res: any, next: any) => {
   next();
 };
 
+// Role middleware factory — protects routes that require one of the given roles.
+// Usage: requireRole("admin", "solicitacao")
+export const requireRole = (...roles: string[]) => (req: any, res: any, next: any) => {
+  if (!req.session?.userId) {
+    return res.status(401).json({ error: "Não autenticado" });
+  }
+  if (!roles.includes(req.session.userRole as string)) {
+    return res.status(403).json({ error: "Acesso negado" });
+  }
+  next();
+};
+
 // Simple in-memory rate limiter (no new dependency needed) — protects
 // credential-related endpoints from brute-force attempts. Keyed by IP.
 // Not distributed-safe (per-process only), which is an acceptable

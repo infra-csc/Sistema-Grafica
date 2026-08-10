@@ -2,8 +2,16 @@
 // XLSX import routes. Extracted from server/routes.ts (ITEMS section).
 import type { Express } from "express";
 import { z } from "zod";
+import { eq } from "drizzle-orm";
+import { db } from "../db";
 import { storage } from "../storage";
-import { insertItemSchema, insertProductionUpdateSchema } from "@shared/schema";
+import {
+  insertItemSchema,
+  insertProductionUpdateSchema,
+  items as itemsTable,
+  auditLogs,
+  notifications,
+} from "@shared/schema";
 import {
   requireAuth,
   broadcast,
@@ -1461,46 +1469,50 @@ export function registerItemRoutes(app: Express): void {
       // Reaproveitamento parcial vai para ready_for_production (as demais unidades precisam produzir).
       const nextStatus = isFullReuse ? "produced" : "ready_for_production";
 
-      const item = await storage.updateItem(req.params.id, {
-        status: nextStatus,
-        creatorReviewedAt: new Date(),
-        hasModifiedData: false, // Reset flag - Gráfica vê como dados novos
-        ...(isPartialReuse ? { reuseQty: rawReuseQty!, isReuse: false } : {}),
-        // Reuso total também grava a quantidade: sem isso a peça fica marcada
-        // sem registro de quantas unidades foram reaproveitadas, e a Gráfica
-        // trata como legado.
-        ...(isFullReuse ? { reuseQty: currentItem.quantity, isReuse: true } : {}),
+      // Pre-fetch event for notification message (read outside tx — no lock needed)
+      const event = await storage.getEvent(currentItem.eventId);
+
+      const auditDetails = isFullReuse
+        ? `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("produced")} (reaproveitamento — não precisa produzir)`
+        : isPartialReuse
+          ? `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("ready_for_production")} (reaproveitamento parcial: ${rawReuseQty} un. de ${currentItem.quantity}, ${currentItem.quantity - rawReuseQty!} a produzir)`
+          : `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("ready_for_production")} (liberado para produção)`;
+
+      // Atomic: item update + audit log + notification.
+      const { item, notification } = await db.transaction(async (tx) => {
+        const [updated] = await tx
+          .update(itemsTable)
+          .set({
+            status: nextStatus,
+            creatorReviewedAt: new Date(),
+            hasModifiedData: false,
+            updatedAt: new Date(),
+            ...(isPartialReuse ? { reuseQty: rawReuseQty!, isReuse: false } : {}),
+            ...(isFullReuse ? { reuseQty: currentItem.quantity, isReuse: true } : {}),
+          })
+          .where(eq(itemsTable.id, req.params.id))
+          .returning();
+        if (!updated) throw Object.assign(new Error("Item not found"), { httpStatus: 404 });
+
+        await tx.insert(auditLogs).values({
+          userName: req.userName || "Sistema",
+          action: "approved",
+          entityType: "item",
+          entityId: updated.id,
+          details: auditDetails,
+        });
+
+        const [notif] = await tx.insert(notifications).values({
+          type: "arteApproved",
+          message: `Criador do evento liberou item para produção: ${updated.type} - Evento: ${event?.name}`,
+          eventId: updated.eventId,
+          itemId: updated.id,
+          targetRoles: ["arte", "grafica"],
+        }).returning();
+
+        return { item: updated, notification: notif };
       });
 
-      if (!item) {
-        return res.status(404).json({ error: "Item not found" });
-      }
-
-      const event = await storage.getEvent(item.eventId);
-
-      await createAuditLog(
-        req.userName!,
-        'approved',
-        'item',
-        item.id,
-        // O parcial não era mencionado no log: a peça aparecia no histórico
-        // apenas como "liberado para produção", sem registro do reaproveitamento.
-        isFullReuse
-          ? `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("produced")} (reaproveitamento — não precisa produzir)`
-          : isPartialReuse
-            ? `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("ready_for_production")} (reaproveitamento parcial: ${rawReuseQty} un. de ${currentItem.quantity}, ${currentItem.quantity - rawReuseQty!} a produzir)`
-            : `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("ready_for_production")} (liberado para produção)`
-      );
-
-      // Notifica Arte e Gráfica que o item está liberado para produção
-      const notification = await storage.createNotification({
-        type: "arteApproved",
-        message: `Criador do evento liberou item para produção: ${item.type} - Evento: ${event?.name}`,
-        eventId: item.eventId,
-        itemId: item.id,
-        targetRoles: ["arte", "grafica"],
-      });
-      
       broadcast({ type: "item_updated", item });
       broadcast({ type: "notification_created", notification });
       
@@ -1912,34 +1924,44 @@ export function registerItemRoutes(app: Express): void {
       if (req.userRole !== "solicitacao" && req.userRole !== "admin") {
         return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem liberar itens para produção" });
       }
-      const item = await storage.approveItem(req.params.id);
-      if (!item) {
-        return res.status(404).json({ error: "Item not found" });
-      }
-      
-      const event = await storage.getEvent(item.eventId);
-      
-      // Create audit log
-      await createAuditLog(
-        (req as any).userName,
-        'approved',
-        'item',
-        item.id,
-        `Item "${item.type}" aprovado para produção`
-      );
-      
-      // Liberação pela Arte - notifica apenas Gráfica
-      const notification = await storage.createNotification({
-        type: "arteApproved",
-        message: `Item liberado para produção: ${item.type} - Evento: ${event?.name}`,
-        eventId: item.eventId,
-        itemId: item.id,
-        targetRoles: ["grafica"],
+      // Pre-fetch event for notification message (read outside tx — no row lock needed)
+      const preItem = await storage.getItem(req.params.id);
+      if (!preItem) return res.status(404).json({ error: "Item not found" });
+      const event = await storage.getEvent(preItem.eventId);
+
+      // Atomic: item status update + audit log + notification in one transaction.
+      // If any step fails the entire operation rolls back — no partial state in the DB.
+      const { item, notification } = await db.transaction(async (tx) => {
+        const [updated] = await tx
+          .update(itemsTable)
+          .set({ status: "approved", approvedAt: new Date(), updatedAt: new Date() })
+          .where(eq(itemsTable.id, req.params.id))
+          .returning();
+        if (!updated) throw Object.assign(new Error("Item not found"), { httpStatus: 404 });
+
+        await tx.insert(auditLogs).values({
+          userName: (req as any).userName || "Sistema",
+          action: "approved",
+          entityType: "item",
+          entityId: updated.id,
+          details: `Item "${updated.type}" aprovado para produção`,
+        });
+
+        const [notif] = await tx.insert(notifications).values({
+          type: "arteApproved",
+          message: `Item liberado para produção: ${updated.type} - Evento: ${event?.name}`,
+          eventId: updated.eventId,
+          itemId: updated.id,
+          targetRoles: ["grafica"],
+        }).returning();
+
+        return { item: updated, notification: notif };
       });
-      
+
+      // Broadcasts happen after commit — no point notifying if the TX rolled back.
       broadcast({ type: "item_approved", item });
       broadcast({ type: "notification_created", notification });
-      
+
       res.json(item);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -1958,23 +1980,42 @@ export function registerItemRoutes(app: Express): void {
         return res.status(400).json({ error: "quantityProduced is required and must be greater than 0" });
       }
       
-      // Status antes da produção, só para descrever a transição no histórico.
+      // Read current state before the transaction (for audit log description and
+      // to compute the new status — replicating startProduction logic inside tx).
       const before = await storage.getItem(req.params.id);
+      if (!before) return res.status(404).json({ error: "Item not found" });
 
-      const item = await storage.startProduction(req.params.id, quantityProduced);
-      if (!item) {
-        return res.status(404).json({ error: "Item not found" });
-      }
+      // Determine new status (same logic as storage.startProduction)
+      const newProdStatus =
+        quantityProduced + (before.reuseQty || 0) >= parseInt(before.quantity.toString())
+          ? "produced"
+          : "inProduction";
+      const prodUpdateData: Record<string, unknown> = {
+        status: newProdStatus,
+        quantityProduced,
+        updatedAt: new Date(),
+        ...(!before.productionStartedAt ? { productionStartedAt: new Date() } : {}),
+      };
 
-      // Esta é a rota que a tela da Gráfica usa. Sem este log, "Em produção" e
-      // "Produzido" não apareciam no Histórico.
-      await createAuditLog(
-        (req as any).userName,
-        item.status === "produced" ? "produced" : "production",
-        "item",
-        item.id,
-        `Produção: ${quantityProduced}/${item.quantity} un.${before ? ` (${translateStatus(before.status)} → ${translateStatus(item.status)})` : ""}`
-      );
+      // Atomic: item status update + audit log in one transaction.
+      const item = await db.transaction(async (tx) => {
+        const [updated] = await tx
+          .update(itemsTable)
+          .set(prodUpdateData)
+          .where(eq(itemsTable.id, req.params.id))
+          .returning();
+        if (!updated) throw Object.assign(new Error("Item not found"), { httpStatus: 404 });
+
+        await tx.insert(auditLogs).values({
+          userName: (req as any).userName || "Sistema",
+          action: newProdStatus === "produced" ? "produced" : "production",
+          entityType: "item",
+          entityId: updated.id,
+          details: `Produção: ${quantityProduced}/${updated.quantity} un. (${translateStatus(before.status)} → ${translateStatus(newProdStatus)})`,
+        });
+
+        return updated;
+      });
 
       const event = await storage.getEvent(item.eventId);
 
@@ -2277,30 +2318,39 @@ export function registerItemRoutes(app: Express): void {
       const newDelivered = alreadyDelivered + n;
       const isFullDelivery = newDelivered >= currentItem.quantity;
 
-      const item = await storage.updateItem(req.params.id, {
-        deliveredQty: newDelivered,
-        receivedBy,
-        deliveryPhotoUrl: photoUrl || currentItem.deliveryPhotoUrl || null,
-        ...(trimmedNotes ? { deliveryNotes: trimmedNotes } : {}),
-        ...(isFullDelivery ? { status: "delivered" as const, deliveredAt: new Date() } : {}),
+      // Atomic: item update + audit log in one transaction.
+      const item = await db.transaction(async (tx) => {
+        const [updated] = await tx
+          .update(itemsTable)
+          .set({
+            deliveredQty: newDelivered,
+            receivedBy,
+            deliveryPhotoUrl: photoUrl || currentItem.deliveryPhotoUrl || null,
+            updatedAt: new Date(),
+            ...(trimmedNotes ? { deliveryNotes: trimmedNotes } : {}),
+            ...(isFullDelivery ? { status: "delivered" as const, deliveredAt: new Date() } : {}),
+          })
+          .where(eq(itemsTable.id, req.params.id))
+          .returning();
+        if (!updated) throw Object.assign(new Error("Item not found"), { httpStatus: 404 });
+
+        await tx.insert(auditLogs).values({
+          userName: (req as any).userName || "Sistema",
+          action: "delivered",
+          entityType: "item",
+          entityId: updated.id,
+          details:
+            (isFullDelivery
+              ? `Entrega concluída (${newDelivered}/${currentItem.quantity}, recebido por: ${receivedBy})`
+              : `Entrega parcial: ${n} un. (${newDelivered}/${currentItem.quantity}, recebido por: ${receivedBy})`)
+            + (trimmedNotes ? ` — Obs.: ${trimmedNotes}` : ""),
+        });
+
+        return updated;
       });
-      if (!item) {
-        return res.status(404).json({ error: "Item not found" });
-      }
-      
+      if (!item) return res.status(404).json({ error: "Item not found" });
+
       const event = await storage.getEvent(item.eventId);
-      
-      // Create audit log
-      await createAuditLog(
-        (req as any).userName,
-        'delivered',
-        'item',
-        item.id,
-        (isFullDelivery
-          ? `Entrega concluída (${newDelivered}/${currentItem.quantity}, recebido por: ${receivedBy})`
-          : `Entrega parcial: ${n} un. (${newDelivered}/${currentItem.quantity}, recebido por: ${receivedBy})`)
-        + (trimmedNotes ? ` — Obs.: ${trimmedNotes}` : "")
-      );
       
       // Recalculate event status - might become "completed"
       const previousStatus = event?.status;

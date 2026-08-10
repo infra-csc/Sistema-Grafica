@@ -24,6 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { getStatusMeta, getStatusLabel } from "@/lib/status";
 import { useAuth } from "@/contexts/auth-context";
 import { ModalHeader, modalSurface } from "@/components/modal-shell";
 
@@ -41,37 +42,22 @@ const TI = {
   stone100: "#f5f5f4",
 };
 
-const statusConfig: Record<string, { label: string; bg: string; color: string; border: string }> = {
-  draft:                  { label: "Rascunho",           bg: "#f5f5f4", color: "#746e69", border: "#e7e5e4" },
-  requested:              { label: "Solicitado",         bg: "#f5f5f4", color: "#746e69", border: "#e7e5e4" },
-  awaiting_linking:       { label: "Ag. Vinculação",     bg: "#fef9c3", color: "#a16207", border: "#fde047" },
-  awaiting_submission:    { label: "Ag. Envio",          bg: "#fef9c3", color: "#a16207", border: "#fde047" },
-  awaiting_approval:      { label: "Ag. Aprovação",      bg: "#fef9c3", color: "#a16207", border: "#fde047" },
-  awaiting_finalization:  { label: "Ag. Finalização",    bg: "#fef9c3", color: "#a16207", border: "#fde047" },
-  awaiting_final_review:  { label: "Ag. Revisão",        bg: "#fef9c3", color: "#a16207", border: "#fde047" },
-  awaiting_creator_review:{ label: "Ag. Finalização",    bg: "#fef9c3", color: "#a16207", border: "#fde047" },
-  ready_for_production:   { label: "Pronto p/ Prod.",    bg: "#ede9fe", color: "#6d28d9", border: "#c4b5fd" },
-  pronto_para_producao:   { label: "Pronto p/ Prod.",    bg: "#ede9fe", color: "#6d28d9", border: "#c4b5fd" },
-  approved:               { label: "Liberado",           bg: "#dbeafe", color: "#1d4ed8", border: "#93c5fd" },
-  inProduction:           { label: "Em Produção",        bg: "#fff7ed", color: "#c2410c", border: "#fed7aa" },
-  produced:               { label: "Produzido",          bg: "#dcfce7", color: "#15803d", border: "#86efac" },
-  conferred:              { label: "Conferido",          bg: "#ecfeff", color: "#0e7490", border: "#a5f3fc" },
-  delivered:              { label: "Entregue",           bg: "#f0fdf4", color: "#166534", border: "#6ee7b7" },
-};
-
+// Cores/rótulos de status vêm de lib/status.ts (fonte única) — antes havia um
+// statusConfig local com paleta própria (ex.: "Liberado" azul aqui, verde no
+// Painel Geral). Usa o rótulo curto (o pill é uppercase e compacto).
 function StatusPill({ status }: { status: string }) {
-  const cfg = statusConfig[status] || { label: status, bg: "#f5f5f4", color: "#746e69", border: "#e7e5e4" };
+  const cfg = getStatusMeta(status);
   return (
     <span style={{
       display: "inline-flex", alignItems: "center",
-      backgroundColor: cfg.bg, color: cfg.color,
+      backgroundColor: cfg.bg, color: cfg.text,
       border: `1px solid ${cfg.border}`,
       borderRadius: 999, padding: "3px 10px",
       fontSize: 10, fontWeight: 800,
       textTransform: "uppercase", letterSpacing: "0.05em",
       whiteSpace: "nowrap",
     }}>
-      {cfg.label}
+      {cfg.short}
     </span>
   );
 }
@@ -539,7 +525,7 @@ export default function Grafica() {
     if (!filteredItems.length) return;
     setIsExporting(true);
     try {
-      const statusNames = statusFilter.map(s => statusConfig[s]?.label ?? s);
+      const statusNames = statusFilter.map(s => getStatusLabel(s));
       const title = statusNames.length
         ? `Produção — ${statusNames.join(", ")}`
         : "Produção — Gráfica";

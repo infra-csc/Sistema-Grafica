@@ -2,7 +2,13 @@
 import type { Express } from "express";
 import { storage } from "../storage";
 import { insertStandardItemSchema, insertCatalogOptionSchema } from "@shared/schema";
-import { requireAuth, broadcast, createAuditLog } from "./shared";
+import { requireAuth, requireRole, broadcast, createAuditLog } from "./shared";
+
+// Gestão do catálogo de modelos (criar/editar/excluir modelos, renomear/limpar
+// grupos, materiais e acabamentos em massa) vive na tela /modelos, que é
+// solicitacao+admin. POST /api/catalog-options fica de fora: ele é aditivo e é
+// chamado inline ao criar itens (event-detail), acessível a qualquer perfil.
+const requireCatalogWrite = requireRole("solicitacao", "admin");
 
 export function registerStandardItemRoutes(app: Express): void {
   // ============ STANDARD ITEMS ============
@@ -38,7 +44,7 @@ export function registerStandardItemRoutes(app: Express): void {
     }
   });
 
-  app.delete("/api/catalog-options", requireAuth, async (req, res) => {
+  app.delete("/api/catalog-options", requireCatalogWrite, async (req, res) => {
     try {
       const { kind, value } = req.body ?? {};
       if (!kind || !value) return res.status(400).json({ error: "kind e value são obrigatórios" });
@@ -50,7 +56,7 @@ export function registerStandardItemRoutes(app: Express): void {
     }
   });
 
-  app.post("/api/standard-items", requireAuth, async (req, res) => {
+  app.post("/api/standard-items", requireCatalogWrite, async (req, res) => {
     try {
       const validatedData = insertStandardItemSchema.parse(req.body);
       const item = await storage.createStandardItem(validatedData);
@@ -64,7 +70,7 @@ export function registerStandardItemRoutes(app: Express): void {
   });
 
   // Rename all standard items in a group
-  app.patch("/api/standard-items/rename-group", requireAuth, async (req, res) => {
+  app.patch("/api/standard-items/rename-group", requireCatalogWrite, async (req, res) => {
     try {
       const { oldName, newName } = req.body;
       if (!oldName || !newName || !newName.trim()) {
@@ -79,7 +85,7 @@ export function registerStandardItemRoutes(app: Express): void {
   });
 
   // Delete (clear) a group from all standard items
-  app.delete("/api/standard-items/clear-group", requireAuth, async (req, res) => {
+  app.delete("/api/standard-items/clear-group", requireCatalogWrite, async (req, res) => {
     try {
       const { name } = req.body;
       if (!name) return res.status(400).json({ error: "name é obrigatório" });
@@ -92,7 +98,7 @@ export function registerStandardItemRoutes(app: Express): void {
   });
 
   // Rename a finish across all standard items
-  app.patch("/api/standard-items/rename-finish", requireAuth, async (req, res) => {
+  app.patch("/api/standard-items/rename-finish", requireCatalogWrite, async (req, res) => {
     try {
       const { oldName, newName } = req.body;
       if (!oldName || !newName || !newName.trim()) {
@@ -107,7 +113,7 @@ export function registerStandardItemRoutes(app: Express): void {
   });
 
   // Delete (clear) a finish from all standard items
-  app.delete("/api/standard-items/clear-finish", requireAuth, async (req, res) => {
+  app.delete("/api/standard-items/clear-finish", requireCatalogWrite, async (req, res) => {
     try {
       const { name } = req.body;
       if (!name) return res.status(400).json({ error: "name é obrigatório" });
@@ -120,7 +126,7 @@ export function registerStandardItemRoutes(app: Express): void {
   });
 
   // Rename a material across all standard items
-  app.patch("/api/standard-items/rename-material", requireAuth, async (req, res) => {
+  app.patch("/api/standard-items/rename-material", requireCatalogWrite, async (req, res) => {
     try {
       const { oldName, newName } = req.body;
       if (!oldName || !newName || !newName.trim()) {
@@ -135,7 +141,7 @@ export function registerStandardItemRoutes(app: Express): void {
   });
 
   // Delete (clear) a material from all standard items
-  app.delete("/api/standard-items/clear-material", requireAuth, async (req, res) => {
+  app.delete("/api/standard-items/clear-material", requireCatalogWrite, async (req, res) => {
     try {
       const { name } = req.body;
       if (!name) return res.status(400).json({ error: "name é obrigatório" });
@@ -148,7 +154,7 @@ export function registerStandardItemRoutes(app: Express): void {
   });
 
   // Update standard item
-  app.patch("/api/standard-items/:id", requireAuth, async (req, res) => {
+  app.patch("/api/standard-items/:id", requireCatalogWrite, async (req, res) => {
     try {
       const validatedData = insertStandardItemSchema.partial().parse(req.body);
       const item = await storage.updateStandardItem(req.params.id, validatedData);
@@ -175,7 +181,7 @@ export function registerStandardItemRoutes(app: Express): void {
   });
 
   // Delete standard item
-  app.delete("/api/standard-items/:id", requireAuth, async (req, res) => {
+  app.delete("/api/standard-items/:id", requireCatalogWrite, async (req, res) => {
     try {
       const item = await storage.getStandardItem(req.params.id);
       if (!item) {

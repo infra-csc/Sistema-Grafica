@@ -1,8 +1,36 @@
 // Inventory-asset (acervo) routes: CRUD, triage, dispatch/return, allocations.
 // Extracted from server/routes.ts (INVENTORY ASSETS section).
 import type { Express } from "express";
+import { z } from "zod";
 import { storage } from "../storage";
-import { requireAuth, broadcast, createAuditLog } from "./shared";
+import { insertInventoryAssetSchema } from "@shared/schema";
+import { requireAuth, requireRole, broadcast, createAuditLog } from "./shared";
+
+// Escritas no acervo são restritas a admin — as telas /estoque e
+// /triagem-retorno já são admin-only no frontend. Leituras seguem abertas a
+// qualquer autenticado (várias telas consultam o acervo).
+const requireInventoryWrite = requireRole("admin");
+
+// Validação da triagem simples (condição + destino).
+const triageSchema = z.object({
+  condition: z.enum(["PERFEITO", "AVARIA_LEVE", "SUCATA"]).optional(),
+  notes: z.string().nullish(),
+  trackingStatus: z.enum(["NO_GALPAO", "DESCARTADO"]).optional(),
+});
+
+// Validação de cada lote da triagem por quantidade.
+const triageSplitSchema = z.object({
+  splits: z
+    .array(
+      z.object({
+        qty: z.number().int().min(1),
+        condition: z.enum(["PERFEITO", "AVARIA_LEVE", "SUCATA"]),
+        trackingStatus: z.enum(["NO_GALPAO", "DESCARTADO"]),
+        notes: z.string().nullish(),
+      }),
+    )
+    .min(1),
+});
 
 export function registerInventoryRoutes(app: Express): void {
   // ============ INVENTORY ASSETS (ACERVO) ============
@@ -79,29 +107,38 @@ export function registerInventoryRoutes(app: Express): void {
     }
   });
 
-  app.post("/api/inventory", requireAuth, async (req, res) => {
+  app.post("/api/inventory", requireInventoryWrite, async (req, res) => {
     try {
-      const data = req.body;
-      const asset = await storage.createInventoryAsset(data);
+      // Valida contra o schema para impedir mass-assignment de colunas
+      // arbitrárias (displayId, trackingStatus fora do enum, etc.).
+      const data = insertInventoryAssetSchema.parse(req.body);
+      const asset = await storage.createInventoryAsset(data as any);
       res.status(201).json(asset);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors?.[0]?.message || "Dados inválidos" });
+      }
       console.error("Error creating inventory asset:", error);
       res.status(500).json({ error: "Erro ao criar peça no acervo" });
     }
   });
 
-  app.patch("/api/inventory/:id", requireAuth, async (req, res) => {
+  app.patch("/api/inventory/:id", requireInventoryWrite, async (req, res) => {
     try {
-      const asset = await storage.updateInventoryAsset(req.params.id, req.body);
+      const data = insertInventoryAssetSchema.partial().parse(req.body);
+      const asset = await storage.updateInventoryAsset(req.params.id, data as any);
       if (!asset) return res.status(404).json({ error: "Peça não encontrada" });
       res.json(asset);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors?.[0]?.message || "Dados inválidos" });
+      }
       console.error("Error updating inventory asset:", error);
       res.status(500).json({ error: "Erro ao atualizar peça" });
     }
   });
 
-  app.delete("/api/inventory/:id", requireAuth, async (req, res) => {
+  app.delete("/api/inventory/:id", requireInventoryWrite, async (req, res) => {
     try {
       const success = await storage.deleteInventoryAsset(req.params.id);
       if (!success) return res.status(404).json({ error: "Peça não encontrada" });
@@ -112,9 +149,9 @@ export function registerInventoryRoutes(app: Express): void {
   });
 
   // Triage endpoint: update condition + set back to NO_GALPAO (or DESCARTADO)
-  app.patch("/api/inventory/:id/triage", requireAuth, async (req, res) => {
+  app.patch("/api/inventory/:id/triage", requireInventoryWrite, async (req, res) => {
     try {
-      const { condition, notes, trackingStatus } = req.body;
+      const { condition, notes, trackingStatus } = triageSchema.parse(req.body);
       const asset = await storage.getInventoryAsset(req.params.id);
       if (!asset) return res.status(404).json({ error: "Ativo não encontrado" });
       const newStatus = trackingStatus === 'DESCARTADO' ? 'DESCARTADO' : 'NO_GALPAO';
@@ -129,20 +166,20 @@ export function registerInventoryRoutes(app: Express): void {
       broadcast({ type: 'inventory_triaged', assetId: req.params.id, trackingStatus: newStatus });
       res.json(updated);
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors?.[0]?.message || "Dados inválidos" });
+      }
       res.status(500).json({ error: "Erro ao registrar triagem" });
     }
   });
 
   // Triage with quantity split: splits the asset into multiple records by qty
-  app.post("/api/inventory/:id/triage-split", requireAuth, async (req, res) => {
+  app.post("/api/inventory/:id/triage-split", requireInventoryWrite, async (req, res) => {
     try {
       const asset = await storage.getInventoryAsset(req.params.id);
       if (!asset) return res.status(404).json({ error: "Ativo não encontrado" });
 
-      interface SplitPayload { qty: number; condition: string; trackingStatus: string; notes?: string; }
-      const splits: SplitPayload[] = req.body.splits;
-      if (!Array.isArray(splits) || splits.length === 0)
-        return res.status(400).json({ error: "splits[] obrigatório" });
+      const { splits } = triageSplitSchema.parse(req.body);
 
       const totalQty = splits.reduce((s, sp) => s + (sp.qty ?? 0), 0);
       if (totalQty !== (asset.quantity ?? 1))
@@ -182,13 +219,16 @@ export function registerInventoryRoutes(app: Express): void {
       broadcast({ type: 'inventory_triaged', assetId: req.params.id, trackingStatus: firstStatus });
       res.json({ ok: true, splits: splits.length });
     } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors?.[0]?.message || "Dados inválidos" });
+      }
       console.error("Error in triage-split:", error);
       res.status(500).json({ error: "Erro ao registrar triagem por quantidade" });
     }
   });
 
   // Manual trigger: mark event assets EM_USO
-  app.post("/api/events/:id/dispatch-inventory", requireAuth, async (req, res) => {
+  app.post("/api/events/:id/dispatch-inventory", requireInventoryWrite, async (req, res) => {
     try {
       const event = await storage.getEvent(req.params.id);
       if (!event) return res.status(404).json({ error: "Evento não encontrado" });
@@ -201,7 +241,7 @@ export function registerInventoryRoutes(app: Express): void {
   });
 
   // Manual trigger: mark event assets AGUARDANDO_TRIAGEM
-  app.post("/api/events/:id/return-inventory", requireAuth, async (req, res) => {
+  app.post("/api/events/:id/return-inventory", requireInventoryWrite, async (req, res) => {
     try {
       const count = await storage.markAssetsAwaitingTriageForEvent(req.params.id);
       if (count > 0) {
@@ -230,10 +270,10 @@ export function registerInventoryRoutes(app: Express): void {
     }
   });
 
-  app.post("/api/events/:id/allocations", requireAuth, async (req, res) => {
+  app.post("/api/events/:id/allocations", requireInventoryWrite, async (req, res) => {
     try {
       const { assetId } = req.body;
-      if (!assetId) return res.status(400).json({ error: "assetId é obrigatório" });
+      if (!assetId || typeof assetId !== "string") return res.status(400).json({ error: "assetId é obrigatório" });
       const alloc = await storage.allocateAssetToEvent(req.params.id, assetId);
       res.status(201).json(alloc);
     } catch (error) {
@@ -242,7 +282,7 @@ export function registerInventoryRoutes(app: Express): void {
     }
   });
 
-  app.delete("/api/allocations/:id", requireAuth, async (req, res) => {
+  app.delete("/api/allocations/:id", requireInventoryWrite, async (req, res) => {
     try {
       const success = await storage.deallocateAsset(req.params.id);
       if (!success) return res.status(404).json({ error: "Alocação não encontrada" });

@@ -43,9 +43,19 @@ export function registerCommentRoutes(app: Express): void {
     }
   });
 
-  // Delete a comment
+  // Delete a comment — só o próprio autor ou um admin. Sem esta checagem
+  // qualquer usuário autenticado apagava comentário de qualquer outro (IDOR).
   app.delete("/api/comments/:id", requireAuth, async (req, res) => {
     try {
+      const comment = await storage.getComment(req.params.id);
+      if (!comment) {
+        return res.status(404).json({ error: "Comment not found" });
+      }
+      const isOwner = comment.userId != null && comment.userId === req.userId;
+      if (!isOwner && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Você só pode excluir seus próprios comentários" });
+      }
+
       const success = await storage.deleteComment(req.params.id);
       if (!success) {
         return res.status(404).json({ error: "Comment not found" });

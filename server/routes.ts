@@ -10,6 +10,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { wsClients } from "./routes/shared";
+import { sessionMiddleware } from "./session";
 import { registerAuthRoutes } from "./routes/auth";
 import { registerSponsorRoutes } from "./routes/sponsors";
 import { registerEventRoutes } from "./routes/events";
@@ -32,8 +33,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       req.userName = req.session.userName || 'Sistema';
       req.userRole = req.session.userRole || 'solicitacao';
     } else {
-      // Fallback to headers for backwards compatibility
-      req.userName = (req.headers['x-user-name'] as string) || 'Sistema';
+      // Sem sessão: identidade NÃO pode vir do cliente. O header x-user-name
+      // é controlado pelo navegador e era falsificável — a trilha de auditoria
+      // precisa ser confiável, então a autoria de requisições não autenticadas
+      // é sempre "Sistema". (Rotas que gravam audit log exigem requireAuth.)
+      req.userName = 'Sistema';
     }
     next();
   });
@@ -59,8 +63,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ============ WEBSOCKET SETUP ============
   const httpServer = createServer(app);
 
-  // WebSocket server on /ws path to avoid conflict with Vite HMR
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  // WebSocket em /ws. Usamos noServer + upgrade manual para AUTENTICAR o
+  // handshake: sem isto qualquer cliente que alcançasse /ws entrava em
+  // wsClients e recebia todos os broadcasts de mutação (dados de eventos e
+  // itens) sem sessão. Rodamos o mesmo sessionMiddleware do Express sobre a
+  // requisição de upgrade e só prosseguimos se houver userId na sessão.
+  const wss = new WebSocketServer({ noServer: true });
+
+  // res "fake" suficiente para o express-session ler o cookie na fase de
+  // upgrade (não há ciclo normal de resposta aqui; só precisamos LER a sessão).
+  const noopRes: any = {
+    setHeader() {}, getHeader() {}, removeHeader() {},
+    writeHead() {}, on() {}, once() {}, end() {},
+  };
+
+  httpServer.on('upgrade', (req: any, socket, head) => {
+    // Só tratamos /ws; outros upgrades (ex.: HMR do Vite em dev) seguem para
+    // os handlers deles — por isso retornamos SEM destruir o socket.
+    const path = (req.url || '').split('?')[0];
+    if (path !== '/ws') return;
+
+    sessionMiddleware(req, noopRes, () => {
+      if (!req.session?.userId) {
+        socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n');
+        socket.destroy();
+        return;
+      }
+      wss.handleUpgrade(req, socket, head, (ws) => {
+        wss.emit('connection', ws, req);
+      });
+    });
+  });
 
   wss.on('connection', (ws: WebSocket & { isAlive?: boolean }) => {
     ws.isAlive = true;

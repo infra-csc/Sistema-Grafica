@@ -1,7 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
 import compression from "compression";
-import session from "express-session";
-import connectPgSimple from "connect-pg-simple";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { randomBytes } from "crypto";
@@ -9,18 +7,10 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { pool } from "./db";
 import { writeRateLimiter } from "./routes/shared";
+import { sessionMiddleware, SESSION_SECRET } from "./session";
 
-const PgSession = connectPgSimple(session);
-
-// Fail fast: never fall back to a hardcoded secret. Both the session and the
-// SSO JWT verification rely on these being real, operator-provided secrets.
-const SESSION_SECRET = process.env.SESSION_SECRET;
-if (!SESSION_SECRET) {
-  console.error(
-    "FATAL: SESSION_SECRET não está definido. Defina a variável de ambiente SESSION_SECRET antes de iniciar o servidor."
-  );
-  process.exit(1);
-}
+// SESSION_SECRET é validado (fail-fast) em ./session. Reutilizado aqui como
+// fallback do segredo de SSO quando SSO_SECRET não é definido.
 const SSO_SECRET = process.env.SSO_SECRET || SESSION_SECRET;
 
 // Ensure no SSO user is stuck with mustChangePassword=true (all access via Microsoft)
@@ -78,30 +68,9 @@ app.use(compression());
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: false, limit: "2mb" }));
 
-// Session configuration
-app.use(
-  session({
-    store: new PgSession({
-      pool,
-      tableName: "session",
-      createTableIfMissing: true,
-    }),
-    secret: SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
-    // Sem `rolling`, o maxAge conta a partir do login e não da última
-    // atividade: quem usa o sistema todo dia era desconectado no sétimo dia
-    // sem motivo aparente, no meio do trabalho. Com ele, a janela de 7 dias
-    // reinicia a cada requisição e só expira depois de uma semana parado.
-    rolling: true,
-    cookie: {
-      secure: process.env.NODE_ENV === "production",
-      httpOnly: true,
-      sameSite: 'lax',
-      maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
-    },
-  })
-);
+// Session configuration (definida em ./session e compartilhada com o
+// handshake do WebSocket em ./routes).
+app.use(sessionMiddleware);
 
 // ── Security headers ─────────────────────────────────────────────────────────
 // Applied to every response. Keeps the browser from doing dangerous things

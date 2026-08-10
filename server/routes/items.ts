@@ -23,6 +23,63 @@ import { runInventoryCron } from "../services/inventoryLifecycle";
 import { handlePreviewXlsx, handleConfirmImport } from "../services/xlsxImport";
 import { handleExportItemsXlsx, handleExportSelectedItemsXlsx } from "../services/xlsxExport";
 
+// Allow-list dos campos que o PATCH genérico /api/items/:id pode alterar.
+// É uma lista deliberada e restritiva: `status` e TODOS os campos de fluxo
+// (aprovação, produção, entrega, timestamps, flags de rejeição, quantidades
+// produzidas/conferidas/entregues, campos "previous*") ficam de fora — eles
+// só mudam pelas rotas dedicadas, que validam a transição e o papel do
+// usuário. Sem esta trava, qualquer usuário autenticado poderia enviar
+// PATCH { "status": "delivered" } e pular toda a máquina de estados
+// (aprovação de patrocinador, revisão do criador, conferência da gráfica).
+const updateItemSchema = insertItemSchema
+  .pick({
+    type: true,
+    description: true,
+    quantity: true,
+    area: true,
+    visual: true,
+    visualWidth: true,
+    visualHeight: true,
+    fileWidth: true,
+    fileHeight: true,
+    material: true,
+    finish: true,
+    measurement: true,
+    calculatedM2: true,
+    observations: true,
+    skipApproval: true,
+    isReuse: true,
+    approvalThumbUrl: true,
+    finalFileUrl: true,
+    finalFileName: true,
+    referenceUrl: true,
+  })
+  .partial();
+
+// m² é grandeza de produção/custo e não pode ser fonte-de-verdade do cliente.
+// Quando as dimensões do arquivo estão presentes, o servidor RECALCULA
+// calculatedM2 = quantidade × largura × altura (mesma fórmula de
+// client/src/lib/calculateM2.ts), ignorando o valor enviado. Quando não há
+// dimensões (itens sem medida de arquivo), não há como derivar e o valor
+// recebido é mantido. Retorna string com 2 casas (coluna decimal(10,2)).
+function deriveCalculatedM2(data: {
+  quantity?: number | null;
+  fileWidth?: string | number | null;
+  fileHeight?: string | number | null;
+}): string | undefined {
+  const w = data.fileWidth != null ? parseFloat(String(data.fileWidth)) : NaN;
+  const h = data.fileHeight != null ? parseFloat(String(data.fileHeight)) : NaN;
+  const q = data.quantity != null ? Number(data.quantity) : NaN;
+  if (
+    Number.isFinite(w) && w > 0 &&
+    Number.isFinite(h) && h > 0 &&
+    Number.isFinite(q) && q > 0
+  ) {
+    return (q * w * h).toFixed(2);
+  }
+  return undefined;
+}
+
 // Enriquece uma lista de itens com { event, sponsors } fazendo apenas 4 queries
 // totais (eventos, patrocinadores, vínculos item↔patrocinador e aprovações em
 // bloco), em vez de 1 getEvent + 1 getItemSponsors + N getSponsor POR item
@@ -216,7 +273,10 @@ export function registerItemRoutes(app: Express): void {
   app.post("/api/items", requireAuth, async (req, res) => {
     try {
       const validatedData = insertItemSchema.parse(req.body);
-      
+      // Não confiar no m² do cliente — recalcular no servidor quando derivável.
+      const derivedM2 = deriveCalculatedM2(validatedData);
+      if (derivedM2 !== undefined) validatedData.calculatedM2 = derivedM2;
+
       const event = await storage.getEvent(validatedData.eventId);
       if (!event) {
         return res.status(404).json({ error: "Evento não encontrado" });
@@ -283,7 +343,11 @@ export function registerItemRoutes(app: Express): void {
       // Validate all items
       const validatedItems = itemsData.map((item, index) => {
         try {
-          return insertItemSchema.parse(item);
+          const parsed = insertItemSchema.parse(item);
+          // Recalcular m² no servidor quando derivável (não confiar no cliente).
+          const derivedM2 = deriveCalculatedM2(parsed);
+          if (derivedM2 !== undefined) parsed.calculatedM2 = derivedM2;
+          return parsed;
         } catch (error: any) {
           throw new Error(`Validation error at item ${index + 1}: ${error.message}`);
         }
@@ -420,7 +484,9 @@ export function registerItemRoutes(app: Express): void {
   // Update item
   app.patch("/api/items/:id", requireAuth, async (req, res) => {
     try {
-      const validatedData = insertItemSchema.partial().parse(req.body);
+      // Allow-list explícita: barra `status` e campos de fluxo (ver
+      // updateItemSchema). Transições de status só pelas rotas dedicadas.
+      const validatedData = updateItemSchema.parse(req.body);
 
       // Normalize referenceUrl from raw GCS URL to /objects/ proxy path and
       // record an ACL policy so the object is attributed to its uploader.
@@ -1796,16 +1862,29 @@ export function registerItemRoutes(app: Express): void {
       }
       
       const { type, quantity, description, fileWidth, fileHeight, material, finish, calculatedM2, measurement } = req.body;
-      
+
+      // Valores efetivos após o merge (novo valor ou o atual).
+      const effQuantity = quantity !== undefined ? quantity : currentItem.quantity;
+      const effFileWidth = fileWidth !== undefined ? fileWidth : currentItem.fileWidth;
+      const effFileHeight = fileHeight !== undefined ? fileHeight : currentItem.fileHeight;
+      // m² recalculado no servidor quando derivável; senão mantém o recebido/atual.
+      const derivedM2 = deriveCalculatedM2({
+        quantity: effQuantity,
+        fileWidth: effFileWidth,
+        fileHeight: effFileHeight,
+      });
+      const effCalculatedM2 =
+        derivedM2 ?? (calculatedM2 !== undefined ? calculatedM2 : currentItem.calculatedM2);
+
       const item = await storage.updateItem(req.params.id, {
         type: type || currentItem.type,
-        quantity: quantity !== undefined ? quantity : currentItem.quantity,
+        quantity: effQuantity,
         description: description !== undefined ? description : currentItem.description,
-        fileWidth: fileWidth !== undefined ? fileWidth : currentItem.fileWidth,
-        fileHeight: fileHeight !== undefined ? fileHeight : currentItem.fileHeight,
+        fileWidth: effFileWidth,
+        fileHeight: effFileHeight,
         material: material || currentItem.material,
         finish: finish || currentItem.finish,
-        calculatedM2: calculatedM2 !== undefined ? calculatedM2 : currentItem.calculatedM2,
+        calculatedM2: effCalculatedM2,
         measurement: measurement !== undefined ? measurement : currentItem.measurement,
       });
       
@@ -1818,7 +1897,7 @@ export function registerItemRoutes(app: Express): void {
       if (material && material !== currentItem.material) editDetails.push(`Material: ${currentItem.material} → ${material}`);
       if (finish && finish !== currentItem.finish) editDetails.push(`Acabamento: ${currentItem.finish} → ${finish}`);
       if (quantity !== undefined && quantity !== currentItem.quantity) editDetails.push(`Quantidade: ${currentItem.quantity} → ${quantity}`);
-      if (calculatedM2 !== undefined && calculatedM2 !== currentItem.calculatedM2) editDetails.push(`m² Total: ${currentItem.calculatedM2} → ${calculatedM2}`);
+      if (effCalculatedM2 !== currentItem.calculatedM2) editDetails.push(`m² Total: ${currentItem.calculatedM2} → ${effCalculatedM2}`);
       if (measurement !== undefined && measurement !== currentItem.measurement) editDetails.push(`Medida: ${currentItem.measurement} → ${measurement}`);
       
       await createAuditLog(
@@ -2410,6 +2489,11 @@ export function registerItemRoutes(app: Express): void {
 
   app.post("/api/items/:id/production", requireAuth, async (req, res) => {
     try {
+      // Só a Gráfica (ou admin) registra produção — mesma regra de
+      // /start-production. Sem isto qualquer perfil marcava item como produzido.
+      if (req.userRole !== "grafica" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Gráfica podem registrar produção" });
+      }
       const validatedData = insertProductionUpdateSchema.parse(req.body);
       const productionUpdate = await storage.createProductionUpdate({
         ...validatedData,

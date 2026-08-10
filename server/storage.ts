@@ -101,6 +101,7 @@ export interface IStorage {
   
   // Comments
   getComments(itemId: string): Promise<Comment[]>;
+  getComment(id: string): Promise<Comment | undefined>;
   createComment(comment: InsertComment): Promise<Comment>;
   deleteComment(id: string): Promise<boolean>;
   
@@ -732,6 +733,11 @@ export class DatabaseStorage implements IStorage {
       .from(comments)
       .where(eq(comments.itemId, itemId))
       .orderBy(comments.createdAt);
+  }
+
+  async getComment(id: string): Promise<Comment | undefined> {
+    const [comment] = await db.select().from(comments).where(eq(comments.id, id));
+    return comment;
   }
 
   async createComment(insertComment: InsertComment): Promise<Comment> {

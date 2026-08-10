@@ -2,7 +2,7 @@
 import type { Express } from "express";
 import { storage } from "../storage";
 import { insertDeliveryPhotoSchema } from "@shared/schema";
-import { requireAuth, broadcast } from "./shared";
+import { requireAuth, requireRole, broadcast } from "./shared";
 
 export function registerPhotoRoutes(app: Express): void {
   // ============ DELIVERY PHOTOS ============
@@ -46,8 +46,10 @@ export function registerPhotoRoutes(app: Express): void {
     }
   });
 
-  // Delete a delivery photo
-  app.delete("/api/photos/:id", requireAuth, async (req, res) => {
+  // Delete a delivery photo — só Gráfica ou admin. As fotos são comprovantes
+  // de conferência/entrega; sem gate qualquer perfil apagava comprovante de
+  // qualquer peça (IDOR).
+  app.delete("/api/photos/:id", requireRole("grafica", "admin"), async (req, res) => {
     try {
       const success = await storage.deleteDeliveryPhoto(req.params.id);
       if (!success) {

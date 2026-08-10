@@ -42,6 +42,10 @@ export default function Solicitacao() {
   const quantityInputRef = useRef<HTMLInputElement>(null);
   const [showReturnForm, setShowReturnForm] = useState(false);
   const [releaseConfirmOpen, setReleaseConfirmOpen] = useState(false);
+  // "Devolver para Arte" já tinha campo de observação; "Liberar para Produção"
+  // não tinha nenhum — quem revisa e quer avisar algo à Gráfica (ex: "conferir
+  // cor de fundo") não tinha onde escrever.
+  const [releaseObservations, setReleaseObservations] = useState("");
   const [bulkReleaseConfirmOpen, setBulkReleaseConfirmOpen] = useState(false);
   const [bulkReturnConfirmOpen, setBulkReturnConfirmOpen] = useState(false);
   const [bulkReturnObservations, setBulkReturnObservations] = useState("");
@@ -81,11 +85,12 @@ export default function Solicitacao() {
   });
 
   const creatorReviewMutation = useMutation({
-    mutationFn: async (itemId: string) => await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, {}),
+    mutationFn: async ({ itemId, notes }: { itemId: string; notes?: string }) =>
+      await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, notes ? { notes } : {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
-      setModalOpen(false); setSelectedItem(null); setReleaseConfirmOpen(false);
+      setModalOpen(false); setSelectedItem(null); setReleaseConfirmOpen(false); setReleaseObservations("");
       toast({ title: "Peça liberada para produção!", description: "A peça foi revisada e liberada para a gráfica." });
     },
     onError: (error: any) => toast({ title: "Erro ao liberar peça", description: error.message, variant: "destructive" }),
@@ -1251,7 +1256,7 @@ export default function Solicitacao() {
       {/* ── CONFIRM DIALOGS ─────────────────────────────────────────────── */}
 
       {/* Release single */}
-      <AlertDialog open={releaseConfirmOpen} onOpenChange={setReleaseConfirmOpen}>
+      <AlertDialog open={releaseConfirmOpen} onOpenChange={o => { setReleaseConfirmOpen(o); if (!o) setReleaseObservations(""); }}>
         <AlertDialogContent className="review-confirm-content">
           <AlertDialogHeader>
             <AlertDialogTitle>Liberar para Produção</AlertDialogTitle>
@@ -1259,10 +1264,26 @@ export default function Solicitacao() {
               {selectedItem && <span><strong>{selectedItem.displayId}</strong> — {selectedItem.type} será liberado para produção.</span>}
             </AlertDialogDescription>
           </AlertDialogHeader>
+          {/* Mesmo recurso que "Devolver para Arte" já tinha e "Liberar" não:
+              um lugar para avisar a Gráfica de algo pontual (cor, acabamento,
+              posição) sem precisar de outro canal. Fica no `observations` do
+              item, que já aparece na tela de revisão e é visível na Gráfica. */}
+          <textarea
+            placeholder="Observação para a Gráfica (opcional)"
+            value={releaseObservations}
+            onChange={e => setReleaseObservations(e.target.value)}
+            data-testid="textarea-release-observations"
+            style={{
+              width: "100%", minHeight: 80, padding: 12, borderRadius: 8,
+              border: `1px solid ${TI.border}`, backgroundColor: "#fafaf9",
+              color: TI.text, fontSize: 13, resize: "none",
+              fontFamily: "inherit", boxSizing: "border-box",
+            }}
+          />
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-release-cancel">Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => selectedItem && creatorReviewMutation.mutate(selectedItem.id)}
+              onClick={() => selectedItem && creatorReviewMutation.mutate({ itemId: selectedItem.id, notes: releaseObservations.trim() || undefined })}
               style={{ backgroundColor: TI.text, color: "#fff" }}
               data-testid="button-release-confirm"
             >

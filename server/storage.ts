@@ -1189,15 +1189,38 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createInventoryAsset(asset: Omit<InsertInventoryAsset, 'displayId'> & { displayId?: string }): Promise<InventoryAsset> {
-    let displayId = asset.displayId;
-    if (!displayId) {
-      const countResult = await db.select({ count: sql<number>`count(*)` }).from(inventoryAssets);
-      const count = Number(countResult[0]?.count ?? 0);
-      displayId = `#EST-${String(count + 1).padStart(4, '0')}`;
+    const { displayId: providedId, ...rest } = asset as any;
+
+    // Se o displayId veio pronto (ex.: auto-cadastro em lote #EST-XXXX-N), usa direto.
+    if (providedId) {
+      const [created] = await db.insert(inventoryAssets).values({ ...rest, displayId: providedId }).returning();
+      return created;
     }
-    const { displayId: _omit, ...rest } = asset as any;
-    const [created] = await db.insert(inventoryAssets).values({ ...rest, displayId }).returning();
-    return created;
+
+    // Geração de #EST-NNNN: usa o MAIOR número-base existente + 1 (extrai só o
+    // primeiro grupo de dígitos, ignorando o sufixo -N dos auto-cadastrados),
+    // com retry em caso de colisão. O antigo count(*)+1 tinha race condition
+    // (dois inserts simultâneos geravam o mesmo id) e reusava números após
+    // exclusões — ambos violavam o unique de display_id.
+    for (let attempt = 0; attempt < 5; attempt++) {
+      const [row] = await db
+        .select({
+          maxNum: sql<number>`COALESCE(MAX(CAST(substring(${inventoryAssets.displayId} from '#EST-([0-9]+)') AS INTEGER)), 0)`,
+        })
+        .from(inventoryAssets);
+      const next = Number(row?.maxNum ?? 0) + 1;
+      const candidate = `#EST-${String(next).padStart(4, '0')}`;
+      try {
+        const [created] = await db.insert(inventoryAssets).values({ ...rest, displayId: candidate }).returning();
+        return created;
+      } catch (e: any) {
+        // 23505 = unique_violation: outro insert concorrente pegou este número.
+        // Recalcula o MAX e tenta de novo; nas demais falhas, propaga.
+        if (e?.code === '23505' && attempt < 4) continue;
+        throw e;
+      }
+    }
+    throw new Error("Não foi possível gerar o código do acervo após várias tentativas");
   }
 
   async createInventoryAssets(assets: Array<Omit<InsertInventoryAsset, 'displayId'> & { displayId: string }>): Promise<InventoryAsset[]> {
@@ -1226,37 +1249,42 @@ export class DatabaseStorage implements IStorage {
     const itemIds = eventItems.map(i => i.id);
     if (itemIds.length === 0) return 0;
 
-    let updated = 0;
     // Only dispatch assets that:
     // 1. Are currently NO_GALPAO (in warehouse, ready to go)
     // 2. Were last updated BEFORE departure (haven't been through the event cycle yet)
     // This prevents re-dispatching assets that were already triaged back to NO_GALPAO.
-    for (const itemId of itemIds) {
-      const result = await db.update(inventoryAssets)
-        .set({ trackingStatus: 'EM_USO', updatedAt: new Date() } as any)
-        .where(and(
-          eq(inventoryAssets.originalItemId, itemId),
-          eq(inventoryAssets.trackingStatus, 'NO_GALPAO'),
-          lt(inventoryAssets.updatedAt as any, departureDate)
-        ));
-      updated += result.rowCount ?? 0;
-    }
-
-    // Manually allocated assets: same guards
+    //
+    // Um único UPDATE por conjunto (via inArray) em vez de N updates em loop —
+    // atômico e sem N+1. Envolto em transação para que peças por item e por
+    // alocação manual sejam despachadas juntas ou nenhuma.
     const allocs = await db.select({ assetId: eventInventoryAllocations.assetId })
       .from(eventInventoryAllocations)
       .where(eq(eventInventoryAllocations.eventId, eventId));
-    for (const alloc of allocs) {
-      const result = await db.update(inventoryAssets)
+    const allocIds = allocs.map(a => a.assetId);
+
+    return await db.transaction(async (tx) => {
+      let updated = 0;
+      const r1 = await tx.update(inventoryAssets)
         .set({ trackingStatus: 'EM_USO', updatedAt: new Date() } as any)
         .where(and(
-          eq(inventoryAssets.id, alloc.assetId),
+          inArray(inventoryAssets.originalItemId, itemIds),
           eq(inventoryAssets.trackingStatus, 'NO_GALPAO'),
           lt(inventoryAssets.updatedAt as any, departureDate)
         ));
-      updated += result.rowCount ?? 0;
-    }
-    return updated;
+      updated += r1.rowCount ?? 0;
+
+      if (allocIds.length > 0) {
+        const r2 = await tx.update(inventoryAssets)
+          .set({ trackingStatus: 'EM_USO', updatedAt: new Date() } as any)
+          .where(and(
+            inArray(inventoryAssets.id, allocIds),
+            eq(inventoryAssets.trackingStatus, 'NO_GALPAO'),
+            lt(inventoryAssets.updatedAt as any, departureDate)
+          ));
+        updated += r2.rowCount ?? 0;
+      }
+      return updated;
+    });
   }
 
   async markAssetsAwaitingTriageForEvent(eventId: string): Promise<number> {
@@ -1265,33 +1293,35 @@ export class DatabaseStorage implements IStorage {
     const itemIds = eventItems.map(i => i.id);
     if (itemIds.length === 0) return 0;
 
-    let updated = 0;
     // Only move EM_USO assets to triage — assets already in NO_GALPAO stayed in the warehouse
     // and do not need triage. Moving NO_GALPAO here would re-queue already-triaged assets.
-    for (const itemId of itemIds) {
-      const result = await db.update(inventoryAssets)
-        .set({ trackingStatus: 'AGUARDANDO_TRIAGEM', updatedAt: new Date() } as any)
-        .where(and(
-          eq(inventoryAssets.originalItemId, itemId),
-          eq(inventoryAssets.trackingStatus, 'EM_USO')
-        ));
-      updated += result.rowCount ?? 0;
-    }
-
-    // Also handle manually allocated assets
+    // UPDATE único por conjunto (inArray) em transação — sem N+1 e atômico.
     const allocs = await db.select({ assetId: eventInventoryAllocations.assetId })
       .from(eventInventoryAllocations)
       .where(eq(eventInventoryAllocations.eventId, eventId));
-    for (const alloc of allocs) {
-      const result = await db.update(inventoryAssets)
+    const allocIds = allocs.map(a => a.assetId);
+
+    return await db.transaction(async (tx) => {
+      let updated = 0;
+      const r1 = await tx.update(inventoryAssets)
         .set({ trackingStatus: 'AGUARDANDO_TRIAGEM', updatedAt: new Date() } as any)
         .where(and(
-          eq(inventoryAssets.id, alloc.assetId),
+          inArray(inventoryAssets.originalItemId, itemIds),
           eq(inventoryAssets.trackingStatus, 'EM_USO')
         ));
-      updated += result.rowCount ?? 0;
-    }
-    return updated;
+      updated += r1.rowCount ?? 0;
+
+      if (allocIds.length > 0) {
+        const r2 = await tx.update(inventoryAssets)
+          .set({ trackingStatus: 'AGUARDANDO_TRIAGEM', updatedAt: new Date() } as any)
+          .where(and(
+            inArray(inventoryAssets.id, allocIds),
+            eq(inventoryAssets.trackingStatus, 'EM_USO')
+          ));
+        updated += r2.rowCount ?? 0;
+      }
+      return updated;
+    });
   }
 
   // ── Event Inventory Allocations ──────────────────────────
@@ -1318,13 +1348,17 @@ export class DatabaseStorage implements IStorage {
   }
 
   async allocateAssetToEvent(eventId: string, assetId: string): Promise<EventInventoryAllocation> {
-    const [alloc] = await db.insert(eventInventoryAllocations)
-      .values({ eventId, assetId })
-      .returning();
-    await db.update(inventoryAssets)
-      .set({ trackingStatus: 'EM_USO', updatedAt: new Date() } as any)
-      .where(eq(inventoryAssets.id, assetId));
-    return alloc;
+    // Atômico: a alocação e a mudança de status da peça acontecem juntas ou
+    // nenhuma — evita alocação órfã (registrada) com peça ainda NO_GALPAO.
+    return await db.transaction(async (tx) => {
+      const [alloc] = await tx.insert(eventInventoryAllocations)
+        .values({ eventId, assetId })
+        .returning();
+      await tx.update(inventoryAssets)
+        .set({ trackingStatus: 'EM_USO', updatedAt: new Date() } as any)
+        .where(eq(inventoryAssets.id, assetId));
+      return alloc;
+    });
   }
 
   async deallocateAsset(allocationId: string): Promise<boolean> {

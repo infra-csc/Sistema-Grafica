@@ -36,7 +36,11 @@ export const events = pgTable("events", {
   deadlineProducaoGrafica: integer("deadline_producao_grafica").default(-1), // Produção gráfica
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
-});
+}, (table) => [
+  // getAllEvents ordena por created_at desc — sem índice é sort em memória a
+  // cada request (e /api/events é o endpoint mais chamado).
+  index("IDX_events_created_at").on(table.createdAt),
+]);
 
 // Sponsors table (Patrocinadores)
 export const sponsors = pgTable("sponsors", {
@@ -63,7 +67,12 @@ export const eventSponsors = pgTable("event_sponsors", {
   sponsorId: varchar("sponsor_id").notNull().references(() => sponsors.id, { onDelete: "cascade" }),
   quota: text("quota"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
+}, (table) => [
+  // Leituras por evento (getEventSponsors, chamado no enrich de /api/events) e
+  // cascade ao excluir evento/patrocinador — sem índice viram seq scan.
+  index("IDX_event_sponsors_event_id").on(table.eventId),
+  index("IDX_event_sponsors_sponsor_id").on(table.sponsorId),
+]);
 
 // Item-Sponsors relationship table (many-to-many)
 export const itemSponsors = pgTable("item_sponsors", {
@@ -71,7 +80,10 @@ export const itemSponsors = pgTable("item_sponsors", {
   itemId: varchar("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),
   sponsorId: varchar("sponsor_id").notNull().references(() => sponsors.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
+}, (table) => [
+  index("IDX_item_sponsors_item_id").on(table.itemId),
+  index("IDX_item_sponsors_sponsor_id").on(table.sponsorId),
+]);
 
 // Item-Sponsor Approvals table (tracks individual sponsor approval status)
 export const itemSponsorApprovals = pgTable("item_sponsor_approvals", {
@@ -86,7 +98,10 @@ export const itemSponsorApprovals = pgTable("item_sponsor_approvals", {
   rejectionReason: text("rejection_reason"), // Motivo da reprovação (se houver)
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
-});
+}, (table) => [
+  index("IDX_item_sponsor_approvals_item_id").on(table.itemId),
+  index("IDX_item_sponsor_approvals_sponsor_id").on(table.sponsorId),
+]);
 
 // Event Quota Rules — maps sponsor tiers to item types per event
 export const eventQuotaRules = pgTable("event_quota_rules", {
@@ -95,7 +110,9 @@ export const eventQuotaRules = pgTable("event_quota_rules", {
   quota: text("quota").notNull(), // MASTER, GOLD, SILVER, APOIO, MIDIA, MINISTERIO
   itemTypes: text("item_types").array().notNull().default(sql`'{}'::text[]`),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
+}, (table) => [
+  index("IDX_event_quota_rules_event_id").on(table.eventId),
+]);
 
 // Items table
 export const items = pgTable("items", {
@@ -158,6 +175,9 @@ export const items = pgTable("items", {
   // Filtros mais usados nas listagens (por evento e por status/fase).
   index("IDX_items_event_id").on(table.eventId),
   index("IDX_items_status").on(table.status),
+  // Toda listagem ordena por created_at e filtra deleted_at IS NULL (soft delete).
+  index("IDX_items_created_at").on(table.createdAt),
+  index("IDX_items_deleted_at").on(table.deletedAt),
 ]);
 
 // Standard items (templates)
@@ -212,7 +232,9 @@ export const productionUpdates = pgTable("production_updates", {
   photoUrl: text("photo_url"),
   quantityProduced: integer("quantity_produced").notNull(),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
+}, (table) => [
+  index("IDX_production_updates_item_id").on(table.itemId),
+]);
 
 // Users table (for authentication and audit trail)
 export const users = pgTable("users", {
@@ -235,7 +257,9 @@ export const comments = pgTable("comments", {
   content: text("content").notNull(),
   itemStatus: text("item_status"), // Status do item quando o comentário foi feito
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
+}, (table) => [
+  index("IDX_comments_item_id").on(table.itemId),
+]);
 
 // Fotos anexadas pela Gráfica ao longo do fluxo. A tabela nasceu só para
 // entrega; "kind" permite guardar também as da conferência sem duplicar
@@ -247,7 +271,9 @@ export const deliveryPhotos = pgTable("delivery_photos", {
   kind: text("kind").notNull().default("delivery"), // "delivery" | "conference"
   uploadedBy: text("uploaded_by").notNull(),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
-});
+}, (table) => [
+  index("IDX_delivery_photos_item_id").on(table.itemId),
+]);
 
 // Audit Logs table (track all modifications)
 export const auditLogs = pgTable("audit_logs", {
@@ -265,6 +291,8 @@ export const auditLogs = pgTable("audit_logs", {
   index("IDX_audit_logs_created_at").on(table.createdAt),
   // Histórico por peça/evento (filtros por entityId são o caso mais comum).
   index("IDX_audit_logs_entity_id").on(table.entityId),
+  // Estoque e outras telas filtram por entityType + entityId juntos.
+  index("IDX_audit_logs_entity_type_id").on(table.entityType, table.entityId),
 ]);
 
 // Inventory Assets table (Acervo)
@@ -284,7 +312,11 @@ export const inventoryAssets = pgTable("inventory_assets", {
   autoAdded: boolean("auto_added").notNull().default(false), // true = adicionado automaticamente pela gráfica
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
-});
+}, (table) => [
+  // getAssetsByOriginalItemId (auto-cadastro) e filtro da fila de triagem.
+  index("IDX_inventory_assets_original_item_id").on(table.originalItemId),
+  index("IDX_inventory_assets_tracking_status").on(table.trackingStatus),
+]);
 
 // Event-Inventory Allocations (pivot)
 export const eventInventoryAllocations = pgTable("event_inventory_allocations", {
@@ -292,7 +324,10 @@ export const eventInventoryAllocations = pgTable("event_inventory_allocations", 
   eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
   assetId: varchar("asset_id").notNull().references(() => inventoryAssets.id, { onDelete: "cascade" }),
   allocatedAt: timestamp("allocated_at").notNull().default(sql`now()`),
-});
+}, (table) => [
+  index("IDX_event_inventory_allocations_event_id").on(table.eventId),
+  index("IDX_event_inventory_allocations_asset_id").on(table.assetId),
+]);
 
 // Relations
 export const eventsRelations = relations(events, ({ many }) => ({

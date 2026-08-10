@@ -28,7 +28,9 @@ export const events = pgTable("events", {
   franchise: text("franchise"), // Franquia (ex: "Night Run", "Circuito Estações")
   approvalBookUrl: text("approval_book_url"), // URL do PDF com book de aprovação
   createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),
-  // Prazos relativos ao startDate (em dias negativos = dias ANTES do evento)
+  // Prazos relativos ao truckDepartureDate (dias negativos = dias ANTES da
+  // saída do caminhão). A produção precisa estar pronta antes de carregar o
+  // caminhão, não antes do evento começar — por isso a âncora é a saída.
   deadlineListaImagens: integer("deadline_lista_imagens").default(-25), // Criação dos itens
   deadlineEntregaLayouts: integer("deadline_entrega_layouts").default(-20), // Entrega pela Arte
   deadlineAprovacaoLayout: integer("deadline_aprovacao_layout").default(-12), // Aprovação do patrocinador

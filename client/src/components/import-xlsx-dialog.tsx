@@ -78,7 +78,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
           />
         ) : (
           <span style={{
-            color: display === '—' ? '#d0cdc9' : (opts?.dim ? '#9c9490' : '#1a1c1c'),
+            color: display === '—' ? '#d0cdc9' : (opts?.dim ? '#746e69' : '#1a1c1c'),
             fontSize: 13,
             fontFamily: opts?.mono ? 'DM Mono, monospace' : 'inherit',
             display: 'block',
@@ -104,14 +104,14 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
             <input autoFocus defaultValue={valW ?? ''} onBlur={e => { update(fieldW, e.target.value); setEditField(null); }} onKeyDown={e => { if (e.key==='Enter'){update(fieldW,(e.target as HTMLInputElement).value);setEditField(null);} if(e.key==='Escape')setEditField(null); }}
               style={{ width: 44, border: 'none', borderBottom: '2px solid #f97316', fontSize: 11, padding: '0 2px', backgroundColor: 'transparent', fontFamily: 'DM Mono, monospace', color: '#1a1c1c' }} />
           ) : (
-            <span onClick={() => setEditField(fieldW)} title="Clique para editar" style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: dimStyle ? '#9c9490' : '#1a1c1c', cursor: 'text', minWidth: 24 }}>{dispW}</span>
+            <span onClick={() => setEditField(fieldW)} title="Clique para editar" style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: dimStyle ? '#746e69' : '#1a1c1c', cursor: 'text', minWidth: 24 }}>{dispW}</span>
           )}
           <span style={{ color: '#d0cdc9', fontSize: 10, userSelect: 'none' }}>×</span>
           {editingH ? (
             <input autoFocus defaultValue={valH ?? ''} onBlur={e => { update(fieldH, e.target.value); setEditField(null); }} onKeyDown={e => { if (e.key==='Enter'){update(fieldH,(e.target as HTMLInputElement).value);setEditField(null);} if(e.key==='Escape')setEditField(null); }}
               style={{ width: 44, border: 'none', borderBottom: '2px solid #f97316', fontSize: 11, padding: '0 2px', backgroundColor: 'transparent', fontFamily: 'DM Mono, monospace', color: '#1a1c1c' }} />
           ) : (
-            <span onClick={() => setEditField(fieldH)} title="Clique para editar" style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: dimStyle ? '#9c9490' : '#1a1c1c', cursor: 'text', minWidth: 24 }}>{dispH}</span>
+            <span onClick={() => setEditField(fieldH)} title="Clique para editar" style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: dimStyle ? '#746e69' : '#1a1c1c', cursor: 'text', minWidth: 24 }}>{dispH}</span>
           )}
         </div>
       </td>
@@ -156,7 +156,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
             onKeyDown={e => { if (e.key === 'Enter') { update('observations', (e.target as HTMLInputElement).value); setEditField(null); } if (e.key === 'Escape') setEditField(null); }}
             style={{ width: '100%', border: 'none', borderBottom: '2px solid #f97316', padding: '0 2px', fontSize: 13, backgroundColor: 'transparent' }} />
         ) : (
-          <span style={{ color: row.observations ? '#9c9490' : '#d0cdc9', fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ color: row.observations ? '#746e69' : '#d0cdc9', fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {row.observations || '—'}
           </span>
         )}
@@ -289,7 +289,18 @@ export function ImportXlsxDialog({
   const { toast } = useToast();
 
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onOpenChangeClose(); }}>
+    <Dialog open={open} onOpenChange={(v) => {
+      if (!v) {
+        // Preview carregado = trabalho de edição/vinculação em andamento.
+        // Fechar (X/Esc/clique-fora) descartava tudo sem perguntar — o irmão
+        // Modo Lote confirma; aqui passa a confirmar também.
+        if (importPreviewItems && importPreviewItems.length > 0 &&
+            !window.confirm("Descartar a importação em andamento? As edições e vinculações feitas no preview serão perdidas.")) {
+          return;
+        }
+        onOpenChangeClose();
+      }
+    }}>
       <DialogContent
         className="[&>button:last-child]:right-4 [&>button:last-child]:top-4 [&>button:last-child]:z-50"
         style={{ maxWidth: '98vw', width: importPreviewItems ? 1320 : 540, maxHeight: '92vh', padding: 0, gap: 0, borderRadius: 12, overflow: 'visible', transition: 'width 0.3s' }}
@@ -350,7 +361,7 @@ export function ImportXlsxDialog({
               </>
             ) : (
               <>
-                <Upload style={{ width: 20, height: 20, color: '#a8a29e' }} />
+                <Upload style={{ width: 20, height: 20, color: '#8a847e' }} />
                 <div style={{ textAlign: 'center' }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: '#44403c' }}>Arraste o .xlsx aqui</div>
                   <div style={{ fontSize: 11, color: '#746e69', marginTop: 2 }}>ou clique para selecionar</div>
@@ -416,7 +427,7 @@ export function ImportXlsxDialog({
               disabled={!importFile || previewXlsxPending}
               onClick={() => { if (importFile) onPreview(importFile); }}
               data-testid="button-preview-import"
-              style={{ width: '100%', padding: '11px 0', backgroundColor: importFile ? '#16a34a' : '#e7e5e4', color: importFile ? '#fff' : '#a8a29e', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: importFile ? 'pointer' : 'not-allowed', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+              style={{ width: '100%', padding: '11px 0', backgroundColor: importFile ? '#16a34a' : '#e7e5e4', color: importFile ? '#fff' : '#8a847e', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: importFile ? 'pointer' : 'not-allowed', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
               {previewXlsxPending ? (
                 <><Loader2 style={{ width: 15, height: 15, animation: 'spin 1s linear infinite' }} /> Processando...</>
@@ -459,7 +470,7 @@ export function ImportXlsxDialog({
                 disabled={!importPreviewItems.length || confirmImportPending || !!importDuplicateWarning}
                 onClick={() => { if (importPreviewItems.length > 0) onConfirmImport(importPreviewItems, importFileName); }}
                 data-testid="button-confirm-import"
-                style={{ width: '100%', padding: '11px 0', backgroundColor: importDuplicateWarning ? '#a8a29e' : '#1c1917', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: importDuplicateWarning ? 'not-allowed' : 'pointer', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                style={{ width: '100%', padding: '11px 0', backgroundColor: importDuplicateWarning ? '#8a847e' : '#1c1917', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: importDuplicateWarning ? 'not-allowed' : 'pointer', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
               >
                 {confirmImportPending ? (
                   <><Loader2 style={{ width: 15, height: 15, animation: 'spin 1s linear infinite' }} /> Importando...</>
@@ -477,7 +488,7 @@ export function ImportXlsxDialog({
             {/* Search bar */}
             <div style={{ padding: '10px 16px', borderBottom: '1px solid #e7e5e4', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
               <div style={{ position: 'relative', flex: 1 }}>
-                <Search style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#a8a29e', pointerEvents: 'none' }} />
+                <Search style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#8a847e', pointerEvents: 'none' }} />
                 <input
                   value={importSearch}
                   onChange={e => setImportSearch(e.target.value)}

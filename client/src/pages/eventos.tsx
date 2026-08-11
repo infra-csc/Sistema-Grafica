@@ -143,7 +143,7 @@ export default function Eventos() {
   const [openTruckDate, setOpenTruckDate] = useState(false);
   const [openPrazoKey, setOpenPrazoKey] = useState<string | null>(null);
 
-  const { data: events = [], isLoading } = useQuery<any[]>({
+  const { data: events = [], isLoading, isError, refetch } = useQuery<any[]>({
     queryKey: ["/api/events"],
   });
 
@@ -1184,8 +1184,31 @@ export default function Eventos() {
 
       {/* ── CONTEÚDO ── */}
       {isLoading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '80px 0' }}>
-          <div style={{ width: '32px', height: '32px', border: '3px solid #e7e5e4', borderTopColor: '#f97316', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+        /* Skeleton com a silhueta dos cards reais (badge + título + datas +
+           barra de progresso) no lugar do spinner central — sem layout shift. */
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6" aria-busy="true" aria-label="Carregando eventos">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <div key={i} style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderLeft: '4px solid #e7e5e4', borderRadius: 12, padding: '20px 22px' }}>
+              <div className="animate-pulse" style={{ width: 110, height: 22, borderRadius: 999, backgroundColor: '#f5f5f4', marginBottom: 14 }} />
+              <div className="animate-pulse" style={{ width: '55%', height: 18, borderRadius: 4, backgroundColor: '#e7e5e4', marginBottom: 18 }} />
+              <div style={{ display: 'flex', gap: 32, marginBottom: 22 }}>
+                <div className="animate-pulse" style={{ width: 90, height: 12, borderRadius: 4, backgroundColor: '#f0efee' }} />
+                <div className="animate-pulse" style={{ width: 110, height: 12, borderRadius: 4, backgroundColor: '#f0efee' }} />
+              </div>
+              <div className="animate-pulse" style={{ width: '100%', height: 6, borderRadius: 999, backgroundColor: '#f0efee' }} />
+            </div>
+          ))}
+        </div>
+      ) : isError ? (
+        /* Sem este ramo, uma falha da API caía no "Nenhum evento criado" com
+           botão de criar — mensagem enganosa que podia induzir a recriar
+           eventos que já existem. */
+        <div style={{ backgroundColor: '#ffffff', border: '1px solid #fecaca', borderRadius: '12px', padding: '72px 24px', textAlign: 'center' }}>
+          <h3 style={{ color: '#b91c1c', fontSize: '16px', fontWeight: '700', marginBottom: '6px' }}>Não foi possível carregar os eventos</h3>
+          <p style={{ color: '#746e69', fontSize: '13px', marginBottom: '20px' }}>Verifique sua conexão e tente novamente.</p>
+          <button onClick={() => refetch()} style={{ fontSize: 13, fontWeight: 700, color: '#fff', background: '#1c1917', border: 'none', borderRadius: 8, padding: '9px 20px', cursor: 'pointer' }}>
+            Tentar novamente
+          </button>
         </div>
       ) : events.length === 0 ? (
         <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '12px', padding: '72px 24px', textAlign: 'center' }}>
@@ -1318,8 +1341,11 @@ export default function Eventos() {
                     {/* Progresso */}
                     <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid #f0efee', position: 'relative', zIndex: 1 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#57534e' }}>{deliveredCount}/{itemCount} Peças</span>
-                        <span style={{ fontSize: '11px', fontWeight: '800', color: '#10b981' }}>Finalizado</span>
+                        {/* "Entregues"/"Concluído": mesmos termos do card ativo e
+                            do badge — o card dizia "Peças"/"Finalizado" enquanto
+                            o badge acima dizia "CONCLUÍDO". */}
+                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#57534e' }}>{itemCount > 0 ? `${deliveredCount}/${itemCount} Entregues` : 'Sem peças'}</span>
+                        <span style={{ fontSize: '11px', fontWeight: '800', color: '#10b981' }}>Concluído</span>
                       </div>
                       <div style={{ width: '100%', backgroundColor: '#f0efee', borderRadius: '999px', height: '8px', overflow: 'hidden' }}>
                         <div style={{ height: '100%', backgroundColor: '#10b981', borderRadius: '999px', width: '100%' }} />

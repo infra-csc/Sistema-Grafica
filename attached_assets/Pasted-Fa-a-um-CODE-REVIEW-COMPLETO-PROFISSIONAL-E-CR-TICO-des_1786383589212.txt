@@ -1,0 +1,775 @@
+Faça um **CODE REVIEW COMPLETO, PROFISSIONAL E CRÍTICO** deste projeto.
+
+Quero que você atue simultaneamente como:
+
+* Senior Front-End Engineer
+* Senior Full-Stack Engineer
+* Senior UX/UI Designer
+* Product Designer
+* Software Architect
+* QA Engineer
+* Security Engineer
+* Performance Engineer
+
+O objetivo é fazer uma **auditoria completa do aplicativo**, identificando tudo que pode ser melhorado antes de eu considerar o projeto pronto para produção.
+
+### ⚠️ REGRA PRINCIPAL
+
+**NÃO ALTERE O CÓDIGO IMEDIATAMENTE.**
+
+Primeiro analise o projeto inteiro, entenda a arquitetura, fluxo de dados, telas, componentes, regras de negócio e experiência do usuário.
+
+Depois apresente os problemas encontrados e um plano de correção priorizado.
+
+Só faça alterações depois dessa análise.
+
+---
+
+# 1. ANÁLISE GERAL DO PROJETO
+
+Analise toda a estrutura do projeto:
+
+* organização de pastas
+* arquitetura
+* componentes
+* páginas/telas
+* rotas
+* hooks
+* serviços
+* APIs
+* banco de dados
+* autenticação
+* autorização
+* gerenciamento de estado
+* gerenciamento de formulários
+* tratamento de erros
+* variáveis de ambiente
+* dependências
+* configurações
+* arquivos duplicados
+* código morto
+* código legado
+* funções muito grandes
+* componentes muito grandes
+* responsabilidades mal distribuídas
+* acoplamento excessivo
+* problemas de escalabilidade
+
+Identifique:
+
+* o que está bem feito
+* o que está aceitável
+* o que está ruim
+* o que é crítico
+* o que deveria ser refatorado
+
+Não faça elogios genéricos. Quero uma avaliação técnica real.
+
+---
+
+# 2. CODE QUALITY
+
+Revise o código procurando:
+
+* duplicação
+* funções complexas
+* componentes gigantes
+* lógica repetida
+* condições desnecessariamente complexas
+* nomes ruins
+* variáveis pouco claras
+* funções com responsabilidades demais
+* código difícil de manter
+* abstrações desnecessárias
+* abstrações ausentes
+* props excessivas
+* estados desnecessários
+* efeitos colaterais mal controlados
+* imports desnecessários
+* dependências desnecessárias
+* código morto
+* comentários que não agregam valor
+* inconsistência de padrões
+* problemas de TypeScript
+* uso excessivo de `any`
+* possíveis bugs silenciosos
+
+Avalie também se o código segue boas práticas modernas do stack utilizado.
+
+---
+
+# 3. ARQUITETURA
+
+Avalie se a arquitetura atual é adequada para o tamanho e objetivo do aplicativo.
+
+Analise:
+
+* separação de responsabilidades
+* camada de apresentação
+* camada de negócio
+* acesso a dados
+* serviços
+* componentes reutilizáveis
+* estado global
+* comunicação entre componentes
+* tratamento de erros
+* estrutura de APIs
+* gerenciamento de sessão
+* escalabilidade
+
+Procure especialmente por soluções que funcionam agora, mas podem causar problemas quando o número de usuários, eventos, registros ou telas aumentar.
+
+---
+
+# 4. FRONT-END
+
+Faça uma revisão profunda do front-end.
+
+Analise:
+
+### Componentização
+
+* componentes reutilizáveis
+* componentes gigantes
+* componentes acoplados
+* padrões inconsistentes
+* props excessivas
+
+### Estado
+
+* estados desnecessários
+* estados duplicados
+* problemas de sincronização
+* race conditions
+* estados que deveriam estar no servidor
+* estados que deveriam ser derivados
+
+### Formulários
+
+* validação
+* mensagens de erro
+* loading
+* submit duplicado
+* estados inconsistentes
+* perda de dados
+* acessibilidade
+
+### Feedback do sistema
+
+Verifique se o usuário sempre entende:
+
+* o que aconteceu
+* se uma ação foi concluída
+* se algo está carregando
+* se ocorreu um erro
+* o que precisa fazer
+* se uma alteração foi salva
+
+---
+
+# 5. UI/UX — FAÇA UMA ANÁLISE VISUAL CRÍTICA
+
+Avalie o aplicativo como um **Senior Product Designer**, não apenas como desenvolvedor.
+
+Quero uma análise extremamente crítica da interface.
+
+Avalie:
+
+* hierarquia visual
+* espaçamento
+* alinhamento
+* grid
+* tipografia
+* tamanhos
+* pesos
+* contraste
+* cores
+* consistência
+* bordas
+* sombras
+* radius
+* ícones
+* botões
+* inputs
+* tabelas
+* cards
+* modais
+* dropdowns
+* tabs
+* badges
+* tooltips
+* estados vazios
+* loading states
+* skeletons
+* mensagens de erro
+* mensagens de sucesso
+* navegação
+* responsividade
+
+Procure por qualquer coisa que faça o produto parecer:
+
+* genérico
+* amador
+* template
+* inconsistente
+* visualmente poluído
+* visualmente vazio
+* antigo
+* pouco profissional
+
+Avalie também se existe consistência visual entre todas as telas.
+
+### IMPORTANTE
+
+Não quero apenas saber se "funciona".
+
+Quero saber se a interface está em nível de um **produto SaaS profissional de alta qualidade**.
+
+Compare conceitualmente com padrões de produtos modernos como:
+
+* Linear
+* Notion
+* Stripe
+* Vercel
+* Airbnb
+* Asana
+* Figma
+
+Não copie esses produtos. Use-os apenas como referência de qualidade, consistência e maturidade.
+
+---
+
+# 6. UX DOS FLUXOS
+
+Percorra mentalmente os principais fluxos do aplicativo como se fosse um usuário real.
+
+Para cada fluxo, identifique:
+
+* quantidade de passos
+* cliques desnecessários
+* informações difíceis de encontrar
+* ações confusas
+* falta de feedback
+* navegação ruim
+* inconsistências
+* possibilidades de erro
+* perda de contexto
+* necessidade de voltar para telas anteriores
+* informações duplicadas
+* ações que poderiam ser automatizadas
+
+Procure oportunidades para reduzir:
+
+**cliques + decisões + esforço cognitivo.**
+
+---
+
+# 7. RESPONSIVIDADE
+
+Verifique todas as telas para:
+
+* desktop
+* notebook
+* tablet
+* mobile
+
+Procure:
+
+* overflow horizontal
+* tabelas quebradas
+* modais maiores que a tela
+* menus quebrados
+* botões cortados
+* textos quebrados
+* cards desproporcionais
+* grids inadequados
+* espaçamentos inconsistentes
+
+Não quero apenas "responsivo".
+
+Quero que cada breakpoint tenha uma experiência planejada.
+
+---
+
+# 8. ACESSIBILIDADE
+
+Faça uma auditoria de acessibilidade.
+
+Verifique:
+
+* contraste
+* navegação por teclado
+* foco
+* labels
+* aria attributes
+* semântica HTML
+* leitores de tela
+* tamanho dos elementos clicáveis
+* mensagens de erro acessíveis
+* modais
+* dropdowns
+* tooltips
+* navegação sem mouse
+
+Identifique problemas WCAG relevantes.
+
+---
+
+# 9. PERFORMANCE
+
+Analise:
+
+* renders desnecessários
+* queries repetidas
+* chamadas de API duplicadas
+* carregamento inicial
+* bundle
+* imagens
+* assets
+* lazy loading
+* cache
+* memoização
+* processamento no client
+* processamento no server
+* consultas ao banco
+* paginação
+* filtros
+* listas grandes
+* tabelas grandes
+
+Procure principalmente problemas que podem aparecer quando o aplicativo crescer.
+
+---
+
+# 10. BANCO DE DADOS
+
+Se houver banco de dados, revise:
+
+* estrutura das tabelas
+* relacionamentos
+* foreign keys
+* índices
+* queries
+* joins
+* filtros
+* paginação
+* constraints
+* integridade dos dados
+* duplicidade
+* transações
+* concorrência
+* migrations
+* seeds
+
+Procure problemas de performance e inconsistência de dados.
+
+---
+
+# 11. SEGURANÇA
+
+Faça uma revisão de segurança.
+
+Procure:
+
+* credenciais expostas
+* secrets no código
+* variáveis de ambiente mal utilizadas
+* endpoints sem proteção
+* falta de autorização
+* permissões incorretas
+* IDOR
+* SQL injection
+* XSS
+* CSRF
+* validação apenas no front-end
+* dados sensíveis expostos
+* logs contendo informações sensíveis
+* uploads inseguros
+* manipulação insegura de arquivos
+* problemas de autenticação
+* sessões
+* tokens
+* permissões por usuário/role
+
+Não altere mecanismos de autenticação ou autorização sem explicar primeiro o problema e o impacto.
+
+---
+
+# 12. TRATAMENTO DE ERROS
+
+Verifique todos os pontos onde algo pode falhar.
+
+Analise:
+
+* API offline
+* timeout
+* banco indisponível
+* dados inválidos
+* usuário sem permissão
+* sessão expirada
+* requisição duplicada
+* erro inesperado
+* formulário inválido
+* arquivo inválido
+
+As mensagens precisam ser:
+
+* claras
+* úteis
+* humanas
+* acionáveis
+
+Evite mensagens técnicas para o usuário final.
+
+---
+
+# 13. LOADING / EMPTY / ERROR STATES
+
+Todas as telas precisam ter estados bem definidos.
+
+Verifique:
+
+### Loading
+
+O usuário entende que algo está carregando?
+
+### Empty
+
+O usuário sabe o que fazer quando não existem dados?
+
+### Error
+
+O usuário sabe o que aconteceu e como resolver?
+
+### Success
+
+O usuário recebe confirmação adequada?
+
+### Disabled
+
+Fica claro por que determinada ação está indisponível?
+
+---
+
+# 14. REGRAS DE NEGÓCIO
+
+Analise cuidadosamente as regras existentes.
+
+Procure:
+
+* regras duplicadas
+* regras apenas no front-end
+* regras apenas no back-end quando deveriam ser compartilhadas
+* estados impossíveis
+* transições inválidas
+* permissões inconsistentes
+* possibilidade de contornar regras pela API
+* inconsistências entre telas
+
+Verifique se a interface realmente representa o estado real dos dados.
+
+---
+
+# 15. SEGURANÇA E PERMISSÕES POR PERFIL
+
+Se houver diferentes usuários/perfis, faça uma matriz:
+
+| Ação | Perfil | Permitido? | Implementação correta? |
+| ---- | ------ | ---------- | ---------------------- |
+
+Procure qualquer possibilidade de um usuário executar uma ação que não deveria.
+
+---
+
+# 16. TESTES E QA
+
+Avalie:
+
+* existência de testes
+* cobertura
+* testes unitários
+* testes de integração
+* testes E2E
+* cenários críticos
+* edge cases
+* regressões
+
+Liste os testes que deveriam existir.
+
+Crie uma lista de cenários críticos que precisam ser testados manualmente.
+
+---
+
+# 17. SEO E METADADOS
+
+Se fizer sentido para o aplicativo, revise:
+
+* title
+* meta description
+* Open Graph
+* favicon
+* URLs
+* acessibilidade
+* estrutura semântica
+
+---
+
+# 18. MICROINTERAÇÕES
+
+Avalie a experiência nos pequenos detalhes:
+
+* hover
+* focus
+* active
+* transitions
+* feedback de clique
+* animações
+* abertura de modal
+* fechamento de modal
+* loading
+* confirmação
+* toast
+* mudanças de estado
+
+As animações devem melhorar a experiência, não apenas existir.
+
+---
+
+# 19. CONSISTÊNCIA
+
+Faça uma auditoria global procurando inconsistências.
+
+Exemplos:
+
+* dois botões iguais com estilos diferentes
+* mesma ação com nomes diferentes
+* modais com estruturas diferentes
+* espaçamentos diferentes
+* cores diferentes para o mesmo significado
+* ícones diferentes para a mesma ação
+* mensagens com tons diferentes
+* componentes duplicados
+
+Crie uma lista de componentes/padrões que deveriam ser padronizados.
+
+---
+
+# 20. DESIGN SYSTEM
+
+Verifique se existe um design system coerente.
+
+Analise:
+
+* tokens
+* cores
+* tipografia
+* spacing
+* radius
+* shadows
+* componentes
+* estados
+* breakpoints
+
+Se não existir, identifique o que deveria ser transformado em componentes/tokens reutilizáveis.
+
+---
+
+# 21. DOCUMENTAÇÃO
+
+Analise:
+
+* README
+* instruções de instalação
+* variáveis de ambiente
+* arquitetura
+* endpoints
+* regras de negócio
+* instruções de deploy
+
+Identifique o que está faltando.
+
+---
+
+# 22. SCORE
+
+No final, dê uma nota de **0 a 10** para:
+
+* Arquitetura
+* Código
+* Front-end
+* UI
+* UX
+* Responsividade
+* Acessibilidade
+* Performance
+* Segurança
+* Banco de dados
+* Testes
+* Manutenibilidade
+* Qualidade geral
+
+Depois dê uma **nota geral do produto**.
+
+Não dê 10/10 por educação.
+
+Se houver problemas, seja crítico.
+
+---
+
+# 23. CLASSIFICAÇÃO DOS PROBLEMAS
+
+Classifique cada problema como:
+
+🔴 CRÍTICO
+Pode causar falha, perda de dados, vulnerabilidade ou problema grave de negócio.
+
+🟠 ALTO
+Impacta significativamente qualidade, UX, performance ou manutenção.
+
+🟡 MÉDIO
+Melhoria importante, mas não bloqueia o produto.
+
+🟢 BAIXO
+Polimento ou melhoria futura.
+
+---
+
+# 24. FORMATO DO RESULTADO
+
+Entregue o resultado nesta estrutura:
+
+## 1. Resumo executivo
+
+Explique em poucas linhas o estado atual do projeto.
+
+## 2. Nota geral
+
+X/10
+
+## 3. Pontos fortes
+
+Somente pontos realmente relevantes.
+
+## 4. Problemas críticos
+
+Lista detalhada.
+
+Para cada problema:
+
+* problema
+* arquivo/localização
+* impacto
+* causa
+* solução recomendada
+* prioridade
+
+## 5. UI/UX
+
+Faça uma análise visual extremamente crítica.
+
+Liste exatamente o que deveria ser melhorado.
+
+## 6. Arquitetura
+
+Problemas e recomendações.
+
+## 7. Código
+
+Problemas e recomendações.
+
+## 8. Performance
+
+Problemas e recomendações.
+
+## 9. Segurança
+
+Problemas e recomendações.
+
+## 10. Banco de dados
+
+Problemas e recomendações.
+
+## 11. Acessibilidade
+
+Problemas e recomendações.
+
+## 12. Testes
+
+O que está faltando e o que deveria ser testado.
+
+## 13. Design System
+
+O que precisa ser padronizado.
+
+## 14. Quick Wins
+
+Melhorias que podem ser feitas rapidamente e terão grande impacto.
+
+## 15. Melhorias estruturais
+
+Mudanças maiores que devem ser planejadas.
+
+## 16. Backlog priorizado
+
+Monte uma lista:
+
+| Prioridade | Problema | Impacto | Esforço | Recomendação |
+| ---------- | -------- | ------- | ------- | ------------ |
+
+## 17. Plano de ação
+
+Organize em:
+
+### Fase 1 — Crítico
+
+O que precisa ser corrigido imediatamente.
+
+### Fase 2 — Qualidade
+
+Melhorias importantes.
+
+### Fase 3 — UX/UI
+
+Polimento visual e experiência.
+
+### Fase 4 — Performance
+
+Otimizações.
+
+### Fase 5 — Refinamento
+
+Detalhes finais.
+
+---
+
+# 25. REGRA FINAL
+
+Quero que você seja **extremamente crítico**.
+
+Não diga que algo está bom apenas porque funciona.
+
+Pergunte para cada parte:
+
+> "Isso está realmente em nível profissional?"
+
+> "Existe uma solução mais simples?"
+
+> "Isso escala?"
+
+> "Isso é consistente com o restante do produto?"
+
+> "Um usuário novo entenderia isso sem explicação?"
+
+> "Isso parece um produto profissional ou um projeto feito às pressas?"
+
+> "Existe algum cenário em que isso quebra?"
+
+> "O que um Senior Engineer / Senior Product Designer apontaria?"
+
+Analise o projeto inteiro antes de concluir.
+
+**Não faça alterações durante a auditoria.**
+
+Primeiro entregue o diagnóstico completo e o backlog priorizado.
+
+Depois que eu aprovar, poderemos executar as correções por etapas.

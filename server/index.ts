@@ -92,23 +92,27 @@ app.use(sessionMiddleware);
 // with our content (sniffing MIME types, embedding in iframes, etc.).
 app.use((_req, res, next) => {
   res.setHeader("X-Content-Type-Options", "nosniff");
-  res.setHeader("X-Frame-Options", "DENY");
   res.setHeader("X-XSS-Protection", "1; mode=block");
   res.setHeader("Referrer-Policy", "same-origin");
   res.setHeader("X-DNS-Prefetch-Control", "off");
   // CSP — restricts which sources can load scripts/styles/frames.
   // 'unsafe-inline' is required for React (inline event handlers + style props).
-  // Tighten to nonce-based in a future hardening pass if XSS risk increases.
+  // In dev, frame-ancestors allows *.replit.dev so the Replit preview pane works.
+  // In production, frame-ancestors 'none' + X-Frame-Options: DENY block all embedding.
+  const isProd = process.env.NODE_ENV === "production";
+  if (isProd) {
+    res.setHeader("X-Frame-Options", "DENY");
+  }
   res.setHeader(
     "Content-Security-Policy",
     [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline'",
-      "style-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https:",
-      "font-src 'self' data:",
+      "font-src 'self' data: https://fonts.gstatic.com",
       "connect-src 'self' wss:",
-      "frame-ancestors 'none'",
+      isProd ? "frame-ancestors 'none'" : "frame-ancestors 'self' https://*.replit.dev https://*.replit.app https://*.repl.co",
     ].join("; ")
   );
   // HSTS — force HTTPS for 1 year (production only; dev uses HTTP).

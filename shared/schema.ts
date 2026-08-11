@@ -291,9 +291,10 @@ export const auditLogs = pgTable("audit_logs", {
   // A tabela só cresce e é lida ordenada por data (e filtrada por entidade) em
   // várias telas — sem índice o Postgres varre e ordena tudo a cada request.
   index("IDX_audit_logs_created_at").on(table.createdAt),
-  // Histórico por peça/evento (filtros por entityId são o caso mais comum).
-  index("IDX_audit_logs_entity_id").on(table.entityId),
   // Estoque e outras telas filtram por entityType + entityId juntos.
+  // Nota: índice standalone em entityId foi removido pois entity_id pode ser
+  // muito longo (>2704 bytes) em produção, estourando o limite btree.
+  // O índice composto abaixo cobre os casos de uso relevantes.
   index("IDX_audit_logs_entity_type_id").on(table.entityType, table.entityId),
 ]);
 

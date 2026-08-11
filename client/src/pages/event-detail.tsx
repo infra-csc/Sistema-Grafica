@@ -85,6 +85,13 @@ export default function EventDetail() {
   const [selectedItemForDetails, setSelectedItemForDetails] = useState<any | null>(null);
   const [itemSearch, setItemSearch] = useState("");
   const [showAllItems, setShowAllItems] = useState(false);
+  // Edição de Material/Acabamento: o <datalist> nativo filtra pelas letras já
+  // digitadas — na edição, o campo vem preenchido e o dropdown mostrava SÓ o
+  // valor atual, escondendo as demais opções. Trocado por <select> com todas
+  // as opções + modo "digitar novo" (flags abaixo) para manter a criação no
+  // catálogo ao salvar.
+  const [customMaterial, setCustomMaterial] = useState(false);
+  const [customFinish, setCustomFinish] = useState(false);
   const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
   const isMobile = useIsMobile();
   const { toast } = useToast();
@@ -685,6 +692,9 @@ export default function EventDetail() {
   const handleEditItem = (item: any) => {
     if (isEditBlocked(item.status)) return;
     setLocalRefPreview("");
+    // Volta os selects de Material/Acabamento ao modo lista a cada abertura.
+    setCustomMaterial(false);
+    setCustomFinish(false);
     setEditingItem(item);
     setFormData({
       type: item.type || "",
@@ -2361,19 +2371,34 @@ export default function EventDetail() {
               <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: "16px" }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>Material</label>
-                  <input
-                    list="edit-materials-list"
-                    value={formData.material}
-                    onChange={(e) => setFormData({ ...formData, material: e.target.value })}
-                    placeholder="Selecione ou escreva..."
-                    data-testid="input-edit-material"
-                    style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c", transition: "box-shadow 0.15s" }}
-                    onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
-                    onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
-                  />
-                  <datalist id="edit-materials-list">
-                    {materialOptions.map(m => <option key={m} value={m} />)}
-                  </datalist>
+                  {customMaterial ? (
+                    <input
+                      autoFocus
+                      value={formData.material}
+                      onChange={(e) => setFormData({ ...formData, material: e.target.value })}
+                      placeholder="Digite o novo material..."
+                      data-testid="input-edit-material"
+                      style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c" }}
+                    />
+                  ) : (
+                    <select
+                      value={materialOptions.includes(formData.material) ? formData.material : formData.material ? "__atual__" : ""}
+                      onChange={(e) => {
+                        if (e.target.value === "__novo__") { setFormData({ ...formData, material: "" }); setCustomMaterial(true); return; }
+                        if (e.target.value === "__atual__") return;
+                        setFormData({ ...formData, material: e.target.value });
+                      }}
+                      data-testid="input-edit-material"
+                      style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c", cursor: "pointer" }}
+                    >
+                      <option value="">— selecione —</option>
+                      {formData.material && !materialOptions.includes(formData.material) && (
+                        <option value="__atual__">{formData.material} (atual)</option>
+                      )}
+                      {materialOptions.map(m => <option key={m} value={m}>{m}</option>)}
+                      <option value="__novo__">+ Novo material...</option>
+                    </select>
+                  )}
                   {formData.material.trim() && !materialOptions.some(m => m.toLowerCase() === formData.material.trim().toLowerCase()) && (
                     <span style={{ fontSize: "11px", fontWeight: 600, color: "#b45309", display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
                       <Plus style={{ width: 12, height: 12, flexShrink: 0 }} /> Novo material — será criado no catálogo ao salvar
@@ -2382,19 +2407,34 @@ export default function EventDetail() {
                 </div>
                 <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                   <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>Acabamento</label>
-                  <input
-                    list="edit-finishes-list"
-                    value={formData.finish}
-                    onChange={(e) => setFormData({ ...formData, finish: e.target.value })}
-                    placeholder="Selecione ou escreva..."
-                    data-testid="input-edit-finish"
-                    style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c", transition: "box-shadow 0.15s" }}
-                    onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
-                    onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
-                  />
-                  <datalist id="edit-finishes-list">
-                    {finishOptions.map(f => <option key={f} value={f} />)}
-                  </datalist>
+                  {customFinish ? (
+                    <input
+                      autoFocus
+                      value={formData.finish}
+                      onChange={(e) => setFormData({ ...formData, finish: e.target.value })}
+                      placeholder="Digite o novo acabamento..."
+                      data-testid="input-edit-finish"
+                      style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c" }}
+                    />
+                  ) : (
+                    <select
+                      value={finishOptions.includes(formData.finish) ? formData.finish : formData.finish ? "__atual__" : ""}
+                      onChange={(e) => {
+                        if (e.target.value === "__novo__") { setFormData({ ...formData, finish: "" }); setCustomFinish(true); return; }
+                        if (e.target.value === "__atual__") return;
+                        setFormData({ ...formData, finish: e.target.value });
+                      }}
+                      data-testid="input-edit-finish"
+                      style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c", cursor: "pointer" }}
+                    >
+                      <option value="">— selecione —</option>
+                      {formData.finish && !finishOptions.includes(formData.finish) && (
+                        <option value="__atual__">{formData.finish} (atual)</option>
+                      )}
+                      {finishOptions.map(f => <option key={f} value={f}>{f}</option>)}
+                      <option value="__novo__">+ Novo acabamento...</option>
+                    </select>
+                  )}
                   {formData.finish.trim() && !finishOptions.some(f => f.toLowerCase() === formData.finish.trim().toLowerCase()) && (
                     <span style={{ fontSize: "11px", fontWeight: 600, color: "#065f46", display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
                       <Plus style={{ width: 12, height: 12, flexShrink: 0 }} /> Novo acabamento — será criado no catálogo ao salvar

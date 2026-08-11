@@ -18,48 +18,26 @@ import { SponsorChips } from "@/components/sponsor-chips";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { getStatusMeta } from "@/lib/status";
 
-// ─── Status config ────────────────────────────────────────
-const STATUS_CONFIG: Record<string, { label: string; dot: string; bg: string; color: string; border: string }> = {
-  draft:                 { label: "Rascunho",           dot: "#78716c", bg: "#f5f5f4", color: "#746e69", border: "#e7e5e4" },
-  requested:             { label: "Solicitado",         dot: "#f97316", bg: "#fff7ed", color: "#f97316", border: "#fef3c7" },
-  awaiting_linking:      { label: "Aguard. Vinculação", dot: "#78716c", bg: "#f5f5f4", color: "#746e69", border: "#e7e5e4" },
-  awaiting_submission:   { label: "Aguard. Envio",      dot: "#0ea5e9", bg: "#f0f9ff", color: "#0ea5e9", border: "#e0f2fe" },
-  awaiting_approval:     { label: "Aguard. Aprovação",  dot: "#f97316", bg: "#fff7ed", color: "#f97316", border: "#fef3c7" },
-  awaiting_sponsor_approval: { label: "Aguard. Aprovação", dot: "#f97316", bg: "#fff7ed", color: "#f97316", border: "#fef3c7" },
-  awaiting_finalization: { label: "Aguard. Finalização",dot: "#a855f7", bg: "#faf5ff", color: "#a855f7", border: "#ede9fe" },
-  sponsor_approved:      { label: "Aguard. Finalização",dot: "#a855f7", bg: "#faf5ff", color: "#a855f7", border: "#ede9fe" },
-  awaiting_final_review: { label: "Aguard. Revisão",    dot: "#d946ef", bg: "#fdf4ff", color: "#d946ef", border: "#fae8ff" },
-  awaiting_creator_review: { label: "Aguard. Finalização", dot: "#a855f7", bg: "#faf5ff", color: "#a855f7", border: "#ede9fe" },
-  ready_for_production:  { label: "Pronto Produção",    dot: "#10b981", bg: "#f0fdf4", color: "#10b981", border: "#dcfce7" },
-  // pronto_para_producao: mesmo conceito de ready_for_production (a dispensa da
-  // Arte grava esse valor em português). Sem esta entrada o item mostrava o
-  // texto cru "pronto_para_producao" na tabela e não entrava em nenhum card.
-  pronto_para_producao:  { label: "Pronto Produção",    dot: "#10b981", bg: "#f0fdf4", color: "#10b981", border: "#dcfce7" },
-  approved:              { label: "Liberado",           dot: "#15803d", bg: "#f0fdf4", color: "#15803d", border: "#dcfce7" },
-  inProduction:          { label: "Em Produção",        dot: "#f59e0b", bg: "#fff7ed", color: "#f59e0b", border: "#fef3c7" },
-  produced:              { label: "Produzido",          dot: "#ec4899", bg: "#fdf2f8", color: "#ec4899", border: "#fce7f3" },
-  conferred:             { label: "Conferido",          dot: "#0e7490", bg: "#ecfeff", color: "#0e7490", border: "#a5f3fc" },
-  delivered:             { label: "Entregue",           dot: "#15803d", bg: "#f0fdf4", color: "#15803d", border: "#dcfce7" },
-  canceled:              { label: "Cancelado",          dot: "#ef4444", bg: "#fef2f2", color: "#ef4444", border: "#fecaca" },
-  deleted:               { label: "Excluído",           dot: "#dc2626", bg: "#fef2f2", color: "#dc2626", border: "#fecaca" },
-};
-
+// Cores/rótulos de status vêm de lib/status.ts (fonte única) — antes havia um
+// STATUS_CONFIG local que divergia do status-badge (mesma peça, cor/nome
+// diferentes por tela). Usa o rótulo curto para manter a densidade da tabela.
 function StatusPill({ status }: { status: string }) {
-  const cfg = STATUS_CONFIG[status] || { label: status, dot: "#a8a29e", bg: "#f5f5f4", color: "#746e69", border: "#e7e5e4" };
+  const cfg = getStatusMeta(status);
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 6,
       padding: "3px 10px",
       backgroundColor: cfg.bg,
-      color: cfg.color,
+      color: cfg.text,
       border: `1px solid ${cfg.border}`,
       borderRadius: 999,
       fontSize: 11, fontWeight: 700,
       whiteSpace: "nowrap",
     }}>
       <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: cfg.dot, flexShrink: 0 }} />
-      {cfg.label}
+      {cfg.short}
     </span>
   );
 }

@@ -12,6 +12,7 @@ import {
 import { format, subDays, subMonths, isAfter, differenceInHours } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useLocation } from "wouter";
+import { getStatusLabel } from "@/lib/status";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 /* ── Palette ── */
@@ -49,23 +50,16 @@ const WF_GROUPS = [
 ];
 
 /* ── Status labels ── */
-const STATUS_LABELS: Record<string, string> = {
-  requested:             "Rascunho",
-  awaiting_linking:      "Aguard. Vinculação",
-  awaiting_submission:   "Aguard. Envio",
-  awaiting_approval:     "Aguard. Aprovação",
-  awaiting_sponsor_approval: "Aguard. Aprovação",
-  sponsor_approved:      "Aguard. Finalização",
-  awaiting_finalization: "Aguard. Finalização",
-  awaiting_creator_review: "Aguard. Finalização",
-  awaiting_final_review: "Aguard. Revisão",
-  ready_for_production:  "Pronto p/ Prod.",
-  pronto_para_producao:  "Pronto p/ Prod.",
-  approved:              "Liberado",
-  inProduction:          "Em Produção",
-  produced:              "Produzido",
-  delivered:             "Entregue",
-};
+// Opções do filtro de status — rótulos derivam de lib/status.ts (fonte única).
+// Lista canônica, sem os status "legacy" duplicados que geravam entradas
+// repetidas no dropdown; inclui "Conferido", que faltava.
+const STATUS_LABELS: Record<string, string> = Object.fromEntries(
+  [
+    "requested", "awaiting_linking", "awaiting_submission", "awaiting_approval",
+    "awaiting_finalization", "awaiting_final_review", "ready_for_production",
+    "approved", "inProduction", "produced", "conferred", "delivered",
+  ].map((k) => [k, getStatusLabel(k)]),
+);
 
 /* ── Select style — editorial border-bottom only ── */
 const selStyle: React.CSSProperties = {

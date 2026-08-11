@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
+import { getStatusLabel } from "@/lib/status";
 import {
   Calendar, ClipboardList, FileText, History,
   Edit, Save, X, Link2, Palette, CheckCircle, Zap, Eye, Cog, Check,
@@ -47,23 +48,7 @@ const STATUS_STEP: Record<string, number> = {
   produced: 6, conferred: 6, delivered: 6,
 };
 
-const STATUS_LABELS: Record<string, string> = {
-  requested: "Rascunho",
-  awaiting_linking: "Aguard. Vinculação",
-  awaiting_submission: "Aguard. Envio",
-  awaiting_approval: "Aguard. Aprovação",
-  awaiting_sponsor_approval: "Aguard. Aprovação",
-  awaiting_finalization: "Aguard. Finalização",
-  sponsor_approved: "Aguard. Finalização",
-  awaiting_final_review: "Aguard. Revisão Final",
-  awaiting_creator_review: "Aguard. Finalização",
-  ready_for_production: "Pronto p/ Produção",
-  approved: "Liberado",
-  inProduction: "Em Produção",
-  produced: "Produzido",
-  conferred: "Conferido",
-  delivered: "Entregue",
-};
+// Rótulos de status vêm de lib/status.ts (fonte única).
 
 /**
  * Nome legível do arquivo. Os uploads ficam no storage com UUID, que não diz
@@ -498,7 +483,7 @@ export function ItemDetailsDialog({
               </span>
               {/* Status + tag pills inline */}
               <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(253,118,26,0.2)", color: "#fd761a", border: "1px solid rgba(253,118,26,0.3)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                {STATUS_LABELS[rawStatus] || rawStatus}
+                {getStatusLabel(rawStatus)}
               </span>
               {(item.isReuse || item.reuseQty > 0) && (
                 <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(22,101,52,0.3)", color: "#4ade80", border: "1px solid rgba(22,101,52,0.4)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>

@@ -4,6 +4,7 @@ import { Calendar, CheckCircle2, Package, Truck, Clock, User, MapPin } from "luc
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Item } from "@shared/schema";
+import { getStatusLabel } from "@/lib/status";
 
 interface ItemTimelineDialogProps {
   item: Item | null;
@@ -44,17 +45,6 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
       case 'produced': return 'bg-status-production';
       case 'delivered': return 'bg-status-completed';
       default: return 'bg-muted';
-    }
-  };
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'requested': return 'Solicitado';
-      case 'approved': return 'Liberado';
-      case 'inProduction': return 'Em Produção';
-      case 'produced': return 'Produzido';
-      case 'delivered': return 'Entregue';
-      default: return status;
     }
   };
 

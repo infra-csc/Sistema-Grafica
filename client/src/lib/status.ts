@@ -80,7 +80,9 @@ export const STATUS: Record<string, StatusMeta> = {
   deleted:               meta("Excluído",               "Excluído",       P.red, XCircle),
   // ── Status de EVENTO ──
   created:               meta("Criado",                 "Criado",         P.amber, Clock),
-  completed:             meta("Finalizado",             "Finalizado",     P.green, CheckCircle),
+  // "Concluído": termo usado na lista de eventos (chips/badges) — o badge do
+  // detalhe usa este mesmo rótulo para não divergir.
+  completed:             meta("Concluído",              "Concluído",      P.green, CheckCircle),
 };
 
 // Fallback seguro para qualquer status desconhecido (ex.: valor legado novo).

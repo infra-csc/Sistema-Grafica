@@ -211,8 +211,15 @@ export default function EventDetail() {
   });
 
   // Buscar audit logs para histórico
+  // Audit log SÓ da peça aberta no modal, sob demanda — antes baixava a tabela
+  // inteira de auditoria no load da página (mesmo passivo já removido do
+  // Painel Geral; o modal filtra por entityId internamente).
   const { data: auditLogs = [] } = useQuery<any[]>({
-    queryKey: ["/api/audit-logs"],
+    queryKey: ["/api/audit-logs", "item", selectedItemForDetails?.id],
+    queryFn: () =>
+      fetch(`/api/audit-logs?entityType=item&entityId=${selectedItemForDetails!.id}`, { credentials: "include" })
+        .then(r => r.json()),
+    enabled: !!selectedItemForDetails?.id,
     placeholderData: (previousData: any) => previousData,
     refetchOnWindowFocus: false,
   });
@@ -854,12 +861,17 @@ export default function EventDetail() {
             <p style={{ color: '#9D978F', fontSize: '11px', fontWeight: '500', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 8px 0' }}>
               Criado em {new Date(event.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </p>
-            <h1
-              data-testid="title-event-name"
-              style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 800, letterSpacing: '-0.04em', textTransform: 'uppercase', color: '#1F1D1A', lineHeight: 1.05, margin: 0 }}
-            >
-              {event.name}
-            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <h1
+                data-testid="title-event-name"
+                style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 800, letterSpacing: '-0.04em', textTransform: 'uppercase', color: '#1F1D1A', lineHeight: 1.05, margin: 0 }}
+              >
+                {event.name}
+              </h1>
+              {/* Status do evento ao lado do nome — paridade com o card da
+                  lista (lá o badge existe; aqui o status ficava invisível). */}
+              <StatusBadge status={event.status} />
+            </div>
           </div>
           <div className="flex gap-2 flex-wrap">
             {/* Importar Excel */}
@@ -1340,9 +1352,16 @@ export default function EventDetail() {
           const nextIndex = milestones.findIndex(m => !m.isPast);
           const progressFrac = nextIndex === -1 ? 1 : nextIndex === 0 ? 0 : nextIndex / (milestones.length - 1);
 
-          const countdownColor = countdownDays < 0 ? '#B84040' : countdownDays <= 3 ? TI.attention : TI.secondary;
+          // Evento encerrado (concluído ou já iniciado) é HISTÓRIA: a saída no
+          // passado não é "atraso" — o caminhão já foi. Mostrar "Atrasado 90d"
+          // em vermelho num evento finalizado é alarme falso que ensina o
+          // usuário a ignorar o vermelho de verdade.
+          const isHistorical = event.status === 'completed' || parseDateLocal(event.startDate) < today;
+          const countdownColor = isHistorical
+            ? TI.secondary
+            : countdownDays < 0 ? '#B84040' : countdownDays <= 3 ? TI.attention : TI.secondary;
           const countdownText = countdownDays < 0
-            ? `Atrasado ${Math.abs(countdownDays)}d`
+            ? (isHistorical ? `Saiu há ${Math.abs(countdownDays)}d` : `Atrasado ${Math.abs(countdownDays)}d`)
             : countdownDays === 0 ? 'Hoje'
             : `Faltam ${countdownDays} dia${countdownDays !== 1 ? 's' : ''}`;
 
@@ -1451,8 +1470,16 @@ export default function EventDetail() {
                         dotBg = '#FDF0E8'; dotBorder = TI.attention; dotSize = 14;
                         labelCol = TI.attention; dateCol = TI.attention; labelW = 600;
                       } else if (isPast) {
-                        dotBg = '#D8D4CE'; dotBorder = '#D8D4CE'; dotSize = 10;
-                        labelCol = '#B8B2A8'; dateCol = '#B8B2A8'; labelW = 500;
+                        // Evento encerrado: prazos passados viram "cumpridos"
+                        // (verde suave) em vez de cinza apagado — a agenda de um
+                        // evento finalizado conta história, não pendência.
+                        if (isHistorical) {
+                          dotBg = '#d1fae5'; dotBorder = '#10b981'; dotSize = 12;
+                          labelCol = '#6b7f75'; dateCol = '#0f766e'; labelW = 500;
+                        } else {
+                          dotBg = '#D8D4CE'; dotBorder = '#D8D4CE'; dotSize = 10;
+                          labelCol = '#B8B2A8'; dateCol = '#B8B2A8'; labelW = 500;
+                        }
                       } else {
                         dotBg = TI.card; dotBorder = TI.line; dotSize = 12;
                         labelCol = TI.secondary; dateCol = TI.secondary; labelW = 500;
@@ -1766,7 +1793,8 @@ export default function EventDetail() {
       {/* Itens agrupados por tipo em seções */}
       {items.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '64px 0' }}>
-          <AlertCircle className="h-12 w-12 mx-auto mb-4" style={{ color: '#a8a29e' }} />
+          {/* Package (não AlertCircle): lista vazia é situação neutra, não alerta. */}
+          <Package className="h-12 w-12 mx-auto mb-4" style={{ color: '#a8a29e' }} />
           <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#1c1917', marginBottom: '8px' }}>Nenhum item adicionado</h3>
           <p style={{ color: '#746e69', marginBottom: '16px', fontSize: '15px' }}>Adicione itens ao evento para começar</p>
           <button

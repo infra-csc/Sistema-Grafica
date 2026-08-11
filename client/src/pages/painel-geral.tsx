@@ -18,7 +18,7 @@ import { SponsorChips } from "@/components/sponsor-chips";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { getStatusMeta } from "@/lib/status";
+import { getStatusMeta, getStatusLabel } from "@/lib/status";
 
 // Cores/rótulos de status vêm de lib/status.ts (fonte única) — antes havia um
 // STATUS_CONFIG local que divergia do status-badge (mesma peça, cor/nome
@@ -315,17 +315,31 @@ export default function PainelGeral() {
           </div>
         </div>
 
-        <StatusCard label="Rascunho"            value={stats.requested}            dot="#f97316" color="#f97316" filterKey="requested" />
-        <StatusCard label="Aguard. Vinculação" value={stats.awaitingLinking}      dot="#78716c" color="#78716c" filterKey="awaiting_linking" />
-        <StatusCard label="Aguard. Envio"      value={stats.awaitingSubmission}   dot="#0ea5e9" color="#0ea5e9" filterKey="awaiting_submission" />
-        <StatusCard label="Aguard. Aprovação"  value={stats.awaitingApproval}     dot="#f97316" color="#f97316" filterKey="awaiting_approval" />
-        <StatusCard label="Aguard. Finalização" value={stats.awaitingFinalization} dot="#a855f7" color="#a855f7" filterKey="awaiting_finalization" />
-        <StatusCard label="Aguard. Revisão"    value={stats.awaitingFinalReview}  dot="#d946ef" color="#d946ef" filterKey="awaiting_final_review" />
-        <StatusCard label="Pronto Produção"    value={stats.readyForProduction}   dot="#10b981" color="#10b981" filterKey="ready_for_production" />
-        <StatusCard label="Em Produção"        value={stats.inProduction}         dot="#f59e0b" color="#f59e0b" filterKey="inProduction" />
-        <StatusCard label="Produzido"          value={stats.produced}             dot="#ec4899" color="#ec4899" filterKey="produced" />
-        <StatusCard label="Conferido"          value={stats.conferred}            dot="#0e7490" color="#0e7490" filterKey="conferred" />
-        <StatusCard label="Entregue"           value={stats.delivered}            dot="#15803d" color="#15803d" filterKey="delivered" />
+        {/* Rótulo e cores derivam de lib/status.ts (fonte única). Antes eram
+            hardcoded e divergiam da tabela logo abaixo: o card dizia
+            "Rascunho" (laranja) enquanto os mesmos itens apareciam nos pills
+            como "Solicitado" (azul) — o usuário procurava "Rascunho" na
+            tabela e não achava nenhum. */}
+        {([
+          ["requested",            stats.requested],
+          ["awaiting_linking",     stats.awaitingLinking],
+          ["awaiting_submission",  stats.awaitingSubmission],
+          ["awaiting_approval",    stats.awaitingApproval],
+          ["awaiting_finalization",stats.awaitingFinalization],
+          ["awaiting_final_review",stats.awaitingFinalReview],
+          ["ready_for_production", stats.readyForProduction],
+          ["inProduction",         stats.inProduction],
+          ["produced",             stats.produced],
+          ["conferred",            stats.conferred],
+          ["delivered",            stats.delivered],
+        ] as Array<[string, number]>).map(([key, value]) => {
+          const m = getStatusMeta(key);
+          // dot = tom saturado (bolinha/borda); color = tom escuro AA (número
+          // ativo e selo "Filtrado" — a cor saturada reprovava contraste).
+          return (
+            <StatusCard key={key} label={m.short} value={value} dot={m.dot} color={m.text} filterKey={key} />
+          );
+        })}
       </section>
 
       {/* ── Filter toolbar ── */}
@@ -397,17 +411,15 @@ export default function PainelGeral() {
             values={statusFilter} onValuesChange={setStatusFilter}
             hideWhenEmpty={false}
             options={[
-              { value: "requested",              label: "Rascunho",           pinned: true },
-              { value: "awaiting_linking",        label: "Aguard. Vinculação", pinned: true },
-              { value: "awaiting_submission",     label: "Aguard. Envio",      pinned: true },
-              { value: "awaiting_approval",       label: "Aguard. Aprovação",  pinned: true },
-              { value: "awaiting_finalization",   label: "Aguard. Finalização",pinned: true },
-              { value: "awaiting_final_review",   label: "Aguard. Revisão",    pinned: true },
-              { value: "ready_for_production",    label: "Pronto p/ Produção", pinned: true },
-              { value: "inProduction",            label: "Em Produção",        pinned: true },
-              { value: "produced",                label: "Produzido",          pinned: true },
-              { value: "conferred",               label: "Conferido",          pinned: true },
-              { value: "delivered",               label: "Entregue",           pinned: true },
+              // Rótulos derivam de lib/status.ts (fonte única) — o hardcoded
+              // anterior chamava `requested` de "Rascunho", divergindo dos
+              // pills da tabela ("Solicitado").
+              ...[
+                "requested", "awaiting_linking", "awaiting_submission",
+                "awaiting_approval", "awaiting_finalization", "awaiting_final_review",
+                "ready_for_production", "inProduction", "produced",
+                "conferred", "delivered",
+              ].map((value) => ({ value, label: getStatusLabel(value), pinned: true })),
               ...(canDeleteAny ? [{ value: "deleted", label: "Excluídos", pinned: true }] : []),
             ]}
             testId="select-status-filter"

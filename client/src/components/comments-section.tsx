@@ -164,7 +164,12 @@ export function CommentsSection({ itemId, itemType }: CommentsSectionProps) {
                     variant="ghost"
                     size="icon"
                     className="h-7 w-7 shrink-0"
-                    onClick={() => deleteMutation.mutate(comment.id)}
+                    onClick={() => {
+                      // Exclusão é permanente e a lixeira aceita 1 clique — sem
+                      // esta confirmação era a ação irreversível mais fácil da tela.
+                      if (!window.confirm("Excluir este comentário permanentemente?")) return;
+                      deleteMutation.mutate(comment.id);
+                    }}
                     disabled={deleteMutation.isPending}
                     data-testid={`button-delete-comment-${comment.id}`}
                   >

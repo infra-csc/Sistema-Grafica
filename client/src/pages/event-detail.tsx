@@ -973,7 +973,7 @@ export default function EventDetail() {
                     <DialogDescription style={{ fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69', marginTop: '2px' }}>
                       {editingItem
                         ? (editingItem.description ? editingItem.description : "Editar peça de produção")
-                        : (bulkMode ? "Modo Lote — NORTE Apex" : (formData.type ? "Nova peça de produção" : "Selecione o tipo para começar"))}
+                        : (bulkMode ? "Modo Lote — entrada rápida de peças" : (formData.type ? "Nova peça de produção" : "Selecione o tipo para começar"))}
                     </DialogDescription>
                   </div>
                   {!editingItem && (

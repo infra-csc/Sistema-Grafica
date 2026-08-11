@@ -232,7 +232,9 @@ function TipoSelect({ value, groupedOptions, onChange, rowIndex, onNavigateNext 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
 /** Linha pronta para virar peça — mesma regra usada no envio e no contador. */
 function isRowComplete(r: BulkItemRow): boolean {
-  return !!(r.type && parseFloat(r.quantity) > 0 &&
+  // Quantidade: inteiro ≥ 1. Antes validava parseFloat > 0 mas o envio usa
+  // parseInt — "0.5" passava como válida e gravava peça com quantity 0.
+  return !!(r.type && Number.isInteger(Number(r.quantity)) && Number(r.quantity) >= 1 &&
     parseFloat(r.visualWidth) > 0 && parseFloat(r.visualHeight) > 0 &&
     parseFloat(r.fileWidth) > 0 && parseFloat(r.fileHeight) > 0 &&
     r.material && r.finish);
@@ -1035,12 +1037,16 @@ export function BulkItemEntry({
                 </button>
                 <button
                   type="button"
+                  // disabled durante o envio: sem a guarda, dois cliques rápidos
+                  // antes do re-render disparavam onSubmit duas vezes — lote duplicado.
+                  disabled={isPending}
                   onClick={() => { setDuplicateConfirm(null); onSubmit(duplicateConfirm.valid, leftoverCount); }}
                   style={{
                     padding: '9px 22px',
                     background: 'linear-gradient(135deg, #2E2A26 0%, #1F1D1A 100%)',
                     border: 'none', borderRadius: '8px', color: '#fff',
-                    fontSize: '13px', fontWeight: '800', cursor: 'pointer',
+                    opacity: isPending ? 0.6 : 1,
+                    fontSize: '13px', fontWeight: '800', cursor: isPending ? 'wait' : 'pointer',
                     fontFamily: "'Space Grotesk', sans-serif",
                     textTransform: 'uppercase', letterSpacing: '0.07em',
                     display: 'flex', alignItems: 'center', gap: '8px',
@@ -1128,7 +1134,7 @@ export function BulkItemEntry({
                       type="number" min="1"
                       value={row.quantity}
                       onChange={e => updateRow(row.id, 'quantity', e.target.value)}
-                      style={{ ...fieldStyle, textAlign: 'center' }}
+                      style={errStyle(row.quantity, { ...fieldStyle, textAlign: 'center' }, !!(row.type || row.material || row.finish || row.description))}
                       data-nav-row={ri} data-nav-field="2"
                       data-testid={`input-quantity-${ri}`}
                       {...navHandlers(ri, 2)}
@@ -1142,7 +1148,7 @@ export function BulkItemEntry({
                       value={row.visualWidth}
                       onChange={e => updateRow(row.id, 'visualWidth', e.target.value)}
                       placeholder="0.00"
-                      style={{ ...fieldStyle, textAlign: 'center' }}
+                      style={errStyle(row.visualWidth, { ...fieldStyle, textAlign: 'center' }, !!(row.type || row.material || row.finish || row.description))}
                       data-nav-row={ri} data-nav-field="3"
                       data-testid={`input-visual-width-${ri}`}
                       {...navHandlers(ri, 3)}
@@ -1156,7 +1162,7 @@ export function BulkItemEntry({
                       value={row.visualHeight}
                       onChange={e => updateRow(row.id, 'visualHeight', e.target.value)}
                       placeholder="0.00"
-                      style={{ ...fieldStyle, textAlign: 'center' }}
+                      style={errStyle(row.visualHeight, { ...fieldStyle, textAlign: 'center' }, !!(row.type || row.material || row.finish || row.description))}
                       data-nav-row={ri} data-nav-field="4"
                       data-testid={`input-visual-height-${ri}`}
                       {...navHandlers(ri, 4)}
@@ -1170,7 +1176,7 @@ export function BulkItemEntry({
                       value={row.fileWidth}
                       onChange={e => updateRow(row.id, 'fileWidth', e.target.value)}
                       placeholder="0.00"
-                      style={{ ...fieldStyle, textAlign: 'center' }}
+                      style={errStyle(row.fileWidth, { ...fieldStyle, textAlign: 'center' }, !!(row.type || row.material || row.finish || row.description))}
                       data-nav-row={ri} data-nav-field="5"
                       data-testid={`input-file-width-${ri}`}
                       {...navHandlers(ri, 5)}
@@ -1184,7 +1190,7 @@ export function BulkItemEntry({
                       value={row.fileHeight}
                       onChange={e => updateRow(row.id, 'fileHeight', e.target.value)}
                       placeholder="0.00"
-                      style={{ ...fieldStyle, textAlign: 'center' }}
+                      style={errStyle(row.fileHeight, { ...fieldStyle, textAlign: 'center' }, !!(row.type || row.material || row.finish || row.description))}
                       data-nav-row={ri} data-nav-field="6"
                       data-testid={`input-file-height-${ri}`}
                       {...navHandlers(ri, 6)}
@@ -1370,7 +1376,14 @@ export function BulkItemEntry({
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
             type="button"
-            onClick={onCancel}
+            onClick={() => {
+              // Grid com conteúdo digitado: confirmar antes de descartar — o
+              // Esc e o clique-fora já são bloqueados; este era o único caminho
+              // que jogava o trabalho fora sem perguntar.
+              const hasContent = rows.some(r => r.type || r.description || r.material || r.finish || r.visualWidth || r.fileWidth);
+              if (hasContent && !window.confirm("Descartar as peças digitadas neste lote?")) return;
+              onCancel();
+            }}
             style={{
               padding: '9px 20px', background: 'none', border: 'none',
               color: '#746e69', fontSize: '13px', fontWeight: '600',

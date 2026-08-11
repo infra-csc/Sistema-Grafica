@@ -1,4 +1,5 @@
 import { Copy, Loader2 } from "lucide-react";
+import { getStatusLabel } from "@/lib/status";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -80,7 +81,7 @@ export function CloneItemsDialog({
                 <p style={{ fontSize: 11, fontWeight: 700, color: '#3730a3', margin: '0 0 2px' }}>O que será copiado</p>
                 <p style={{ fontSize: 11, color: '#4338ca', margin: 0, lineHeight: 1.5 }}>
                   Todos os itens do evento selecionado serão adicionados a <strong>{eventName}</strong>.<br />
-                  Status: <strong>Solicitado</strong> · Patrocinadores e aprovações <strong>não</strong> serão copiados.
+                  Status: <strong>{getStatusLabel("requested")}</strong> · Patrocinadores e aprovações <strong>não</strong> serão copiados.
                 </p>
               </div>
             </div>

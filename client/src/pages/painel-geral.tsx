@@ -267,7 +267,7 @@ export default function PainelGeral() {
           <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: isActive ? color : "#1c1917", lineHeight: 1, margin: 0, letterSpacing: "-.05em" }}>{value}</p>
           <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#746e69", marginTop: 4, lineHeight: 1.2 }}>{label}</p>
           {sub && (
-            <p style={{ fontSize: 9, fontWeight: 600, color: "#a8a29e", marginTop: 2, lineHeight: 1.2 }}>{sub}</p>
+            <p style={{ fontSize: 9, fontWeight: 600, color: "#746e69", marginTop: 2, lineHeight: 1.2 }}>{sub}</p>
           )}
         </div>
       </div>
@@ -333,7 +333,7 @@ export default function PainelGeral() {
 
         {/* ZONA 1 — Entrada */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#a8a29e", paddingLeft: 2 }}>Entrada</span>
+          <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69", paddingLeft: 2 }}>Entrada</span>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, flex: 1 }}>
 
         {/* Total card — dark */}
@@ -385,7 +385,7 @@ export default function PainelGeral() {
 
         {/* ZONA 2 — Aprovação */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#a8a29e", paddingLeft: 2 }}>Aprovação</span>
+          <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69", paddingLeft: 2 }}>Aprovação</span>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 10, flex: 1 }}>
             {([
               ["awaiting_submission",  stats.awaitingSubmission],
@@ -401,7 +401,7 @@ export default function PainelGeral() {
 
         {/* ZONA 3 — Produção & Entrega (linha inteira no desktop) */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6, ...(!isMobile && { gridColumn: "1 / -1" }) }}>
-          <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#a8a29e", paddingLeft: 2 }}>Produção &amp; Entrega</span>
+          <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69", paddingLeft: 2 }}>Produção &amp; Entrega</span>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3,1fr)" : "repeat(5,1fr)", gap: 10, flex: 1 }}>
             {([
               ["ready_for_production", stats.readyForProduction],

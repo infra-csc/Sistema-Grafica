@@ -99,6 +99,10 @@ const UI_STATUS_LABEL: Record<string, string> = {
   ENVIADO: 'Enviado',
 };
 
+// Renderização incremental (padrão da casa, como arte.tsx/painel-geral):
+// tabelas grandes rendem só as primeiras 50 linhas + "Mostrar todos".
+const ITEM_RENDER_CAP = 50;
+
 // URLs de referência vêm de input de usuário: só http(s) ou caminho relativo
 // pode chegar a href/src — "javascript:..." executava no clique (XSS).
 const safeRefUrl = (u?: string | null): string | null =>
@@ -162,14 +166,21 @@ export default function VincularPatrocinadores() {
   // Estado para dialog de detalhes do item
   const [selectedItemForDetails, setSelectedItemForDetails] = useState<any>(null);
   
-  // Estados de filtro
-  const [searchQuery, setSearchQuery] = useState("");
-  // Persiste o filtro de evento para não refazer a filtragem ao navegar e voltar.
-  const [eventFilter, setEventFilter] = useState<string[]>(() => { try { return JSON.parse(sessionStorage.getItem("vincular:eventFilter") || "[]"); } catch { return []; } });
+  // Estados de filtro — inicializam da URL (link compartilhável, padrão da
+  // casa como painel-geral/eventos), com fallback do sessionStorage para o
+  // filtro de evento (comportamento antigo de navegar e voltar).
+  const initParams = useRef(new URLSearchParams(window.location.search)).current;
+  const listParam = (k: string) => { const v = initParams.get(k); return v ? v.split(",").filter(Boolean) : []; };
+  const [searchQuery, setSearchQuery] = useState(initParams.get("q") ?? "");
+  const [eventFilter, setEventFilter] = useState<string[]>(() => {
+    const fromUrl = listParam("ev");
+    if (fromUrl.length) return fromUrl;
+    try { return JSON.parse(sessionStorage.getItem("vincular:eventFilter") || "[]"); } catch { return []; }
+  });
   useEffect(() => { sessionStorage.setItem("vincular:eventFilter", JSON.stringify(eventFilter)); }, [eventFilter]);
-  const [sponsorFilter, setSponsorFilter] = useState<string[]>([]);
-  const [itemFilter, setItemFilter] = useState<string[]>([]);
-  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [sponsorFilter, setSponsorFilter] = useState<string[]>(() => listParam("sp"));
+  const [itemFilter, setItemFilter] = useState<string[]>(() => listParam("tp"));
+  const [statusFilter, setStatusFilter] = useState<string[]>(() => listParam("st"));
   const [sponsorComboOpen, setSponsorComboOpen] = useState(false);
   const [eventComboOpen, setEventComboOpen] = useState(false);
   
@@ -187,7 +198,39 @@ export default function VincularPatrocinadores() {
   const [previewRefUrl, setPreviewRefUrl] = useState<string | null>(null);
 
   // Vista principal: por-item (existente) | por-patrocinador (nova)
-  const [viewMode, setViewMode] = useState<"por-item" | "por-patrocinador">("por-item");
+  const [viewMode, setViewMode] = useState<"por-item" | "por-patrocinador">(
+    () => (initParams.get("view") === "por-patrocinador" ? "por-patrocinador" : "por-item")
+  );
+
+  // Blocos (evento ou grupo de patrocinador) com todas as linhas visíveis
+  const [showAllRows, setShowAllRows] = useState<Set<string>>(new Set());
+
+  // Filtros e aba refletidos na URL via replaceState (não polui o histórico)
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (searchQuery) p.set("q", searchQuery);
+    if (eventFilter.length) p.set("ev", eventFilter.join(","));
+    if (sponsorFilter.length) p.set("sp", sponsorFilter.join(","));
+    if (itemFilter.length) p.set("tp", itemFilter.join(","));
+    if (statusFilter.length) p.set("st", statusFilter.join(","));
+    if (viewMode !== "por-item") p.set("view", viewMode);
+    const qs = p.toString();
+    window.history.replaceState(null, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
+  }, [searchQuery, eventFilter, sponsorFilter, itemFilter, statusFilter, viewMode]);
+
+  // Atalho "/" foca a busca (padrão da casa)
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/") return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      e.preventDefault();
+      searchInputRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   // Seleção em lote na aba "Por Patrocinador"
   const [sponsorBulkSelected, setSponsorBulkSelected] = useState<Set<string>>(new Set());
@@ -1164,31 +1207,41 @@ export default function VincularPatrocinadores() {
     setIsSending(true);
 
     try {
-      // Sincroniza apenas os itens que ganharam novos patrocinadores,
-      // em lotes com concorrência limitada (evita esgotar o pool do banco).
+      // Sincroniza os itens que ganharam patrocinadores no modal OU que têm
+      // rascunho local não salvo — antes, enviar um rascunho descartava as
+      // edições não salvas em silêncio (o sync usava só o que estava salvo).
       const toSync = items.filter(item => {
-        const existing = originalSponsorsMap[item.id] || [];
+        const draft = pendingChanges[item.id];
+        const existing = draft?.sponsorIds ?? originalSponsorsMap[item.id] ?? [];
         const newOnes = Array.from(pendingByItem[item.id] || []);
-        return newOnes.some(id => !existing.includes(id));
+        return !!draft?.isDirty || newOnes.some(id => !existing.includes(id));
       });
       await runInBatches(toSync, async (item) => {
-        const existing = originalSponsorsMap[item.id] || [];
+        const draft = pendingChanges[item.id];
+        const existing = draft?.sponsorIds ?? originalSponsorsMap[item.id] ?? [];
         const newOnes = Array.from(pendingByItem[item.id] || []);
         const merged = Array.from(new Set([...existing, ...newOnes]));
-        // Sem skipApproval no body: o servidor preserva a flag atual. Mandar
-        // `false` fixo apagava a marca "sem aprovação" de itens isentos.
+        // skipApproval só vai no body quando há rascunho com a flag; caso
+        // contrário o servidor preserva o valor atual (mandar `false` fixo
+        // apagava a marca "sem aprovação" de itens isentos).
         await apiRequest("POST", `/api/items/${item.id}/sponsors/sync`, {
           sponsorIds: merged,
+          ...(draft ? { skipApproval: draft.skipApproval } : {}),
         });
         setOriginalSponsorsMap(prev => ({ ...prev, [item.id]: merged }));
         setItemSponsorsMap(prev => ({ ...prev, [item.id]: merged }));
+        if (draft) setPendingChanges(prev => { const n = { ...prev }; delete n[item.id]; return n; });
       });
       const itemIds = items.map(i => i.id);
       setOptimisticSentIds(prev => new Set(Array.from(prev).concat(itemIds)));
-      sendToArteMutation.mutate(itemIds);
-      // Só fecha o modal após o sync dar certo (em erro, mantém aberto p/ retry).
-      setSendConfirmModal(null);
-      setSponsorBulkSelected(new Set());
+      // Espera o resultado de verdade: com mutate() fire-and-forget o modal
+      // fechava antes da resposta e, em erro, o usuário perdia o contexto.
+      // Sucesso fecha o modal no onSuccess; erro toasta no onError e o modal
+      // fica aberto para tentar de novo.
+      await sendToArteMutation.mutateAsync(itemIds).then(
+        () => setSponsorBulkSelected(new Set()),
+        () => {},
+      );
     } catch (err: any) {
       toast({
         title: "Erro ao enviar",
@@ -1348,7 +1401,7 @@ export default function VincularPatrocinadores() {
       </Dialog>
 
       {/* ── Dialog: Auto-vincular por Cota ── */}
-      <Dialog open={autoLinkOpen} onOpenChange={open => { if (!open) { setAutoLinkOpen(false); setAutoLinkPreview(null); } }}>
+      <Dialog open={autoLinkOpen} onOpenChange={open => { if (autoLinkConfirming) return; if (!open) { setAutoLinkOpen(false); setAutoLinkPreview(null); } }}>
         <DialogContent style={modalSurface(600)}>
           <DialogTitle className="sr-only">Auto-vincular por cota</DialogTitle>
           <DialogDescription className="sr-only">Vincula patrocinadores conforme as regras de cota do evento</DialogDescription>
@@ -1707,9 +1760,20 @@ export default function VincularPatrocinadores() {
             <button
               key={tab.id}
               role="tab"
+              id={`tab-btn-${tab.id}`}
               aria-selected={active}
+              aria-controls={`tabpanel-${tab.id}`}
+              tabIndex={active ? 0 : -1}
               data-testid={`tab-${tab.id}`}
               onClick={() => setViewMode(tab.id as "por-item" | "por-patrocinador")}
+              onKeyDown={e => {
+                if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                  e.preventDefault();
+                  const other = tab.id === 'por-item' ? 'por-patrocinador' : 'por-item';
+                  setViewMode(other as "por-item" | "por-patrocinador");
+                  document.getElementById(`tab-btn-${other}`)?.focus();
+                }
+              }}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
                 padding: '10px 28px', border: 'none', background: 'none',
@@ -1795,7 +1859,8 @@ export default function VincularPatrocinadores() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Peça, descrição ou evento..."
+                    ref={searchInputRef}
+                    placeholder="Peça, descrição ou evento...  ( / )"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-9"
@@ -1873,7 +1938,7 @@ export default function VincularPatrocinadores() {
 
       {/* ── VIEW: POR ITEM (existente) ── */}
       {viewMode === 'por-item' && (
-      <div className="space-y-6">
+      <div className="space-y-6" role="tabpanel" id="tabpanel-por-item" aria-labelledby="tab-btn-por-item">
         {filteredEventEntries.map(([eventId, eventItems]) => {
           // eventById (todos os eventos), não events (só futuros): itens
           // pendentes de evento passado passam no visibleItems e eram contados
@@ -1896,6 +1961,13 @@ export default function VincularPatrocinadores() {
 
           // Progress usa TODOS os itens do evento, não apenas os filtrados
           const progress = calculateProgress(eventItems);
+
+          // Cap de renderização — contagens e "selecionar todos" continuam
+          // usando displayedItems completo; só o DOM é limitado.
+          const showAllEventRows = showAllRows.has(eventId);
+          const renderedItems = showAllEventRows || displayedItems.length <= ITEM_RENDER_CAP
+            ? displayedItems
+            : displayedItems.slice(0, ITEM_RENDER_CAP);
 
           if (!event) return null;
 
@@ -1957,6 +2029,7 @@ export default function VincularPatrocinadores() {
                             checked={(() => { const sel = displayedItems.filter(item => { const s = itemUIStates[item.id] || 'PENDENTE'; return s === 'PENDENTE' || s === 'RASCUNHO'; }); return sel.length > 0 && sel.every(item => selectedItemIds.has(item.id)); })()}
                             onCheckedChange={() => toggleAllItemsInEvent(displayedItems.filter(item => { const s = itemUIStates[item.id] || 'PENDENTE'; return s === 'PENDENTE' || s === 'RASCUNHO'; }))}
                             disabled={displayedItems.filter(item => { const s = itemUIStates[item.id] || 'PENDENTE'; return s === 'PENDENTE' || s === 'RASCUNHO'; }).length === 0}
+                            aria-label={`Selecionar todas as peças pendentes de ${event.name}`}
                             data-testid={`checkbox-select-all-${event.id}`}
                           />
                         </th>
@@ -1972,7 +2045,7 @@ export default function VincularPatrocinadores() {
                       </tr>
                     </thead>
                     <tbody>
-                      {displayedItems.map((item, itemIndex) => {
+                      {renderedItems.map((item, itemIndex) => {
                         const itemStatus = getItemStatus(item);
                         const linkedSponsors = itemSponsorsMap[item.id] || [];
                         const currentSkipApproval = pendingChanges[item.id]?.skipApproval ?? (item.skipApproval || false);
@@ -1980,7 +2053,7 @@ export default function VincularPatrocinadores() {
                         const uiStatus = optimisticSentIds.has(item.id) ? 'ENVIADO' : (itemUIStates[item.id] || 'PENDENTE');
                         const rowConfig = UI_STATUS_CONFIG[uiStatus];
                         const isRascunho = uiStatus === 'RASCUNHO';
-                        const prevItem = itemIndex > 0 ? displayedItems[itemIndex - 1] : null;
+                        const prevItem = itemIndex > 0 ? renderedItems[itemIndex - 1] : null;
                         const showTypeGrouper = !prevItem || prevItem.type !== item.type;
                         const groupName = typeToGroup[item.type] || '';
                         const prevGroupName = prevItem ? (typeToGroup[prevItem.type] || '') : '';
@@ -2024,6 +2097,7 @@ export default function VincularPatrocinadores() {
                                         checked={allTypeSelected}
                                         onCheckedChange={() => toggleTypeGroup(typeItems)}
                                         disabled={selectableTypeItems.length === 0}
+                                        aria-label={`Selecionar peças do tipo ${item.type}`}
                                         data-testid={`checkbox-group-${item.type}`}
                                       />
                                     </div>
@@ -2061,8 +2135,10 @@ export default function VincularPatrocinadores() {
                               borderBottom: '1px solid #f0efee',
                               borderLeft: selectedItemIds.has(item.id) ? '4px solid #3b82f6' : uiStatus === 'RASCUNHO' ? '4px solid #f97316' : uiStatus === 'PRONTO' ? '4px solid #22c55e' : '4px solid transparent',
                               backgroundColor: selectedItemIds.has(item.id) ? 'rgba(59,130,246,0.06)' : uiStatus === 'RASCUNHO' ? 'rgba(249,115,22,0.04)' : uiStatus === 'PRONTO' ? 'rgba(134,239,172,0.10)' : '#ffffff',
-                              opacity: uiStatus === 'ENVIADO' ? 0.55 : 1,
-                              filter: uiStatus === 'ENVIADO' ? 'grayscale(1)' : 'none',
+                              // 0.55 + grayscale derrubava a linha inteira abaixo de AA, e o
+                              // hover (que restaurava) não existe no teclado. 0.75 sem
+                              // grayscale mantém a leitura E o rebaixamento visual.
+                              opacity: uiStatus === 'ENVIADO' ? 0.75 : 1,
                               transition: 'background-color 0.12s, border-color 0.12s, filter 0.2s, opacity 0.2s',
                             }}
                             onMouseEnter={e => {
@@ -2077,8 +2153,7 @@ export default function VincularPatrocinadores() {
                             }}
                             onMouseLeave={e => {
                               const el = e.currentTarget as HTMLElement;
-                              el.style.filter = uiStatus === 'ENVIADO' ? 'grayscale(1)' : 'none';
-                              el.style.opacity = uiStatus === 'ENVIADO' ? '0.55' : '1';
+                              el.style.opacity = uiStatus === 'ENVIADO' ? '0.75' : '1';
                               if (selectedItemIds.has(item.id)) {
                                 el.style.backgroundColor = 'rgba(59,130,246,0.06)';
                               } else {
@@ -2094,6 +2169,7 @@ export default function VincularPatrocinadores() {
                                 onCheckedChange={() => (uiStatus === 'PENDENTE' || uiStatus === 'RASCUNHO') && toggleItemSelection(item.id)}
                                 disabled={uiStatus !== 'PENDENTE' && uiStatus !== 'RASCUNHO'}
                                 title={uiStatus === 'PRONTO' ? 'Remova os patrocinadores antes de aplicar em lote' : uiStatus === 'ENVIADO' ? 'Peça já enviada' : undefined}
+                                aria-label={`Selecionar ${item.displayId}`}
                                 data-testid={`checkbox-item-${item.id}`}
                               />
                             </td>
@@ -2313,6 +2389,7 @@ export default function VincularPatrocinadores() {
                                                 setItemSponsorsMap(prev => ({ ...prev, [item.id]: newSponsors }));
                                               }}
                                               disabled={!isEditable}
+                                              aria-label={`Selecionar ${item.displayId} para ${sponsor.name}`}
                                               data-testid={`checkbox-sponsor-${item.id}-${sponsor.id}`}
                                               style={{
                                                 display: 'inline-flex', alignItems: 'center', gap: 5,
@@ -2461,6 +2538,15 @@ export default function VincularPatrocinadores() {
                     </tbody>
                   </table>
                 </div>
+                {!showAllEventRows && displayedItems.length > ITEM_RENDER_CAP && (
+                  <button
+                    onClick={() => setShowAllRows(prev => { const n = new Set(prev); n.add(eventId); return n; })}
+                    data-testid={`button-show-all-${eventId}`}
+                    style={{ width: '100%', padding: '10px 0', background: '#fafaf9', border: 'none', borderTop: '1px solid #e7e5e4', color: '#c2410c', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                  >
+                    Mostrar todos os {displayedItems.length} itens (+{displayedItems.length - ITEM_RENDER_CAP})
+                  </button>
+                )}
               </div>
             </section>
           );
@@ -2486,7 +2572,7 @@ export default function VincularPatrocinadores() {
 
       {/* ── VIEW: POR PATROCINADOR ── */}
       {viewMode === 'por-patrocinador' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }} role="tabpanel" id="tabpanel-por-patrocinador" aria-labelledby="tab-btn-por-patrocinador">
 
           {/* ── Header de progresso global ── */}
           <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '18px 22px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
@@ -2675,6 +2761,14 @@ export default function VincularPatrocinadores() {
                   const allPendingSelected = pendingIds.length > 0 && pendingIds.every(id => sponsorBulkSelected.has(sponsorKey(id, sponsor.id)));
                   const groupKey = `${event.id}::${sponsor.id}`;
                   const isCollapsed = collapsedSponsorGroups.has(groupKey);
+                  // Cap de renderização: com muitos itens esta visão monta
+                  // linked+pending por patrocinador (quase nº itens × nº
+                  // patrocinadores de linhas) — só o DOM é limitado, as
+                  // contagens continuam vindo das listas completas.
+                  const showAllGroupRows = showAllRows.has(groupKey);
+                  const renderedGroupItems = showAllGroupRows || allItems.length <= ITEM_RENDER_CAP
+                    ? allItems
+                    : allItems.slice(0, ITEM_RENDER_CAP);
                   const allLinked = effectiveTotal > 0 && truelyPendingItems.length === 0;
                   const nearCompletion = effectiveTotal > 0 && linkedItems.length / effectiveTotal >= 0.6 && !allLinked;
                   const linkPct = effectiveTotal > 0 ? Math.round((linkedItems.length / effectiveTotal) * 100) : 100;
@@ -2713,6 +2807,7 @@ export default function VincularPatrocinadores() {
                               checked={allPendingSelected}
                               onCheckedChange={() => toggleSponsorGroup(pendingIds, sponsor.id)}
                               disabled={pendingIds.length === 0}
+                              aria-label={`Selecionar itens pendentes de ${sponsor.name}`}
                               data-testid={`checkbox-sponsor-group-${event.id}-${sponsor.id}`}
                             />
                           </div>
@@ -2814,7 +2909,7 @@ export default function VincularPatrocinadores() {
                               </tr>
                             </thead>
                             <tbody style={{ borderTop: '1px solid #e7e5e4' }}>
-                              {allItems.map(item => {
+                              {renderedGroupItems.map(item => {
                                 const isLinked = linkedItems.some(i => i.id === item.id);
                                 const uiStatus = itemUIStates[item.id] || 'PENDENTE';
                                 const isSent = uiStatus === 'ENVIADO' || optimisticSentIds.has(item.id);
@@ -2937,6 +3032,15 @@ export default function VincularPatrocinadores() {
                               })}
                             </tbody>
                           </table>
+                          {!showAllGroupRows && allItems.length > ITEM_RENDER_CAP && (
+                            <button
+                              onClick={() => setShowAllRows(prev => { const n = new Set(prev); n.add(groupKey); return n; })}
+                              data-testid={`button-show-all-group-${event.id}-${sponsor.id}`}
+                              style={{ width: '100%', padding: '10px 0', background: '#fafaf9', border: 'none', borderTop: '1px solid #e7e5e4', color: '#c2410c', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                            >
+                              Mostrar todos os {allItems.length} itens (+{allItems.length - ITEM_RENDER_CAP})
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -3240,6 +3344,7 @@ export default function VincularPatrocinadores() {
                       borderRadius: 8, cursor: 'pointer',
                       transition: 'all 0.15s',
                     }}
+                    aria-label={`Selecionar patrocinador ${sponsor.name}`}
                     data-testid={`checkbox-bulk-sponsor-${sponsor.id}`}
                     onClick={() => {
                       if (isSelected) {
@@ -3321,6 +3426,7 @@ export default function VincularPatrocinadores() {
       <Dialog open={!!sendConfirmModal} onOpenChange={(open) => { if (!open && !isSending) setSendConfirmModal(null); }}>
         <DialogContent style={modalSurface(680)}>
           <DialogTitle className="sr-only">Confirmar Envio para Arte</DialogTitle>
+          <DialogDescription className="sr-only">Revise os itens e os patrocinadores antes de enviar para a Arte</DialogDescription>
 
           {/* ── Hero Header ── */}
           <div style={{ background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', padding: '28px 32px 24px', position: 'relative', overflow: 'hidden' }}>

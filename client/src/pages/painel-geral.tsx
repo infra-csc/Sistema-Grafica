@@ -335,7 +335,11 @@ export default function PainelGeral() {
 
 
   return (
-    <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 22, padding: isMobile ? "0 12px 20px" : "0 28px 34px", minHeight: "100%", overflowY: "auto", background: "#fafaf9" }}>
+    // SEM overflowY aqui: quem rola é o <main> do layout. Um overflow:auto
+    // neste wrapper criava um scroll-container que NÃO rola (min-height 100%)
+    // e prendia todo position:sticky descendente — o thead da tabela e a
+    // própria barra de gradiente abaixo nunca grudavam no topo.
+    <div style={{ position: "relative", display: "flex", flexDirection: "column", gap: 22, padding: isMobile ? "0 12px 20px" : "0 28px 34px", minHeight: "100%", background: "#fafaf9" }}>
       <div style={{ position: "sticky", top: 0, zIndex: 4, height: 4, margin: isMobile ? "0 -12px" : "0 -28px", background: "linear-gradient(90deg, #1c1917 0%, #1c1917 72%, #f97316 72%, #f97316 100%)" }} />
 
       {/* ── Header ── */}

@@ -1007,7 +1007,9 @@ export function ItemDetailsDialog({
                             ["Reaproveitado", item.reuseQty, "#059669"],
                             ["Produzido", item.quantityProduced, "#1a1c1c"],
                             ["Conferido", item.conferredQty, "#0e7490"],
-                            ["Entregue", item.deliveredQty, "#7e22ce"],
+                            // Esmeralda: cor canônica de "Entregue" (lib/status).
+                            // Roxo é "Produzido" — usava a cor do status errado.
+                            ["Entregue", item.deliveredQty, "#047857"],
                           ] as const).filter(([, v]) => v > 0).map(([label, value, color]) => (
                             <div key={label}>
                               <span style={{ fontSize: 10, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</span>
@@ -1062,7 +1064,7 @@ export function ItemDetailsDialog({
 
                   {(deliveryPhotos.length > 0 || item.deliveryNotes) && (
                     <div>
-                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#7e22ce", margin: "0 0 8px 0" }}>
+                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#047857", margin: "0 0 8px 0" }}>
                         Entrega {deliveryPhotos.length > 1 && `· ${deliveryPhotos.length} fotos`}
                         {item.receivedBy && <span style={{ color: "#84756c", letterSpacing: 0, textTransform: "none", fontWeight: 400 }}> — recebido por {item.receivedBy}</span>}
                       </p>

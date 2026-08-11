@@ -642,35 +642,11 @@ export default function EventDetail() {
   const { updateItemSkipApprovalMutation, updateItemIsReuseMutation } = useEventItemFlags({ eventId });
 
   // Carregar patrocinadores de todos os items em rascunho
-  useEffect(() => {
-    const requestedItems = items.filter(item => item.status === 'requested');
-    
-    // Apenas carregar para items que ainda não temos no map
-    const itemsToLoad = requestedItems.filter(item => !itemSponsorsMap[item.id]);
-    
-    if (itemsToLoad.length > 0) {
-      Promise.all(
-        itemsToLoad.map(async (item) => {
-          try {
-            const response = await apiRequest("GET", `/api/items/${item.id}/sponsors`);
-            const itemSponsors = await response.json();
-            const sponsorIds = itemSponsors.map((is: any) => is.sponsorId);
-            return { itemId: item.id, sponsorIds };
-          } catch (error) {
-            console.error(`Erro ao carregar patrocinadores do item ${item.id}:`, error);
-            return { itemId: item.id, sponsorIds: [] };
-          }
-        })
-      ).then(results => {
-        const newMap = results.reduce((acc, { itemId, sponsorIds }) => ({
-          ...acc,
-          [itemId]: sponsorIds
-        }), {});
-        
-        setItemSponsorsMap(prev => ({ ...prev, ...newMap }));
-      });
-    }
-  }, [items, itemSponsorsMap]);
+  // (Removido) Um useEffect aqui disparava GET /api/items/:id/sponsors para
+  // CADA item "requested" do evento só para popular itemSponsorsMap — mapa que
+  // alimenta apenas o dialog "Gerenciar Itens do Patrocinador", que é código
+  // morto (nenhum gatilho o abre). N requisições desperdiçadas por visita.
+  // O dialog inteiro + mutations ficam para remoção no refactor de código.
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -2089,7 +2065,13 @@ export default function EventDetail() {
                           {/* Acabamento */}
                           <td style={{ padding: '14px 14px', fontSize: '13px', color: '#746e69' }}>{item.finish || '—'}</td>
                           {/* Patrocinador */}
-                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#746e69' }}>—</td>
+                          {/* Antes era "—" hardcoded: o vínculo existia no dado
+                              (enrich do /api/items/:eventId) e nunca aparecia. */}
+                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#1a1c1c' }}>
+                            {(item.sponsors && item.sponsors.length > 0)
+                              ? item.sponsors.map((s: any) => s.name).join(", ")
+                              : <span style={{ color: '#746e69' }}>—</span>}
+                          </td>
                           {/* Status */}
                           <td style={{ padding: '14px 14px' }}>
                             <StatusBadge status={item.status} />

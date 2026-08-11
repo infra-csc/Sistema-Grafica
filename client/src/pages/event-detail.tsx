@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
+import { getStatusLabel } from "@/lib/status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, ChevronsUpDown, Building2, Loader2, User, History, Lock, Paperclip, ExternalLink, X, RotateCcw, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, Search } from "lucide-react";
@@ -82,6 +83,8 @@ export default function EventDetail() {
   const [selectedItemsToLink, setSelectedItemsToLink] = useState<string[]>([]);
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, string[]>>({});
   const [selectedItemForDetails, setSelectedItemForDetails] = useState<any | null>(null);
+  const [itemSearch, setItemSearch] = useState("");
+  const [showAllItems, setShowAllItems] = useState(false);
   const [submitConfirmOpen, setSubmitConfirmOpen] = useState(false);
   const isMobile = useIsMobile();
   const { toast } = useToast();
@@ -826,9 +829,28 @@ export default function EventDetail() {
   const materialOptions = Array.from(new Set([...materials, ...catMats, ...((standardItems as any[]).map(s => s.material).filter(Boolean) as string[])])).sort((a, b) => a.localeCompare(b, "pt-BR"));
   const finishOptions = Array.from(new Set([...finishes, ...catFinishes, ...((standardItems as any[]).map(s => s.finish).filter(Boolean) as string[])])).sort((a, b) => a.localeCompare(b, "pt-BR"));
 
+  // Busca local: num evento com centenas de peças, achar a "#0281" era
+  // rolagem cega. Casa com ID, tipo, descrição e rótulo de status.
+  const itemSearchLower = itemSearch.trim().toLowerCase();
+  const searchedItems = itemSearchLower
+    ? items.filter((item: any) =>
+        (item.displayId || "").toLowerCase().includes(itemSearchLower) ||
+        (item.type || "").toLowerCase().includes(itemSearchLower) ||
+        (item.description || "").toLowerCase().includes(itemSearchLower) ||
+        getStatusLabel(item.status).toLowerCase().includes(itemSearchLower))
+    : items;
+
+  // Renderização incremental (mesmo padrão do Painel Geral): até 50 linhas;
+  // o restante entra sob demanda — mantém o DOM leve em eventos grandes.
+  const ITEM_CAP = 50;
+  const visibleEventItems = showAllItems || searchedItems.length <= ITEM_CAP
+    ? searchedItems
+    : searchedItems.slice(0, ITEM_CAP);
+  const hiddenItemCount = searchedItems.length - visibleEventItems.length;
+
   // Agrupar itens: Grupo Pai → Tipo → [itens]
   const groupMap: Record<string, Record<string, typeof items>> = {};
-  items.forEach(item => {
+  visibleEventItems.forEach(item => {
     const g = groupOf(item.type) || '';
     if (!groupMap[g]) groupMap[g] = {};
     if (!groupMap[g][item.type]) groupMap[g][item.type] = [];
@@ -1813,6 +1835,35 @@ export default function EventDetail() {
               <span>Atualizando...</span>
             </div>
           )}
+
+          {/* Busca local de peças — evita rolagem cega em eventos grandes. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: '-24px' }}>
+            <div style={{ position: 'relative', width: isMobile ? '100%' : 280 }}>
+              <Search style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#a8a29e', pointerEvents: 'none' }} />
+              <input
+                type="text"
+                placeholder="Buscar peça (ID, tipo, status)..."
+                value={itemSearch}
+                onChange={e => setItemSearch(e.target.value)}
+                data-testid="input-search-event-items"
+                style={{ width: '100%', height: 34, paddingLeft: 32, paddingRight: 12, border: '1px solid #e7e5e4', borderRadius: 999, backgroundColor: '#ffffff', fontSize: 13, color: '#1c1917', fontFamily: 'inherit' }}
+              />
+            </div>
+            {itemSearchLower && (
+              <span style={{ fontSize: 12, fontWeight: 700, color: '#746e69' }}>
+                {searchedItems.length} de {items.length} peças
+                <button onClick={() => setItemSearch("")} style={{ marginLeft: 10, background: 'none', border: 'none', padding: 0, fontSize: 12, fontWeight: 700, color: '#c2410c', cursor: 'pointer' }}>× Limpar</button>
+              </span>
+            )}
+          </div>
+
+          {searchedItems.length === 0 && (
+            <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '40px 24px', textAlign: 'center' }}>
+              <p style={{ color: '#1c1917', fontSize: 14, fontWeight: 700, margin: '0 0 4px' }}>Nenhuma peça corresponde à busca</p>
+              <p style={{ color: '#746e69', fontSize: 13, margin: 0 }}>Tente outro termo ou limpe a busca.</p>
+            </div>
+          )}
+
           {sortedGroups.map(group => (
             <Fragment key={group || '__nogroup'}>
               {/* ── Grupo Pai header ── */}
@@ -2104,6 +2155,15 @@ export default function EventDetail() {
             ))}
             </Fragment>
           ))}
+          {hiddenItemCount > 0 && (
+            <button
+              onClick={() => setShowAllItems(true)}
+              data-testid="button-show-all-event-items"
+              style={{ width: '100%', padding: 13, background: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 10, color: '#1c1917', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}
+            >
+              Mostrar todas as {searchedItems.length} peças (+{hiddenItemCount})
+            </button>
+          )}
         </div>
       )}
 

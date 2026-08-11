@@ -653,10 +653,10 @@ export default function PainelGeral() {
             const isExpanded = expandedEvents.has(eventKey);
             const visibleItems = isExpanded || gd.items.length <= ROW_CAP ? gd.items : gd.items.slice(0, ROW_CAP);
             const hiddenCount = gd.items.length - visibleItems.length;
+            // overflow: clip (não hidden): clipa o border-radius SEM criar
+            // scroll-container — pré-requisito para o thead sticky funcionar
+            // contra o scroll da página.
             return (
-              {/* overflow: clip (não hidden): clipa o border-radius SEM criar
-                  scroll-container — pré-requisito para o thead sticky funcionar
-                  contra o scroll da página. */}
               <div key={eventKey} style={{ border: "1px solid #e2e2e2", borderRadius: 12, backgroundColor: "#ffffff", overflow: "clip", boxShadow: "0 2px 8px rgba(28,25,23,0.07)" }}>
 
                 {/* Group header */}
@@ -866,9 +866,9 @@ export default function PainelGeral() {
                     )}
                   </div>
                 ) : (
-                {/* overflow visível (não auto): qualquer scroll-container entre o
-                    th e o scroll da página quebraria o sticky do cabeçalho. O
-                    desktop comporta a tabela; mobile usa o layout de cards. */}
+                /* overflow visível (não auto): qualquer scroll-container entre o
+                   th e o scroll da página quebraria o sticky do cabeçalho. O
+                   desktop comporta a tabela; mobile usa o layout de cards. */
                 <div style={{ overflow: "visible" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse" }}>
                     <thead>

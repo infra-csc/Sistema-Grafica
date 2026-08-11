@@ -967,7 +967,7 @@ export default function EventDetail() {
                   <div>
                     <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '22px', fontWeight: '700', letterSpacing: '-0.03em', color: '#1a1c1c', margin: 0 }}>
                       {editingItem
-                        ? `#${editingItem.displayId?.toString().padStart(4, '0')} — ${editingItem.type}`
+                        ? `${editingItem.displayId} — ${editingItem.type}`
                         : (bulkMode ? "Entrada Rápida" : (formData.type || "Nova Peça"))}
                     </DialogTitle>
                     <DialogDescription style={{ fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69', marginTop: '2px' }}>
@@ -2220,7 +2220,7 @@ export default function EventDetail() {
               </div>
               <div>
                 <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "22px", fontWeight: 900, letterSpacing: "-0.03em", color: "#1a1c1c", lineHeight: 1.1 }}>
-                  {editingItem ? `#${editingItem.displayId?.toString().padStart(4, '0')} — ${editingItem.type}` : "Editar Peça"}
+                  {editingItem ? `${editingItem.displayId} — ${editingItem.type}` : "Editar Peça"}
                 </DialogTitle>
                 <DialogDescription style={{ fontSize: "15px", fontWeight: 500, color: "#746e69", marginTop: "2px" }}>
                   {editingItem?.description || "Atualize as informações da peça"}

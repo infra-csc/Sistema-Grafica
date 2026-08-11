@@ -104,6 +104,12 @@ export default function Grafica() {
   const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
   const [bulkDeliveryPhotos, setBulkDeliveryPhotos] = useState<string[]>([]);
   const addBulkPhoto = (url: string) => setBulkDeliveryPhotos(prev => [...prev, convertGCSUrlToLocalPath(url)]);
+  // ── Conferência em lote (espelha a entrega em lote) ──
+  const [bulkConferMode, setBulkConferMode] = useState(false);
+  const [bulkConferOpen, setBulkConferOpen] = useState(false);
+  const [bulkConferNotes, setBulkConferNotes] = useState("");
+  const [bulkConferPhotos, setBulkConferPhotos] = useState<string[]>([]);
+  const addBulkConferPhoto = (url: string) => setBulkConferPhotos(prev => [...prev, convertGCSUrlToLocalPath(url)]);
   const isMobile = useIsMobile();
   const { data: items = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ["/api/items/approved"] });
   const { data: events = [] } = useQuery<any[]>({ queryKey: ["/api/events"] });
@@ -574,11 +580,89 @@ export default function Grafica() {
     () => (filteredItems as any[]).filter(i => canDeliver(i)),
     [filteredItems],
   );
+  // Conferíveis no filtro atual (para o modo conferência em lote)
+  const conferableInFilter = useMemo(
+    () => (filteredItems as any[]).filter(i => canConfer(i)),
+    [filteredItems],
+  );
+  // Um modo de lote por vez; a lista elegível depende do modo ativo.
+  const bulkOn = bulkDeliveryMode || bulkConferMode;
+  const bulkEligibleList = bulkConferMode ? conferableInFilter : deliverableInFilter;
   const allDeliverableSelected =
-    deliverableInFilter.length > 0 && deliverableInFilter.every((i: any) => bulkSelectedIds.has(i.id));
+    bulkEligibleList.length > 0 && bulkEligibleList.every((i: any) => bulkSelectedIds.has(i.id));
 
   const toggleBulkItem = (id: string) =>
     setBulkSelectedIds(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+
+  // Conferência em lote: mesma disciplina da entrega (allSettled + tolerância a
+  // falha parcial). Foto é obrigatória (regra do servidor); a primeira vira o
+  // conferencePhotoUrl de cada peça e todas entram na galeria (kind conference).
+  const handleBulkConference = async () => {
+    if (bulkConferPhotos.length === 0) {
+      toast({ title: "Foto obrigatória", description: "Envie ao menos uma foto da conferência.", variant: "destructive" });
+      return;
+    }
+    setIsBulkSubmitting(true);
+    const ids = Array.from(bulkSelectedIds);
+    try {
+      const confer = await Promise.allSettled(ids.map(itemId => {
+        const item = (filteredItems as any[]).find(i => i.id === itemId);
+        const qty = item ? remainingConfer(item) : 1;
+        return apiRequest("POST", `/api/items/${itemId}/confer`, {
+          conferencePhotoUrl: bulkConferPhotos[0],
+          qty,
+          notes: bulkConferNotes || null,
+        });
+      }));
+
+      const okIds = ids.filter((_, i) => confer[i].status === "fulfilled");
+      const failed = ids.length - okIds.length;
+
+      let photoFailed = 0;
+      if (okIds.length > 0) {
+        const photos = await Promise.allSettled(
+          okIds.flatMap(itemId =>
+            bulkConferPhotos.map(photoUrl =>
+              apiRequest("POST", `/api/items/${itemId}/photos`, {
+                photoUrl, kind: "conference", uploadedBy: getCurrentUserName(),
+              })
+            )
+          )
+        );
+        photoFailed = photos.filter(p => p.status === "rejected").length;
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+
+      if (failed > 0) {
+        toast({
+          title: "Conferência parcial",
+          description: `${okIds.length} de ${ids.length} conferida(s). ${failed} falhou(aram) e continua(m) na lista.`,
+          variant: "destructive",
+        });
+      } else if (photoFailed > 0) {
+        toast({
+          title: `${okIds.length} peça(s) conferida(s)`,
+          description: "A conferência foi registrada, mas parte das fotos não pôde ser anexada.",
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: `${okIds.length} peça(s) conferida(s)`, description: "Prontas para entrega." });
+      }
+
+      setBulkConferOpen(false);
+      setBulkConferMode(false);
+      setBulkSelectedIds(new Set());
+      setBulkConferNotes("");
+      setBulkConferPhotos([]);
+    } catch (e: any) {
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      toast({ title: "Erro na conferência em lote", description: e.message, variant: "destructive" });
+    } finally {
+      setIsBulkSubmitting(false);
+    }
+  };
 
   const handleBulkDelivery = async () => {
     if (!bulkReceivedBy.trim()) {
@@ -658,7 +742,7 @@ export default function Grafica() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 12 : 24, padding: isMobile ? "12px 12px" : 24, paddingBottom: bulkDeliveryMode ? 80 : isMobile ? 12 : 24, backgroundColor: TI.bg, height: "100%", overflowY: "auto" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 12 : 24, padding: isMobile ? "12px 12px" : 24, paddingBottom: bulkOn ? 80 : isMobile ? 12 : 24, backgroundColor: TI.bg, height: "100%", overflowY: "auto" }}>
 
       {/* ── Header ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: isMobile ? "center" : "flex-end", flexWrap: "wrap", gap: 8 }}>
@@ -679,8 +763,31 @@ export default function Grafica() {
               {stats.liberados} peça{stats.liberados !== 1 ? "s" : ""} aguardando produção
             </span>
           )}
+          {/* Botão Conferência em Lote */}
+          {conferableInFilter.length > 0 && !bulkOn && (
+            <button
+              onClick={() => { setBulkConferMode(true); setBulkSelectedIds(new Set()); }}
+              data-testid="button-bulk-confer"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                backgroundColor: '#0e7490', color: '#fff',
+                border: 'none', borderRadius: 8, padding: isMobile ? '11px 16px' : '8px 14px',
+                fontSize: isMobile ? 13 : 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em',
+                cursor: 'pointer', boxShadow: '0 2px 8px rgba(14,116,144,0.3)',
+              }}
+            >
+              <CheckCircle style={{ width: isMobile ? 16 : 14, height: isMobile ? 16 : 14 }} />
+              {isMobile ? `Conferir em lote (${conferableInFilter.length})` : `Conferência em Lote (${conferableInFilter.length})`}
+            </button>
+          )}
+          {bulkConferMode && (
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#ecfeff', color: '#0e7490', border: '1.5px solid #a5f3fc', borderRadius: 8, padding: '7px 12px', fontSize: 11, fontWeight: 800 }}>
+              <CheckCircle style={{ width: 13, height: 13 }} />
+              {isMobile ? 'Lote ativo' : 'Modo conferência em lote ativo'}
+            </span>
+          )}
           {/* Botão Entrega em Lote */}
-          {deliverableInFilter.length > 0 && !bulkDeliveryMode && (
+          {deliverableInFilter.length > 0 && !bulkOn && (
             <button
               onClick={() => { setBulkDeliveryMode(true); setBulkSelectedIds(new Set()); }}
               style={{
@@ -938,6 +1045,8 @@ export default function Grafica() {
               const showEvHeader = !prev || prev.event?.name !== item.event?.name;
               const isSelected = bulkSelectedIds.has(item.id);
               const canDeliverItem = canDeliver(item);
+              const canConferItem = canConfer(item);
+              const bulkEligible = bulkDeliveryMode ? canDeliverItem : bulkConferMode ? canConferItem : false;
 
               return (
                 <Fragment key={item.id}>
@@ -962,32 +1071,32 @@ export default function Grafica() {
                       // Altura acompanha a arte: com a peça na mão, é pelo
                       // desenho que se reconhece o item na lista.
                       display: 'flex', alignItems: 'stretch',
-                      minHeight: item.approvalThumbUrl && !bulkDeliveryMode ? 104 : 74,
+                      minHeight: item.approvalThumbUrl && !bulkOn ? 104 : 74,
                       background: isSelected ? '#fff7ed' : '#fff',
                       border: `1.5px solid ${isSelected ? TI.accent : TI.border}`,
                       borderRadius: showEvHeader ? '0 0 12px 12px' : 12,
                       overflow: 'hidden',
-                      cursor: bulkDeliveryMode && canDeliverItem ? 'pointer' : undefined,
+                      cursor: bulkOn && bulkEligible ? 'pointer' : undefined,
                       transition: 'border-color 0.12s, background 0.12s',
                     }}
                     /* O "checkbox" da esquerda é um <div> desenhado, não um
                        campo: em modo de entrega em lote não havia como marcar
                        peça alguma sem mouse. role/aria-checked dão ao card o
                        papel que a caixinha só aparenta ter. */
-                    {...(bulkDeliveryMode && canDeliverItem ? {
+                    {...(bulkOn && bulkEligible ? {
                       role: 'checkbox' as const,
                       tabIndex: 0,
                       'aria-checked': isSelected,
-                      'aria-label': `Selecionar ${item.displayId} para entrega`,
+                      'aria-label': `Selecionar ${item.displayId} para ${bulkConferMode ? 'conferência' : 'entrega'}`,
                       onKeyDown: (e: React.KeyboardEvent) => {
                         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBulkItem(item.id); }
                       },
                     } : {})}
-                    onClick={bulkDeliveryMode && canDeliverItem ? () => toggleBulkItem(item.id) : undefined}
+                    onClick={bulkOn && bulkEligible ? () => toggleBulkItem(item.id) : undefined}
                   >
                     {/* Left stripe / checkbox */}
-                    {bulkDeliveryMode ? (
-                      canDeliverItem ? (
+                    {bulkOn ? (
+                      bulkEligible ? (
                         <div style={{ width: 52, flexShrink: 0, background: isSelected ? TI.accent : '#f5f5f4', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}>
                           <div style={{ width: 22, height: 22, borderRadius: 6, border: `2px solid ${isSelected ? '#fff' : '#d4d4d0'}`, background: isSelected ? 'rgba(255,255,255,0.25)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             {isSelected && <Check style={{ width: 14, height: 14, color: '#fff' }} />}
@@ -1002,7 +1111,7 @@ export default function Grafica() {
 
                     {/* Arte aprovada — no celular é ela que identifica a peça
                         de relance, na hora de conferir com o material na mão. */}
-                    {item.approvalThumbUrl && !bulkDeliveryMode && (
+                    {item.approvalThumbUrl && !bulkOn && (
                       <a
                         href={convertGCSUrlToLocalPath(item.approvalThumbUrl)}
                         target="_blank"
@@ -1567,8 +1676,8 @@ export default function Grafica() {
         )}
       </div>
 
-      {/* ── Barra flutuante de entrega em lote ── */}
-      {bulkDeliveryMode && (
+      {/* ── Barra flutuante dos modos em lote (entrega OU conferência) ── */}
+      {bulkOn && (
         <div style={{
           position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
           background: TI.text,
@@ -1580,11 +1689,11 @@ export default function Grafica() {
           <button
             onClick={() => allDeliverableSelected
               ? setBulkSelectedIds(new Set())
-              : setBulkSelectedIds(new Set(deliverableInFilter.map((i: any) => i.id)))
+              : setBulkSelectedIds(new Set(bulkEligibleList.map((i: any) => i.id)))
             }
             style={{ padding: '8px 12px', borderRadius: 8, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.85)', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
           >
-            {allDeliverableSelected ? 'Desmarcar' : `Sel. ${deliverableInFilter.length}`}
+            {allDeliverableSelected ? 'Desmarcar' : `Sel. ${bulkEligibleList.length}`}
           </button>
 
           {/* Contador */}
@@ -1596,26 +1705,26 @@ export default function Grafica() {
 
           {/* Confirmar */}
           <button
-            onClick={() => { if (bulkSelectedIds.size > 0) setBulkDeliveryOpen(true); }}
+            onClick={() => { if (bulkSelectedIds.size > 0) (bulkConferMode ? setBulkConferOpen(true) : setBulkDeliveryOpen(true)); }}
             disabled={bulkSelectedIds.size === 0}
             style={{
               padding: '12px 18px', borderRadius: 12, border: 'none', flexShrink: 0,
-              background: bulkSelectedIds.size === 0 ? 'rgba(255,255,255,0.15)' : TI.accent,
+              background: bulkSelectedIds.size === 0 ? 'rgba(255,255,255,0.15)' : bulkConferMode ? '#0e7490' : TI.accent,
               color: bulkSelectedIds.size === 0 ? 'rgba(255,255,255,0.35)' : '#fff',
               fontSize: 13, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif",
               cursor: bulkSelectedIds.size === 0 ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', gap: 7,
-              boxShadow: bulkSelectedIds.size > 0 ? '0 4px 16px rgba(249,115,22,0.4)' : 'none',
+              boxShadow: bulkSelectedIds.size > 0 ? (bulkConferMode ? '0 4px 16px rgba(14,116,144,0.4)' : '0 4px 16px rgba(249,115,22,0.4)') : 'none',
               transition: 'all 0.15s',
             }}
           >
-            <Truck style={{ width: 15, height: 15 }} />
+            {bulkConferMode ? <CheckCircle style={{ width: 15, height: 15 }} /> : <Truck style={{ width: 15, height: 15 }} />}
             Confirmar{bulkSelectedIds.size > 0 && ` (${bulkSelectedIds.size})`}
           </button>
 
           {/* Cancelar modo */}
           <button
-            onClick={() => { setBulkDeliveryMode(false); setBulkSelectedIds(new Set()); }}
+            onClick={() => { setBulkDeliveryMode(false); setBulkConferMode(false); setBulkSelectedIds(new Set()); }}
             style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
           >
             <X style={{ width: 16, height: 16 }} />
@@ -1777,6 +1886,147 @@ export default function Grafica() {
                 {isBulkSubmitting
                   ? 'Salvando...'
                   : <><Truck style={{ width: 15, height: 15 }} />Confirmar Entrega ({bulkSelectedIds.size})</>
+                }
+              </button>
+            </div>
+            {/* fim do dialog de entrega em lote */}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialog conferência em lote ── */}
+      <Dialog open={bulkConferOpen} onOpenChange={o => { if (!o) { setBulkConferOpen(false); setBulkConferPhotos([]); } }}>
+        <DialogContent style={modalSurface(460)}>
+          <DialogTitle className="sr-only">Confirmar Conferência em Lote</DialogTitle>
+          <DialogDescription className="sr-only">Registre a conferência de múltiplas peças de uma vez</DialogDescription>
+
+          <ModalHeader
+            icon={CheckCircle}
+            tint="#0e7490"
+            title="Conferência em lote"
+            subtitle={`${bulkSelectedIds.size} peça${bulkSelectedIds.size !== 1 ? 's' : ''} selecionada${bulkSelectedIds.size !== 1 ? 's' : ''}`}
+            onClose={() => setBulkConferOpen(false)}
+          />
+
+          {/* Body */}
+          <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18, background: '#fafaf9' }}>
+            {/* Foto da conferência (obrigatória, como na conferência individual) */}
+            <div>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#746e69', marginBottom: 10 }}>
+                Foto da conferência * <span style={{ textTransform: 'none', fontWeight: 400, color: '#746e69', letterSpacing: 0 }}>· mesma para todas as peças</span>
+              </label>
+              <div style={{ display: 'flex', gap: 10 }}>
+                <div style={{ flex: 1 }}>
+                  <ObjectUploader
+                    capture
+                    maxFileSize={10485760}
+                    buttonVariant="ghost"
+                    buttonClassName="w-full h-full p-0 border-0 hover:bg-transparent"
+                    onGetUploadParameters={uploadParams}
+                    onComplete={r => addBulkConferPhoto(r.url)}
+                    onError={onPhotoError}
+                  >
+                    <div style={{ width: '100%', padding: '12px 0', backgroundColor: '#f4f3f0', borderRadius: 8, border: '2px dashed #d6d3d1', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+                      <Camera style={{ width: 18, height: 18, color: '#746e69' }} />
+                      <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Câmera</span>
+                    </div>
+                  </ObjectUploader>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <ObjectUploader
+                    multiple
+                    maxFileSize={10485760}
+                    buttonVariant="ghost"
+                    buttonClassName="w-full h-full p-0 border-0 hover:bg-transparent"
+                    onGetUploadParameters={uploadParams}
+                    onComplete={r => addBulkConferPhoto(r.url)}
+                    onError={onPhotoError}
+                  >
+                    <div style={{ width: '100%', padding: '12px 0', backgroundColor: '#f4f3f0', borderRadius: 8, border: '2px dashed #d6d3d1', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
+                      <ImagePlus style={{ width: 18, height: 18, color: '#746e69' }} />
+                      <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Galeria</span>
+                    </div>
+                  </ObjectUploader>
+                </div>
+              </div>
+              {bulkConferPhotos.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: 8, marginTop: 10 }}>
+                  {bulkConferPhotos.map(url => (
+                    <div key={url} style={{ position: 'relative', aspectRatio: '1', borderRadius: 8, overflow: 'hidden', border: '1px solid #e7e5e4', backgroundColor: '#f4f3f0' }}>
+                      <img src={url} alt="Foto da conferência" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <button
+                        type="button"
+                        onClick={() => setBulkConferPhotos(prev => prev.filter(u => u !== url))}
+                        style={{ position: 'absolute', top: 3, right: 3, width: 18, height: 18, borderRadius: '50%', border: 'none', backgroundColor: 'rgba(28,25,23,0.75)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
+                      >
+                        <X style={{ width: 10, height: 10 }} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Observações */}
+            <div>
+              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#746e69', marginBottom: 8 }}>
+                Observações <span style={{ textTransform: 'none', fontWeight: 400, color: '#746e69', letterSpacing: 0 }}>(opcional)</span>
+              </label>
+              <textarea
+                value={bulkConferNotes}
+                onChange={e => setBulkConferNotes(e.target.value)}
+                placeholder="Ex.: conferido contra o romaneio, sem avarias..."
+                rows={2}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '12px 14px', background: '#fff', border: '1.5px solid #e7e5e4', borderRadius: 12, fontSize: 13, fontFamily: 'inherit', color: TI.text, resize: 'none', lineHeight: 1.5 }}
+              />
+            </div>
+
+            {/* Peças selecionadas */}
+            <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, maxHeight: 150, overflowY: 'auto' }}>
+              {Array.from(bulkSelectedIds).map((itemId, idx) => {
+                const item = (filteredItems as any[]).find(i => i.id === itemId);
+                if (!item) return null;
+                return (
+                  <div key={itemId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: idx < bulkSelectedIds.size - 1 ? '1px solid #f5f5f4' : 'none' }}>
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: '#0e7490', flexShrink: 0 }}>{item.displayId}</span>
+                    <span style={{ fontSize: 13, color: TI.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{item.type}</span>
+                    <span style={{ fontSize: 11, color: TI.muted, flexShrink: 0 }}>{remainingConfer(item)} un.</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer */}
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => setBulkConferOpen(false)}
+                style={{ flex: 1, height: 48, borderRadius: 12, background: 'transparent', border: '1.5px solid #e7e5e4', color: '#746e69', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'background 0.12s' }}
+                onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={handleBulkConference}
+                disabled={isBulkSubmitting || bulkConferPhotos.length === 0}
+                style={{
+                  flex: 2, height: 48, borderRadius: 12, border: 'none',
+                  background: (bulkConferPhotos.length === 0 || isBulkSubmitting) ? '#e7e5e4' : '#0e7490',
+                  color: (bulkConferPhotos.length === 0 || isBulkSubmitting) ? '#a8a29e' : '#fff',
+                  fontSize: 13, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif",
+                  cursor: (bulkConferPhotos.length === 0 || isBulkSubmitting) ? 'not-allowed' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                  boxShadow: bulkConferPhotos.length > 0 && !isBulkSubmitting ? '0 4px 14px rgba(14,116,144,0.3)' : 'none',
+                  transition: 'all 0.15s',
+                }}
+                onMouseEnter={e => { if (bulkConferPhotos.length > 0 && !isBulkSubmitting) e.currentTarget.style.background = '#155e75'; }}
+                onMouseLeave={e => { if (bulkConferPhotos.length > 0 && !isBulkSubmitting) e.currentTarget.style.background = '#0e7490'; }}
+              >
+                {isBulkSubmitting
+                  ? 'Salvando...'
+                  : <><CheckCircle style={{ width: 15, height: 15 }} />Confirmar Conferência ({bulkSelectedIds.size})</>
                 }
               </button>
             </div>

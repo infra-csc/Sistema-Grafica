@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
-import { getStatusLabel } from "@/lib/status";
+import { getStatusLabel, getStatusMeta } from "@/lib/status";
 import {
   Calendar, ClipboardList, FileText, History,
   Edit, Save, X, Link2, Palette, CheckCircle, Zap, Eye, Cog, Check,
@@ -481,10 +481,18 @@ export function ItemDetailsDialog({
               <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
                 {item.displayId}
               </span>
-              {/* Status + tag pills inline */}
-              <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(253,118,26,0.2)", color: "#fd761a", border: "1px solid rgba(253,118,26,0.3)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                {getStatusLabel(rawStatus)}
-              </span>
+              {/* Status pill — cor por status (fonte única). Antes era laranja
+                  fixo para qualquer status, divergindo dos pills das tabelas.
+                  Sobre o header escuro: texto no tom pastel (border) e fundo no
+                  tint do dot — mesmo padrão dos chips vizinhos (reuso/reprovado). */}
+              {(() => {
+                const m = getStatusMeta(rawStatus);
+                return (
+                  <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: `${m.dot}26`, color: m.border, border: `1px solid ${m.dot}4D`, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                    {getStatusLabel(rawStatus)}
+                  </span>
+                );
+              })()}
               {(item.isReuse || item.reuseQty > 0) && (
                 <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(22,101,52,0.3)", color: "#4ade80", border: "1px solid rgba(22,101,52,0.4)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
                   {item.isReuse ? "Reaproveitamento" : `↩ ${item.reuseQty}/${item.quantity}`}

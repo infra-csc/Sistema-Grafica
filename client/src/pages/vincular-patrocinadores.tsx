@@ -2,33 +2,22 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { parseDateLocal, toUTCDisplayDate, runInBatches } from "@/lib/utils";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { ChevronsUpDown } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Package, Check, Calendar, Truck, Link2, AlertCircle, AlertTriangle, CheckCircle2, X, Building2, Plus, Search, Filter, Users, FileText, ClipboardList, History, CircleDot, Circle, Save, Send, ArrowRight, ChevronDown, Info, Lock, ShieldCheck, Paperclip, ZoomIn, ExternalLink, RotateCcw, Zap } from "lucide-react";
+import { Package, Check, Calendar, Truck, AlertTriangle, CheckCircle2, X, Building2, Plus, Search, Users, ClipboardList, Circle, Save, Send, ChevronDown, Info, Lock, Paperclip, ExternalLink, RotateCcw, Zap } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
-import { format, isAfter, startOfDay, differenceInHours } from "date-fns";
+import { format, isAfter, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { StatusBadge } from "@/components/status-badge";
-import { CommentsSection } from "@/components/comments-section";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useAuth } from "@/contexts/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ModalHeader, ModalFooter, modalSurface } from "@/components/modal-shell";
-import { R, onColor, darkenToContrast } from "@/lib/theme";
+import { R, onColor } from "@/lib/theme";
 
 type ItemChanges = {
   sponsorIds: string[];
@@ -100,10 +89,25 @@ const getItemUIStatus = (
   return 'PENDENTE';
 };
 
+// Rótulos exibidos para cada status UI — os cartões, filtros e badges devem
+// usar SEMPRE este mapa (antes o badge da linha imprimia a chave crua
+// "RASCUNHO" e o config dizia "Preparado": quatro grafias para o mesmo estado).
+const UI_STATUS_LABEL: Record<string, string> = {
+  PENDENTE: 'Pendente',
+  RASCUNHO: 'Rascunho',
+  PRONTO: 'Pronto',
+  ENVIADO: 'Enviado',
+};
+
+// URLs de referência vêm de input de usuário: só http(s) ou caminho relativo
+// pode chegar a href/src — "javascript:..." executava no clique (XSS).
+const safeRefUrl = (u?: string | null): string | null =>
+  u && /^(https?:\/\/|\/)/i.test(u.trim()) ? u.trim() : null;
+
 // Cores para cada status UI — Titanium Design System
 const UI_STATUS_CONFIG = {
   RASCUNHO: {
-    label: 'Preparado',
+    label: 'Rascunho',
     icon: Circle,
     badgeStyle: { backgroundColor: '#ffedd5', color: '#c2410c' },
     chipClass: 'bg-orange-100 text-orange-700',
@@ -139,31 +143,6 @@ const hexToRgba = (hex: string, alpha: number = 1): string => {
   return `rgba(${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}, ${alpha})`;
 };
 
-// Função para obter cor do patrocinador a partir dos dados.
-//
-// O pill pinta o fundo com a cor a 10% e escrevia com a cor cheia. Isso só
-// funciona nos tons escuros: medindo a paleta que a tela de patrocinadores
-// oferece, 9 das 12 cores reprovam sobre o próprio fundo, e o amarelo
-// (#eab308) fica em 1.79:1 — ilegível. Como a cor é escolhida por quem
-// cadastra, não existe valor fixo a corrigir; `darkenToContrast` escurece só
-// o necessário e mantém a matiz, então um pill vermelho segue vermelho.
-const getSponsorColorStyle = (sponsor: any) => {
-  const color = sponsor?.color || "#2563eb";
-  // O fundo é a cor a 10% sobre branco — é contra ele que o texto é medido.
-  const [r, g, b] = [1, 3, 5].map(i => parseInt((color as string).substr(i, 2), 16) || 0);
-  const fundoSolido = `#${[r, g, b].map(c => Math.round(0.1 * c + 0.9 * 255).toString(16).padStart(2, "0")).join("")}`;
-  return {
-    backgroundColor: hexToRgba(color, 0.1),
-    borderColor: hexToRgba(color, 0.3),
-    color: darkenToContrast(color, fundoSolido),
-  };
-};
-
-// Função para obter cor do patrocinador pelo ID
-const getSponsorColorById = (sponsorId: string, allSponsors: any[]) => {
-  const sponsor = allSponsors.find(s => s.id === sponsorId);
-  return getSponsorColorStyle(sponsor);
-};
 
 // Reutilizado nos sorts de lista: um Collator criado uma vez é bem mais rápido
 // que chamar localeCompare a cada comparação.
@@ -205,8 +184,6 @@ export default function VincularPatrocinadores() {
   const [bulkSponsorSearch, setBulkSponsorSearch] = useState('');
   
   // Estado para controlar qual aba está ativa
-  const [activeTab, setActiveTab] = useState<"vincular" | "enviar">(() => (sessionStorage.getItem("vincular:activeTab") as "vincular" | "enviar") || "vincular");
-  useEffect(() => { sessionStorage.setItem("vincular:activeTab", activeTab); }, [activeTab]);
   const [previewRefUrl, setPreviewRefUrl] = useState<string | null>(null);
 
   // Vista principal: por-item (existente) | por-patrocinador (nova)
@@ -220,8 +197,6 @@ export default function VincularPatrocinadores() {
   // Trava o botão de confirmar envio enquanto a sincronização/envio está em curso.
   const [isSending, setIsSending] = useState(false);
 
-  // Estado para controlar items expandidos
-  const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
   // Estado para expandir a lista de patrocinadores por item (quando há muitos)
   const [expandedSponsorCells, setExpandedSponsorCells] = useState<Set<string>>(new Set());
@@ -249,10 +224,7 @@ export default function VincularPatrocinadores() {
       return n;
     });
   };
-  const SPONSOR_PILL_LIMIT = 4;
 
-  // Estado para seleção de items para ENVIAR (separado da seleção para aplicar patrocinadores)
-  const [selectedForSending, setSelectedForSending] = useState<Set<string>>(new Set());
 
   // Modal de confirmação de salvamento
   type SaveModal = { payloads: SavePayload[]; items: any[] };
@@ -261,11 +233,14 @@ export default function VincularPatrocinadores() {
   // Modal de confirmação: devolver peça para Criação
   const [returnModal, setReturnModal] = useState<any | null>(null); // item a devolver
 
-  const { data: items = [], isLoading: itemsLoading } = useQuery<any[]>({
+  const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({
     queryKey: ["/api/items"],
   });
 
-  const { data: rawEvents = [] } = useQuery<any[]>({
+  // isLoading dos eventos também gateia o spinner: visibleItems exige o evento
+  // no eventById — se /api/items resolvesse antes de /api/events, a tela
+  // piscava o vazio "Nada para vincular agora" até os eventos chegarem.
+  const { data: rawEvents = [], isLoading: eventsLoading } = useQuery<any[]>({
     queryKey: ["/api/events"],
   });
 
@@ -483,19 +458,6 @@ export default function VincularPatrocinadores() {
     });
   }, [itemUIStates]);
 
-  // ===== Contadores globais baseados nos estados UI =====
-  const statusCounts = useMemo(() => {
-    const counts = {
-      RASCUNHO: 0,
-      PRONTO: 0,
-      ENVIADO: 0,
-      PENDENTE: 0
-    };
-    Object.values(itemUIStates).forEach(status => {
-      counts[status]++;
-    });
-    return counts;
-  }, [itemUIStates]);
 
   // Items visíveis respeitando o eventFilter (para contadores de contexto e ações em lote)
   const contextVisibleItems = useMemo(() => {
@@ -509,7 +471,10 @@ export default function VincularPatrocinadores() {
     const DOT: Record<string, string> = { urgente: '#ef4444', urgent: '#ef4444', alta: '#f97316', media: '#eab308', baixa: '#3b82f6' };
     const map = new Map<string, { value: string; label: string; count: number; dotColor?: string }>();
     visibleItems
-      .filter(i => sponsorFilter.length === 0 || (itemSponsorsMap[i.id] ?? []).some(sf => sponsorFilter.includes(sf)))
+      // originalSponsorsMap (o que está SALVO), igual à filtragem em
+      // fullyFilteredItems — com itemSponsorsMap (rascunho local) a opção
+      // aparecia com contagem > 0 e, selecionada, retornava zero linhas.
+      .filter(i => sponsorFilter.length === 0 || (originalSponsorsMap[i.id] ?? []).some(sf => sponsorFilter.includes(sf)))
       .forEach(i => {
         if (!i.eventId) return;
         const cur = map.get(i.eventId);
@@ -520,12 +485,13 @@ export default function VincularPatrocinadores() {
         }
       });
     return Array.from(map.values());
-  }, [visibleItems, sponsorFilter, itemSponsorsMap, eventById]);
+  }, [visibleItems, sponsorFilter, originalSponsorsMap, eventById]);
 
   const sponsorFilterOptions = useMemo(() => {
     const byId = new Map(sponsors.map((s: any) => [s.id, s]));
     const map = new Map<string, { value: string; label: string; count: number; dotColor?: string }>();
-    contextVisibleItems.forEach(i => (itemSponsorsMap[i.id] ?? []).forEach((sid: string) => {
+    // originalSponsorsMap pela mesma razão do filtro de eventos acima.
+    contextVisibleItems.forEach(i => (originalSponsorsMap[i.id] ?? []).forEach((sid: string) => {
       const cur = map.get(sid);
       if (cur) cur.count++;
       else {
@@ -534,7 +500,7 @@ export default function VincularPatrocinadores() {
       }
     }));
     return Array.from(map.values());
-  }, [contextVisibleItems, itemSponsorsMap, sponsors]);
+  }, [contextVisibleItems, originalSponsorsMap, sponsors]);
 
   // Itens que passam em TODOS os filtros ativos (usado no bloco de progresso)
   const fullyFilteredItems = useMemo(() => {
@@ -612,73 +578,6 @@ export default function VincularPatrocinadores() {
     return sortedA.every((id, index) => id === sortedB[index]);
   };
 
-  // Mutation para sincronizar patrocinadores
-  const syncItemSponsorsMutation = useMutation({
-    mutationFn: async ({ itemId, sponsorIds }: { itemId: string, sponsorIds: string[] }) => {
-      await apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, { sponsorIds });
-    },
-    onMutate: async ({ itemId, sponsorIds }) => {
-      // Snapshot do estado anterior para permitir rollback em caso de falha.
-      const prevItemSponsors = itemSponsorsMap[itemId];
-      const prevOriginalSponsors = originalSponsorsMap[itemId];
-      // Atualização otimista — reflete imediatamente sem esperar o servidor
-      setItemSponsorsMap(prev => ({ ...prev, [itemId]: sponsorIds }));
-      setOriginalSponsorsMap(prev => ({ ...prev, [itemId]: sponsorIds }));
-      return { itemId, prevItemSponsors, prevOriginalSponsors };
-    },
-    onSuccess: (_, { itemId }) => {
-      // Só invalida em background — não bloqueia a UI
-      queryClient.invalidateQueries({ queryKey: ["/api/items", itemId, "sponsors"] });
-      toast({ title: "Atualizado!", description: "Patrocinadores vinculados com sucesso" });
-    },
-    onError: (error: Error, _vars, context) => {
-      // Reverte o update otimista — sem isto, o mapa local ficaria mostrando
-      // patrocinadores que NÃO foram salvos, e loadedItemIdsRef impede a
-      // re-sincronização, deixando o dado errado permanente até um reload.
-      if (context) {
-        const { itemId, prevItemSponsors, prevOriginalSponsors } = context;
-        setItemSponsorsMap(prev => {
-          const next = { ...prev };
-          if (prevItemSponsors === undefined) delete next[itemId];
-          else next[itemId] = prevItemSponsors;
-          return next;
-        });
-        setOriginalSponsorsMap(prev => {
-          const next = { ...prev };
-          if (prevOriginalSponsors === undefined) delete next[itemId];
-          else next[itemId] = prevOriginalSponsors;
-          return next;
-        });
-      }
-      toast({
-        title: "Erro ao atualizar patrocinadores",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Mutation para atualizar skipApproval
-  const updateItemSkipApprovalMutation = useMutation({
-    mutationFn: async ({ itemId, skipApproval }: { itemId: string, skipApproval: boolean }) => {
-      await apiRequest("PATCH", `/api/items/${itemId}`, { skipApproval });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      toast({
-        title: "Atualizado",
-        description: "Configuração de aprovação atualizada",
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Erro ao atualizar",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
   // Mutation para atualizar isReuse
   const updateItemIsReuseMutation = useMutation({
     mutationFn: async ({ itemId, isReuse }: { itemId: string, isReuse: boolean }) => {
@@ -712,6 +611,9 @@ export default function VincularPatrocinadores() {
       // Invalidar e fazer refetch forçado
       queryClient.removeQueries({ queryKey: ["/api/events"] });
       await queryClient.refetchQueries({ queryKey: ["/api/events"], type: 'active' });
+      // Contagens de uso por patrocinador e histórico também mudam aqui.
+      queryClient.invalidateQueries({ queryKey: ["/api/sponsors"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setSponsorDialogOpen(false);
       toast({
         title: "✅ Patrocinadores atualizados!",
@@ -807,6 +709,9 @@ export default function VincularPatrocinadores() {
       // mapas de patrocinadores e o skipApproval no cache do React Query — que é
       // tudo que a UI lê. Invalidar aqui forçava um reload completo (N+1 no
       // backend) a cada salvamento, deixando a tela lenta.
+      // Audit-logs sim: o sync gera registro e o histórico do dialog de
+      // detalhes ficava stale sem isto.
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       if (failed.length === 0) {
         toast({
           title: "Vinculação salva!",
@@ -849,12 +754,20 @@ export default function VincularPatrocinadores() {
       // Atualização otimista: marca visualmente como ENVIADO antes da resposta do servidor
       setOptimisticSentIds(prev => new Set(Array.from(prev).concat(itemIds)));
     },
-    onSuccess: (data) => {
-      // Invalida em background — não bloqueia
+    onSuccess: (data, itemIds) => {
+      // Invalida em background — não bloqueia. Audit-logs e notificações
+      // também: o envio gera as duas coisas no servidor.
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       setSelectedItemIds(new Set());
-      setSelectedForSending(new Set());
-      setOptimisticSentIds(new Set()); // Limpa otimistas — dados reais já chegaram
+      // Limpa só os otimistas DESTE envio — zerar tudo apagava o estado de um
+      // segundo envio ainda em voo.
+      setOptimisticSentIds(prev => {
+        const next = new Set(prev);
+        itemIds.forEach(id => next.delete(id));
+        return next;
+      });
       setSendConfirmModal(null);
       
       if (data.errors && data.errors.length > 0) {
@@ -893,6 +806,8 @@ export default function VincularPatrocinadores() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       // Remove item do loadedItemIdsRef para recarregar sponsors
       if (returnModal) loadedItemIdsRef.current.delete(returnModal.id);
       setReturnModal(null);
@@ -902,45 +817,6 @@ export default function VincularPatrocinadores() {
       toast({ title: "Erro ao devolver peça", description: error.message, variant: "destructive" });
     },
   });
-
-  // Handler para enviar items selecionados para Arte
-  const handleSendSelectedToArte = () => {
-    if (selectedForSending.size === 0) {
-      toast({
-        title: "Nenhum item selecionado",
-        description: "Selecione os itens que deseja enviar para Arte.",
-        variant: "destructive",
-      });
-      return;
-    }
-    
-    sendToArteMutation.mutate(Array.from(selectedForSending));
-  };
-  
-  // Funções para seleção de items para envio
-  const toggleSendingSelection = (itemId: string) => {
-    setSelectedForSending(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(itemId)) {
-        newSet.delete(itemId);
-      } else {
-        newSet.add(itemId);
-      }
-      return newSet;
-    });
-  };
-  
-  const selectAllReadyItems = () => {
-    const readyItemIds = visibleItems.filter(item => {
-      const uiStatus = itemUIStates[item.id];
-      return uiStatus === 'PRONTO';
-    }).map(item => item.id);
-    setSelectedForSending(new Set(readyItemIds));
-  };
-  
-  const clearSendingSelection = () => {
-    setSelectedForSending(new Set());
-  };
 
   const handleOpenSponsorDialog = (event: any) => {
     setSelectedEventForSponsors(event);
@@ -1245,51 +1121,6 @@ export default function VincularPatrocinadores() {
     return map;
   };
 
-  // Handler bulk da aba Por Patrocinador:
-  // 1. Para cada item, mescla patrocinadores existentes + recém-selecionados
-  // 2. Sincroniza no banco
-  // 3. Envia para Arte
-  const handleSponsorBulkSendToArte = async () => {
-    const grouped = groupSelectedBySponsor();
-    const itemIds = Object.keys(grouped);
-    if (itemIds.length === 0) return;
-
-    try {
-      // Sincronizar sponsors de cada item que tem novos patrocinadores selecionados
-      const itemsToSync = itemIds.filter(itemId => {
-        const existing = originalSponsorsMap[itemId] || [];
-        const newOnes = grouped[itemId] || [];
-        return newOnes.some(id => !existing.includes(id));
-      });
-
-      // Sincroniza em lotes com concorrência limitada (evita esgotar o pool do banco).
-      await runInBatches(itemsToSync, async (itemId) => {
-        const existing = originalSponsorsMap[itemId] || [];
-        const merged = Array.from(new Set([...existing, ...(grouped[itemId] || [])]));
-        await apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, {
-          sponsorIds: merged,
-          skipApproval: false,
-        });
-        // Atualizar estado local imediatamente
-        setOriginalSponsorsMap(prev => ({ ...prev, [itemId]: merged }));
-        setItemSponsorsMap(prev => ({ ...prev, [itemId]: merged }));
-      });
-
-      // Abrir modal de confirmação em vez de enviar direto
-      const itemsToSend = items.filter((i: any) => itemIds.includes(i.id));
-      const pendingByItem: Record<string, Set<string>> = {};
-      itemIds.forEach((id: string) => { pendingByItem[id] = new Set(); });
-      setSendConfirmModal({ items: itemsToSend, pendingByItem });
-    } catch (err: any) {
-      toast({
-        title: "Erro ao vincular patrocinadores",
-        description: err?.message || "Tente novamente",
-        variant: "destructive",
-      });
-    }
-
-    setSponsorBulkSelected(new Set());
-  };
 
   // ===== Modal de Confirmação de Envio =====
 
@@ -1344,9 +1175,10 @@ export default function VincularPatrocinadores() {
         const existing = originalSponsorsMap[item.id] || [];
         const newOnes = Array.from(pendingByItem[item.id] || []);
         const merged = Array.from(new Set([...existing, ...newOnes]));
+        // Sem skipApproval no body: o servidor preserva a flag atual. Mandar
+        // `false` fixo apagava a marca "sem aprovação" de itens isentos.
         await apiRequest("POST", `/api/items/${item.id}/sponsors/sync`, {
           sponsorIds: merged,
-          skipApproval: false,
         });
         setOriginalSponsorsMap(prev => ({ ...prev, [item.id]: merged }));
         setItemSponsorsMap(prev => ({ ...prev, [item.id]: merged }));
@@ -1391,15 +1223,17 @@ export default function VincularPatrocinadores() {
     setOriginalSponsorsMap(prev => ({ ...prev, [itemId]: newSponsors }));
     // Persistir no servidor (sem invalidar /api/items — os mapas já foram
     // atualizados de forma otimista, que é o que a UI lê; invalidar recarregava
-    // todos os itens à toa).
+    // todos os itens à toa). Sem skipApproval no body: o servidor preserva a
+    // flag — `false` fixo apagava a isenção "sem aprovação" do item.
     apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, {
       sponsorIds: newSponsors,
-      skipApproval: false,
-    }).catch(() => {
+    }).then(() => {
+      toast({ title: "Patrocinador desvinculado" });
+    }).catch((err: any) => {
       // reverter em caso de erro
       setItemSponsorsMap(prev => ({ ...prev, [itemId]: current }));
       setOriginalSponsorsMap(prev => ({ ...prev, [itemId]: current }));
-      toast({ title: "Erro ao desvincular", variant: "destructive" });
+      toast({ title: "Erro ao desvincular", description: err?.message || "Tente novamente", variant: "destructive" });
     });
   };
 
@@ -1407,12 +1241,39 @@ export default function VincularPatrocinadores() {
   // arquivo onde todo o resto é estilo inline com a paleta stone: os dois
   // estados pareciam de outro produto. E o vazio só afirmava que não havia
   // nada, sem dizer por quê nem o que fazer — quem cai aqui fica sem saída.
-  if (itemsLoading) {
+  if (itemsLoading || eventsLoading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
           <div className="animate-spin" style={{ width: 34, height: 34, borderRadius: R.pill, border: '3px solid #ebe8e4', borderTopColor: '#c2410c' }} />
           <p style={{ fontSize: 13, color: '#57534e', margin: 0 }}>Carregando peças…</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Falha de rede tem cara de falha, não de "nada para vincular" — sem isto o
+  // erro caía no estado vazio logo abaixo e mentia sobre a causa.
+  if (itemsError) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', padding: 24 }}>
+        <div style={{ maxWidth: 420, textAlign: 'center' }}>
+          <div style={{ width: 64, height: 64, borderRadius: R.lg, backgroundColor: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' }}>
+            <AlertTriangle style={{ width: 28, height: 28, color: '#dc2626' }} />
+          </div>
+          <h2 style={{ fontSize: 18, fontWeight: 800, color: '#1a1c1c', margin: '0 0 8px', letterSpacing: '-0.02em' }}>
+            Não foi possível carregar as peças
+          </h2>
+          <p style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: '0 0 18px' }}>
+            Verifique sua conexão e tente novamente.
+          </p>
+          <button
+            onClick={() => refetchItems()}
+            style={{ height: 40, padding: '0 20px', backgroundColor: '#c2410c', color: '#fff', fontWeight: 700, fontSize: 13, borderRadius: R.md, border: 'none', cursor: 'pointer' }}
+            data-testid="button-retry-items"
+          >
+            Tentar de novo
+          </button>
         </div>
       </div>
     );
@@ -1442,19 +1303,7 @@ export default function VincularPatrocinadores() {
   // Calcular progresso — usa fullyFilteredItems para respeitar todos os filtros ativos
   const totalItems = fullyFilteredItems.length;
   const completedItems = fullyFilteredItems.filter(item => itemUIStates[item.id] === 'ENVIADO').length;
-  const progressPercent = totalItems > 0 ? (completedItems / totalItems) * 100 : 0;
 
-  const toggleItemExpansion = (itemId: string) => {
-    setExpandedItems(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(itemId)) {
-        newSet.delete(itemId);
-      } else {
-        newSet.add(itemId);
-      }
-      return newSet;
-    });
-  };
 
   return (
     <div className="container mx-auto p-4 max-w-6xl pb-24" style={{ height: "100%", overflowY: "auto" }}>
@@ -1578,8 +1427,22 @@ export default function VincularPatrocinadores() {
                 const totalLinks = autoLinkPreview.reduce((acc: number, e: any) => acc + e.items.length, 0);
                 setAutoLinkConfirming(true);
                 try {
-                  await apiRequest('POST', `/api/events/${eventFilter}/auto-link-sponsors`);
+                  await apiRequest('POST', `/api/events/${eventFilter[0]}/auto-link-sponsors`);
+                  // Sem isto os vínculos novos não apareciam até um reload:
+                  // loadedItemIdsRef pulava os itens já vistos e o merge dos
+                  // mapas preserva a entrada antiga. Esquecer os itens
+                  // afetados força a re-derivação a partir do refetch.
+                  const affectedIds = autoLinkPreview.flatMap((e: any) => e.items.map((it: any) => it.itemId));
+                  affectedIds.forEach((id: string) => loadedItemIdsRef.current.delete(id));
+                  const dropAffected = (prev: Record<string, string[]>) => {
+                    const next = { ...prev };
+                    affectedIds.forEach((id: string) => { delete next[id]; });
+                    return next;
+                  };
+                  setItemSponsorsMap(dropAffected);
+                  setOriginalSponsorsMap(dropAffected);
                   queryClient.invalidateQueries({ queryKey: ['/api/items'] });
+                  queryClient.invalidateQueries({ queryKey: ['/api/audit-logs'] });
                   setAutoLinkOpen(false);
                   setAutoLinkPreview(null);
                   toast({ title: 'Patrocinadores vinculados!', description: `${totalLinks} vínculo(s) criado(s) com sucesso.` });
@@ -1629,9 +1492,16 @@ export default function VincularPatrocinadores() {
               try {
                 const res = await fetch(`/api/events/${eventFilter[0]}/auto-link-preview`, { credentials: 'include' });
                 const data = await res.json();
+                // Um 500 com corpo {error} também resolve o res.json() — sem
+                // esta guarda o objeto ia parar em autoLinkPreview e o
+                // .reduce() do rodapé derrubava a tela inteira.
+                if (!res.ok || !Array.isArray(data)) {
+                  throw new Error(data?.error || 'Não foi possível carregar a pré-visualização');
+                }
                 setAutoLinkPreview(data);
-              } catch {
+              } catch (e: any) {
                 setAutoLinkOpen(false);
+                toast({ variant: 'destructive', title: 'Erro na pré-visualização', description: e?.message || 'Tente novamente' });
               } finally {
                 setAutoLinkLoading(false);
               }
@@ -1646,13 +1516,6 @@ export default function VincularPatrocinadores() {
           >
             <Zap style={{ width: 14, height: 14 }} />
             Auto-vincular por cota
-          </button>
-          <button
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 44, padding: '0 20px', backgroundColor: '#ffffff', color: '#44403c', fontWeight: 700, fontSize: 13, borderRadius: R.md, border: '1px solid #e7e5e4', cursor: 'pointer' }}
-            onMouseEnter={e => { (e.currentTarget.style.backgroundColor = '#fafaf9'); (e.currentTarget.style.borderColor = '#d6d3d1'); }}
-            onMouseLeave={e => { (e.currentTarget.style.backgroundColor = '#ffffff'); (e.currentTarget.style.borderColor = '#e7e5e4'); }}
-          >
-            Exportar PDF
           </button>
           <button
             onClick={() => {
@@ -1932,10 +1795,11 @@ export default function VincularPatrocinadores() {
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Nome..."
+                    placeholder="Peça, descrição ou evento..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-9"
+                    aria-label="Buscar por peça, descrição ou evento"
                     data-testid="input-search-events"
                   />
                 </div>
@@ -2011,7 +1875,10 @@ export default function VincularPatrocinadores() {
       {viewMode === 'por-item' && (
       <div className="space-y-6">
         {filteredEventEntries.map(([eventId, eventItems]) => {
-          const event = events.find(e => e.id === eventId);
+          // eventById (todos os eventos), não events (só futuros): itens
+          // pendentes de evento passado passam no visibleItems e eram contados
+          // nos totais, mas sumiam do render — "3 prontos" com a tela vazia.
+          const event = eventById.get(eventId);
           const eventSponsors = getEventSponsors(eventId);
           
           // Usar a mesma função de filtro para garantir consistência
@@ -2254,10 +2121,10 @@ export default function VincularPatrocinadores() {
                                     {item.description}
                                   </span>
                                 )}
-                                {item.referenceUrl && (
+                                {safeRefUrl(item.referenceUrl) && (
                                   <button
                                     type="button"
-                                    onClick={e => { e.stopPropagation(); setPreviewRefUrl(item.referenceUrl!); }}
+                                    onClick={e => { e.stopPropagation(); setPreviewRefUrl(safeRefUrl(item.referenceUrl)); }}
                                     title="Ver referência visual"
                                     data-testid={`link-reference-vincular-${item.id}`}
                                     style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: '#2563eb', textDecoration: 'none', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 999, padding: '2px 6px', marginTop: 2, cursor: 'pointer' }}
@@ -2270,10 +2137,12 @@ export default function VincularPatrocinadores() {
                             </td>
                             <td className="px-3 py-3">
                               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1c1c' }}>Qtd {String(item.quantity).padStart(2, '0')}</span>
-                                <span style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
-                                  {parseFloat(item.calculatedM2).toFixed(2)} m²
-                                </span>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1c1c' }}>Qtd {String(item.quantity ?? 0).padStart(2, '0')}</span>
+                                {item.calculatedM2 != null && !isNaN(parseFloat(item.calculatedM2)) && (
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
+                                    {parseFloat(item.calculatedM2).toFixed(2)} m²
+                                  </span>
+                                )}
                               </div>
                             </td>
                             {/* ── Coluna: Vínculos Ativos ── */}
@@ -2517,7 +2386,7 @@ export default function VincularPatrocinadores() {
                                       : { backgroundColor: '#e8e8e7', color: '#746e69' }),
                                   }}
                                 >
-                                  {uiStatus}
+                                  {UI_STATUS_LABEL[uiStatus] ?? uiStatus}
                                 </span>
                                 {/* Divider */}
                                 <span style={{ width: 1, height: 16, backgroundColor: '#e7e5e4', display: 'inline-block' }} />
@@ -2527,21 +2396,23 @@ export default function VincularPatrocinadores() {
                                 )}
                                 {uiStatus === 'RASCUNHO' && isEditable && (
                                   <>
-                                    {isAdmin && (
-                                      <button
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          const original = originalSponsorsMap[item.id] || [];
-                                          setPendingChanges(prev => { const n = { ...prev }; delete n[item.id]; return n; });
-                                          setItemSponsorsMap(prev => ({ ...prev, [item.id]: original }));
-                                        }}
-                                        data-testid={`button-discard-item-${item.id}`}
-                                        title="Descartar alterações"
-                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#746e69', display: 'flex', alignItems: 'center', padding: 2 }}
-                                      >
-                                        <X style={{ width: 13, height: 13 }} />
-                                      </button>
-                                    )}
+                                    {/* Descartar é ação puramente local (só desfaz o rascunho
+                                        deste usuário) — restringir a admin só impedia
+                                        arte/solicitação de desfazer o próprio trabalho. */}
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        const original = originalSponsorsMap[item.id] || [];
+                                        setPendingChanges(prev => { const n = { ...prev }; delete n[item.id]; return n; });
+                                        setItemSponsorsMap(prev => ({ ...prev, [item.id]: original }));
+                                      }}
+                                      data-testid={`button-discard-item-${item.id}`}
+                                      title="Descartar alterações"
+                                      aria-label={`Descartar alterações de ${item.displayId}`}
+                                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#746e69', display: 'flex', alignItems: 'center', padding: 2 }}
+                                    >
+                                      <X style={{ width: 13, height: 13 }} />
+                                    </button>
                                     <button
                                       onClick={() => {
                                         const ch = pendingChanges[item.id];
@@ -2551,6 +2422,7 @@ export default function VincularPatrocinadores() {
                                       disabled={saveLinkingMutation.isPending}
                                       data-testid={`button-save-item-${item.id}`}
                                       title="Salvar vinculação"
+                                      aria-label={`Salvar vinculação de ${item.displayId}`}
                                       style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f97316', display: 'flex', alignItems: 'center', padding: 2 }}
                                     >
                                       <Save style={{ width: 14, height: 14 }} />
@@ -2563,6 +2435,7 @@ export default function VincularPatrocinadores() {
                                     disabled={returnToCreationMutation.isPending}
                                     data-testid={`button-return-creation-${item.id}`}
                                     title="Devolver peça para Criação"
+                                    aria-label={`Devolver ${item.displayId} para Criação`}
                                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#746e69', display: 'flex', alignItems: 'center', padding: 2 }}
                                   >
                                     <RotateCcw style={{ width: 13, height: 13 }} />
@@ -2574,6 +2447,7 @@ export default function VincularPatrocinadores() {
                                     disabled={sendToArteMutation.isPending}
                                     data-testid={`button-send-item-${item.id}`}
                                     title="Enviar para Arte"
+                                    aria-label={`Enviar ${item.displayId} para Arte`}
                                     style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#166534', display: 'flex', alignItems: 'center', padding: 2 }}
                                   >
                                     <Send style={{ width: 14, height: 14 }} />
@@ -2591,6 +2465,22 @@ export default function VincularPatrocinadores() {
             </section>
           );
         })}
+        {/* Filtros zeraram tudo: sem isto a área principal ficava em branco
+            absoluto, sem explicação e sem saída. */}
+        {filteredEventEntries.length === 0 && (
+          <div style={{ backgroundColor: '#fff', border: '1px dashed #d6d3d1', borderRadius: 12, padding: '40px 24px', textAlign: 'center' }}>
+            <Search style={{ width: 26, height: 26, color: '#a8a29e', margin: '0 auto 12px', display: 'block' }} />
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#1a1c1c', margin: '0 0 4px' }}>Nenhuma peça com os filtros atuais</p>
+            <p style={{ fontSize: 12, color: '#746e69', margin: '0 0 16px' }}>Ajuste a busca ou os filtros acima para ver as peças.</p>
+            <button
+              onClick={() => { setSearchQuery(""); setEventFilter([]); setSponsorFilter([]); setItemFilter([]); setStatusFilter([]); }}
+              data-testid="button-clear-filters"
+              style={{ height: 36, padding: '0 16px', backgroundColor: '#f5f5f4', color: '#1c1917', fontWeight: 700, fontSize: 12, borderRadius: 8, border: '1px solid #e7e5e4', cursor: 'pointer' }}
+            >
+              Limpar filtros
+            </button>
+          </div>
+        )}
       </div>
       )} {/* fim viewMode === 'por-item' */}
 
@@ -3085,10 +2975,11 @@ export default function VincularPatrocinadores() {
                 value={sponsorModalSearch}
                 onChange={e => setSponsorModalSearch(e.target.value)}
                 placeholder="Buscar patrocinador..."
+                aria-label="Buscar patrocinador"
                 style={{ width: '100%', height: 36, paddingLeft: 32, paddingRight: 36, borderRadius: 8, border: '1px solid #e7e5e4', backgroundColor: '#fafaf9', color: '#1c1917', fontSize: 13, boxSizing: 'border-box' }}
               />
               {sponsorModalSearch && (
-                <button onClick={() => setSponsorModalSearch('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0, color: '#746e69' }}>
+                <button aria-label="Limpar busca" title="Limpar busca" onClick={() => setSponsorModalSearch('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: 0, color: '#746e69' }}>
                   <X style={{ width: 13, height: 13 }} />
                 </button>
               )}
@@ -3261,6 +3152,7 @@ export default function VincularPatrocinadores() {
               <input
                 type="text"
                 placeholder="Buscar patrocinador..."
+                aria-label="Buscar patrocinador"
                 value={bulkSponsorSearch}
                 onChange={e => setBulkSponsorSearch(e.target.value)}
                 style={{ width: '100%', paddingLeft: 32, paddingRight: 12, paddingTop: 8, paddingBottom: 8, borderRadius: 8, border: '1.5px solid #e7e5e4', fontSize: 13, color: '#1a1c1c', backgroundColor: '#ffffff', boxSizing: 'border-box' }}
@@ -3307,7 +3199,18 @@ export default function VincularPatrocinadores() {
 
             {/* Lista de patrocinadores — filtrada, ordenada A-Z, selecionados primeiro */}
             {(() => {
-              const base = (eventFilter.length === 1 ? getEventSponsors(eventFilter[0]) : sponsors) as any[];
+              // Só patrocinadores dos eventos das peças selecionadas: oferecer
+              // o cadastro inteiro permitia gravar um vínculo de fora do
+              // evento — ficava no banco, mas a coluna "Vínculos Ativos"
+              // (que só lista patrocinadores do evento) nunca o exibia.
+              const selectedEventIds = Array.from(new Set(
+                (visibleItems as any[]).filter(i => selectedItemIds.has(i.id)).map(i => i.eventId)
+              ));
+              const base = (eventFilter.length === 1
+                ? getEventSponsors(eventFilter[0])
+                : selectedEventIds
+                    .flatMap(id => getEventSponsors(id))
+                    .filter((s: any, idx: number, arr: any[]) => arr.findIndex((x: any) => x.id === s.id) === idx)) as any[];
               const q = bulkSponsorSearch.toLowerCase().trim();
               const filtered = q ? base.filter((s: any) => s.name.toLowerCase().includes(q) || (s.company || '').toLowerCase().includes(q)) : base;
               const sorted = [...filtered].sort((a: any, b: any) => {

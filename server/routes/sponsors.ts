@@ -8,11 +8,18 @@ import { insertSponsorSchema, insertEventSponsorSchema, insertItemSponsorSchema 
 import {
   requireAuth,
   requireAdmin,
+  requireRole,
   broadcast,
   translateStatus,
   createAuditLog,
   updateEventStatus,
 } from "./shared";
+
+// Papéis que escrevem em vinculação de patrocinadores — o mesmo conjunto que a
+// rota /vincular-patrocinadores permite no client (App.tsx). Antes essas rotas
+// só tinham requireAuth: qualquer sessão (grafica inclusive) podia reescrever
+// vínculos ou devolver peças para a Criação por API.
+const requireLinkingWrite = requireRole("arte", "solicitacao", "atendimento", "admin");
 
 export function registerSponsorRoutes(app: Express): void {
   // ============ SPONSORS ============
@@ -231,9 +238,20 @@ export function registerSponsorRoutes(app: Express): void {
     }
   });
 
-  app.post("/api/events/:id/auto-link-sponsors", requireAuth, async (req, res) => {
+  app.post("/api/events/:id/auto-link-sponsors", requireLinkingWrite, async (req, res) => {
     try {
       const linked = await storage.autoLinkByQuota(req.params.id);
+      // Era a única escrita da tela de vinculação invisível no histórico e
+      // sem broadcast — outros clientes ficavam com /api/items stale.
+      const event = await storage.getEvent(req.params.id);
+      await createAuditLog(
+        (req as any).userName,
+        'updated',
+        'event',
+        req.params.id,
+        `Vinculação automática por cota no evento "${event?.name ?? req.params.id}" — ${linked} ${linked === 1 ? 'vínculo criado' : 'vínculos criados'}`
+      );
+      broadcast({ type: "item_updated", eventId: req.params.id });
       res.json({ linked });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -253,7 +271,7 @@ export function registerSponsorRoutes(app: Express): void {
   });
 
   // Update sponsor quota on event
-  app.patch("/api/events/:eventId/sponsors/:sponsorId", requireAuth, async (req, res) => {
+  app.patch("/api/events/:eventId/sponsors/:sponsorId", requireLinkingWrite, async (req, res) => {
     try {
       const { eventId, sponsorId } = req.params;
       const quota = req.body.quota || null;
@@ -265,7 +283,7 @@ export function registerSponsorRoutes(app: Express): void {
   });
 
   // Add sponsor to event
-  app.post("/api/events/:id/sponsors", requireAuth, async (req, res) => {
+  app.post("/api/events/:id/sponsors", requireLinkingWrite, async (req, res) => {
     try {
       const validatedData = insertEventSponsorSchema.parse({
         eventId: req.params.id,
@@ -294,7 +312,7 @@ export function registerSponsorRoutes(app: Express): void {
   });
 
   // Remove sponsor from event
-  app.delete("/api/events/:eventId/sponsors/:sponsorId", requireAuth, async (req, res) => {
+  app.delete("/api/events/:eventId/sponsors/:sponsorId", requireLinkingWrite, async (req, res) => {
     try {
       const { eventId, sponsorId } = req.params;
       const success = await storage.removeSponsorFromEvent(eventId, sponsorId);
@@ -349,7 +367,7 @@ export function registerSponsorRoutes(app: Express): void {
   });
 
   // Bulk sync item sponsors (replaces all sponsors for an item)
-  app.post("/api/items/:id/sponsors/sync", requireAuth, async (req, res) => {
+  app.post("/api/items/:id/sponsors/sync", requireLinkingWrite, async (req, res) => {
     try {
       const itemId = req.params.id;
       const { sponsorIds, skipApproval } = req.body;
@@ -358,19 +376,30 @@ export function registerSponsorRoutes(app: Express): void {
         return res.status(400).json({ error: "sponsorIds deve ser um array" });
       }
 
-      // Filtrar IDs nulos ou vazios antes de inserir no banco
-      const validSponsorIds = sponsorIds.filter((id: any) => id && typeof id === 'string' && id.trim() !== '');
-      await storage.bulkSyncItemSponsors(itemId, validSponsorIds);
-      
-      // Update item with skipApproval only (status NOT changed here - user must click "Enviar para Arte")
       const currentItem = await storage.getItem(itemId);
       if (!currentItem) {
         return res.status(404).json({ error: "Item não encontrado" });
       }
-      
-      const itemUpdates: any = { skipApproval: skipApproval || false };
-      
-      const item = await storage.updateItem(itemId, itemUpdates);
+
+      // Vínculo só faz sentido enquanto a peça está na fase de vinculação —
+      // sem isto dava para reescrever patrocinadores de peça já em produção
+      // ou entregue (a tela esconde, mas era gate só de UI).
+      const linkableStatuses = ['requested', 'awaiting_linking'];
+      if (!linkableStatuses.includes(currentItem.status)) {
+        return res.status(409).json({ error: `Peça não está em fase de vinculação (status atual: ${translateStatus(currentItem.status)})` });
+      }
+
+      // Filtrar IDs nulos ou vazios antes de inserir no banco
+      const validSponsorIds = sponsorIds.filter((id: any) => id && typeof id === 'string' && id.trim() !== '');
+      await storage.bulkSyncItemSponsors(itemId, validSponsorIds);
+
+      // Update item with skipApproval only (status NOT changed here - user must click "Enviar para Arte").
+      // skipApproval só muda se veio no body — antes `skipApproval || false`
+      // zerava a flag "sem aprovação" em qualquer sync que não a mencionasse.
+      let item = currentItem;
+      if ('skipApproval' in req.body) {
+        item = (await storage.updateItem(itemId, { skipApproval: !!skipApproval })) ?? currentItem;
+      }
       
       await createAuditLog(
         (req as any).userName,
@@ -396,7 +425,7 @@ export function registerSponsorRoutes(app: Express): void {
   });
 
   // Return item to creation (Solicitação) team
-  app.post("/api/items/:id/return-to-creation", requireAuth, async (req, res) => {
+  app.post("/api/items/:id/return-to-creation", requireLinkingWrite, async (req, res) => {
     try {
       const { id } = req.params;
       const item = await storage.getItem(id);
@@ -420,6 +449,16 @@ export function registerSponsorRoutes(app: Express): void {
       );
 
       const updated = await storage.getItem(id);
+
+      // A peça volta para a Solicitação — é ela quem AGE agora.
+      const notification = await storage.createNotification({
+        type: 'itemReturnedToCreation',
+        message: `Peça "${item.displayId}" devolvida para a Criação (vínculos removidos)`,
+        targetRoles: ['solicitacao'],
+      });
+      broadcast({ type: "notification_created", notification });
+      broadcast({ type: "item_updated", item: updated });
+
       res.json({ message: "Item devolvido para Criação com sucesso", item: updated });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -427,7 +466,7 @@ export function registerSponsorRoutes(app: Express): void {
   });
 
   // Send items to Arte (bulk) - changes status from 'awaiting_linking' to 'awaiting_submission'
-  app.post("/api/items/send-to-arte", requireAuth, async (req, res) => {
+  app.post("/api/items/send-to-arte", requireLinkingWrite, async (req, res) => {
     try {
       const { itemIds } = req.body;
       
@@ -477,12 +516,13 @@ export function registerSponsorRoutes(app: Express): void {
         );
         
         // Notify Arte profile
-        await storage.createNotification({
+        const notification = await storage.createNotification({
           type: 'itemsSentToArte',
           message: `${results.length} ${results.length === 1 ? 'item' : 'itens'} aguardando criação de thumb de aprovação`,
           targetRoles: ['arte'], // só quem AGE: a Arte cria o thumb; admin não tem ação aqui
         });
-        
+        broadcast({ type: "notification_created", notification });
+
         results.forEach(item => {
           broadcast({ type: "item_updated", item });
         });
@@ -500,7 +540,7 @@ export function registerSponsorRoutes(app: Express): void {
   });
 
   // Add single sponsor to item
-  app.post("/api/items/:id/sponsors", requireAuth, async (req, res) => {
+  app.post("/api/items/:id/sponsors", requireLinkingWrite, async (req, res) => {
     try {
       const validatedData = insertItemSponsorSchema.parse({
         itemId: req.params.id,
@@ -528,7 +568,7 @@ export function registerSponsorRoutes(app: Express): void {
   });
 
   // Remove sponsor from item
-  app.delete("/api/items/:itemId/sponsors/:sponsorId", requireAuth, async (req, res) => {
+  app.delete("/api/items/:itemId/sponsors/:sponsorId", requireLinkingWrite, async (req, res) => {
     try {
       const { itemId, sponsorId } = req.params;
       const success = await storage.removeSponsorFromItem(itemId, sponsorId);

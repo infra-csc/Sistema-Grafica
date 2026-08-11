@@ -51,7 +51,7 @@ import {
   type ItemStatus,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sql, or, lt, ne, inArray } from "drizzle-orm";
+import { eq, and, desc, sql, or, lt, ne, inArray, like } from "drizzle-orm";
 
 export interface IStorage {
   // Events
@@ -858,6 +858,13 @@ export class DatabaseStorage implements IStorage {
 
   // Audit Logs
   async getAuditLogs(entityType?: string, entityId?: string): Promise<AuditLog[]> {
+    // Logs de operações em LOTE gravam entity_id como lista ("id1,id2,id3").
+    // O match por entityId precisa cobrir também esses registros — senão o
+    // histórico da peça no modal perde as ações em massa. IDs são UUIDs
+    // (comprimento fixo, aleatórios), então LIKE '%id%' não gera falso positivo.
+    const entityIdMatch = (id: string) =>
+      or(eq(auditLogs.entityId, id), like(auditLogs.entityId, `%${id}%`));
+
     if (entityType && entityId) {
       return await db
         .select()
@@ -865,7 +872,7 @@ export class DatabaseStorage implements IStorage {
         .where(
           and(
             eq(auditLogs.entityType, entityType),
-            eq(auditLogs.entityId, entityId)
+            entityIdMatch(entityId)
           )
         )
         .orderBy(desc(auditLogs.createdAt));
@@ -879,7 +886,7 @@ export class DatabaseStorage implements IStorage {
       return await db
         .select()
         .from(auditLogs)
-        .where(eq(auditLogs.entityId, entityId))
+        .where(entityIdMatch(entityId))
         .orderBy(desc(auditLogs.createdAt));
     }
     

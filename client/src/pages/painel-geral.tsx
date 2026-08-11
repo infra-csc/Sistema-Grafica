@@ -74,8 +74,20 @@ export default function PainelGeral() {
   const { data: items = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ["/api/items"] });
   const { data: events = [] }           = useQuery<any[]>({ queryKey: ["/api/events"], placeholderData: [] });
   const { data: sponsors = [] }         = useQuery<any[]>({ queryKey: ["/api/sponsors"], placeholderData: [] });
-  const { data: auditLogs = [] }        = useQuery<any[]>({ queryKey: ["/api/audit-logs"], placeholderData: [] });
   const { data: standardItems = [] }    = useQuery<any[]>({ queryKey: ["/api/standard-items"], placeholderData: [] });
+
+  // Audit log SÓ da peça aberta no modal, buscado sob demanda. Antes a página
+  // baixava /api/audit-logs INTEIRO no load (tabela que só cresce — em 1 ano,
+  // megabytes por visita) apenas para alimentar o ItemDetailsDialog. O modal
+  // filtra por entityId internamente, então receber o subconjunto é compatível.
+  const { data: auditLogs = [] } = useQuery<any[]>({
+    queryKey: ["/api/audit-logs", "item", selectedItem?.id],
+    queryFn: () =>
+      fetch(`/api/audit-logs?entityType=item&entityId=${selectedItem!.id}`, { credentials: "include" })
+        .then(r => r.json()),
+    enabled: !!selectedItem?.id,
+    placeholderData: [],
+  });
 
   const showDeleted = statusFilter.includes("deleted");
   const { data: deletedItems = [] } = useQuery<any[]>({
@@ -95,7 +107,10 @@ export default function PainelGeral() {
     onError: (error: any) => toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" }),
   });
 
-  const uniqueTypes = Array.from(new Set(items.map((i: any) => i.type))).sort();
+  const uniqueTypes = useMemo(
+    () => Array.from(new Set(items.map((i: any) => i.type))).sort(),
+    [items],
+  );
 
   const typeToGroup = useMemo(() => {
     const map: Record<string, string> = {};
@@ -103,6 +118,10 @@ export default function PainelGeral() {
     return map;
   }, [standardItems]);
 
+  // Filtragem, ordenação, agrupamento e KPIs são recomputados SÓ quando os
+  // dados ou filtros mudam — sem o useMemo, cada render (ex.: abrir um modal)
+  // refazia filter+sort da lista inteira.
+  const { statsItems, filteredItems, groupedItems, stats } = useMemo(() => {
   const applyBaseFilters = (item: any) => {
     const matchesSearch =
       item.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -172,6 +191,10 @@ export default function PainelGeral() {
   const stats = {
     total:                 statsItems.length,
     requested:             statsItems.filter(i => i.status === "requested" || i.status === "draft").length,
+    // Contagem separada de rascunhos, exibida como subtexto no card
+    // "Solicitado" — sem ela, o card somava draft+requested sem indicação e o
+    // usuário via pills "Rascunho" que não batiam com nenhum card.
+    drafts:                statsItems.filter(i => i.status === "draft").length,
     awaitingLinking:       statsItems.filter(i => i.status === "awaiting_linking").length,
     awaitingSubmission:    statsItems.filter(i => i.status === "awaiting_submission").length,
     awaitingApproval:      statsItems.filter(i => i.status === "awaiting_approval" || i.status === "awaiting_sponsor_approval").length,
@@ -185,11 +208,17 @@ export default function PainelGeral() {
     delivered:             statsItems.filter(i => i.status === "delivered").length,
   };
 
+  return { statsItems, filteredItems, groupedItems, stats };
+  }, [items, deletedItems, showDeleted, searchTerm, statusFilter, eventFilter, sponsorFilter, typeFilter, dateFilter, typeToGroup]);
+
   // ── Status card component ───────────────────────────────
   const StatusCard = ({
-    label, value, dot, color, filterKey,
-  }: { label: string; value: number; dot: string; color: string; filterKey: string }) => {
+    label, value, dot, color, filterKey, sub,
+  }: { label: string; value: number; dot: string; color: string; filterKey: string; sub?: string }) => {
     const isActive = statusFilter.includes(filterKey);
+    // Cards zerados são informação de baixo valor no escaneamento ("onde está
+    // o gargalo?") — ficam esmaecidos, mas continuam clicáveis/filtráveis.
+    const isZero = value === 0 && !isActive;
     return (
       /* Os cartões são o filtro por status desta tela. Como div com onClick,
          filtrar era exclusivamente com mouse — e só a cor dizia qual estava
@@ -218,10 +247,17 @@ export default function PainelGeral() {
           cursor: "pointer",
           boxShadow: isActive ? `0 0 0 2px ${color}30, 0 5px 12px ${color}18` : "0 1px 2px rgba(28,25,23,.04)",
           transform: isActive ? "translateY(1px)" : "none",
-          transition: "border-color 0.15s, box-shadow 0.15s, transform 0.15s",
+          opacity: isZero ? 0.55 : 1,
+          transition: "border-color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s",
         }}
-        onMouseEnter={(e) => { if (!isActive) (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)"; }}
-        onMouseLeave={(e) => { if (!isActive) (e.currentTarget as HTMLDivElement).style.transform = "none"; }}
+        onMouseEnter={(e) => {
+          if (!isActive) (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)";
+          if (isZero) (e.currentTarget as HTMLDivElement).style.opacity = "1";
+        }}
+        onMouseLeave={(e) => {
+          if (!isActive) (e.currentTarget as HTMLDivElement).style.transform = "none";
+          if (isZero) (e.currentTarget as HTMLDivElement).style.opacity = "0.55";
+        }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: dot, boxShadow: `0 0 0 4px ${dot}18` }} />
@@ -230,6 +266,9 @@ export default function PainelGeral() {
         <div>
           <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: isActive ? color : "#1c1917", lineHeight: 1, margin: 0, letterSpacing: "-.05em" }}>{value}</p>
           <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#746e69", marginTop: 4, lineHeight: 1.2 }}>{label}</p>
+          {sub && (
+            <p style={{ fontSize: 9, fontWeight: 600, color: "#a8a29e", marginTop: 2, lineHeight: 1.2 }}>{sub}</p>
+          )}
         </div>
       </div>
     );
@@ -282,8 +321,20 @@ export default function PainelGeral() {
         </button>
       </header>
 
-      {/* ── Status cards ── */}
-       <section style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3,1fr)" : "repeat(6,1fr)", gap: 10 }}>
+      {/* ── Status cards — agrupados nas 3 fases do fluxo ─────────────────
+          12 cards iguais obrigavam o usuário a escanear um a um para achar o
+          gargalo. As zonas (Entrada → Aprovação → Produção) contam a história
+          do fluxo e a largura dos cards por zona cria ritmo visual. ── */}
+      <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+       {/* Desktop: Entrada (3) + Aprovação (4) lado a lado; Produção (5) na
+           linha de baixo em largura total — mantém ~2 linhas de cards com
+           largura confortável. Mobile: zonas empilhadas. */}
+       <div style={{ display: isMobile ? "flex" : "grid", flexDirection: "column", gridTemplateColumns: "3fr 4fr", gap: isMobile ? 12 : 14 }}>
+
+        {/* ZONA 1 — Entrada */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#a8a29e", paddingLeft: 2 }}>Entrada</span>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, flex: 1 }}>
 
         {/* Total card — dark */}
         <div
@@ -315,31 +366,57 @@ export default function PainelGeral() {
           </div>
         </div>
 
-        {/* Rótulo e cores derivam de lib/status.ts (fonte única). Antes eram
-            hardcoded e divergiam da tabela logo abaixo: o card dizia
-            "Rascunho" (laranja) enquanto os mesmos itens apareciam nos pills
-            como "Solicitado" (azul) — o usuário procurava "Rascunho" na
-            tabela e não achava nenhum. */}
+        {/* Rótulos e cores derivam de lib/status.ts (fonte única);
+            dot = tom saturado, color = tom escuro AA. */}
         {([
-          ["requested",            stats.requested],
-          ["awaiting_linking",     stats.awaitingLinking],
-          ["awaiting_submission",  stats.awaitingSubmission],
-          ["awaiting_approval",    stats.awaitingApproval],
-          ["awaiting_finalization",stats.awaitingFinalization],
-          ["awaiting_final_review",stats.awaitingFinalReview],
-          ["ready_for_production", stats.readyForProduction],
-          ["inProduction",         stats.inProduction],
-          ["produced",             stats.produced],
-          ["conferred",            stats.conferred],
-          ["delivered",            stats.delivered],
+          ["requested",        stats.requested],
+          ["awaiting_linking", stats.awaitingLinking],
         ] as Array<[string, number]>).map(([key, value]) => {
           const m = getStatusMeta(key);
-          // dot = tom saturado (bolinha/borda); color = tom escuro AA (número
-          // ativo e selo "Filtrado" — a cor saturada reprovava contraste).
           return (
-            <StatusCard key={key} label={m.short} value={value} dot={m.dot} color={m.text} filterKey={key} />
+            <StatusCard
+              key={key} label={m.short} value={value} dot={m.dot} color={m.text} filterKey={key}
+              sub={key === "requested" && stats.drafts > 0 ? `inclui ${stats.drafts} rascunho${stats.drafts > 1 ? "s" : ""}` : undefined}
+            />
           );
         })}
+          </div>
+        </div>
+
+        {/* ZONA 2 — Aprovação */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#a8a29e", paddingLeft: 2 }}>Aprovação</span>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,1fr)" : "repeat(4,1fr)", gap: 10, flex: 1 }}>
+            {([
+              ["awaiting_submission",  stats.awaitingSubmission],
+              ["awaiting_approval",    stats.awaitingApproval],
+              ["awaiting_finalization",stats.awaitingFinalization],
+              ["awaiting_final_review",stats.awaitingFinalReview],
+            ] as Array<[string, number]>).map(([key, value]) => {
+              const m = getStatusMeta(key);
+              return <StatusCard key={key} label={m.short} value={value} dot={m.dot} color={m.text} filterKey={key} />;
+            })}
+          </div>
+        </div>
+
+        {/* ZONA 3 — Produção & Entrega (linha inteira no desktop) */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, ...(!isMobile && { gridColumn: "1 / -1" }) }}>
+          <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#a8a29e", paddingLeft: 2 }}>Produção &amp; Entrega</span>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3,1fr)" : "repeat(5,1fr)", gap: 10, flex: 1 }}>
+            {([
+              ["ready_for_production", stats.readyForProduction],
+              ["inProduction",         stats.inProduction],
+              ["produced",             stats.produced],
+              ["conferred",            stats.conferred],
+              ["delivered",            stats.delivered],
+            ] as Array<[string, number]>).map(([key, value]) => {
+              const m = getStatusMeta(key);
+              return <StatusCard key={key} label={m.short} value={value} dot={m.dot} color={m.text} filterKey={key} />;
+            })}
+          </div>
+        </div>
+
+       </div>
       </section>
 
       {/* ── Filter toolbar ── */}
@@ -429,18 +506,21 @@ export default function PainelGeral() {
 
         {/* Data */}
         <div style={{ flexShrink: 0, minWidth: 130, ...(isMobile && { flex: "1 1 calc(50% - 4px)", minWidth: 0 }) }}>
+          {/* O critério é a data de INÍCIO do evento — os rótulos deixam isso
+              explícito. Antes "Atrasados"/"Hoje" era ambíguo: podia se referir
+              à saída do caminhão (a âncora dos prazos) ou ao início do evento. */}
           <FilterSelect
-            label="Data" allLabel="Todas as datas"
+            label="Início do evento" allLabel="Início: qualquer data"
             values={dateFilter} onValuesChange={setDateFilter}
             hideWhenEmpty={false}
             options={[
-              { value: "overdue",    label: "Atrasados",         pinned: true },
-              { value: "today",      label: "Hoje",              pinned: true },
-              { value: "next3days",  label: "Próximos 3 dias",   pinned: true },
-              { value: "next7days",  label: "Próximos 7 dias",   pinned: true },
-              { value: "next10days", label: "Próximos 10 dias",  pinned: true },
-              { value: "next15days", label: "Próximos 15 dias",  pinned: true },
-              { value: "next30days", label: "Próximos 30 dias",  pinned: true },
+              { value: "overdue",    label: "Início já passou",     pinned: true },
+              { value: "today",      label: "Começa hoje",          pinned: true },
+              { value: "next3days",  label: "Começa em até 3 dias", pinned: true },
+              { value: "next7days",  label: "Começa em até 7 dias", pinned: true },
+              { value: "next10days", label: "Começa em até 10 dias",pinned: true },
+              { value: "next15days", label: "Começa em até 15 dias",pinned: true },
+              { value: "next30days", label: "Começa em até 30 dias",pinned: true },
             ]}
             testId="select-date-filter"
             fullWidth
@@ -559,10 +639,12 @@ export default function PainelGeral() {
                       </div>
                     </div>
                   </div>
+                  {/* Contador é informação neutra — stone, não laranja: o
+                      laranja da marca fica reservado para ação/urgência. */}
                   <span style={{
                     padding: "4px 11px", borderRadius: 999,
-                    backgroundColor: "#fff7ed", color: "#c2410c",
-                    border: "1px solid #fed7aa",
+                    backgroundColor: "#f5f5f4", color: "#57534e",
+                    border: "1px solid #e7e5e4",
                     fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em",
                     whiteSpace: "nowrap",
                   }}>
@@ -678,7 +760,7 @@ export default function PainelGeral() {
                                             background: "none", border: "1px solid #e7e5e4", cursor: "pointer",
                                             borderRadius: 6, color: "#746e69",
                                             display: "flex", alignItems: "center", justifyContent: "center",
-                                            height: 36, width: 36,
+                                            height: 40, width: 40,
                                           }}
                                         >
                                           <Eye style={{ width: 15, height: 15 }} />
@@ -694,7 +776,7 @@ export default function PainelGeral() {
                                               background: "none", border: "1px solid #fecaca", cursor: "pointer",
                                               borderRadius: 6, color: "#746e69",
                                               display: "flex", alignItems: "center", justifyContent: "center",
-                                              height: 32, width: 36,
+                                              height: 40, width: 40,
                                             }}
                                           >
                                             <Trash2 style={{ width: 14, height: 14 }} />
@@ -904,7 +986,7 @@ export default function PainelGeral() {
                                           )}
                                         </div>
                                       ) : (
-                                        <span style={{ color: "#746e69", fontSize: 13 }}>—</span>
+                                        <span style={{ color: "#c4bfbb", fontSize: 13 }}>—</span>
                                       )}
                                     </td>
 

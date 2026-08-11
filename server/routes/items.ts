@@ -133,15 +133,17 @@ async function enrichItemsWithEventsAndSponsors(list: any[]): Promise<any[]> {
 export function registerItemRoutes(app: Express): void {
   // ============ ITEMS ============
 
-  // Get all items with event data and sponsors
-  // SAFETY CAP: limit response to 1000 items until pagination is implemented.
-  // This prevents unbounded payloads as data grows. See backlog for cursor-based pagination.
-  const ITEMS_SAFETY_CAP = 1000;
+  // Get all items with event data and sponsors.
+  // Sem cap: um slice silencioso aqui fez peças "sumirem" do Painel quando o
+  // banco passou de 1000. Se o payload virar problema, a saída é paginação
+  // real (cursor) — nunca truncar sem avisar o cliente.
   app.get("/api/items", requireAuth, async (req, res) => {
     try {
       const allItems = await storage.getAllItems();
-      const capped = allItems.length > ITEMS_SAFETY_CAP ? allItems.slice(0, ITEMS_SAFETY_CAP) : allItems;
-      const itemsWithEventsAndSponsors = await enrichItemsWithEventsAndSponsors(capped);
+      if (allItems.length > 5000) {
+        console.warn(`[items] GET /api/items retornando ${allItems.length} itens — priorizar paginação`);
+      }
+      const itemsWithEventsAndSponsors = await enrichItemsWithEventsAndSponsors(allItems);
       res.json(itemsWithEventsAndSponsors);
     } catch (error: any) {
       res.status(500).json({ error: error.message });

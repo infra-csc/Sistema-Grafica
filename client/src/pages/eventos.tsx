@@ -8,7 +8,7 @@ import { Plus, Calendar, Truck, AlertCircle, AlertTriangle, Search, Pencil, Tras
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Link, useLocation } from "wouter";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import type { Sponsor } from "@shared/schema";
 import {
   Dialog,
@@ -113,10 +113,43 @@ function EventCardActions({
 export default function Eventos() {
   const { hasPermission } = useAuth();
   const [open, setOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedPriorities, setSelectedPriorities] = useState<PriorityLevel[]>([]);
-  const [next10DaysFilter, setNext10DaysFilter] = useState(false);
-  const [monthFilter, setMonthFilter] = useState<string>("all");
+  // Filtros inicializam da URL e são espelhados nela (mesmo padrão do Painel
+  // Geral): F5 não perde o estado e o link filtrado é compartilhável.
+  const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
+  const [searchTerm, setSearchTerm] = useState(() => urlParams.get("busca") ?? "");
+  const [selectedPriorities, setSelectedPriorities] = useState<PriorityLevel[]>(
+    () => (urlParams.get("prioridade")?.split(",").filter(Boolean) as PriorityLevel[]) ?? [],
+  );
+  const [next10DaysFilter, setNext10DaysFilter] = useState(() => urlParams.get("proximos") === "1");
+  const [monthFilter, setMonthFilter] = useState<string>(() => urlParams.get("mes") ?? "all");
+
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (searchTerm) p.set("busca", searchTerm);
+    if (selectedPriorities.length) p.set("prioridade", selectedPriorities.join(","));
+    if (next10DaysFilter) p.set("proximos", "1");
+    if (monthFilter !== "all") p.set("mes", monthFilter);
+    const qs = p.toString();
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+  }, [searchTerm, selectedPriorities, next10DaysFilter, monthFilter]);
+
+  // Atalho "/" foca a busca (paridade com o Painel Geral).
+  const searchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/") return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const clearAllEventFilters = () => {
+    setSearchTerm(""); setSelectedPriorities([]); setNext10DaysFilter(false); setMonthFilter("all");
+  };
   const [formData, setFormData] = useState({
     name: "",
     startDate: "",
@@ -1081,7 +1114,9 @@ export default function Eventos() {
         <div style={{ position: 'relative', flexShrink: 0, width: isMobile ? '100%' : undefined }}>
           <Search style={{ position: 'absolute', left: '11px', top: '50%', transform: 'translateY(-50%)', color: '#a8a29e', width: '13px', height: '13px', pointerEvents: 'none' }} />
           <input
+            ref={searchRef}
             placeholder="Buscar evento..."
+            title="Atalho: pressione / para focar a busca"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             data-testid="input-search-events"
@@ -1224,7 +1259,13 @@ export default function Eventos() {
         <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '12px', padding: '72px 24px', textAlign: 'center' }}>
           <Search style={{ width: '40px', height: '40px', color: '#d4d0cb', margin: '0 auto 16px' }} />
           <h3 style={{ color: '#1c1917', fontSize: '18px', fontWeight: '700', marginBottom: '6px', fontFamily: "'Space Grotesk', sans-serif" }}>Nenhum evento encontrado</h3>
-          <p style={{ color: '#746e69', fontSize: '13px' }}>Tente uma busca ou filtro diferente</p>
+          <p style={{ color: '#746e69', fontSize: '13px', marginBottom: '20px' }}>Nenhum evento corresponde aos filtros ativos.</p>
+          <button
+            onClick={clearAllEventFilters}
+            style={{ fontSize: 13, fontWeight: 700, color: '#fff', background: '#1c1917', border: 'none', borderRadius: 8, padding: '9px 20px', cursor: 'pointer' }}
+          >
+            Limpar filtros
+          </button>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">

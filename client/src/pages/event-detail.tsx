@@ -2096,6 +2096,8 @@ export default function EventDetail() {
                               {!isEditBlocked(item.status) && (
                                 <button
                                   title={item.isReuse ? "Reaproveitamento ativo — clique para desativar" : "Marcar como reaproveitamento"}
+                                  aria-label={item.isReuse ? "Desativar reaproveitamento" : "Marcar como reaproveitamento"}
+                                  aria-pressed={item.isReuse}
                                   onClick={e => { e.stopPropagation(); updateItemIsReuseMutation.mutate({ itemId: item.id, isReuse: !item.isReuse }); }}
                                   data-testid={`button-reuse-item-${item.id}`}
                                   style={{ background: item.isReuse ? '#d1fae5' : 'none', border: item.isReuse ? '1px solid #6ee7b7' : 'none', borderRadius: '6px', padding: '6px', cursor: 'pointer', color: item.isReuse ? '#065f46' : '#78716c', transition: 'all 0.15s', display: 'flex', alignItems: 'center' }}

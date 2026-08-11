@@ -181,12 +181,15 @@ export function registerEventRoutes(app: Express): void {
         return res.status(403).json({ error: "Acesso negado" });
       }
       const { priority } = req.body;
-      
-      if (!priority || !["baixa", "media", "alta", "urgente"].includes(priority)) {
-        return res.status(400).json({ error: "Prioridade inválida. Use: baixa, media, alta ou urgente" });
+
+      // priority vazia/null = REMOVER a prioridade (volta a "Sem Prioridade").
+      // Antes só aceitava os 4 níveis — uma vez definida, não havia caminho de volta.
+      const clearing = priority === null || priority === "";
+      if (!clearing && !["baixa", "media", "alta", "urgente"].includes(priority)) {
+        return res.status(400).json({ error: "Prioridade inválida. Use: baixa, media, alta, urgente ou vazio para remover" });
       }
-      
-      const event = await storage.updateEvent(req.params.id, { priority });
+
+      const event = await storage.updateEvent(req.params.id, { priority: clearing ? (null as any) : priority });
       if (!event) {
         return res.status(404).json({ error: "Evento não encontrado" });
       }
@@ -197,7 +200,9 @@ export function registerEventRoutes(app: Express): void {
         'updated',
         'event',
         event.id,
-        `Prioridade do evento "${event.name}" definida como "${priority}"`
+        clearing
+          ? `Prioridade do evento "${event.name}" removida`
+          : `Prioridade do evento "${event.name}" definida como "${priority}"`
       );
       
       broadcast({ type: "event_priority_updated", event });

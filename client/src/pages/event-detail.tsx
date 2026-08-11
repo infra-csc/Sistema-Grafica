@@ -43,7 +43,6 @@ import { cn, parseDateLocal } from "@/lib/utils";
 import { calculateM2 } from "@/lib/calculateM2";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CommentsSection } from "@/components/comments-section";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { ImportXlsxDialog, ImportPreviewRow } from "@/components/import-xlsx-dialog";
 import { CloneItemsDialog } from "@/components/clone-items-dialog";
@@ -78,10 +77,6 @@ export default function EventDetail() {
   const [editingTypeName, setEditingTypeName] = useState(false);
   const [customMaterialInput, setCustomMaterialInput] = useState("");
   const [customFinishInput, setCustomFinishInput] = useState("");
-  const [linkItemsDialogOpen, setLinkItemsDialogOpen] = useState(false);
-  const [selectedSponsorForLinking, setSelectedSponsorForLinking] = useState<Sponsor | null>(null);
-  const [selectedItemsToLink, setSelectedItemsToLink] = useState<string[]>([]);
-  const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, string[]>>({});
   const [selectedItemForDetails, setSelectedItemForDetails] = useState<any | null>(null);
   const [itemSearch, setItemSearch] = useState("");
   const [showAllItems, setShowAllItems] = useState(false);
@@ -567,77 +562,6 @@ export default function EventDetail() {
     },
   });
 
-  const linkItemsToSponsorMutation = useMutation({
-    mutationFn: async ({ itemIds, sponsorId }: { itemIds: string[], sponsorId: string }) => {
-      const operations = itemIds.map((id) =>
-        apiRequest("PATCH", `/api/items/${id}`, { 
-          sponsorId: sponsorId === "" ? null : sponsorId 
-        })
-      );
-      await Promise.all(operations);
-    },
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
-      setLinkItemsDialogOpen(false);
-      setSelectedItemsToLink([]);
-      setSelectedSponsorForLinking(null);
-      
-      const isUnlinking = variables.sponsorId === "";
-      toast({
-        title: isUnlinking ? "Peças desvinculadas" : "Peças vinculadas",
-        description: isUnlinking 
-          ? `${variables.itemIds.length} ${variables.itemIds.length === 1 ? 'peça desvinculada' : 'peças desvinculadas'} com sucesso`
-          : `${variables.itemIds.length} ${variables.itemIds.length === 1 ? 'peça vinculada' : 'peças vinculadas'} ao patrocinador com sucesso`,
-      });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Erro ao processar peças",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Mutation para sincronizar patrocinadores de um item específico
-  const syncItemSponsorsMutation = useMutation({
-    mutationFn: async ({ itemId, sponsorIds }: { itemId: string, sponsorIds: string[] }) => {
-      await apiRequest("POST", `/api/items/${itemId}/sponsors/sync`, { sponsorIds });
-    },
-    onMutate: async ({ itemId, sponsorIds }) => {
-      // Atualização otimista para UI responsiva
-      setItemSponsorsMap(prev => ({
-        ...prev,
-        [itemId]: sponsorIds
-      }));
-    },
-    onSuccess: async (_, { itemId }) => {
-      // Recarregar sponsors do servidor para garantir sincronização
-      try {
-        const response = await apiRequest("GET", `/api/items/${itemId}/sponsors`);
-        const itemSponsors = await response.json();
-        const sponsorIds = itemSponsors.map((is: any) => is.sponsorId);
-        
-        setItemSponsorsMap(prev => ({
-          ...prev,
-          [itemId]: sponsorIds
-        }));
-      } catch (error) {
-        console.error(`Erro ao recarregar sponsors do item ${itemId}:`, error);
-      }
-      
-      // Invalidar queries relacionadas
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Erro ao atualizar patrocinadores",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
 
   const { updateItemSkipApprovalMutation, updateItemIsReuseMutation } = useEventItemFlags({ eventId });
 
@@ -908,7 +832,12 @@ export default function EventDetail() {
 
             {/* Exportar Excel */}
             <button
-              onClick={() => window.open(`/api/events/${eventId}/export-items`, '_blank')}
+              onClick={() => {
+                // Feedback imediato: o download demora alguns segundos e o
+                // window.open não dá nenhum sinal de que algo começou.
+                toast({ title: "Gerando Excel...", description: "O download começa em instantes." });
+                window.open(`/api/events/${eventId}/export-items`, '_blank');
+              }}
               data-testid="button-export-xlsx"
               style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
@@ -927,7 +856,7 @@ export default function EventDetail() {
               data-testid="button-add-item"
               style={{ backgroundColor: '#b45309', color: '#ffffff', padding: '11px 24px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: 'none', cursor: 'pointer', transition: 'background-color 0.18s, box-shadow 0.18s, transform 0.1s', letterSpacing: '0.03em', whiteSpace: 'nowrap', flexShrink: 0, boxShadow: '0 1px 3px rgba(217,122,30,0.25)', fontFamily: "'Space Grotesk', sans-serif" }}
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#C96D16'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(217,122,30,0.35)'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#D97A1E'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(217,122,30,0.25)'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#b45309'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(217,122,30,0.25)'; }}
               onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.97)')}
               onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
             >
@@ -1116,7 +1045,7 @@ export default function EventDetail() {
                             type="number"
                             min="1"
                             value={formData.quantity}
-                            onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) })}
+                            onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
                             required
                             data-testid="input-quantity"
                             style={{ width: '100%', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '12px', border: 'none', fontSize: '15px', color: '#1a1c1c', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
@@ -1689,7 +1618,10 @@ export default function EventDetail() {
               </div>
               <Button
                 onClick={() => setSubmitConfirmOpen(true)}
-                disabled={submitDraftsMutation.isPending}
+                // Gate: enviar rascunhos para a Arte é ação do gestor do evento
+                // (admin ou criador) — mesmo critério das demais ações do card.
+                disabled={submitDraftsMutation.isPending || !canManageEvent}
+                title={!canManageEvent ? "Apenas o criador do evento ou um administrador pode enviar" : undefined}
                 size="lg"
                 data-testid="button-submit-drafts"
               >
@@ -1916,10 +1848,15 @@ export default function EventDetail() {
                                 style={{ flex: 1, minHeight: 44, borderRadius: 6, border: '1px solid #e7e5e4', background: '#fafaf9', fontSize: 13, fontWeight: 700, color: '#746e69', cursor: 'pointer' }}>
                                 Editar
                               </button>
-                              <button onClick={() => setDeletingItemId(item.id)}
-                                style={{ minHeight: 44, width: 44, borderRadius: 6, border: '1px solid #fecaca', background: '#fff', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <Trash2 style={{ width: 14, height: 14 }} />
-                              </button>
+                              {/* Mesmos gates do desktop: sem eles, no celular um
+                                  não-admin abria exclusão de peça já em produção. */}
+                              {canDeleteAny && canDeleteItem(item.status) && (
+                                <button onClick={() => setDeletingItemId(item.id)}
+                                  aria-label="Excluir peça" title="Excluir peça"
+                                  style={{ minHeight: 44, width: 44, borderRadius: 6, border: '1px solid #fecaca', background: '#fff', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                  <Trash2 style={{ width: 14, height: 14 }} />
+                                </button>
+                              )}
                             </div>
                           )}
                         </div>
@@ -2561,257 +2498,6 @@ export default function EventDetail() {
               </button>
             </div>
           </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dialog para vincular itens ao patrocinador */}
-      <Dialog open={linkItemsDialogOpen} onOpenChange={setLinkItemsDialogOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5 text-primary" />
-              Gerenciar Itens do Patrocinador
-            </DialogTitle>
-            <DialogDescription>
-              {selectedSponsorForLinking && (
-                <span className="font-medium text-foreground">
-                  {selectedSponsorForLinking.name}
-                  {selectedSponsorForLinking.company && (
-                    <span className="text-muted-foreground ml-1">({selectedSponsorForLinking.company})</span>
-                  )}
-                </span>
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          
-          {/* Estatísticas */}
-          {selectedSponsorForLinking && (() => {
-            const alreadyLinked = items.filter(item => item.sponsorId === selectedSponsorForLinking.id);
-            const availableItems = items.filter(item => !item.sponsorId || item.sponsorId === selectedSponsorForLinking.id);
-            
-            return (
-              <div className="grid grid-cols-3 gap-3 pb-4 border-b">
-                <div className="text-center p-3 bg-primary/5 rounded-lg">
-                  <div className="text-2xl font-bold text-primary">{items.length}</div>
-                  <div className="text-xs text-muted-foreground">Total de Itens</div>
-                </div>
-                <div className="text-center p-3 bg-green-500/10 rounded-lg">
-                  <div className="text-2xl font-bold text-green-600">{alreadyLinked.length}</div>
-                  <div className="text-xs text-muted-foreground">Já Vinculados</div>
-                </div>
-                <div className="text-center p-3 bg-orange-500/10 rounded-lg">
-                  <div className="text-2xl font-bold text-orange-600">{availableItems.length - alreadyLinked.length}</div>
-                  <div className="text-xs text-muted-foreground">Disponíveis</div>
-                </div>
-              </div>
-            );
-          })()}
-          
-          <div className="flex-1 overflow-y-auto space-y-4 pr-2">
-            {items.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Nenhum item disponível neste evento
-              </div>
-            ) : (
-              <>
-                {/* Itens já vinculados */}
-                {selectedSponsorForLinking && (() => {
-                  const linkedItems = items.filter(item => item.sponsorId === selectedSponsorForLinking.id);
-                  if (linkedItems.length === 0) return null;
-                  
-                  return (
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="h-1 w-1 rounded-full bg-green-600"></div>
-                        <h4 className="text-sm font-semibold text-foreground">Peças Vinculadas ({linkedItems.length})</h4>
-                      </div>
-                      <div className="space-y-2">
-                        {linkedItems.map((item) => (
-                          <div
-                            key={item.id}
-                            className={cn(
-                              "flex items-center gap-3 p-3 border border-green-200 bg-green-50/50 rounded-lg hover-elevate cursor-pointer",
-                              selectedItemsToLink.includes(item.id) && "border-primary bg-primary/5"
-                            )}
-                            onClick={() => {
-                              if (selectedItemsToLink.includes(item.id)) {
-                                setSelectedItemsToLink(selectedItemsToLink.filter(id => id !== item.id));
-                              } else {
-                                setSelectedItemsToLink([...selectedItemsToLink, item.id]);
-                              }
-                            }}
-                            data-testid={`item-linked-${item.id}`}
-                          >
-                            <Checkbox
-                              checked={selectedItemsToLink.includes(item.id)}
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setSelectedItemsToLink([...selectedItemsToLink, item.id]);
-                                } else {
-                                  setSelectedItemsToLink(selectedItemsToLink.filter(id => id !== item.id));
-                                }
-                              }}
-                              onClick={(e) => e.stopPropagation()}
-                              data-testid={`checkbox-link-item-${item.id}`}
-                            />
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Badge variant="outline" className="text-xs font-medium bg-white">
-                                  {item.type}
-                                </Badge>
-                                <Badge variant="secondary" className="text-xs bg-green-100 text-green-700 border-green-200">
-                                  Vinculado
-                                </Badge>
-                              </div>
-                              {item.description && (
-                                <div className="text-sm text-foreground">{item.description}</div>
-                              )}
-                              <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                                <span>Qtd: {item.quantity}</span>
-                                {item.material && <span>• {item.material}</span>}
-                                {item.finish && <span>• {item.finish}</span>}
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* Itens disponíveis */}
-                {selectedSponsorForLinking && (() => {
-                  const availableItems = items.filter(item => !item.sponsorId);
-                  
-                  return (
-                    <div>
-                      <div className="flex items-center gap-2 mb-3">
-                        <div className="h-1 w-1 rounded-full bg-orange-600"></div>
-                        <h4 className="text-sm font-semibold text-foreground">Peças Disponíveis ({availableItems.length})</h4>
-                      </div>
-                      {availableItems.length === 0 ? (
-                        <div className="text-center py-8 px-4 border border-dashed rounded-lg bg-muted/20">
-                          <Package className="h-10 w-10 text-muted-foreground mx-auto mb-3 opacity-50" />
-                          <p className="text-sm text-muted-foreground">Nenhum item disponível</p>
-                          <p className="text-xs text-muted-foreground mt-1">
-                            Todos os itens deste evento já estão vinculados a patrocinadores
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="space-y-2">
-                          {availableItems.map((item) => (
-                            <div
-                              key={item.id}
-                              className={cn(
-                                "flex items-center gap-3 p-3 border rounded-lg hover-elevate cursor-pointer",
-                                selectedItemsToLink.includes(item.id) && "border-primary bg-primary/5"
-                              )}
-                              onClick={() => {
-                                if (selectedItemsToLink.includes(item.id)) {
-                                  setSelectedItemsToLink(selectedItemsToLink.filter(id => id !== item.id));
-                                } else {
-                                  setSelectedItemsToLink([...selectedItemsToLink, item.id]);
-                                }
-                              }}
-                              data-testid={`item-available-${item.id}`}
-                            >
-                              <Checkbox
-                                checked={selectedItemsToLink.includes(item.id)}
-                                onCheckedChange={(checked) => {
-                                  if (checked) {
-                                    setSelectedItemsToLink([...selectedItemsToLink, item.id]);
-                                  } else {
-                                    setSelectedItemsToLink(selectedItemsToLink.filter(id => id !== item.id));
-                                  }
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                                data-testid={`checkbox-link-item-${item.id}`}
-                              />
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <Badge variant="outline" className="text-xs font-medium">
-                                    {item.type}
-                                  </Badge>
-                                </div>
-                                {item.description && (
-                                  <div className="text-sm text-foreground">{item.description}</div>
-                                )}
-                                <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
-                                  <span>Qtd: {item.quantity}</span>
-                                  {item.material && <span>• {item.material}</span>}
-                                  {item.finish && <span>• {item.finish}</span>}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
-
-              </>
-            )}
-          </div>
-
-          <div className="flex items-center justify-between pt-4 border-t mt-4">
-            <div className="text-sm">
-              {selectedItemsToLink.length > 0 ? (
-                <span className="font-medium text-foreground">
-                  {selectedItemsToLink.length} {selectedItemsToLink.length === 1 ? 'peça selecionada' : 'peças selecionadas'}
-                </span>
-              ) : (
-                <span className="text-muted-foreground">Nenhum peça selecionada</span>
-              )}
-            </div>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => {
-                  setLinkItemsDialogOpen(false);
-                  setSelectedItemsToLink([]);
-                  setSelectedSponsorForLinking(null);
-                }}
-                data-testid="button-cancel-link-items"
-              >
-                Fechar
-              </Button>
-              {selectedItemsToLink.length > 0 && (
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      if (selectedSponsorForLinking && selectedItemsToLink.length > 0) {
-                        linkItemsToSponsorMutation.mutate({
-                          itemIds: selectedItemsToLink,
-                          sponsorId: ""
-                        });
-                      }
-                    }}
-                    disabled={linkItemsToSponsorMutation.isPending}
-                    data-testid="button-unlink-items"
-                  >
-                    {linkItemsToSponsorMutation.isPending ? "Processando..." : "Desvincular"}
-                  </Button>
-                  <Button
-                    onClick={() => {
-                      if (selectedSponsorForLinking && selectedItemsToLink.length > 0) {
-                        linkItemsToSponsorMutation.mutate({
-                          itemIds: selectedItemsToLink,
-                          sponsorId: selectedSponsorForLinking.id
-                        });
-                      }
-                    }}
-                    disabled={linkItemsToSponsorMutation.isPending}
-                    data-testid="button-confirm-link-items"
-                  >
-                    {linkItemsToSponsorMutation.isPending ? "Processando..." : "Vincular"}
-                  </Button>
-                </>
-              )}
-            </div>
-          </div>
         </DialogContent>
       </Dialog>
 

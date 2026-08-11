@@ -82,10 +82,13 @@ function EventCardActions({
       style={{ position: 'absolute', top: 0, right: 0, padding: '16px', display: 'flex', gap: '6px', transition: 'opacity 0.2s', zIndex: 10 }}
       onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
     >
-      {!dark && (
+      {/* canEdit: alterar prioridade é gestão do evento — mesmos papéis de
+          editar (antes qualquer perfil via a bandeira). */}
+      {!dark && canEdit && (
         <button
           onClick={(e) => onSetPriority(event, e)}
           title="Definir prioridade"
+          aria-label="Definir prioridade"
           data-testid={`button-priority-event-${event.id}`}
           style={{ padding: '8px', backgroundColor: '#f9f9f8', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: event.priority ? cardBorderHex : '#a8a29e', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}
         >
@@ -1604,7 +1607,18 @@ export default function Eventos() {
           </div>
 
           {/* Rodapé */}
-          <div style={{ backgroundColor: '#f3f4f3', borderTop: '1px solid #e7e5e4', padding: '12px 24px', display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ backgroundColor: '#f3f4f3', borderTop: '1px solid #e7e5e4', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            {/* Caminho de volta: sem isto, prioridade definida era para sempre. */}
+            {selectedEventForPriority?.priority ? (
+              <button
+                onClick={() => handlePrioritySelect("")}
+                disabled={updatePriorityMutation.isPending}
+                data-testid="button-remove-priority"
+                style={{ fontSize: '11px', fontWeight: '700', color: '#b91c1c', background: 'none', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.08em' }}
+              >
+                Remover prioridade
+              </button>
+            ) : <span />}
             <button
               onClick={() => setPriorityDialogOpen(false)}
               style={{ fontSize: '11px', fontWeight: '700', color: '#746e69', background: 'none', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.08em', transition: 'color 0.15s' }}

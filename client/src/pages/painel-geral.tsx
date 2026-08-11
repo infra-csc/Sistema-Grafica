@@ -472,8 +472,23 @@ export default function PainelGeral() {
       {/* ── Grouped table ── */}
       <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {isLoading ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: "48px 0" }}>
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+          /* Skeleton com a mesma silhueta da tabela real (cabeçalho do evento +
+             header escuro + linhas zebradas) — em vez do spinner central, que
+             causava layout shift e não dizia o que estava carregando. */
+          <div style={{ backgroundColor: "#ffffff", border: "1px solid #e7e5e4", borderRadius: 10, overflow: "hidden" }} aria-busy="true" aria-label="Carregando itens">
+            <div style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div className="animate-pulse" style={{ width: 180, height: 16, borderRadius: 4, backgroundColor: "#e7e5e4" }} />
+              <div className="animate-pulse" style={{ width: 70, height: 20, borderRadius: 99, backgroundColor: "#f5f5f4" }} />
+            </div>
+            <div style={{ height: 40, backgroundColor: "#1c1917" }} />
+            {[0, 1, 2, 3, 4, 5].map((i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 24, padding: "13px 16px", backgroundColor: i % 2 ? "#fafaf9" : "#ffffff" }}>
+                <div className="animate-pulse" style={{ width: 48, height: 12, borderRadius: 4, backgroundColor: "#e7e5e4" }} />
+                <div className="animate-pulse" style={{ width: `${34 - i * 3}%`, height: 12, borderRadius: 4, backgroundColor: "#e7e5e4" }} />
+                <div className="animate-pulse" style={{ width: 60, height: 12, borderRadius: 4, backgroundColor: "#f0efee", marginLeft: "auto" }} />
+                <div className="animate-pulse" style={{ width: 90, height: 22, borderRadius: 99, backgroundColor: "#f0efee" }} />
+              </div>
+            ))}
           </div>
         ) : isError ? (
           <div style={{ backgroundColor: "#ffffff", border: "1px solid #fecaca", padding: 48, textAlign: "center" }}>
@@ -482,8 +497,27 @@ export default function PainelGeral() {
             <button onClick={() => refetch()} style={{ fontSize: 13, fontWeight: 600, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "8px 18px", cursor: "pointer" }}>Tentar novamente</button>
           </div>
         ) : filteredItems.length === 0 ? (
-          <div style={{ backgroundColor: "#ffffff", border: "1px solid #e7e5e4", padding: 48, textAlign: "center" }}>
-            <p style={{ color: "#746e69", fontSize: 15 }}>Nenhum item encontrado</p>
+          /* Empty state com contexto e ação: diz POR QUE está vazio (filtros
+             ativos vs sistema sem itens) e oferece o caminho de volta ali
+             mesmo, sem obrigar o usuário a achar o "× Limpar" na toolbar. */
+          <div style={{ backgroundColor: "#ffffff", border: "1px solid #e7e5e4", borderRadius: 10, padding: "56px 24px", textAlign: "center" }}>
+            <Search style={{ width: 28, height: 28, color: "#d6d3d1", margin: "0 auto 12px" }} />
+            <p style={{ color: "#1c1917", fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>
+              {hasActiveFilters ? "Nenhum item encontrado" : "Nenhum item cadastrado ainda"}
+            </p>
+            <p style={{ color: "#746e69", fontSize: 13, margin: "0 0 16px" }}>
+              {hasActiveFilters
+                ? "Nenhum item corresponde aos filtros ativos. Ajuste a busca ou limpe os filtros."
+                : "Os itens aparecem aqui quando forem adicionados a um evento."}
+            </p>
+            {hasActiveFilters && (
+              <button
+                onClick={clearAllFilters}
+                style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}
+              >
+                Limpar filtros
+              </button>
+            )}
           </div>
         ) : (
           Object.entries(groupedItems).map(([eventKey, eventData]) => {

@@ -68,7 +68,10 @@ export const STATUS: Record<string, StatusMeta> = {
   pronto_para_producao:  meta("Pronto para Produção",   "Pronto Prod.",   P.teal,  CheckCircle),
   approved:              meta("Liberado",               "Liberado",       P.green, CheckCircle),
   // ── Produção / entrega ──
-  inProduction:          meta("Em Produção",            "Produzindo",     P.orange,  Package),
+  // short = "Em Produção" (não "Produzindo"): no Painel Geral os cards
+  // "Produzindo" e "Produzido" ficavam lado a lado com 1 letra de diferença —
+  // impossível de escanear. "Em Produção" tem o mesmo tamanho e zero ambiguidade.
+  inProduction:          meta("Em Produção",            "Em Produção",    P.orange,  Package),
   produced:              meta("Produzido",              "Produzido",      P.pink,    CheckCircle),
   conferred:             meta("Conferido",              "Conferido",      P.cyan,    CheckCircle),
   delivered:             meta("Entregue",               "Entregue",       P.emerald, Truck),

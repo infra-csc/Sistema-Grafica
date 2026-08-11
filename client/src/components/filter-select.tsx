@@ -306,11 +306,23 @@ export function FilterSelect({
         {isActive && !hideClear && (
           <span
             role="button"
+            // tabIndex + Enter/Espaço: o × fica dentro do <button> do trigger
+            // (aninhado), então sem isto era inoperável por teclado.
+            tabIndex={0}
+            aria-label="Limpar filtro"
             onClick={e => {
               e.stopPropagation();
               if (multiple) handleClearMultiple();
               else onChange?.("all");
               setSearch("");
+            }}
+            onKeyDown={e => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault(); e.stopPropagation();
+                if (multiple) handleClearMultiple();
+                else onChange?.("all");
+                setSearch("");
+              }
             }}
             style={{ display: "flex", alignItems: "center", color: C.border, marginLeft: 2, cursor: "pointer", flexShrink: 0 }}
             title="Limpar filtro"

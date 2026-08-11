@@ -112,7 +112,10 @@ export function EventFilterDropdown({
         {isActive && (
           <span
             role="button"
+            tabIndex={0}
+            aria-label="Limpar filtro"
             onClick={e => { e.stopPropagation(); handleClear(); }}
+            onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); handleClear(); } }}
             style={{ display: "flex", alignItems: "center", color: "#FB923C", marginLeft: 2, cursor: "pointer", flexShrink: 0 }}
             title="Limpar filtro"
           >

@@ -77,6 +77,11 @@ export function useWebSocket() {
               queryClient.invalidateQueries({ queryKey: ['/api/items', data.eventId] });
               queryClient.invalidateQueries({ queryKey: ['/api/events', data.eventId] });
             }
+            // Sem estas duas, quando OUTRO usuário excluía uma peça o Painel
+            // Geral (que lê '/api/items') continuava mostrando a linha
+            // indefinidamente — só a exclusão local invalidava certo.
+            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/items/deleted'] });
             queryClient.invalidateQueries({ queryKey: ['/api/events'] });
             break;
 

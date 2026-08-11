@@ -583,7 +583,7 @@ export default function PainelGeral() {
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, ...(isMobile && { width: "100%" }) }}>
           <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: "#746e69", whiteSpace: "nowrap" }}>
             <span style={{ color: "#1c1917", fontWeight: 900 }}>{filteredItems.length}</span>
-            {" "}iten{filteredItems.length !== 1 ? "s" : ""}
+            {" "}{filteredItems.length === 1 ? "item" : "itens"}
           </span>
           {hasActiveFilters && (
             <button
@@ -756,7 +756,7 @@ export default function PainelGeral() {
                                   <div
                                     key={item.id}
                                     data-testid={`item-row-${item.id}`}
-                                    onClick={() => setSelectedItem(item)}
+                                    onClick={() => !isDeleted && setSelectedItem(item)}
                                     style={{
                                       border: `1px solid ${isDeleted ? "#fecaca" : "#e7e5e4"}`,
                                       borderRadius: 8,
@@ -775,7 +775,7 @@ export default function PainelGeral() {
                                     <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 5 }}>
                                       {/* Row 1: ID + type */}
                                       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                                        <button onClick={e => { e.stopPropagation(); setSelectedItem(item); }} aria-label={`Ver detalhes da peça ${item.displayId}`} data-testid={`text-display-id-${item.id}`} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "monospace", fontWeight: 700, color: isDeleted ? "#b91c1c" : "#c2410c", fontSize: 13, flexShrink: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
+                                        <button onClick={e => { e.stopPropagation(); if (!isDeleted) setSelectedItem(item); }} disabled={isDeleted} aria-label={`Ver detalhes da peça ${item.displayId}`} data-testid={`text-display-id-${item.id}`} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "monospace", fontWeight: 700, color: isDeleted ? "#b91c1c" : "#c2410c", fontSize: 13, flexShrink: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
                                           {item.displayId}
                                         </button>
                                         <span style={{ fontSize: 11, fontWeight: 700, color: isDeleted ? "#746e69" : "#44403c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>{item.type}</span>
@@ -812,7 +812,7 @@ export default function PainelGeral() {
                                       {!isDeleted && (
                                         <button
                                           onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
-                                          data-testid={`button-view-${item.id}`}
+                                          aria-label="Ver detalhes da peça" title="Ver detalhes" data-testid={`button-view-${item.id}`}
                                           style={{
                                             background: "none", border: "1px solid #e7e5e4", cursor: "pointer",
                                             borderRadius: 6, color: "#746e69",
@@ -828,7 +828,7 @@ export default function PainelGeral() {
                                           <button
                                             onClick={(e) => { e.stopPropagation(); setDeleteConfirmItemId(item.id); }}
                                             data-testid={`button-delete-${item.id}`}
-                                            title="Excluir peça"
+                                            title="Excluir peça" aria-label="Excluir peça"
                                             style={{
                                               background: "none", border: "1px solid #fecaca", cursor: "pointer",
                                               borderRadius: 6, color: "#746e69",
@@ -887,7 +887,7 @@ export default function PainelGeral() {
                             padding: "12px 20px",
                             fontSize: 11, fontWeight: 900, textTransform: "uppercase",
                             letterSpacing: "0.1em", color: "#ffffff",
-                            textAlign: i === 6 ? "right" : "left",
+                            textAlign: i === 5 ? "right" : "left",
                             whiteSpace: "nowrap",
                           }}>{col}</th>
                         ))}
@@ -991,7 +991,7 @@ export default function PainelGeral() {
                                     {/* ID */}
                                     <td style={{ padding: "10px 18px 10px 20px", whiteSpace: "nowrap" }}>
                                       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                                        <button onClick={e => { e.stopPropagation(); setSelectedItem(item); }} aria-label={`Ver detalhes da peça ${item.displayId}`} data-testid={`text-display-id-${item.id}`} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "monospace", fontWeight: 700, color: isDeleted ? "#b91c1c" : "#c2410c", fontSize: 13, textDecoration: isDeleted ? "line-through" : "none" }}>
+                                        <button onClick={e => { e.stopPropagation(); if (!isDeleted) setSelectedItem(item); }} disabled={isDeleted} aria-label={`Ver detalhes da peça ${item.displayId}`} data-testid={`text-display-id-${item.id}`} style={{ background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "monospace", fontWeight: 700, color: isDeleted ? "#b91c1c" : "#c2410c", fontSize: 13, textDecoration: isDeleted ? "line-through" : "none" }}>
                                           {item.displayId}
                                         </button>
                                         {isDeleted && item.deletedAt && (
@@ -1079,7 +1079,7 @@ export default function PainelGeral() {
                                         {!isDeleted && (
                                           <button
                                             onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
-                                            data-testid={`button-view-${item.id}`}
+                                            aria-label="Ver detalhes da peça" title="Ver detalhes" data-testid={`button-view-${item.id}`}
                                             style={{
                                               background: "none", border: "none", cursor: "pointer",
                                               padding: 4, borderRadius: 6, color: "#746e69",
@@ -1097,7 +1097,7 @@ export default function PainelGeral() {
                                             <button
                                               onClick={(e) => { e.stopPropagation(); setDeleteConfirmItemId(item.id); }}
                                               data-testid={`button-delete-${item.id}`}
-                                              title="Excluir peça"
+                                              title="Excluir peça" aria-label="Excluir peça"
                                               style={{
                                                 background: "none", border: "none", cursor: "pointer",
                                                 padding: 4, borderRadius: 6, color: "#746e69",

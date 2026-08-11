@@ -145,14 +145,31 @@ export function AppSidebar() {
     },
     onSuccess: () => {
       queryClient.clear();
+      // O toast que existia aqui vinha DEPOIS do redirect — nunca aparecia.
       window.location.href = "https://norte-app-hub.replit.app/";
-      toast({ title: "Logout realizado", description: "Até logo!" });
+    },
+    onError: (error: any) => {
+      // Sem isto, uma falha de rede no logout era silêncio absoluto.
+      toast({ title: "Erro ao sair", description: error?.message || "Tente novamente.", variant: "destructive" });
     },
   });
 
   const role = user?.role || "";
   const filterByRole = (items: MenuItem[]) =>
     items.filter((item) => (item.roles ? item.roles.includes(role) : true));
+
+  // Ativo também nas sub-rotas: em /eventos/:id o item "Eventos" acendia
+  // apagado (match exato), e a navegação perdia o contexto de onde se está.
+  // "/" continua exato para não acender em tudo.
+  const isItemActive = (url: string) =>
+    url === "/" ? location === "/" : location === url || location.startsWith(url + "/");
+
+  // Rótulos amigáveis dos papéis — capitalize cru exibia "Solicitacao"/"Grafica"
+  // sem acento no rodapé.
+  const ROLE_LABELS: Record<string, string> = {
+    admin: "Admin", solicitacao: "Solicitação", arte: "Arte",
+    grafica: "Gráfica", atendimento: "Atendimento",
+  };
 
   const filteredProduction = filterByRole(productionItems);
   const filteredSponsor   = filterByRole(sponsorItems);
@@ -163,7 +180,7 @@ export function AppSidebar() {
       style={{
         backgroundColor: "#ffffff",
         borderRight: "1px solid #e7e5e4",
-        height: "100vh",
+        height: "100dvh",
       }}
     >
       {/* ── Header ── */}
@@ -221,7 +238,7 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu style={{ gap: 1 }}>
                 {filteredProduction.map((item) => (
-                  <NavItem key={item.title} item={item} isActive={location === item.url} />
+                  <NavItem key={item.title} item={item} isActive={isItemActive(item.url)} />
                 ))}
               </SidebarMenu>
             </SidebarGroupContent>
@@ -235,7 +252,7 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu style={{ gap: 1 }}>
                 {filteredSponsor.map((item) => (
-                  <NavItem key={item.title} item={item} isActive={location === item.url} />
+                  <NavItem key={item.title} item={item} isActive={isItemActive(item.url)} />
                 ))}
               </SidebarMenu>
             </SidebarGroupContent>
@@ -249,7 +266,7 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu style={{ gap: 1 }}>
                 {filteredStock.map((item) => (
-                  <NavItem key={item.title} item={item} isActive={location === item.url} />
+                  <NavItem key={item.title} item={item} isActive={isItemActive(item.url)} />
                 ))}
               </SidebarMenu>
             </SidebarGroupContent>
@@ -263,7 +280,7 @@ export function AppSidebar() {
             <SidebarGroupContent>
               <SidebarMenu style={{ gap: 1 }}>
                 {adminItems.map((item) => (
-                  <NavItem key={item.title} item={item} isActive={location === item.url} />
+                  <NavItem key={item.title} item={item} isActive={isItemActive(item.url)} />
                 ))}
               </SidebarMenu>
             </SidebarGroupContent>
@@ -307,15 +324,17 @@ export function AppSidebar() {
               fontSize: 11, color: "#746e69",
               margin: 0, lineHeight: 1.3, textTransform: "capitalize",
             }}>
-              {user?.role ?? ""}
+              {ROLE_LABELS[user?.role ?? ""] ?? user?.role ?? ""}
             </p>
           </div>
 
           {/* Logout */}
           <button
             onClick={() => logoutMutation.mutate()}
+            disabled={logoutMutation.isPending}
             data-testid="button-logout-sidebar"
             title="Sair"
+            aria-label="Sair do sistema"
             style={{
               background: "none", border: "none", cursor: "pointer",
               padding: 6, borderRadius: 6, color: "#746e69",

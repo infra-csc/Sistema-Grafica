@@ -152,6 +152,33 @@ export function registerItemRoutes(app: Express): void {
     }
   });
 
+  // Restaurar peça excluída (desfaz o soft delete) — SOMENTE admin.
+  // A visão "Excluídos" era um beco sem saída: dava para ver, não para voltar.
+  app.post("/api/items/:id/restore", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas administradores podem restaurar peças" });
+      }
+      const restored = await storage.restoreItem(req.params.id);
+      if (!restored) {
+        return res.status(404).json({ error: "Peça não encontrada ou não está excluída" });
+      }
+      const item = await storage.getItem(req.params.id);
+      await createAuditLog(
+        req.userName!,
+        "restored",
+        "item",
+        req.params.id,
+        `Peça "${item?.displayId ?? req.params.id}" restaurada da lixeira`
+      );
+      if (item) await updateEventStatus(item.eventId);
+      broadcast({ type: "item_updated", item });
+      res.json({ success: true, item });
+    } catch (error: any) {
+      res.status(500).json({ error: "Não foi possível restaurar a peça" });
+    }
+  });
+
   // Get pending items with event and sponsors (for Arte module) - MUST come BEFORE /:eventId route
   app.get("/api/items/pending", requireAuth, async (req, res) => {
     try {

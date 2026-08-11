@@ -78,6 +78,7 @@ export interface IStorage {
   startProduction(id: string, quantityProduced: number): Promise<Item | undefined>;
   markItemAsDelivered(id: string, receivedBy: string, photoUrl?: string): Promise<Item | undefined>;
   deleteItem(id: string): Promise<boolean>;
+  restoreItem(id: string): Promise<boolean>;
   
   // Standard Items
   getStandardItem(id: string): Promise<StandardItem | undefined>;
@@ -535,6 +536,16 @@ export class DatabaseStorage implements IStorage {
       .update(items)
       .set({ deletedAt: new Date(), updatedAt: new Date() })
       .where(and(eq(items.id, id), sql`${items.deletedAt} IS NULL`))
+      .returning();
+    return result.length > 0;
+  }
+
+  async restoreItem(id: string): Promise<boolean> {
+    // Desfaz o soft delete: a peça volta às listagens com o status que tinha.
+    const result = await db
+      .update(items)
+      .set({ deletedAt: null, updatedAt: new Date() })
+      .where(and(eq(items.id, id), sql`${items.deletedAt} IS NOT NULL`))
       .returning();
     return result.length > 0;
   }

@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useMemo, useRef, Fragment, useEffect } from "react";
-import { Search, Calendar, Truck, AlertCircle, Eye, Paperclip, Trash2, FileText, Printer } from "lucide-react";
+import { Search, Calendar, Truck, AlertCircle, Eye, Paperclip, Trash2, FileText, Printer, RotateCcw } from "lucide-react";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { ExportPdfDialog } from "@/components/export-pdf-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -131,9 +131,27 @@ export default function PainelGeral() {
   });
 
   const showDeleted = statusFilter.includes("deleted");
-  const { data: deletedItems = [] } = useQuery<any[]>({
+  const {
+    data: deletedItems = [],
+    isLoading: deletedLoading,
+    isError: deletedError,
+    refetch: refetchDeleted,
+  } = useQuery<any[]>({
     queryKey: ["/api/items/deleted"],
     enabled: showDeleted && canDeleteAny,
+  });
+
+  // Restaurar (desfaz o soft delete) — SOMENTE admin; a visão Excluídos era
+  // um beco sem saída (dava para ver, não para voltar).
+  const restoreItemMutation = useMutation({
+    mutationFn: async (itemId: string) => await apiRequest("POST", `/api/items/${itemId}/restore`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items/deleted"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      toast({ title: "Peça restaurada", description: "Ela voltou às listagens com o status que tinha." });
+    },
+    onError: (error: any) => toast({ title: "Erro ao restaurar", description: error.message, variant: "destructive" }),
   });
 
   const deleteItemMutation = useMutation({
@@ -598,6 +616,22 @@ export default function PainelGeral() {
         </div>
       </div>
 
+      {/* Estados da visão Excluídos — sem eles, carregamento parecia lista
+          vazia e uma falha virava "Nenhum item encontrado" (mentira). */}
+      {showDeleted && deletedLoading && (
+        <div style={{ backgroundColor: "#fafaf9", border: "1px solid #e7e5e4", borderRadius: 10, padding: "10px 16px", fontSize: 13, fontWeight: 600, color: "#746e69" }}>
+          Carregando peças excluídas...
+        </div>
+      )}
+      {showDeleted && deletedError && (
+        <div style={{ backgroundColor: "#fff", border: "1px solid #fecaca", borderRadius: 10, padding: "10px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#b91c1c" }}>Não foi possível carregar as peças excluídas.</span>
+          <button onClick={() => refetchDeleted()} style={{ fontSize: 12, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}>
+            Tentar novamente
+          </button>
+        </div>
+      )}
+
       {/* ── Grouped table ── */}
       <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {isLoading ? (
@@ -809,6 +843,17 @@ export default function PainelGeral() {
                                     </div>
                                     {/* Action buttons — compact on mobile */}
                                     <div style={{ display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
+                                      {isDeleted && isAdmin && (
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); restoreItemMutation.mutate(item.id); }}
+                                          disabled={restoreItemMutation.isPending}
+                                          title="Restaurar peça" aria-label="Restaurar peça"
+                                          data-testid={`button-restore-${item.id}`}
+                                          style={{ background: "#d1fae5", border: "1px solid #6ee7b7", cursor: "pointer", borderRadius: 6, color: "#065f46", display: "flex", alignItems: "center", justifyContent: "center", height: 40, width: 40 }}
+                                        >
+                                          <RotateCcw style={{ width: 15, height: 15 }} />
+                                        </button>
+                                      )}
                                       {!isDeleted && (
                                         <button
                                           onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}
@@ -1076,6 +1121,17 @@ export default function PainelGeral() {
                                     {/* Ação */}
                                     <td style={{ padding: "10px 18px", textAlign: "right" }}>
                                       <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
+                                        {isDeleted && isAdmin && (
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); restoreItemMutation.mutate(item.id); }}
+                                            disabled={restoreItemMutation.isPending}
+                                            title="Restaurar peça" aria-label="Restaurar peça"
+                                            data-testid={`button-restore-${item.id}`}
+                                            style={{ background: "#d1fae5", border: "1px solid #6ee7b7", cursor: "pointer", borderRadius: 6, color: "#065f46", display: "flex", alignItems: "center", justifyContent: "center", padding: 6 }}
+                                          >
+                                            <RotateCcw style={{ width: 14, height: 14 }} />
+                                          </button>
+                                        )}
                                         {!isDeleted && (
                                           <button
                                             onClick={(e) => { e.stopPropagation(); setSelectedItem(item); }}

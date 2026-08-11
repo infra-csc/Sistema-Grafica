@@ -203,6 +203,21 @@ export class ObjectStorageService {
     });
   }
 
+  // Upload feito PELO SERVIDOR (proxy). Existe porque redes corporativas
+  // bloqueiam storage.googleapis.com no cliente: a URL assinada chegava, mas
+  // o PUT do navegador morria em "Failed to fetch". Aqui o navegador manda os
+  // bytes para o app e o app grava no bucket. Retorna a URL canônica do
+  // objeto — o mesmo formato que o cliente obtinha de uploadURL.split("?")[0].
+  async uploadObjectEntityFromBuffer(buf: Buffer, contentType: string): Promise<string> {
+    const privateObjectDir = this.getPrivateObjectDir();
+    const objectId = randomUUID();
+    const fullPath = `${privateObjectDir}/uploads/${objectId}`;
+    const { bucketName, objectName } = parseObjectPath(fullPath);
+    const file = objectStorageClient.bucket(bucketName).file(objectName);
+    await file.save(buf, { contentType, resumable: false });
+    return `https://storage.googleapis.com/${bucketName}/${objectName}`;
+  }
+
   // Gets the object entity file from the object path.
   async getObjectEntityFile(objectPath: string): Promise<File> {
     if (!objectPath.startsWith("/objects/")) {

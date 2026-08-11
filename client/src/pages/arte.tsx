@@ -378,14 +378,15 @@ export default function Arte() {
   ) => {
     setIsPasteUploading(true);
     try {
-      const { url } = await getUploadUrl();
-      const res = await fetch(url, {
+      // Upload via servidor: o PUT direto no storage.googleapis.com é
+      // bloqueado em redes corporativas ("Failed to fetch").
+      const res = await fetch("/api/objects/upload-direct", {
         method: "PUT",
         body: file,
         headers: { "Content-Type": file.type || "image/png" },
       });
       if (!res.ok) throw new Error("Falha no upload");
-      const objectUrl = url.split("?")[0];
+      const { url: objectUrl } = await res.json() as { url: string };
       const localPath = convertGCSUrlToLocalPath(objectUrl);
       onComplete(localPath);
       toast({ title: "Imagem colada!", description: "Upload via Ctrl+V concluído." });
@@ -906,12 +907,13 @@ export default function Arte() {
     onError: (e: any) => toast({ title: "Erro ao salvar book", description: e.message, variant: "destructive" }),
   });
 
-  // Upload sem alterar isPasteUploading (usado no bulk)
+  // Upload sem alterar isPasteUploading (usado no bulk). Via servidor: o PUT
+  // direto no storage.googleapis.com é bloqueado em redes corporativas.
   const uploadFileRaw = useCallback(async (file: File): Promise<string> => {
-    const { url } = await getUploadUrl();
-    const res = await fetch(url, { method: "PUT", body: file, headers: { "Content-Type": file.type || "image/jpeg" } });
+    const res = await fetch("/api/objects/upload-direct", { method: "PUT", body: file, headers: { "Content-Type": file.type || "image/jpeg" } });
     if (!res.ok) throw new Error("Falha no upload do arquivo");
-    return convertGCSUrlToLocalPath(url.split("?")[0]);
+    const { url } = await res.json() as { url: string };
+    return convertGCSUrlToLocalPath(url);
   }, []);
 
   const handleBulkThumbFilesAdded = useCallback((files: FileList | File[]) => {

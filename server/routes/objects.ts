@@ -1,6 +1,6 @@
 // Object-storage upload / serve / delivery-photo-save routes. Extracted
 // from server/routes.ts (OBJECT STORAGE section).
-import type { Express } from "express";
+import express, { type Express } from "express";
 import { storage } from "../storage";
 import { insertDeliveryPhotoSchema } from "@shared/schema";
 import { requireAuth } from "./shared";
@@ -50,6 +50,39 @@ export async function registerObjectRoutes(app: Express): Promise<void> {
       res.status(500).json({ error: "Não foi possível gerar URL de upload" });
     }
   });
+
+  // Upload via servidor (proxy de mesma origem). O caminho antigo — URL
+  // assinada + PUT direto do navegador no storage.googleapis.com — morre em
+  // "Failed to fetch" nas redes corporativas que bloqueiam o host do Google
+  // Storage. Aqui o navegador só fala com a origem do app; o servidor valida
+  // tipo/tamanho e grava no bucket.
+  app.put(
+    "/api/objects/upload-direct",
+    requireAuth,
+    express.raw({ type: "*/*", limit: MAX_UPLOAD_BYTES }),
+    async (req, res) => {
+      try {
+        const contentType = String(req.headers["content-type"] || "application/octet-stream");
+        const allowed = ALLOWED_CONTENT_TYPE_PREFIXES.some((prefix) => contentType.startsWith(prefix));
+        if (!allowed) {
+          return res.status(400).json({ error: "Tipo de arquivo não permitido" });
+        }
+        const buf: Buffer = req.body;
+        if (!Buffer.isBuffer(buf) || buf.length === 0) {
+          return res.status(400).json({ error: "Arquivo vazio ou corpo inválido" });
+        }
+        if (buf.length > MAX_UPLOAD_BYTES) {
+          return res.status(400).json({ error: "Arquivo muito grande (máximo 50 MB)" });
+        }
+        const objectStorageService = new ObjectStorageService();
+        const url = await objectStorageService.uploadObjectEntityFromBuffer(buf, contentType);
+        res.json({ url });
+      } catch (error: any) {
+        console.error("Error in proxy upload:", error);
+        res.status(500).json({ error: "Não foi possível enviar o arquivo" });
+      }
+    }
+  );
 
   // Serve uploaded objects (photos) — requires auth + an ACL check so users
   // can't read arbitrary uploaded files just by guessing/enumerating paths.

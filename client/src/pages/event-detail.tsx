@@ -287,10 +287,11 @@ export default function EventDetail() {
       reader.onload = ev => setLocalRefPreview(ev.target?.result as string);
       reader.readAsDataURL(file);
       try {
-        const { url } = await getUploadUrl();
-        const put = await fetch(url, { method: "PUT", body: file, headers: { "Content-Type": file.type || "application/octet-stream" } });
+        // Upload via servidor: o PUT direto no storage.googleapis.com é
+        // bloqueado em redes corporativas ("Failed to fetch").
+        const put = await fetch("/api/objects/upload-direct", { method: "PUT", body: file, headers: { "Content-Type": file.type || "application/octet-stream" } });
         if (!put.ok) throw new Error("upload falhou");
-        const objectUrl = url.split("?")[0];
+        const { url: objectUrl } = await put.json() as { url: string };
         setFormData(f => ({ ...f, referenceUrl: objectUrl }));
         setLocalRefPreview("");
         toast({ title: "Print anexado", description: "Imagem colada como referência em alta qualidade." });

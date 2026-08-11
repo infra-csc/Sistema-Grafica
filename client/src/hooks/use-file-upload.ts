@@ -51,25 +51,11 @@ export function useFileUpload({
     Array.from(event.target.files ?? []).filter(check);
 
   const putOne = async (file: File) => {
-    // Validate file metadata server-side before obtaining the upload URL.
-    // The server checks content-type against an allowlist and enforces the
-    // size limit, so any bypass of client-side checks is caught here.
-    const metaRes = await fetch("/api/objects/upload", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contentType: file.type || "application/octet-stream",
-        size: file.size,
-      }),
-    });
-    if (!metaRes.ok) {
-      const body = await metaRes.json().catch(() => ({})) as { error?: string };
-      throw new Error(body.error || "Tipo ou tamanho de arquivo não permitido");
-    }
-    const { uploadURL } = await metaRes.json() as { uploadURL: string };
-
-    // Fazer upload do arquivo
-    const uploadResponse = await fetch(uploadURL, {
+    // Upload via servidor (mesma origem). O caminho antigo — URL assinada +
+    // PUT direto no storage.googleapis.com — morre em "Failed to fetch" nas
+    // redes corporativas que bloqueiam o host do Google Storage. O servidor
+    // valida tipo/tamanho e grava no bucket.
+    const uploadResponse = await fetch("/api/objects/upload-direct", {
       method: "PUT",
       body: file,
       headers: {
@@ -78,11 +64,12 @@ export function useFileUpload({
     });
 
     if (!uploadResponse.ok) {
-      throw new Error("Erro ao fazer upload do arquivo");
+      const body = await uploadResponse.json().catch(() => ({})) as { error?: string };
+      throw new Error(body.error || "Erro ao fazer upload do arquivo");
     }
 
-    // Extrair a URL final do objeto (remover query params)
-    onComplete?.({ url: uploadURL.split("?")[0] });
+    const { url } = await uploadResponse.json() as { url: string };
+    onComplete?.({ url });
   };
 
   const finish = () => {

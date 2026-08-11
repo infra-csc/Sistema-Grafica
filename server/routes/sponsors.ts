@@ -470,7 +470,7 @@ export function registerSponsorRoutes(app: Express): void {
         await storage.createNotification({
           type: 'itemsSentToArte',
           message: `${results.length} ${results.length === 1 ? 'item' : 'itens'} aguardando criação de thumb de aprovação`,
-          targetRoles: ['arte', 'admin'],
+          targetRoles: ['arte'], // só quem AGE: a Arte cria o thumb; admin não tem ação aqui
         });
         
         results.forEach(item => {

@@ -316,7 +316,7 @@ export function registerEventRoutes(app: Express): void {
       await storage.createNotification({
         type: 'itemsSubmitted',
         message: `${successfulUpdates.length} ${successfulUpdates.length === 1 ? 'novo item' : 'novos itens'} aguardando vinculação de patrocinadores no evento "${event.name}"`,
-        targetRoles: ['arte', 'admin'],
+        targetRoles: ['arte'], // só quem AGE: a Arte cria o thumb; admin não tem ação aqui
         eventId,
       });
       

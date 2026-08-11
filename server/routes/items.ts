@@ -343,7 +343,7 @@ export function registerItemRoutes(app: Express): void {
         message: `Novo item adicionado: ${item.type} - Evento: ${event.name}`,
         eventId: item.eventId,
         itemId: item.id,
-        targetRoles: ["arte", "grafica"],
+        targetRoles: ["arte"], // só quem AGE agora: a Gráfica entra bem depois, quando liberam p/ produção
       });
       
       // Update event status
@@ -404,7 +404,7 @@ export function registerItemRoutes(app: Express): void {
           type: "itemAdded",
           message: `${createdItems.length} itens adicionados - Evento: ${event.name}`,
           eventId: event.id,
-          targetRoles: ["arte", "grafica"],
+          targetRoles: ["arte"], // só quem AGE agora: a Gráfica entra bem depois, quando liberam p/ produção
         });
         broadcast({ type: "notification_created", notification });
       }
@@ -496,7 +496,7 @@ export function registerItemRoutes(app: Express): void {
         type: "itemAdded",
         message: `${created.length} itens clonados de "${sourceEvent.name}" → "${targetEvent.name}"`,
         eventId: targetEvent.id,
-        targetRoles: ["arte", "grafica"],
+        targetRoles: ["arte"], // só quem AGE agora: a Gráfica entra bem depois, quando liberam p/ produção
       });
       broadcast({ type: "notification_created", notification });
       broadcast({ type: "items_bulk_created", items: created, eventId: targetEvent.id });
@@ -1600,7 +1600,7 @@ export function registerItemRoutes(app: Express): void {
           message: `Criador do evento liberou item para produção: ${updated.type} - Evento: ${event?.name}`,
           eventId: updated.eventId,
           itemId: updated.id,
-          targetRoles: ["arte", "grafica"],
+          targetRoles: ["arte"], // só quem AGE agora: a Gráfica entra bem depois, quando liberam p/ produção
         }).returning();
 
         return { item: updated, notification: notif };

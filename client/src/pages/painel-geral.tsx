@@ -138,10 +138,13 @@ export default function PainelGeral() {
       next30days: d => d >= 0 && d <= 30, overdue: d => d < 0,
     };
     const matchesDate = dateFilter.length === 0 || (() => {
-      if (!item.event?.startDate) return false;
+      // Âncora: SAÍDA DO CAMINHÃO (decisão de negócio) — é o prazo operacional
+      // que os chips e alertas usam. Antes filtrava pelo início do evento, que
+      // podia dizer "no prazo" com o caminhão já atrasado.
+      if (!item.event?.truckDepartureDate) return false;
       const today = new Date(); today.setHours(0, 0, 0, 0);
-      const evDate = parseDateLocal(item.event.startDate); evDate.setHours(0, 0, 0, 0);
-      const diff = Math.ceil((evDate.getTime() - today.getTime()) / 86400000);
+      const truckDate = new Date(item.event.truckDepartureDate); truckDate.setHours(0, 0, 0, 0);
+      const diff = Math.ceil((truckDate.getTime() - today.getTime()) / 86400000);
       return dateFilter.some(df => dateRangeMap[df] ? dateRangeMap[df](diff) : true);
     })();
     return matchesSearch && matchesEvent && matchesType && matchesSponsor && matchesDate;
@@ -506,21 +509,20 @@ export default function PainelGeral() {
 
         {/* Data */}
         <div style={{ flexShrink: 0, minWidth: 130, ...(isMobile && { flex: "1 1 calc(50% - 4px)", minWidth: 0 }) }}>
-          {/* O critério é a data de INÍCIO do evento — os rótulos deixam isso
-              explícito. Antes "Atrasados"/"Hoje" era ambíguo: podia se referir
-              à saída do caminhão (a âncora dos prazos) ou ao início do evento. */}
+          {/* O critério é a SAÍDA DO CAMINHÃO — a âncora operacional dos
+              prazos (mesma dos chips e dos alertas), confirmada pelo negócio. */}
           <FilterSelect
-            label="Início do evento" allLabel="Início: qualquer data"
+            label="Saída do caminhão" allLabel="Saída: qualquer data"
             values={dateFilter} onValuesChange={setDateFilter}
             hideWhenEmpty={false}
             options={[
-              { value: "overdue",    label: "Início já passou",     pinned: true },
-              { value: "today",      label: "Começa hoje",          pinned: true },
-              { value: "next3days",  label: "Começa em até 3 dias", pinned: true },
-              { value: "next7days",  label: "Começa em até 7 dias", pinned: true },
-              { value: "next10days", label: "Começa em até 10 dias",pinned: true },
-              { value: "next15days", label: "Começa em até 15 dias",pinned: true },
-              { value: "next30days", label: "Começa em até 30 dias",pinned: true },
+              { value: "overdue",    label: "Caminhão já saiu",   pinned: true },
+              { value: "today",      label: "Sai hoje",           pinned: true },
+              { value: "next3days",  label: "Sai em até 3 dias",  pinned: true },
+              { value: "next7days",  label: "Sai em até 7 dias",  pinned: true },
+              { value: "next10days", label: "Sai em até 10 dias", pinned: true },
+              { value: "next15days", label: "Sai em até 15 dias", pinned: true },
+              { value: "next30days", label: "Sai em até 30 dias", pinned: true },
             ]}
             testId="select-date-filter"
             fullWidth

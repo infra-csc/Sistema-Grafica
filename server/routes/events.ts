@@ -22,38 +22,53 @@ export function registerEventRoutes(app: Express): void {
         return res.json(eventsCache.data);
       }
 
-      const allEvents = await storage.getAllEvents();
-      
-      // Fetch items and sponsors for each event and calculate real-time status
-      const eventsWithItems = await Promise.all(
-        allEvents.map(async (event) => {
-          const eventItems = await storage.getItemsByEvent(event.id);
-          const eventSponsors = await storage.getEventSponsors(event.id);
-          
-          // Calculate real-time status
-          const nowDate = new Date();
-          const eventStartDate = new Date(event.startDate);
-          const eventHasPassed = nowDate > eventStartDate;
-          
-          let calculatedStatus = event.status;
-          
-          if (eventHasPassed) {
+      // 3 queries totais (eventos + todos os itens + todos os vínculos de
+      // patrocinador), agrupando em memória — em vez de 1 + 2 queries POR evento
+      // (N+1). Com centenas de eventos isso era a diferença entre ~3 e ~600
+      // queries neste endpoint, que é o mais chamado do app.
+      const [allEvents, allItems, allEventSponsors] = await Promise.all([
+        storage.getAllEvents(),
+        storage.getAllItems(),
+        storage.getAllEventSponsors(),
+      ]);
+
+      // getAllItems/getAllEventSponsors já vêm ordenados por createdAt desc —
+      // agrupar preserva a mesma ordem que getItemsByEvent/getEventSponsors dariam.
+      const itemsByEvent = new Map<string, any[]>();
+      for (const it of allItems) {
+        const arr = itemsByEvent.get(it.eventId);
+        if (arr) arr.push(it); else itemsByEvent.set(it.eventId, [it]);
+      }
+      const sponsorsByEvent = new Map<string, any[]>();
+      for (const es of allEventSponsors) {
+        const arr = sponsorsByEvent.get(es.eventId);
+        if (arr) arr.push(es); else sponsorsByEvent.set(es.eventId, [es]);
+      }
+
+      const nowDate = new Date();
+      const eventsWithItems = allEvents.map((event) => {
+        const eventItems = itemsByEvent.get(event.id) ?? [];
+        const eventSponsors = sponsorsByEvent.get(event.id) ?? [];
+
+        // Calculate real-time status
+        const eventHasPassed = nowDate > new Date(event.startDate);
+        let calculatedStatus = event.status;
+        if (eventHasPassed) {
+          calculatedStatus = "completed";
+        } else if (eventItems.length > 0) {
+          const allDelivered = eventItems.every((item) => item.status === "delivered");
+          if (allDelivered) {
             calculatedStatus = "completed";
-          } else if (eventItems.length > 0) {
-            const allDelivered = eventItems.every(item => item.status === "delivered");
-            if (allDelivered) {
-              calculatedStatus = "completed";
-            }
           }
-          
-          return {
-            ...event,
-            status: calculatedStatus, // Override with calculated status
-            items: eventItems,
-            sponsors: eventSponsors,
-          };
-        })
-      );
+        }
+
+        return {
+          ...event,
+          status: calculatedStatus, // Override with calculated status
+          items: eventItems,
+          sponsors: eventSponsors,
+        };
+      });
 
       setEventsCache(eventsWithItems);
       res.json(eventsWithItems);

@@ -217,6 +217,11 @@ function AuthenticatedLayout() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
     },
+    // Sem onError a falha era silêncio: o badge não mudava e o usuário
+    // clicava de novo sem entender o porquê.
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+    },
   });
 
   const userInitials = user?.name

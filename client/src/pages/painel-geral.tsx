@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState, useMemo, Fragment, useEffect } from "react";
+import { useState, useMemo, useRef, Fragment, useEffect } from "react";
 import { Search, Calendar, Truck, AlertCircle, Eye, Paperclip, Trash2, FileText, Printer } from "lucide-react";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { ExportPdfDialog } from "@/components/export-pdf-dialog";
@@ -59,12 +59,53 @@ export default function PainelGeral() {
   const BLOCKED_DELETE_STATUSES = ["awaiting_submission", "awaiting_approval", "awaiting_final_review", "ready_for_production", "approved", "inProduction", "produced", "conferred", "delivered", "pronto_para_producao", "liberado", "em_producao", "produzido", "entregue"];
   const canDeleteItem = (status: string) => isAdmin || !BLOCKED_DELETE_STATUSES.includes(status);
 
-  const [searchTerm, setSearchTerm]     = useState("");
-  const [statusFilter, setStatusFilter] = useState<string[]>([]);
-  const [eventFilter, setEventFilter]   = useState<string[]>([]);
-  const [sponsorFilter, setSponsorFilter] = useState<string[]>([]);
-  const [typeFilter, setTypeFilter]     = useState<string[]>([]);
-  const [dateFilter, setDateFilter]     = useState<string[]>([]);
+  // Filtros inicializam da URL (?status=...&evento=...) — assim F5 não perde o
+  // trabalho de filtrar e dá para compartilhar um link "itens atrasados do
+  // evento X" com um colega.
+  const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
+  const fromCsv = (key: string) => { const v = urlParams.get(key); return v ? v.split(",").filter(Boolean) : []; };
+  const [searchTerm, setSearchTerm]     = useState(() => urlParams.get("busca") ?? "");
+  const [statusFilter, setStatusFilter] = useState<string[]>(() => fromCsv("status"));
+  const [eventFilter, setEventFilter]   = useState<string[]>(() => fromCsv("evento"));
+  const [sponsorFilter, setSponsorFilter] = useState<string[]>(() => fromCsv("patrocinador"));
+  const [typeFilter, setTypeFilter]     = useState<string[]>(() => fromCsv("tipo"));
+  const [dateFilter, setDateFilter]     = useState<string[]>(() => fromCsv("saida"));
+
+  // Mantém a URL espelhando os filtros (replaceState: não polui o histórico).
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (searchTerm) p.set("busca", searchTerm);
+    if (statusFilter.length) p.set("status", statusFilter.join(","));
+    if (eventFilter.length) p.set("evento", eventFilter.join(","));
+    if (sponsorFilter.length) p.set("patrocinador", sponsorFilter.join(","));
+    if (typeFilter.length) p.set("tipo", typeFilter.join(","));
+    if (dateFilter.length) p.set("saida", dateFilter.join(","));
+    const qs = p.toString();
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+  }, [searchTerm, statusFilter, eventFilter, sponsorFilter, typeFilter, dateFilter]);
+
+  // Atalho "/" foca a busca (padrão de SaaS — Linear/GitHub). Ignorado quando
+  // o usuário já está digitando em algum campo.
+  const searchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/") return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // Renderização incremental: cada evento mostra até ROW_CAP linhas; o resto
+  // aparece sob demanda ("Mostrar todos"). Mantém o DOM pequeno com milhares
+  // de itens sem a fragilidade de virtualizar uma <table> com grupos/colspan.
+  const ROW_CAP = 50;
+  const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
+  const expandEvent = (key: string) =>
+    setExpandedEvents(prev => { const next = new Set(prev); next.add(key); return next; });
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null);
   const [showExportPDFModal, setShowExportPDFModal] = useState(false);
@@ -435,8 +476,10 @@ export default function PainelGeral() {
         <div style={{ position: "relative", flexShrink: 0, width: isMobile ? "100%" : 180 }}>
           <Search style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "#a8a29e", pointerEvents: "none" }} />
           <input
+            ref={searchRef}
             type="text"
             placeholder="Buscar ID, evento..."
+            title="Atalho: pressione / para focar a busca"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             data-testid="input-search"
@@ -605,8 +648,16 @@ export default function PainelGeral() {
           Object.entries(groupedItems).map(([eventKey, eventData]) => {
             const gd = eventData as { eventId: string | null; eventName: string; items: any[] };
             const firstItem = gd.items[0];
+            // Renderização incremental: mantém o DOM pequeno em eventos com
+            // centenas de itens; o restante entra sob demanda.
+            const isExpanded = expandedEvents.has(eventKey);
+            const visibleItems = isExpanded || gd.items.length <= ROW_CAP ? gd.items : gd.items.slice(0, ROW_CAP);
+            const hiddenCount = gd.items.length - visibleItems.length;
             return (
-              <div key={eventKey} style={{ border: "1px solid #e2e2e2", borderRadius: 12, backgroundColor: "#ffffff", overflow: "hidden", boxShadow: "0 2px 8px rgba(28,25,23,0.07)" }}>
+              {/* overflow: clip (não hidden): clipa o border-radius SEM criar
+                  scroll-container — pré-requisito para o thead sticky funcionar
+                  contra o scroll da página. */}
+              <div key={eventKey} style={{ border: "1px solid #e2e2e2", borderRadius: 12, backgroundColor: "#ffffff", overflow: "clip", boxShadow: "0 2px 8px rgba(28,25,23,0.07)" }}>
 
                 {/* Group header */}
                 <div style={{
@@ -663,7 +714,7 @@ export default function PainelGeral() {
                         if (s.group) typeToGroupLocal[s.name] = s.group;
                       }
                       const groupMap: Record<string, Record<string, any[]>> = {};
-                      for (const item of gd.items) {
+                      for (const item of visibleItems) {
                         const g = typeToGroupLocal[item.type] || '';
                         if (!groupMap[g]) groupMap[g] = {};
                         if (!groupMap[g][item.type]) groupMap[g][item.type] = [];
@@ -805,14 +856,30 @@ export default function PainelGeral() {
                         </Fragment>
                       ));
                     })()}
+                    {hiddenCount > 0 && (
+                      <button
+                        onClick={() => expandEvent(eventKey)}
+                        style={{ width: "100%", padding: "13px", marginTop: 4, background: "#fafaf9", border: "1px solid #e7e5e4", borderRadius: 8, color: "#1c1917", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+                      >
+                        Mostrar todos os {gd.items.length} itens (+{hiddenCount})
+                      </button>
+                    )}
                   </div>
                 ) : (
-                <div style={{ overflowX: "auto", overflowY: "visible" }} className="scrollbar-visible">
+                {/* overflow visível (não auto): qualquer scroll-container entre o
+                    th e o scroll da página quebraria o sticky do cabeçalho. O
+                    desktop comporta a tabela; mobile usa o layout de cards. */}
+                <div style={{ overflow: "visible" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse" }}>
                     <thead>
-                      <tr style={{ backgroundColor: "#1c1917" }}>
+                      <tr>
                         {["ID", "Descrição", "Medidas", "Patrocinador", "Status", ""].map((col, i) => (
                           <th key={i} style={{
+                            /* Sticky: colunas continuam visíveis ao rolar listas
+                               longas. bg no th (não no tr) — th sticky sem fundo
+                               ficaria transparente sobre as linhas. */
+                            position: "sticky", top: 0, zIndex: 5,
+                            backgroundColor: "#1c1917",
                             padding: "12px 20px",
                             fontSize: 11, fontWeight: 900, textTransform: "uppercase",
                             letterSpacing: "0.1em", color: "#ffffff",
@@ -831,7 +898,7 @@ export default function PainelGeral() {
                         }
                         // Group by Grupo Pai first, then by type within each group
                         const groupMap: Record<string, Record<string, any[]>> = {};
-                        for (const item of gd.items) {
+                        for (const item of visibleItems) {
                           const g = typeToGroup[item.type] || '';
                           if (!groupMap[g]) groupMap[g] = {};
                           if (!groupMap[g][item.type]) groupMap[g][item.type] = [];
@@ -1063,6 +1130,19 @@ export default function PainelGeral() {
                           </Fragment>
                         ));
                       })()}
+                      {hiddenCount > 0 && (
+                        <tr>
+                          <td colSpan={6} style={{ padding: 0 }}>
+                            <button
+                              onClick={() => expandEvent(eventKey)}
+                              data-testid={`button-show-all-${eventKey}`}
+                              style={{ width: "100%", padding: "13px", background: "#fafaf9", border: "none", borderTop: "1px solid #e7e5e4", color: "#1c1917", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
+                            >
+                              Mostrar todos os {gd.items.length} itens (+{hiddenCount})
+                            </button>
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
                 </div>

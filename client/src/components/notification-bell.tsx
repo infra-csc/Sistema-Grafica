@@ -99,7 +99,7 @@ export function NotificationBell({ notifications, onMarkAsRead, onViewAll }: Not
   const unread = notifications.filter((n) => !n.isRead);
   const unreadCount = unread.length;
 
-  // Close on outside click
+  // Close on outside click + Escape (fechava só com clique fora)
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
@@ -107,8 +107,13 @@ export function NotificationBell({ notifications, onMarkAsRead, onViewAll }: Not
         setOpen(false);
       }
     };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
     document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open]);
 
   const handleItem = (n: Notification) => {
@@ -169,7 +174,8 @@ export function NotificationBell({ notifications, onMarkAsRead, onViewAll }: Not
         <div
           style={{
             position: "absolute", top: "calc(100% + 12px)", right: 0,
-            width: 384, backgroundColor: "#ffffff",
+            /* min(): 384px fixo estourava a viewport de 375px no celular. */
+            width: "min(384px, calc(100vw - 32px))", backgroundColor: "#ffffff",
             borderRadius: 12,
             boxShadow: "0 32px 64px -16px rgba(28,25,23,0.18)",
             border: "1px solid #f3f4f3",
@@ -192,14 +198,29 @@ export function NotificationBell({ notifications, onMarkAsRead, onViewAll }: Not
               Alertas Recentes
             </h3>
             {unreadCount > 0 && (
-              <span style={{
-                fontSize: 10, fontWeight: 700, color: "#c2410c",
-                backgroundColor: "#fff7ed",
-                padding: "2px 8px", borderRadius: 4,
-                textTransform: "uppercase", letterSpacing: "0.05em",
-              }}>
-                {unreadCount} NÃO LIDA{unreadCount !== 1 ? "S" : ""}
-              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, color: "#c2410c",
+                  backgroundColor: "#fff7ed",
+                  padding: "2px 8px", borderRadius: 4,
+                  textTransform: "uppercase", letterSpacing: "0.05em",
+                }}>
+                  {unreadCount} NÃO LIDA{unreadCount !== 1 ? "S" : ""}
+                </span>
+                {/* Com 9+ acumuladas, marcar era clique a clique. */}
+                <button
+                  data-testid="button-mark-all-read"
+                  onClick={() => unread.forEach((n) => onMarkAsRead(n.id))}
+                  style={{
+                    background: "none", border: "none", cursor: "pointer", padding: 0,
+                    fontSize: 10, fontWeight: 700, color: "#746e69",
+                    textTransform: "uppercase", letterSpacing: "0.05em",
+                    textDecoration: "underline",
+                  }}
+                >
+                  Marcar todas
+                </button>
+              </div>
             )}
           </div>
 
@@ -219,6 +240,12 @@ export function NotificationBell({ notifications, onMarkAsRead, onViewAll }: Not
                     key={n.id}
                     data-testid={`notification-${n.id}`}
                     onClick={() => handleItem(n)}
+                    // Teclado: era <div onClick> não-focável — impossível marcar
+                    // como lida sem mouse.
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`${n.isRead ? "Lida" : "Não lida"}: ${n.message}`}
+                    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleItem(n); } }}
                     style={{
                       position: "relative",
                       display: "flex", alignItems: "flex-start", gap: 12,

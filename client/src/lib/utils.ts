@@ -59,3 +59,15 @@ export function folderFromPath(p?: string | null): string {
   const idx = Math.max(s.lastIndexOf("\\"), s.lastIndexOf("/"));
   return idx > 0 ? s.slice(0, idx) : s;
 }
+
+// Rótulos amigáveis dos papéis — `capitalize` cru exibia "Solicitacao"/
+// "Grafica" sem acento. Fonte única para sidebar, topbar e onde mais precisar.
+export const ROLE_LABELS: Record<string, string> = {
+  admin: "Admin",
+  solicitacao: "Solicitação",
+  arte: "Arte",
+  grafica: "Gráfica",
+  atendimento: "Atendimento",
+};
+export const roleLabel = (role?: string | null): string =>
+  (role && ROLE_LABELS[role]) || role || "";

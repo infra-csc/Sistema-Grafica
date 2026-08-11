@@ -9,6 +9,7 @@ import { NotificationBell } from "@/components/notification-bell";
 import { AuthProvider, useAuth } from "@/contexts/auth-context";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "./lib/queryClient";
+import { roleLabel } from "@/lib/utils";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { useEffect, Component, type ReactNode } from "react";
 import NotFound from "@/pages/not-found";
@@ -266,7 +267,7 @@ function AuthenticatedLayout() {
                   {user?.name}
                 </p>
                 <p style={{ margin: 0, fontSize: 11, color: "#746e69", textTransform: "capitalize" }}>
-                  {user?.role}
+                  {roleLabel(user?.role)}
                 </p>
               </div>
               <div

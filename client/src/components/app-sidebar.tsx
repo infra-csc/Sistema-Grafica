@@ -4,6 +4,7 @@ import {
   Link2, LogOut, ScrollText, Archive, ScanSearch, Compass, Settings2, Camera,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
+import { roleLabel } from "@/lib/utils";
 import { useAuth } from "@/contexts/auth-context";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -164,12 +165,6 @@ export function AppSidebar() {
   const isItemActive = (url: string) =>
     url === "/" ? location === "/" : location === url || location.startsWith(url + "/");
 
-  // Rótulos amigáveis dos papéis — capitalize cru exibia "Solicitacao"/"Grafica"
-  // sem acento no rodapé.
-  const ROLE_LABELS: Record<string, string> = {
-    admin: "Admin", solicitacao: "Solicitação", arte: "Arte",
-    grafica: "Gráfica", atendimento: "Atendimento",
-  };
 
   const filteredProduction = filterByRole(productionItems);
   const filteredSponsor   = filterByRole(sponsorItems);
@@ -324,7 +319,7 @@ export function AppSidebar() {
               fontSize: 11, color: "#746e69",
               margin: 0, lineHeight: 1.3, textTransform: "capitalize",
             }}>
-              {ROLE_LABELS[user?.role ?? ""] ?? user?.role ?? ""}
+              {roleLabel(user?.role)}
             </p>
           </div>
 

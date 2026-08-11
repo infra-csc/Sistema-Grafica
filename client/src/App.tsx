@@ -193,7 +193,7 @@ function Router() {
         {() => <RoleProtectedRoute component={TriagemRetorno} allowedRoles={["admin"]} />}
       </Route>
       <Route path="/configurar-cotas">
-        {() => <RoleProtectedRoute component={ConfigurarCotas} allowedRoles={["arte", "atendimento", "admin"]} />}
+        {() => <RoleProtectedRoute component={ConfigurarCotas} allowedRoles={["atendimento", "admin"]} />}
       </Route>
       <Route component={NotFound} />
     </Switch>

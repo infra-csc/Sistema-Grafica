@@ -134,6 +134,11 @@ export function registerEventRoutes(app: Express): void {
 
   // Update event
   app.patch("/api/events/:id", requireAuth, async (req, res) => {
+    // Edição de evento é gestão (mesmos papéis que a UI mostra o lápis) — a
+    // rota aceitava qualquer papel reescrever datas/dados de qualquer evento.
+    if (!["admin", "solicitacao"].includes(req.userRole ?? "")) {
+      return res.status(403).json({ error: "Sem permissão para editar eventos" });
+    }
     try {
       const validatedData = insertEventSchema.partial().parse(req.body);
 

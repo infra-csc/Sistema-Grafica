@@ -52,6 +52,10 @@ export function registerSponsorRoutes(app: Express): void {
 
   // Create sponsor
   app.post("/api/sponsors", requireAuth, async (req, res) => {
+    // Mesmos papéis da irmã PATCH e da página /patrocinadores.
+    if (!["admin", "atendimento", "solicitacao"].includes(req.userRole ?? "")) {
+      return res.status(403).json({ error: "Sem permissão para criar patrocinadores" });
+    }
     try {
       const validatedData = insertSponsorSchema.parse(req.body);
       const sponsor = await storage.createSponsor(validatedData);
@@ -137,6 +141,9 @@ export function registerSponsorRoutes(app: Express): void {
   });
 
   app.put("/api/events/:id/quota-rules", requireAuth, async (req, res) => {
+    if (!["admin", "atendimento"].includes(req.userRole ?? "")) {
+      return res.status(403).json({ error: "Sem permissão para editar cotas" });
+    }
     try {
       // Body: { quota: string, itemTypes: string[] }
       const { quota, itemTypes } = req.body as { quota: string; itemTypes: string[] };
@@ -149,6 +156,9 @@ export function registerSponsorRoutes(app: Express): void {
   });
 
   app.delete("/api/events/:id/quota-rules/:quota", requireAuth, async (req, res) => {
+    if (!["admin", "atendimento"].includes(req.userRole ?? "")) {
+      return res.status(403).json({ error: "Sem permissão para editar cotas" });
+    }
     try {
       await storage.deleteEventQuotaRule(req.params.id, req.params.quota);
       res.json({ ok: true });

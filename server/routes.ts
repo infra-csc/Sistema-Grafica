@@ -31,7 +31,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     if (req.session?.userId) {
       req.userId = req.session.userId;
       req.userName = req.session.userName || 'Sistema';
-      req.userRole = req.session.userRole || 'solicitacao';
+      // Sem fallback de papel: sessão sem role NÃO ganha privilégios de
+      // solicitacao por default — gates comparam com string e falham fechado.
+      req.userRole = req.session.userRole;
     } else {
       // Sem sessão: identidade NÃO pode vir do cliente. O header x-user-name
       // é controlado pelo navegador e era falsificável — a trilha de auditoria

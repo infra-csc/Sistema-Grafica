@@ -80,6 +80,16 @@ function deriveCalculatedM2(data: {
   return undefined;
 }
 
+// Criação de itens: Solicitação/admin, ou o CRIADOR do evento (qualquer papel)
+// — espelha o gate canEditLists do client. Sem isto, Gráfica/Arte/Atendimento
+// criavam itens em eventos alheios direto pela API.
+async function canCreateItemsFor(req: { userRole?: string; userId?: string }, eventId?: string): Promise<boolean> {
+  if (req.userRole === "admin" || req.userRole === "solicitacao") return true;
+  if (!eventId || !req.userId) return false;
+  const ev = await storage.getEvent(eventId);
+  return !!ev && ev.createdBy === req.userId;
+}
+
 // Enriquece uma lista de itens com { event, sponsors } fazendo apenas 4 queries
 // totais (eventos, patrocinadores, vínculos item↔patrocinador e aprovações em
 // bloco), em vez de 1 getEvent + 1 getItemSponsors + N getSponsor POR item
@@ -300,6 +310,9 @@ export function registerItemRoutes(app: Express): void {
   app.post("/api/items", requireAuth, async (req, res) => {
     try {
       const validatedData = insertItemSchema.parse(req.body);
+      if (!(await canCreateItemsFor(req, validatedData.eventId))) {
+        return res.status(403).json({ error: "Sem permissão para criar itens neste evento" });
+      }
       // Não confiar no m² do cliente — recalcular no servidor quando derivável.
       const derivedM2 = deriveCalculatedM2(validatedData);
       if (derivedM2 !== undefined) validatedData.calculatedM2 = derivedM2;
@@ -365,6 +378,9 @@ export function registerItemRoutes(app: Express): void {
       
       if (!Array.isArray(itemsData) || itemsData.length === 0) {
         return res.status(400).json({ error: "Items array is required and cannot be empty" });
+      }
+      if (!(await canCreateItemsFor(req, itemsData[0]?.eventId))) {
+        return res.status(403).json({ error: "Sem permissão para criar itens neste evento" });
       }
       
       // Validate all items
@@ -434,11 +450,19 @@ export function registerItemRoutes(app: Express): void {
   app.post("/api/events/:id/preview-xlsx", requireAuth, handlePreviewXlsx);
 
   // ── Confirm import (save pre-reviewed items) ─────────────────────────────
-  app.post("/api/events/:id/confirm-import", requireAuth, handleConfirmImport);
+  app.post("/api/events/:id/confirm-import", requireAuth, async (req, res) => {
+    if (!(await canCreateItemsFor(req, req.params.id))) {
+      return res.status(403).json({ error: "Sem permissão para importar itens neste evento" });
+    }
+    return handleConfirmImport(req, res);
+  });
 
 
   // ── Clone items from another event ───────────────────────────────────────
   app.post("/api/events/:id/clone-items", requireAuth, async (req, res) => {
+    if (!(await canCreateItemsFor(req, req.params.id))) {
+      return res.status(403).json({ error: "Sem permissão para clonar itens para este evento" });
+    }
     try {
       const targetEvent = await storage.getEvent(req.params.id);
       if (!targetEvent) return res.status(404).json({ error: "Evento destino não encontrado" });
@@ -1307,6 +1331,10 @@ export function registerItemRoutes(app: Express): void {
 
   // Initialize sponsor approvals when sending item for approval
   app.post("/api/items/:id/initialize-sponsor-approvals", requireAuth, async (req, res) => {
+    // Irmã de resubmit (arte+admin); estava sem gate — e sem caller no client.
+    if (!["arte", "admin"].includes(req.userRole ?? "")) {
+      return res.status(403).json({ error: "Sem permissão" });
+    }
     try {
       const itemId = req.params.id;
       
@@ -2391,6 +2419,11 @@ export function registerItemRoutes(app: Express): void {
 
   // Mark item as delivered (Gráfica module)
   app.patch("/api/items/:id/deliver", requireAuth, async (req, res) => {
+    // Entrega é etapa da Gráfica (solicitacao entra pelo fluxo de reuso) — era
+    // a ÚNICA transição do fluxo de produção sem gate de papel.
+    if (!["grafica", "solicitacao", "admin"].includes(req.userRole ?? "")) {
+      return res.status(403).json({ error: "Sem permissão para registrar entrega" });
+    }
     try {
       const { receivedBy, photoUrl, notes } = req.body;
       const trimmedNotes = typeof notes === "string" ? notes.trim() : "";

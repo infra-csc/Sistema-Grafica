@@ -1297,7 +1297,8 @@ export default function Eventos() {
             const truckTextColor = truckUrgency === 'urgent' ? '#ef4444' : truckUrgency === 'warning' ? '#f59e0b' : (isCompleted ? '#d1fae5' : '#1c1917');
 
             const canEdit = hasPermission("admin") || hasPermission("solicitacao");
-            const canDelete = hasPermission("admin") || hasPermission("solicitacao");
+            // Servidor só aceita admin no DELETE de evento — solicitacao via o botão e levava 403.
+            const canDelete = hasPermission("admin");
 
             // ── Card Concluído: branco com borda verde e ícone decorativo ──
             if (isCompleted) {

@@ -1636,8 +1636,8 @@ export default function EventDetail() {
                 onClick={() => setSubmitConfirmOpen(true)}
                 // Gate: enviar rascunhos para a Arte é ação do gestor do evento
                 // (admin ou criador) — mesmo critério das demais ações do card.
-                disabled={submitDraftsMutation.isPending || !canManageEvent}
-                title={!canManageEvent ? "Apenas o criador do evento ou um administrador pode enviar" : undefined}
+                disabled={submitDraftsMutation.isPending || !(hasPermission("admin") || user?.role === "solicitacao")}
+                title={!(hasPermission("admin") || user?.role === "solicitacao") ? "Apenas Solicitação ou administradores podem enviar" : undefined}
                 size="lg"
                 data-testid="button-submit-drafts"
               >

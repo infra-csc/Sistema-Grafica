@@ -49,7 +49,7 @@ const productionItems: MenuItem[] = [
 // Patrocinadores: visível p/ solicitação, atendimento e admin
 const sponsorItems: MenuItem[] = [
   { title: "Patrocinadores",   url: "/patrocinadores",   icon: Building2,  roles: ["solicitacao", "atendimento", "admin"] },
-  { title: "Configurar Cotas", url: "/configurar-cotas", icon: Settings2,  roles: ["arte", "atendimento", "admin"] },
+  { title: "Configurar Cotas", url: "/configurar-cotas", icon: Settings2,  roles: ["atendimento", "admin"] }, // PUT global de cotas é admin+atendimento — arte via a tela e levava 403 ao salvar
 ];
 
 // Estoque: apenas admin

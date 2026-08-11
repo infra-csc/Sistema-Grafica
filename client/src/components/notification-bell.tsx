@@ -7,12 +7,17 @@ interface Notification {
   message: string;
   isRead: boolean;
   createdAt: Date | string;
+  // Vêm do servidor e permitem navegar até o contexto da notificação.
+  eventId?: string | null;
+  itemId?: string | null;
 }
 
 interface NotificationBellProps {
   notifications: Notification[];
   onMarkAsRead: (id: string) => void;
   onViewAll?: () => void;
+  /** Navega até o evento/item da notificação (definido pelo App). */
+  onOpen?: (n: Notification) => void;
 }
 
 // ── Type config ───────────────────────────────────────────────────────────────
@@ -93,7 +98,7 @@ function fmtTime(raw: Date | string): string {
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export function NotificationBell({ notifications, onMarkAsRead, onViewAll }: NotificationBellProps) {
+export function NotificationBell({ notifications, onMarkAsRead, onViewAll, onOpen }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const unread = notifications.filter((n) => !n.isRead);
@@ -118,6 +123,12 @@ export function NotificationBell({ notifications, onMarkAsRead, onViewAll }: Not
 
   const handleItem = (n: Notification) => {
     if (!n.isRead) onMarkAsRead(n.id);
+    // Clicar leva ao contexto: antes só marcava como lida e o usuário tinha
+    // de caçar o item manualmente.
+    if (n.eventId && onOpen) {
+      setOpen(false);
+      onOpen(n);
+    }
   };
 
   return (

@@ -80,6 +80,13 @@ export default function EventDetail() {
   const [selectedItemForDetails, setSelectedItemForDetails] = useState<any | null>(null);
   const [itemSearch, setItemSearch] = useState("");
   const [showAllItems, setShowAllItems] = useState(false);
+
+  // Deep-link ?item=<id>: usado pelo clique na notificação — navega até este
+  // evento e abre direto o dialog da peça. O parâmetro é consumido uma única
+  // vez (replaceState) para não reabrir o dialog a cada re-render/refresh.
+  const pendingDeepLinkItem = useRef<string | null>(
+    new URLSearchParams(window.location.search).get("item"),
+  );
   // Edição de Material/Acabamento: o <datalist> nativo filtra pelas letras já
   // digitadas — na edição, o campo vem preenchido e o dropdown mostrava SÓ o
   // valor atual, escondendo as demais opções. Trocado por <select> com todas
@@ -124,6 +131,15 @@ export default function EventDetail() {
   });
 
   // Ordenar itens por displayId (grupo é tratado pelo groupMap; dentro de cada tipo, ordem pelo id)
+  // Consome o deep-link ?item= assim que os itens chegam (ver pendingDeepLinkItem).
+  useEffect(() => {
+    if (!pendingDeepLinkItem.current || rawItems.length === 0) return;
+    const target = rawItems.find((i: any) => i.id === pendingDeepLinkItem.current);
+    pendingDeepLinkItem.current = null;
+    window.history.replaceState(null, "", window.location.pathname);
+    if (target) setSelectedItemForDetails(target);
+  }, [rawItems]);
+
   const items = [...rawItems].sort((a, b) => {
     const idA = parseInt(String(a.displayId || '0').replace(/\D/g, '')) || 0;
     const idB = parseInt(String(b.displayId || '0').replace(/\D/g, '')) || 0;

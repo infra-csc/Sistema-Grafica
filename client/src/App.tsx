@@ -256,6 +256,11 @@ function AuthenticatedLayout() {
               notifications={notifications}
               onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
               onViewAll={() => setLocation("/historico")}
+              // Clique navega ao contexto: detalhe do evento e, se houver
+              // itemId, ?item= abre o dialog da peça (deep-link do event-detail).
+              onOpen={(n) =>
+                setLocation(`/eventos/${n.eventId}${n.itemId ? `?item=${n.itemId}` : ""}`)
+              }
             />
             {/* Quem está logado.
                 Era só o quadradinho com as iniciais e o nome no `title`: no

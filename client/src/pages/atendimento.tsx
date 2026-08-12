@@ -48,20 +48,22 @@ const COLLATOR = new Intl.Collator();
 // Usado nos chips do histórico, no modal de detalhe, no modal de revisão e
 // nos SponsorChips da lista. Antes eram 5 blocos de cores duplicados que já
 // estavam divergindo (verde #166534 num ponto, #15803d noutro).
-// `awaiting_arte` NÃO conta como reprovado aqui — quem quiser esse
-// comportamento (modal de revisão) normaliza o status antes de chamar.
+// `awaiting_arte` (o servidor grava este status na reprovação — nunca
+// 'rejected') tem visual próprio vermelho/âmbar: houve reprovação E a Arte
+// está refazendo. Tons de texto escuros (700) da lib de status, AA sobre tint.
 const approvalVisual = (status?: string | null) => {
-  const isApproved   = status === 'approved';
-  const isRejected   = status === 'rejected';
-  const isNewVersion = status === 'new_version_pending';
+  const isApproved     = status === 'approved';
+  const isRejected     = status === 'rejected';
+  const isNewVersion   = status === 'new_version_pending';
+  const isAwaitingArte = status === 'awaiting_arte';
   return {
-    isApproved, isRejected, isNewVersion,
-    chip: (isApproved ? 'approved' : isRejected ? 'rejected' : 'pending') as 'approved' | 'rejected' | 'pending',
-    label:  isApproved ? 'Aprovado' : isRejected ? 'Reprovado' : isNewVersion ? 'Nova versão' : 'Aguardando',
-    bg:     isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : isNewVersion ? '#fffbeb' : '#f5f5f4',
-    border: isApproved ? '#bbf7d0' : isRejected ? '#fecaca' : isNewVersion ? '#fde68a' : '#e7e5e4',
-    text:   isApproved ? '#15803d' : isRejected ? '#b91c1c' : isNewVersion ? '#92400e' : '#6b7280',
-    dot:    isApproved ? '#22c55e' : isRejected ? '#ef4444' : isNewVersion ? '#f59e0b' : '#d1d5db',
+    isApproved, isRejected, isNewVersion, isAwaitingArte,
+    chip: (isApproved ? 'approved' : (isRejected || isAwaitingArte) ? 'rejected' : 'pending') as 'approved' | 'rejected' | 'pending',
+    label:  isApproved ? 'Aprovado' : isRejected ? 'Reprovado' : isAwaitingArte ? 'Reprovado · aguardando Arte' : isNewVersion ? 'Nova versão' : 'Aguardando',
+    bg:     isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : isAwaitingArte ? '#fffbeb' : isNewVersion ? '#fffbeb' : '#f5f5f4',
+    border: isApproved ? '#bbf7d0' : isRejected ? '#fecaca' : isAwaitingArte ? '#fde68a' : isNewVersion ? '#fde68a' : '#e7e5e4',
+    text:   isApproved ? '#15803d' : isRejected ? '#b91c1c' : isAwaitingArte ? '#b91c1c' : isNewVersion ? '#92400e' : '#6b7280',
+    dot:    isApproved ? '#22c55e' : isRejected ? '#ef4444' : isAwaitingArte ? '#f59e0b' : isNewVersion ? '#f59e0b' : '#d1d5db',
   };
 };
 
@@ -82,6 +84,24 @@ const PIPELINE_STAGES: { key: string; label: string; color: string; statuses: st
   { key: 'produzido',    label: 'Produzido',       color: '#ec4899', statuses: [ST_PRODUCED, 'produzido'] },
   { key: 'entregue',     label: 'Entregue',        color: '#7c3aed', statuses: [ST_CONFERRED, 'conferido', ST_DELIVERED, 'entregue'] },
 ];
+
+// ── Status pós-aprovação do patrocinador ───────────────────────────────────
+// Peça em qualquer um destes status JÁ passou pela aprovação do patrocinador,
+// mesmo sem registro individual de approval — o atalho "Aprovar Ativo" muda o
+// status do item sem criar approvals, e os predicados do Histórico e do book
+// (exportPool) exigiam `approvals.some(approved)`, sumindo com a peça.
+const POST_APPROVAL_STATUSES: string[] = [
+  'sponsor_approved',        // aprovado pelo patrocinador
+  'awaiting_finalization',   // finalização da Arte
+  'awaiting_creator_review', // revisão da Solicitação
+  'awaiting_final_review',   // revisão final
+  'ready_for_production',    // pronto para produção
+  'pronto_para_producao',    // alias legado em pt
+  'approved',                // liberado
+  'liberado',                // alias legado em pt
+  ...PRODUCTION_STATUSES,    // inProduction, produced, conferred, delivered
+];
+const isPastApproval = (item: any): boolean => POST_APPROVAL_STATUSES.includes(item.status);
 
 // ── Config das ações do log de auditoria (modal de revisão) ────────────────
 // Const de módulo: antes era recriada a cada LINHA do histórico renderizada.
@@ -228,12 +248,17 @@ export default function Atendimento() {
   );
 
   // Chave estável do conjunto de peças em aprovação: o efeito abaixo só refaz
-  // o batch quando uma peça ENTRA ou SAI do fluxo (ou o total de itens muda,
-  // p.ex. no primeiro carregamento) — não a cada nova identidade do array
-  // vinda do cache. Antes, qualquer decisão (que remenda o cache de
-  // /api/items) recriava o array e disparava o refetch global por clique.
+  // o batch quando uma peça ENTRA ou SAI do fluxo, quando o total de itens
+  // muda (p.ex. no primeiro carregamento) OU quando uma peça em aprovação é
+  // atualizada (fingerprint com approvalThumbUrl + updatedAt — o servidor
+  // grava updatedAt em todo updateItem). Sem o fingerprint, a nova versão da
+  // Arte (resubmit muda o thumb sem tirar a peça de awaiting_sponsor_approval)
+  // não refazia o batch e a peça sumia da contagem até um F5.
   const awaitingKey = useMemo(
-    () => `${items.length}:${awaitingItems.map(i => i.id).sort().join('|')}`,
+    () => `${items.length}:${awaitingItems
+      .map(i => `${i.id}:${i.approvalThumbUrl ?? ''}:${i.updatedAt ?? ''}`)
+      .sort()
+      .join('|')}`,
     [items.length, awaitingItems]
   );
 
@@ -490,6 +515,15 @@ export default function Atendimento() {
       return await Promise.all(promises);
     },
     onSuccess: (results: any[], vars) => {
+      // Nenhuma requisição saiu (todas as selecionadas já estavam decididas ou
+      // sem o patrocinador): avisa em vez de anunciar um sucesso que não houve.
+      if (results.length === 0) {
+        toast({
+          title: "Nenhuma peça elegível",
+          description: "As peças selecionadas já foram decididas para este patrocinador.",
+        });
+        return;
+      }
       let anyItemChanged = false;
       results.forEach((r: any) => {
         if (r?.approval) applyApprovalToCache(r.approval.itemId, r.approval);
@@ -602,10 +636,12 @@ export default function Atendimento() {
     return (items as any[])
       .filter(item => {
         if ((itemSponsorsMap[item.id]?.length ?? 0) === 0) return false;
-        // Entrou no fluxo de aprovação: está aguardando OU já tem aprovação.
+        // Entrou no fluxo de aprovação: está aguardando, já tem aprovação OU
+        // está num status pós-aprovação (atalho "Aprovar Ativo" não cria approvals).
         const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
         return item.status === 'awaiting_sponsor_approval'
-          || approvals.some(a => a.status === 'approved');
+          || approvals.some(a => a.status === 'approved')
+          || isPastApproval(item);
       })
       .map(item => ({
         ...item,
@@ -623,16 +659,6 @@ export default function Atendimento() {
       ...s,
       approvalStatus: approvalVisual(apps.find(a => a.sponsorId === s.id)?.status).chip,
     }));
-  };
-
-  const isItemEligibleForBatch = (item: any): boolean => {
-    const itemSps = itemSponsorsMap[item.id] || [];
-    if (itemSps.length !== 1) return false;
-    const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
-    if (approvals.some(a => a.status === 'awaiting_arte')) return false;
-    const approval = approvals.find(a => a.sponsorId === itemSps[0].id);
-    const status = approval?.status || 'pending';
-    return status === 'pending' || status === 'new_version_pending';
   };
 
   const isItemFullyApproved = (item: any): boolean => {
@@ -719,7 +745,9 @@ export default function Atendimento() {
 
     return (items as any[]).filter(item => {
       const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
-      if (!approvals.some(a => a.status === 'approved')) return false;
+      // Aprovação registrada OU status pós-aprovação: o atalho "Aprovar
+      // Ativo" muda o status sem criar approvals e a peça sumia daqui.
+      if (!approvals.some(a => a.status === 'approved') && !isPastApproval(item)) return false;
 
       if (histEventFilter.length > 0 && !histEventFilter.includes(item.eventId)) return false;
 
@@ -803,9 +831,28 @@ export default function Atendimento() {
   }, [pendingGroup, typeToGroup, pendVisible]);
 
   // Mantém a seleção em sincronia com o conjunto elegível: se uma peça sai do
-  // lote (decidida em outro lugar), ela some da seleção também.
+  // lote (decidida em outro lugar), ela some da seleção também. Só entram
+  // sozinhas na seleção as peças NOVAS no conjunto (diff com o conjunto
+  // anterior via ref) — antes, qualquer mudança no conjunto re-selecionava
+  // TUDO e apagava as desmarcações manuais do usuário. Trocar de
+  // patrocinador/evento recomeça com tudo selecionado (combo nova).
+  const prevBatchEligibleRef = useRef<{ key: string; ids: Set<string> }>({ key: "", ids: new Set() });
   useEffect(() => {
-    setBatchSelectedItemIds(new Set(batchEligibleItems.map(i => i.id)));
+    const key = `${batchSponsorId}:${batchEventId}`;
+    const ids = new Set(batchEligibleItems.map(i => i.id));
+    const prev = prevBatchEligibleRef.current;
+    prevBatchEligibleRef.current = { key, ids };
+    if (prev.key !== key) {
+      setBatchSelectedItemIds(ids);
+      return;
+    }
+    setBatchSelectedItemIds(prevSelected => {
+      const next = new Set<string>();
+      ids.forEach(id => {
+        if (!prev.ids.has(id) || prevSelected.has(id)) next.add(id);
+      });
+      return next;
+    });
   }, [batchSponsorId, batchEventId, batchEligibleItems]);
 
   // Ao trocar de aba ou mexer nos filtros, volta a listagem para o topo.
@@ -2155,7 +2202,7 @@ export default function Atendimento() {
                                 <span style={{ fontSize: 15, fontWeight: 800, color: allApproved ? '#15803d' : '#374151', lineHeight: 1 }}>
                                   {approvedOnes.length} <span style={{ fontSize: 11, fontWeight: 500, opacity: 0.55 }}>de</span> {sponsorApprovals.length}
                                 </span>
-                                <span style={{ fontSize: 11, color: allApproved ? '#22c55e' : '#6b7280', fontWeight: 700, marginTop: 2 }}>
+                                <span style={{ fontSize: 11, color: allApproved ? '#15803d' : '#6b7280', fontWeight: 700, marginTop: 2 }}>
                                   {allApproved ? 'todos' : 'aprovaram'}
                                 </span>
                               </div>
@@ -2258,10 +2305,10 @@ export default function Atendimento() {
                                       {fmtDt(appr.approvedAt, true)}
                                     </span>
                                   )}
-                                  {!v.isApproved && !v.isRejected && !v.isNewVersion && (
+                                  {!v.isApproved && !v.isRejected && !v.isNewVersion && !v.isAwaitingArte && (
                                     <span style={{ fontSize: 11, color: '#57534e', fontWeight: 600, lineHeight: 1, textTransform: 'uppercase', letterSpacing: '0.03em' }}>Ag.</span>
                                   )}
-                                  {v.isRejected && <span style={{ fontSize: 11, color: '#b91c1c', fontWeight: 700, lineHeight: 1 }}>✕</span>}
+                                  {(v.isRejected || v.isAwaitingArte) && <span style={{ fontSize: 11, color: '#b91c1c', fontWeight: 700, lineHeight: 1 }}>✕</span>}
                                   {v.isNewVersion && <span style={{ fontSize: 11, color: '#92400e', fontWeight: 700, lineHeight: 1 }}>↻</span>}
                                 </div>
                               );
@@ -2349,15 +2396,17 @@ export default function Atendimento() {
                     }}>
                       <div style={{ display: 'flex', alignItems: 'baseline', gap: 1, lineHeight: 1 }}>
                         <span style={{ fontSize: 22, fontWeight: 800, color: allApp ? '#15803d' : '#374151' }}>{approvedCount}</span>
-                        <span style={{ fontSize: 13, fontWeight: 500, color: allApp ? '#86efac' : '#746e69' }}>/{diSps.length}</span>
+                        {/* #86efac/#22c55e como texto reprovavam AA (1,33:1) — tom
+                            700 da lib para texto; saturado fica só nas dots. */}
+                        <span style={{ fontSize: 13, fontWeight: 500, color: allApp ? '#15803d' : '#746e69' }}>/{diSps.length}</span>
                       </div>
-                      <span style={{ fontSize: 11, color: allApp ? '#22c55e' : '#6b7280', fontWeight: 700, marginTop: 2, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
+                      <span style={{ fontSize: 11, color: allApp ? '#15803d' : '#6b7280', fontWeight: 700, marginTop: 2, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
                         {allApp ? (diSps.length === 1 ? 'aprovou' : 'todos') : 'parcial'}
                       </span>
                     </div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                        {allApp && <CheckCircle style={{ width: 14, height: 14, color: '#22c55e', flexShrink: 0 }} />}
+                        {allApp && <CheckCircle style={{ width: 14, height: 14, color: '#15803d', flexShrink: 0 }} />}
                         <span style={{ fontSize: 13, fontWeight: 600, color: allApp ? '#15803d' : '#1c1917' }}>
                           {allApp
                             ? (diSps.length === 1 ? 'Patrocinador aprovou' : 'Todos os patrocinadores aprovaram')
@@ -2372,7 +2421,7 @@ export default function Atendimento() {
                     : diSps.map((sp: any, si: number) => {
                         const appr = diApprovals.find(a => a.sponsorId === sp.id);
                         const v = approvalVisual(appr?.status);
-                        const { isApproved, isRejected, isNewVersion } = v;
+                        const { isApproved, isNewVersion } = v;
                         return (
                           <div key={sp.id} style={{ padding: '12px 24px', borderBottom: si < diSps.length - 1 ? '1px solid #f5f5f4' : 'none', display: 'flex', alignItems: 'center', gap: 12, borderLeft: sp.color ? `3px solid ${sp.color}` : 'none', paddingLeft: sp.color ? '24px' : '27px' }}>
                             <div style={{ width: 10, height: 10, borderRadius: '50%', background: v.dot, flexShrink: 0, alignSelf: 'flex-start', marginTop: 3, boxShadow: `0 0 0 3px ${v.dot}33` }} />
@@ -2383,7 +2432,7 @@ export default function Atendimento() {
                               </div>
                               {isApproved && appr?.approvedAt && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <CheckCircle style={{ width: 12, height: 12, color: '#22c55e', flexShrink: 0 }} />
+                                  <CheckCircle style={{ width: 12, height: 12, color: '#15803d', flexShrink: 0 }} />
                                   <span style={{ fontSize: 11, color: '#57534e' }}>
                                     Aprovado em <strong style={{ fontWeight: 700 }}>{fmtFull(appr.approvedAt)}</strong>
                                     {appr.approvedBy && <> por <strong style={{ fontWeight: 700, color: '#1c1917' }}>{appr.approvedBy}</strong></>}
@@ -2391,7 +2440,11 @@ export default function Atendimento() {
                                 </div>
                               )}
                               {isApproved && !appr?.approvedAt && <span style={{ fontSize: 11, color: '#746e69' }}>Data não registrada</span>}
-                              {isRejected && (
+                              {/* Gate pelos DADOS da reprovação, não pelo status: o
+                                  servidor grava 'awaiting_arte' na reprovação (nunca
+                                  'rejected'), então isRejected jamais ligava aqui e o
+                                  motivo/data da reprovação ficavam invisíveis. */}
+                              {(appr?.rejectedAt || appr?.rejectionReason) && (
                                 <>
                                   {appr?.rejectedAt && (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: appr.rejectionReason ? 6 : 0 }}>
@@ -2464,10 +2517,26 @@ export default function Atendimento() {
                     <div style={{
                       width: 40, height: 40, borderRadius: 12, overflow: 'hidden', flexShrink: 0,
                       backgroundColor: '#0c0a09', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      border: '1px solid #2c2a28',
+                      border: '1px solid #2c2a28', position: 'relative',
                     }}>
                       {thumbUrl
-                        ? <img src={thumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ? <>
+                            <img
+                              src={thumbUrl}
+                              alt=""
+                              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              onError={(e) => {
+                                // Mesmo fallback dos demais thumbs da tela: esconde a
+                                // imagem quebrada e mostra o ícone ao lado.
+                                (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                const fb = (e.currentTarget as HTMLImageElement).nextElementSibling as HTMLElement | null;
+                                if (fb?.dataset.fallback) fb.style.display = 'flex';
+                              }}
+                            />
+                            <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' }}>
+                              <FileText style={{ width: 20, height: 20, color: '#ffffff' }} />
+                            </div>
+                          </>
                         : <FileText style={{ width: 20, height: 20, color: '#ffffff' }} />}
                     </div>
                     <div>
@@ -2698,9 +2767,10 @@ export default function Atendimento() {
                             const approval = sponsorApprovals.find(a => a.sponsorId === sponsor.id);
                             const status = approval?.status || 'pending';
                             // Neste modal, awaiting_arte conta como reprovado (a Arte
-                            // está refazendo por causa de uma reprovação) — normaliza
-                            // antes de pedir o visual canônico.
-                            const { isApproved, isRejected, isNewVersion } = approvalVisual(status === 'awaiting_arte' ? 'rejected' : status);
+                            // está refazendo por causa de uma reprovação).
+                            const v = approvalVisual(status);
+                            const { isApproved, isNewVersion } = v;
+                            const isRejected = v.isRejected || v.isAwaitingArte;
                             const isPending = status === 'pending' || isNewVersion;
                             const isRejectingThis = rejectingSponsorId === sponsor.id;
 

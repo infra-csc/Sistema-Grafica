@@ -1350,19 +1350,19 @@ export default function EventDetail() {
             {/* Exportar Excel — leitura, disponível para todos os perfis */}
             <button
               onClick={() => {
-                // Feedback imediato: o download demora alguns segundos e o
-                // window.open não dá nenhum sinal de que algo começou.
+                // Feedback imediato: o download demora alguns segundos e nada
+                // sinaliza que algo começou.
                 toast({ title: "Gerando Excel...", description: "O download começa em instantes." });
-                const exportUrl = `/api/events/${eventId}/export-items`;
-                const win = window.open(exportUrl, '_blank', 'noopener');
-                // Popup bloqueado: sem este aviso o clique parecia não fazer nada.
-                if (!win) {
-                  toast({
-                    title: "Não foi possível abrir o download",
-                    description: `O navegador bloqueou a nova aba. Acesse manualmente: ${exportUrl}`,
-                    variant: "destructive",
-                  });
-                }
+                // Âncora com download: não abre aba, não passa pelo bloqueador
+                // de popup. (window.open com 'noopener' retorna null POR
+                // ESPECIFICAÇÃO mesmo quando funciona — a guarda antiga
+                // toastava "bloqueado" em todo download bem-sucedido.)
+                const a = document.createElement('a');
+                a.href = `/api/events/${eventId}/export-items`;
+                a.download = '';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
               }}
               data-testid="button-export-xlsx"
               style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}

@@ -77,6 +77,15 @@ export async function apiRequest(
     credentials: "include",
   });
 
+  // Rota de API respondendo HTML = a rota NÃO existe no processo Express em
+  // execução e o catch-all do SPA devolveu o index com 200. Acontece quando o
+  // workspace faz git pull sem reiniciar o servidor (o Vite recarrega só o
+  // front). Sem esta guarda o app "dava certo" em silêncio — ex.: Marcar
+  // todas as notificações sem efeito nenhum.
+  if (url.startsWith("/api/") && (res.headers.get("content-type") || "").includes("text/html")) {
+    throw new Error("Servidor desatualizado — reinicie o app no Replit (Stop e Run) e tente de novo.");
+  }
+
   await throwIfResNotOk(res, url);
   return res;
 }

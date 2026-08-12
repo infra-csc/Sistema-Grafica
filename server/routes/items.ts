@@ -537,6 +537,20 @@ export function registerItemRoutes(app: Express): void {
   // Update item
   app.patch("/api/items/:id", requireAuth, async (req, res) => {
     try {
+      // Gate de papel: quem edita peça é quem gerencia a lista (admin,
+      // solicitação, criador do evento) ou os papéis com edições pontuais no
+      // fluxo (arte: thumbs/refs; atendimento: vinculação). Gráfica usa as
+      // rotas dedicadas de conferir/entregar — estava tudo aberto via PATCH.
+      const role = req.userRole ?? "";
+      if (!["admin", "solicitacao", "arte", "atendimento"].includes(role)) {
+        const existing = await storage.getItem(req.params.id);
+        if (!existing) return res.status(404).json({ error: "Item not found" });
+        const parentEvent = await storage.getEvent(existing.eventId);
+        if (!parentEvent || parentEvent.createdBy !== req.userId) {
+          return res.status(403).json({ error: "Sem permissão para editar esta peça" });
+        }
+      }
+
       // Allow-list explícita: barra `status` e campos de fluxo (ver
       // updateItemSchema). Transições de status só pelas rotas dedicadas.
       const validatedData = updateItemSchema.parse(req.body);

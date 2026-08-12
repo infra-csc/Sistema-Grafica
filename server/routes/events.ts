@@ -92,9 +92,13 @@ export function registerEventRoutes(app: Express): void {
     }
   });
 
-  // Create event
+  // Create event — mesmos papéis do PATCH: gestão de evento é admin/solicitação.
+  // Estava só com requireAuth: gráfica/arte podiam criar eventos por API.
   app.post("/api/events", requireAuth, async (req, res) => {
     try {
+      if (req.userRole !== "admin" && req.userRole !== "solicitacao") {
+        return res.status(403).json({ error: "Sem permissão para criar eventos" });
+      }
       const validatedData = insertEventSchema.parse(req.body);
       
       // Validação: Saída do caminhão deve ser pelo menos 1 dia antes do início do evento
@@ -179,10 +183,12 @@ export function registerEventRoutes(app: Express): void {
     }
   });
 
-  // Update event priority
+  // Update event priority — admin, atendimento (histórico) e solicitação (quem
+  // gerencia eventos). Antes a UI mostrava a bandeira para solicitação e o
+  // servidor devolvia 403; e atendimento tinha o direito sem botão nenhum.
   app.patch("/api/events/:id/priority", requireAuth, async (req, res) => {
     try {
-      if (req.userRole !== "admin" && req.userRole !== "atendimento") {
+      if (!["admin", "atendimento", "solicitacao"].includes(req.userRole ?? "")) {
         return res.status(403).json({ error: "Acesso negado" });
       }
       const { priority } = req.body;

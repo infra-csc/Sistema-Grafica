@@ -85,6 +85,33 @@ export const STATUS: Record<string, StatusMeta> = {
   completed:             meta("Concluído",              "Concluído",      P.green, CheckCircle),
 };
 
+// ── Listas canônicas por fase — para gates de edição/exclusão/referência. ──
+// Existem porque telas comparavam contra nomes que NÃO existem no vocabulário
+// ('entregue', 'em_producao', 'produzido') e os gates nunca disparavam.
+// Sempre importe daqui em vez de escrever arrays literais.
+export const PRODUCTION_STATUSES = ["inProduction", "produced", "conferred", "delivered"] as const;
+export const FINAL_STATUSES = ["delivered", "canceled", "deleted"] as const;
+
+// ── Prioridade de EVENTO — mesma disciplina do StatusMeta (text escuro AA
+// sobre bg claro; dot saturada). Antes havia 4 mapas hex divergentes só em
+// eventos.tsx, um deles morto. ──
+export interface PriorityMeta {
+  label: string;
+  bg: string;
+  text: string;
+  border: string;
+  dot: string;
+}
+export const PRIORITY: Record<string, PriorityMeta> = {
+  urgente: { label: "Urgente", bg: P.red.bg,     text: P.red.text,     border: P.red.border,     dot: P.red.dot },
+  alta:    { label: "Alta",    bg: P.amber.bg,   text: P.amber.text,   border: P.amber.border,   dot: P.amber.dot },
+  media:   { label: "Média",   bg: P.purple.bg,  text: P.purple.text,  border: P.purple.border,  dot: P.purple.dot },
+  baixa:   { label: "Baixa",   bg: P.blue.bg,    text: P.blue.text,    border: P.blue.border,    dot: P.blue.dot },
+};
+export function getPriorityMeta(priority: string | null | undefined): PriorityMeta | null {
+  return (priority && PRIORITY[priority]) || null;
+}
+
 // Fallback seguro para qualquer status desconhecido (ex.: valor legado novo).
 const FALLBACK: StatusMeta = meta("—", "—", P.neutral, Clock);
 

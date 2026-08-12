@@ -43,6 +43,7 @@ import LogsSistema from "@/pages/logs-sistema";
 import Estoque from "@/pages/estoque";
 import TriagemRetorno from "@/pages/triagem-retorno";
 import ConfigurarCotas from "@/pages/configurar-cotas";
+import GestaoPrazos from "@/pages/gestao-prazos";
 
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -92,6 +93,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/historico": "Histórico",
   "/registros": "Registros",
   "/analises": "Análises",
+  "/prazos": "Gestão de Prazos",
   "/patrocinadores": "Patrocinadores",
   "/configurar-cotas": "Configurar Cotas",
   "/triagem-retorno": "Triagem de Retorno",
@@ -201,6 +203,9 @@ function Router() {
       </Route>
       <Route path="/analises">
         {() => <RoleProtectedRoute component={DashboardAnalises} allowedRoles={ROLES_ADMIN} />}
+      </Route>
+      <Route path="/prazos">
+        {() => <RoleProtectedRoute component={GestaoPrazos} allowedRoles={ROLES_ADMIN} />}
       </Route>
       <Route path="/eventos">
         {() => <ProtectedRoute component={Eventos} />}

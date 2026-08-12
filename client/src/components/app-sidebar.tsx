@@ -2,6 +2,7 @@ import {
   Calendar, CalendarRange, Palette, Printer, Layers, LayoutDashboard,
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
   Link2, LogOut, Loader2, ScrollText, Archive, ScanSearch, Compass, Settings2, Camera,
+  Timer,
 } from "lucide-react";
 import { useId, useState } from "react";
 import { Link, useLocation } from "wouter";
@@ -44,6 +45,7 @@ const productionItems: MenuItem[] = [
   // não acessa a Gráfica e este acervo interessa a todos.
   { title: "Registros",               url: "/registros",               icon: Camera },
   { title: "Análises",                url: "/analises",                icon: BarChart3,      roles: ["admin"] },
+  { title: "Gestão de Prazos",        url: "/prazos",                  icon: Timer,          roles: ["admin"] },
 ];
 
 // Patrocinadores: visível p/ solicitação, atendimento e admin

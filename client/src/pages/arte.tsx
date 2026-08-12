@@ -11,7 +11,12 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { cn, parseDateLocal, runInBatches, fileNameFromPath, folderFromPath } from "@/lib/utils";
+import { cn, parseDateLocal, runInBatches, fileNameFromPath } from "@/lib/utils";
+// Motor de PDF compartilhado (mesmo da tela de Atendimento) — a Arte não tem
+// mais motor próprio; qualquer ajuste de layout do book vale para as duas telas.
+import { exportMixedToPDF, convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
+import { HIDE_NATIVE_CLOSE, modalSurface } from "@/components/modal-shell";
+import { PRODUCTION_STATUSES } from "@/lib/status";
 import {
   Dialog,
   DialogContent,
@@ -32,11 +37,6 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 // Quantas linhas a tabela monta por vez. O resto entra por "Carregar mais".
 const ARTE_PAGE_SIZE = 100;
-
-// Elevação única dos modais. Havia quatro sombras diferentes entre os cinco
-// diálogos da tela: a mesma camada da interface flutuava a alturas distintas
-// dependendo de qual botão tinha sido apertado.
-const MODAL_SHADOW = "0 24px 48px -12px rgba(28,25,23,0.22), 0 0 0 1px rgba(28,25,23,0.06)";
 
 // Quantos eventos aparecem no resumo antes do "mais N". Oito costuma caber em
 // uma linha em telas de trabalho; o resto entra por expansão.
@@ -79,26 +79,45 @@ const ARTE_PECA_MIN_WIDTH = 220;
 const ARTE_TABLE_MIN_WIDTH = 44 + ARTE_PECA_MIN_WIDTH
   + ARTE_COLS.reduce((sum, c) => sum + (typeof c.w === 'number' ? c.w : 0), 0);
 
-// Status que alimentam cada aba. Antes ficavam embutidos no filtro, que era
-// reexecutado uma vez por aba só para contar.
+// ── Fonte única dos recortes de status da tela ──────────────────────────────
+// Abas, contadores, stat cards e o pool de exportação derivam TODOS daqui.
+// Antes havia quatro listas paralelas (TAB_STATUSES, o byTab do tabPoolItems,
+// arteStatuses e a lista embutida no statCards) e elas divergiam: só o
+// statCards incluía 'approved'. A lista de finalizados abaixo segue o statCards
+// (o recorte mais completo) e usa PRODUCTION_STATUSES de lib/status para os
+// nomes canônicos; os aliases em pt (em_producao, produzido, entregue) seguem
+// aceitos até a migração dos dados antigos.
+const FINALIZADOS_STATUSES: string[] = [
+  'awaiting_final_review',
+  'ready_for_production',
+  'pronto_para_producao',
+  'liberado',
+  'approved',
+  ...PRODUCTION_STATUSES, // inProduction, produced, conferred, delivered
+  'em_producao',
+  'produzido',
+  'entregue',
+];
+
+// Status que alimentam cada aba.
 const TAB_STATUSES: Record<string, string[]> = {
   "criar-aprovacoes": ['awaiting_submission'],
   "aguardando-patrocinador": ['awaiting_sponsor_approval'],
   "finalizar-layouts": ['sponsor_approved', 'awaiting_creator_review'],
-  "finalizados": [
-    'awaiting_final_review',
-    'ready_for_production',
-    'pronto_para_producao',
-    'liberado',
-    'inProduction',
-    'em_producao',
-    'produced',
-    'produzido',
-    'conferred',
-    'delivered',
-    'entregue',
-  ],
+  "finalizados": FINALIZADOS_STATUSES,
 };
+
+// Peças "da Arte" para exportação/book: tudo que está no fluxo da tela mais as
+// já liberadas para produção (mas não as produzidas/entregues, que não fazem
+// sentido num book de aprovação).
+const ARTE_POOL_STATUSES: string[] = [
+  ...TAB_STATUSES["criar-aprovacoes"],
+  ...TAB_STATUSES["aguardando-patrocinador"],
+  ...TAB_STATUSES["finalizar-layouts"],
+  'ready_for_production',
+  'pronto_para_producao',
+  'liberado',
+];
 
 export default function Arte() {
   const { toast } = useToast();
@@ -126,15 +145,11 @@ export default function Arte() {
     });
   }, []);
   const [finalFileUrl, setFinalFileUrl] = useState<string>("");
-  const [finalPreviewUrl] = useState<string>(""); // reservado para uso futuro (sem upload por ora)
   const [finalFileName, setFinalFileName] = useState<string>("");
   // true quando a Arte trocou o caminho nesta sessão (evita "atualizar" sem mudar).
   const [finalDirty, setFinalDirty] = useState(false);
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
   const [materialFilter, setMaterialFilter] = useState<string[]>([]);
-  const [finishFilter, setFinishFilter] = useState<string[]>([]);
-  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [openEventCombobox, setOpenEventCombobox] = useState(false);
   const [next10DaysFilter, setNext10DaysFilter] = useState(false);
   const [monthFilter, setMonthFilter] = useState<string[]>([]);
   const [approvalThumbUrl, setApprovalThumbUrl] = useState<string>("");
@@ -397,10 +412,14 @@ export default function Arte() {
     }
   }, [toast]);
 
-  // Ctrl+V: colar thumb no modal de aprovação (selectedItem)
+  // Ctrl+V: colar thumb no modal de aprovação (selectedItem). Só quando a peça
+  // aceita thumb — a zona de upload do modal aparece apenas em
+  // awaiting_submission; sem esta guarda, colar com uma peça de outra fase
+  // aberta subia um arquivo que nenhuma UI mostrava.
   useEffect(() => {
-    if (!selectedItem) return;
+    if (!selectedItem || selectedItem.status !== 'awaiting_submission') return;
     const handler = (e: ClipboardEvent) => {
+      if (isPasteUploading) return; // evita upload duplo antes do primeiro terminar
       const items = Array.from(e.clipboardData?.items || []);
       const imageItem = items.find(i => i.type.startsWith("image/"));
       if (!imageItem) return;
@@ -417,12 +436,13 @@ export default function Arte() {
     };
     window.addEventListener("paste", handler);
     return () => window.removeEventListener("paste", handler);
-  }, [selectedItem, uploadFileDirect]);
+  }, [selectedItem, uploadFileDirect, isPasteUploading]);
 
   // Ctrl+V: colar thumb no modal de correção (correcaoItem)
   useEffect(() => {
     if (!correcaoItem) return;
     const handler = (e: ClipboardEvent) => {
+      if (isPasteUploading) return; // mesma guarda do modal de aprovação
       const items = Array.from(e.clipboardData?.items || []);
       const imageItem = items.find(i => i.type.startsWith("image/"));
       if (!imageItem) return;
@@ -436,11 +456,12 @@ export default function Arte() {
     };
     window.addEventListener("paste", handler);
     return () => window.removeEventListener("paste", handler);
-  }, [correcaoItem, uploadFileDirect]);
+  }, [correcaoItem, uploadFileDirect, isPasteUploading]);
 
   const [isDragOver, setIsDragOver] = useState(false);
   const [isDragOverBulk, setIsDragOverBulk] = useState(false);
   const [isDragOverCorrecao, setIsDragOverCorrecao] = useState(false);
+  const [isDragOverBook, setIsDragOverBook] = useState(false);
   const [showBulkThumbModal, setShowBulkThumbModal] = useState(false);
   type BulkThumbEntry = { id: string; file: File; preview: string; matchedItemId: string | null; status: 'pending' | 'uploading' | 'done' | 'error'; errorMsg?: string };
   const [bulkThumbEntries, setBulkThumbEntries] = useState<BulkThumbEntry[]>([]);
@@ -456,377 +477,28 @@ export default function Arte() {
   const [bookUploading, setBookUploading] = useState(false);
   const [bookSelectedIds, setBookSelectedIds] = useState<Set<string>>(new Set());
 
-  const pdfStyles = `
-    @page { size: A4 portrait; margin: 12mm 14mm; }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #1c1917; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  `;
-
-  // Texto livre (descrição, observações, nomes) precisa ser escapado antes de
-  // ser interpolado no HTML do documento de impressão
-  const escapeHtml = (v: unknown): string =>
-    String(v ?? "").replace(/[&<>"']/g, (c) =>
-      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] as string)
-    );
-
-  // ── Pré-busca imagens como data URIs (resolve GCS 403 + timing) ─────────────
-  const prefetchThumbsAsDataUris = async (items: any[]): Promise<Record<string, string>> => {
-    const rawUrls = Array.from(new Set(items.map((i: any) => i.approvalThumbUrl).filter(Boolean) as string[]));
-    const out: Record<string, string> = {};
-    await Promise.allSettled(rawUrls.map(async (rawUrl) => {
-      if (/\.pdf$/i.test(rawUrl)) return;
-      const localPath = convertGCSUrlToLocalPath(rawUrl);
-      const fetchUrl = localPath.startsWith("/") ? `${window.location.origin}${localPath}` : localPath;
-      try {
-        const resp = await fetch(fetchUrl, { credentials: "include" });
-        if (!resp.ok) return;
-        const ct = resp.headers.get("content-type") || "";
-        if (!ct.startsWith("image/")) return;
-        const blob = await resp.blob();
-        const dataUri = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-        if (dataUri) out[rawUrl] = dataUri;
-      } catch (error) {
-        console.warn("Failed to fetch/convert thumbnail image for print", rawUrl, error);
-      }
-    }));
-    return out;
-  };
-
-  // ── Modo único: uma prova por página ────────────────────────────────────────
-
-  // Chave de grupo de uma peça (ex.: "Pórtico (Frontal)" → "Pórtico").
-  // Mesma regra usada pelos filtros de exportação (expUniqueGroups/expGroupFilter).
-  const groupKeyOf = (item: any): string => (item.type ?? "").split(/[\s(]/)[0] || "Sem grupo";
-
-  // ── Modo combinado: peças agrupadas juntas na mesma página ──────────────────
-  // As peças de um mesmo grupo aparecem lado a lado (galeria de imagens) com a
-  // lista/ficha de itens abaixo. Se um grupo tiver muitas peças, pagina o grupo
-  // em blocos preservando o cabeçalho.
-  const MAX_ITEMS_PER_COMBINED_PAGE = 6;
-
-  /** Uma peça por página: arte grande + nome embaixo. Sem cabeçalho/rodapé. */
-  const buildItemPage = (item: any, thumbDataUris: Record<string, string>) => {
-    const thumbUrl = item.approvalThumbUrl || "";
-    const thumbDataUri = thumbDataUris[thumbUrl] || null;
-    const isImg = !!thumbDataUri;
-    const title = escapeHtml(item.type || item.description || "Sem nome");
-    const art = isImg
-      ? `<img src="${thumbDataUri}" alt="Arte" class="ap-img" />`
-      : thumbUrl
-        ? `<div class="ap-noimg"><div class="ap-noimg-ic">PDF</div><div class="ap-noimg-sub">Arquivo PDF vinculado</div></div>`
-        : `<div class="ap-noimg"><div class="ap-noimg-ic">—</div><div class="ap-noimg-sub">Sem arte enviada</div></div>`;
-    return `
-        <div class="page ap-page">
-          <div class="ap-stage">${art}</div>
-          <div class="ap-caption">${title}</div>
-        </div>`;
-  };
-
-  /** Várias artes do mesmo grupo na mesma página. Título em cima, sem rodapé. */
-  const buildGroupPage = (
-    chunk: { group: string; items: any[]; part: number; parts: number },
-    thumbDataUris: Record<string, string>,
-  ) => {
-    // Grade adaptativa: até 2 → 1 col, até 6 → 2 col, senão 3 col.
-    const cols = chunk.items.length <= 2 ? chunk.items.length : chunk.items.length <= 6 ? 2 : 3;
-    const cards = chunk.items.map(item => {
-      const thumbUrl = item.approvalThumbUrl || "";
-      const thumbDataUri = thumbDataUris[thumbUrl] || null;
-      const inner = thumbDataUri
-        ? `<img src="${thumbDataUri}" alt="Arte" class="ap-g-img" />`
-        : thumbUrl
-          ? `<div class="ap-g-noimg">PDF</div>`
-          : `<div class="ap-g-noimg">—</div>`;
-      return `
-          <div class="ap-g-card">
-            <div class="ap-g-frame">${inner}</div>
-            <div class="ap-g-cap">${escapeHtml(item.description || item.type || "Sem nome")}</div>
-          </div>`;
-    }).join("");
-
-    const partLabel = chunk.parts > 1 ? ` (${chunk.part}/${chunk.parts})` : "";
-    return `
-        <div class="page ap-page">
-          <div class="ap-grouptitle">${escapeHtml(chunk.group)}${partLabel}</div>
-          <div class="ap-grid" style="grid-template-columns: repeat(${cols}, 1fr)">${cards}</div>
-        </div>`;
-  };
-
-  /** Capa: apenas o nome do evento, com layout cuidado. Sem marca. */
-  const buildCoverPage = (name: string) => `
-        <div class="page ap-cover">
-          <div class="ap-cover-inner">
-            <span class="ap-cover-rule"></span>
-            <span class="ap-cover-event">${escapeHtml(name)}</span>
-          </div>
-        </div>`;
-
-  /** Quebra um grupo em blocos que cabem numa página. */
-  const chunkGroup = (group: string, groupItems: any[]) => {
-    const parts = Math.ceil(groupItems.length / MAX_ITEMS_PER_COMBINED_PAGE);
-    return Array.from({ length: parts }, (_, p) => ({
-      group,
-      items: groupItems.slice(p * MAX_ITEMS_PER_COMBINED_PAGE, (p + 1) * MAX_ITEMS_PER_COMBINED_PAGE),
-      part: p + 1,
-      parts,
-    }));
-  };
-
-  /** CSS único, cobrindo páginas individuais e páginas de grupo. */
-  // Estilo "book de aprovação": A4 paisagem, arte grande centralizada e legenda
-  // discreta — inspirado nos PDFs de aprovação enviados por e-mail hoje.
-  const PDF_STYLES = `
-        @page { size: A4 landscape; margin: 0; }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'DM Sans', 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #1c1917; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-
-        .page { width: 100vw; min-height: 100vh; display: flex; flex-direction: column; break-after: page; page-break-after: always; background: #ffffff; overflow: hidden; }
-        .page:last-child { break-after: avoid; page-break-after: avoid; }
-        @media print { .page { width: 297mm; height: 210mm; min-height: 210mm; } }
-
-        /* ── Página de arte (uma peça): arte grande + nome centralizado ── */
-        .ap-page { padding: 26px 34px; }
-        .ap-stage { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-        .ap-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
-        .ap-noimg { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
-        .ap-noimg-ic { font-size: 34px; font-weight: 800; color: #cbd5e1; font-family: 'DM Mono', monospace; }
-        .ap-noimg-sub { font-size: 12px; color: #746e69; }
-        .ap-caption { flex-shrink: 0; text-align: center; padding-top: 14px; font-family: 'DM Sans', Arial, sans-serif; font-size: 13pt; font-weight: 600; color: #1c1917; }
-
-        /* ── Página de grupo (várias artes) ── */
-        .ap-grouptitle { flex-shrink: 0; text-align: center; font-family: 'Space Grotesk', sans-serif; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; color: #1c1917; padding: 2px 4px 16px; }
-        .ap-grid { flex: 1; min-height: 0; display: grid; gap: 18px; grid-auto-rows: 1fr; }
-        .ap-g-card { min-height: 0; display: flex; flex-direction: column; }
-        .ap-g-frame { flex: 1; min-height: 0; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-        .ap-g-img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; }
-        .ap-g-noimg { font-size: 22px; font-weight: 800; color: #cbd5e1; font-family: 'DM Mono', monospace; }
-        .ap-g-cap { flex-shrink: 0; text-align: center; padding-top: 8px; font-size: 13px; font-weight: 600; color: #1c1917; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-        /* ── Capa: apenas o nome do evento, layout centrado e elegante ── */
-        .ap-cover { align-items: center; justify-content: center; padding: 64px; background: #1c1917; }
-        .ap-cover-inner { display: flex; flex-direction: column; align-items: center; gap: 26px; max-width: 82%; }
-        .ap-cover-rule { width: 56px; height: 4px; border-radius: 4px; background: #f97316; }
-        .ap-cover-event { font-family: 'Space Grotesk', sans-serif; font-size: 58px; font-weight: 800; letter-spacing: -0.035em; line-height: 1.06; color: #ffffff; text-align: center; }`;
-
-  const writePdfDoc = (win: Window, title: string, pages: string) => {
-    win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>
-      <meta charset="UTF-8"/>
-      <title>${escapeHtml(title)}</title>
-      <link rel="preconnect" href="https://fonts.googleapis.com"/>
-      <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@500;700&display=swap" rel="stylesheet"/>
-      <style>${PDF_STYLES}</style>
-    </head><body>${pages}<script>
-      window.addEventListener("load", function () {
-        var fontsReady = (document.fonts && document.fonts.ready) ? document.fonts.ready : Promise.resolve();
-        fontsReady.then(function () { setTimeout(function () { window.print(); }, 100); });
-      });
-    </scr` + `ipt></body></html>`);
-    win.document.close();
-  };
-
-  /**
-   * Exportação mista: no MESMO arquivo, os grupos escolhidos saem agrupados
-   * (galeria + lista numa página) e o restante sai uma peça por página.
-   */
-  const exportMixedToPDF = async (
-    items: any[],
-    combinedGroups: Set<string>,
-    title = "Arte — Peças",
-    groupByEvent = false,
-  ) => {
-    if (items.length === 0) {
-      toast({ title: "Nenhum item para exportar", variant: "destructive" });
-      return;
-    }
-    const win = window.open("", "_blank");
-    if (!win) {
-      toast({ title: "Pop-up bloqueado", description: "Permita pop-ups para este site e tente novamente", variant: "destructive" });
-      return;
-    }
-    win.document.write(`<p style="font-family:sans-serif;color:#746e69;padding:24px">Preparando exportação…</p>`);
-
-    const thumbCount = items.filter(i => i.approvalThumbUrl && !/\.pdf$/i.test(i.approvalThumbUrl)).length;
-    if (thumbCount > 0) {
-      toast({ title: `Preparando ${thumbCount} imagem${thumbCount !== 1 ? "ns" : ""}…`, description: "Aguarde um momento" });
-    }
-    const thumbDataUris = await prefetchThumbsAsDataUris(items);
-    win.document.open();
-
-    // Separa por evento primeiro (ordem de aparição). Sem isso, peças de eventos
-    // diferentes com o mesmo grupo (ex.: "Pórtico") cairiam na mesma página.
-    const eventsMap = new Map<string, { name: string; items: any[] }>();
-    items.forEach(item => {
-      const key = item.eventId || "__sem_evento__";
-      if (!eventsMap.has(key)) eventsMap.set(key, { name: item.event?.name || "Sem evento", items: [] });
-      eventsMap.get(key)!.items.push(item);
-    });
-    const eventEntries = Array.from(eventsMap.values());
-
-    // Monta a sequência de páginas. Grupo marcado vira 1+ páginas de galeria;
-    // o restante, uma peça por página.
-    type Page =
-      | { kind: 'cover'; name: string }
-      | { kind: 'group'; chunk: ReturnType<typeof chunkGroup>[number] }
-      | { kind: 'item'; item: any };
-    const sequence: Page[] = [];
-
-    const multiEvent = eventEntries.length > 1;
-    // Capa no início. Com vários eventos e sem divisória por evento, usa o
-    // título do book; senão, o nome do (único) evento.
-    if (!(multiEvent && groupByEvent)) {
-      sequence.push({ kind: 'cover', name: multiEvent ? title : eventEntries[0].name });
-    }
-
-    eventEntries.forEach(ev => {
-      if (multiEvent && groupByEvent) {
-        sequence.push({ kind: 'cover', name: ev.name });
-      }
-      const groupsMap = new Map<string, any[]>();
-      ev.items.forEach(item => {
-        const key = groupKeyOf(item);
-        if (!groupsMap.has(key)) groupsMap.set(key, []);
-        groupsMap.get(key)!.push(item);
-      });
-      Array.from(groupsMap.entries()).forEach(([group, groupItems]) => {
-        if (combinedGroups.has(group)) {
-          chunkGroup(group, groupItems).forEach(chunk => sequence.push({ kind: 'group', chunk }));
-        } else {
-          groupItems.forEach(item => sequence.push({ kind: 'item', item }));
-        }
-      });
-    });
-
-    const pages = sequence.map(p => {
-      if (p.kind === 'cover') return buildCoverPage(p.name);
-      return p.kind === 'group'
-        ? buildGroupPage(p.chunk, thumbDataUris)
-        : buildItemPage(p.item, thumbDataUris);
-    }).join("");
-
-    writePdfDoc(win, title, pages);
-  };
-
-  // ── Modo 2: tabela resumo agrupada por Evento › Grupo ───────────────────────
-  const exportGroupedPDF = (items: any[], title = "Arte — Resumo por Grupo") => {
-    if (items.length === 0) {
-      toast({ title: "Nenhum item para exportar", variant: "destructive" });
-      return;
-    }
-    // Build groups: event → group → type → items
-    type GroupEntry = { event: string; groupName: string; typeName: string; items: any[] };
-    const groups: GroupEntry[] = [];
-    items.forEach(item => {
-      const event = item.event?.name || "Sem Evento";
-      const groupName = groupOf(item.type) || item.type;
-      const typeName = item.type;
-      const last = groups[groups.length - 1];
-      if (last && last.event === event && last.typeName === typeName) {
-        last.items.push(item);
-      } else {
-        groups.push({ event, groupName, typeName, items: [item] });
-      }
-    });
-
-    let lastEvent = "";
-    const sections = groups.map(g => {
-      const eventHeader = g.event !== lastEvent
-        ? `<div class="event-header"><span>${g.event}</span></div>`
-        : "";
-      lastEvent = g.event;
-      const rows = g.items.map(item => {
-        const thumbUrl = item.approvalThumbUrl || "";
-        const isImg = thumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(thumbUrl) || thumbUrl.startsWith("/objects/"));
-        const resolvedThumb = thumbUrl.startsWith("/objects/") ? `${window.location.origin}${thumbUrl}` : thumbUrl;
-        const dims = item.visualWidth && item.visualHeight ? `${item.visualWidth} × ${item.visualHeight}` : "—";
-        return `
-          <tr>
-            <td class="td-thumb">${isImg ? `<img src="${resolvedThumb}" class="row-thumb" />` : `<div class="no-thumb-sm">${thumbUrl ? "PDF" : "—"}</div>`}</td>
-            <td class="td-mono">${item.displayId || "—"}</td>
-            <td class="td-qty">${item.quantity || "—"}</td>
-            <td class="td-desc">${item.description || item.type || "—"}</td>
-            <td class="td">${dims}</td>
-            <td class="td">${item.calculatedM2 || "—"}</td>
-            <td class="td">${item.material || "—"}</td>
-            <td class="td">${item.finish || "—"}</td>
-          </tr>`;
-      }).join("");
-      return `
-        ${eventHeader}
-        <div class="group-block">
-          <div class="group-header">
-            <span class="group-name">${g.groupName ? g.groupName + " — " : ""}${g.typeName}</span>
-            <span class="group-count">${g.items.length} ${g.items.length === 1 ? "item" : "itens"}</span>
-          </div>
-          <table class="items-table">
-            <thead>
-              <tr>
-                <th class="th-thumb">Thumb</th>
-                <th>ID</th>
-                <th>Qtd</th>
-                <th class="th-desc">Descrição</th>
-                <th>Medidas (V × A)</th>
-                <th>M²</th>
-                <th>Material</th>
-                <th>Acabamento</th>
-              </tr>
-            </thead>
-            <tbody>${rows}</tbody>
-          </table>
-        </div>`;
-    }).join("");
-
-    const win = window.open("", "_blank");
-    if (!win) return;
-    win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"/>
-      <title>${title}</title>
-      <style>
-        ${pdfStyles}
-        body { font-size: 11px; }
-        .event-header { margin: 18px 0 8px; padding: 8px 12px; background: #1c1917; color: #fff; border-radius: 4px; font-size: 13px; font-weight: 800; letter-spacing: 0.04em; break-before: auto; }
-        .event-header:first-child { margin-top: 0; }
-        .group-block { margin-bottom: 20px; break-inside: avoid; }
-        .group-header { display: flex; align-items: center; justify-content: space-between; padding: 5px 10px; background: #fff7ed; border-left: 3px solid #f97316; margin-bottom: 0; }
-        .group-name { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #9a3412; }
-        .group-count { font-size: 9px; font-weight: 700; color: #a8a29e; }
-        .items-table { width: 100%; border-collapse: collapse; }
-        .items-table thead tr { background: #f5f5f4; }
-        .items-table th { padding: 5px 8px; font-size: 8px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.08em; color: #a8a29e; text-align: left; border-bottom: 1px solid #e7e5e4; white-space: nowrap; }
-        .th-thumb { width: 44px; }
-        .th-desc { width: 30%; }
-        .items-table td { padding: 6px 8px; border-bottom: 1px solid #f5f5f4; vertical-align: middle; }
-        .td-thumb { width: 44px; }
-        .td-mono { font-family: monospace; font-size: 10px; font-weight: 700; color: #f97316; white-space: nowrap; }
-        .td-qty { font-weight: 700; font-size: 12px; text-align: center; }
-        .td-desc { font-weight: 600; }
-        .td { font-size: 10px; color: #78716c; white-space: nowrap; }
-        .row-thumb { width: 40px; height: 28px; object-fit: cover; border-radius: 3px; border: 1px solid #e7e5e4; display: block; }
-        .no-thumb-sm { width: 40px; height: 28px; background: #f5f5f4; border-radius: 3px; border: 1px dashed #d4d4d0; display: flex; align-items: center; justify-content: center; font-size: 8px; color: #a8a29e; }
-      </style>
-    </head><body>${sections}</body></html>`);
-    win.document.close();
-    setTimeout(() => win.print(), 600);
-  };
-
   // ── Pool de itens para exportação ────────────────────────────────────────
-  const arteStatuses = ['awaiting_submission','awaiting_sponsor_approval','sponsor_approved','awaiting_creator_review','ready_for_production','pronto_para_producao','liberado'];
   const arteItemsPool = useMemo(() =>
-    [...allItems.filter((i: any) => arteStatuses.includes(i.status)), ...correcaoItems],
+    [...allItems.filter((i: any) => ARTE_POOL_STATUSES.includes(i.status)), ...correcaoItems],
     [allItems, correcaoItems]
   );
 
+  // Itens marcados na tabela, deduplicados (uma peça em correção também pode
+  // estar em allItems). Alimenta o ExportPdfDialog quando há seleção.
+  const selectedItems = useMemo(() => {
+    if (selectedItemIds.size === 0) return [] as any[];
+    const seen = new Set<string>();
+    return [...allItems, ...correcaoItems].filter((i: any) => {
+      if (!selectedItemIds.has(i.id) || seen.has(i.id)) return false;
+      seen.add(i.id);
+      return true;
+    });
+  }, [allItems, correcaoItems, selectedItemIds]);
+
+  // "Exportar N sel." abre o MESMO modal de exportação, com a seleção como
+  // pool — antes disparava a impressão direto, pulando as opções (agrupar,
+  // capa, ordem) que o botão sem seleção oferecia.
   const handleClickExportButton = () => {
-    if (selectedItemIds.size > 0) {
-      const allPoolItems = [...allItems, ...correcaoItems];
-      const selected = allPoolItems.filter(i => selectedItemIds.has(i.id));
-      const groups = new Set(selected.map(groupKeyOf));
-      void exportMixedToPDF(selected, groups, `Arte — ${selected.length} peça(s)`);
-      return;
-    }
     setShowExportModal(true);
   };
 
@@ -917,22 +589,45 @@ export default function Arte() {
     return convertGCSUrlToLocalPath(url);
   }, []);
 
+  // Peças que podem receber thumb no multi-upload: aguardando envio OU em
+  // correção, deduplicadas e respeitando o filtro de evento do modal.
+  // Calculado uma vez — antes era refeito dentro do .map de cada card E o
+  // auto-match usava um pool diferente (sem correção e ignorando o filtro).
+  const bulkPendingPool = useMemo(() => {
+    const seen = new Set<string>();
+    return [...allItems, ...correcaoItems].filter((i: any) => {
+      if (seen.has(i.id)) return false;
+      seen.add(i.id);
+      const podeReceberThumb = i.status === 'awaiting_submission'
+        || (correcaoItems as any[]).some((c: any) => c.id === i.id);
+      if (!podeReceberThumb) return false;
+      if (bulkThumbEventFilter !== "all" && i.eventId !== bulkThumbEventFilter) return false;
+      return true;
+    });
+  }, [allItems, correcaoItems, bulkThumbEventFilter]);
+
   const handleBulkThumbFilesAdded = useCallback((files: FileList | File[]) => {
     // Accept by MIME type OR by extension (some browsers return empty type)
     const isImage = (f: File) =>
       f.type.startsWith("image/") || /\.(jpe?g|png|gif|webp|svg|bmp|tiff?)$/i.test(f.name);
     const arr = Array.from(files).filter(isImage);
     if (!arr.length) return;
-    const pool = [...allItems.filter((i: any) => i.status === 'awaiting_submission')];
+    // Peça já casada (em card anterior ou nesta leva) sai do pool — dois
+    // arquivos com o mesmo número não podem apontar para a mesma peça.
+    const taken = new Set(
+      bulkThumbEntries.filter(e => e.matchedItemId).map(e => e.matchedItemId as string)
+    );
     const newEntries: BulkThumbEntry[] = arr.map(file => {
       // Extract numbers with ≥3 digits from filename to avoid false matches from "3×3", "01" etc.
       // e.g. "0277_aplique.jpg" → ["0277"], "tenda_3x3_0122.png" → ["0122"]
       const nums = (file.name.replace(/\.[^.]+$/, '').replace(/\D/g, ' '))
         .trim().split(/\s+/).filter(n => n.length >= 3);
-      const matched = pool.find(item => {
+      const matched = bulkPendingPool.find(item => {
+        if (taken.has(item.id)) return false;
         const rawId = (item.displayId || '').replace(/\D/g, '').padStart(4, '0');
         return nums.some(n => n.padStart(4, '0') === rawId);
       });
+      if (matched) taken.add(matched.id);
       return {
         id: `${file.name}-${Date.now()}-${Math.random()}`,
         file,
@@ -943,7 +638,7 @@ export default function Arte() {
     });
     setBulkThumbEntries(prev => [...prev, ...newEntries]);
     setShowBulkThumbModal(true);
-  }, [allItems]);
+  }, [bulkPendingPool, bulkThumbEntries]);
 
   // Núcleo do upload em lote de thumbs. Se send=true, envia para aprovação
   // (/submit-for-approval, muda status). Se send=false, só salva o thumb no
@@ -988,16 +683,17 @@ export default function Arte() {
   const handleBulkThumbUpload = useCallback(() => runBulkThumb(true), [runBulkThumb]);
   const handleBulkThumbSaveDraft = useCallback(() => runBulkThumb(false), [runBulkThumb]);
 
-  const convertGCSUrlToLocalPath = (gcsUrl: string): string => {
-    if (gcsUrl.startsWith('/')) return gcsUrl;
-    const match = gcsUrl.match(/\/\.private\/(.+?)(?:\?|$)/);
-    if (match) return `/objects/${match[1]}`;
-    return gcsUrl;
-  };
-
-  const uniqueTypes = Array.from(new Set(allItems.map(item => item.type))).sort();
-  const uniqueMaterials = Array.from(new Set(allItems.map(item => item.material).filter(Boolean))).sort();
-  const uniqueFinishes = Array.from(new Set(allItems.map(item => item.finish).filter(Boolean))).sort();
+  // Fecha o multi-upload liberando os object URLs dos previews — cada
+  // URL.createObjectURL segura o blob na memória até o revoke.
+  const closeBulkThumbModal = useCallback(() => {
+    if (bulkThumbRunning) return;
+    setBulkThumbEntries(prev => {
+      prev.forEach(e => URL.revokeObjectURL(e.preview));
+      return [];
+    });
+    setShowBulkThumbModal(false);
+    setBulkThumbEventFilter("all");
+  }, [bulkThumbRunning]);
 
   const uniqueSponsors = useMemo(() => {
     const map = new Map<string, any>();
@@ -1010,13 +706,7 @@ export default function Arte() {
   // escolher um filtro não esvazia as opções dos outros.
   const tabPoolItems = useMemo(() => {
     if (activeTab === "correcao") return correcaoItems as any[];
-    const byTab: Record<string, string[]> = {
-      "criar-aprovacoes": ['awaiting_submission'],
-      "aguardando-patrocinador": ['awaiting_sponsor_approval'],
-      "finalizar-layouts": ['sponsor_approved', 'awaiting_creator_review'],
-      "finalizados": ['awaiting_final_review', 'ready_for_production', 'pronto_para_producao', 'liberado', 'inProduction', 'em_producao', 'produced', 'produzido', 'conferred', 'delivered', 'entregue'],
-    };
-    const allowed = byTab[activeTab];
+    const allowed = TAB_STATUSES[activeTab]; // mesma fonte única das abas
     return allowed ? allItems.filter((i: any) => allowed.includes(i.status)) : allItems;
   }, [allItems, correcaoItems, activeTab]);
 
@@ -1097,7 +787,6 @@ export default function Arte() {
     setNext10DaysFilter(false);
     setTypeFilter([]);
     setMaterialFilter([]);
-    setFinishFilter([]);
     setSemThumb(false);
     setComThumb(false);
     setSemFinal(false);
@@ -1139,7 +828,6 @@ export default function Arte() {
       if (!matchesEvent) continue;
       if (typeFilter.length && !typeFilter.includes(item.type)) continue;
       if (materialFilter.length && !materialFilter.includes(item.material)) continue;
-      if (finishFilter.length && !finishFilter.includes(item.finish)) continue;
 
       const depRaw = item.event?.truckDepartureDate;
       if (next10DaysFilter && depRaw) {
@@ -1175,7 +863,7 @@ export default function Arte() {
     }
     return buckets;
   }, [
-    allItems, eventFilter, typeFilter, materialFilter, finishFilter,
+    allItems, eventFilter, typeFilter, materialFilter,
     next10DaysFilter, monthFilter, deferredSearch, sponsorFilter,
     semThumb, comThumb, semFinal, comFinal, urgenteFilter, periodFilter,
   ]);
@@ -1234,7 +922,6 @@ export default function Arte() {
       return true;
     }).length;
   }, [correcaoItems, eventFilter, typeFilter, materialFilter, sponsorFilter, deferredSearch]);
-  const pendingItems = filteredItems.filter(item => item.status === 'awaiting_submission');
 
   const handleViewDetails = (item: any) => {
     setSelectedItem(item);
@@ -1280,11 +967,6 @@ export default function Arte() {
     setSelectedItemIds(s);
   };
 
-  const toggleAllSelection = () => {
-    if (selectedItemIds.size === pendingItems.length) setSelectedItemIds(new Set());
-    else setSelectedItemIds(new Set(pendingItems.map(i => i.id)));
-  };
-
   const handleBulkSubmit = () => {
     if (!sharedPdfUrl) {
       toast({ title: "Erro", description: "É necessário fazer upload do PDF compartilhado", variant: "destructive" });
@@ -1294,47 +976,53 @@ export default function Arte() {
   };
 
   // ─── ACTIVE CHIPS ──────────────────────────────────────────────────────────
-  const activeChips = useMemo(() => {
-    const chips: string[] = [];
-    if (eventFilter.length === 1) {
-      const ev = (events as any[]).find((e: any) => e.id === eventFilter[0]);
-      chips.push(`Evento: ${ev?.name || 'Selecionado'}`);
-    }
-    if (sponsorFilter.length === 1) {
-      const sp = (uniqueSponsors as any[]).find((s: any) => s.id === sponsorFilter[0]);
-      chips.push(`Patrocinador: ${sp?.name || 'Selecionado'}`);
-    }
-    if (typeFilter.length > 0) typeFilter.forEach(t => chips.push(`Tipo: ${t}`));
-    if (materialFilter.length > 0) materialFilter.forEach(m => chips.push(`Material: ${m}`));
-    if (monthFilter.length > 0) {
-      const m = months.find(x => x.value === monthFilter[0]);
-      chips.push(`Mês: ${m?.label || monthFilter}`);
-    }
-    if (next10DaysFilter) chips.push("Próximos 10 dias");
-    if (periodFilter !== "Todos") chips.push(`Período: ${periodFilter}`);
-    if (urgenteFilter) chips.push("Urgente");
-    if (semThumb) chips.push("Sem thumb");
-    if (comThumb) chips.push("Com thumb");
-    if (semFinal) chips.push("Sem arq. final");
-    if (comFinal) chips.push("Com arq. final");
-    if (searchFilter) chips.push(`Busca: "${searchFilter}"`);
+  // Cada chip carrega o próprio filtro ({kind, id}) e é removido por
+  // identidade, não por parsing do rótulo — o X do chip de Evento, por
+  // exemplo, dependia de um window.__evList que nunca existiu e não fazia nada.
+  type ActiveChip = { kind: string; id?: string; label: string };
+  const activeChips = useMemo<ActiveChip[]>(() => {
+    const chips: ActiveChip[] = [];
+    eventFilter.forEach(id => {
+      const ev = (events as any[]).find((e: any) => e.id === id);
+      chips.push({ kind: 'event', id, label: `Evento: ${ev?.name || 'Selecionado'}` });
+    });
+    sponsorFilter.forEach(id => {
+      const sp = (uniqueSponsors as any[]).find((s: any) => s.id === id);
+      chips.push({ kind: 'sponsor', id, label: `Patrocinador: ${sp?.name || 'Selecionado'}` });
+    });
+    typeFilter.forEach(t => chips.push({ kind: 'type', id: t, label: `Tipo: ${t}` }));
+    materialFilter.forEach(m => chips.push({ kind: 'material', id: m, label: `Material: ${m}` }));
+    monthFilter.forEach(v => {
+      const m = months.find(x => x.value === v);
+      chips.push({ kind: 'month', id: v, label: `Mês: ${m?.label || v}` });
+    });
+    if (next10DaysFilter) chips.push({ kind: 'next10', label: "Próximos 10 dias" });
+    if (periodFilter !== "Todos") chips.push({ kind: 'period', label: `Período: ${periodFilter}` });
+    if (urgenteFilter) chips.push({ kind: 'urgente', label: "Urgente" });
+    if (semThumb) chips.push({ kind: 'semThumb', label: "Sem thumb" });
+    if (comThumb) chips.push({ kind: 'comThumb', label: "Com thumb" });
+    if (semFinal) chips.push({ kind: 'semFinal', label: "Sem arq. final" });
+    if (comFinal) chips.push({ kind: 'comFinal', label: "Com arq. final" });
+    if (searchFilter) chips.push({ kind: 'search', label: `Busca: "${searchFilter}"` });
     return chips;
   }, [eventFilter, sponsorFilter, typeFilter, materialFilter, monthFilter, next10DaysFilter, periodFilter, urgenteFilter, semThumb, comThumb, semFinal, comFinal, searchFilter, events, uniqueSponsors, months]);
 
-  const removeChipFilter = (chip: string) => {
-    if (chip.startsWith("Evento:")) { const name = chip.replace("Evento: ", ""); setEventFilter(prev => prev.filter(v => { const ev = (window as any).__evList?.find((e: any) => e.name === name); return ev ? v !== ev.id : true; })); }
-    else if (chip.startsWith("Patrocinador:")) setSponsorFilter([]);
-    else if (chip.startsWith("Tipo:")) { const t = chip.replace("Tipo: ", ""); setTypeFilter(prev => prev.filter(v => v !== t)); }
-    else if (chip.startsWith("Material:")) { const m = chip.replace("Material: ", ""); setMaterialFilter(prev => prev.filter(v => v !== m)); }
-    else if (chip.startsWith("Mês:")) setMonthFilter([]);
-    else if (chip === "Próximos 10 dias") setNext10DaysFilter(false);
-    else if (chip.startsWith("Período:")) setPeriodFilter("Todos");
-    else if (chip === "Urgente") setUrgenteFilter(false);
-    else if (chip === "Sem thumb") setSemThumb(false);
-    else if (chip === "Com thumb") setComThumb(false);
-    else if (chip === "Sem arq. final") setSemFinal(false);
-    else if (chip === "Com arq. final") setComFinal(false);
-    else if (chip.startsWith("Busca:")) setSearchFilter("");
+  const removeChipFilter = (chip: ActiveChip) => {
+    switch (chip.kind) {
+      case 'event': setEventFilter(prev => prev.filter(v => v !== chip.id)); break;
+      case 'sponsor': setSponsorFilter(prev => prev.filter(v => v !== chip.id)); break;
+      case 'type': setTypeFilter(prev => prev.filter(v => v !== chip.id)); break;
+      case 'material': setMaterialFilter(prev => prev.filter(v => v !== chip.id)); break;
+      case 'month': setMonthFilter(prev => prev.filter(v => v !== chip.id)); break;
+      case 'next10': setNext10DaysFilter(false); break;
+      case 'period': setPeriodFilter("Todos"); break;
+      case 'urgente': setUrgenteFilter(false); break;
+      case 'semThumb': setSemThumb(false); break;
+      case 'comThumb': setComThumb(false); break;
+      case 'semFinal': setSemFinal(false); break;
+      case 'comFinal': setComFinal(false); break;
+      case 'search': setSearchFilter(""); break;
+    }
   };
 
   // ─── RENDER ────────────────────────────────────────────────────────────────
@@ -1360,7 +1048,7 @@ export default function Arte() {
     },
     {
       label: "Aguard. Patrocin.",
-      value: itemsForEvent.filter(i => i.status === 'awaiting_sponsor_approval').length,
+      value: itemsForEvent.filter(i => TAB_STATUSES["aguardando-patrocinador"].includes(i.status)).length,
       sub: "em análise",
       subColor: "#d97706",
       iconBg: "#fffbeb",
@@ -1369,20 +1057,23 @@ export default function Arte() {
       Icon: Clock,
       testId: "stat-awaiting-sponsor",
     },
+    // "Em Correção" substituiu "Patrocin. Aprovou": a fila urgente (arte
+    // recusada aguardando nova versão) não tinha nenhum card, enquanto o
+    // estado aprovado já aparece na aba Finalizar Arte.
     {
-      label: "Patrocin. Aprovou",
-      value: itemsForEvent.filter(i => ['sponsor_approved', 'awaiting_creator_review'].includes(i.status)).length,
-      sub: "verificado",
-      subColor: "#2563eb",
-      iconBg: "#eff6ff",
-      iconColor: "#2563eb",
-      accentColor: "#2563eb",
-      Icon: CheckCircle,
-      testId: "stat-sponsor-approved",
+      label: "Em Correção",
+      value: correcaoCount,
+      sub: "aguardando nova arte",
+      subColor: "#dc2626",
+      iconBg: "#fef2f2",
+      iconColor: "#dc2626",
+      accentColor: "#dc2626",
+      Icon: AlertTriangle,
+      testId: "stat-correcao",
     },
     {
       label: "Prontos p/ Prod.",
-      value: itemsForEvent.filter(i => ['awaiting_final_review', 'ready_for_production', 'pronto_para_producao', 'liberado', 'approved', 'inProduction', 'em_producao', 'produced', 'produzido', 'conferred', 'delivered', 'entregue'].includes(i.status)).length,
+      value: itemsForEvent.filter(i => FINALIZADOS_STATUSES.includes(i.status)).length,
       sub: "liberado",
       subColor: "#16a34a",
       iconBg: "#f0fdf4",
@@ -1555,9 +1246,17 @@ export default function Arte() {
                         );
                       });
                     })()}
-                    <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.18)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 999, padding: '2px 9px', fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.92)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
-                      {group.items.length} {group.items.length === 1 ? 'Item' : 'Itens'}
-                    </span>
+                    {/* Total do EVENTO (do eventSummary), não só do primeiro
+                        bloco de tipo — o header aparece uma vez por evento, mas
+                        cada "group" é um recorte (evento, tipo). */}
+                    {(() => {
+                      const evTotal = evSumMap.get(group.items[0]?.eventId || group.event)?.count ?? group.items.length;
+                      return (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.18)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 999, padding: '2px 9px', fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.92)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+                          {evTotal} {evTotal === 1 ? 'Item' : 'Itens'}
+                        </span>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -1566,7 +1265,7 @@ export default function Arte() {
                   {group.items.map((item: any) => (
                     <div key={item.id}
                       style={{ backgroundColor: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, padding: '12px', marginBottom: 8, cursor: 'pointer' }}
-                      onClick={() => setSelectedItem(item)}>
+                      onClick={() => handleViewDetails(item)}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                         <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#f97316', fontSize: 13 }}>{item.displayId}</span>
                         <StatusBadge status={item.status} />
@@ -1596,11 +1295,11 @@ export default function Arte() {
                     {(tabId === "criar-aprovacoes" || tabId === "finalizados") && <col style={{ width: 44 }} />}
                     {ARTE_COLS.map((c, i) => <col key={i} style={{ width: c.w }} />)}
                   </colgroup>
-                  {/* sticky: com ~71 px por linha cabem 11 na tela, e dentro de um
-                      grupo grande o cabeçalho saía de vista — restavam números
-                      soltos sem saber a que coluna pertenciam. Agora ele
-                      acompanha a rolagem até o próximo grupo empurrá-lo. */}
-                  <thead style={{ position: 'sticky', top: 0, zIndex: 2 }}>
+                  {/* Sem sticky: quem rola é o contêiner com overflowX:auto, e
+                      position:sticky não atravessa esse contexto — o cabeçalho
+                      nunca "grudava" de verdade. Mesma decisão do event-detail:
+                      cabeçalho normal, sem criar scroll interno. */}
+                  <thead>
                     <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4', boxShadow: '0 1px 0 #e7e5e4' }}>
                       {(tabId === "criar-aprovacoes" || tabId === "finalizados") && (
                         <th style={{ padding: '10px 16px', width: 40 }}>
@@ -1775,7 +1474,7 @@ export default function Arte() {
                                   <FileImage style={{ width: 13, height: 13 }} />
                                 </a>
                               ) : (
-                                <span title="Sem thumb" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f4', color: '#c7c3c0' }}>
+                                <span title="Sem thumb" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f4', color: '#a8a29e' }}>
                                   <FileImage style={{ width: 13, height: 13 }} />
                                 </span>
                               )}
@@ -1784,7 +1483,7 @@ export default function Arte() {
                                   <FileText style={{ width: 13, height: 13 }} />
                                 </a>
                               ) : (
-                                <span title="Sem arquivo final" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f4', color: '#c7c3c0' }}>
+                                <span title="Sem arquivo final" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f4', color: '#a8a29e' }}>
                                   <FileText style={{ width: 13, height: 13 }} />
                                 </span>
                               )}
@@ -1805,7 +1504,7 @@ export default function Arte() {
                                 data-testid={`button-export-item-pdf-${item.id}`}
                                 title="Exportar prova em PDF"
                                 style={{
-                                  width: 34, height: 34, borderRadius: 8,
+                                  minWidth: 40, minHeight: 40, borderRadius: 8,
                                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                                   background: 'none', border: '1px solid #e7e5e4', cursor: 'pointer',
                                   color: '#57534e', transition: 'all 0.15s',
@@ -1820,7 +1519,7 @@ export default function Arte() {
                                 data-testid={`button-view-${item.id}`}
                                 title="Ver detalhes"
                                 style={{
-                                  width: 34, height: 34, borderRadius: 8,
+                                  minWidth: 40, minHeight: 40, borderRadius: 8,
                                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                                   background: 'none', border: '1px solid #e7e5e4', cursor: 'pointer',
                                   color: '#57534e', transition: 'all 0.15s',
@@ -1834,11 +1533,29 @@ export default function Arte() {
                                 const isSkip = tabId === "criar-aprovacoes" && item.skipApproval;
                                 const bgColor = tabId === "finalizar-layouts" ? '#2563eb' : isSkip ? '#7c3aed' : '#c2410c'; // laranja da marca da 2.80:1 com texto branco e reprova AA; este da 5.18
                                 const label = tabId === "finalizar-layouts" ? "Finalizar Arte" : isSkip ? "Enviar Finalização" : "Enviar Aprovação";
+                                // Um clique para enviar: se a peça já tem thumb salvo
+                                // (rascunho), "Enviar Aprovação" dispara o envio direto,
+                                // sem abrir o modal e SEM confirmação — a ação é
+                                // reversível pela aba Correção e o toast dá o feedback;
+                                // window.confirm só acrescentaria atrito. O olho ao lado
+                                // continua abrindo os detalhes para quem quer revisar.
+                                const canSendDirect = tabId === "criar-aprovacoes" && !isSkip && !!item.approvalThumbUrl;
                                 return (
                                   <button
-                                    onClick={() => handleViewDetails(item)}
+                                    onClick={() => {
+                                      if (canSendDirect) {
+                                        submitForApprovalMutation.mutate({ itemId: item.id, approvalThumbUrl: item.approvalThumbUrl });
+                                        return;
+                                      }
+                                      handleViewDetails(item);
+                                    }}
+                                    disabled={canSendDirect && submitForApprovalMutation.isPending}
                                     data-testid={`button-action-${item.id}`}
-                                    title={isSkip ? "Sem aprovação de patrocinador — vai direto para revisão final" : undefined}
+                                    title={isSkip
+                                      ? "Sem aprovação de patrocinador — vai direto para revisão final"
+                                      : canSendDirect
+                                        ? "Envia o thumb salvo direto para aprovação do patrocinador"
+                                        : undefined}
                                     style={{
                                       height: 36, padding: '0 14px', borderRadius: 8,
                                       backgroundColor: bgColor,
@@ -1859,7 +1576,7 @@ export default function Arte() {
                                   data-testid={`button-dispense-${item.id}`}
                                   title="Dispensar peça (liberar para produção sem aprovação)"
                                   style={{
-                                    width: 32, height: 32, borderRadius: 8,
+                                    minWidth: 40, minHeight: 40, borderRadius: 8,
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     background: 'none', border: '1px solid #e7e5e4', cursor: 'pointer',
                                     color: '#57534e', transition: 'all 0.15s',
@@ -2160,7 +1877,7 @@ export default function Arte() {
   const statCardTabMap: Record<string, string> = {
     "stat-pending": "criar-aprovacoes",
     "stat-awaiting-sponsor": "aguardando-patrocinador",
-    "stat-sponsor-approved": "finalizar-layouts",
+    "stat-correcao": "correcao",
     "stat-ready-production": "finalizados",
   };
 
@@ -2202,7 +1919,9 @@ export default function Arte() {
                 </p>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+            {/* flexWrap: no mobile os botões quebram linha em vez de estourar a
+                largura do header. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               {/* divider */}
               <div style={{ width: 1, height: 20, background: '#e7e5e4', margin: '0 2px' }} />
               <button
@@ -2252,7 +1971,9 @@ export default function Arte() {
           </div>
 
           {/* ── Stat cards — light ── */}
-          <div style={{ display: 'flex', gap: 10, marginBottom: 18 }}>
+          {/* flexWrap + base de 140px: no mobile os cards viram grade 2×2 em
+              vez de quatro colunas espremidas. */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 18 }}>
             {statCards.map(stat => {
               const Icon = stat.Icon;
               const targetTab = statCardTabMap[stat.testId];
@@ -2267,7 +1988,7 @@ export default function Arte() {
                   onMouseEnter={e => { if (targetTab && !isActiveCard) { (e.currentTarget as HTMLElement).style.background = `${stat.accentColor}0d`; (e.currentTarget as HTMLElement).style.borderColor = `${stat.accentColor}40`; } }}
                   onMouseLeave={e => { if (targetTab && !isActiveCard) { (e.currentTarget as HTMLElement).style.background = '#fafaf9'; (e.currentTarget as HTMLElement).style.borderColor = '#e7e5e4'; } }}
                   style={{
-                    flex: 1, padding: '14px 16px 12px', borderRadius: 12,
+                    flex: isMobile ? '1 1 140px' : 1, padding: '14px 16px 12px', borderRadius: 12,
                     background: isActiveCard ? `${stat.accentColor}08` : '#fafaf9',
                     border: `1px solid ${isActiveCard ? `${stat.accentColor}30` : '#e7e5e4'}`,
                     cursor: targetTab ? 'pointer' : 'default',
@@ -2383,9 +2104,9 @@ export default function Arte() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Ativos:</span>
               {activeChips.map(chip => (
-                <span key={chip} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 999, background: '#fff7ed', border: '1px solid #fed7aa', fontSize: 11, fontWeight: 600, color: '#c2410c' }}>
-                  {chip}
-                  <button onClick={() => removeChipFilter(chip)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c2410c', display: 'inline-flex', alignItems: 'center', padding: 0 }}>
+                <span key={`${chip.kind}-${chip.id ?? ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 9px', borderRadius: 999, background: '#fff7ed', border: '1px solid #fed7aa', fontSize: 11, fontWeight: 600, color: '#c2410c' }}>
+                  {chip.label}
+                  <button onClick={() => removeChipFilter(chip)} aria-label={`Remover filtro ${chip.label}`} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c2410c', display: 'inline-flex', alignItems: 'center', padding: 0 }}>
                     <X style={{ width: 9, height: 9 }} />
                   </button>
                 </span>
@@ -2476,7 +2197,8 @@ export default function Arte() {
       {/* MODAL 0 — DISPENSAR PEÇA                                           */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <Dialog open={!!dispenseItem} onOpenChange={(open) => { if (!open) { setDispenseItem(null); setDispenseReason(""); } }}>
-        <DialogContent className="p-0 gap-0" style={{ maxWidth: 420, width: '95vw', borderRadius: 16, backgroundColor: '#ffffff', border: 'none', boxShadow: MODAL_SHADOW }}>
+        {/* HIDE_NATIVE_CLOSE: este modal tem X próprio; sem a classe ficavam dois. */}
+        <DialogContent className={cn("p-0 gap-0", HIDE_NATIVE_CLOSE)} style={modalSurface(420)}>
           <DialogTitle className="sr-only">Dispensar Peça</DialogTitle>
           <DialogDescription className="sr-only">Dispensar peça da fila de arte</DialogDescription>
           <div style={{ padding: 24 }}>
@@ -2531,7 +2253,8 @@ export default function Arte() {
       <Dialog open={!!correcaoItem} onOpenChange={(open) => {
         if (!open) { setCorrecaoItem(null); setCorrecaoThumbUrl(""); setCorrecaoFileName(""); setCorrecaoSelectedSponsorIds(new Set()); }
       }}>
-        <DialogContent className="p-0 gap-0 max-h-[90vh] overflow-y-auto" style={{ maxWidth: 472, width: '95vw', borderRadius: 16, backgroundColor: '#ffffff', border: 'none', boxShadow: MODAL_SHADOW }}>
+        {/* overflowY vence o overflow:hidden do modalSurface — este modal rola. */}
+        <DialogContent className={cn("p-0 gap-0 max-h-[90vh]", HIDE_NATIVE_CLOSE)} style={{ ...modalSurface(472), overflowY: 'auto' }}>
           <DialogTitle className="sr-only">Enviar Nova Arte</DialogTitle>
           <DialogDescription className="sr-only">Reenvio de arte para patrocinadores</DialogDescription>
 
@@ -2633,7 +2356,7 @@ export default function Arte() {
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 11, fontWeight: 700, color: '#15803d' }}>Arquivo enviado</div>
                         {correcaoFileName && (
-                          <div style={{ fontSize: 11, color: '#4ade80', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={correcaoFileName}>{correcaoFileName}</div>
+                          <div style={{ fontSize: 11, color: '#15803d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={correcaoFileName}>{correcaoFileName}</div>
                         )}
                       </div>
                       <button
@@ -2694,7 +2417,7 @@ export default function Arte() {
                           escolha um arquivo
                         </FileUploader>
                       )}
-                      <p style={{ fontSize: 11, color: '#b8b3ad', margin: '3px 0 0' }}>
+                      <p style={{ fontSize: 11, color: '#57534e', margin: '3px 0 0' }}>
                         {isPasteUploading ? 'Aguarde...' : 'PDF, PNG, SVG · ou Ctrl+V para colar'}
                       </p>
                     </div>
@@ -2720,19 +2443,21 @@ export default function Arte() {
                             transition: 'all 0.12s'
                           }}
                         >
-                          {/* Custom checkbox */}
+                          {/* Visual do checkbox — só desenho; quem responde ao
+                              clique é o <input> abaixo, ativado pela <label>
+                              inteira. O onClick duplicado que existia aqui
+                              disparava junto com o da label e desfazia a marcação. */}
                           <div
+                            aria-hidden="true"
                             style={{ width: 18, height: 18, borderRadius: 6, flexShrink: 0, border: `2px solid ${isSelected ? '#dc2626' : '#d4d4d0'}`, background: isSelected ? '#dc2626' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.12s' }}
-                            onClick={() => {
-                              const next = new Set(correcaoSelectedSponsorIds);
-                              if (isSelected) next.delete(approval.sponsorId); else next.add(approval.sponsorId);
-                              setCorrecaoSelectedSponsorIds(next);
-                            }}
                           >
                             {isSelected && <Check style={{ width: 10, height: 10, color: '#fff' }} />}
                           </div>
+                          {/* sr-only (não display:none): continua focável por
+                              teclado e visível para leitores de tela. */}
                           <input
                             type="checkbox"
+                            className="sr-only"
                             checked={isSelected}
                             onChange={(e) => {
                               const next = new Set(correcaoSelectedSponsorIds);
@@ -2740,7 +2465,6 @@ export default function Arte() {
                               setCorrecaoSelectedSponsorIds(next);
                             }}
                             data-testid={`checkbox-correcao-sponsor-${approval.sponsorId}`}
-                            style={{ display: 'none' }}
                           />
                           {approval.sponsor?.color && (
                             <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />
@@ -2927,15 +2651,17 @@ export default function Arte() {
                 data-testid="button-submit-final"
                 style={{
                   width: '100%', padding: '14px 0', borderRadius: 8, border: 'none',
-                  backgroundColor: (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) ? '#fcd9b7' : '#fd761a',
+                  // #c2410c: 2,7:1 era o contraste do laranja #fd761a com o texto
+                  // branco; este passa AA (4,5:1+) mantendo a família da marca.
+                  backgroundColor: (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) ? '#fcd9b7' : '#c2410c',
                   color: '#ffffff', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 900,
                   fontSize: 12, textTransform: 'uppercase', letterSpacing: '0.15em',
                   cursor: (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  boxShadow: '0 4px 16px rgba(253,118,26,0.2)', transition: 'filter 0.15s, transform 0.1s'
+                  boxShadow: '0 4px 16px rgba(194,65,12,0.2)', transition: 'background-color 0.15s, transform 0.1s'
                 }}
-                onMouseEnter={e => { if (submitFinalFileMutation.isPending || !finalFileUrl) return; e.currentTarget.style.filter = 'brightness(0.92)'; }}
-                onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+                onMouseEnter={e => { if (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) return; e.currentTarget.style.backgroundColor = '#9a3412'; }}
+                onMouseLeave={e => { if (submitFinalFileMutation.isPending || !finalFileUrl || (!!selectedItem.finalFileUrl && !finalDirty)) return; e.currentTarget.style.backgroundColor = '#c2410c'; }}
               >
                 {submitFinalFileMutation.isPending ? 'Enviando...' : (selectedItem.finalFileUrl ? 'Atualizar arquivo' : 'Enviar para Revisão')}
                 {!submitFinalFileMutation.isPending && <ArrowRight style={{ width: 16, height: 16 }} />}
@@ -3149,7 +2875,7 @@ export default function Arte() {
       {/* MODAL 3 — BULK PDF UPLOAD                                          */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <Dialog open={showBulkDialog} onOpenChange={(open) => { if (!open) { setShowBulkDialog(false); setSharedPdfUrl(""); } }}>
-        <DialogContent className="p-0 gap-0" style={{ maxWidth: 600, width: '95vw', borderRadius: 16, backgroundColor: '#ffffff', border: 'none', boxShadow: MODAL_SHADOW }}>
+        <DialogContent className={cn("p-0 gap-0", HIDE_NATIVE_CLOSE)} style={modalSurface(600)}>
           <DialogTitle className="sr-only">Upload PDF Compartilhado</DialogTitle>
           <DialogDescription className="sr-only">Vincular um PDF a múltiplos itens</DialogDescription>
 
@@ -3157,8 +2883,8 @@ export default function Arte() {
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <h2 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.05em', fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: 0, lineHeight: 1.1 }}>
-                  Upload PDF<br />Compartilhado
+                <h2 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.04em', fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: 0, lineHeight: 1.2 }}>
+                  Upload PDF Compartilhado
                 </h2>
                 <p style={{ fontSize: 13, color: '#57534e', margin: 0 }}>Vincular um único documento a múltiplos itens selecionados.</p>
               </div>
@@ -3172,8 +2898,8 @@ export default function Arte() {
               </button>
             </div>
 
-            {/* 2-column grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32 }}>
+            {/* 2 colunas no desktop; 1 no mobile para não espremer as listas */}
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 20 : 32 }}>
               {/* Left: items list */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                 <h3 style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#9d4300', margin: 0 }}>
@@ -3287,14 +3013,15 @@ export default function Arte() {
                 data-testid="button-submit-bulk-pdf"
                 style={{
                   flex: 2, padding: '14px 0', borderRadius: 8, border: 'none',
-                  backgroundColor: (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) ? '#fcd9b7' : '#f97316',
+                  // #c2410c no lugar do #f97316 (2,8:1 com texto branco); AA.
+                  backgroundColor: (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) ? '#fcd9b7' : '#c2410c',
                   color: '#ffffff', fontWeight: 700, fontFamily: '"Space Grotesk", sans-serif', fontSize: 16,
                   cursor: (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  boxShadow: '0 4px 16px rgba(234,88,12,0.2)', transition: 'filter 0.15s, transform 0.1s'
+                  boxShadow: '0 4px 16px rgba(194,65,12,0.2)', transition: 'background-color 0.15s, transform 0.1s'
                 }}
-                onMouseEnter={e => { if (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) return; e.currentTarget.style.filter = 'brightness(0.92)'; }}
-                onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+                onMouseEnter={e => { if (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) return; e.currentTarget.style.backgroundColor = '#9a3412'; }}
+                onMouseLeave={e => { if (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) return; e.currentTarget.style.backgroundColor = '#c2410c'; }}
                 onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)'; }}
                 onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
               >
@@ -3312,13 +3039,14 @@ export default function Arte() {
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* MODAL — EXPORT PDF (componente compartilhado)                       */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <ExportPdfDialog open={showExportModal} onOpenChange={setShowExportModal} items={arteItemsPool} title="Arte" />
+      {/* Com peças selecionadas, o modal recebe só a seleção como pool. */}
+      <ExportPdfDialog open={showExportModal} onOpenChange={setShowExportModal} items={selectedItems.length > 0 ? selectedItems : arteItemsPool} title="Arte" />
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* MODAL — SUBIR BOOK (PDF) e escolher as peças cobertas               */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <Dialog open={showBookModal} onOpenChange={setShowBookModal}>
-        <DialogContent className="p-0 gap-0" style={{ maxWidth: 600, width: '95vw', borderRadius: 16, overflow: 'hidden', border: 'none', boxShadow: MODAL_SHADOW }}>
+        <DialogContent className={cn("p-0 gap-0", HIDE_NATIVE_CLOSE)} style={modalSurface(600)}>
           <DialogTitle className="sr-only">Subir book de aprovação</DialogTitle>
           <DialogDescription className="sr-only">Envie o PDF do book e selecione as peças que ele cobre</DialogDescription>
 
@@ -3392,14 +3120,25 @@ export default function Arte() {
               <label style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e', display: 'block', marginBottom: 6 }}>
                 {existingBookUrl ? 'Novo PDF (substituição)' : 'Arquivo do book'}
               </label>
+              {/* Drag & drop real: a zona dizia "Arrastar ou clicar" mas só o
+                  clique funcionava — mesmo padrão dos outros dropzones da tela. */}
               <label style={{
                 display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px', borderRadius: 12,
-                border: `2px dashed ${bookFileUrl ? '#f97316' : '#e2d9cf'}`,
-                background: bookFileUrl ? '#fff7ed' : 'linear-gradient(135deg,#fdfcfb,#f9f7f5)',
+                border: `2px dashed ${(bookFileUrl || isDragOverBook) ? '#f97316' : '#e2d9cf'}`,
+                background: (bookFileUrl || isDragOverBook) ? '#fff7ed' : 'linear-gradient(135deg,#fdfcfb,#f9f7f5)',
                 cursor: 'pointer', transition: 'all 0.15s',
               }}
-                onMouseEnter={e => { if (!bookFileUrl) { (e.currentTarget as HTMLLabelElement).style.borderColor = '#f97316'; (e.currentTarget as HTMLLabelElement).style.background = '#fff7ed'; } }}
-                onMouseLeave={e => { if (!bookFileUrl) { (e.currentTarget as HTMLLabelElement).style.borderColor = '#e2d9cf'; (e.currentTarget as HTMLLabelElement).style.background = 'linear-gradient(135deg,#fdfcfb,#f9f7f5)'; } }}
+                onMouseEnter={e => { if (!bookFileUrl && !isDragOverBook) { (e.currentTarget as HTMLLabelElement).style.borderColor = '#f97316'; (e.currentTarget as HTMLLabelElement).style.background = '#fff7ed'; } }}
+                onMouseLeave={e => { if (!bookFileUrl && !isDragOverBook) { (e.currentTarget as HTMLLabelElement).style.borderColor = '#e2d9cf'; (e.currentTarget as HTMLLabelElement).style.background = 'linear-gradient(135deg,#fdfcfb,#f9f7f5)'; } }}
+                onDragOver={e => { e.preventDefault(); setIsDragOverBook(true); }}
+                onDragEnter={e => { e.preventDefault(); setIsDragOverBook(true); }}
+                onDragLeave={e => { e.preventDefault(); setIsDragOverBook(false); }}
+                onDrop={e => {
+                  e.preventDefault();
+                  setIsDragOverBook(false);
+                  if (bookUploading) return;
+                  void handleBookFile(e.dataTransfer.files?.[0]); // valida .pdf lá dentro
+                }}
               >
                 <div style={{ width: 40, height: 40, borderRadius: 12, background: bookFileUrl ? 'linear-gradient(135deg,#f97316,#ea580c)' : 'linear-gradient(135deg,#fff0e6,#ffe4cc)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s', boxShadow: bookFileUrl ? '0 4px 10px rgba(249,115,22,0.28)' : 'none' }}>
                   {bookUploading
@@ -3534,8 +3273,8 @@ export default function Arte() {
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* MODAL 5 — MULTI-UPLOAD THUMBS (redesenhado)                        */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <Dialog open={showBulkThumbModal} onOpenChange={(open) => { if (!open && !bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); setBulkThumbEventFilter("all"); } }}>
-        <DialogContent className="p-0 gap-0" style={{ maxWidth: 980, width: '95vw', borderRadius: 16, backgroundColor: '#ffffff', border: 'none', boxShadow: MODAL_SHADOW }}>
+      <Dialog open={showBulkThumbModal} onOpenChange={(open) => { if (!open) closeBulkThumbModal(); }}>
+        <DialogContent className={cn("p-0 gap-0", HIDE_NATIVE_CLOSE)} style={modalSurface(980)}>
           <DialogTitle className="sr-only">Multi-Upload de Thumbs</DialogTitle>
           <DialogDescription className="sr-only">Upload em lote de miniaturas de aprovação</DialogDescription>
 
@@ -3555,7 +3294,7 @@ export default function Arte() {
               </p>
             </div>
             <button
-              onClick={() => { if (!bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); setBulkThumbEventFilter("all"); } }}
+              onClick={closeBulkThumbModal}
               style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '50%', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', flexShrink: 0, transition: 'background 0.15s' }}
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
@@ -3564,13 +3303,19 @@ export default function Arte() {
             </button>
           </div>
 
-          {/* ── Body — 2 columns ── */}
-          <div style={{ display: 'flex', height: 520, overflow: 'visible' }}>
+          {/* ── Body — 2 colunas no desktop; empilhado e rolável no mobile ── */}
+          <div style={{
+            display: 'flex',
+            flexDirection: isMobile ? 'column' : 'row',
+            height: isMobile ? undefined : 520,
+            maxHeight: isMobile ? '85dvh' : undefined,
+            overflow: isMobile ? 'auto' : 'visible',
+          }}>
 
             {/* ══════════════════════════════════════
                 Left panel — upload + controles
             ══════════════════════════════════════ */}
-            <div style={{ width: 264, flexShrink: 0, borderRight: '1px solid #ebe8e3', display: 'flex', flexDirection: 'column', backgroundColor: '#fafaf9' }}>
+            <div style={{ width: isMobile ? '100%' : 264, flexShrink: 0, borderRight: isMobile ? 'none' : '1px solid #ebe8e3', borderBottom: isMobile ? '1px solid #ebe8e3' : 'none', display: 'flex', flexDirection: 'column', backgroundColor: '#fafaf9' }}>
 
               {/* ── Drop zone ── */}
               <div style={{ padding: '18px 18px 14px' }}>
@@ -3712,14 +3457,8 @@ export default function Arte() {
                   {/* ── Lista de cards (horizontal) ── */}
                   <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {bulkThumbEntries.map(entry => {
-                      const pendingPool = [...allItems, ...correcaoItems].filter((i: any, idx: number, arr: any[]) => {
-                        if (arr.findIndex((x: any) => x.id === i.id) !== idx) return false;
-                        const podeReceberThumb = i.status === 'awaiting_submission'
-                          || (correcaoItems as any[]).some((c: any) => c.id === i.id);
-                        if (!podeReceberThumb) return false;
-                        if (bulkThumbEventFilter !== "all" && i.eventId !== bulkThumbEventFilter) return false;
-                        return true;
-                      });
+                      // Pool calculado uma vez fora do .map — ver bulkPendingPool.
+                      const pendingPool = bulkPendingPool;
                       const matchedItem = allItems.find((i: any) => i.id === entry.matchedItemId);
                       const isLinked = !!entry.matchedItemId;
 
@@ -3783,12 +3522,17 @@ export default function Arte() {
                               </div>
                               {(entry.status === 'pending' || entry.status === 'error') && (
                                 <button
-                                  onClick={() => setBulkThumbEntries(prev => prev.filter(e => e.id !== entry.id))}
-                                  style={{ flexShrink: 0, width: 22, height: 22, borderRadius: '50%', backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.12s' }}
+                                  onClick={() => setBulkThumbEntries(prev => prev.filter(e => {
+                                    if (e.id !== entry.id) return true;
+                                    URL.revokeObjectURL(e.preview); // libera o blob do preview
+                                    return false;
+                                  }))}
+                                  aria-label={`Remover ${entry.file.name}`}
+                                  style={{ flexShrink: 0, width: 32, height: 32, borderRadius: '50%', backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.12s' }}
                                   onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#fef2f2'; e.currentTarget.style.borderColor = '#fecaca'; }}
                                   onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
                                 >
-                                  <X style={{ width: 10, height: 10, color: '#57534e' }} />
+                                  <X style={{ width: 13, height: 13, color: '#57534e' }} />
                                 </button>
                               )}
                             </div>
@@ -3809,7 +3553,7 @@ export default function Arte() {
                             ) : entry.status === 'error' ? (
                               <div style={{ padding: '5px 8px', borderRadius: 6, backgroundColor: '#fef2f2', border: '1px solid #fecaca' }}>
                                 <p style={{ fontSize: 11, fontWeight: 700, color: '#dc2626', margin: '0 0 1px' }}>Falha no envio</p>
-                                <p style={{ fontSize: 11, color: '#f87171', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.errorMsg}</p>
+                                <p style={{ fontSize: 11, color: '#b91c1c', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{entry.errorMsg}</p>
                               </div>
                             ) : isLinked && matchedItem ? (
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -3819,7 +3563,7 @@ export default function Arte() {
                                     <span style={{ fontSize: 11, fontWeight: 700, color: '#1e3a5f', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{matchedItem.type}</span>
                                   </div>
                                   {matchedItem.event?.name && (
-                                    <p style={{ fontSize: 11, color: '#60a5fa', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{matchedItem.event.name}</p>
+                                    <p style={{ fontSize: 11, color: '#1d4ed8', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{matchedItem.event.name}</p>
                                   )}
                                 </div>
                                 <button
@@ -3959,7 +3703,11 @@ export default function Arte() {
                 <div>
                   {doneCount > 0 && (
                     <button
-                      onClick={() => setBulkThumbEntries(prev => prev.filter(e => e.status !== 'done'))}
+                      onClick={() => setBulkThumbEntries(prev => prev.filter(e => {
+                        if (e.status !== 'done') return true;
+                        URL.revokeObjectURL(e.preview);
+                        return false;
+                      }))}
                       style={{ height: 36, padding: '0 14px', borderRadius: 6, background: 'none', border: '1px solid #e7e5e4', color: '#57534e', cursor: 'pointer', fontSize: 12, fontWeight: 600, transition: 'background 0.12s' }}
                       onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
                       onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
@@ -3971,7 +3719,7 @@ export default function Arte() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {/* Ghost — Cancelar */}
                   <button
-                    onClick={() => { if (!bulkThumbRunning) { setShowBulkThumbModal(false); setBulkThumbEntries([]); setBulkThumbEventFilter("all"); } }}
+                    onClick={closeBulkThumbModal}
                     style={{ height: 38, padding: '0 16px', borderRadius: 6, background: 'transparent', border: 'none', color: '#57534e', cursor: 'pointer', fontSize: 13, fontWeight: 600, transition: 'color 0.12s' }}
                     onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
                     onMouseLeave={e => { e.currentTarget.style.color = '#746e69'; }}
@@ -4010,7 +3758,9 @@ export default function Arte() {
                     data-testid="button-bulk-thumb-confirm"
                     style={{
                       height: 40, padding: '0 20px', borderRadius: 8,
-                      background: isDisabled ? '#e7e5e4' : 'linear-gradient(135deg,#16a34a,#15803d)',
+                      // Verde #15803d sólido: o gradiente partia de #16a34a,
+                      // que com texto branco fica abaixo de AA.
+                      background: isDisabled ? '#e7e5e4' : '#15803d',
                       border: 'none',
                       color: isDisabled ? '#746e69' : '#ffffff',
                       fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 7,

@@ -269,6 +269,11 @@ export function registerItemRoutes(app: Express): void {
   // DEVE ficar ANTES de /:eventId — senão Express captura "batch-approval-data" como eventId.
   app.get("/api/items/batch-approval-data", requireAuth, async (req, res) => {
     try {
+      // Devolve TODOS os vínculos e aprovações do sistema — restrito aos
+      // papéis que veem a tela de Atendimento (era aberto a qualquer sessão).
+      if (!["atendimento", "arte", "admin"].includes(req.userRole ?? "")) {
+        return res.status(403).json({ error: "Acesso não autorizado" });
+      }
       const [allSponsors, allItemSponsors, allApprovals] = await Promise.all([
         storage.getAllSponsors(),
         storage.getAllItemSponsors(),
@@ -2550,6 +2555,12 @@ export function registerItemRoutes(app: Express): void {
   // automática não está 100%. Aceita { bookUrl, itemIds }.
   app.post("/api/events/:eventId/book", requireAuth, async (req, res) => {
     try {
+      // Gate de papel: era a ÚNICA rota da Arte sem — e como ela limpa o
+      // bookUrl do evento antes de gravar, qualquer sessão podia APAGAR o
+      // book inteiro. Mesmos papéis das 6 rotas irmãs.
+      if (req.userRole !== "arte" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Sem permissão para gerenciar books" });
+      }
       const { bookUrl, itemIds } = req.body ?? {};
       if (!Array.isArray(itemIds) || itemIds.length === 0) {
         return res.status(400).json({ error: "Selecione ao menos uma peça" });

@@ -2052,7 +2052,7 @@ export default function EventDetail() {
                           ['Dimensões (V / A)', 168],
                           ['M²', 64],
                           ['Patrocinador', 130],
-                          ['Status', 128],
+                          ['Status', 150],
                           ['Ações', 110],
                         ] as const).map(([col, width]) => (
                           <th
@@ -2193,9 +2193,11 @@ export default function EventDetail() {
                               ? item.sponsors.map((s: any) => s.name).join(", ")
                               : <span style={{ color: '#746e69' }}>—</span>}
                           </td>
-                          {/* Status */}
+                          {/* Status — rótulo curto: com tableLayout fixed o
+                              rótulo completo ("Aguardando Vinculação") vazava
+                              por baixo dos ícones de Ações. */}
                           <td style={{ padding: '14px 14px' }}>
-                            <StatusBadge status={item.status} />
+                            <StatusBadge status={item.status} short />
                           </td>
                           {/* Ações — sempre visíveis (hover esconderia; no toque
                               não há hover), mas SÓ para quem edita a lista: o

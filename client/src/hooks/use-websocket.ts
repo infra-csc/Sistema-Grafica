@@ -57,6 +57,10 @@ export function useWebSocket() {
             if (data.item?.eventId) {
               queryClient.invalidateQueries({ queryKey: ['/api/items', data.item.eventId] });
             }
+            // Sem esta invalidação o Painel Geral (que lê '/api/items' com
+            // staleTime Infinity) só via peças novas no F5 — o "tempo real"
+            // valia para update/delete e não para create/approve/produce.
+            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
             toast({
               title: 'Novo item adicionado',
               description: `Item ${data.item?.type} adicionado`,
@@ -86,6 +90,7 @@ export function useWebSocket() {
             break;
 
           case 'items_bulk_created':
+            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
             queryClient.invalidateQueries({ queryKey: ['/api/items/pending'] });
             if (data.eventId) {
               queryClient.invalidateQueries({ queryKey: ['/api/items', data.eventId] });
@@ -108,6 +113,7 @@ export function useWebSocket() {
             break;
 
           case 'item_approved':
+            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
             queryClient.invalidateQueries({ queryKey: ['/api/items/pending'] });
             queryClient.invalidateQueries({ queryKey: ['/api/items/approved'] });
             if (data.item?.eventId) {
@@ -123,6 +129,7 @@ export function useWebSocket() {
 
           case 'production_started':
           case 'production_updated':
+            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
             queryClient.invalidateQueries({ queryKey: ['/api/items/approved'] });
             if (data.item?.eventId) {
               queryClient.invalidateQueries({ queryKey: ['/api/items', data.item.eventId] });

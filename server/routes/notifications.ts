@@ -45,6 +45,32 @@ export function registerNotificationRoutes(app: Express): void {
     }
   });
 
+  // Marca TODAS as não lidas visíveis ao papel do usuário em uma chamada.
+  // Antes o "Marcar todas" do sino disparava até 50 PATCHes paralelos (um por
+  // notificação), cada um com refetch no cliente.
+  // Precisa vir ANTES de /:id/read — senão o Express casa "read-all" como :id.
+  app.patch("/api/notifications/read-all", requireAuth, async (req, res) => {
+    try {
+      const userRole = (req as any).session?.userRole;
+      if (!userRole) {
+        return res.status(403).json({ error: "Perfil de usuário não encontrado" });
+      }
+      const all = await storage.getAllNotifications();
+      const visibleUnread = all.filter((n) => {
+        if (n.isRead) return false;
+        if (userRole === "admin") return true;
+        if (!n.targetRoles || n.targetRoles.length === 0) return true;
+        return n.targetRoles.includes(userRole);
+      });
+      await Promise.all(visibleUnread.map((n) => storage.markNotificationAsRead(n.id)));
+      invalidateNotificationsCache();
+      broadcast({ type: "notification_read" });
+      res.json({ marked: visibleUnread.length });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.patch("/api/notifications/:id/read", requireAuth, async (req, res) => {
     try {
       const notification = await storage.markNotificationAsRead(req.params.id);

@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useMemo, useRef, Fragment, useEffect } from "react";
-import { Search, Calendar, Truck, AlertCircle, Eye, Paperclip, Trash2, FileText, Printer, RotateCcw } from "lucide-react";
+import { Search, Calendar, Truck, Eye, Paperclip, Trash2, FileText, Printer, RotateCcw, Loader2 } from "lucide-react";
+import { Link } from "wouter";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { ExportPdfDialog } from "@/components/export-pdf-dialog";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -18,7 +19,8 @@ import { SponsorChips } from "@/components/sponsor-chips";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { getStatusMeta, getStatusLabel } from "@/lib/status";
+import { getStatusMeta, getStatusLabel, PRODUCTION_STATUSES, FINAL_STATUSES } from "@/lib/status";
+import type { Event, Sponsor, StandardItem } from "@shared/schema";
 
 // Cores/rótulos de status vêm de lib/status.ts (fonte única) — antes havia um
 // STATUS_CONFIG local que divergia do status-badge (mesma peça, cor/nome
@@ -42,12 +44,149 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-// ─── Label style ──────────────────────────────────────────
-const filterLabel: React.CSSProperties = {
-  display: "block", fontSize: 10, fontWeight: 900,
-  textTransform: "uppercase", letterSpacing: "0.11em",
-  color: "#746e69", marginBottom: 4,
+// ─── Constantes de módulo — não dependem de estado; hoisted para não serem
+// realocadas a cada render. ─────────────────────────────────────────────────
+
+// Gate de exclusão composto a partir das listas canônicas de lib/status.
+// O array literal anterior carregava nomes fantasmas ('liberado',
+// 'em_producao', 'produzido', 'entregue') que não existem no vocabulário —
+// esses gates nunca disparavam. pronto_para_producao é canônico (variação
+// gravada pela dispensa da Arte) e fica.
+const BLOCKED_DELETE_STATUSES: string[] = [
+  "awaiting_submission", "awaiting_approval", "awaiting_final_review",
+  "ready_for_production", "pronto_para_producao", "approved",
+  ...PRODUCTION_STATUSES, ...FINAL_STATUSES,
+];
+
+// Faixas do filtro de data (diff em dias até a saída do caminhão).
+const DATE_RANGE_MAP: Record<string, (diff: number) => boolean> = {
+  today: d => d === 0, next3days: d => d >= 0 && d <= 3, next7days: d => d >= 0 && d <= 7,
+  next10days: d => d >= 0 && d <= 10, next15days: d => d >= 0 && d <= 15,
+  next30days: d => d >= 0 && d <= 30, overdue: d => d < 0,
 };
+
+// Rótulos do filtro de data — fonte única para o dropdown e os chips ativos.
+const DATE_FILTER_LABELS: Record<string, string> = {
+  overdue: "Caminhão já saiu", today: "Sai hoje",
+  next3days: "Sai em até 3 dias", next7days: "Sai em até 7 dias",
+  next10days: "Sai em até 10 dias", next15days: "Sai em até 15 dias",
+  next30days: "Sai em até 30 dias", no_departure: "Sem data de saída",
+};
+const DATE_FILTER_VALUES = Object.keys(DATE_FILTER_LABELS);
+
+// Opções do dropdown de status, na ordem do fluxo (rótulos via getStatusLabel).
+const STATUS_FILTER_VALUES = [
+  "requested", "awaiting_linking", "awaiting_submission",
+  "awaiting_approval", "awaiting_finalization", "awaiting_final_review",
+  "ready_for_production", "approved", "inProduction", "produced",
+  "conferred", "delivered", "canceled",
+];
+
+// Altura FIXA do header sticky de evento — o thead sticky usa este valor como
+// `top` para encostar exatamente abaixo dele (ver comentários na tabela).
+const EVENT_HEADER_H = 62;
+
+const EVENT_TITLE_STYLE: React.CSSProperties = {
+  fontFamily: "'Space Grotesk', sans-serif",
+  fontWeight: 800, fontSize: 15,
+  textTransform: "uppercase", letterSpacing: "0.01em",
+  color: "#1c1917", margin: 0, lineHeight: 1,
+  whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+};
+
+// ─── Status card ────────────────────────────────────────────────────────────
+// Fora do componente da página de propósito: definido inline, era recriado a
+// cada render e os 13 cards remontavam (perdendo até a transição CSS) a cada
+// tecla digitada na busca. Recebe tudo por props.
+function StatusCard({
+  label, value, dot, color, filterKey, sub, isActive, onToggle,
+}: {
+  label: string; value: number; dot: string; color: string;
+  filterKey: string; sub?: string; isActive: boolean; onToggle: () => void;
+}) {
+  // Cards zerados são informação de baixo valor no escaneamento ("onde está
+  // o gargalo?") — ficam esmaecidos, mas continuam clicáveis/filtráveis.
+  const isZero = value === 0 && !isActive;
+  const undim = (el: HTMLDivElement) => { if (isZero) el.style.opacity = "1"; };
+  const redim = (el: HTMLDivElement) => { if (isZero) el.style.opacity = "0.75"; };
+  // Os cartões são o filtro por status desta tela. Como div com onClick,
+  // filtrar era exclusivamente com mouse — e só a cor dizia qual estava
+  // ativo, coisa que aria-pressed comunica a quem não a vê.
+  return (
+    <div
+      role="button"
+      tabIndex={0}
+      aria-pressed={isActive}
+      aria-label={`Filtrar por ${label}, ${value} ${value === 1 ? "peça" : "peças"}`}
+      onClick={onToggle}
+      onKeyDown={e => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onToggle();
+        }
+      }}
+      data-testid={`stat-card-${filterKey}`}
+      style={{
+        position: "relative", overflow: "hidden",
+        background: isActive ? `linear-gradient(135deg, ${color}18 0%, #ffffff 72%)` : "#ffffff",
+        border: `1px solid ${isActive ? color : "#e7e5e4"}`,
+        borderLeft: `4px solid ${isActive ? color : `${dot}90`}`,
+        borderRadius: 12,
+        padding: "14px 15px 13px 14px", minHeight: 102,
+        display: "flex", flexDirection: "column", justifyContent: "space-between",
+        cursor: "pointer",
+        boxShadow: isActive ? `0 0 0 2px ${color}30, 0 5px 12px ${color}18` : "0 1px 2px rgba(28,25,23,.04)",
+        transform: isActive ? "translateY(1px)" : "none",
+        opacity: isZero ? 0.75 : 1,
+        transition: "border-color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s",
+      }}
+      onMouseEnter={(e) => {
+        if (!isActive) (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)";
+        undim(e.currentTarget as HTMLDivElement);
+      }}
+      onMouseLeave={(e) => {
+        if (!isActive) (e.currentTarget as HTMLDivElement).style.transform = "none";
+        redim(e.currentTarget as HTMLDivElement);
+      }}
+      onFocus={(e) => undim(e.currentTarget as HTMLDivElement)}
+      onBlur={(e) => redim(e.currentTarget as HTMLDivElement)}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: dot, boxShadow: `0 0 0 4px ${dot}18` }} />
+        {isActive && <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: ".08em", color, textTransform: "uppercase" }}>Filtrado</span>}
+      </div>
+      <div>
+        <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: isActive ? color : "#1c1917", lineHeight: 1, margin: 0, letterSpacing: "-.05em" }}>{value}</p>
+        <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#746e69", marginTop: 4, lineHeight: 1.2 }}>{label}</p>
+        {sub && (
+          <p style={{ fontSize: 9, fontWeight: 600, color: "#746e69", marginTop: 2, lineHeight: 1.2 }}>{sub}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Chip de filtro ativo (removível) — linha abaixo da toolbar ─────────────
+function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4", borderRadius: 999,
+      padding: "3px 6px 3px 10px", fontSize: 11, fontWeight: 600, color: "#44403c",
+      whiteSpace: "nowrap", maxWidth: 280, overflow: "hidden",
+    }}>
+      <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remover filtro ${label}`}
+        style={{ background: "none", border: "none", cursor: "pointer", color: "#746e69", fontSize: 13, fontWeight: 800, padding: "0 2px", lineHeight: 1, display: "flex", alignItems: "center", flexShrink: 0 }}
+      >
+        ×
+      </button>
+    </span>
+  );
+}
 
 export default function PainelGeral() {
   const { toast } = useToast();
@@ -56,7 +195,6 @@ export default function PainelGeral() {
   // Exclusão: admin pode sempre; solicitação apenas antes de a peça chegar na Arte
   // (mesma regra do event-detail.tsx — mantém os dois em sincronia).
   const canDeleteAny = isAdmin || user?.role === "solicitacao";
-  const BLOCKED_DELETE_STATUSES = ["awaiting_submission", "awaiting_approval", "awaiting_final_review", "ready_for_production", "approved", "inProduction", "produced", "conferred", "delivered", "pronto_para_producao", "liberado", "em_producao", "produzido", "entregue"];
   const canDeleteItem = (status: string) => isAdmin || !BLOCKED_DELETE_STATUSES.includes(status);
 
   // Filtros inicializam da URL (?status=...&evento=...) — assim F5 não perde o
@@ -64,6 +202,10 @@ export default function PainelGeral() {
   // evento X" com um colega.
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
   const fromCsv = (key: string) => { const v = urlParams.get(key); return v ? v.split(",").filter(Boolean) : []; };
+  // Busca com debounce: o input atualiza `searchInput` a cada tecla; o filtro
+  // (searchTerm) só é aplicado 200ms depois — sem isso, cada tecla refiltrava,
+  // reordenava e reagrupava a lista inteira.
+  const [searchInput, setSearchInput]   = useState(() => urlParams.get("busca") ?? "");
   const [searchTerm, setSearchTerm]     = useState(() => urlParams.get("busca") ?? "");
   const [statusFilter, setStatusFilter] = useState<string[]>(() => fromCsv("status"));
   const [eventFilter, setEventFilter]   = useState<string[]>(() => fromCsv("evento"));
@@ -83,6 +225,30 @@ export default function PainelGeral() {
     const qs = p.toString();
     window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
   }, [searchTerm, statusFilter, eventFilter, sponsorFilter, typeFilter, dateFilter]);
+
+  // Debounce da busca (200ms) — ver comentário no estado searchInput.
+  useEffect(() => {
+    const t = setTimeout(() => setSearchTerm(searchInput), 200);
+    return () => clearTimeout(t);
+  }, [searchInput]);
+
+  // Voltar/avançar do navegador: reidrata os filtros a partir da URL. Sem
+  // isso, o back trocava a URL mas a tela continuava com os filtros novos.
+  useEffect(() => {
+    const onPop = () => {
+      const p = new URLSearchParams(window.location.search);
+      const csv = (k: string) => { const v = p.get(k); return v ? v.split(",").filter(Boolean) : []; };
+      setSearchInput(p.get("busca") ?? "");
+      setSearchTerm(p.get("busca") ?? "");
+      setStatusFilter(csv("status"));
+      setEventFilter(csv("evento"));
+      setSponsorFilter(csv("patrocinador"));
+      setTypeFilter(csv("tipo"));
+      setDateFilter(csv("saida"));
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
   // Atalho "/" foca a busca (padrão de SaaS — Linear/GitHub). Ignorado quando
   // o usuário já está digitando em algum campo.
@@ -108,14 +274,17 @@ export default function PainelGeral() {
     setExpandedEvents(prev => { const next = new Set(prev); next.add(key); return next; });
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null);
+  // Feedback do restaurar: guarda o id em restauração para trocar o ícone
+  // daquele botão por um spinner (os outros só ficam desabilitados).
+  const [restoringItemId, setRestoringItemId] = useState<string | null>(null);
   const [showExportPDFModal, setShowExportPDFModal] = useState(false);
   const isMobile = useIsMobile();
   // Sem placeholderData: no TanStack v5 ele zera o isLoading e o spinner nunca
   // aparece — o usuário via "Nenhum item" e KPIs zerados durante o carregamento.
   const { data: items = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ["/api/items"] });
-  const { data: events = [] }           = useQuery<any[]>({ queryKey: ["/api/events"], placeholderData: [] });
-  const { data: sponsors = [] }         = useQuery<any[]>({ queryKey: ["/api/sponsors"], placeholderData: [] });
-  const { data: standardItems = [] }    = useQuery<any[]>({ queryKey: ["/api/standard-items"], placeholderData: [] });
+  const { data: events = [] }           = useQuery<Event[]>({ queryKey: ["/api/events"], placeholderData: [] });
+  const { data: sponsors = [] }         = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"], placeholderData: [] });
+  const { data: standardItems = [] }    = useQuery<StandardItem[]>({ queryKey: ["/api/standard-items"], placeholderData: [] });
 
   // Audit log SÓ da peça aberta no modal, buscado sob demanda. Antes a página
   // baixava /api/audit-logs INTEIRO no load (tabela que só cresce — em 1 ano,
@@ -152,6 +321,7 @@ export default function PainelGeral() {
       toast({ title: "Peça restaurada", description: "Ela voltou às listagens com o status que tinha." });
     },
     onError: (error: any) => toast({ title: "Erro ao restaurar", description: error.message, variant: "destructive" }),
+    onSettled: () => setRestoringItemId(null),
   });
 
   const deleteItemMutation = useMutation({
@@ -180,7 +350,12 @@ export default function PainelGeral() {
   // Filtragem, ordenação, agrupamento e KPIs são recomputados SÓ quando os
   // dados ou filtros mudam — sem o useMemo, cada render (ex.: abrir um modal)
   // refazia filter+sort da lista inteira.
-  const { statsItems, filteredItems, groupedItems, stats } = useMemo(() => {
+  const { statsItems, filteredItems, sortedGroupEntries, stats } = useMemo(() => {
+  // Hoje à meia-noite — calculado UMA vez por recomputação (antes era um
+  // new Date por item dentro do filtro).
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todayMs = today.getTime();
+
   const applyBaseFilters = (item: any) => {
     const matchesSearch =
       item.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -191,20 +366,18 @@ export default function PainelGeral() {
     const matchesType    = typeFilter.length === 0    || typeFilter.includes(item.type);
     const matchesSponsor = sponsorFilter.length === 0 ||
       (item.sponsors && Array.isArray(item.sponsors) && item.sponsors.some((s: any) => sponsorFilter.includes(s.id)));
-    const dateRangeMap: Record<string, (diff: number) => boolean> = {
-      today: d => d === 0, next3days: d => d >= 0 && d <= 3, next7days: d => d >= 0 && d <= 7,
-      next10days: d => d >= 0 && d <= 10, next15days: d => d >= 0 && d <= 15,
-      next30days: d => d >= 0 && d <= 30, overdue: d => d < 0,
-    };
     const matchesDate = dateFilter.length === 0 || (() => {
       // Âncora: SAÍDA DO CAMINHÃO (decisão de negócio) — é o prazo operacional
       // que os chips e alertas usam. Antes filtrava pelo início do evento, que
       // podia dizer "no prazo" com o caminhão já atrasado.
-      if (!item.event?.truckDepartureDate) return false;
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-      const truckDate = new Date(item.event.truckDepartureDate); truckDate.setHours(0, 0, 0, 0);
-      const diff = Math.ceil((truckDate.getTime() - today.getTime()) / 86400000);
-      return dateFilter.some(df => dateRangeMap[df] ? dateRangeMap[df](diff) : true);
+      // Itens sem data não são descartados em silêncio: têm opção própria.
+      if (!item.event?.truckDepartureDate) return dateFilter.includes("no_departure");
+      // toUTCDisplayDate: mesma conversão usada na EXIBIÇÃO da saída no header
+      // do evento — com new Date() local, um fuso atrás do UTC classificava
+      // "sai hoje" no dia errado.
+      const truckDate = toUTCDisplayDate(item.event.truckDepartureDate); truckDate.setHours(0, 0, 0, 0);
+      const diff = Math.ceil((truckDate.getTime() - todayMs) / 86400000);
+      return dateFilter.some(df => df === "no_departure" ? false : (DATE_RANGE_MAP[df] ? DATE_RANGE_MAP[df](diff) : true));
     })();
     return matchesSearch && matchesEvent && matchesType && matchesSponsor && matchesDate;
   };
@@ -213,9 +386,10 @@ export default function PainelGeral() {
     const isDeleted = !!item.deletedAt;
     // Itens excluídos só aparecem quando o filtro "deleted" está ativo.
     if (isDeleted) return f.includes("deleted");
-    // Itens normais nunca aparecem quando só "deleted" está selecionado.
+    // Itens normais nunca aparecem quando só "deleted" está selecionado —
+    // com "Excluídos" como único filtro, a lista mostra SÓ os excluídos.
     const activeFilters = f.filter(x => x !== "deleted");
-    if (activeFilters.length === 0) return !isDeleted;
+    if (activeFilters.length === 0) return !f.includes("deleted");
     const map: Record<string, string[]> = {
       requested:             ["draft", "requested"],
       awaiting_approval:     ["awaiting_approval", "awaiting_sponsor_approval"],
@@ -223,6 +397,8 @@ export default function PainelGeral() {
       awaiting_final_review: ["awaiting_final_review"],
       ready_for_production:  ["ready_for_production", "pronto_para_producao"],
     };
+    // approved e canceled não precisam de entrada no map: o fallback
+    // (item.status === fv) cobre os dois.
     return activeFilters.some(fv => map[fv] ? map[fv].includes(item.status) : item.status === fv);
   };
 
@@ -250,91 +426,61 @@ export default function PainelGeral() {
     return acc;
   }, {} as Record<string, { eventId: string | null; eventName: string; items: any[] }>);
 
-  const stats = {
-    total:                 statsItems.length,
-    requested:             statsItems.filter(i => i.status === "requested" || i.status === "draft").length,
-    // Contagem separada de rascunhos, exibida como subtexto no card
-    // "Solicitado" — sem ela, o card somava draft+requested sem indicação e o
-    // usuário via pills "Rascunho" que não batiam com nenhum card.
-    drafts:                statsItems.filter(i => i.status === "draft").length,
-    awaitingLinking:       statsItems.filter(i => i.status === "awaiting_linking").length,
-    awaitingSubmission:    statsItems.filter(i => i.status === "awaiting_submission").length,
-    awaitingApproval:      statsItems.filter(i => i.status === "awaiting_approval" || i.status === "awaiting_sponsor_approval").length,
-    awaitingFinalization:  statsItems.filter(i => i.status === "awaiting_finalization" || i.status === "sponsor_approved" || i.status === "awaiting_creator_review").length,
-    awaitingFinalReview:   statsItems.filter(i => i.status === "awaiting_final_review").length,
-    readyForProduction:    statsItems.filter(i => i.status === "ready_for_production" || i.status === "pronto_para_producao").length,
-    approved:              statsItems.filter(i => i.status === "approved").length,
-    inProduction:          statsItems.filter(i => i.status === "inProduction").length,
-    produced:              statsItems.filter(i => i.status === "produced").length,
-    conferred:             statsItems.filter(i => i.status === "conferred").length,
-    delivered:             statsItems.filter(i => i.status === "delivered").length,
-  };
+  // KPIs num único passe pela lista — eram 14 filter() (14 varreduras).
+  // `drafts` continua separado: subtexto do card "Solicitado" — sem ele, o
+  // card somava draft+requested sem indicação e o usuário via pills
+  // "Rascunho" que não batiam com nenhum card.
+  const stats = statsItems.reduce(
+    (acc, i: any) => {
+      acc.total++;
+      switch (i.status) {
+        case "draft": acc.drafts++; acc.requested++; break;
+        case "requested": acc.requested++; break;
+        case "awaiting_linking": acc.awaitingLinking++; break;
+        case "awaiting_submission": acc.awaitingSubmission++; break;
+        case "awaiting_approval": case "awaiting_sponsor_approval": acc.awaitingApproval++; break;
+        case "awaiting_finalization": case "sponsor_approved": case "awaiting_creator_review": acc.awaitingFinalization++; break;
+        case "awaiting_final_review": acc.awaitingFinalReview++; break;
+        case "ready_for_production": case "pronto_para_producao": acc.readyForProduction++; break;
+        case "approved": acc.approved++; break;
+        case "inProduction": acc.inProduction++; break;
+        case "produced": acc.produced++; break;
+        case "conferred": acc.conferred++; break;
+        case "delivered": acc.delivered++; break;
+        case "canceled": acc.canceled++; break;
+      }
+      return acc;
+    },
+    {
+      total: 0, requested: 0, drafts: 0, awaitingLinking: 0, awaitingSubmission: 0,
+      awaitingApproval: 0, awaitingFinalization: 0, awaitingFinalReview: 0,
+      readyForProduction: 0, approved: 0, inProduction: 0, produced: 0,
+      conferred: 0, delivered: 0, canceled: 0,
+    },
+  );
 
-  return { statsItems, filteredItems, groupedItems, stats };
+  // Grupos ordenados pela saída do caminhão (ascendente; sem data por último;
+  // empate/sem data desempata pelo nome) — Object.entries herdava a ordem de
+  // inserção, arbitrária para o usuário.
+  type EventGroup = { eventId: string | null; eventName: string; items: any[] };
+  const sortedGroupEntries = (Object.entries(groupedItems) as Array<[string, EventGroup]>).sort(([, a], [, b]) => {
+    const da = a.items[0]?.event?.truckDepartureDate;
+    const db = b.items[0]?.event?.truckDepartureDate;
+    if (!da && !db) return a.eventName.localeCompare(b.eventName, "pt-BR");
+    if (!da) return 1;
+    if (!db) return -1;
+    const diff = new Date(da).getTime() - new Date(db).getTime();
+    return diff !== 0 ? diff : a.eventName.localeCompare(b.eventName, "pt-BR");
+  });
+
+  return { statsItems, filteredItems, sortedGroupEntries, stats };
   }, [items, deletedItems, showDeleted, searchTerm, statusFilter, eventFilter, sponsorFilter, typeFilter, dateFilter, typeToGroup]);
 
-  // ── Status card component ───────────────────────────────
-  const StatusCard = ({
-    label, value, dot, color, filterKey, sub,
-  }: { label: string; value: number; dot: string; color: string; filterKey: string; sub?: string }) => {
-    const isActive = statusFilter.includes(filterKey);
-    // Cards zerados são informação de baixo valor no escaneamento ("onde está
-    // o gargalo?") — ficam esmaecidos, mas continuam clicáveis/filtráveis.
-    const isZero = value === 0 && !isActive;
-    return (
-      /* Os cartões são o filtro por status desta tela. Como div com onClick,
-         filtrar era exclusivamente com mouse — e só a cor dizia qual estava
-         ativo, coisa que aria-pressed comunica a quem não a vê. */
-      <div
-        role="button"
-        tabIndex={0}
-        aria-pressed={isActive}
-        aria-label={`Filtrar por ${label}`}
-        onClick={() => setStatusFilter(isActive ? [] : [filterKey])}
-        onKeyDown={e => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            setStatusFilter(isActive ? [] : [filterKey]);
-          }
-        }}
-        data-testid={`stat-card-${filterKey}`}
-        style={{
-          position: "relative", overflow: "hidden",
-          background: isActive ? `linear-gradient(135deg, ${color}18 0%, #ffffff 72%)` : "#ffffff",
-          border: `1px solid ${isActive ? color : "#e7e5e4"}`,
-          borderLeft: `4px solid ${isActive ? color : `${dot}90`}`,
-          borderRadius: 12,
-          padding: "14px 15px 13px 14px", minHeight: 102,
-          display: "flex", flexDirection: "column", justifyContent: "space-between",
-          cursor: "pointer",
-          boxShadow: isActive ? `0 0 0 2px ${color}30, 0 5px 12px ${color}18` : "0 1px 2px rgba(28,25,23,.04)",
-          transform: isActive ? "translateY(1px)" : "none",
-          opacity: isZero ? 0.55 : 1,
-          transition: "border-color 0.15s, box-shadow 0.15s, transform 0.15s, opacity 0.15s",
-        }}
-        onMouseEnter={(e) => {
-          if (!isActive) (e.currentTarget as HTMLDivElement).style.transform = "translateY(-2px)";
-          if (isZero) (e.currentTarget as HTMLDivElement).style.opacity = "1";
-        }}
-        onMouseLeave={(e) => {
-          if (!isActive) (e.currentTarget as HTMLDivElement).style.transform = "none";
-          if (isZero) (e.currentTarget as HTMLDivElement).style.opacity = "0.55";
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: dot, boxShadow: `0 0 0 4px ${dot}18` }} />
-          {isActive && <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: ".08em", color, textTransform: "uppercase" }}>Filtrado</span>}
-        </div>
-        <div>
-          <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: isActive ? color : "#1c1917", lineHeight: 1, margin: 0, letterSpacing: "-.05em" }}>{value}</p>
-          <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#746e69", marginTop: 4, lineHeight: 1.2 }}>{label}</p>
-          {sub && (
-            <p style={{ fontSize: 9, fontWeight: 600, color: "#746e69", marginTop: 2, lineHeight: 1.2 }}>{sub}</p>
-          )}
-        </div>
-      </div>
-    );
-  };
+  // Clique no card alterna o status DENTRO do conjunto de filtros — coerente
+  // com o dropdown multi-seleção. Antes o clique descartava a seleção inteira
+  // e ficava impossível combinar dois status pelos cards.
+  const toggleStatusCard = (filterKey: string) =>
+    setStatusFilter(prev => prev.includes(filterKey) ? prev.filter(s => s !== filterKey) : [...prev, filterKey]);
 
   const inputStyle: React.CSSProperties = {
     width: "100%", height: 36,
@@ -349,7 +495,7 @@ export default function PainelGeral() {
   };
 
   const hasActiveFilters = statusFilter.length > 0 || eventFilter.length > 0 || sponsorFilter.length > 0 || typeFilter.length > 0 || dateFilter.length > 0 || searchTerm.length > 0;
-  const clearAllFilters = () => { setStatusFilter([]); setEventFilter([]); setSponsorFilter([]); setTypeFilter([]); setDateFilter([]); setSearchTerm(""); };
+  const clearAllFilters = () => { setStatusFilter([]); setEventFilter([]); setSponsorFilter([]); setTypeFilter([]); setDateFilter([]); setSearchTerm(""); setSearchInput(""); };
 
 
   return (
@@ -429,6 +575,11 @@ export default function PainelGeral() {
           <div>
              <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: "#f97316", lineHeight: 1, margin: 0, letterSpacing: "-.05em" }}>{stats.total}</p>
             <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "rgba(255,255,255,0.5)", marginTop: 4, lineHeight: 1.2 }}>Total</p>
+            {stats.canceled > 0 && (
+              <p style={{ fontSize: 9, fontWeight: 600, color: "rgba(255,255,255,0.5)", marginTop: 2, lineHeight: 1.2 }}>
+                inclui {stats.canceled} cancelado{stats.canceled > 1 ? "s" : ""}
+              </p>
+            )}
           </div>
         </div>
 
@@ -442,6 +593,7 @@ export default function PainelGeral() {
           return (
             <StatusCard
               key={key} label={m.short} value={value} dot={m.dot} color={m.text} filterKey={key}
+              isActive={statusFilter.includes(key)} onToggle={() => toggleStatusCard(key)}
               sub={key === "requested" && stats.drafts > 0 ? `inclui ${stats.drafts} rascunho${stats.drafts > 1 ? "s" : ""}` : undefined}
             />
           );
@@ -460,7 +612,7 @@ export default function PainelGeral() {
               ["awaiting_final_review",stats.awaitingFinalReview],
             ] as Array<[string, number]>).map(([key, value]) => {
               const m = getStatusMeta(key);
-              return <StatusCard key={key} label={m.short} value={value} dot={m.dot} color={m.text} filterKey={key} />;
+              return <StatusCard key={key} label={m.short} value={value} dot={m.dot} color={m.text} filterKey={key} isActive={statusFilter.includes(key)} onToggle={() => toggleStatusCard(key)} />;
             })}
           </div>
         </div>
@@ -468,16 +620,19 @@ export default function PainelGeral() {
         {/* ZONA 3 — Produção & Entrega (linha inteira no desktop) */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6, ...(!isMobile && { gridColumn: "1 / -1" }) }}>
           <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69", paddingLeft: 2 }}>Produção &amp; Entrega</span>
-          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3,1fr)" : "repeat(5,1fr)", gap: 10, flex: 1 }}>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3,1fr)" : "repeat(6,1fr)", gap: 10, flex: 1 }}>
             {([
               ["ready_for_production", stats.readyForProduction],
+              // "Liberado" (approved): a etapa entre Pronto p/ Produção e Em
+              // Produção — o KPI existia e não aparecia em card nenhum.
+              ["approved",             stats.approved],
               ["inProduction",         stats.inProduction],
               ["produced",             stats.produced],
               ["conferred",            stats.conferred],
               ["delivered",            stats.delivered],
             ] as Array<[string, number]>).map(([key, value]) => {
               const m = getStatusMeta(key);
-              return <StatusCard key={key} label={m.short} value={value} dot={m.dot} color={m.text} filterKey={key} />;
+              return <StatusCard key={key} label={m.short} value={value} dot={m.dot} color={m.text} filterKey={key} isActive={statusFilter.includes(key)} onToggle={() => toggleStatusCard(key)} />;
             })}
           </div>
         </div>
@@ -487,7 +642,9 @@ export default function PainelGeral() {
 
       {/* ── Filter toolbar ── */}
       <div style={{
-        display: "flex", alignItems: isMobile ? "stretch" : "center", flexWrap: isMobile ? "wrap" : "nowrap", gap: 8,
+        // flexWrap também no desktop: em janelas médias (~1100px) os seis
+        // controles estouravam a linha e o contador sumia da tela.
+        display: "flex", alignItems: isMobile ? "stretch" : "center", flexWrap: "wrap", gap: 8,
         backgroundColor: "#ffffff",
         borderRadius: 8,
         border: "1px solid #e7e5e4",
@@ -502,8 +659,8 @@ export default function PainelGeral() {
             type="text"
             placeholder="Buscar ID, evento..."
             title="Atalho: pressione / para focar a busca"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             data-testid="input-search"
             style={{ ...inputStyle, paddingLeft: 28, height: 32, fontSize: 13 }}
           />
@@ -513,20 +670,20 @@ export default function PainelGeral() {
         {!isMobile && <div style={{ width: 1, height: 20, backgroundColor: "#e7e5e4", flexShrink: 0 }} />}
 
         {/* Evento */}
-        <div style={{ flexShrink: 0, minWidth: 150, ...(isMobile && { flex: "1 1 calc(50% - 4px)", minWidth: 0 }) }}>
+        <div style={{ flexShrink: 1, minWidth: 120, ...(isMobile && { flex: "1 1 calc(50% - 4px)", minWidth: 0 }) }}>
           <EventFilterDropdown
             values={eventFilter}
             onValuesChange={setEventFilter}
             options={(() => {
               const P: Record<string,number> = { urgente:0, alta:1, media:2, baixa:3 };
               const C: Record<string,string> = { urgente:'#ef4444', alta:'#f97316', media:'#eab308', baixa:'#3b82f6' };
-              return [...events].sort((a:any,b:any) => { const pa=P[a.priority]??4,pb=P[b.priority]??4; return pa!==pb?pa-pb:a.name.localeCompare(b.name,'pt-BR'); }).map((e:any) => ({ value: e.id, label: e.name, dotColor: C[e.priority] }));
+              return [...events].sort((a,b) => { const pa=P[a.priority ?? '']??4,pb=P[b.priority ?? '']??4; return pa!==pb?pa-pb:a.name.localeCompare(b.name,'pt-BR'); }).map((e) => ({ value: e.id, label: e.name, dotColor: C[e.priority ?? ''] }));
             })()}
           />
         </div>
 
         {/* Tipo */}
-        <div style={{ flexShrink: 0, minWidth: 130, ...(isMobile && { flex: "1 1 calc(50% - 4px)", minWidth: 0 }) }}>
+        <div style={{ flexShrink: 1, minWidth: 110, ...(isMobile && { flex: "1 1 calc(50% - 4px)", minWidth: 0 }) }}>
           <FilterSelect
             label="Tipo" allLabel="Todos os tipos"
             values={typeFilter} onValuesChange={setTypeFilter}
@@ -538,19 +695,19 @@ export default function PainelGeral() {
         </div>
 
         {/* Patrocinador */}
-        <div style={{ flex: 1, minWidth: 160, ...(isMobile && { flex: "1 1 calc(50% - 4px)", minWidth: 0 }) }}>
+        <div style={{ flex: 1, flexShrink: 1, minWidth: 130, ...(isMobile && { flex: "1 1 calc(50% - 4px)", minWidth: 0 }) }}>
           <FilterSelect
             label="Patrocinador" allLabel="Todos os patrocinadores"
             values={sponsorFilter} onValuesChange={setSponsorFilter}
             hideWhenEmpty={false}
-            options={(sponsors as any[]).map((s: any) => ({ value: s.id, label: s.name }))}
+            options={sponsors.map((s) => ({ value: s.id, label: s.name }))}
             testId="select-sponsor-filter"
             fullWidth
           />
         </div>
 
         {/* Status */}
-        <div style={{ flexShrink: 0, minWidth: 140, ...(isMobile && { flex: "1 1 calc(50% - 4px)", minWidth: 0 }) }}>
+        <div style={{ flexShrink: 1, minWidth: 120, ...(isMobile && { flex: "1 1 calc(50% - 4px)", minWidth: 0 }) }}>
           <FilterSelect
             label="Status" allLabel="Qualquer status"
             values={statusFilter} onValuesChange={setStatusFilter}
@@ -559,12 +716,7 @@ export default function PainelGeral() {
               // Rótulos derivam de lib/status.ts (fonte única) — o hardcoded
               // anterior chamava `requested` de "Rascunho", divergindo dos
               // pills da tabela ("Solicitado").
-              ...[
-                "requested", "awaiting_linking", "awaiting_submission",
-                "awaiting_approval", "awaiting_finalization", "awaiting_final_review",
-                "ready_for_production", "inProduction", "produced",
-                "conferred", "delivered",
-              ].map((value) => ({ value, label: getStatusLabel(value), pinned: true })),
+              ...STATUS_FILTER_VALUES.map((value) => ({ value, label: getStatusLabel(value), pinned: true })),
               ...(canDeleteAny ? [{ value: "deleted", label: "Excluídos", pinned: true }] : []),
             ]}
             testId="select-status-filter"
@@ -573,22 +725,14 @@ export default function PainelGeral() {
         </div>
 
         {/* Data */}
-        <div style={{ flexShrink: 0, minWidth: 130, ...(isMobile && { flex: "1 1 calc(50% - 4px)", minWidth: 0 }) }}>
+        <div style={{ flexShrink: 1, minWidth: 110, ...(isMobile && { flex: "1 1 calc(50% - 4px)", minWidth: 0 }) }}>
           {/* O critério é a SAÍDA DO CAMINHÃO — a âncora operacional dos
               prazos (mesma dos chips e dos alertas), confirmada pelo negócio. */}
           <FilterSelect
             label="Saída do caminhão" allLabel="Saída: qualquer data"
             values={dateFilter} onValuesChange={setDateFilter}
             hideWhenEmpty={false}
-            options={[
-              { value: "overdue",    label: "Caminhão já saiu",   pinned: true },
-              { value: "today",      label: "Sai hoje",           pinned: true },
-              { value: "next3days",  label: "Sai em até 3 dias",  pinned: true },
-              { value: "next7days",  label: "Sai em até 7 dias",  pinned: true },
-              { value: "next10days", label: "Sai em até 10 dias", pinned: true },
-              { value: "next15days", label: "Sai em até 15 dias", pinned: true },
-              { value: "next30days", label: "Sai em até 30 dias", pinned: true },
-            ]}
+            options={DATE_FILTER_VALUES.map((value) => ({ value, label: DATE_FILTER_LABELS[value], pinned: true }))}
             testId="select-date-filter"
             fullWidth
           />
@@ -615,6 +759,47 @@ export default function PainelGeral() {
           )}
         </div>
       </div>
+
+      {/* ── Chips dos filtros ativos — a seleção inteira num relance, cada
+          filtro removível individualmente sem reabrir dropdown por dropdown.
+          O "× Limpar" da toolbar continua sendo o limpa-tudo. ── */}
+      {hasActiveFilters && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginTop: -12 }}>
+          {searchTerm && (
+            <FilterChip label={`Busca: "${searchTerm}"`} onRemove={() => { setSearchInput(""); setSearchTerm(""); }} />
+          )}
+          {eventFilter.map(id => (
+            <FilterChip key={`ev-${id}`} label={`Evento: ${events.find(e => e.id === id)?.name ?? id}`} onRemove={() => setEventFilter(prev => prev.filter(v => v !== id))} />
+          ))}
+          {typeFilter.map(t => (
+            <FilterChip key={`tp-${t}`} label={`Tipo: ${t}`} onRemove={() => setTypeFilter(prev => prev.filter(v => v !== t))} />
+          ))}
+          {sponsorFilter.map(id => (
+            <FilterChip key={`sp-${id}`} label={`Patrocinador: ${sponsors.find(s => s.id === id)?.name ?? id}`} onRemove={() => setSponsorFilter(prev => prev.filter(v => v !== id))} />
+          ))}
+          {statusFilter.map(s => (
+            <FilterChip key={`st-${s}`} label={`Status: ${s === "deleted" ? "Excluídos" : getStatusLabel(s)}`} onRemove={() => setStatusFilter(prev => prev.filter(v => v !== s))} />
+          ))}
+          {dateFilter.map(d => (
+            <FilterChip key={`dt-${d}`} label={`Saída: ${DATE_FILTER_LABELS[d] ?? d}`} onRemove={() => setDateFilter(prev => prev.filter(v => v !== d))} />
+          ))}
+        </div>
+      )}
+
+      {/* Sem permissão para a visão Excluídos (a query nem roda — enabled
+          exige canDeleteAny): diz o porquê e oferece a saída, em vez de uma
+          lista silenciosamente vazia. Acontece via URL compartilhada. */}
+      {showDeleted && !canDeleteAny && (
+        <div style={{ backgroundColor: "#fff", border: "1px solid #fecaca", borderRadius: 10, padding: "10px 16px", display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#b91c1c" }}>Você não tem permissão para ver peças excluídas.</span>
+          <button
+            onClick={() => setStatusFilter(prev => prev.filter(s => s !== "deleted"))}
+            style={{ fontSize: 12, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 6, padding: "5px 12px", cursor: "pointer" }}
+          >
+            Remover filtro
+          </button>
+        </div>
+      )}
 
       {/* Estados da visão Excluídos — sem eles, carregamento parecia lista
           vazia e uma falha virava "Nenhum item encontrado" (mentira). */}
@@ -683,7 +868,7 @@ export default function PainelGeral() {
             )}
           </div>
         ) : (
-          Object.entries(groupedItems).map(([eventKey, eventData]) => {
+          sortedGroupEntries.map(([eventKey, eventData]) => {
             const gd = eventData as { eventId: string | null; eventName: string; items: any[] };
             const firstItem = gd.items[0];
             // Renderização incremental: mantém o DOM pequeno em eventos com
@@ -691,40 +876,82 @@ export default function PainelGeral() {
             const isExpanded = expandedEvents.has(eventKey);
             const visibleItems = isExpanded || gd.items.length <= ROW_CAP ? gd.items : gd.items.slice(0, ROW_CAP);
             const hiddenCount = gd.items.length - visibleItems.length;
+            // Countdown do prazo (mesmo espírito do event-detail): a âncora é
+            // a SAÍDA DO CAMINHÃO. Evento cujo início já passou há alguns dias
+            // é HISTÓRIA — mostra "Encerrado" neutro em vez de "Atrasado 90d"
+            // vermelho, alarme falso que ensina a ignorar o vermelho de verdade.
+            const groupEvent = firstItem?.event;
+            let deadline: { text: string; color: string } | null = null;
+            if (groupEvent?.truckDepartureDate) {
+              const today = new Date(); today.setHours(0, 0, 0, 0);
+              const truckDay = toUTCDisplayDate(groupEvent.truckDepartureDate); truckDay.setHours(0, 0, 0, 0);
+              const diffDays = Math.round((truckDay.getTime() - today.getTime()) / 86400000);
+              const isHistorical = groupEvent.startDate
+                ? parseDateLocal(String(groupEvent.startDate)).getTime() < today.getTime() - 3 * 86400000
+                : false;
+              deadline = isHistorical ? { text: "Encerrado", color: "#746e69" }
+                : diffDays < 0 ? { text: `Atrasado ${Math.abs(diffDays)}d`, color: "#b91c1c" }
+                : diffDays === 0 ? { text: "Sai hoje", color: "#b45309" }
+                : { text: `Faltam ${diffDays}d`, color: "#746e69" };
+            }
             // overflow: clip (não hidden): clipa o border-radius SEM criar
             // scroll-container — pré-requisito para o thead sticky funcionar
             // contra o scroll da página.
             return (
               <div key={eventKey} style={{ border: "1px solid #e2e2e2", borderRadius: 12, backgroundColor: "#ffffff", overflow: "clip", boxShadow: "0 2px 8px rgba(28,25,23,0.07)" }}>
 
-                {/* Group header */}
+                {/* Group header — sticky (top 4 = logo abaixo da barra de
+                    gradiente do topo): mantém o contexto do evento visível ao
+                    rolar listas longas. zIndex 6 fica ACIMA do thead sticky
+                    (5); fundo sólido para as linhas não vazarem por trás.
+                    Altura FIXA (EVENT_HEADER_H) — é ela que o thead usa como
+                    `top` para encostar exatamente abaixo. Nada aqui cria novo
+                    scroll-container (ver comentário na tabela). */}
                 <div style={{
+                  position: "sticky", top: 4, zIndex: 6,
+                  backgroundColor: "#ffffff",
                   borderBottom: "1px solid #e7e5e4",
-                  padding: "13px 18px 13px 20px",
+                  // Altura fixa SÓ no desktop (onde o thead precisa dela p/
+                  // calcular o próprio top). Mobile usa cards, sem thead —
+                  // altura automática deixa os metadados quebrarem linha.
+                  ...(isMobile
+                    ? { padding: "13px 18px 13px 20px" }
+                    : { padding: "0 18px 0 20px", height: EVENT_HEADER_H, boxSizing: "border-box" as const }),
                   display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
                   borderLeft: "3px solid #f97316",
                 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <div>
-                      <h3 style={{
-                        fontFamily: "'Space Grotesk', sans-serif",
-                        fontWeight: 800, fontSize: 15,
-                        textTransform: "uppercase", letterSpacing: "0.01em",
-                        color: "#1c1917", margin: 0, lineHeight: 1,
-                      }}>
-                        {gd.eventName}
-                      </h3>
-                      <div style={{ display: "flex", gap: 14, marginTop: 5 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+                    <div style={{ minWidth: 0 }}>
+                      {/* Nome do evento navega para o detalhe — era a única
+                          menção ao evento na tela sem caminho até ele. */}
+                      {gd.eventId ? (
+                        <Link
+                          href={`/eventos/${gd.eventId}`}
+                          onClick={(e) => e.stopPropagation()}
+                          title={`Abrir evento ${gd.eventName}`}
+                          style={{ textDecoration: "none", display: "block", minWidth: 0 }}
+                        >
+                          <h3 style={EVENT_TITLE_STYLE}>{gd.eventName}</h3>
+                        </Link>
+                      ) : (
+                        <h3 style={EVENT_TITLE_STYLE}>{gd.eventName}</h3>
+                      )}
+                      <div style={{ display: "flex", gap: isMobile ? 10 : 14, marginTop: 5, minWidth: 0, flexWrap: isMobile ? "wrap" : "nowrap" }}>
                         {firstItem?.event?.startDate && (
-                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: "#746e69" }}>
+                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: "#746e69", whiteSpace: "nowrap" }}>
                             <Calendar style={{ width: 11, height: 11, flexShrink: 0 }} />
                             Início: {format(parseDateLocal(firstItem.event.startDate), "dd MMM yyyy", { locale: ptBR })}
                           </span>
                         )}
                         {firstItem?.event?.truckDepartureDate && (
-                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: "#746e69" }}>
+                          <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: "#746e69", whiteSpace: "nowrap" }}>
                             <Truck style={{ width: 11, height: 11, flexShrink: 0 }} />
                             Saída: {format(toUTCDisplayDate(firstItem.event.truckDepartureDate), "dd MMM yyyy 'às' HH:mm", { locale: ptBR })}
+                          </span>
+                        )}
+                        {deadline && (
+                          <span style={{ fontSize: 10, fontWeight: 800, color: deadline.color, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>
+                            {deadline.text}
                           </span>
                         )}
                       </div>
@@ -747,13 +974,11 @@ export default function PainelGeral() {
                 {isMobile ? (
                   <div style={{ padding: "8px 10px", display: "flex", flexDirection: "column", gap: 0 }}>
                     {(() => {
-                      const typeToGroupLocal: Record<string, string> = {};
-                      for (const s of standardItems) {
-                        if (s.group) typeToGroupLocal[s.name] = s.group;
-                      }
+                      // typeToGroup: usa o memo do topo — este bloco reconstruía
+                      // o mapa a cada render de cada evento.
                       const groupMap: Record<string, Record<string, any[]>> = {};
                       for (const item of visibleItems) {
-                        const g = typeToGroupLocal[item.type] || '';
+                        const g = typeToGroup[item.type] || '';
                         if (!groupMap[g]) groupMap[g] = {};
                         if (!groupMap[g][item.type]) groupMap[g][item.type] = [];
                         groupMap[g][item.type].push(item);
@@ -845,13 +1070,15 @@ export default function PainelGeral() {
                                     <div style={{ display: "flex", flexDirection: "column", gap: 4, flexShrink: 0 }}>
                                       {isDeleted && isAdmin && (
                                         <button
-                                          onClick={(e) => { e.stopPropagation(); restoreItemMutation.mutate(item.id); }}
+                                          onClick={(e) => { e.stopPropagation(); setRestoringItemId(item.id); restoreItemMutation.mutate(item.id); }}
                                           disabled={restoreItemMutation.isPending}
                                           title="Restaurar peça" aria-label="Restaurar peça"
                                           data-testid={`button-restore-${item.id}`}
-                                          style={{ background: "#d1fae5", border: "1px solid #6ee7b7", cursor: "pointer", borderRadius: 6, color: "#065f46", display: "flex", alignItems: "center", justifyContent: "center", height: 40, width: 40 }}
+                                          style={{ background: "#d1fae5", border: "1px solid #6ee7b7", cursor: "pointer", borderRadius: 6, color: "#065f46", display: "flex", alignItems: "center", justifyContent: "center", height: 44, width: 44, opacity: restoringItemId === item.id ? 0.6 : 1 }}
                                         >
-                                          <RotateCcw style={{ width: 15, height: 15 }} />
+                                          {restoringItemId === item.id
+                                            ? <Loader2 className="animate-spin" style={{ width: 15, height: 15 }} />
+                                            : <RotateCcw style={{ width: 15, height: 15 }} />}
                                         </button>
                                       )}
                                       {!isDeleted && (
@@ -862,7 +1089,7 @@ export default function PainelGeral() {
                                             background: "none", border: "1px solid #e7e5e4", cursor: "pointer",
                                             borderRadius: 6, color: "#746e69",
                                             display: "flex", alignItems: "center", justifyContent: "center",
-                                            height: 40, width: 40,
+                                            height: 44, width: 44,
                                           }}
                                         >
                                           <Eye style={{ width: 15, height: 15 }} />
@@ -878,22 +1105,26 @@ export default function PainelGeral() {
                                               background: "none", border: "1px solid #fecaca", cursor: "pointer",
                                               borderRadius: 6, color: "#746e69",
                                               display: "flex", alignItems: "center", justifyContent: "center",
-                                              height: 40, width: 40,
+                                              height: 44, width: 44,
                                             }}
                                           >
                                             <Trash2 style={{ width: 14, height: 14 }} />
                                           </button>
                                         ) : (
-                                          <span
+                                          // Botão desabilitado (não span): entra na ordem de
+                                          // tabulação do leitor de tela e anuncia o bloqueio.
+                                          <button
+                                            type="button" disabled aria-disabled="true"
                                             title="Exclusão bloqueada — peça já está em Arte ou produção"
+                                            aria-label="Exclusão bloqueada — peça já está em Arte ou produção"
                                             style={{
-                                              border: "1px solid #e7e5e4", borderRadius: 6, color: "#d1cdc9",
+                                              background: "none", border: "1px solid #e7e5e4", borderRadius: 6, color: "#a8a29e",
                                               display: "flex", alignItems: "center", justifyContent: "center",
-                                              height: 32, width: 36, cursor: "not-allowed",
+                                              height: 44, width: 44, cursor: "not-allowed", padding: 0,
                                             }}
                                           >
                                             <Trash2 style={{ width: 14, height: 14 }} />
-                                          </span>
+                                          </button>
                                         )
                                       )}
                                     </div>
@@ -922,30 +1153,29 @@ export default function PainelGeral() {
                   <table style={{ width: "100%", borderCollapse: "collapse" }}>
                     <thead>
                       <tr>
-                        {["ID", "Descrição", "Medidas", "Patrocinador", "Status", ""].map((col, i) => (
+                        {["ID", "Descrição", "Medidas", "Patrocinador", "Status", "Ações"].map((col, i) => (
                           <th key={i} style={{
                             /* Sticky: colunas continuam visíveis ao rolar listas
                                longas. bg no th (não no tr) — th sticky sem fundo
-                               ficaria transparente sobre as linhas. */
-                            position: "sticky", top: 0, zIndex: 5,
+                               ficaria transparente sobre as linhas.
+                               top = EVENT_HEADER_H + 4: encosta exatamente sob o
+                               header sticky do evento (altura fixa + barra de
+                               gradiente de 4px), sem sobrepor nem deixar vão. */
+                            position: "sticky", top: EVENT_HEADER_H + 4, zIndex: 5,
                             backgroundColor: "#1c1917",
                             padding: "12px 20px",
                             fontSize: 11, fontWeight: 900, textTransform: "uppercase",
                             letterSpacing: "0.1em", color: "#ffffff",
                             textAlign: i === 5 ? "right" : "left",
                             whiteSpace: "nowrap",
-                          }}>{col}</th>
+                          }}>{i === 5 ? <span className="sr-only">{col}</span> : col}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
                       {(() => {
-                        // Build type → group map from standardItems
-                        const typeToGroup: Record<string, string> = {};
-                        for (const s of standardItems) {
-                          if (s.group) typeToGroup[s.name] = s.group;
-                        }
-                        // Group by Grupo Pai first, then by type within each group
+                        // Group by Grupo Pai first, then by type within each
+                        // group. typeToGroup vem do memo do topo (fonte única).
                         const groupMap: Record<string, Record<string, any[]>> = {};
                         for (const item of visibleItems) {
                           const g = typeToGroup[item.type] || '';
@@ -1068,11 +1298,11 @@ export default function PainelGeral() {
                                     <td style={{ padding: "10px 18px", maxWidth: 260 }}>
                                       <div style={{ display: "flex", alignItems: "center", gap: 6, overflow: "hidden" }}>
                                         {item.description ? (
-                                          <span style={{ fontSize: 13, color: isDeleted ? "#746e69" : "#44403c", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
+                                          <span title={item.description} style={{ fontSize: 13, color: isDeleted ? "#746e69" : "#44403c", fontWeight: 500, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, textDecoration: isDeleted ? "line-through" : "none" }}>
                                             {item.description}
                                           </span>
                                         ) : (
-                                          <span style={{ color: "#c4bfbb", fontSize: 13 }}>—</span>
+                                          <span style={{ color: "#a8a29e", fontSize: 13 }}>—</span>
                                         )}
                                         {!isDeleted && item.observations && (
                                           <span style={{ display: "inline-flex", alignItems: "center", gap: 3, flexShrink: 0, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "#57534e", backgroundColor: "#f0ede9", border: "1px solid #e2ddd8", borderRadius: 6, padding: "2px 6px", whiteSpace: "nowrap" }}>
@@ -1104,7 +1334,7 @@ export default function PainelGeral() {
                                           )}
                                         </div>
                                       ) : (
-                                        <span style={{ color: "#c4bfbb", fontSize: 13 }}>—</span>
+                                        <span style={{ color: "#a8a29e", fontSize: 13 }}>—</span>
                                       )}
                                     </td>
 
@@ -1123,13 +1353,15 @@ export default function PainelGeral() {
                                       <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
                                         {isDeleted && isAdmin && (
                                           <button
-                                            onClick={(e) => { e.stopPropagation(); restoreItemMutation.mutate(item.id); }}
+                                            onClick={(e) => { e.stopPropagation(); setRestoringItemId(item.id); restoreItemMutation.mutate(item.id); }}
                                             disabled={restoreItemMutation.isPending}
                                             title="Restaurar peça" aria-label="Restaurar peça"
                                             data-testid={`button-restore-${item.id}`}
-                                            style={{ background: "#d1fae5", border: "1px solid #6ee7b7", cursor: "pointer", borderRadius: 6, color: "#065f46", display: "flex", alignItems: "center", justifyContent: "center", padding: 6 }}
+                                            style={{ background: "#d1fae5", border: "1px solid #6ee7b7", cursor: "pointer", borderRadius: 6, color: "#065f46", display: "flex", alignItems: "center", justifyContent: "center", padding: 6, opacity: restoringItemId === item.id ? 0.6 : 1 }}
                                           >
-                                            <RotateCcw style={{ width: 14, height: 14 }} />
+                                            {restoringItemId === item.id
+                                              ? <Loader2 className="animate-spin" style={{ width: 14, height: 14 }} />
+                                              : <RotateCcw style={{ width: 14, height: 14 }} />}
                                           </button>
                                         )}
                                         {!isDeleted && (
@@ -1166,16 +1398,21 @@ export default function PainelGeral() {
                                               <Trash2 style={{ width: 15, height: 15 }} />
                                             </button>
                                           ) : (
-                                            <span
+                                            // Botão desabilitado (não span): entra na ordem de
+                                            // tabulação do leitor de tela e anuncia o bloqueio.
+                                            <button
+                                              type="button" disabled aria-disabled="true"
                                               title="Exclusão bloqueada — peça já está em Arte ou produção"
+                                              aria-label="Exclusão bloqueada — peça já está em Arte ou produção"
                                               style={{
-                                                padding: 4, color: "#d1cdc9",
+                                                background: "none", border: "none",
+                                                padding: 4, color: "#a8a29e",
                                                 display: "flex", alignItems: "center", justifyContent: "center",
                                                 cursor: "not-allowed",
                                               }}
                                             >
                                               <Trash2 style={{ width: 15, height: 15 }} />
-                                            </span>
+                                            </button>
                                           )
                                         )}
                                       </div>
@@ -1214,10 +1451,12 @@ export default function PainelGeral() {
       </section>
 
       {/* ── Exportar PDF — mesmo modal da Arte e do Atendimento ── */}
+      {/* filteredItems (não items): o PDF exporta o recorte que está na tela —
+          exportar com filtros ativos gerava um PDF da base inteira. */}
       <ExportPdfDialog
         open={showExportPDFModal}
         onOpenChange={setShowExportPDFModal}
-        items={items}
+        items={filteredItems}
         title="Peças"
       />
 

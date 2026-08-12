@@ -1,22 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
-import { parseDateLocal } from "@/lib/utils";
-import { StatusBadge } from "@/components/status-badge";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Plus, Calendar, Truck, AlertCircle, AlertTriangle, Search, Pencil, Trash2, Package, Filter, Flag, Building2, CheckCircle, ChevronDown, ChevronUp, Clock, HelpCircle } from "lucide-react";
+import { Plus, Calendar, Truck, AlertCircle, AlertTriangle, Search, Pencil, Trash2, Package, Flag, Building2, CheckCircle, ChevronDown, ChevronUp, Clock, HelpCircle } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Link, useLocation } from "wouter";
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import type { Sponsor } from "@shared/schema";
+import { FilterSelect } from "@/components/filter-select";
+import { SponsorChips } from "@/components/sponsor-chips";
+import { PRIORITY, getPriorityMeta } from "@/lib/status";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   Tooltip,
@@ -33,11 +31,8 @@ import {
   AlertDialogContent,
   AlertDialogDescription,
   AlertDialogFooter,
-  AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -55,42 +50,79 @@ const QUOTA_OPTIONS = [
   { value: "MINISTERIO", label: "Ministério", color: "#059669" },
 ];
 
+// Offsets padrão dos prazos (dias relativos à saída do caminhão).
+const DEFAULT_DEADLINES = {
+  deadlineListaImagens: -25,
+  deadlineEntregaLayouts: -20,
+  deadlineAprovacaoLayout: -12,
+  deadlineRevisaoLista: -8,
+  deadlineProducaoGrafica: -1,
+};
+
+// Prioridade efetiva do evento para filtragem/ordenação (concluído vem do status).
+function getEventPriority(event: any): PriorityLevel {
+  if (event.status === 'completed') return 'completed';
+  if (!event.priority) return 'sem_prioridade';
+  return event.priority as PriorityLevel;
+}
+
+// Cores/rótulos derivados de PRIORITY (lib/status) — antes havia mapas hex duplicados aqui.
+const PRIORITY_FALLBACK = { label: "Sem Prioridade", hex: '#a8a29e' };
+function getPriorityConfig(priority: string | null | undefined): { label: string; hex: string } {
+  const meta = getPriorityMeta(priority);
+  return meta ? { label: meta.label, hex: meta.dot } : PRIORITY_FALLBACK;
+}
+
+const MONTH_NAMES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+
 function EventCardActions({
   event,
   cardBorderHex,
-  dark = false,
   onEdit,
   onDelete,
   onSetPriority,
   canEdit,
   canDelete,
+  canSetPriority,
   isMobile,
 }: {
   event: any;
   cardBorderHex: string;
-  dark?: boolean;
   onEdit: (event: any, e: React.MouseEvent) => void;
   onDelete: (id: string, e: React.MouseEvent) => void;
   onSetPriority: (event: any, e: React.MouseEvent) => void;
   canEdit: boolean;
   canDelete: boolean;
+  canSetPriority: boolean;
   isMobile?: boolean;
 }) {
+  // Alvo de toque: 44px no mobile, 32px no desktop.
+  const btnBase: React.CSSProperties = {
+    minWidth: isMobile ? 44 : 32,
+    minHeight: isMobile ? 44 : 32,
+    padding: '8px',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    display: 'flex',
+    boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+  };
   return (
     <div
       className={isMobile ? "focus-within:opacity-100" : "opacity-0 group-hover:opacity-100 focus-within:opacity-100"}
-      style={{ position: 'absolute', top: 0, right: 0, padding: '16px', display: 'flex', gap: '6px', transition: 'opacity 0.2s', zIndex: 10 }}
+      style={{ display: 'flex', gap: '6px', transition: 'opacity 0.2s', flexShrink: 0 }}
       onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
     >
-      {/* canEdit: alterar prioridade é gestão do evento — mesmos papéis de
-          editar (antes qualquer perfil via a bandeira). */}
-      {!dark && canEdit && (
+      {/* canSetPriority: espelha o gate do servidor (admin/atendimento/solicitacao). */}
+      {canSetPriority && (
         <button
           onClick={(e) => onSetPriority(event, e)}
           title="Definir prioridade"
           aria-label="Definir prioridade"
           data-testid={`button-priority-event-${event.id}`}
-          style={{ padding: '8px', backgroundColor: '#f9f9f8', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: event.priority ? cardBorderHex : '#a8a29e', boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}
+          style={{ ...btnBase, backgroundColor: '#f9f9f8', color: event.priority ? cardBorderHex : '#a8a29e' }}
         >
           <Flag style={{ width: '13px', height: '13px', fill: event.priority ? cardBorderHex : 'none' }} />
         </button>
@@ -98,14 +130,14 @@ function EventCardActions({
       {canEdit && (
         <button onClick={(e) => onEdit(event, e)} data-testid={`button-edit-event-${event.id}`}
           title="Editar evento" aria-label="Editar evento"
-          style={{ padding: '8px', backgroundColor: dark ? 'rgba(255,255,255,0.1)' : '#f9f9f8', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: dark ? '#d4d0cb' : '#78716c', boxShadow: dark ? 'none' : '0 1px 4px rgba(0,0,0,0.08)' }}>
+          style={{ ...btnBase, backgroundColor: '#f9f9f8', color: '#78716c' }}>
           <Pencil style={{ width: '13px', height: '13px' }} />
         </button>
       )}
       {canDelete && (
         <button onClick={(e) => onDelete(event.id, e)} data-testid={`button-delete-event-${event.id}`}
           title="Excluir evento" aria-label="Excluir evento"
-          style={{ padding: '8px', backgroundColor: dark ? 'rgba(239,68,68,0.15)' : '#fef2f2', border: 'none', borderRadius: '8px', cursor: 'pointer', display: 'flex', color: dark ? '#f87171' : '#ef4444', boxShadow: dark ? 'none' : '0 1px 4px rgba(0,0,0,0.08)' }}>
+          style={{ ...btnBase, backgroundColor: '#fef2f2', color: '#ef4444' }}>
           <Trash2 style={{ width: '13px', height: '13px' }} />
         </button>
       )}
@@ -114,7 +146,14 @@ function EventCardActions({
 }
 
 export default function Eventos() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
+  // Permissões de UI espelham os gates do servidor:
+  // - editar: admin/solicitacao; excluir: só admin (DELETE devolve 403 aos demais);
+  // - prioridade: admin/atendimento/solicitacao; criar: admin/solicitacao.
+  const canEdit = hasPermission("admin") || hasPermission("solicitacao");
+  const canDelete = hasPermission("admin");
+  const canSetPriority = user?.role === 'admin' || user?.role === 'atendimento' || user?.role === 'solicitacao';
+  const canCreate = user?.role === 'admin' || user?.role === 'solicitacao';
   const [open, setOpen] = useState(false);
   // Filtros inicializam da URL e são espelhados nela (mesmo padrão do Painel
   // Geral): F5 não perde o estado e o link filtrado é compartilhável.
@@ -157,11 +196,7 @@ export default function Eventos() {
     name: "",
     startDate: "",
     truckDepartureDate: "",
-    deadlineListaImagens: -25,
-    deadlineEntregaLayouts: -20,
-    deadlineAprovacaoLayout: -12,
-    deadlineRevisaoLista: -8,
-    deadlineProducaoGrafica: -1,
+    ...DEFAULT_DEADLINES,
   });
   const [prazosExpanded, setPrazosExpanded] = useState(false);
   const [selectedSponsorIds, setSelectedSponsorIds] = useState<string[]>([]);
@@ -183,9 +218,12 @@ export default function Eventos() {
     queryKey: ["/api/events"],
   });
 
-  const { data: sponsors = [] } = useQuery<Sponsor[]>({
+  const { data: sponsors = [], isLoading: sponsorsQueryLoading, isError: sponsorsQueryError } = useQuery<Sponsor[]>({
     queryKey: ["/api/sponsors"],
   });
+
+  // Resolve nome/cor dos vínculos do payload de eventos (que só trazem sponsorId).
+  const sponsorById = useMemo(() => new Map(sponsors.map((s) => [s.id, s])), [sponsors]);
 
   const createEventMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
@@ -212,7 +250,7 @@ export default function Eventos() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       setOpen(false);
-      setFormData({ name: "", startDate: "", truckDepartureDate: "", ...defaultDeadlines });
+      setFormData({ name: "", startDate: "", truckDepartureDate: "", ...DEFAULT_DEADLINES });
       setSelectedSponsorIds([]);
       setSponsorQuotaMap({});
       setPrazosExpanded(false);
@@ -273,7 +311,7 @@ export default function Eventos() {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       setOpen(false);
       setEditingEvent(null);
-      setFormData({ name: "", startDate: "", truckDepartureDate: "", ...defaultDeadlines });
+      setFormData({ name: "", startDate: "", truckDepartureDate: "", ...DEFAULT_DEADLINES });
       setSelectedSponsorIds([]);
       setSponsorQuotaMap({});
       setPrazosExpanded(false);
@@ -375,7 +413,7 @@ export default function Eventos() {
     }
   };
 
-  const handleEdit = (event: any, e: React.MouseEvent) => {
+  const handleEdit = useCallback((event: any, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setSelectedSponsorIds([]);
@@ -383,7 +421,9 @@ export default function Eventos() {
     setEditingEvent(event);
     setFormData({
       name: event.name || "",
-      startDate: event.startDate || "",
+      // startDate pode vir como ISO completo ("2026-03-10T00:00:00.000Z") —
+      // sem o slice, fmtDateBR/parseDateStr quebravam a exibição no modal.
+      startDate: (event.startDate || "").slice(0, 10),
       truckDepartureDate: event.truckDepartureDate ? new Date(event.truckDepartureDate).toISOString().slice(0, 16) : "",
       deadlineListaImagens: event.deadlineListaImagens ?? -25,
       deadlineEntregaLayouts: event.deadlineEntregaLayouts ?? -20,
@@ -392,26 +432,18 @@ export default function Eventos() {
       deadlineProducaoGrafica: event.deadlineProducaoGrafica ?? -1,
     });
     setOpen(true);
-  };
+  }, []);
 
-  const handleDelete = (id: string, e: React.MouseEvent) => {
+  const handleDelete = useCallback((id: string, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setDeletingEventId(id);
-  };
-
-  const defaultDeadlines = {
-    deadlineListaImagens: -25,
-    deadlineEntregaLayouts: -20,
-    deadlineAprovacaoLayout: -12,
-    deadlineRevisaoLista: -8,
-    deadlineProducaoGrafica: -1,
-  };
+  }, []);
 
   const handleCloseDialog = () => {
     setOpen(false);
     setEditingEvent(null);
-    setFormData({ name: "", startDate: "", truckDepartureDate: "", ...defaultDeadlines });
+    setFormData({ name: "", startDate: "", truckDepartureDate: "", ...DEFAULT_DEADLINES });
     setSelectedSponsorIds([]);
     setSponsorQuotaMap({});
     setSponsorSearch("");
@@ -443,27 +475,12 @@ export default function Eventos() {
     }
   }, [editingEvent]);
 
-  // Função para obter a prioridade do evento (para filtragem)
-  const getEventPriority = (event: any): PriorityLevel => {
-    if (event.status === 'completed') return 'completed';
-    if (!event.priority) return 'sem_prioridade'; // Sem prioridade definida
-    return event.priority as PriorityLevel;
-  };
-
-  const togglePriority = (priority: PriorityLevel) => {
-    setSelectedPriorities(prev => 
-      prev.includes(priority) 
-        ? prev.filter(p => p !== priority)
-        : [...prev, priority]
-    );
-  };
-
-  const handleSetPriority = (event: any, e: React.MouseEvent) => {
+  const handleSetPriority = useCallback((event: any, e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setSelectedEventForPriority(event);
     setPriorityDialogOpen(true);
-  };
+  }, []);
 
   const handlePrioritySelect = (priority: string) => {
     if (selectedEventForPriority) {
@@ -471,90 +488,42 @@ export default function Eventos() {
     }
   };
 
-  const PRIORITY_COLORS: Record<string, string> = {
-    urgente:       '#ef4444',
-    alta:          '#f59e0b',
-    media:         '#a855f7',
-    baixa:         '#3b82f6',
-    completed:     '#10b981',
-    sem_prioridade:'#a8a29e',
-  };
+  // Casa busca (nome ou #id), próximos 10 dias e mês — tudo MENOS prioridade,
+  // para que as contagens do filtro de prioridade reflitam os demais filtros.
+  const matchesOtherFilters = useCallback((event: any) => {
+    const q = searchTerm.toLowerCase().trim();
+    const qId = q.replace("#", "");
+    const matchesSearch = !q
+      || event.name.toLowerCase().includes(q)
+      || (qId !== "" && String(event.displayId ?? "").includes(qId));
 
-  const getPriorityConfig = (priority: string | null | undefined) => {
-    const configs = {
-      baixa: { 
-        label: "Baixa", 
-        hex: '#3b82f6',
-      },
-      media: { 
-        label: "Média", 
-        hex: '#a855f7',
-      },
-      alta: { 
-        label: "Alta", 
-        hex: '#f59e0b',
-      },
-      urgente: { 
-        label: "Urgente", 
-        hex: '#ef4444',
-      },
-      sem_prioridade: { 
-        label: "Sem Prioridade", 
-        hex: '#a8a29e',
-      },
-    };
-    
-    if (!priority) return configs.sem_prioridade;
-    return configs[priority as keyof typeof configs] || configs.sem_prioridade;
-  };
+    // Próximos 10 dias — toUTCDisplayDate alinha com a data que o card exibe (UTC).
+    let matchesNext10Days = true;
+    if (next10DaysFilter && event.truckDepartureDate) {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tenDaysFromNow = new Date(today);
+      tenDaysFromNow.setDate(tenDaysFromNow.getDate() + 10);
+      const departureDate = toUTCDisplayDate(event.truckDepartureDate);
+      matchesNext10Days = departureDate >= today && departureDate <= tenDaysFromNow;
+    }
 
-  // Meses do ano
-  const months = [
-    { value: "all", label: "Todos os meses" },
-    { value: "1", label: "Janeiro" },
-    { value: "2", label: "Fevereiro" },
-    { value: "3", label: "Março" },
-    { value: "4", label: "Abril" },
-    { value: "5", label: "Maio" },
-    { value: "6", label: "Junho" },
-    { value: "7", label: "Julho" },
-    { value: "8", label: "Agosto" },
-    { value: "9", label: "Setembro" },
-    { value: "10", label: "Outubro" },
-    { value: "11", label: "Novembro" },
-    { value: "12", label: "Dezembro" },
-  ];
+    // Mês — compara ano+mês ("2026-03") na mesma base UTC do card.
+    let matchesMonth = true;
+    if (monthFilter !== "all" && event.truckDepartureDate) {
+      const d = toUTCDisplayDate(event.truckDepartureDate);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      matchesMonth = key === monthFilter;
+    }
 
-  const filteredEvents = events
+    return matchesSearch && matchesNext10Days && matchesMonth;
+  }, [searchTerm, next10DaysFilter, monthFilter]);
+
+  const filteredEvents = useMemo(() => events
     .filter((event) => {
-      // Filtro de busca por nome
-      const matchesSearch = event.name.toLowerCase().includes(searchTerm.toLowerCase());
-      
-      // Filtro de prioridade
-      const eventPriority = getEventPriority(event);
-      const matchesPriority = selectedPriorities.length === 0 || 
-        selectedPriorities.includes(eventPriority);
-      
-      // Filtro de próximos 10 dias
-      let matchesNext10Days = true;
-      if (next10DaysFilter && event.truckDepartureDate) {
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const tenDaysFromNow = new Date(today);
-        tenDaysFromNow.setDate(tenDaysFromNow.getDate() + 10);
-        const departureDate = new Date(event.truckDepartureDate);
-        matchesNext10Days = departureDate >= today && departureDate <= tenDaysFromNow;
-      }
-      
-      // Filtro por mês
-      let matchesMonth = true;
-      if (monthFilter !== "all" && event.truckDepartureDate) {
-        const departureDate = new Date(event.truckDepartureDate);
-        const month = departureDate.getMonth() + 1;
-        matchesMonth = month.toString() === monthFilter;
-      }
-      
-      return matchesSearch && matchesPriority && matchesNext10Days && matchesMonth;
+      const matchesPriority = selectedPriorities.length === 0 ||
+        selectedPriorities.includes(getEventPriority(event));
+      return matchesPriority && matchesOtherFilters(event);
     })
     .sort((a, b) => {
       const priorityOrder: Record<PriorityLevel, number> = {
@@ -566,42 +535,65 @@ export default function Eventos() {
         completed: 5       // Verde - último
       };
 
-      const priorityA = getEventPriority(a);
-      const priorityB = getEventPriority(b);
-      
-      const orderA = priorityOrder[priorityA];
-      const orderB = priorityOrder[priorityB];
-      
+      const orderA = priorityOrder[getEventPriority(a)];
+      const orderB = priorityOrder[getEventPriority(b)];
+
       // Se têm prioridades diferentes, ordena por prioridade
       if (orderA !== orderB) {
         return orderA - orderB;
       }
-      
+
       // Se têm a mesma prioridade, ordena primeiro por data de início do evento
       const startDateA = new Date(a.startDate);
       const startDateB = new Date(b.startDate);
-      
+
       if (startDateA.getTime() !== startDateB.getTime()) {
         return startDateA.getTime() - startDateB.getTime();
       }
-      
+
       // Se a data de início for igual, ordena por data de saída do caminhão
       const truckDateA = new Date(a.truckDepartureDate);
       const truckDateB = new Date(b.truckDepartureDate);
       return truckDateA.getTime() - truckDateB.getTime();
-    });
+    }), [events, selectedPriorities, matchesOtherFilters]);
 
-  const priorityFilterConfig = {
-    urgente:       { label: 'Urgente',       hex: '#ef4444', count: events.filter(e => getEventPriority(e) === 'urgente').length },
-    alta:          { label: 'Alta',          hex: '#f59e0b', count: events.filter(e => getEventPriority(e) === 'alta').length },
-    media:         { label: 'Média',         hex: '#a855f7', count: events.filter(e => getEventPriority(e) === 'media').length },
-    baixa:         { label: 'Baixa',         hex: '#3b82f6', count: events.filter(e => getEventPriority(e) === 'baixa').length },
-    sem_prioridade:{ label: 'Sem Prioridade',hex: '#a8a29e', count: events.filter(e => getEventPriority(e) === 'sem_prioridade').length },
-    completed:     { label: 'Concluído',     hex: '#10b981', count: events.filter(e => getEventPriority(e) === 'completed').length },
-  };
+  // Contagens de prioridade sobre a lista já filtrada pelos demais filtros.
+  const priorityCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    events.filter(matchesOtherFilters).forEach((e) => {
+      const p = getEventPriority(e);
+      counts[p] = (counts[p] || 0) + 1;
+    });
+    return counts;
+  }, [events, matchesOtherFilters]);
+
+  // Opções do FilterSelect de prioridade — cores de PRIORITY (lib/status);
+  // pinned preserva a ordem de severidade (o componente ordena o resto por rótulo).
+  const priorityFilterOptions = useMemo(() => ([
+    ...Object.entries(PRIORITY).map(([value, meta]) => ({
+      value, label: meta.label, dotColor: meta.dot, count: priorityCounts[value] || 0, pinned: true,
+    })),
+    { value: "sem_prioridade", label: "Sem Prioridade", dotColor: "#a8a29e", count: priorityCounts.sem_prioridade || 0, pinned: true },
+    { value: "completed", label: "Concluído", dotColor: "#10b981", count: priorityCounts.completed || 0, pinned: true },
+  ]), [priorityCounts]);
+
+  // Opções de mês (com ANO) derivadas dos eventos existentes, em ordem cronológica.
+  const monthOptions = useMemo(() => {
+    const keys = new Set<string>();
+    events.forEach((e) => {
+      if (!e.truckDepartureDate) return;
+      const d = toUTCDisplayDate(e.truckDepartureDate);
+      keys.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
+    });
+    return Array.from(keys).sort().map((key) => {
+      const [y, m] = key.split("-");
+      return { value: key, label: `${MONTH_NAMES[Number(m) - 1]}/${y}`, pinned: true };
+    });
+  }, [events]);
 
   // ── Date picker helpers ────────────────────────────────────────────────
   const parseDateStr = (s: string): Date | undefined => {
+    s = (s || "").slice(0, 10); // blinda contra ISO completo ("...T00:00:00.000Z")
     if (!s) return undefined;
     const [y, m, d] = s.split('-').map(Number);
     if (!y || !m || !d) return undefined;
@@ -610,6 +602,7 @@ export default function Eventos() {
   const toDateStr = (d: Date): string =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   const fmtDateBR = (s: string): string => {
+    s = (s || "").slice(0, 10); // blinda contra ISO completo
     if (!s) return '';
     const p = s.split('-');
     return `${p[2]}/${p[1]}/${p[0]}`;
@@ -620,15 +613,29 @@ export default function Eventos() {
 
       {/* ── HEADER ── */}
       <div>
-        <h1
-          data-testid="title-eventos"
-          style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.03em', fontSize: '26px', fontWeight: '700', color: '#1c1917', margin: 0, lineHeight: 1.1 }}
-        >
-          Eventos
-        </h1>
-        <p style={{ color: '#746e69', fontSize: '15px', margin: '6px 0 0 0', fontWeight: '500' }}>
-          Gerencie todos os eventos de produção gráfica
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: '12px' }}>
+          <div>
+            <h1
+              data-testid="title-eventos"
+              style={{ fontFamily: "'Space Grotesk', sans-serif", letterSpacing: '-0.03em', fontSize: '26px', fontWeight: '700', color: '#1c1917', margin: 0, lineHeight: 1.1 }}
+            >
+              Eventos
+            </h1>
+            <p style={{ color: '#746e69', fontSize: '15px', margin: '6px 0 0 0', fontWeight: '500' }}>
+              Gerencie todos os eventos de produção gráfica
+            </p>
+          </div>
+          {canCreate && (
+            <Button
+              data-testid="button-create-event"
+              onClick={() => { setEditingEvent(null); setOpen(true); }}
+              style={{ flexShrink: 0, backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: '12px', fontWeight: '700', fontSize: '13px', padding: '0 18px', height: '34px', gap: '7px', boxShadow: '0 2px 8px rgba(249,115,22,0.28)', display: 'flex', alignItems: 'center' }}
+            >
+              <Plus style={{ width: '14px', height: '14px' }} />
+              Novo Evento
+            </Button>
+          )}
+        </div>
 
         {/* ── MODAL CRIAR / EDITAR (Dialog 100% controlado, sem DialogTrigger) ── */}
           <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleCloseDialog(); else setOpen(true); }}>
@@ -804,7 +811,19 @@ export default function Eventos() {
                         </span>
                       )}
                     </label>
-                    {sponsors.length === 0 ? (
+
+                    {(sponsorsQueryLoading || sponsorsLoading) ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', backgroundColor: '#ffffff', border: '1px solid #f0efee', borderRadius: '8px', padding: '14px 16px' }} aria-busy="true" aria-label="Carregando patrocinadores">
+                        {[0, 1, 2, 3, 4].map((i) => (
+                          <div key={i} className="animate-pulse" style={{ height: '14px', borderRadius: '4px', backgroundColor: '#f5f5f4', width: `${88 - i * 9}%` }} />
+                        ))}
+                      </div>
+                    ) : (sponsorsQueryError || sponsorsError) ? (
+                      <div role="alert" style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', fontWeight: '600', color: '#b45309', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                        <AlertTriangle style={{ width: '15px', height: '15px', flexShrink: 0, marginTop: '1px' }} />
+                        <span>Não foi possível carregar os patrocinadores — feche e tente de novo.</span>
+                      </div>
+                    ) : sponsors.length === 0 ? (
                       <p style={{ fontSize: '13px', color: '#57534e', backgroundColor: '#f0efee', borderRadius: '8px', padding: '12px 16px' }}>
                         Nenhum patrocinador cadastrado.{" "}
                         <Link href="/patrocinadores" style={{ color: '#f97316', fontWeight: '600' }}>Cadastre agora</Link>
@@ -975,6 +994,9 @@ export default function Eventos() {
                       const target = new Date(dateStr + "T12:00:00");
                       return Math.round((target.getTime() - base.getTime()) / 86400000);
                     };
+                    // "-25" → "25 dias antes" (em vez do críptico "-25d").
+                    const fmtOffset = (d: number): string =>
+                      d === 0 ? 'no dia' : d < 0 ? `${-d} dia${-d > 1 ? 's' : ''} antes` : `${d} dia${d > 1 ? 's' : ''} depois`;
                     const noStart = !truckDateOnly;
                     return (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
@@ -1022,6 +1044,9 @@ export default function Eventos() {
                             ].map(({ key, label, desc, color, allDays }) => {
                               const currentDays = formData[key as keyof typeof formData] as number;
                               const dateVal = offsetToDateStr(currentDays, allDays);
+                              // Detecta se o ajuste de fim de semana (sáb→sex / dom→seg) moveu a data.
+                              const rawVal = offsetToDateStr(currentDays, true);
+                              const weekendAdjusted = !allDays && !!dateVal && rawVal !== dateVal;
                               return (
                                 <div key={key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: 0 }}>
@@ -1031,6 +1056,7 @@ export default function Eventos() {
                                       <div style={{ fontSize: '10px', color: '#746e69', lineHeight: 1.2, marginTop: '1px' }}>{desc}</div>
                                     </div>
                                   </div>
+                                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px', flexShrink: 0 }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
                                     <Popover open={openPrazoKey === key} onOpenChange={o => setOpenPrazoKey(o ? key : null)}>
                                       <PopoverTrigger asChild>
@@ -1064,8 +1090,12 @@ export default function Eventos() {
                                       )}
                                     </Popover>
                                     {!noStart && dateVal && (
-                                      <span style={{ fontSize: '10px', color: '#746e69', fontWeight: '500', minWidth: '32px' }}>{currentDays}d</span>
+                                      <span style={{ fontSize: '10px', color: '#746e69', fontWeight: '500', whiteSpace: 'nowrap' as const }}>{fmtOffset(currentDays)}</span>
                                     )}
+                                  </div>
+                                  {weekendAdjusted && (
+                                    <span style={{ fontSize: '10px', color: '#746e69' }}>fim de semana → ajustado</span>
+                                  )}
                                   </div>
                                 </div>
                               );
@@ -1119,6 +1149,7 @@ export default function Eventos() {
           <input
             ref={searchRef}
             placeholder="Buscar evento..."
+            aria-label="Buscar eventos"
             title="Atalho: pressione / para focar a busca"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
@@ -1132,92 +1163,58 @@ export default function Eventos() {
         {/* Divisor */}
         <div style={{ width: '1px', height: '20px', backgroundColor: '#e7e5e4', flexShrink: 0 }} />
 
-        {/* Grupo prioridade */}
-        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px' }}>
-          {(Object.entries(priorityFilterConfig) as [PriorityLevel, typeof priorityFilterConfig.urgente][]).map(([priority, config]) => {
-            const isSelected = selectedPriorities.includes(priority);
-            return (
-              <button
-                key={priority}
-                onClick={() => togglePriority(priority)}
-                data-testid={`filter-priority-${priority}`}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '6px',
-                  padding: '5px 13px', borderRadius: '999px',
-                  fontSize: '13px', fontWeight: '700', cursor: 'pointer',
-                  border: `1px solid ${isSelected ? config.hex : 'transparent'}`,
-                  backgroundColor: isSelected ? config.hex : '#e2e2e2',
-                  color: isSelected ? '#ffffff' : '#57534e',
-                  transition: 'all 0.15s'
-                }}
-              >
-                {!isSelected && <span style={{ width: '7px', height: '7px', borderRadius: '50%', backgroundColor: config.hex, flexShrink: 0 }} />}
-                {config.label}
-                <span style={{ opacity: 0.6 }}>({config.count})</span>
-              </button>
-            );
-          })}
-          {selectedPriorities.length > 0 && (
-            <button onClick={() => setSelectedPriorities([])} data-testid="button-clear-filters"
-              style={{ padding: '5px 10px', borderRadius: '999px', fontSize: '11px', cursor: 'pointer', border: 'none', backgroundColor: 'transparent', color: '#746e69' }}>
-              Limpar
-            </button>
-          )}
-        </div>
+        {/* Filtro de prioridade — múltiplo, cores de PRIORITY, contagens da lista já filtrada */}
+        <FilterSelect
+          label="Prioridade"
+          allLabel="Todas as prioridades"
+          values={selectedPriorities}
+          onValuesChange={(v) => setSelectedPriorities(v as PriorityLevel[])}
+          options={priorityFilterOptions}
+          testId="filter-priority"
+        />
 
-        {/* Divisor */}
-        <div style={{ width: '1px', height: '24px', backgroundColor: '#d4d4d0', flexShrink: 0 }} />
+        {/* Filtro de mês — simples, com ano, derivado dos eventos existentes */}
+        <FilterSelect
+          label="Mês"
+          allLabel="Todos os meses"
+          value={monthFilter}
+          onChange={setMonthFilter}
+          options={monthOptions}
+          showAllLabelWhenEmpty
+          testId="select-month-filter"
+        />
 
-        {/* Grupo data */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          <Select value={monthFilter} onValueChange={setMonthFilter}>
-            <SelectTrigger style={{ backgroundColor: '#e2e2e2', border: 'none', borderRadius: '999px', fontSize: '13px', fontWeight: '600', color: '#57534e', height: '32px', padding: '0 12px', width: '170px' }} data-testid="select-month-filter">
-              <SelectValue placeholder="Mês de saída" />
-            </SelectTrigger>
-            <SelectContent>
-              {months.map((month) => (
-                <SelectItem key={month.value} value={month.value}>{month.label}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          <button
-            onClick={() => setNext10DaysFilter(!next10DaysFilter)}
-            data-testid="button-next-10-days-filter"
-            style={{
-              display: 'flex', alignItems: 'center', gap: '6px',
-              padding: '5px 13px', borderRadius: '999px',
-              fontSize: '13px', fontWeight: '700', cursor: 'pointer',
-              border: 'none',
-              backgroundColor: next10DaysFilter ? '#1c1917' : '#e2e2e2',
-              color: next10DaysFilter ? '#ffffff' : '#57534e',
-              transition: 'all 0.15s',
-            }}
-          >
-            <Truck style={{ width: '13px', height: '13px' }} />
-            Próximos 10 dias
-          </button>
-
-          {(monthFilter !== "all" || next10DaysFilter) && (
-            <button onClick={() => { setMonthFilter("all"); setNext10DaysFilter(false); }} data-testid="button-clear-date-filters"
-              style={{ padding: '5px 10px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', border: 'none', backgroundColor: 'transparent', color: '#746e69' }}>
-              Limpar datas
-            </button>
-          )}
-        </div>
-
-        {/* Divisor antes do CTA */}
-        <div style={{ marginLeft: 'auto', width: '1px', height: '20px', backgroundColor: '#e7e5e4', flexShrink: 0 }} />
-
-        {/* CTA */}
-        <Button
-          data-testid="button-create-event"
-          onClick={() => { setEditingEvent(null); setOpen(true); }}
-          style={{ flexShrink: 0, backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: '12px', fontWeight: '700', fontSize: '13px', padding: '0 18px', height: '34px', gap: '7px', boxShadow: '0 2px 8px rgba(249,115,22,0.28)', display: 'flex', alignItems: 'center' }}
+        <button
+          onClick={() => setNext10DaysFilter(!next10DaysFilter)}
+          aria-pressed={next10DaysFilter}
+          data-testid="button-next-10-days-filter"
+          style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '5px 13px', borderRadius: '999px',
+            fontSize: '13px', fontWeight: '700', cursor: 'pointer',
+            border: 'none',
+            backgroundColor: next10DaysFilter ? '#1c1917' : '#e2e2e2',
+            color: next10DaysFilter ? '#ffffff' : '#57534e',
+            transition: 'all 0.15s',
+          }}
         >
-          <Plus style={{ width: '14px', height: '14px' }} />
-          Novo Evento
-        </Button>
+          <Truck style={{ width: '13px', height: '13px' }} />
+          Próximos 10 dias
+        </button>
+
+        {(searchTerm || selectedPriorities.length > 0 || monthFilter !== "all" || next10DaysFilter) && (
+          <button onClick={clearAllEventFilters} data-testid="button-clear-filters"
+            style={{ padding: '5px 10px', borderRadius: '999px', fontSize: '11px', cursor: 'pointer', border: 'none', backgroundColor: 'transparent', color: '#746e69' }}>
+            Limpar
+          </button>
+        )}
+
+        {/* Contador de resultados */}
+        {!isLoading && !isError && (
+          <span aria-live="polite" style={{ marginLeft: 'auto', fontSize: '11px', color: '#746e69', flexShrink: 0 }}>
+            {filteredEvents.length} de {events.length} eventos
+          </span>
+        )}
       </div>
 
       {/* ── CONTEÚDO ── */}
@@ -1241,7 +1238,7 @@ export default function Eventos() {
         /* Sem este ramo, uma falha da API caía no "Nenhum evento criado" com
            botão de criar — mensagem enganosa que podia induzir a recriar
            eventos que já existem. */
-        <div style={{ backgroundColor: '#ffffff', border: '1px solid #fecaca', borderRadius: '12px', padding: '72px 24px', textAlign: 'center' }}>
+        <div role="alert" style={{ backgroundColor: '#ffffff', border: '1px solid #fecaca', borderRadius: '12px', padding: '72px 24px', textAlign: 'center' }}>
           <h3 style={{ color: '#b91c1c', fontSize: '16px', fontWeight: '700', marginBottom: '6px' }}>Não foi possível carregar os eventos</h3>
           <p style={{ color: '#746e69', fontSize: '13px', marginBottom: '20px' }}>Verifique sua conexão e tente novamente.</p>
           <button onClick={() => refetch()} style={{ fontSize: 13, fontWeight: 700, color: '#fff', background: '#1c1917', border: 'none', borderRadius: 8, padding: '9px 20px', cursor: 'pointer' }}>
@@ -1252,11 +1249,17 @@ export default function Eventos() {
         <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '12px', padding: '72px 24px', textAlign: 'center' }}>
           <Package style={{ width: '44px', height: '44px', color: '#d4d0cb', margin: '0 auto 16px' }} />
           <h3 style={{ color: '#1c1917', fontSize: '18px', fontWeight: '700', marginBottom: '6px', fontFamily: "'Space Grotesk', sans-serif" }}>Nenhum evento criado</h3>
-          <p style={{ color: '#746e69', fontSize: '13px', marginBottom: '24px' }}>Comece criando seu primeiro evento de produção</p>
-          <Button onClick={() => setOpen(true)} style={{ backgroundColor: '#c2410c', color: '#ffffff', borderRadius: '12px', fontWeight: '700', boxShadow: '0 4px 14px rgba(249,115,22,0.25)' }}>
-            <Plus className="h-4 w-4 mr-2" />
-            Criar Primeiro Evento
-          </Button>
+          {canCreate ? (
+            <>
+              <p style={{ color: '#746e69', fontSize: '13px', marginBottom: '24px' }}>Comece criando seu primeiro evento de produção</p>
+              <Button onClick={() => setOpen(true)} style={{ backgroundColor: '#c2410c', color: '#ffffff', borderRadius: '12px', fontWeight: '700', boxShadow: '0 4px 14px rgba(249,115,22,0.25)' }}>
+                <Plus className="h-4 w-4 mr-2" />
+                Criar Primeiro Evento
+              </Button>
+            </>
+          ) : (
+            <p style={{ color: '#746e69', fontSize: '13px', margin: 0 }}>Os eventos criados pela equipe aparecerão aqui</p>
+          )}
         </div>
       ) : filteredEvents.length === 0 ? (
         <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: '12px', padding: '72px 24px', textAlign: 'center' }}>
@@ -1275,16 +1278,14 @@ export default function Eventos() {
           {filteredEvents.map((event) => {
             const itemCount = event.items?.length || 0;
 
-            const getTruckUrgency = () => {
-              const now = new Date();
-              const departure = new Date(event.truckDepartureDate);
-              const hoursUntilDeparture = (departure.getTime() - now.getTime()) / (1000 * 60 * 60);
-              if (hoursUntilDeparture < 0) return 'departed';
-              if (hoursUntilDeparture < 24) return 'urgent';
-              if (hoursUntilDeparture < 48) return 'warning';
-              return 'normal';
-            };
-            const truckUrgency = getTruckUrgency();
+            const now = new Date();
+            const departure = new Date(event.truckDepartureDate);
+            const hoursUntilDeparture = (departure.getTime() - now.getTime()) / (1000 * 60 * 60);
+            const truckUrgency = hoursUntilDeparture < 0 ? 'departed'
+              : hoursUntilDeparture < 24 ? 'urgent'
+              : hoursUntilDeparture < 48 ? 'warning'
+              : 'normal';
+            const daysSinceDeparture = Math.floor(-hoursUntilDeparture / 24);
 
             const priorityConfig = getPriorityConfig(event.priority);
             const isCompleted = event.status === 'completed';
@@ -1293,118 +1294,22 @@ export default function Eventos() {
             const progressPct = itemCount > 0 ? Math.round((deliveredCount / itemCount) * 100) : 0;
             const progressColor = progressPct === 100 ? '#10b981' : cardBorderHex;
 
-            const truckColor = truckUrgency === 'urgent' ? '#ef4444' : truckUrgency === 'warning' ? '#f59e0b' : (isCompleted ? '#6ee7b7' : '#78716c');
-            const truckTextColor = truckUrgency === 'urgent' ? '#ef4444' : truckUrgency === 'warning' ? '#f59e0b' : (isCompleted ? '#d1fae5' : '#1c1917');
+            // Saturado só no ÍCONE; o TEXTO usa tons escuros com contraste AA.
+            const truckIconColor = isCompleted ? '#10b981' : truckUrgency === 'urgent' ? '#ef4444' : truckUrgency === 'warning' ? '#f59e0b' : '#78716c';
+            const truckTextColor = !isCompleted && truckUrgency === 'urgent' ? '#b91c1c' : !isCompleted && truckUrgency === 'warning' ? '#b45309' : '#1c1917';
 
-            const canEdit = hasPermission("admin") || hasPermission("solicitacao");
-            // Servidor só aceita admin no DELETE de evento — solicitacao via o botão e levava 403.
-            const canDelete = hasPermission("admin");
+            // O payload de eventos traz só o vínculo (sponsorId/quota) —
+            // nome/cor vêm da lista global de patrocinadores.
+            const cardSponsors = ((event.sponsors || []) as any[])
+              .map((es) => sponsorById.get(es.sponsorId))
+              .filter(Boolean) as Sponsor[];
 
-            // ── Card Concluído: branco com borda verde e ícone decorativo ──
-            if (isCompleted) {
-              return (
-                  <div
-                    key={event.id}
-                    className="group relative cursor-pointer bg-white rounded-xl flex flex-col gap-4 overflow-hidden"
-                    style={{
-                      border: '1px solid #e7e5e4',
-                      borderLeft: '4px solid #10b981',
-                      padding: isMobile ? '14px' : '24px',
-                      boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                      transition: 'box-shadow 0.3s ease, transform 0.3s ease',
-                    }}
-                    /* Os cards SÃO a navegação desta tela. Como div sem foco,
-                       abrir um evento era impossível sem mouse. role="link"
-                       porque a ação é navegar — links respondem a Enter, não
-                       a Espaço. */
-                    role="link"
-                    tabIndex={0}
-                    aria-label={`Abrir evento ${event.name}`}
-                    onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setLocation(`/eventos/${event.id}`); } }}
-                    onClick={() => setLocation(`/eventos/${event.id}`)}
-                    onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 20px 40px rgba(0,0,0,0.1)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}
-                    data-testid={`card-event-${event.id}`}
-                  >
-                    {/* Ícone decorativo de fundo */}
-                    <div style={{ position: 'absolute', right: '-16px', bottom: '-16px', opacity: 0.03, pointerEvents: 'none' }}>
-                      <CheckCircle style={{ width: '120px', height: '120px', color: '#10b981' }} />
-                    </div>
-
-                    <EventCardActions
-                      event={event}
-                      cardBorderHex="#10b981"
-                      onEdit={handleEdit}
-                      onDelete={handleDelete}
-                      onSetPriority={handleSetPriority}
-                      canEdit={canEdit}
-                      canDelete={canDelete}
-                      isMobile={isMobile}
-                    />
-
-                    {/* Topo: badge + id */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', position: 'relative', zIndex: 1 }}>
-                      <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', padding: '4px 10px', borderRadius: '6px' }}>
-                        Concluído
-                      </span>
-                      {event.displayId && (
-                        <span style={{ fontSize: '11px', fontWeight: '500', color: '#c0bbb8' }}>#{String(event.displayId).padStart(4, '0')}</span>
-                      )}
-                    </div>
-
-                    {/* Nome */}
-                    <div style={{ position: 'relative', zIndex: 1 }}>
-                      <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '18px', fontWeight: '700', color: '#1c1917', lineHeight: 1.25, margin: 0 }}>
-                        {event.name}
-                      </h3>
-                    </div>
-
-                    {/* Datas */}
-                    <div className="grid grid-cols-2 gap-4" style={{ margin: '4px 0', position: 'relative', zIndex: 1 }}>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <p style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Início</p>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#44403c' }}>
-                          <Calendar style={{ width: '14px', height: '14px', color: '#10b981', flexShrink: 0 }} />
-                          <span style={{ fontSize: '13px', fontWeight: '700' }}>
-                            {event.startDate ? parseDateLocal(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '') : '—'}
-                          </span>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <p style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Saída Caminhão</p>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <Truck style={{ width: '14px', height: '14px', color: '#10b981', flexShrink: 0 }} />
-                          <span style={{ fontSize: '13px', fontWeight: '700', color: '#44403c' }}>
-                            {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', timeZone: 'UTC' }).replace('.', '')}
-                            {' · '}
-                            {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Progresso */}
-                    <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid #f0efee', position: 'relative', zIndex: 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                        {/* "Entregues"/"Concluído": mesmos termos do card ativo e
-                            do badge — o card dizia "Peças"/"Finalizado" enquanto
-                            o badge acima dizia "CONCLUÍDO". */}
-                        <span style={{ fontSize: '11px', fontWeight: '700', color: '#57534e' }}>{itemCount > 0 ? `${deliveredCount}/${itemCount} Entregues` : 'Sem peças'}</span>
-                        <span style={{ fontSize: '11px', fontWeight: '800', color: '#10b981' }}>Concluído</span>
-                      </div>
-                      <div style={{ width: '100%', backgroundColor: '#f0efee', borderRadius: '999px', height: '8px', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', backgroundColor: '#10b981', borderRadius: '999px', width: '100%' }} />
-                      </div>
-                    </div>
-                  </div>
-              );
-            }
-
-            // ── Card Normal (com prioridade) ──
+            // ── Card único parametrizado (concluído vs. ativo variam borda,
+            //    badge, ícone decorativo e rodapé) ──
             return (
                 <div
                   key={event.id}
-                  className="group relative cursor-pointer bg-white rounded-xl flex flex-col gap-4"
+                  className="group relative cursor-pointer bg-white rounded-xl flex flex-col gap-4 overflow-hidden"
                   style={{
                     border: '1px solid #e7e5e4',
                     borderLeft: `4px solid ${cardBorderHex}`,
@@ -1412,29 +1317,32 @@ export default function Eventos() {
                     boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                     transition: 'box-shadow 0.3s ease, transform 0.3s ease',
                   }}
+                  /* Os cards SÃO a navegação desta tela. Como div sem foco,
+                     abrir um evento era impossível sem mouse. role="link"
+                     porque a ação é navegar — links respondem a Enter, não
+                     a Espaço. */
                   role="link"
                   tabIndex={0}
                   aria-label={`Abrir evento ${event.name}`}
                   onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setLocation(`/eventos/${event.id}`); } }}
                   onClick={() => setLocation(`/eventos/${event.id}`)}
-                  onMouseEnter={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 20px 40px rgba(0,0,0,0.1)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)'; }}
-                  onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}
+                  onMouseEnter={isMobile ? undefined : e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 20px 40px rgba(0,0,0,0.1)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(-4px)'; }}
+                  onMouseLeave={isMobile ? undefined : e => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; (e.currentTarget as HTMLDivElement).style.transform = 'translateY(0)'; }}
                   data-testid={`card-event-${event.id}`}
                 >
-                  <EventCardActions
-                    event={event}
-                    cardBorderHex={cardBorderHex}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                    onSetPriority={handleSetPriority}
-                    canEdit={canEdit}
-                    canDelete={canDelete}
-                    isMobile={isMobile}
-                  />
+                  {isCompleted && (
+                    <div style={{ position: 'absolute', right: '-16px', bottom: '-16px', opacity: 0.03, pointerEvents: 'none' }}>
+                      <CheckCircle style={{ width: '120px', height: '120px', color: '#10b981' }} />
+                    </div>
+                  )}
 
-                  {/* Linha 1: badge prioridade + id */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    {!event.priority ? (
+                  {/* Linha 1: badge de status/prioridade + ações */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', position: 'relative', zIndex: 1 }}>
+                    {isCompleted ? (
+                      <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', padding: '4px 10px', borderRadius: '6px' }}>
+                        Concluído
+                      </span>
+                    ) : !event.priority ? (
                       <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.07em', color: '#746e69', backgroundColor: '#f3f4f3', padding: '4px 10px', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                         <AlertCircle style={{ width: '10px', height: '10px' }} />
                         Sem prioridade
@@ -1444,50 +1352,76 @@ export default function Eventos() {
                         {priorityConfig.label}
                       </span>
                     )}
-                    {event.displayId && (
-                      <span style={{ fontSize: '11px', fontWeight: '500', color: '#c0bbb8' }}>#{String(event.displayId).padStart(4, '0')}</span>
-                    )}
+                    <EventCardActions
+                      event={event}
+                      cardBorderHex={cardBorderHex}
+                      onEdit={handleEdit}
+                      onDelete={handleDelete}
+                      onSetPriority={handleSetPriority}
+                      canEdit={canEdit}
+                      canDelete={canDelete}
+                      canSetPriority={canSetPriority}
+                      isMobile={isMobile}
+                    />
                   </div>
 
-                  {/* Nome */}
-                  <div>
+                  {/* Nome + id (id rebaixado para junto do nome) */}
+                  <div style={{ position: 'relative', zIndex: 1, display: 'flex', alignItems: 'baseline', gap: '8px', flexWrap: 'wrap' }}>
                     <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '18px', fontWeight: '700', color: '#1c1917', lineHeight: 1.25, margin: 0 }}>
                       {event.name}
                     </h3>
+                    {event.displayId && (
+                      <span style={{ fontSize: '11px', fontWeight: '500', color: '#746e69' }}>#{String(event.displayId).padStart(4, '0')}</span>
+                    )}
                   </div>
 
-                  {/* Datas — label + ícone + valor */}
-                  <div className="grid grid-cols-2 gap-4" style={{ margin: '4px 0' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      <p style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Início</p>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#44403c' }}>
-                        <Calendar style={{ width: '14px', height: '14px', color: cardBorderHex, flexShrink: 0 }} />
-                        <span style={{ fontSize: '13px', fontWeight: '700' }}>
-                          {event.startDate ? parseDateLocal(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '') : '—'}
-                        </span>
-                      </div>
+                  {/* Patrocinadores do evento */}
+                  {cardSponsors.length > 0 && (
+                    <div style={{ position: 'relative', zIndex: 1 }}>
+                      <SponsorChips sponsors={cardSponsors} max={3} variant="colored" size="xs" />
                     </div>
+                  )}
+
+                  {/* Datas — Saída do Caminhão dominante; Início como apoio */}
+                  <div style={{ margin: '4px 0', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <p style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Saída Caminhão</p>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }} className={truckUrgency === 'urgent' ? 'animate-pulse' : ''}>
-                        <Truck style={{ width: '14px', height: '14px', color: truckColor, flexShrink: 0 }} />
-                        <span style={{ fontSize: '13px', fontWeight: '700', color: truckTextColor }}>
+                      <div className={!isCompleted && truckUrgency === 'urgent' ? 'animate-pulse' : ''} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <Truck style={{ width: '16px', height: '16px', color: truckIconColor, flexShrink: 0 }} />
+                        <span style={{ fontSize: '16px', fontWeight: '700', color: truckTextColor }}>
                           {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', timeZone: 'UTC' }).replace('.', '')}
                           {' · '}
                           {new Date(event.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
                         </span>
+                        {!isCompleted && truckUrgency === 'departed' && (
+                          <span style={{ fontSize: '12px', fontWeight: '700', color: '#b91c1c' }}>
+                            {daysSinceDeparture < 1 ? 'Saiu hoje' : `Saiu há ${daysSinceDeparture}d`}
+                          </span>
+                        )}
                       </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#746e69' }}>
+                      <Calendar style={{ width: '11px', height: '11px', color: '#a8a29e', flexShrink: 0 }} />
+                      <span>
+                        Início: {event.startDate ? parseDateLocal(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).replace('.', '') : '—'}
+                      </span>
                     </div>
                   </div>
 
                   {/* Progresso */}
-                  <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid #f0efee' }}>
+                  <div style={{ marginTop: 'auto', paddingTop: '16px', borderTop: '1px solid #f0efee', position: 'relative', zIndex: 1 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                      <span style={{ fontSize: '11px', fontWeight: '700', color: '#57534e' }}>{deliveredCount}/{itemCount} Entregues</span>
-                      <span style={{ fontSize: '11px', fontWeight: '800', color: '#1c1917' }}>{progressPct}%</span>
+                      <span style={{ fontSize: '11px', fontWeight: '700', color: '#57534e' }}>
+                        {isCompleted && itemCount === 0 ? 'Sem peças' : `${deliveredCount}/${itemCount} Entregues`}
+                      </span>
+                      {isCompleted ? (
+                        <span style={{ fontSize: '11px', fontWeight: '800', color: '#10b981' }}>Concluído</span>
+                      ) : (
+                        <span style={{ fontSize: '11px', fontWeight: '800', color: '#1c1917' }}>{progressPct}%</span>
+                      )}
                     </div>
                     <div style={{ width: '100%', backgroundColor: '#f0efee', borderRadius: '999px', height: '8px', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', backgroundColor: progressColor, borderRadius: '999px', width: `${progressPct}%`, transition: 'width 0.4s ease' }} />
+                      <div style={{ height: '100%', backgroundColor: isCompleted ? '#10b981' : progressColor, borderRadius: '999px', width: isCompleted ? '100%' : `${progressPct}%`, transition: 'width 0.4s ease' }} />
                     </div>
                   </div>
                 </div>
@@ -1497,7 +1431,7 @@ export default function Eventos() {
         </div>
       )}
 
-      <AlertDialog open={!!deletingEventId} onOpenChange={() => setDeletingEventId(null)}>
+      <AlertDialog open={!!deletingEventId} onOpenChange={(open) => { if (!open && !deleteEventMutation.isPending) setDeletingEventId(null); }}>
         <AlertDialogContent style={{ maxWidth: "420px", backgroundColor: "#ffffff", borderRadius: "16px", padding: "0", border: "none", boxShadow: "0 16px 32px -12px rgba(26,28,28,0.2)", overflow: "hidden" }}>
           <div style={{ padding: "32px 32px 8px 32px" }}>
             <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "18px", fontWeight: "700", letterSpacing: "-0.02em", color: "#1c1917", margin: 0 }}>
@@ -1532,8 +1466,9 @@ export default function Eventos() {
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deletingEventId && deleteEventMutation.mutate(deletingEventId)}
+              disabled={deleteEventMutation.isPending}
               data-testid="button-confirm-delete-event"
-              style={{ padding: "9px 24px", backgroundColor: "#ba1a1a", border: "none", borderRadius: "6px", fontSize: "13px", fontWeight: "700", color: "#ffffff", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif", display: "flex", alignItems: "center", gap: "8px", transition: "filter 0.15s" }}
+              style={{ padding: "9px 24px", backgroundColor: "#ba1a1a", border: "none", borderRadius: "6px", fontSize: "13px", fontWeight: "700", color: "#ffffff", cursor: deleteEventMutation.isPending ? "wait" : "pointer", opacity: deleteEventMutation.isPending ? 0.6 : 1, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif", display: "flex", alignItems: "center", gap: "8px", transition: "filter 0.15s" }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#991b1b")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#ba1a1a")}
             >
@@ -1560,33 +1495,32 @@ export default function Eventos() {
 
           {/* Corpo — grid de opções horizontais */}
           <div style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-            {[
-              { key: 'baixa',   label: 'Baixa',   color: '#3b82f6', hoverBorder: '#3b82f6', hoverText: '#1d4ed8', hoverBg: '#eff6ff' },
-              { key: 'media',   label: 'Média',   color: '#a855f7', hoverBorder: '#a855f7', hoverText: '#7e22ce', hoverBg: '#faf5ff' },
-              { key: 'alta',    label: 'Alta',    color: '#f59e0b', hoverBorder: '#f59e0b', hoverText: '#b45309', hoverBg: '#fffbeb' },
-              { key: 'urgente', label: 'Urgente', color: '#ef4444', hoverBorder: '#f97316', hoverText: '#9a3412', hoverBg: '#fff7ed' },
-            ].map(({ key, label, color, hoverBorder, hoverText, hoverBg }) => {
+            {(['baixa', 'media', 'alta', 'urgente'] as const).map((key) => {
+              // Cores derivadas de PRIORITY (lib/status) — antes havia um mapa hex local.
+              const meta = PRIORITY[key];
               const isSelected = selectedEventForPriority?.priority === key;
+              const isPending = updatePriorityMutation.isPending;
               return (
                 <button
                   key={key}
                   onClick={() => handlePrioritySelect(key)}
-                  disabled={updatePriorityMutation.isPending}
+                  disabled={isPending}
                   style={{
                     height: '72px',
                     display: 'flex', alignItems: 'center', gap: '12px',
                     padding: '0 16px',
                     borderRadius: '12px',
-                    border: isSelected ? `2px solid ${hoverBorder}` : '2px solid #e7e5e4',
-                    backgroundColor: isSelected ? hoverBg : '#ffffff',
-                    cursor: 'pointer',
+                    border: isSelected ? `2px solid ${meta.dot}` : '2px solid #e7e5e4',
+                    backgroundColor: isSelected ? meta.bg : '#ffffff',
+                    cursor: isPending ? 'wait' : 'pointer',
+                    opacity: isPending ? 0.5 : 1,
                     transition: 'all 0.15s ease',
                   }}
                   onMouseEnter={e => {
-                    if (!isSelected) {
-                      (e.currentTarget as HTMLButtonElement).style.borderColor = hoverBorder;
-                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = hoverBg;
-                      (e.currentTarget.querySelector('.prio-label') as HTMLElement).style.color = hoverText;
+                    if (!isSelected && !isPending) {
+                      (e.currentTarget as HTMLButtonElement).style.borderColor = meta.dot;
+                      (e.currentTarget as HTMLButtonElement).style.backgroundColor = meta.bg;
+                      (e.currentTarget.querySelector('.prio-label') as HTMLElement).style.color = meta.text;
                     }
                   }}
                   onMouseLeave={e => {
@@ -1598,9 +1532,9 @@ export default function Eventos() {
                   }}
                   data-testid={`button-priority-${key}`}
                 >
-                  <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: color, flexShrink: 0 }} />
-                  <span className="prio-label" style={{ fontWeight: '700', fontSize: '13px', color: isSelected ? hoverText : '#44403c', transition: 'color 0.15s' }}>
-                    {label}
+                  <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: meta.dot, flexShrink: 0 }} />
+                  <span className="prio-label" style={{ fontWeight: '700', fontSize: '13px', color: isSelected ? meta.text : '#44403c', transition: 'color 0.15s' }}>
+                    {meta.label}
                   </span>
                 </button>
               );

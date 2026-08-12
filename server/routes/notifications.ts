@@ -55,17 +55,14 @@ export function registerNotificationRoutes(app: Express): void {
       if (!userRole) {
         return res.status(403).json({ error: "Perfil de usuário não encontrado" });
       }
-      const all = await storage.getAllNotifications();
-      const visibleUnread = all.filter((n) => {
-        if (n.isRead) return false;
-        if (userRole === "admin") return true;
-        if (!n.targetRoles || n.targetRoles.length === 0) return true;
-        return n.targetRoles.includes(userRole);
-      });
-      await Promise.all(visibleUnread.map((n) => storage.markNotificationAsRead(n.id)));
+      // UM UPDATE no banco (o filtro por papel vive no storage) — antes eram
+      // N updates disparados em Promise.all, um por notificação não lida.
+      const marked = await storage.markAllNotificationsAsReadForRole(
+        userRole === "admin" ? null : userRole,
+      );
       invalidateNotificationsCache();
       broadcast({ type: "notification_read" });
-      res.json({ marked: visibleUnread.length });
+      res.json({ marked });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

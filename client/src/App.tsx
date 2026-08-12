@@ -1,5 +1,5 @@
 import { Switch, Route, useLocation } from "wouter";
-import { queryClient } from "./lib/queryClient";
+import { queryClient, apiRequest } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -16,9 +16,9 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { NotificationBell, type Notification } from "@/components/notification-bell";
 import { AuthProvider, useAuth } from "@/contexts/auth-context";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiRequest } from "./lib/queryClient";
-import { roleLabel } from "@/lib/utils";
+import { roleLabel, userInitials } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { useLogout } from "@/hooks/use-logout";
 import { useWebSocket } from "@/hooks/use-websocket";
 import { useEffect, Component, type ReactNode } from "react";
 import NotFound from "@/pages/not-found";
@@ -101,21 +101,39 @@ const ROUTE_LABELS: Record<string, string> = {
   "/change-password": "Alterar Senha",
 };
 
-function getRouteLabel(location: string): string | undefined {
+function getRouteLabel(location: string): string {
   if (ROUTE_LABELS[location]) return ROUTE_LABELS[location];
   if (location.startsWith("/eventos/")) return "Detalhe do Evento";
-  return undefined;
+  // Rota desconhecida cai no NotFound — a aba dizia só "NORTE" e não contava
+  // que a página não existe.
+  return "Página não encontrada";
 }
+
+// ─── Papéis por rota (hoisted: recriar os arrays a cada render fazia o
+// useEffect do guard rodar de novo em todo render, pois allowedRoles é dep) ──
+const ROLES_ADMIN = ["admin"];
+const ROLES_ARTE = ["arte", "atendimento", "admin"];
+const ROLES_VINCULAR = ["arte", "solicitacao", "atendimento", "admin"];
+const ROLES_ATENDIMENTO = ["atendimento", "arte", "admin"];
+const ROLES_SOLICITACAO = ["solicitacao", "admin"];
+const ROLES_GRAFICA = ["grafica", "solicitacao", "admin"];
+const ROLES_PATROCINADORES = ["solicitacao", "atendimento", "admin"];
+const ROLES_COTAS = ["atendimento", "admin"];
+
+// Atalho real do sidebar no Mac é ⌘B — o title dizia Ctrl+B para todo mundo.
+const IS_MAC = typeof navigator !== "undefined" && /mac/i.test(navigator.platform);
 
 function ProtectedRoute({ component: Component }: { component: React.ComponentType }) {
   const { isAuthenticated, isLoading, user } = useAuth();
   const [location, setLocation] = useLocation();
 
+  // replace: o redirect do guard não deve virar entrada no histórico — com
+  // push, Voltar devolvia o usuário à rota proibida e ele era re-redirecionado.
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      setLocation("/login");
+      setLocation("/login", { replace: true });
     } else if (!isLoading && user?.mustChangePassword && location !== "/change-password") {
-      setLocation("/change-password");
+      setLocation("/change-password", { replace: true });
     }
   }, [isAuthenticated, isLoading, user, location, setLocation]);
 
@@ -140,13 +158,15 @@ function RoleProtectedRoute({
   const { isAuthenticated, isLoading, user } = useAuth();
   const [location, setLocation] = useLocation();
 
+  // replace: mesmo racional do ProtectedRoute — redirect de guard não empilha
+  // histórico.
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      setLocation("/login");
+      setLocation("/login", { replace: true });
     } else if (!isLoading && user?.mustChangePassword && location !== "/change-password") {
-      setLocation("/change-password");
+      setLocation("/change-password", { replace: true });
     } else if (!isLoading && isAuthenticated && user && !allowedRoles.includes(user.role)) {
-      setLocation("/");
+      setLocation("/", { replace: true });
     }
   }, [isAuthenticated, isLoading, user, location, setLocation, allowedRoles]);
 
@@ -180,7 +200,7 @@ function Router() {
         {() => <ProtectedRoute component={PainelGeral} />}
       </Route>
       <Route path="/analises">
-        {() => <RoleProtectedRoute component={DashboardAnalises} allowedRoles={["admin"]} />}
+        {() => <RoleProtectedRoute component={DashboardAnalises} allowedRoles={ROLES_ADMIN} />}
       </Route>
       <Route path="/eventos">
         {() => <ProtectedRoute component={Eventos} />}
@@ -189,22 +209,22 @@ function Router() {
         {() => <ProtectedRoute component={EventDetail} />}
       </Route>
       <Route path="/arte">
-        {() => <RoleProtectedRoute component={Arte} allowedRoles={["arte", "atendimento", "admin"]} />}
+        {() => <RoleProtectedRoute component={Arte} allowedRoles={ROLES_ARTE} />}
       </Route>
       <Route path="/vincular-patrocinadores">
-        {() => <RoleProtectedRoute component={VincularPatrocinadores} allowedRoles={["arte", "solicitacao", "atendimento", "admin"]} />}
+        {() => <RoleProtectedRoute component={VincularPatrocinadores} allowedRoles={ROLES_VINCULAR} />}
       </Route>
       <Route path="/atendimento">
-        {() => <RoleProtectedRoute component={Atendimento} allowedRoles={["atendimento", "arte", "admin"]} />}
+        {() => <RoleProtectedRoute component={Atendimento} allowedRoles={ROLES_ATENDIMENTO} />}
       </Route>
       <Route path="/solicitacao">
-        {() => <RoleProtectedRoute component={Solicitacao} allowedRoles={["solicitacao", "admin"]} />}
+        {() => <RoleProtectedRoute component={Solicitacao} allowedRoles={ROLES_SOLICITACAO} />}
       </Route>
       <Route path="/grafica">
-        {() => <RoleProtectedRoute component={Grafica} allowedRoles={["grafica", "solicitacao", "admin"]} />}
+        {() => <RoleProtectedRoute component={Grafica} allowedRoles={ROLES_GRAFICA} />}
       </Route>
       <Route path="/modelos">
-        {() => <RoleProtectedRoute component={Modelos} allowedRoles={["solicitacao", "admin"]} />}
+        {() => <RoleProtectedRoute component={Modelos} allowedRoles={ROLES_SOLICITACAO} />}
       </Route>
       <Route path="/calendario">
         {() => <ProtectedRoute component={Calendario} />}
@@ -216,22 +236,22 @@ function Router() {
         {() => <ProtectedRoute component={Registros} />}
       </Route>
       <Route path="/usuarios">
-        {() => <RoleProtectedRoute component={Usuarios} allowedRoles={["admin"]} />}
+        {() => <RoleProtectedRoute component={Usuarios} allowedRoles={ROLES_ADMIN} />}
       </Route>
       <Route path="/patrocinadores">
-        {() => <RoleProtectedRoute component={Patrocinadores} allowedRoles={["solicitacao", "atendimento", "admin"]} />}
+        {() => <RoleProtectedRoute component={Patrocinadores} allowedRoles={ROLES_PATROCINADORES} />}
       </Route>
       <Route path="/logs-sistema">
-        {() => <RoleProtectedRoute component={LogsSistema} allowedRoles={["admin"]} />}
+        {() => <RoleProtectedRoute component={LogsSistema} allowedRoles={ROLES_ADMIN} />}
       </Route>
       <Route path="/estoque">
-        {() => <RoleProtectedRoute component={Estoque} allowedRoles={["admin"]} />}
+        {() => <RoleProtectedRoute component={Estoque} allowedRoles={ROLES_ADMIN} />}
       </Route>
       <Route path="/triagem-retorno">
-        {() => <RoleProtectedRoute component={TriagemRetorno} allowedRoles={["admin"]} />}
+        {() => <RoleProtectedRoute component={TriagemRetorno} allowedRoles={ROLES_ADMIN} />}
       </Route>
       <Route path="/configurar-cotas">
-        {() => <RoleProtectedRoute component={ConfigurarCotas} allowedRoles={["atendimento", "admin"]} />}
+        {() => <RoleProtectedRoute component={ConfigurarCotas} allowedRoles={ROLES_COTAS} />}
       </Route>
       <Route component={NotFound} />
     </Switch>
@@ -283,25 +303,9 @@ function AuthenticatedLayout() {
     },
   });
 
-  // Mesmo fluxo do botão da sidebar (app-sidebar.tsx) — duplicado aqui porque
-  // o menu do avatar vive noutra árvore; qualquer mudança deve valer nos dois.
-  const logoutMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/auth/logout");
-      return await res.json();
-    },
-    onSuccess: () => {
-      queryClient.clear();
-      window.location.href = import.meta.env.VITE_HUB_URL ?? "/login";
-    },
-    onError: (error: any) => {
-      toast({ title: "Erro ao sair", description: error?.message || "Tente novamente.", variant: "destructive" });
-    },
-  });
-
-  const userInitials = user?.name
-    ? user.name.split(" ").map((w: string) => w[0]).slice(0, 2).join("").toUpperCase()
-    : "?";
+  // Mesmo fluxo do botão da sidebar (app-sidebar.tsx) — agora ambos consomem
+  // o hook compartilhado.
+  const logoutMutation = useLogout();
 
   // Título de página: um rótulo por rota, visível na topbar e na aba do
   // navegador — antes toda aba se chamava igual.
@@ -313,7 +317,10 @@ function AuthenticatedLayout() {
   return (
     <div className="flex h-dvh w-full">
       <AppSidebar />
-      <SidebarInset className="flex flex-col flex-1">
+      {/* O header fica FORA do SidebarInset: o inset é o <main> da página e
+          um banner dentro de main deixa de ser landmark de topo — a página
+          fica com 1 main e 1 banner. */}
+      <div className="flex flex-col flex-1 min-w-0">
         <header
           role="banner"
           className="sticky top-0 z-50 w-full"
@@ -328,16 +335,23 @@ function AuthenticatedLayout() {
             padding: "0 24px",
           }}
         >
-          {/* Left: trigger + título da rota */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {/* Left: trigger + título da rota. flex:1 + minWidth:0 deixam o
+              título encolher com reticências a 375px em vez de empurrar o
+              grupo direito para fora da tela. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
             <SidebarTrigger
               data-testid="button-sidebar-toggle"
               className="h-11 w-11"
-              title="Abrir/fechar menu (Ctrl+B)"
+              title={`Abrir/fechar menu (${IS_MAC ? "⌘B" : "Ctrl+B"})`}
             />
             {pageLabel && (
               <span
                 data-testid="text-page-title"
+                // md:hidden — no desktop cada página já mostra o próprio h1;
+                // o rótulo da topbar duplicava o título. No mobile (sem h1
+                // visível de imediato) ele segue sendo a bússola. O
+                // document.title continua valendo em todas as larguras.
+                className="md:hidden"
                 style={{
                   fontFamily: "'Space Grotesk', sans-serif",
                   fontSize: 15, fontWeight: 700, color: "#1c1917",
@@ -350,7 +364,7 @@ function AuthenticatedLayout() {
           </div>
 
           {/* Right: notifications + avatar */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
             <NotificationBell
               notifications={notifications}
               isLoading={notificationsLoading}
@@ -358,6 +372,7 @@ function AuthenticatedLayout() {
               onRetry={() => refetchNotifications()}
               onMarkAsRead={(id) => markAsReadMutation.mutate(id)}
               onMarkAllRead={() => markAllReadMutation.mutate()}
+              isMarkingAll={markAllReadMutation.isPending}
               onViewAll={() => setLocation("/historico")}
               // Clique navega ao contexto: detalhe do evento e, se houver
               // itemId, ?item= abre o dialog da peça (deep-link do event-detail).
@@ -374,7 +389,8 @@ function AuthenticatedLayout() {
                   aria-label={user?.name ? `Menu do usuário — ${user.name}` : "Menu do usuário"}
                   style={{
                     display: "flex", alignItems: "center", gap: 10,
-                    marginLeft: 4, padding: "4px 6px",
+                    // 5px + avatar de 34px = 44px de alvo de toque.
+                    marginLeft: 4, padding: "5px 6px",
                     background: "none", border: "none", borderRadius: 10,
                     cursor: "pointer",
                   }}
@@ -402,7 +418,7 @@ function AuthenticatedLayout() {
                       fontSize: 12, fontWeight: 700,
                       color: "#fb923c", letterSpacing: "-0.02em",
                     }}>
-                      {userInitials}
+                      {userInitials(user?.name)}
                     </span>
                   </div>
                 </button>
@@ -436,12 +452,10 @@ function AuthenticatedLayout() {
             </DropdownMenu>
           </div>
         </header>
-        {/* div, não main: o SidebarInset já é o <main> da página — eram dois
-            landmarks main aninhados. */}
-        <div className="flex-1 overflow-y-auto bg-background min-h-0" style={{ minWidth: 0 }}>
+        <SidebarInset className="flex-1 overflow-y-auto min-h-0" style={{ minWidth: 0 }}>
           <Router />
-        </div>
-      </SidebarInset>
+        </SidebarInset>
+      </div>
     </div>
   );
 }
@@ -454,13 +468,9 @@ function AppContent() {
     return <FullPageLoader />;
   }
 
-  // Show login page if not authenticated and not already on login page
-  if (!isAuthenticated && location !== "/login") {
-    return <Router />;
-  }
-
-  // Show login page without sidebar
-  if (location === "/login") {
+  // Sem sessão (o guard redireciona ao /login) ou já no /login: só o Router,
+  // sem sidebar/topbar. Eram dois ifs idênticos.
+  if (!isAuthenticated || location === "/login") {
     return <Router />;
   }
 
@@ -469,20 +479,18 @@ function AppContent() {
 }
 
 export default function App() {
-  const sidebarStyle = {
-    "--sidebar-width": "16rem",
-    "--sidebar-width-icon": "3rem",
-  };
-
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <AuthProvider>
+          {/* Sem style: 16rem/3rem já são os defaults do SidebarProvider —
+              a redefinição era redundante. */}
           <SidebarProvider
-            style={sidebarStyle as React.CSSProperties}
             // O provider grava o cookie sidebar_state a cada toggle, mas nunca
-            // o lia de volta: o colapso evaporava a cada reload.
-            defaultOpen={document.cookie.match(/sidebar_state=([^;]+)/)?.[1] !== "false"}
+            // o lia de volta: o colapso evaporava a cada reload. A âncora
+            // (?:^|;\s*) evita casar sufixos de outro cookie (ex.:
+            // app_sidebar_state).
+            defaultOpen={document.cookie.match(/(?:^|;\s*)sidebar_state=([^;]+)/)?.[1] !== "false"}
           >
             <ErrorBoundary>
               <AppContent />

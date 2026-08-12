@@ -21,6 +21,8 @@ interface NotificationBellProps {
   onMarkAsRead: (id: string) => void;
   /** Marca todas de uma vez (1 PATCH em lote no App, não N chamadas). */
   onMarkAllRead?: () => void;
+  /** true enquanto o PATCH read-all está em voo (desabilita "Marcar todas"). */
+  isMarkingAll?: boolean;
   onViewAll?: () => void;
   /** Navega até o evento/item da notificação (definido pelo App). */
   onOpen?: (n: Notification) => void;
@@ -132,13 +134,49 @@ export function NotificationBell({
   onRetry,
   onMarkAsRead,
   onMarkAllRead,
+  isMarkingAll = false,
   onViewAll,
   onOpen,
 }: NotificationBellProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  // Depois de "Marcar todas", o botão que tinha o foco some junto com o
+  // contador — sem isto o foco caía no body.
+  const pendingFocusAfterMarkAll = useRef(false);
   const unread = notifications.filter((n) => !n.isRead);
   const unreadCount = unread.length;
+
+  // Fechamentos programáticos devolvem o foco ao sino — sem isto o foco do
+  // teclado morria no body quando o popover sumia.
+  const closeAndRefocus = () => {
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
+
+  // Ao abrir, o foco entra no popover (dialog); Tab segue dali para os itens.
+  useEffect(() => {
+    if (open) popoverRef.current?.focus();
+  }, [open]);
+
+  // Fluxo de sucesso do "Marcar todas": quando a lista zera e o botão que
+  // tinha o foco desmonta, o foco vai para o h3 do popover.
+  useEffect(() => {
+    if (!open) {
+      pendingFocusAfterMarkAll.current = false;
+      return;
+    }
+    if (isMarkingAll) {
+      pendingFocusAfterMarkAll.current = true;
+      return;
+    }
+    if (pendingFocusAfterMarkAll.current && unreadCount === 0) {
+      pendingFocusAfterMarkAll.current = false;
+      headingRef.current?.focus();
+    }
+  }, [open, isMarkingAll, unreadCount]);
 
   // Close on outside click/touch + Escape (fechava só com clique fora;
   // no touch o mousedown sintético nem sempre chega — daí o touchstart).
@@ -149,7 +187,13 @@ export function NotificationBell({
         setOpen(false);
       }
     };
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        // Escape devolve o foco ao sino; clique fora não (o foco segue o clique).
+        setOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
     document.addEventListener("mousedown", handler);
     document.addEventListener("touchstart", handler);
     document.addEventListener("keydown", onKey);
@@ -165,8 +209,12 @@ export function NotificationBell({
     // Clicar leva ao contexto: antes só marcava como lida e o usuário tinha
     // de caçar o item manualmente.
     if (n.eventId && onOpen) {
+      // Com navegação o foco segue para o novo contexto — sem refocus no sino.
       setOpen(false);
       onOpen(n);
+    } else {
+      // Sem navegação o popover fecha e o foco volta ao sino.
+      closeAndRefocus();
     }
   };
 
@@ -174,6 +222,7 @@ export function NotificationBell({
     <div ref={containerRef} style={{ position: "relative" }}>
       {/* Bell trigger */}
       <button
+        ref={triggerRef}
         data-testid="button-notifications"
         /* Só o ícone nomeava este botão: um leitor de tela anunciava "botão"
            sem dizer do que se tratava nem quantas notificações havia. O "99+"
@@ -188,9 +237,11 @@ export function NotificationBell({
         onClick={() => setOpen((p) => !p)}
         style={{
           position: "relative",
-          // 36px ficava abaixo do alvo mínimo de toque (44px).
+          // 36px ficava abaixo do alvo mínimo de toque (44px). flexShrink: 0
+          // impede a topbar de 375px de esmagar o sino abaixo disso.
           width: 44,
           height: 44,
+          flexShrink: 0,
           padding: 0,
           borderRadius: 6,
           border: "none",
@@ -224,20 +275,29 @@ export function NotificationBell({
         )}
       </button>
 
-      {/* Contagem anunciada quando muda, sem o usuário precisar tocar no sino. */}
-      <span className="sr-only" aria-live="polite">
-        {unreadCount > 0
-          ? `${unreadCount} notificaç${unreadCount !== 1 ? "ões" : "ão"} não lida${unreadCount !== 1 ? "s" : ""}`
-          : "Nenhuma notificação não lida"}
-      </span>
+      {/* Contagem anunciada quando muda, sem o usuário precisar tocar no sino.
+          Só quando há dado de verdade: durante loading/erro a contagem seria
+          um falso "nenhuma não lida". */}
+      {!isLoading && !isError && (
+        <span className="sr-only" aria-live="polite">
+          {unreadCount > 0
+            ? `${unreadCount} notificaç${unreadCount !== 1 ? "ões" : "ão"} não lida${unreadCount !== 1 ? "s" : ""}`
+            : "Nenhuma notificação não lida"}
+        </span>
+      )}
 
       {/* Popover */}
       {open && (
         <div
           id="notification-popover"
+          ref={popoverRef}
           role="dialog"
           aria-label="Alertas recentes"
+          // Recebe o foco ao abrir (dialog): antes o foco ficava no sino e o
+          // teclado tinha de atravessar o resto da topbar para chegar aqui.
+          tabIndex={-1}
           style={{
+            outline: "none",
             /* right -8 + 100vw-96px: o cálculo antigo (100vw-32px) ignorava o
                deslocamento do sino em relação à borda e cortava ~38px à
                esquerda em telas de 375px. */
@@ -256,12 +316,17 @@ export function NotificationBell({
             borderBottom: "1px solid #e7e5e4",
             display: "flex", alignItems: "center", justifyContent: "space-between",
           }}>
-            <h3 style={{
-              fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: 11, fontWeight: 700,
-              color: "#1c1917", textTransform: "uppercase", letterSpacing: "0.1em",
-              margin: 0,
-            }}>
+            <h3
+              ref={headingRef}
+              // Alvo do foco após "Marcar todas" zerar a lista (o botão some).
+              tabIndex={-1}
+              style={{
+                fontFamily: "'Space Grotesk', sans-serif",
+                fontSize: 11, fontWeight: 700,
+                color: "#1c1917", textTransform: "uppercase", letterSpacing: "0.1em",
+                margin: 0, outline: "none",
+              }}
+            >
               Alertas Recentes
             </h3>
             {unreadCount > 0 && (
@@ -278,15 +343,20 @@ export function NotificationBell({
                 <button
                   data-testid="button-mark-all-read"
                   onClick={() => onMarkAllRead?.()}
+                  // Sem o disabled, cada clique extra disparava outro PATCH.
+                  disabled={isMarkingAll}
                   style={{
-                    background: "none", border: "none", cursor: "pointer",
-                    padding: "6px 10px", borderRadius: 4,
+                    background: "none", border: "none",
+                    cursor: isMarkingAll ? "default" : "pointer",
+                    // 12px verticais levam o alvo de toque a ~44px.
+                    padding: "12px 10px", borderRadius: 4,
                     fontSize: 10, fontWeight: 700, color: "#746e69",
                     textTransform: "uppercase", letterSpacing: "0.05em",
                     textDecoration: "underline",
+                    opacity: isMarkingAll ? 0.6 : 1,
                   }}
                 >
-                  Marcar todas
+                  {isMarkingAll ? "Marcando…" : "Marcar todas"}
                 </button>
               </div>
             )}
@@ -305,7 +375,9 @@ export function NotificationBell({
                   data-testid="button-retry-notifications"
                   onClick={() => onRetry?.()}
                   style={{
-                    background: "#ffffff", border: "1px solid #d6d3d1", borderRadius: 8,
+                    // #d6d3d1 dava ~1.5:1 com o fundo — a borda do único
+                    // controle acionável do estado de erro quase sumia.
+                    background: "#ffffff", border: "1px solid #78716c", borderRadius: 8,
                     padding: "8px 16px", cursor: "pointer",
                     fontSize: 12, fontWeight: 700, color: "#1c1917",
                   }}
@@ -319,7 +391,8 @@ export function NotificationBell({
                 <p style={{ margin: "0 0 4px", color: "#57534e", fontSize: 13, fontWeight: 600 }}>
                   Nenhuma notificação
                 </p>
-                <p style={{ margin: 0, color: "#a8a29e", fontSize: 12 }}>
+                {/* #a8a29e era ~2.4:1 sobre branco — abaixo do AA. */}
+                <p style={{ margin: 0, color: "#746e69", fontSize: 12 }}>
                   Você será avisado quando algo precisar da sua ação
                 </p>
               </div>
@@ -408,9 +481,13 @@ export function NotificationBell({
           }}>
             <button
               data-testid="button-view-all-activities"
-              onClick={() => { setOpen(false); onViewAll?.(); }}
+              // Fecha, devolve o foco ao sino (que continua na topbar após a
+              // navegação SPA) e então navega.
+              onClick={() => { closeAndRefocus(); onViewAll?.(); }}
               style={{
                 background: "none", border: "none", cursor: "pointer",
+                // Bloco de largura total: o alvo era só o texto de 10px.
+                display: "block", width: "100%", padding: "10px 16px",
                 fontFamily: "'Space Grotesk', sans-serif",
                 fontSize: 10, fontWeight: 700,
                 color: "#d4d0ce", textTransform: "uppercase", letterSpacing: "0.12em",

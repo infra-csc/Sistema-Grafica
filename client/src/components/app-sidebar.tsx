@@ -3,12 +3,11 @@ import {
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
   Link2, LogOut, Loader2, ScrollText, Archive, ScanSearch, Compass, Settings2, Camera,
 } from "lucide-react";
+import { useId, useState } from "react";
 import { Link, useLocation } from "wouter";
-import { roleLabel } from "@/lib/utils";
+import { roleLabel, userInitials } from "@/lib/utils";
 import { useAuth, type UserRole } from "@/contexts/auth-context";
-import { useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useToast } from "@/hooks/use-toast";
+import { useLogout } from "@/hooks/use-logout";
 import {
   Sidebar,
   SidebarContent,
@@ -84,19 +83,12 @@ function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
   const Icon = item.icon;
 
   // Hover e foco de teclado compartilham o mesmo realce: os estilos são
-  // inline, então :focus-visible do CSS não alcança estas cores.
-  const highlight = (el: HTMLElement) => {
-    if (!isActive) {
-      el.style.backgroundColor = "#fafaf9";
-      el.style.color = "#292524";
-    }
-  };
-  const unhighlight = (el: HTMLElement) => {
-    if (!isActive) {
-      el.style.backgroundColor = "transparent";
-      el.style.color = "#57534e";
-    }
-  };
+  // inline, então :focus-visible do CSS não alcança estas cores. Estados
+  // React (não mutação direta do DOM): antes, sair com o mouse apagava o
+  // realce de um item ainda focado pelo teclado — hover e foco se atropelavam.
+  const [hover, setHover] = useState(false);
+  const [focus, setFocus] = useState(false);
+  const highlighted = !isActive && (hover || focus);
 
   return (
     <SidebarMenuItem style={{ margin: "0 8px" }}>
@@ -121,17 +113,19 @@ function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
             // legível do menu. #9a3412 mantém a família laranja com contraste AA;
             // a barrinha inset devolve a marcação de "ativo" para quem não
             // distingue a cor.
-            color: isActive ? "#9a3412" : "#57534e",
-            backgroundColor: isActive ? "#fff7ed" : "transparent",
-            boxShadow: isActive ? "inset 3px 0 0 #f97316" : "none",
+            color: isActive ? "#9a3412" : highlighted ? "#292524" : "#57534e",
+            backgroundColor: isActive ? "#fff7ed" : highlighted ? "#fafaf9" : "transparent",
+            // undefined (não "none"): "none" sobrescrevia o focus-ring que o
+            // CSS global aplica via box-shadow.
+            boxShadow: isActive ? "inset 3px 0 0 #f97316" : undefined,
             textDecoration: "none",
             transition: "background-color 0.12s ease, color 0.12s ease",
             boxSizing: "border-box",
           }}
-          onMouseEnter={(e) => highlight(e.currentTarget as HTMLElement)}
-          onMouseLeave={(e) => unhighlight(e.currentTarget as HTMLElement)}
-          onFocus={(e) => highlight(e.currentTarget as HTMLElement)}
-          onBlur={(e) => unhighlight(e.currentTarget as HTMLElement)}
+          onMouseEnter={() => setHover(true)}
+          onMouseLeave={() => setHover(false)}
+          onFocus={() => setFocus(true)}
+          onBlur={() => setFocus(false)}
         >
           <Icon
             style={{
@@ -161,11 +155,14 @@ function NavGroup({
   isItemActive: (url: string) => boolean;
   first?: boolean;
 }) {
+  // O rótulo visual da seção não nomeava a lista para leitores de tela —
+  // todos os grupos eram anunciados como listas anônimas.
+  const labelId = useId();
   return (
     <SidebarGroup style={{ padding: first ? "8px 0 4px" : "20px 0 4px" }}>
-      {label !== null && <span style={sectionLabelStyle}>{label}</span>}
+      {label !== null && <span id={labelId} style={sectionLabelStyle}>{label}</span>}
       <SidebarGroupContent>
-        <SidebarMenu style={{ gap: 1 }}>
+        <SidebarMenu style={{ gap: 1 }} aria-labelledby={label !== null ? labelId : undefined}>
           {items.map((item) => (
             <NavItem key={item.title} item={item} isActive={isItemActive(item.url)} />
           ))}
@@ -179,23 +176,13 @@ function NavGroup({
 export function AppSidebar() {
   const [location] = useLocation();
   const { hasPermission, user } = useAuth();
-  const { toast } = useToast();
 
-  const logoutMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest("POST", "/api/auth/logout");
-      return await res.json();
-    },
-    onSuccess: () => {
-      queryClient.clear();
-      // O toast que existia aqui vinha DEPOIS do redirect — nunca aparecia.
-      window.location.href = import.meta.env.VITE_HUB_URL ?? "/login";
-    },
-    onError: (error: any) => {
-      // Sem isto, uma falha de rede no logout era silêncio absoluto.
-      toast({ title: "Erro ao sair", description: error?.message || "Tente novamente.", variant: "destructive" });
-    },
-  });
+  // Mesmo fluxo do menu do avatar (App.tsx) — hook compartilhado.
+  const logoutMutation = useLogout();
+
+  // 18 itens rolam sem nenhuma pista visual: no hover do container a
+  // scrollbar fina aparece (.scrollbar-visible já existe no index.css).
+  const [contentHover, setContentHover] = useState(false);
 
   const role = (user?.role || "") as UserRole;
   const filterByRole = (items: MenuItem[]) =>
@@ -217,12 +204,6 @@ export function AppSidebar() {
   // Com um único grupo visível (arte/grafica), o rótulo de seção não separa
   // nada de nada — é só ruído acima da lista.
   const singleGroup = groups.length === 1;
-
-  // Mesma regra de iniciais do avatar da topbar (App.tsx): duas primeiras
-  // palavras do nome. Antes cada avatar tinha forma e regra próprias.
-  const userInitials = user?.name
-    ? user.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
-    : "U";
 
   return (
     // backgroundColor/borderRight ficavam no style — que o Sheet mobile
@@ -268,7 +249,9 @@ export function AppSidebar() {
 
       {/* ── Content ── */}
       <SidebarContent
-        className="sidebar-no-scroll"
+        className={contentHover ? "scrollbar-visible" : "sidebar-no-scroll"}
+        onMouseEnter={() => setContentHover(true)}
+        onMouseLeave={() => setContentHover(false)}
         style={{
           padding: "0 0 8px",
           display: "flex",
@@ -312,7 +295,7 @@ export function AppSidebar() {
               fontFamily: "'Space Grotesk', sans-serif",
               color: "#fb923c", fontSize: 12, fontWeight: 700, letterSpacing: "-0.02em",
             }}>
-              {userInitials}
+              {userInitials(user?.name)}
             </span>
           </div>
 
@@ -345,7 +328,9 @@ export function AppSidebar() {
             style={{
               background: "none", border: "none",
               cursor: logoutMutation.isPending ? "default" : "pointer",
-              padding: 6, borderRadius: 6, color: "#746e69",
+              // 44×44: com padding 6 o alvo ficava em ~27px.
+              width: 44, height: 44,
+              padding: 0, borderRadius: 6, color: "#746e69",
               display: "flex", alignItems: "center", justifyContent: "center",
               transition: "color 0.15s ease, background-color 0.15s ease, opacity 0.15s ease",
               flexShrink: 0,

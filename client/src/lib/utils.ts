@@ -71,3 +71,18 @@ export const ROLE_LABELS: Record<string, string> = {
 };
 export const roleLabel = (role?: string | null): string =>
   (role && ROLE_LABELS[role]) || role || "";
+
+// Iniciais do avatar (topbar e sidebar): duas primeiras palavras do nome.
+// Fonte única — antes cada avatar tinha a própria regra e fallbacks
+// divergentes ("U" na sidebar, "?" na topbar).
+export function userInitials(name?: string | null): string {
+  if (!name) return "?";
+  const initials = name
+    .trim()
+    .split(/\s+/)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+  return initials || "?";
+}

@@ -1,12 +1,12 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
-import { getStatusLabel } from "@/lib/status";
+import { getStatusLabel, getStatusMeta, FINAL_STATUSES, PRODUCTION_STATUSES } from "@/lib/status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, ChevronsUpDown, Building2, Loader2, User, History, Lock, Paperclip, ExternalLink, X, RotateCcw, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, Search } from "lucide-react";
-import { Fragment, useState, useEffect, useRef } from "react";
-import type { Sponsor } from "@shared/schema";
+import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, ChevronsUpDown, Building2, Loader2, User, History, Lock, Paperclip, ExternalLink, X, RotateCcw, Recycle, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, Search } from "lucide-react";
+import { Fragment, useState, useEffect, useMemo, useRef } from "react";
+import type { Sponsor, Item, Event as EventRecord } from "@shared/schema";
 import {
   Dialog,
   DialogContent,
@@ -37,7 +37,6 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { BulkItemEntry } from "@/components/bulk-item-entry";
 import { ObjectUploader } from "@/components/ObjectUploader";
-import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/contexts/auth-context";
 import { cn, parseDateLocal } from "@/lib/utils";
 import { calculateM2 } from "@/lib/calculateM2";
@@ -56,6 +55,27 @@ const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso"
 const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];
 const finishes = ["Dupla Face", "Ilhós", "Impressão UV", "Impresso", "Recorte", "Refile"];
 
+// Estado limpo do formulário de peça — antes o mesmo objeto de 14 campos era
+// repetido em 3 lugares (useState inicial, reset pós-criação e fechamento),
+// e qualquer campo novo tinha de ser adicionado três vezes.
+const EMPTY_ITEM_FORM = {
+  type: "",
+  description: "",
+  quantity: 1,
+  visualWidth: "",
+  visualHeight: "",
+  fileWidth: "",
+  fileHeight: "",
+  material: "",
+  finish: "",
+  measurement: "",
+  observations: "",
+  sponsorId: "",
+  skipApproval: false,
+  isReuse: false,
+  referenceUrl: "",
+};
+
 export default function EventDetail() {
   const { hasPermission, user } = useAuth();
   const [, params] = useRoute("/eventos/:id");
@@ -69,7 +89,9 @@ export default function EventDetail() {
   // soltar as linhas gravadas) e o ref guarda quantas linhas ficaram incompletas.
   const [bulkSavedTick, setBulkSavedTick] = useState(0);
   const bulkLeftoverRef = useRef(0);
-  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
+  // Objeto inteiro (não só o id): o diálogo de confirmação escreve QUAL peça
+  // vai ser excluída — com só o id, a mensagem era genérica.
+  const [deletingItem, setDeletingItem] = useState<any | null>(null);
   const [typePopoverOpen, setTypePopoverOpen] = useState(false);
   const [materialPopoverOpen, setMaterialPopoverOpen] = useState(false);
   const [finishPopoverOpen, setFinishPopoverOpen] = useState(false);
@@ -80,6 +102,9 @@ export default function EventDetail() {
   const [selectedItemForDetails, setSelectedItemForDetails] = useState<any | null>(null);
   const [itemSearch, setItemSearch] = useState("");
   const [showAllItems, setShowAllItems] = useState(false);
+  const [showAllDrafts, setShowAllDrafts] = useState(false);
+  // Filtro por status via chips do cabeçalho — compõe com a busca textual.
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
 
   // Deep-link ?item=<id>: usado pelo clique na notificação — navega até este
   // evento e abre direto o dialog da peça. O parâmetro é consumido uma única
@@ -98,32 +123,19 @@ export default function EventDetail() {
   const isMobile = useIsMobile();
   const { toast } = useToast();
 
-  const [formData, setFormData] = useState({
-    type: "",
-    description: "",
-    quantity: 1,
-    visualWidth: "",
-    visualHeight: "",
-    fileWidth: "",
-    fileHeight: "",
-    material: "",
-    finish: "",
-    measurement: "",
-    observations: "",
-    sponsorId: "",
-    skipApproval: false,
-    isReuse: false,
-    referenceUrl: "",
-  });
+  const [formData, setFormData] = useState({ ...EMPTY_ITEM_FORM });
 
-  const { data: event, isLoading: loadingEvent, isError: eventError, refetch: refetchEvent } = useQuery<any>({
+  // Tipagem leve: os payloads vêm enriquecidos (displayId, sponsors, deadlines)
+  // além das colunas do schema — a interseção mantém autocomplete sem brigar
+  // com os campos extras.
+  const { data: event, isLoading: loadingEvent, isError: eventError, refetch: refetchEvent } = useQuery<EventRecord & Record<string, any>>({
     queryKey: ["/api/events", eventId],
     enabled: !!eventId,
     placeholderData: (previousData: any) => previousData,
     refetchOnWindowFocus: false,
   });
 
-  const { data: rawItems = [], isLoading: loadingItems, isFetching } = useQuery<any[]>({
+  const { data: rawItems = [], isLoading: loadingItems, isFetching, isError: itemsError, refetch: refetchItems } = useQuery<(Item & Record<string, any>)[]>({
     queryKey: ["/api/items", eventId],
     enabled: !!eventId,
     placeholderData: (previousData) => previousData,
@@ -131,20 +143,44 @@ export default function EventDetail() {
   });
 
   // Ordenar itens por displayId (grupo é tratado pelo groupMap; dentro de cada tipo, ordem pelo id)
-  // Consome o deep-link ?item= assim que os itens chegam (ver pendingDeepLinkItem).
+  // Consome o deep-link ?item= assim que a query resolve (ver pendingDeepLinkItem).
+  // Consumir também com lista VAZIA: antes o ?item= ficava preso na URL de um
+  // evento sem peças e reabria o dialog num refresh futuro.
   useEffect(() => {
-    if (!pendingDeepLinkItem.current || rawItems.length === 0) return;
+    if (!pendingDeepLinkItem.current || loadingItems) return;
     const target = rawItems.find((i: any) => i.id === pendingDeepLinkItem.current);
     pendingDeepLinkItem.current = null;
     window.history.replaceState(null, "", window.location.pathname);
     if (target) setSelectedItemForDetails(target);
-  }, [rawItems]);
+  }, [rawItems, loadingItems]);
 
-  const items = [...rawItems].sort((a, b) => {
+  const items = useMemo(() => [...rawItems].sort((a, b) => {
     const idA = parseInt(String(a.displayId || '0').replace(/\D/g, '')) || 0;
     const idB = parseInt(String(b.displayId || '0').replace(/\D/g, '')) || 0;
     return idA - idB;
-  });
+  }), [rawItems]);
+
+  // Rascunhos vivem SÓ no card "Peças em Rascunho"; a listagem principal fica
+  // com o restante. Antes o mesmo item aparecia nos dois lugares ao mesmo tempo.
+  const draftItems = useMemo(
+    () => items.filter(i => i.status === 'draft' || i.status === 'requested'),
+    [items],
+  );
+  const mainItems = useMemo(
+    () => items.filter(i => i.status !== 'draft' && i.status !== 'requested'),
+    [items],
+  );
+
+  // Chips de status do cabeçalho: contagem por status presente + m² total.
+  const statusChips = useMemo(() => {
+    const counts = new Map<string, number>();
+    items.forEach(i => counts.set(i.status, (counts.get(i.status) || 0) + 1));
+    return Array.from(counts.entries());
+  }, [items]);
+  const totalM2 = useMemo(
+    () => items.reduce((acc, i) => acc + (parseFloat(String(i.calculatedM2 ?? '0')) || 0), 0),
+    [items],
+  );
 
   const { data: standardItems = [] } = useQuery<any[]>({
     queryKey: ["/api/standard-items"],
@@ -224,9 +260,11 @@ export default function EventDetail() {
     cloneItemsMutation,
   } = useEventClone({ eventId });
 
-  // Buscar todos os eventos (para seletor de clone)
+  // Buscar todos os eventos (para seletor de clone) — só quando o dialog de
+  // clonagem abre; antes a lista inteira era baixada em toda visita à página.
   const { data: allEvents = [] } = useQuery<any[]>({
     queryKey: ["/api/events"],
+    enabled: cloneDialogOpen,
     placeholderData: (previousData: any) => previousData,
     refetchOnWindowFocus: false,
   });
@@ -256,9 +294,6 @@ export default function EventDetail() {
       .filter((log: any) => log.entityType === 'item' && log.entityId === itemId)
       .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   };
-
-  // Check if user can manage this event (admin or event creator)
-  const canManageEvent = hasPermission("admin") || (event && user && event.createdBy === user.id);
 
   // Solicitação ou admin podem adicionar referência
   const canUploadReference = hasPermission("admin") || user?.role === "solicitacao";
@@ -341,23 +376,7 @@ export default function EventDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setOpen(false);
-      setFormData({
-        type: "",
-        description: "",
-        quantity: 1,
-        visualWidth: "",
-        visualHeight: "",
-        fileWidth: "",
-        fileHeight: "",
-        material: "",
-        finish: "",
-        measurement: "",
-        observations: "",
-        sponsorId: "",
-        skipApproval: false,
-        isReuse: false,
-        referenceUrl: "",
-      });
+      setFormData({ ...EMPTY_ITEM_FORM });
       toast({
         title: "Peça adicionada",
         description: "A peça foi adicionada ao evento",
@@ -532,7 +551,9 @@ export default function EventDetail() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
-      setDeletingItemId(null);
+      // Fechar aqui (e não no onClick) permite que o botão mostre "Excluindo…"
+      // enquanto a requisição roda.
+      setDeletingItem(null);
       toast({
         title: "Peça excluída",
         description: "A peça foi excluída com sucesso",
@@ -582,12 +603,9 @@ export default function EventDetail() {
 
   const { updateItemSkipApprovalMutation, updateItemIsReuseMutation } = useEventItemFlags({ eventId });
 
-  // Carregar patrocinadores de todos os items em rascunho
-  // (Removido) Um useEffect aqui disparava GET /api/items/:id/sponsors para
-  // CADA item "requested" do evento só para popular itemSponsorsMap — mapa que
-  // alimenta apenas o dialog "Gerenciar Itens do Patrocinador", que é código
-  // morto (nenhum gatilho o abre). N requisições desperdiçadas por visita.
-  // O dialog inteiro + mutations ficam para remoção no refactor de código.
+  // (Removido) O dialog "Gerenciar Itens do Patrocinador" e suas mutations —
+  // código morto sem gatilho — já foram apagados, junto com o useEffect que
+  // disparava GET /api/items/:id/sponsors por item só para alimentá-lo.
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -598,12 +616,17 @@ export default function EventDetail() {
     }
   };
 
-  const BLOCKED_EDIT_STATUSES = ["ready_for_production", "inProduction", "produced", "delivered", "pronto_para_producao", "liberado", "em_producao", "produzido", "entregue"];
+  // Apenas nomes do vocabulário canônico (lib/status.ts): os antigos
+  // 'em_producao'/'produzido'/'entregue'/'liberado' não existem no banco e
+  // faziam o gate nunca disparar. 'approved' e 'conferred' entram no bloqueio
+  // de edição — antes dava para editar peça liberada/conferida mas não
+  // excluí-la, um gate incoerente.
+  const BLOCKED_EDIT_STATUSES = ["ready_for_production", "pronto_para_producao", "approved", "inProduction", "produced", "conferred", "delivered"];
   const isEditBlocked = (status: string) => BLOCKED_EDIT_STATUSES.includes(status) && !canEditLists;
 
   // Exclusão: admin pode sempre; solicitação apenas antes de chegar na Arte
   const canDeleteAny = hasPermission("admin") || user?.role === "solicitacao";
-  const BLOCKED_DELETE_STATUSES = ["awaiting_submission", "awaiting_approval", "awaiting_final_review", "ready_for_production", "approved", "inProduction", "produced", "conferred", "delivered", "pronto_para_producao", "liberado", "em_producao", "produzido", "entregue"];
+  const BLOCKED_DELETE_STATUSES = ["awaiting_submission", "awaiting_approval", "awaiting_final_review", "ready_for_production", "pronto_para_producao", "approved", "inProduction", "produced", "conferred", "delivered"];
   const canDeleteItem = (status: string) => hasPermission("admin") || !BLOCKED_DELETE_STATUSES.includes(status);
 
   const handleEditItem = (item: any) => {
@@ -633,33 +656,90 @@ export default function EventDetail() {
     setEditDialogOpen(true);
   };
 
-  const handleDeleteItem = (id: string) => {
-    setDeletingItemId(id);
+  const handleDeleteItem = (item: any) => {
+    setDeletingItem(item);
   };
 
   const handleCloseDialog = () => {
     setLocalRefPreview("");
     setEditingItem(null);
     setBulkMode(true);
-    setFormData({
-      type: "",
-      description: "",
-      quantity: 1,
-      visualWidth: "",
-      visualHeight: "",
-      fileWidth: "",
-      fileHeight: "",
-      material: "",
-      finish: "",
-      measurement: "",
-      observations: "",
-      sponsorId: "",
-      skipApproval: false,
-      isReuse: false,
-      referenceUrl: "",
-    });
+    setFormData({ ...EMPTY_ITEM_FORM });
     setOpen(false);
   };
+
+  // ── Derivações memoizadas (antes recalculavam a cada render) ─────────────
+  // Mapa tipo → grupo pai (a partir dos standardItems). Resolve tolerante a
+  // maiúscula/acento/espaço, casando o type tanto com o NOME do modelo quanto
+  // com um NOME DE GRUPO do catálogo — assim itens importados da planilha
+  // (ex.: type "Rolo") caem no grupo "ROLO".
+  const normKey = (s: string) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+  const groupOf = useMemo(() => {
+    const groupByName: Record<string, string> = {};
+    const groupByGroup: Record<string, string> = {};
+    (standardItems as any[]).forEach((s: any) => {
+      if (s.group) {
+        groupByName[normKey(s.name)] = s.group;
+        groupByGroup[normKey(s.group)] = s.group;
+      }
+    });
+    return (type: string): string => {
+      const k = normKey(type);
+      return groupByName[k] || groupByGroup[k] || "";
+    };
+  }, [standardItems]);
+
+  // Materiais e acabamentos: padrão + catálogo cadastrado + os usados nos Modelos,
+  // para que um material/acabamento criado em "Modelos" apareça na edição de itens.
+  const { materialOptions, finishOptions } = useMemo(() => {
+    const catMats = catalogOptions.filter(o => o.kind === "material").map(o => o.value);
+    const catFinishes = catalogOptions.filter(o => o.kind === "finish").map(o => o.value);
+    return {
+      materialOptions: Array.from(new Set([...materials, ...catMats, ...((standardItems as any[]).map(s => s.material).filter(Boolean) as string[])])).sort((a, b) => a.localeCompare(b, "pt-BR")),
+      finishOptions: Array.from(new Set([...finishes, ...catFinishes, ...((standardItems as any[]).map(s => s.finish).filter(Boolean) as string[])])).sort((a, b) => a.localeCompare(b, "pt-BR")),
+    };
+  }, [catalogOptions, standardItems]);
+
+  // Busca local: num evento com centenas de peças, achar a "#0281" era
+  // rolagem cega. Casa com ID, tipo, descrição e rótulo de status; compõe com
+  // o filtro por chips de status do cabeçalho.
+  const itemSearchLower = itemSearch.trim().toLowerCase();
+  const searchedItems = useMemo(() => {
+    let base = mainItems;
+    if (statusFilter.length > 0) base = base.filter(item => statusFilter.includes(item.status));
+    if (itemSearchLower) {
+      base = base.filter((item: any) =>
+        (item.displayId || "").toLowerCase().includes(itemSearchLower) ||
+        (item.type || "").toLowerCase().includes(itemSearchLower) ||
+        (item.description || "").toLowerCase().includes(itemSearchLower) ||
+        getStatusLabel(item.status).toLowerCase().includes(itemSearchLower));
+    }
+    return base;
+  }, [mainItems, statusFilter, itemSearchLower]);
+
+  // Renderização incremental (mesmo padrão do Painel Geral): até 50 linhas;
+  // o restante entra sob demanda — mantém o DOM leve em eventos grandes.
+  const ITEM_CAP = 50;
+  const visibleEventItems = showAllItems || searchedItems.length <= ITEM_CAP
+    ? searchedItems
+    : searchedItems.slice(0, ITEM_CAP);
+  const hiddenItemCount = searchedItems.length - visibleEventItems.length;
+
+  // Agrupar itens: Grupo Pai → Tipo → [itens]
+  const { groupMap, sortedGroups } = useMemo(() => {
+    const map: Record<string, Record<string, typeof visibleEventItems>> = {};
+    visibleEventItems.forEach(item => {
+      const g = groupOf(item.type) || '';
+      if (!map[g]) map[g] = {};
+      if (!map[g][item.type]) map[g][item.type] = [];
+      map[g][item.type].push(item);
+    });
+    const groups = Object.keys(map).sort((a, b) => {
+      if (a === '') return 1; if (b === '') return -1;
+      return a.localeCompare(b, 'pt-BR');
+    });
+    return { groupMap: map, sortedGroups: groups };
+  }, [visibleEventItems, groupOf]);
 
   if (loadingEvent || loadingItems) {
     return (
@@ -731,72 +811,15 @@ export default function EventDetail() {
     );
   }
 
-  // Mapa tipo → grupo pai (a partir dos standardItems). Resolve tolerante a
-  // maiúscula/acento/espaço, casando o type tanto com o NOME do modelo quanto
-  // com um NOME DE GRUPO do catálogo — assim itens importados da planilha
-  // (ex.: type "Rolo") caem no grupo "ROLO".
-  const normKey = (s: string) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
-  const groupByName: Record<string, string> = {};
-  const groupByGroup: Record<string, string> = {};
-  (standardItems as any[]).forEach((s: any) => {
-    if (s.group) {
-      groupByName[normKey(s.name)] = s.group;
-      groupByGroup[normKey(s.group)] = s.group;
-    }
-  });
-  const groupOf = (type: string): string => {
-    const k = normKey(type);
-    return groupByName[k] || groupByGroup[k] || "";
-  };
-
-  // Materiais e acabamentos: padrão + catálogo cadastrado + os usados nos Modelos,
-  // para que um material/acabamento criado em "Modelos" apareça na edição de itens.
-  const catMats = catalogOptions.filter(o => o.kind === "material").map(o => o.value);
-  const catFinishes = catalogOptions.filter(o => o.kind === "finish").map(o => o.value);
-  const materialOptions = Array.from(new Set([...materials, ...catMats, ...((standardItems as any[]).map(s => s.material).filter(Boolean) as string[])])).sort((a, b) => a.localeCompare(b, "pt-BR"));
-  const finishOptions = Array.from(new Set([...finishes, ...catFinishes, ...((standardItems as any[]).map(s => s.finish).filter(Boolean) as string[])])).sort((a, b) => a.localeCompare(b, "pt-BR"));
-
-  // Busca local: num evento com centenas de peças, achar a "#0281" era
-  // rolagem cega. Casa com ID, tipo, descrição e rótulo de status.
-  const itemSearchLower = itemSearch.trim().toLowerCase();
-  const searchedItems = itemSearchLower
-    ? items.filter((item: any) =>
-        (item.displayId || "").toLowerCase().includes(itemSearchLower) ||
-        (item.type || "").toLowerCase().includes(itemSearchLower) ||
-        (item.description || "").toLowerCase().includes(itemSearchLower) ||
-        getStatusLabel(item.status).toLowerCase().includes(itemSearchLower))
-    : items;
-
-  // Renderização incremental (mesmo padrão do Painel Geral): até 50 linhas;
-  // o restante entra sob demanda — mantém o DOM leve em eventos grandes.
-  const ITEM_CAP = 50;
-  const visibleEventItems = showAllItems || searchedItems.length <= ITEM_CAP
-    ? searchedItems
-    : searchedItems.slice(0, ITEM_CAP);
-  const hiddenItemCount = searchedItems.length - visibleEventItems.length;
-
-  // Agrupar itens: Grupo Pai → Tipo → [itens]
-  const groupMap: Record<string, Record<string, typeof items>> = {};
-  visibleEventItems.forEach(item => {
-    const g = groupOf(item.type) || '';
-    if (!groupMap[g]) groupMap[g] = {};
-    if (!groupMap[g][item.type]) groupMap[g][item.type] = [];
-    groupMap[g][item.type].push(item);
-  });
-  const sortedGroups = Object.keys(groupMap).sort((a, b) => {
-    if (a === '') return 1; if (b === '') return -1;
-    return a.localeCompare(b, 'pt-BR');
-  });
-
   return (
     <div style={{ padding: isMobile ? '12px 12px' : '28px 40px', height: '100%', overflowY: 'auto', maxWidth: '1400px', margin: '0 auto', backgroundColor: '#F7F6F3' }}>
       {/* Breadcrumb */}
       <Link href="/eventos">
         <a
           data-testid="button-back"
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '13px', fontWeight: '500', color: '#9D978F', marginBottom: '22px', textDecoration: 'none', transition: 'color 0.15s', letterSpacing: '0.02em' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '13px', fontWeight: '500', color: '#6F6A63', marginBottom: '22px', textDecoration: 'none', transition: 'color 0.15s', letterSpacing: '0.02em' }}
           onMouseEnter={e => (e.currentTarget.style.color = '#D97A1E')}
-          onMouseLeave={e => (e.currentTarget.style.color = '#9D978F')}
+          onMouseLeave={e => (e.currentTarget.style.color = '#6F6A63')}
         >
           <ArrowLeft className="h-3 w-3" />
           Voltar para eventos
@@ -821,9 +844,44 @@ export default function EventDetail() {
                   lista (lá o badge existe; aqui o status ficava invisível). */}
               <StatusBadge status={event.status} />
             </div>
+            {/* Chips de status: "onde está minha lista" num relance — total,
+                m² e um chip clicável por status presente (filtra a listagem). */}
+            {items.length > 0 && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#6F6A63', backgroundColor: '#ffffff', border: '1px solid #E7E3DC', borderRadius: 999, padding: '4px 12px', whiteSpace: 'nowrap' }}>
+                  {items.length} {items.length === 1 ? 'peça' : 'peças'} · {totalM2.toFixed(2)} m²
+                </span>
+                {statusChips.map(([status, count]) => {
+                  const m = getStatusMeta(status);
+                  const active = statusFilter.includes(status);
+                  return (
+                    <button
+                      key={status}
+                      type="button"
+                      aria-pressed={active}
+                      title={active ? `Remover filtro "${m.label}"` : `Filtrar por "${m.label}"`}
+                      onClick={() => setStatusFilter(f => active ? f.filter(s => s !== status) : [...f, status])}
+                      data-testid={`chip-status-${status}`}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        fontSize: 12, fontWeight: 700, color: m.text,
+                        backgroundColor: m.bg, border: `1px solid ${active ? m.text : m.border}`,
+                        boxShadow: active ? `inset 0 0 0 1px ${m.text}` : 'none',
+                        borderRadius: 999, padding: '4px 12px', cursor: 'pointer',
+                        whiteSpace: 'nowrap', transition: 'border-color 0.15s, box-shadow 0.15s',
+                      }}
+                    >
+                      <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: m.dot, flexShrink: 0 }} />
+                      {m.label} · {count}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
-          <div className="flex gap-2 flex-wrap">
-            {/* Importar Excel */}
+          <div className="flex gap-2 flex-wrap items-center">
+            {/* Importar Excel — só quem edita a lista */}
+            {canEditLists && (
             <button
               onClick={() => setImportDialogOpen(true)}
               data-testid="button-import-xlsx"
@@ -834,8 +892,10 @@ export default function EventDetail() {
               <Upload className="h-4 w-4" style={{ color: '#22c55e' }} />
               Importar Excel
             </button>
+            )}
 
-            {/* Clonar Evento */}
+            {/* Clonar Evento — só quem edita a lista */}
+            {canEditLists && (
             <button
               onClick={() => setCloneDialogOpen(true)}
               data-testid="button-clone-event"
@@ -846,14 +906,24 @@ export default function EventDetail() {
               <Copy className="h-4 w-4" style={{ color: '#6366f1' }} />
               Clonar Evento
             </button>
+            )}
 
-            {/* Exportar Excel */}
+            {/* Exportar Excel — leitura, disponível para todos os perfis */}
             <button
               onClick={() => {
                 // Feedback imediato: o download demora alguns segundos e o
                 // window.open não dá nenhum sinal de que algo começou.
                 toast({ title: "Gerando Excel...", description: "O download começa em instantes." });
-                window.open(`/api/events/${eventId}/export-items`, '_blank');
+                const exportUrl = `/api/events/${eventId}/export-items`;
+                const win = window.open(exportUrl, '_blank', 'noopener');
+                // Popup bloqueado: sem este aviso o clique parecia não fazer nada.
+                if (!win) {
+                  toast({
+                    title: "Não foi possível abrir o download",
+                    description: `O navegador bloqueou a nova aba. Acesse manualmente: ${exportUrl}`,
+                    variant: "destructive",
+                  });
+                }
               }}
               data-testid="button-export-xlsx"
               style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
@@ -864,6 +934,7 @@ export default function EventDetail() {
               Exportar Excel
             </button>
 
+            {canEditLists && (
             <button
               onClick={() => {
                 setEditingItem(null);
@@ -880,7 +951,15 @@ export default function EventDetail() {
               <Plus className="h-4 w-4" />
               Adicionar Peça
             </button>
-            
+            )}
+
+            {/* Perfil sem edição: em vez de esconder tudo em silêncio, diz o porquê. */}
+            {!canEditLists && (
+              <span style={{ fontSize: 12, color: '#746e69', alignSelf: 'center' }}>
+                Somente leitura — seu perfil não edita a lista deste evento
+              </span>
+            )}
+
             <Dialog open={open} onOpenChange={(isOpen) => {
               if (!isOpen) {
                 handleCloseDialog();
@@ -891,8 +970,11 @@ export default function EventDetail() {
               <DialogContent
                 className={`${bulkMode && !editingItem ? "max-w-[95vw] h-[90vh] p-0 gap-0 flex flex-col" : "sm:max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0"} [&>button:last-child]:hidden`}
                 style={bulkMode && !editingItem ? { display: 'flex', flexDirection: 'column', overflow: 'hidden' } : (isMobile ? { maxWidth: '95vw' } : undefined)}
-                onInteractOutside={(e) => e.preventDefault()}
-                onEscapeKeyDown={(e) => e.preventDefault()}
+                // Bloquear ESC/clique-fora SÓ no modo lote (onde há grade com
+                // linhas não salvas). No modo simples o fechamento acidental
+                // não custa nada e o bloqueio só irritava.
+                onInteractOutside={(e) => { if (bulkMode && !editingItem) e.preventDefault(); }}
+                onEscapeKeyDown={(e) => { if (bulkMode && !editingItem) e.preventDefault(); }}
               >
                 {/* HEADER */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 32px', backgroundColor: '#f9f9f8', borderBottom: '1px solid rgba(231,229,228,0.5)' }}>
@@ -909,29 +991,47 @@ export default function EventDetail() {
                     </DialogDescription>
                   </div>
                   {!editingItem && (
-                    bulkMode ? (
-                      <button
-                        onClick={() => setBulkMode(false)}
-                        data-testid="button-toggle-mode"
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', backgroundColor: 'rgba(231,229,228,0.6)', color: '#57534e', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', transition: 'background-color 0.15s' }}
-                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#e7e5e4')}
-                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(231,229,228,0.6)')}
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        Modo Simples
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => setBulkMode(true)}
-                        data-testid="button-toggle-mode"
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', backgroundColor: 'rgba(255,237,213,0.6)', color: '#ea580c', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', transition: 'background-color 0.15s' }}
-                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#fed7aa')}
-                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(255,237,213,0.6)')}
-                      >
-                        <List className="h-3.5 w-3.5" />
-                        Entrada Rápida
-                      </button>
-                    )
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      {bulkMode ? (
+                        <button
+                          onClick={() => setBulkMode(false)}
+                          data-testid="button-toggle-mode"
+                          style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', backgroundColor: 'rgba(231,229,228,0.6)', color: '#57534e', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', transition: 'background-color 0.15s' }}
+                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#e7e5e4')}
+                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(231,229,228,0.6)')}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          Modo Simples
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setBulkMode(true)}
+                          data-testid="button-toggle-mode"
+                          style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', backgroundColor: 'rgba(255,237,213,0.6)', color: '#ea580c', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', transition: 'background-color 0.15s' }}
+                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#fed7aa')}
+                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(255,237,213,0.6)')}
+                        >
+                          <List className="h-3.5 w-3.5" />
+                          Entrada Rápida
+                        </button>
+                      )}
+                      {/* X do modo lote: única saída além de salvar. confirm()
+                          nativo — exceção aprovada ao padrão de dialogs para
+                          não inflar o arquivo com mais um AlertDialog. */}
+                      {bulkMode && (
+                        <button
+                          onClick={() => { if (window.confirm("Descartar linhas não salvas?")) handleCloseDialog(); }}
+                          aria-label="Fechar entrada em lote"
+                          title="Fechar (descarta linhas não salvas)"
+                          data-testid="button-close-bulk"
+                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, backgroundColor: 'transparent', color: '#746e69', borderRadius: '8px', border: 'none', cursor: 'pointer', transition: 'background-color 0.15s, color 0.15s' }}
+                          onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e7e5e4'; e.currentTarget.style.color = '#1a1c1c'; }}
+                          onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#746e69'; }}
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
+                      )}
+                    </div>
                   )}
                 </div>
                 
@@ -1074,7 +1174,7 @@ export default function EventDetail() {
 
                       {/* Descrição */}
                       <div>
-                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69' }}>Descrição <span style={{ color: '#c9c4c0', fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '10px' }}>(opcional)</span></label>
+                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69' }}>Descrição <span style={{ color: '#8b8580', fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '10px' }}>(opcional)</span></label>
                         <input
                           id="description"
                           type="text"
@@ -1215,7 +1315,7 @@ export default function EventDetail() {
 
                       {/* Observações */}
                       <div>
-                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69' }}>Observações <span style={{ color: '#c9c4c0', fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '10px' }}>(opcional)</span></label>
+                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69' }}>Observações <span style={{ color: '#8b8580', fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '10px' }}>(opcional)</span></label>
                         <textarea
                           id="observations"
                           value={formData.observations}
@@ -1266,7 +1366,8 @@ export default function EventDetail() {
         {(() => {
           const TI = {
             card: '#FFFFFF', border: '#E7E3DC',
-            title: '#1F1D1A', secondary: '#6F6A63', label: '#9D978F',
+            // label era #9D978F — reprovava contraste em textos ≤13px.
+            title: '#1F1D1A', secondary: '#6F6A63', label: '#6F6A63',
             dark: '#2E2A26', accent: '#D97A1E',
             line: '#D8D4CE', attention: '#C97B4B',
           };
@@ -1277,7 +1378,9 @@ export default function EventDetail() {
           const countdownDays = Math.ceil((depDay.getTime() - today.getTime()) / 86400000);
           const depLabel = departure.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', timeZone: 'UTC' });
           const depTime = departure.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' });
-          const startLabel = parseDateLocal(event.startDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+          // String(): o schema tipa startDate como Date, mas o JSON da API
+          // entrega string — em runtime é identidade.
+          const startLabel = parseDateLocal(String(event.startDate)).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
           const adjustWeekend = (date: Date, skip: boolean): { date: Date; adjusted: 'fri' | 'mon' | null } => {
             if (skip) return { date, adjusted: null };
@@ -1310,7 +1413,7 @@ export default function EventDetail() {
           // passado não é "atraso" — o caminhão já foi. Mostrar "Atrasado 90d"
           // em vermelho num evento finalizado é alarme falso que ensina o
           // usuário a ignorar o vermelho de verdade.
-          const isHistorical = event.status === 'completed' || parseDateLocal(event.startDate) < today;
+          const isHistorical = event.status === 'completed' || parseDateLocal(String(event.startDate)) < today;
           const countdownColor = isHistorical
             ? TI.secondary
             : countdownDays < 0 ? '#B84040' : countdownDays <= 3 ? TI.attention : TI.secondary;
@@ -1490,31 +1593,37 @@ export default function EventDetail() {
         })()}
       </div>
 
-      {/* Card de Peças em Rascunho */}
-      {items.filter(item => item.status === 'draft' || item.status === 'requested').length > 0 && (
+      {/* Card de Peças em Rascunho — visual Titanium (antes era Card shadcn
+          tracejado + Badge, destoando do resto da página). Os rascunhos vivem
+          SÓ aqui; a listagem principal exclui draft/requested. */}
+      {draftItems.length > 0 && (
         <>
-        <Card className="border-2 border-dashed border-muted-foreground/30 bg-muted/20">
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Package className="h-5 w-5 text-muted-foreground" />
-                <CardTitle className="text-lg">Peças em Rascunho</CardTitle>
-                <Badge variant="secondary" className="ml-2">
-                  {items.filter(item => item.status === 'draft' || item.status === 'requested').length} {items.filter(item => item.status === 'draft' || item.status === 'requested').length === 1 ? 'item' : 'itens'}
-                </Badge>
-              </div>
+        <div style={{ backgroundColor: '#fff', border: '1px solid #e7e5e4', borderLeft: '3px solid #b45309', borderRadius: 12, boxShadow: '0 1px 4px rgba(0,0,0,0.05)', marginBottom: 32 }} data-testid="card-draft-items">
+          <div style={{ padding: '20px 24px 0' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <Package style={{ width: 16, height: 16, color: '#b45309', flexShrink: 0 }} />
+              <span style={{ fontSize: 13, fontWeight: 800, color: '#1F1D1A', fontFamily: "'Space Grotesk', sans-serif", textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                Peças em Rascunho
+              </span>
+              <span style={{ backgroundColor: '#fffbeb', color: '#b45309', border: '1px solid #fde68a', borderRadius: 999, padding: '2px 10px', fontSize: 11, fontWeight: 800, whiteSpace: 'nowrap' }}>
+                {draftItems.length} {draftItems.length === 1 ? 'item' : 'itens'}
+              </span>
             </div>
-            <p className="text-sm text-muted-foreground mt-2">
+            <p style={{ fontSize: 13, color: '#6F6A63', margin: '8px 0 0' }}>
               Revise os itens abaixo e envie todos para Arte quando estiver pronto
             </p>
-          </CardHeader>
-          <CardContent>
+          </div>
+          <div style={{ padding: '16px 24px 24px' }}>
             <div className="space-y-4 mb-4">
               {(() => {
-                const draftItems = items.filter(item => item.status === 'draft' || item.status === 'requested');
+                // Cap de 50 (padrão da casa): centenas de rascunhos travavam o DOM.
+                const DRAFT_CAP = 50;
+                const visibleDrafts = showAllDrafts || draftItems.length <= DRAFT_CAP
+                  ? draftItems
+                  : draftItems.slice(0, DRAFT_CAP);
                 // Grupo Pai → Tipo → itens
                 const draftGroupMap: Record<string, Record<string, typeof draftItems>> = {};
-                draftItems.forEach(item => {
+                visibleDrafts.forEach(item => {
                   const g = groupOf(item.type) || '';
                   if (!draftGroupMap[g]) draftGroupMap[g] = {};
                   if (!draftGroupMap[g][item.type]) draftGroupMap[g][item.type] = [];
@@ -1556,7 +1665,7 @@ export default function EventDetail() {
                                           {item.description && <span className="text-sm text-muted-foreground truncate">— {item.description}</span>}
                                         </div>
                                         <div className="text-xs text-muted-foreground">
-                                          {item.quantity} {item.quantity === 1 ? 'unidade' : 'unidades'} • {item.material} • {item.finish} • {parseFloat(item.calculatedM2).toFixed(2)}m²
+                                          {item.quantity} {item.quantity === 1 ? 'unidade' : 'unidades'} • {item.material} • {item.finish} • {parseFloat(item.calculatedM2 || '0').toFixed(2)}m²
                                         </div>
                                       </div>
                                     </div>
@@ -1567,24 +1676,26 @@ export default function EventDetail() {
                                           <img src={item.referenceUrl} className="h-8 w-8 rounded object-cover border border-border" alt="Referência visual" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                                         </a>
                                       )}
-                                      {/* Upload referência — solicitation/admin, em qualquer status até entrega */}
-                                      {canUploadReference && item.status !== 'entregue' && (
+                                      {/* Upload referência — solicitation/admin, em qualquer status
+                                          até um status FINAL (não só 'entregue', que nem existe no
+                                          vocabulário canônico). Alvos ≥44px no mobile. */}
+                                      {canUploadReference && !(FINAL_STATUSES as readonly string[]).includes(item.status) && (
                                         <ObjectUploader
                                           onGetUploadParameters={getUploadUrl}
                                           onComplete={({ url }) => updateReferenceUrlMutation.mutate({ itemId: item.id, referenceUrl: url })}
                                           buttonVariant="ghost"
-                                          buttonClassName="px-2 h-7 text-xs gap-1"
+                                          buttonClassName={isMobile ? "px-3 h-11 text-xs gap-1" : "px-2 h-7 text-xs gap-1"}
                                         >
                                           <Paperclip className="h-3 w-3" />
                                           <span>{item.referenceUrl ? 'Trocar ref.' : 'Ref. visual'}</span>
                                         </ObjectUploader>
                                       )}
-                                      {canUploadReference && item.referenceUrl && item.status !== 'entregue' && (
+                                      {canUploadReference && item.referenceUrl && !(FINAL_STATUSES as readonly string[]).includes(item.status) && (
                                         <Button
                                           type="button"
                                           variant="ghost"
                                           size="icon"
-                                          className="h-7 w-7 text-muted-foreground"
+                                          className={`${isMobile ? "h-11 w-11" : "h-7 w-7"} text-muted-foreground`}
                                           title="Remover referência"
                                           data-testid={`button-remove-reference-${item.id}`}
                                           onClick={() => removeReferenceUrlMutation.mutate(item.id)}
@@ -1592,19 +1703,28 @@ export default function EventDetail() {
                                           <X className="h-3 w-3" />
                                         </Button>
                                       )}
-                                      {canManageEvent && (
+                                      {/* canEditLists (não canManageEvent): mesmo gate da tabela
+                                          principal — o papel "solicitação" edita rascunhos. */}
+                                      {canEditLists && (
                                         <>
                                           {isEditBlocked(item.status) ? (
-                                            <div className="p-1.5 rounded-md" title="Edição bloqueada — item já liberado para gráfica" style={{ color: "#a8a29e", cursor: "not-allowed" }}>
+                                            <button
+                                              type="button"
+                                              disabled
+                                              aria-disabled="true"
+                                              className="p-1.5 rounded-md"
+                                              title="Edição bloqueada — item já liberado para gráfica"
+                                              style={{ color: "#a8a29e", cursor: "not-allowed", background: "none", border: "none" }}
+                                            >
                                               <Lock className="h-3.5 w-3.5" />
-                                            </div>
+                                            </button>
                                           ) : (
-                                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditItem(item)} data-testid={`button-edit-draft-${item.id}`}>
+                                            <Button variant="ghost" size="icon" className={isMobile ? "h-11 w-11" : "h-7 w-7"} onClick={() => handleEditItem(item)} data-testid={`button-edit-draft-${item.id}`}>
                                               <Pencil className="h-3.5 w-3.5" />
                                             </Button>
                                           )}
                                           {canDeleteAny && (
-                                            <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-destructive/10" onClick={() => setDeletingItemId(item.id)} data-testid={`button-delete-draft-${item.id}`}>
+                                            <Button variant="ghost" size="icon" className={`${isMobile ? "h-11 w-11" : "h-7 w-7"} hover:bg-destructive/10`} onClick={() => setDeletingItem(item)} data-testid={`button-delete-draft-${item.id}`}>
                                               <Trash2 className="h-3.5 w-3.5 text-destructive" />
                                             </Button>
                                           )}
@@ -1623,13 +1743,25 @@ export default function EventDetail() {
                 });
               })()}
             </div>
-            <div className="flex items-center justify-between p-4 bg-muted/50 rounded-lg border-2 border-dashed border-primary/30">
+            {/* Cap de 50 — padrão da casa, igual à listagem principal. */}
+            {!showAllDrafts && draftItems.length > 50 && (
+              <button
+                onClick={() => setShowAllDrafts(true)}
+                data-testid="button-show-all-drafts"
+                style={{ width: '100%', padding: 13, background: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 10, color: '#1c1917', fontWeight: 700, fontSize: 13, cursor: 'pointer', marginBottom: 16 }}
+              >
+                Mostrar todos os {draftItems.length} rascunhos (+{draftItems.length - 50})
+              </button>
+            )}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', padding: 16, backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10 }}>
               <div className="flex items-center gap-2">
-                <AlertCircle className="h-5 w-5 text-primary" />
+                <AlertCircle className="h-5 w-5" style={{ color: '#b45309' }} />
                 <div>
                   <p className="text-sm font-semibold">Pronto para enviar?</p>
                   <p className="text-xs text-muted-foreground">
-                    {items.filter(item => item.status === 'draft').length} {items.filter(item => item.status === 'draft').length === 1 ? 'item será enviado' : 'itens serão enviados'} para vinculação de patrocinadores
+                    {/* draft + requested: o endpoint de envio abrange os dois —
+                        contar só 'draft' subestimava a contagem. */}
+                    {draftItems.length} {draftItems.length === 1 ? 'item será enviado' : 'itens serão enviados'} para vinculação de patrocinadores
                   </p>
                 </div>
               </div>
@@ -1655,8 +1787,8 @@ export default function EventDetail() {
                 )}
               </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
         {/* ── Modal de confirmação de envio com lista de itens ── */}
         <Dialog open={submitConfirmOpen} onOpenChange={setSubmitConfirmOpen}>
@@ -1670,17 +1802,15 @@ export default function EventDetail() {
               icon={Check}
               tint="#c2410c"
               title="Confirmar envio para vinculação"
-              subtitle={(() => {
-                const n = items.filter(i => i.status === 'draft').length;
-                return `${n} ${n === 1 ? 'item será enviado' : 'itens serão enviados'} para a fila de vinculação.`;
-              })()}
+              subtitle={`${draftItems.length} ${draftItems.length === 1 ? 'item será enviado' : 'itens serão enviados'} para a fila de vinculação.`}
               onClose={() => setSubmitConfirmOpen(false)}
             />
 
             {/* Lista de itens */}
             <div style={{ maxHeight: 340, overflowY: 'auto', padding: '16px 28px' }}>
               {(() => {
-                const draftItems = items.filter(i => i.status === 'draft');
+                // draftItems do escopo do componente: draft + requested — a
+                // mesma população que o servidor envia.
                 const byType: Record<string, typeof draftItems> = {};
                 draftItems.forEach(item => {
                   const k = item.type || 'Sem tipo';
@@ -1695,8 +1825,10 @@ export default function EventDetail() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                       {typeItems.map(item => (
                         <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 8 }}>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#f97316', fontFamily: 'monospace', flexShrink: 0 }}>
-                            #{item.displayId?.toString().padStart(4, '0') ?? '—'}
+                          {/* displayId já vem com "#" do backend — prefixar de
+                              novo mostrava "##0281". */}
+                          <span style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', fontFamily: 'monospace', flexShrink: 0 }}>
+                            {item.displayId ?? '—'}
                           </span>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 13, fontWeight: 600, color: '#1c1917', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -1747,30 +1879,52 @@ export default function EventDetail() {
         </>
       )}
 
-      {/* Itens agrupados por tipo em seções */}
-      {items.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '64px 0' }}>
-          {/* Package (não AlertCircle): lista vazia é situação neutra, não alerta. */}
-          <Package className="h-12 w-12 mx-auto mb-4" style={{ color: '#a8a29e' }} />
-          <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#1c1917', marginBottom: '8px' }}>Nenhum item adicionado</h3>
-          <p style={{ color: '#746e69', marginBottom: '16px', fontSize: '15px' }}>Adicione itens ao evento para começar</p>
-          <button
-            onClick={() => { setEditingItem(null); setBulkMode(true); setOpen(true); }}
-            style={{ backgroundColor: '#1c1917', color: '#fff', padding: '10px 20px', borderRadius: '6px', fontWeight: '700', fontSize: '15px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
-          >
-            <Plus className="h-4 w-4" />
-            Adicionar Primeiro Item
+      {/* Indicador de atualização — fora do bloco da lista: também aparece
+          quando o evento está vazio ou só tem rascunhos. */}
+      {isFetching && !loadingItems && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#746e69', fontSize: '13px', marginBottom: '16px' }}>
+          <Loader2 className="h-3 w-3 animate-spin" />
+          <span>Atualizando...</span>
+        </div>
+      )}
+
+      {/* Falha em /api/items: sem este bloco, o erro virava um falso
+          "Nenhum item adicionado" (mesmo padrão do erro de evento acima).
+          Lista vazia: rascunhos moram no card acima; a listagem só reclama de
+          vazio quando não há NADA. Empty-state neutro (Package, não alerta);
+          o CTA respeita canEditLists. */}
+      {itemsError ? (
+        <div style={{ textAlign: 'center', padding: '48px 0' }}>
+          <AlertCircle className="h-12 w-12 mx-auto mb-4" style={{ color: '#b91c1c' }} />
+          <p className="text-red-700 font-semibold mb-1">Não foi possível carregar as peças</p>
+          <p className="text-muted-foreground text-sm mb-4">Verifique sua conexão e tente novamente.</p>
+          <button onClick={() => refetchItems()} className="rounded-md bg-gray-900 px-4 py-2 text-sm font-semibold text-white hover:bg-gray-800">
+            Tentar novamente
           </button>
         </div>
+      ) : mainItems.length === 0 ? (
+        draftItems.length > 0 ? null : (
+          <div style={{ textAlign: 'center', padding: '64px 0' }}>
+            <Package className="h-12 w-12 mx-auto mb-4" style={{ color: '#a8a29e' }} />
+            <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#1c1917', marginBottom: '8px' }}>Nenhum item adicionado</h3>
+            <p style={{ color: '#746e69', marginBottom: '16px', fontSize: '15px' }}>Adicione itens ao evento para começar</p>
+            {canEditLists ? (
+              <button
+                onClick={() => { setEditingItem(null); setBulkMode(true); setOpen(true); }}
+                style={{ backgroundColor: '#1c1917', color: '#fff', padding: '10px 20px', borderRadius: '6px', fontWeight: '700', fontSize: '15px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+              >
+                <Plus className="h-4 w-4" />
+                Adicionar Primeiro Item
+              </button>
+            ) : (
+              <p style={{ fontSize: 12, color: '#746e69', margin: 0 }}>
+                Somente leitura — seu perfil não edita a lista deste evento
+              </p>
+            )}
+          </div>
+        )
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '48px' }}>
-          {isFetching && !loadingItems && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#746e69', fontSize: '13px' }}>
-              <Loader2 className="h-3 w-3 animate-spin" />
-              <span>Atualizando...</span>
-            </div>
-          )}
-
           {/* Busca local de peças — evita rolagem cega em eventos grandes. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: '-24px' }}>
             <div style={{ position: 'relative', width: isMobile ? '100%' : 280 }}>
@@ -1784,10 +1938,10 @@ export default function EventDetail() {
                 style={{ width: '100%', height: 34, paddingLeft: 32, paddingRight: 12, border: '1px solid #e7e5e4', borderRadius: 999, backgroundColor: '#ffffff', fontSize: 13, color: '#1c1917', fontFamily: 'inherit' }}
               />
             </div>
-            {itemSearchLower && (
+            {(itemSearchLower || statusFilter.length > 0) && (
               <span style={{ fontSize: 12, fontWeight: 700, color: '#746e69' }}>
-                {searchedItems.length} de {items.length} peças
-                <button onClick={() => setItemSearch("")} style={{ marginLeft: 10, background: 'none', border: 'none', padding: 0, fontSize: 12, fontWeight: 700, color: '#c2410c', cursor: 'pointer' }}>× Limpar</button>
+                {searchedItems.length} de {mainItems.length} peças
+                <button onClick={() => { setItemSearch(""); setStatusFilter([]); }} style={{ marginLeft: 10, background: 'none', border: 'none', padding: 0, fontSize: 12, fontWeight: 700, color: '#c2410c', cursor: 'pointer' }}>× Limpar</button>
               </span>
             )}
           </div>
@@ -1868,7 +2022,7 @@ export default function EventDetail() {
                               {/* Mesmos gates do desktop: sem eles, no celular um
                                   não-admin abria exclusão de peça já em produção. */}
                               {canDeleteAny && canDeleteItem(item.status) && (
-                                <button onClick={() => setDeletingItemId(item.id)}
+                                <button onClick={() => setDeletingItem(item)}
                                   aria-label="Excluir peça" title="Excluir peça"
                                   style={{ minHeight: 44, width: 44, borderRadius: 6, border: '1px solid #fecaca', background: '#fff', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                   <Trash2 style={{ width: 14, height: 14 }} />
@@ -1880,29 +2034,38 @@ export default function EventDetail() {
                       ))}
                     </div>
                   ) : (
-                  // Rolagem horizontal própria: são onze colunas com rótulo
-                  // inteiro (nowrap) dentro de um card com overflow:hidden, e o
-                  // que passava da largura era simplesmente cortado. A coluna
-                  // Ações é a última, então quem sumia era ela — junto com o
-                  // botão de excluir, que ficava fora da área visível e parecia
-                  // não existir.
+                  // Rolagem horizontal própria por seção, mas com table-layout
+                  // fixed e as MESMAS larguras de coluna em todas as seções —
+                  // assim as colunas alinham visualmente entre os tipos, como
+                  // se fosse uma tabela só. Material/Acabamento viraram a 2ª
+                  // linha da Descrição (11→9 colunas), o que baixou o minWidth
+                  // de 1120 para 840.
                   <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', minWidth: 1120, borderCollapse: 'collapse', textAlign: 'left' }}>
+                  <table style={{ width: '100%', minWidth: 840, borderCollapse: 'collapse', textAlign: 'left', tableLayout: 'fixed' }}>
                     <thead>
-                      <tr style={{ backgroundColor: '#f9f9f8' }}>
-                        {['ID', 'Referência', 'Descrição', 'Qtd', 'Dimensões (V / A)', 'M²', 'Material', 'Acabamento', 'Patrocinador', 'Status', 'Ações'].map(col => (
+                      <tr>
+                        {([
+                          ['ID', 76],
+                          ['Referência', 96],
+                          ['Descrição', undefined],
+                          ['Qtd', 52],
+                          ['Dimensões (V / A)', 168],
+                          ['M²', 64],
+                          ['Patrocinador', 130],
+                          ['Status', 128],
+                          ['Ações', 110],
+                        ] as const).map(([col, width]) => (
                           <th
                             key={col}
                             style={{
-                              // 14px laterais em vez de 20: onze colunas pagam o
-                              // padding duas vezes cada, e só isso devolvia 132px
-                              // de largura útil à tabela.
                               padding: '14px 14px',
                               fontSize: '11px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em',
                               // #a8a29e em 11px reprova AA (2,5:1 sobre #f9f9f8).
                               color: '#746e69', whiteSpace: 'nowrap',
                               textAlign: col === 'Ações' ? 'right' : 'left',
-                              width: col === 'Ações' ? 132 : undefined,
+                              width,
+                              // Sticky: o cabeçalho acompanha a rolagem vertical.
+                              position: 'sticky', top: 0, zIndex: 1, backgroundColor: '#fafaf9',
                             }}>
                             {col}
                           </th>
@@ -1944,7 +2107,7 @@ export default function EventDetail() {
                                   <img src={item.referenceUrl} style={{ height: 32, width: 32, objectFit: 'cover', borderRadius: 6, border: '1px solid #e7e5e4' }} alt="Referência visual" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                                 </a>
                               )}
-                              {canUploadReference && item.status !== 'entregue' && (
+                              {canUploadReference && !(FINAL_STATUSES as readonly string[]).includes(item.status) && (
                                 <ObjectUploader
                                   onGetUploadParameters={getUploadUrl}
                                   onComplete={({ url }) => updateReferenceUrlMutation.mutate({ itemId: item.id, referenceUrl: url })}
@@ -1966,7 +2129,7 @@ export default function EventDetail() {
                                   </span>
                                 </ObjectUploader>
                               )}
-                              {canUploadReference && item.referenceUrl && item.status !== 'entregue' && (
+                              {canUploadReference && item.referenceUrl && !(FINAL_STATUSES as readonly string[]).includes(item.status) && (
                                 <Button
                                   type="button"
                                   variant="ghost"
@@ -1979,30 +2142,38 @@ export default function EventDetail() {
                                   <X style={{ width: 11, height: 11 }} />
                                 </Button>
                               )}
-                              {(!canUploadReference || item.status === 'entregue') && !item.referenceUrl && (
+                              {(!canUploadReference || (FINAL_STATUSES as readonly string[]).includes(item.status)) && !item.referenceUrl && (
                                 <span style={{ color: '#746e69', fontSize: 13 }}>—</span>
                               )}
                             </div>
                           </td>
-                          {/* Descrição */}
+                          {/* Descrição — Material/Acabamento entram aqui como
+                              2ª linha, em vez de duas colunas próprias. O gate
+                              do badge usa PRODUCTION_STATUSES canônico (os
+                              nomes antigos não existem e nunca escondiam nada). */}
                           <td style={{ padding: '14px 14px' }}>
-                            {item.isReuse && !['em_producao','produzido','entregue'].includes(item.status) && (
+                            {item.isReuse && !(PRODUCTION_STATUSES as readonly string[]).includes(item.status) && (
                               <div style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: "#047857", color: "#ffffff", borderRadius: 6, padding: "2px 7px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
-                                <RotateCcw style={{ width: 9, height: 9 }} /> Reaproveit.
+                                <Recycle style={{ width: 9, height: 9 }} /> Reaproveit.
                               </div>
                             )}
                             {item.description ? (
-                              <span style={{ fontWeight: '500', color: '#1a1c1c', fontSize: '13px' }}>{item.description}</span>
+                              <div style={{ fontWeight: '500', color: '#1a1c1c', fontSize: '13px' }}>{item.description}</div>
                             ) : (
-                              <span style={{ color: '#746e69', fontSize: '13px' }}>—</span>
+                              <div style={{ color: '#746e69', fontSize: '13px' }}>—</div>
+                            )}
+                            {(item.material || item.finish) && (
+                              <div style={{ fontSize: '11px', color: '#746e69', marginTop: 2 }}>
+                                {[item.material, item.finish].filter(Boolean).join(' · ')}
+                              </div>
                             )}
                           </td>
-                          {/* Qtd */}
+                          {/* Qtd — sem padStart: "05" parecia código, não quantidade. */}
                           <td style={{ padding: '14px 14px', fontSize: '13px', color: '#1a1c1c' }}>
-                            {String(item.quantity).padStart(2, '0')}
+                            {item.quantity}
                           </td>
                           {/* Dimensões */}
-                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#746e69', fontStyle: 'italic', whiteSpace: 'nowrap' }}>
+                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#746e69', fontStyle: 'italic' }}>
                             {(item.visualWidth && item.visualHeight) ? (
                               <>
                                 {item.visualWidth} × {item.visualHeight}m
@@ -2014,10 +2185,6 @@ export default function EventDetail() {
                           <td style={{ padding: '14px 14px', fontSize: '13px', fontWeight: '800', color: '#1a1c1c' }}>
                             {parseFloat(item.calculatedM2 || '0').toFixed(2)}
                           </td>
-                          {/* Material */}
-                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#746e69' }}>{item.material || '—'}</td>
-                          {/* Acabamento */}
-                          <td style={{ padding: '14px 14px', fontSize: '13px', color: '#746e69' }}>{item.finish || '—'}</td>
                           {/* Patrocinador */}
                           {/* Antes era "—" hardcoded: o vínculo existia no dado
                               (enrich do /api/items/:eventId) e nunca aparecia. */}
@@ -2030,13 +2197,12 @@ export default function EventDetail() {
                           <td style={{ padding: '14px 14px' }}>
                             <StatusBadge status={item.status} />
                           </td>
-                          {/* Ações — sempre visíveis. Escondê-las atrás do hover
-                              deixava a linha sem indício de que dava para editar
-                              ou excluir, e no toque não há hover nenhum; é a
-                              mesma correção já feita no botão de excluir de
-                              outra tela. Ficam em cinza discreto para não
-                              competir com o conteúdo da linha. */}
-                          <td style={{ padding: '14px 14px', width: 132 }}>
+                          {/* Ações — sempre visíveis (hover esconderia; no toque
+                              não há hover), mas SÓ para quem edita a lista: o
+                              mesmo gate canEditLists do mobile. Antes o desktop
+                              não tinha gate nenhum. */}
+                          <td style={{ padding: '14px 14px', width: 110 }}>
+                            {canEditLists && (
                             <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', alignItems: 'center' }}>
                               {/* Toggle reaproveitamento — disponível enquanto não estiver em produção/entregue */}
                               {!isEditBlocked(item.status) && (
@@ -2044,19 +2210,38 @@ export default function EventDetail() {
                                   title={item.isReuse ? "Reaproveitamento ativo — clique para desativar" : "Marcar como reaproveitamento"}
                                   aria-label={item.isReuse ? "Desativar reaproveitamento" : "Marcar como reaproveitamento"}
                                   aria-pressed={item.isReuse}
-                                  onClick={e => { e.stopPropagation(); updateItemIsReuseMutation.mutate({ itemId: item.id, isReuse: !item.isReuse }); }}
+                                  disabled={updateItemIsReuseMutation.isPending}
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    updateItemIsReuseMutation.mutate(
+                                      { itemId: item.id, isReuse: !item.isReuse },
+                                      {
+                                        onSuccess: () => toast({
+                                          title: "Peça atualizada",
+                                          description: item.isReuse ? "Marca de reaproveitamento removida" : "Peça marcada como reaproveitamento",
+                                        }),
+                                      },
+                                    );
+                                  }}
                                   data-testid={`button-reuse-item-${item.id}`}
-                                  style={{ background: item.isReuse ? '#d1fae5' : 'none', border: item.isReuse ? '1px solid #6ee7b7' : 'none', borderRadius: '6px', padding: '6px', cursor: 'pointer', color: item.isReuse ? '#065f46' : '#78716c', transition: 'all 0.15s', display: 'flex', alignItems: 'center' }}
+                                  style={{ background: item.isReuse ? '#d1fae5' : 'none', border: item.isReuse ? '1px solid #6ee7b7' : 'none', borderRadius: '6px', padding: '6px', cursor: updateItemIsReuseMutation.isPending ? 'wait' : 'pointer', opacity: updateItemIsReuseMutation.isPending ? 0.5 : 1, color: item.isReuse ? '#065f46' : '#78716c', transition: 'all 0.15s', display: 'flex', alignItems: 'center' }}
                                   onMouseEnter={e => { if (!item.isReuse) { e.currentTarget.style.color = '#065f46'; e.currentTarget.style.backgroundColor = '#d1fae5'; } }}
                                   onMouseLeave={e => { if (!item.isReuse) { e.currentTarget.style.color = '#746e69'; e.currentTarget.style.backgroundColor = 'transparent'; } }}
                                 >
-                                  <RotateCcw className="h-4 w-4" />
+                                  <Recycle className="h-4 w-4" />
                                 </button>
                               )}
                               {isEditBlocked(item.status) ? (
-                                <span title="Edição bloqueada" style={{ color: '#d1cdc9', padding: '6px', cursor: 'not-allowed' }} data-testid={`button-edit-item-${item.id}`}>
+                                <button
+                                  type="button"
+                                  disabled
+                                  aria-disabled="true"
+                                  title="Edição bloqueada"
+                                  style={{ color: '#a8a29e', padding: '6px', cursor: 'not-allowed', background: 'none', border: 'none' }}
+                                  data-testid={`button-edit-item-${item.id}`}
+                                >
                                   <Lock className="h-4 w-4" />
-                                </span>
+                                </button>
                               ) : (
                                 <button
                                   style={{ color: '#746e69', background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'color 0.15s, background-color 0.15s' }}
@@ -2075,22 +2260,26 @@ export default function EventDetail() {
                                     style={{ color: '#746e69', background: 'none', border: 'none', cursor: 'pointer', padding: '6px', borderRadius: '6px', transition: 'color 0.15s, background-color 0.15s' }}
                                     onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.backgroundColor = '#fef2f2'; }}
                                     onMouseLeave={e => { e.currentTarget.style.color = '#746e69'; e.currentTarget.style.backgroundColor = 'transparent'; }}
-                                    onClick={e => { e.stopPropagation(); handleDeleteItem(item.id); }}
+                                    onClick={e => { e.stopPropagation(); handleDeleteItem(item); }}
                                     data-testid={`button-delete-item-${item.id}`}
                                     title="Excluir peça" aria-label="Excluir peça"
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </button>
                                 ) : (
-                                  <span
-                                    style={{ color: '#d1cdc9', padding: '6px', cursor: 'not-allowed' }}
+                                  <button
+                                    type="button"
+                                    disabled
+                                    aria-disabled="true"
+                                    style={{ color: '#a8a29e', padding: '6px', cursor: 'not-allowed', background: 'none', border: 'none' }}
                                     title="Exclusão bloqueada — peça já está em Arte ou produção"
                                   >
                                     <Trash2 className="h-4 w-4" />
-                                  </span>
+                                  </button>
                                 )
                               )}
                             </div>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -2115,21 +2304,45 @@ export default function EventDetail() {
         </div>
       )}
 
-      {/* Dialog de Detalhes do Item */}
+      {/* Dialog de Detalhes do Item — a ficha vira editável (o componente já
+          suporta onEditSave) apenas para quem pode editar a lista. Só os
+          campos que o modo de edição da ficha toca vão no PATCH. */}
       <ItemDetailsDialog
         item={selectedItemForDetails}
         auditLogs={auditLogs}
         open={!!selectedItemForDetails}
         onOpenChange={(open) => !open && setSelectedItemForDetails(null)}
+        onEditSave={canEditLists ? (edited: any) => updateItemMutation.mutate({
+          id: edited.id,
+          data: {
+            type: edited.type,
+            material: edited.material,
+            finish: edited.finish,
+            description: edited.description,
+            quantity: edited.quantity,
+            visualWidth: edited.visualWidth,
+            visualHeight: edited.visualHeight,
+            fileWidth: edited.fileWidth,
+            fileHeight: edited.fileHeight,
+            measurement: edited.measurement,
+            observations: edited.observations,
+          },
+        }) : undefined}
       />
 
-      <AlertDialog open={!!deletingItemId} onOpenChange={() => setDeletingItemId(null)}>
-        <AlertDialogContent style={{ maxWidth: "400px", backgroundColor: "#ffffff", borderRadius: "16px", padding: "32px", border: "none", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
+      <AlertDialog open={!!deletingItem} onOpenChange={(o) => { if (!o) setDeletingItem(null); }}>
+        <AlertDialogContent style={{ width: "96vw", maxWidth: 400, backgroundColor: "#ffffff", borderRadius: "16px", padding: "32px", border: "none", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
           <AlertDialogHeader style={{ padding: 0, marginBottom: "24px" }}>
             <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "18px", fontWeight: 900, letterSpacing: "-0.03em", color: "#1a1c1c" }}>
               Confirmar Exclusão
             </AlertDialogTitle>
             <AlertDialogDescription style={{ fontSize: "15px", color: "#746e69", lineHeight: 1.6, marginTop: "6px" }}>
+              {deletingItem && (
+                <span style={{ display: "block", fontWeight: 700, color: "#1a1c1c", marginBottom: 6 }}>
+                  Excluir a peça {deletingItem.displayId ?? ""} — {deletingItem.type ?? "sem tipo"}?
+                  {deletingItem.description ? ` (${deletingItem.description})` : ""}
+                </span>
+              )}
               A peça será removida da lista, mas permanece no histórico de auditoria para rastreabilidade.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -2142,11 +2355,18 @@ export default function EventDetail() {
               Cancelar
             </AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deletingItemId && deleteItemMutation.mutate(deletingItemId)}
+              // preventDefault: o AlertDialogAction fecha o diálogo no clique;
+              // sem impedir, o "Excluindo…" nunca chegava a aparecer. O
+              // fechamento acontece no onSuccess da mutation.
+              onClick={(e) => {
+                e.preventDefault();
+                if (deletingItem && !deleteItemMutation.isPending) deleteItemMutation.mutate(deletingItem.id);
+              }}
+              disabled={deleteItemMutation.isPending}
               data-testid="button-confirm-delete-item"
-              style={{ padding: "9px 20px", backgroundColor: "#b91c1c", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: 700, color: "#ffffff", cursor: "pointer", transition: "background-color 0.15s" }}
+              style={{ padding: "9px 20px", backgroundColor: "#b91c1c", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: 700, color: "#ffffff", cursor: deleteItemMutation.isPending ? "wait" : "pointer", opacity: deleteItemMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s" }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#dc2626")}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#ef4444")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "#b91c1c")}
             >
               {deleteItemMutation.isPending ? "Excluindo..." : "Excluir"}
             </AlertDialogAction>
@@ -2406,7 +2626,7 @@ export default function EventDetail() {
               {/* Linha 5: Referência (opcional) */}
               <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
                 <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>
-                  Referência <span style={{ color: "#c9c4c0", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "10px" }}>(opcional — cole um print com Ctrl+V ou anexe uma imagem, em alta qualidade)</span>
+                  Referência <span style={{ color: "#8b8580", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "10px" }}>(opcional — cole um print com Ctrl+V ou anexe uma imagem, em alta qualidade)</span>
                 </label>
                 {(localRefPreview || formData.referenceUrl) ? (
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>

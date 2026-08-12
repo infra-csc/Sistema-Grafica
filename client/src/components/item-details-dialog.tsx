@@ -13,8 +13,10 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { queryClient } from "@/lib/queryClient";
 import { Undo2 } from "lucide-react";
 
@@ -203,44 +205,44 @@ export function ItemDetailsDialog({
   const [editedItem, setEditedItem] = useState(item);
   const { user } = useAuth();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
   const [revertingSponsorId, setRevertingSponsorId] = useState<string | null>(null);
 
   // Aprovação por patrocinador não vem no payload de /api/items — sem buscar
   // aqui, peças com várias marcas apareciam sempre como "Aguardando" no Painel
   // Geral e no detalhe do evento, mesmo já aprovadas.
-  const [fetchedApprovals, setFetchedApprovals] = useState<any[]>([]);
+  // useQuery (não fetch cru em useEffect): cache/deduplicação/cancelamento de
+  // graça. staleTime 0 preserva o comportamento antigo de buscar a cada abertura.
+  const approvalsQuery = useQuery<any[]>({
+    queryKey: ["/api/items", item?.id, "sponsor-approvals"],
+    enabled: !!item?.id && open && !item?.sponsorApprovals,
+    staleTime: 0,
+  });
+  const fetchedApprovals: any[] = Array.isArray(approvalsQuery.data) ? approvalsQuery.data : [];
   // Sobrepõe a lista assim que o admin reverte uma aprovação — sem isso o chip
   // ficaria com o status antigo até o diálogo reabrir.
   const [approvalsOverride, setApprovalsOverride] = useState<any[] | null>(null);
-  const refetchApprovals = () => {
+  const refetchApprovals = async () => {
     if (!item?.id) return;
-    return fetch(`/api/items/${item.id}/sponsor-approvals`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : []))
-      .then(data => { const list = Array.isArray(data) ? data : []; setFetchedApprovals(list); setApprovalsOverride(list); return list; });
+    // refetch() ignora `enabled` — funciona mesmo quando o payload já trazia
+    // sponsorApprovals e a query ficou desligada.
+    const res = await approvalsQuery.refetch();
+    const list = Array.isArray(res.data) ? res.data : [];
+    setApprovalsOverride(list);
+    return list;
   };
   useEffect(() => {
     setApprovalsOverride(null);
-    if (!open || !item?.id || item?.sponsorApprovals) { setFetchedApprovals([]); return; }
-    let cancelled = false;
-    fetch(`/api/items/${item.id}/sponsor-approvals`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : []))
-      .then(data => { if (!cancelled) setFetchedApprovals(Array.isArray(data) ? data : []); })
-      .catch(() => { /* silencioso: sem as aprovações os chips ficam como estavam */ });
-    return () => { cancelled = true; };
   }, [open, item?.id]);
 
   // Fotos que a Gráfica anexou na conferência e na entrega, para que o registro
   // acompanhe a peça ao longo do fluxo e não fique só na tela da Gráfica.
-  const [flowPhotos, setFlowPhotos] = useState<any[]>([]);
-  useEffect(() => {
-    if (!open || !item?.id) { setFlowPhotos([]); return; }
-    let cancelled = false;
-    fetch(`/api/items/${item.id}/photos`, { credentials: "include" })
-      .then(r => (r.ok ? r.json() : []))
-      .then(data => { if (!cancelled) setFlowPhotos(Array.isArray(data) ? data : []); })
-      .catch(() => { /* silencioso: sem as fotos o restante do card segue igual */ });
-    return () => { cancelled = true; };
-  }, [open, item?.id]);
+  const { data: flowPhotosData } = useQuery<any[]>({
+    queryKey: ["/api/items", item?.id, "photos"],
+    enabled: !!item?.id && open,
+    staleTime: 0,
+  });
+  const flowPhotos: any[] = Array.isArray(flowPhotosData) ? flowPhotosData : [];
 
   if (!item) return null;
 
@@ -474,8 +476,9 @@ export function ItemDetailsDialog({
             HEADER — Dark
         ══════════════════════════════════════════════════════ */}
         <header style={{ backgroundColor: "#1c1917", color: "#ffffff" }}>
-          {/* Title + pills row */}
-          <div style={{ padding: "24px 32px 20px" }}>
+          {/* Title + pills row — padding menor no mobile: 32px de cada lado
+              comia um terço da tela. */}
+          <div style={{ padding: isMobile ? "16px" : "24px 32px 20px" }}>
             {/* ID chip inline */}
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
               <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
@@ -602,7 +605,9 @@ export function ItemDetailsDialog({
         {/* ══════════════════════════════════════════════════════
             TWO-COLUMN GRID
         ══════════════════════════════════════════════════════ */}
-        <div style={{ display: "grid", gridTemplateColumns: "6fr 4fr", gap: 16, padding: "20px 32px 20px", backgroundColor: "#e8e4de" }}>
+        {/* No mobile as duas colunas empilham — 60/40 lado a lado espremia
+            os cards em ~180px cada. */}
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "6fr 4fr", gap: 16, padding: isMobile ? "16px" : "20px 32px 20px", backgroundColor: "#e8e4de" }}>
 
           {/* ── LEFT COLUMN (60%) ── */}
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -619,7 +624,7 @@ export function ItemDetailsDialog({
               </h3>
 
               {/* Dates */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 32 }}>
+              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 16 : 32 }}>
                 <div>
                   <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#8c7164", display: "block", marginBottom: 4 }}>
                     Data de Início
@@ -676,7 +681,7 @@ export function ItemDetailsDialog({
                     </div>
                   </div>
                 ) : (
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 10 }}>
                     {[
                       { label: "Tipo",       value: item.type },
                       { label: "Material",   value: item.material },
@@ -1039,7 +1044,7 @@ export function ItemDetailsDialog({
 
           {/* ── Fotos da conferência/entrega + Observações ── */}
           {(hasFlowPhotos || hasObservations) && (
-            <div style={{ display: "grid", gridTemplateColumns: hasFlowPhotos && hasObservations ? "1fr 1fr" : "1fr", gap: 32 }}>
+            <div style={{ display: "grid", gridTemplateColumns: !isMobile && hasFlowPhotos && hasObservations ? "1fr 1fr" : "1fr", gap: 32 }}>
               {hasFlowPhotos && (
                 <section>
                   <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 14px 0", display: "flex", alignItems: "center", gap: 6, color: "#746e69" }}>
@@ -1106,7 +1111,7 @@ export function ItemDetailsDialog({
 
           {/* ── Rastreabilidade + Histórico ── */}
           {(hasTimestamps || historyStages.length > 0 || deliveryLog) && (
-            <div style={{ display: "grid", gridTemplateColumns: hasTimestamps ? "2fr 1fr" : "1fr", gap: 32 }}>
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : (hasTimestamps ? "2fr 1fr" : "1fr"), gap: 32 }}>
 
               {/* Rastreabilidade Temporal */}
               {hasTimestamps && (
@@ -1115,8 +1120,10 @@ export function ItemDetailsDialog({
                     <Clock style={{ width: 13, height: 13, color: "#fd761a" }} />
                     Rastreabilidade Temporal
                   </h3>
+                  {/* minWidth no mobile: sem ele as três colunas se esmagavam
+                      em vez de rolar dentro do wrapper. */}
                   <div style={{ overflowX: "auto" }}>
-                    <table style={{ width: "100%", textAlign: "left", borderCollapse: "collapse" }}>
+                    <table style={{ width: "100%", minWidth: isMobile ? 480 : undefined, textAlign: "left", borderCollapse: "collapse" }}>
                       <thead>
                         <tr style={{ borderBottom: "1px solid #eeeeed" }}>
                           {["Etapa", "Data / Hora", "Responsável"].map(col => (

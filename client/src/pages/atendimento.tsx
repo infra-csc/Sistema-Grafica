@@ -4,12 +4,10 @@ import { SponsorChips } from "@/components/sponsor-chips";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { ExportPdfDialog } from "@/components/export-pdf-dialog";
-import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip, Printer, Plus, PlusCircle, Pencil, Trash2, Truck, Cog, Send, Link2, Unlock, Upload, ImageIcon, ArrowRightLeft, ChevronsUpDown, Check, FileCheck } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip, Plus, Pencil, Trash2, Truck, Cog, Send, Link2, Unlock, Upload, ImageIcon, ArrowRightLeft, Check } from "lucide-react";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { FilePreview } from "@/components/file-preview";
-import { Badge } from "@/components/ui/badge";
+import { getStatusMeta, getStatusLabel, getStatusShort, PRODUCTION_STATUSES } from "@/lib/status";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -18,7 +16,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
 import { useState, useMemo, Fragment, useEffect, useRef, useDeferredValue } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -47,9 +44,73 @@ interface SponsorApproval {
 // que chamar localeCompare a cada comparação. Sem locale, como era antes.
 const COLLATOR = new Intl.Collator();
 
+// ── Visual canônico do status de aprovação de UM patrocinador ──────────────
+// Usado nos chips do histórico, no modal de detalhe, no modal de revisão e
+// nos SponsorChips da lista. Antes eram 5 blocos de cores duplicados que já
+// estavam divergindo (verde #166534 num ponto, #15803d noutro).
+// `awaiting_arte` NÃO conta como reprovado aqui — quem quiser esse
+// comportamento (modal de revisão) normaliza o status antes de chamar.
+const approvalVisual = (status?: string | null) => {
+  const isApproved   = status === 'approved';
+  const isRejected   = status === 'rejected';
+  const isNewVersion = status === 'new_version_pending';
+  return {
+    isApproved, isRejected, isNewVersion,
+    chip: (isApproved ? 'approved' : isRejected ? 'rejected' : 'pending') as 'approved' | 'rejected' | 'pending',
+    label:  isApproved ? 'Aprovado' : isRejected ? 'Reprovado' : isNewVersion ? 'Nova versão' : 'Aguardando',
+    bg:     isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : isNewVersion ? '#fffbeb' : '#f5f5f4',
+    border: isApproved ? '#bbf7d0' : isRejected ? '#fecaca' : isNewVersion ? '#fde68a' : '#e7e5e4',
+    text:   isApproved ? '#15803d' : isRejected ? '#b91c1c' : isNewVersion ? '#92400e' : '#6b7280',
+    dot:    isApproved ? '#22c55e' : isRejected ? '#ef4444' : isNewVersion ? '#f59e0b' : '#d1d5db',
+  };
+};
+
+// ── Pipeline de fluxo do cartão de histórico (10 etapas) ───────────────────
+// Const de módulo: antes era recriado a cada card renderizado. As etapas de
+// produção/entrega derivam da lista canônica PRODUCTION_STATUSES da lib de
+// status (+ aliases legados que versões antigas gravaram no banco).
+const [ST_IN_PRODUCTION, ST_PRODUCED, ST_CONFERRED, ST_DELIVERED] = PRODUCTION_STATUSES;
+const PIPELINE_STAGES: { key: string; label: string; color: string; statuses: string[] }[] = [
+  { key: 'solicitado',   label: 'Solicitado',      color: '#f97316', statuses: ['draft', 'requested', 'solicitado'] },
+  { key: 'vinculacao',   label: 'Vinculação',      color: '#746e69', statuses: ['awaiting_linking'] },
+  { key: 'ag_aprovacao', label: 'Ag. Aprovação',   color: '#f97316', statuses: ['awaiting_submission', 'awaiting_approval', 'awaiting_sponsor_approval'] },
+  { key: 'aprovado',     label: 'Aprovado',        color: '#22c55e', statuses: ['sponsor_approved'] },
+  { key: 'finalizacao',  label: 'Finalização',     color: '#a855f7', statuses: ['awaiting_finalization', 'awaiting_creator_review'] },
+  { key: 'revisao',      label: 'Revisão',         color: '#d946ef', statuses: ['awaiting_final_review'] },
+  { key: 'pronto',       label: 'Pronto p/ Prod.', color: '#10b981', statuses: ['ready_for_production', 'pronto_para_producao', 'approved', 'liberado'] },
+  { key: 'producao',     label: 'Em Produção',     color: '#f59e0b', statuses: [ST_IN_PRODUCTION, 'in_production', 'em_producao'] },
+  { key: 'produzido',    label: 'Produzido',       color: '#ec4899', statuses: [ST_PRODUCED, 'produzido'] },
+  { key: 'entregue',     label: 'Entregue',        color: '#7c3aed', statuses: [ST_CONFERRED, 'conferido', ST_DELIVERED, 'entregue'] },
+];
+
+// ── Config das ações do log de auditoria (modal de revisão) ────────────────
+// Const de módulo: antes era recriada a cada LINHA do histórico renderizada.
+const ACTION_CONFIG: Record<string, { label: string; bg: string; iconColor: string; icon: any }> = {
+  created:          { label: 'Criado',                bg: '#dbeafe', iconColor: '#1d4ed8', icon: Plus },
+  updated:          { label: 'Atualizado',            bg: '#ffedd5', iconColor: '#c2410c', icon: Pencil },
+  deleted:          { label: 'Excluído',              bg: '#fee2e2', iconColor: '#dc2626', icon: Trash2 },
+  approved:         { label: 'Aprovado',              bg: '#dcfce7', iconColor: '#15803d', icon: CheckCircle },
+  rejected:         { label: 'Reprovado',             bg: '#fee2e2', iconColor: '#dc2626', icon: XCircle },
+  canceled:         { label: 'Cancelado',             bg: '#fee2e2', iconColor: '#dc2626', icon: XCircle },
+  delivered:        { label: 'Entregue',              bg: '#ede9fe', iconColor: '#7c3aed', icon: Truck },
+  produced:         { label: 'Produzido',             bg: '#e0e7ff', iconColor: '#4338ca', icon: Cog },
+  submitted:        { label: 'Enviado',               bg: '#cffafe', iconColor: '#0e7490', icon: Send },
+  linked:           { label: 'Vinculado',             bg: '#ccfbf1', iconColor: '#0f766e', icon: Link2 },
+  released:         { label: 'Liberado',              bg: '#dbeafe', iconColor: '#1d4ed8', icon: Unlock },
+  status_changed:   { label: 'Status alterado',       bg: '#ffedd5', iconColor: '#c2410c', icon: ArrowRightLeft },
+  sponsor_approved: { label: 'Patrocinador aprovado', bg: '#dcfce7', iconColor: '#15803d', icon: CheckCircle },
+  sponsor_rejected: { label: 'Patrocinador reprovou', bg: '#fee2e2', iconColor: '#dc2626', icon: XCircle },
+  file_uploaded:    { label: 'Arquivo enviado',       bg: '#f3e8ff', iconColor: '#7e22ce', icon: Upload },
+  thumb_uploaded:   { label: 'Thumb enviado',         bg: '#f3e8ff', iconColor: '#7e22ce', icon: ImageIcon },
+};
+
 export default function Atendimento() {
   const { toast } = useToast();
   const { user } = useAuth();
+  // Gate de papel: o servidor só aceita decisões de "atendimento" e "admin"
+  // (403 para os demais). A UI espelha o gate em vez de deixar o clique
+  // estourar erro — os outros papéis veem a tela em modo somente leitura.
+  const canDecide = user?.role === "atendimento" || user?.role === "admin";
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
@@ -65,8 +126,6 @@ export default function Atendimento() {
   useEffect(() => { sessionStorage.setItem("atendimento:eventFilter", JSON.stringify(eventFilter)); }, [eventFilter]);
   const [itemTypeFilter, setItemTypeFilter] = useState<string[]>([]);
   const [sponsorFilter, setSponsorFilter] = useState<string[]>([]);
-  const [eventComboOpen, setEventComboOpen] = useState(false);
-  const [sponsorComboOpen, setSponsorComboOpen] = useState(false);
 
   // Filtros — aba Histórico
   const [histEventFilter, setHistEventFilter] = useState<string[]>([]);
@@ -97,18 +156,7 @@ export default function Atendimento() {
 
   // Modal Exportar PDF
   const [showExportPDFModal, setShowExportPDFModal] = useState(false);
-  const [expEventFilter, setExpEventFilter] = useState("all");
-  const [expSponsorFilter, setExpSponsorFilter] = useState("all");
-  const [expGroupFilter, setExpGroupFilter] = useState("all");
-  const [expTypeFilter, setExpTypeFilter] = useState("all");
-  const [expIncludeNoThumb, setExpIncludeNoThumb] = useState(true);
-  const [expGroupByEvent, setExpGroupByEvent] = useState(false);
-  const [expStatusFilter, setExpStatusFilter] = useState<"all" | "pending" | "approved">("all");
-  const [expEventComboOpen, setExpEventComboOpen] = useState(false);
-  const [expSponsorComboOpen, setExpSponsorComboOpen] = useState(false);
 
-  // Seleção múltipla
-  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [approvedGroupExpanded, setApprovedGroupExpanded] = useState(false);
 
   // Lote por Patrocinador + Evento
@@ -117,8 +165,14 @@ export default function Atendimento() {
   const [batchRejectReason, setBatchRejectReason]     = useState<string>("");
   const [batchShowRejectForm, setBatchShowRejectForm] = useState<boolean>(false);
   const [batchSelectedItemIds, setBatchSelectedItemIds] = useState<Set<string>>(new Set());
-  const [batchSponsorComboOpen, setBatchSponsorComboOpen] = useState(false);
-  const [batchEventComboOpen, setBatchEventComboOpen]   = useState(false);
+  // Painel de lote recolhido por padrão: quem entra para revisar peça a peça
+  // não precisa do painel ocupando meia tela. A escolha persiste na sessão.
+  const [batchPanelOpen, setBatchPanelOpen] = useState<boolean>(() => {
+    try { return sessionStorage.getItem("atendimento:batchPanelOpen") === "1"; } catch { return false; }
+  });
+  useEffect(() => {
+    try { sessionStorage.setItem("atendimento:batchPanelOpen", batchPanelOpen ? "1" : "0"); } catch {}
+  }, [batchPanelOpen]);
 
   // Map para rastrear patrocinadores de cada item
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, any[]>>({});
@@ -153,8 +207,11 @@ export default function Atendimento() {
     queryKey: ["/api/sponsors"],
   });
 
+  // Só carrega os logs (milhares de registros) quando o modal de revisão —
+  // único consumidor deles nesta tela — está aberto.
   const { data: auditLogs = [] } = useQuery<any[]>({
     queryKey: ["/api/audit-logs"],
+    enabled: dialogOpen,
   });
   const { data: standardItems = [] } = useQuery<any[]>({ queryKey: ['/api/standard-items'] });
   const typeToGroup = useMemo(() => {
@@ -168,6 +225,16 @@ export default function Atendimento() {
     items.filter(item =>
       item.status === 'awaiting_sponsor_approval' && !item.skipApproval
     ), [items]
+  );
+
+  // Chave estável do conjunto de peças em aprovação: o efeito abaixo só refaz
+  // o batch quando uma peça ENTRA ou SAI do fluxo (ou o total de itens muda,
+  // p.ex. no primeiro carregamento) — não a cada nova identidade do array
+  // vinda do cache. Antes, qualquer decisão (que remenda o cache de
+  // /api/items) recriava o array e disparava o refetch global por clique.
+  const awaitingKey = useMemo(
+    () => `${items.length}:${awaitingItems.map(i => i.id).sort().join('|')}`,
+    [items.length, awaitingItems]
   );
 
   // Carregar patrocinadores e aprovações — uma única chamada batch.
@@ -198,7 +265,8 @@ export default function Atendimento() {
         console.error("Erro ao carregar dados de aprovação em lote:", err);
         if (currentRequestId === requestIdRef.current) setLoadingSponsors(false);
       });
-  }, [awaitingItems]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- awaitingKey é a chave estável de awaitingItems
+  }, [awaitingKey]);
 
   // Carregar aprovações individuais de patrocinadores quando o dialog é aberto.
   // Guarda de corrida (cancelled): ao aprovar, o fluxo avança para a próxima
@@ -254,15 +322,37 @@ export default function Atendimento() {
     });
   };
 
+  /**
+   * Remenda UM registro de aprovação nos estados locais (mapa da lista e,
+   * quando o modal mostra a mesma peça, a lista do modal) — em vez de deixar
+   * o efeito refazer a chamada batch inteira a cada decisão.
+   * O spread { ...a, ...approval } preserva o campo `sponsor` enriquecido
+   * (as respostas de decisão devolvem o registro cru, sem `sponsor`).
+   */
+  const applyApprovalToCache = (itemId: string, approval?: SponsorApproval | null) => {
+    if (!approval) return;
+    const patch = (list: SponsorApproval[]) => {
+      const exists = list.some(a => a.sponsorId === approval.sponsorId);
+      return exists
+        ? list.map(a => (a.sponsorId === approval.sponsorId ? { ...a, ...approval } : a))
+        : [...list, approval];
+    };
+    setItemApprovalsMap(prev => ({ ...prev, [itemId]: patch(prev[itemId] || []) }));
+    if (selectedItem?.id === itemId) setSponsorApprovals(prev => patch(prev));
+  };
+
   const individualApproveMutation = useMutation({
     mutationFn: async ({ itemId, sponsorId }: { itemId: string; sponsorId: string }) => {
       const response = await apiRequest("POST", `/api/items/${itemId}/sponsor-approvals/${sponsorId}/approve`, {});
       return response.json();
     },
-    onSuccess: (data) => {
-      applyItemDecisionToCache(data.item);
+    onSuccess: (data, variables) => {
+      // Remenda o registro de aprovação nos caches locais — sem refazer o batch.
+      applyApprovalToCache(variables.itemId, data.approval);
 
       if (data.allApproved) {
+        // O item mudou de status: a resposta traz o item atualizado.
+        applyItemDecisionToCache(data.item);
         // Peça concluída: segue direto para a próxima da fila, sem voltar à lista.
         const idx = reviewQueue.findIndex((i: any) => i.id === selectedItem?.id);
         const next = idx >= 0 ? reviewQueue[idx + 1] : undefined;
@@ -275,11 +365,10 @@ export default function Atendimento() {
           toast({ title: "Todos patrocinadores aprovaram", description: "Você revisou a última peça da fila." });
         }
       } else {
-        if (selectedItem) {
-          apiRequest("GET", `/api/items/${selectedItem.id}/sponsor-approvals`)
-            .then(r => r.json()).then(setSponsorApprovals).catch(console.error);
-        }
-        toast({ title: "Patrocinador aprovou", description: `${data.approval?.sponsor?.name || 'Patrocinador'} aprovou a peça` });
+        // Decisão parcial: o item não mudou de status; só o log ficou defasado.
+        queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"], refetchType: dialogOpen ? "active" : "none" });
+        const sponsorName = itemSponsorsMap[variables.itemId]?.find((s: any) => s.id === variables.sponsorId)?.name;
+        toast({ title: "Patrocinador aprovou", description: `${sponsorName || 'Patrocinador'} aprovou a peça` });
       }
     },
     onError: (error: any) => {
@@ -294,13 +383,18 @@ export default function Atendimento() {
       });
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
+      // A resposta traz o registro de aprovação (status awaiting_arte) e o
+      // item (flag rejectedBySponsor) — remenda os dois caches localmente.
+      applyApprovalToCache(variables.itemId, data.approval);
       applyItemDecisionToCache(data.item);
       setRejectionReason("");
       setRejectingSponsorId(null);
 
       if (data.allDecided) {
         // Peça resolvida (volta para a Arte): segue para a próxima da fila.
+        // Obs.: o endpoint atual não devolve `allDecided` — branch preservado
+        // para quando o servidor passar a informar (item 21 do backlog).
         const idx = reviewQueue.findIndex((i: any) => i.id === selectedItem?.id);
         const next = idx >= 0 ? reviewQueue[idx + 1] : undefined;
         if (next) {
@@ -312,10 +406,6 @@ export default function Atendimento() {
           toast({ title: "Todos patrocinadores decidiram", description: "Peça retornou para Arte refazer o thumb." });
         }
       } else {
-        if (selectedItem) {
-          apiRequest("GET", `/api/items/${selectedItem.id}/sponsor-approvals`)
-            .then(r => r.json()).then(setSponsorApprovals).catch(console.error);
-        }
         toast({ title: "Reprovação registrada", description: "O item retorna para Arte preparar nova versão." });
       }
     },
@@ -331,12 +421,10 @@ export default function Atendimento() {
       const response = await apiRequest("POST", `/api/items/${itemId}/sponsor-approvals/${sponsorId}/revert`, {});
       return response.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
+      // A resposta traz { approval, item }: remenda os caches localmente.
+      applyApprovalToCache(variables.itemId, data.approval);
       applyItemDecisionToCache(data.item);
-      if (selectedItem) {
-        apiRequest("GET", `/api/items/${selectedItem.id}/sponsor-approvals`)
-          .then(r => r.json()).then(setSponsorApprovals).catch(console.error);
-      }
       toast({ title: "Aprovação revertida", description: "O patrocinador volta a aguardar decisão." });
     },
     onError: (error: any) => {
@@ -346,12 +434,12 @@ export default function Atendimento() {
 
   const sponsorApproveMutation = useMutation({
     mutationFn: async (itemId: string) => {
-      return await apiRequest("PATCH", `/api/items/${itemId}/sponsor-approve`, {});
+      // O endpoint devolve o item atualizado — dá para remendar o cache.
+      const response = await apiRequest("PATCH", `/api/items/${itemId}/sponsor-approve`, {});
+      return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"], refetchType: dialogOpen ? "active" : "none" });
+    onSuccess: (item) => {
+      applyItemDecisionToCache(item);
       setDialogOpen(false);
       setSelectedItem(null);
       toast({ title: "Peça aprovada", description: "A peça foi aprovada pelo patrocinador com sucesso!" });
@@ -363,50 +451,18 @@ export default function Atendimento() {
 
   const sponsorRejectMutation = useMutation({
     mutationFn: async (itemId: string) => {
-      return await apiRequest("PATCH", `/api/items/${itemId}/sponsor-reject`, {});
+      // O endpoint devolve o item atualizado — dá para remendar o cache.
+      const response = await apiRequest("PATCH", `/api/items/${itemId}/sponsor-reject`, {});
+      return response.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"], refetchType: dialogOpen ? "active" : "none" });
+    onSuccess: (item) => {
+      applyItemDecisionToCache(item);
       setDialogOpen(false);
       setSelectedItem(null);
       toast({ title: "Peça reprovada", description: "A peça retornou para a Arte refazer." });
     },
     onError: (error: any) => {
       toast({ title: "Erro ao reprovar peça", description: error.message || "Ocorreu um erro", variant: "destructive" });
-    },
-  });
-
-  const bulkApproveMutation = useMutation({
-    mutationFn: async (itemIds: string[]) => {
-      return await Promise.all(itemIds.map(id => apiRequest("PATCH", `/api/items/${id}/sponsor-approve`, {})));
-    },
-    onSuccess: (_, itemIds) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"], refetchType: dialogOpen ? "active" : "none" });
-      setSelectedItemIds(new Set());
-      toast({ title: "Peças aprovadas", description: `${itemIds.length} peças aprovadas com sucesso!` });
-    },
-    onError: (error: any) => {
-      toast({ title: "Erro ao aprovar peças", description: error.message || "Ocorreu um erro", variant: "destructive" });
-    },
-  });
-
-  const bulkRejectMutation = useMutation({
-    mutationFn: async (itemIds: string[]) => {
-      return await Promise.all(itemIds.map(id => apiRequest("PATCH", `/api/items/${id}/sponsor-reject`, {})));
-    },
-    onSuccess: (_, itemIds) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"], refetchType: dialogOpen ? "active" : "none" });
-      setSelectedItemIds(new Set());
-      toast({ title: "Peças reprovadas", description: `${itemIds.length} peças retornaram para a Arte.` });
-    },
-    onError: (error: any) => {
-      toast({ title: "Erro ao reprovar peças", description: error.message || "Ocorreu um erro", variant: "destructive" });
     },
   });
 
@@ -423,18 +479,26 @@ export default function Atendimento() {
         const status = approval?.status || "pending";
         if (!itemSponsorsMap[item.id]?.some((s: any) => s.id === sponsorId)) return [];
         if (status !== "pending" && status !== "new_version_pending") return [];
+        // Parseia cada resposta: { approval, item?, allApproved? } — permite
+        // remendar os caches sem invalidar/refazer as listas inteiras.
         if (action === "approve") {
-          return [apiRequest("POST", `/api/items/${item.id}/sponsor-approvals/${sponsorId}/approve`, {})];
+          return [apiRequest("POST", `/api/items/${item.id}/sponsor-approvals/${sponsorId}/approve`, {}).then(r => r.json())];
         } else {
-          return [apiRequest("POST", `/api/items/${item.id}/sponsor-approvals/${sponsorId}/reject`, { rejectionReason: reason || null })];
+          return [apiRequest("POST", `/api/items/${item.id}/sponsor-approvals/${sponsorId}/reject`, { rejectionReason: reason || null }).then(r => r.json())];
         }
       });
       return await Promise.all(promises);
     },
-    onSuccess: (_, vars) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"], refetchType: dialogOpen ? "active" : "none" });
+    onSuccess: (results: any[], vars) => {
+      let anyItemChanged = false;
+      results.forEach((r: any) => {
+        if (r?.approval) applyApprovalToCache(r.approval.itemId, r.approval);
+        if (r?.item) { anyItemChanged = true; applyItemDecisionToCache(r.item); }
+      });
+      if (!anyItemChanged) {
+        // Nenhum item mudou de status — ainda assim o log ficou defasado.
+        queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"], refetchType: dialogOpen ? "active" : "none" });
+      }
       setBatchSponsorId("");
       setBatchEventId("");
       setBatchRejectReason("");
@@ -472,15 +536,6 @@ export default function Atendimento() {
     });
   }, [pendingItems, deferredSearchTerm, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors]);
 
-  const uniqueItemGroups = useMemo(() => {
-    const groups = new Set(pendingItems.map(item => (item.type ?? "").split(/[\s(]/)[0]).filter(Boolean));
-    return Array.from(groups).sort();
-  }, [pendingItems]);
-  const uniqueItemTypes = useMemo(() => {
-    const types = new Set(pendingItems.map(item => item.type).filter(Boolean));
-    return Array.from(types).sort();
-  }, [pendingItems]);
-
   // Filtros facetados: cada filtro lista só o que existe na página, aplicando
   // os OUTROS filtros ativos (escolher um evento reduz tipos e patrocinadores).
   const facetPool = (exclude: 'event' | 'type' | 'sponsor') =>
@@ -491,7 +546,6 @@ export default function Atendimento() {
       if (exclude !== 'sponsor' && sponsorFilter.length > 0 && !itemSponsorsMap[item.id]?.some(s => sponsorFilter.includes(s.id))) return false;
       return true;
     });
-  const facetDeps = [pendingItems, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors];
 
   const eventFilterOptions = useMemo(() => {
     const DOT: Record<string, string> = { urgente: '#ef4444', urgent: '#ef4444', alta: '#f97316', media: '#eab308', baixa: '#3b82f6' };
@@ -507,7 +561,7 @@ export default function Atendimento() {
       }
     });
     return Array.from(map.values());
-  }, [...facetDeps, events]);
+  }, [pendingItems, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors, events]);
 
   const typeFilterOptions = useMemo(() => {
     const map = new Map<string, { value: string; label: string; count: number }>();
@@ -518,7 +572,7 @@ export default function Atendimento() {
       else map.set(i.type, { value: i.type, label: i.type, count: 1 });
     });
     return Array.from(map.values());
-  }, facetDeps);
+  }, [pendingItems, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors]);
 
   // Enquanto o mapa ainda carrega, mostra todos os patrocinadores da API
   // (sem contagem) para que o filtro apareça imediatamente. Assim que o mapa
@@ -534,7 +588,7 @@ export default function Atendimento() {
       else map.set(s.id, { value: s.id, label: s.name, count: 1, dotColor: s.color || '#a8a29e' });
     }));
     return Array.from(map.values());
-  }, [...facetDeps, sponsors, loadingSponsors]);
+  }, [pendingItems, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors, sponsors]);
 
   // Itens filtrados para o modal de exportação PDF (filtros independentes da página)
   // Pool para o modal de exportação compartilhado: anexa os patrocinadores
@@ -560,36 +614,15 @@ export default function Atendimento() {
       }));
   }, [items, itemSponsorsMap, itemApprovalsMap, events]);
 
-  const exportItems = useMemo(() => {
-    return pendingItems.filter(item => {
-      const hasSponsors = itemSponsorsMap[item.id]?.length > 0;
-      if (!hasSponsors && !loadingSponsors) return false;
-      if (expEventFilter !== "all" && item.eventId !== expEventFilter) return false;
-      if (expGroupFilter !== "all") {
-        const g = (item.type ?? "").split(/[\s(]/)[0];
-        if (g !== expGroupFilter) return false;
-      }
-      if (expTypeFilter !== "all" && item.type !== expTypeFilter) return false;
-      if (expSponsorFilter !== "all" && !itemSponsorsMap[item.id]?.some((s: any) => s.id === expSponsorFilter)) return false;
-      if (!expIncludeNoThumb && !item.approvalThumbUrl) return false;
-      if (expStatusFilter === "pending" && isItemFullyApproved(item)) return false;
-      if (expStatusFilter === "approved" && !isItemFullyApproved(item)) return false;
-      return true;
-    });
-  }, [pendingItems, itemSponsorsMap, loadingSponsors, expEventFilter, expGroupFilter, expTypeFilter, expSponsorFilter, expIncludeNoThumb, expStatusFilter]);
-
   // Patrocinadores da peça já com o status de aprovação de cada um, para os
   // chips mostrarem a cor da marca E a decisão (aprovado / reprovado / aguardando).
   const sponsorsWithStatus = (item: any) => {
     const sps = itemSponsorsMap[item.id] || [];
     const apps: SponsorApproval[] = itemApprovalsMap[item.id] || [];
-    return sps.map((s: any) => {
-      const st = apps.find(a => a.sponsorId === s.id)?.status;
-      return {
-        ...s,
-        approvalStatus: st === 'approved' ? 'approved' : st === 'rejected' ? 'rejected' : 'pending',
-      };
-    });
+    return sps.map((s: any) => ({
+      ...s,
+      approvalStatus: approvalVisual(apps.find(a => a.sponsorId === s.id)?.status).chip,
+    }));
   };
 
   const isItemEligibleForBatch = (item: any): boolean => {
@@ -674,23 +707,8 @@ export default function Atendimento() {
   // ── Aba Histórico ───────────────────────────────────────────────────────
   // Itens que têm pelo menos uma aprovação de patrocinador com status 'approved',
   // independente do status atual (podem estar em produção, entregues, etc.)
-  // `border` é opcional: quando não vem, a borda cai para o próprio bg.
-  const HIST_STATUS: Record<string, { label: string; bg: string; color: string; border?: string }> = {
-    awaiting_finalization:    { label: 'Aguard. Finalização', bg: '#fff7ed', color: '#c2410c' },
-    awaiting_final_review:    { label: 'Aguard. Revisão',    bg: '#fff7ed', color: '#c2410c' },
-    awaiting_creator_review:  { label: 'Aguard. Revisão',    bg: '#fff7ed', color: '#c2410c' },
-    awaiting_linking:         { label: 'Aguard. Vinculação', bg: '#f0f9ff', color: '#0369a1' },
-    ready_for_production:     { label: 'Pronto p/ Produção', bg: '#eff6ff', color: '#1d4ed8' },
-    inProduction:             { label: 'Em Produção',        bg: '#fffbeb', color: '#b45309' },
-    in_production:            { label: 'Em Produção',        bg: '#fffbeb', color: '#b45309' },
-    produced:                 { label: 'Produzido',          bg: '#e0e7ff', color: '#4338ca' },
-    conferred:                { label: 'Conferido',          bg: '#ecfdf5', color: '#065f46' },
-    delivered:                { label: 'Entregue',           bg: '#ede9fe', color: '#7c3aed' },
-    awaiting_submission:      { label: 'Correção solicitada', bg: '#fef2f2', color: '#b91c1c' },
-    awaiting_sponsor_approval:{ label: 'Aguard. Aprovação',  bg: '#fefce8', color: '#a16207' },
-    sponsor_approved:         { label: 'Aprovado',           bg: '#dcfce7', color: '#15803d' },
-  };
-
+  // Rótulo e cores do badge de status vêm da lib canônica (getStatusMeta) —
+  // o mapa local que existia aqui divergia dos nomes usados nas outras telas.
   const historyItems = useMemo(() => {
     if (loadingSponsors) return [];
     const now = new Date();
@@ -784,9 +802,11 @@ export default function Atendimento() {
     return map;
   }, [pendingGroup, typeToGroup, pendVisible]);
 
+  // Mantém a seleção em sincronia com o conjunto elegível: se uma peça sai do
+  // lote (decidida em outro lugar), ela some da seleção também.
   useEffect(() => {
     setBatchSelectedItemIds(new Set(batchEligibleItems.map(i => i.id)));
-  }, [batchSponsorId, batchEventId]);
+  }, [batchSponsorId, batchEventId, batchEligibleItems]);
 
   // Ao trocar de aba ou mexer nos filtros, volta a listagem para o topo.
   useEffect(() => { setPendVisible(PAGE_SIZE); }, [activeTab, searchTerm, eventFilter, itemTypeFilter, sponsorFilter]);
@@ -801,24 +821,6 @@ export default function Atendimento() {
     setRejectingSponsorId(null);
     setSelectedItem(item);
     setDialogOpen(true);
-  };
-
-  const toggleItemSelection = (itemId: string) => {
-    setSelectedItemIds(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(itemId)) newSet.delete(itemId);
-      else newSet.add(itemId);
-      return newSet;
-    });
-  };
-
-  const toggleAllSelection = () => {
-    const eligible = filteredItems.filter(isItemEligibleForBatch);
-    if (selectedItemIds.size === eligible.length && eligible.length > 0) {
-      setSelectedItemIds(new Set());
-    } else {
-      setSelectedItemIds(new Set(eligible.map(item => item.id)));
-    }
   };
 
   if (itemsLoading || eventsLoading) {
@@ -840,212 +842,6 @@ export default function Atendimento() {
       </div>
     );
   }
-
-  // Normaliza URL GCS raw → /objects/ proxy path
-  const normalizeThumbUrl = (raw: string): string => {
-    if (raw.startsWith('/')) return raw;
-    const match = raw.match(/\/\.private\/(.+?)(?:\?|$)/);
-    if (match) return `/objects/${match[1]}`;
-    return raw;
-  };
-
-  const handleExportPDF = async (itemsToExport: any[], groupByEvent: boolean) => {
-    if (itemsToExport.length === 0) {
-      toast({ title: "Nenhum item para exportar", variant: "destructive" });
-      return;
-    }
-
-    // Pré-busca todas as imagens como data URIs antes de abrir a janela
-    const rawUrls = Array.from(new Set(itemsToExport.map(i => i.approvalThumbUrl).filter(Boolean) as string[]));
-    const thumbDataUris: Record<string, string> = {};
-    const imgUrls = rawUrls.filter(u => !/\.pdf$/i.test(u));
-    if (imgUrls.length > 0) {
-      toast({ title: `Preparando ${imgUrls.length} imagem${imgUrls.length !== 1 ? "ns" : ""}…`, description: "Aguarde um momento" });
-      await Promise.allSettled(imgUrls.map(async (rawUrl) => {
-        const local = normalizeThumbUrl(rawUrl);
-        const fetchUrl = local.startsWith("/") ? `${window.location.origin}${local}` : local;
-        try {
-          const resp = await fetch(fetchUrl, { credentials: "include" });
-          if (!resp.ok) return;
-          const ct = resp.headers.get("content-type") || "";
-          if (!ct.startsWith("image/")) return;
-          const blob = await resp.blob();
-          const dataUri = await new Promise<string>((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          });
-          if (dataUri) thumbDataUris[rawUrl] = dataUri;
-        } catch (error) {
-          console.warn("Failed to fetch/convert thumbnail image for print", rawUrl, error);
-        }
-      }));
-    }
-
-    const win = window.open("", "_blank");
-    if (!win) return;
-
-    const now = new Date();
-    const nowStr = now.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const logoUrl = `${window.location.origin}/norte-logo.jpg`;
-
-    const sorted = groupByEvent
-      ? [...itemsToExport].sort((a, b) => (a.event?.name || "").localeCompare(b.event?.name || ""))
-      : itemsToExport;
-
-    const pages = sorted.map((item: any, idx: number) => {
-      const thumbUrl = item.approvalThumbUrl || "";
-      const thumbDataUri = thumbDataUris[thumbUrl] || null;
-      const isImg = !!thumbDataUri;
-      const resolvedThumb = thumbDataUri || "";
-
-      const itemSponsors = itemSponsorsMap[item.id] || [];
-      const approvals = itemApprovalsMap[item.id] || [];
-
-      const approvalsHtml = approvals.length
-        ? approvals.map((a: any) => {
-            const statusColor = a.status === 'approved' ? '#16a34a' : a.status === 'rejected' ? '#dc2626' : '#ea580c';
-            const statusLabel = a.status === 'approved' ? 'Aprovado' : a.status === 'rejected' ? 'Reprovado' : 'Pendente';
-            const sp = itemSponsors.find((s: any) => s.id === a.sponsorId);
-            const sponsorName = a.sponsor?.name || sp?.name || '—';
-            const dotColor = sp?.color || a.sponsor?.color || '#746e69';
-            return `<div class="appr-row"><span class="appr-left"><span class="sp-dot" style="background:${dotColor}"></span><span class="appr-name">${sponsorName}</span></span><span class="appr-status" style="color:${statusColor}">${statusLabel}</span></div>`;
-          }).join("")
-        : itemSponsors.length
-          ? itemSponsors.map((s: any) => {
-              const c = s.color || "#3b82f6";
-              return `<div class="appr-row"><span class="sp-chip" style="border-color:${c}33;background:${c}11"><span class="sp-dot" style="background:${c}"></span>${s.name}</span><span class="appr-status" style="color:#ea580c">Pendente</span></div>`;
-            }).join("")
-          : `<span style="color:#746e69;font-size:12px">Sem patrocinadores</span>`;
-
-      const pageNum = `${idx + 1} / ${sorted.length}`;
-      const itemName = item.description || item.type || "Sem nome";
-      const typeLabel = item.type || "—";
-      const eventName = item.event?.name || "—";
-
-      return `
-        <div class="page">
-          <div class="doc-header">
-            <div class="hdr-left">
-              <img src="${logoUrl}" class="hdr-logo" alt="NORTE" />
-              <div class="hdr-brand">
-                <span class="hdr-norte">NORTE</span>
-                <span class="hdr-sub">Marketing Esportivo</span>
-              </div>
-            </div>
-            <div class="hdr-right">
-              <span class="id-chip">${item.displayId || "#—"}</span>
-            </div>
-          </div>
-
-          <div class="piece-title-bar">
-            <span class="piece-name">${itemName}</span>
-            <div class="title-meta">
-              <span class="type-badge">${typeLabel}</span>
-              <span class="event-badge">${eventName}</span>
-            </div>
-          </div>
-
-          <div class="body">
-            <div class="col-img">
-              <div class="img-frame">
-                ${isImg
-                  ? `<img src="${resolvedThumb}" alt="Aprovação" class="ref-img" />`
-                  : thumbUrl
-                    ? `<div class="no-img"><div class="no-img-icon">PDF</div><div class="no-img-sub">Arquivo PDF vinculado</div></div>`
-                    : `<div class="no-img"><div class="no-img-icon">—</div><div class="no-img-sub">Sem arte de aprovação</div></div>`
-                }
-              </div>
-              <div class="img-caption">Arte de aprovação</div>
-            </div>
-
-            <div class="col-info">
-              <div class="info-card">
-                <div class="sec-label">Identificação</div>
-                ${item.description ? `<div class="field"><div class="fld-lbl">Descrição</div><div class="fld-val">${item.description}</div></div>` : ""}
-                <div class="field"><div class="fld-lbl">Tipo</div><div class="fld-val">${item.type || "—"}</div></div>
-              </div>
-            </div>
-          </div>
-
-          <div class="doc-footer">
-            <span class="ft-gen">Gerado em ${nowStr}</span>
-            <span class="ft-pg">Página ${pageNum}</span>
-          </div>
-        </div>
-      `;
-    }).join("");
-
-    win.document.write(`<!DOCTYPE html><html lang="pt-BR"><head>
-      <meta charset="UTF-8"/>
-      <title>Aprovação — Peças</title>
-      <link rel="preconnect" href="https://fonts.googleapis.com"/>
-      <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@500;700&display=swap" rel="stylesheet"/>
-      <style>
-        @page { size: A4 portrait; margin: 0; }
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'DM Sans', 'Helvetica Neue', Arial, sans-serif; background: #fff; color: #1c1917; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-
-        /* min-height + sem overflow:hidden: conteúdo que exceder a folha flui
-           para a próxima página em vez de ser cortado. */
-        .page { width: 100vw; min-height: 100vh; display: flex; flex-direction: column; break-after: page; page-break-after: always; background: #ffffff; }
-        .page:last-child { break-after: avoid; page-break-after: avoid; }
-        @media print { .page { width: 210mm; min-height: 297mm; } }
-
-        .doc-header { display: flex; align-items: center; justify-content: space-between; background: #1c1917; padding: 14px 32px; flex-shrink: 0; }
-        .hdr-left { display: flex; align-items: center; gap: 12px; }
-        .hdr-logo { height: 34px; width: auto; object-fit: contain; display: block; flex-shrink: 0; }
-        .hdr-brand { display: flex; flex-direction: column; gap: 1px; }
-        .hdr-norte { font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 800; color: #ffffff; letter-spacing: 0.04em; line-height: 1; }
-        .hdr-sub { font-size: 10px; font-weight: 400; color: rgba(255,255,255,0.55); line-height: 1; }
-        .hdr-right { flex-shrink: 0; }
-        .id-chip { font-family: 'DM Mono', 'Courier New', monospace; font-size: 16px; font-weight: 700; color: #ffffff; background: #f97316; padding: 6px 14px; border-radius: 8px; letter-spacing: 0.02em; }
-
-        .piece-title-bar { padding: 16px 32px; background: #ffffff; border-bottom: 1px solid #e7e5e4; flex-shrink: 0; }
-        .piece-name { display: block; font-family: 'Space Grotesk', sans-serif; font-size: 22px; font-weight: 800; color: #1c1917; line-height: 1.2; letter-spacing: -0.02em; }
-        .title-meta { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; align-items: center; }
-        .type-badge { display: inline-block; background: #fff7ed; border: 1px solid #fed7aa; color: #c2410c; border-radius: 100px; font-size: 11px; font-weight: 600; padding: 3px 12px; }
-        .event-badge { display: inline-block; background: #f0f9ff; border: 1px solid #bae6fd; color: #0369a1; border-radius: 100px; font-size: 11px; font-weight: 600; padding: 3px 12px; }
-
-        .body { display: flex; gap: 24px; flex: 1; padding: 24px 32px; min-height: 0; }
-
-        .col-img { flex: 0 0 58%; display: flex; flex-direction: column; }
-        .img-frame { flex: 1; border-radius: 12px; border: 1px solid #e7e5e4; overflow: hidden; background: #fafaf9; display: flex; align-items: center; justify-content: center; min-height: 200px; max-height: 380px; }
-        .ref-img { width: 100%; height: 100%; object-fit: contain; display: block; }
-        .no-img { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; padding: 40px 20px; width: 100%; }
-        .no-img-icon { font-size: 28px; font-weight: 800; color: #cbd5e1; font-family: 'DM Mono', monospace; }
-        .no-img-sub { font-size: 11px; color: #746e69; }
-        .img-caption { font-size: 10px; color: #746e69; text-align: center; margin-top: 7px; }
-
-        .col-info { flex: 0 0 42%; display: flex; flex-direction: column; }
-        .info-card { background: #fafaf9; border: 1px solid #e7e5e4; border-radius: 12px; padding: 18px 20px; display: flex; flex-direction: column; flex: 1; }
-
-        .sec-label { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: #746e69; margin-bottom: 10px; }
-        .sep { height: 1px; background: #e7e5e4; margin: 14px 0; }
-        .field { margin-bottom: 12px; }
-        .field:last-child { margin-bottom: 0; }
-        .fld-lbl { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: #746e69; margin-bottom: 2px; }
-        .fld-val { font-size: 14px; font-weight: 700; color: #1c1917; line-height: 1.3; }
-        .qty-val { font-size: 16px; font-weight: 800; color: #f97316; }
-
-        .approvals { display: flex; flex-direction: column; gap: 8px; }
-        .appr-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 10px; background: #fff; border: 1px solid #e7e5e4; border-radius: 8px; }
-        .appr-left { display: flex; align-items: center; gap: 7px; }
-        .appr-name { font-size: 12px; font-weight: 600; color: #1c1917; }
-        .appr-status { font-size: 11px; font-weight: 700; }
-        .sp-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; color: #1c1917; padding: 2px 8px; border-radius: 20px; border: 1px solid transparent; }
-        .sp-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-
-        .doc-footer { flex-shrink: 0; padding: 12px 32px; border-top: 1px solid #e7e5e4; background: #fafaf9; display: flex; align-items: center; justify-content: space-between; }
-        .ft-gen { font-size: 9px; color: #746e69; }
-        .ft-pg { font-size: 9px; color: #746e69; font-family: 'DM Mono', monospace; }
-      </style>
-    </head><body>${pages}</body></html>`);
-    win.document.close();
-    // Imagens já embutidas como data URIs — pode imprimir imediatamente
-    setTimeout(() => win.print(), 300);
-  };
 
   return (
     <div className="bg-stone-50" style={{ height: "100%", overflowY: "auto", padding: isMobile ? "12px 12px" : "32px" }}>
@@ -1094,8 +890,8 @@ export default function Atendimento() {
         >
           <span style={{
             fontFamily: "'Space Grotesk', sans-serif",
-            fontSize: 26, fontWeight: 900, lineHeight: 1,
-            color: actionableCount ? '#f97316' : '#746e69',
+            fontSize: 26, fontWeight: 800, lineHeight: 1,
+            color: actionableCount ? '#c2410c' : '#746e69',
           }}>
             {actionableCount ?? '—'}
           </span>
@@ -1111,13 +907,20 @@ export default function Atendimento() {
       </header>
 
       {/* ─── ABAS ─────────────────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 28, borderBottom: '1px solid #e7e5e4', paddingBottom: 0 }}>
+      <div role="tablist" aria-label="Abas de aprovação" style={{ display: 'flex', gap: 4, marginBottom: 28, borderBottom: '1px solid #e7e5e4', paddingBottom: 0 }}>
         {([
-          { key: 'pending', label: 'Pendentes', count: pendingGroup.length > 0 ? pendingGroup.length : actionableCount },
+          // Mesma conta do badge "Aguardam Aprovação" do topo (actionableCount):
+          // antes a aba somava também peças bloqueadas/aprovadas e os dois
+          // números divergiam na mesma tela.
+          { key: 'pending', label: 'Pendentes', count: actionableCount },
           { key: 'history', label: 'Histórico', count: null },
         ] as const).map(tab => (
           <button
             key={tab.key}
+            role="tab"
+            id={`tab-${tab.key}`}
+            aria-selected={activeTab === tab.key}
+            aria-controls={`tabpanel-${tab.key}`}
             onClick={() => setActiveTab(tab.key)}
             style={{
               padding: '10px 20px', border: 'none', cursor: 'pointer',
@@ -1145,8 +948,11 @@ export default function Atendimento() {
         ))}
       </div>
 
+      {/* ─── PAINEL DA ABA PENDENTES ─────────────────────────────── */}
+      {activeTab === "pending" && <div role="tabpanel" id="tabpanel-pending" aria-labelledby="tab-pending">
+
       {/* ─── FILTROS ─────────────────────────────────────────────── */}
-      {activeTab === "pending" && <section style={{
+      <section style={{
         marginBottom: 32, backgroundColor: '#f3f4f3',
         padding: 24, borderRadius: 12,
         border: '1px solid rgba(224,192,177,0.15)',
@@ -1159,6 +965,7 @@ export default function Atendimento() {
             value={searchTerm}
             onChange={e => setSearchTerm(e.target.value)}
             placeholder="ID, tipo ou descrição..."
+            aria-label="Buscar por ID, tipo ou descrição"
             data-testid="input-search"
             style={{
               width: '100%', paddingLeft: 40, paddingRight: 16, paddingTop: 12, paddingBottom: 12,
@@ -1170,6 +977,7 @@ export default function Atendimento() {
           {searchTerm && (
             <button
               onClick={() => setSearchTerm("")}
+              aria-label="Limpar busca"
               style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#746e69' }}
             >
               <X style={{ width: 14, height: 14 }} />
@@ -1205,6 +1013,7 @@ export default function Atendimento() {
           {(searchTerm || eventFilter.length > 0 || itemTypeFilter.length > 0 || sponsorFilter.length > 0) && (
             <button
               onClick={() => { setSearchTerm(""); setEventFilter([]); setItemTypeFilter([]); setSponsorFilter([]); }}
+              aria-label="Limpar filtros"
               data-testid="button-clear-filters"
               style={{
                 backgroundColor: '#0c0a09', color: '#ffffff',
@@ -1216,36 +1025,91 @@ export default function Atendimento() {
             </button>
           )}
 
-          {/* Exportar PDF */}
+          {/* Exportar PDF — desabilita enquanto os dados de aprovação carregam:
+              o pool de exportação depende deles e sairia vazio/incompleto. */}
           <button
             onClick={() => setShowExportPDFModal(true)}
+            disabled={loadingSponsors}
             data-testid="button-export-pdf"
-            title="Exportar itens em PDF"
+            title={loadingSponsors ? "Aguarde: carregando os dados de aprovação das peças" : "Exportar peças em PDF"}
             style={{
               height: 46, padding: '0 16px', borderRadius: 8,
               backgroundColor: 'transparent', border: '1.5px solid #d4d0ca',
-              color: '#746e69', cursor: 'pointer',
+              color: '#746e69', cursor: loadingSponsors ? 'not-allowed' : 'pointer',
+              opacity: loadingSponsors ? 0.5 : 1,
               display: 'flex', alignItems: 'center', gap: 6,
               fontSize: 13, fontWeight: 600, transition: 'all 0.15s',
               whiteSpace: 'nowrap', marginLeft: 'auto',
             }}
-            onMouseEnter={e => { e.currentTarget.style.borderColor = '#a8a29e'; e.currentTarget.style.color = '#1c1917'; }}
+            onMouseEnter={e => { if (!loadingSponsors) { e.currentTarget.style.borderColor = '#a8a29e'; e.currentTarget.style.color = '#1c1917'; } }}
             onMouseLeave={e => { e.currentTarget.style.borderColor = '#d4d0ca'; e.currentTarget.style.color = '#746e69'; }}
           >
-            <Printer style={{ width: 15, height: 15 }} />
-            Exportar PDF
+            <FileText style={{ width: 15, height: 15 }} />
+            Exportar
           </button>
         </div>
-      </section>}
+      </section>
 
       {/* ─── PAINEL DE LOTE ───────────────────────────────── */}
-      {activeTab === "pending" && !loadingSponsors && batchEligibleSponsors.length > 0 && (
+      {/* Sem papel de decisão: o painel vira uma faixa informativa — os
+          controles de lote não fariam nada além de devolver 403. */}
+      {!loadingSponsors && batchEligibleSponsors.length > 0 && !canDecide && (
+        <section
+          data-testid="section-batch-readonly"
+          style={{ marginBottom: 32, display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 12 }}
+        >
+          <Eye style={{ width: 16, height: 16, color: '#746e69', flexShrink: 0 }} />
+          <p style={{ fontSize: 13, fontWeight: 600, color: '#57534e', margin: 0 }}>
+            Somente leitura — as decisões de aprovação são do Atendimento.
+          </p>
+        </section>
+      )}
+      {/* Colapsado por padrão: uma barra de 1 linha; expande no clique e a
+          escolha persiste na sessão. */}
+      {!loadingSponsors && batchEligibleSponsors.length > 0 && canDecide && !batchPanelOpen && (
+        <button
+          onClick={() => setBatchPanelOpen(true)}
+          aria-expanded={false}
+          data-testid="button-batch-panel-expand"
+          style={{
+            width: '100%', marginBottom: 32, display: 'flex', alignItems: 'center', gap: 12,
+            padding: '14px 18px', backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
+            borderRadius: 12, cursor: 'pointer', textAlign: 'left',
+          }}
+        >
+          <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg, #f97316, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Zap style={{ width: 14, height: 14, color: '#ffffff' }} />
+          </div>
+          <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 800, letterSpacing: '-0.01em', color: '#1c1917', whiteSpace: 'nowrap' }}>
+            Aprovação em Lote
+          </span>
+          <span style={{ fontSize: 13, color: '#746e69', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            — {batchEligibleSponsors.length} {batchEligibleSponsors.length === 1 ? 'patrocinador com pendências' : 'patrocinadores com pendências'}
+          </span>
+          <ChevronRight style={{ width: 16, height: 16, color: '#a8a29e', marginLeft: 'auto', flexShrink: 0 }} />
+        </button>
+      )}
+      {!loadingSponsors && batchEligibleSponsors.length > 0 && canDecide && batchPanelOpen && (
         <section
           data-testid="section-batch-sponsor"
           style={{ marginBottom: 32, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12 }}
         >
-          {/* ── Header do painel ── */}
-          <div style={{ background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', padding: isMobile ? '16px 16px' : '20px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderRadius: '12px 12px 0 0', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+          {/* ── Header do painel — clique recolhe de volta para a barra ── */}
+          <div
+            role="button"
+            tabIndex={0}
+            aria-expanded={true}
+            title="Recolher painel de lote"
+            onClick={() => setBatchPanelOpen(false)}
+            onKeyDown={e => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setBatchPanelOpen(false);
+              }
+            }}
+            data-testid="button-batch-panel-collapse"
+            style={{ background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', padding: isMobile ? '16px 16px' : '20px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderRadius: '12px 12px 0 0', flexWrap: isMobile ? 'wrap' : 'nowrap', cursor: 'pointer' }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
               <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #f97316, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(249,115,22,0.35)' }}>
                 <Zap style={{ width: 18, height: 18, color: '#ffffff' }} />
@@ -1287,6 +1151,7 @@ export default function Atendimento() {
                   </Fragment>
                 );
               })}
+              <ChevronDown style={{ width: 16, height: 16, color: 'rgba(255,255,255,0.6)', marginLeft: 10, flexShrink: 0 }} />
             </div>
           </div>
 
@@ -1442,7 +1307,7 @@ export default function Atendimento() {
                                 />
                                 <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', background: '#f4f4f3', flexDirection: 'column', gap: 2 }}>
                                   <Package style={{ width: 16, height: 16, color: '#c4bfbb' }} />
-                                  <span style={{ fontSize: 11, color: '#c4bfbb', fontWeight: 600, letterSpacing: '0.03em' }}>SEM ARTE</span>
+                                  <span style={{ fontSize: 11, color: '#746e69', fontWeight: 600, letterSpacing: '0.03em' }}>SEM ARTE</span>
                                 </div>
                                 <span
                                   style={{ position: 'absolute', inset: 0, background: 'rgba(28,25,23,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0, transition: 'opacity 0.12s' }}
@@ -1455,7 +1320,7 @@ export default function Atendimento() {
                             ) : (
                               <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2 }}>
                                 <Package style={{ width: 18, height: 18, color: '#c4bfbb' }} />
-                                <span style={{ fontSize: 11, color: '#c4bfbb', fontWeight: 600, letterSpacing: '0.03em' }}>SEM ARTE</span>
+                                <span style={{ fontSize: 11, color: '#746e69', fontWeight: 600, letterSpacing: '0.03em' }}>SEM ARTE</span>
                               </div>
                             )}
                           </div>
@@ -1502,7 +1367,8 @@ export default function Atendimento() {
                       <div style={{ display: 'flex', gap: 10, flexDirection: isMobile ? 'column' : 'row' }}>
                         <button
                           onClick={() => setBatchShowRejectForm(true)}
-                          disabled={batchSponsorMutation.isPending || batchSelectedItemIds.size === 0}
+                          disabled={batchSponsorMutation.isPending || batchSelectedItemIds.size === 0 || !canDecide}
+                          title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : undefined}
                           data-testid="button-batch-reject"
                           style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
@@ -1522,7 +1388,8 @@ export default function Atendimento() {
                         </button>
                         <button
                           onClick={() => setConfirmApproveBatch(true)}
-                          disabled={batchSponsorMutation.isPending || batchSelectedItemIds.size === 0}
+                          disabled={batchSponsorMutation.isPending || batchSelectedItemIds.size === 0 || !canDecide}
+                          title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : undefined}
                           data-testid="button-batch-approve"
                           style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
@@ -1556,7 +1423,7 @@ export default function Atendimento() {
                         </div>
                         <div>
                           <p style={{ fontSize: 13, fontWeight: 800, color: '#dc2626', margin: 0 }}>Recusar {batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'peça' : 'peças'}</p>
-                          <p style={{ fontSize: 11, color: '#f87171', margin: 0 }}>O motivo será registrado no histórico e comunicado à Arte</p>
+                          <p style={{ fontSize: 11, color: '#b91c1c', margin: 0 }}>O motivo será registrado no histórico e comunicado à Arte</p>
                         </div>
                       </div>
                       <textarea
@@ -1582,7 +1449,8 @@ export default function Atendimento() {
                         </button>
                         <button
                           onClick={() => batchSponsorMutation.mutate({ sponsorId: batchSponsorId, eventId: batchEventId, action: "reject", reason: batchRejectReason })}
-                          disabled={batchSponsorMutation.isPending || batchRejectReason.trim() === ""}
+                          disabled={batchSponsorMutation.isPending || batchRejectReason.trim() === "" || !canDecide}
+                          title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : undefined}
                           data-testid="button-batch-confirm-reject"
                           style={{
                             display: 'flex', alignItems: 'center', gap: 6,
@@ -1626,7 +1494,7 @@ export default function Atendimento() {
       )}
 
       {/* ─── GRID DE CARDS (bento-style) ─────────────────────────── */}
-      {activeTab === "pending" && (filteredItems.length === 0 ? (
+      {filteredItems.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '64px 0' }}>
           <CheckCircle style={{ width: 48, height: 48, color: '#86efac', margin: '0 auto 16px' }} />
           <h3 style={{ fontSize: 18, fontWeight: 700, color: '#1c1917', margin: '0 0 8px' }}>
@@ -1750,7 +1618,7 @@ export default function Atendimento() {
                         )}
                         {showTypeHeader && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0 2px' }}>
-                            <span style={{ fontSize: 11, fontWeight: 600, color: '#c4bfb8', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>Tipo:</span>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>Tipo:</span>
                             <span style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{item.type}</span>
                             <div style={{ flex: 1, height: 1, background: '#f0ede8' }} />
                           </div>
@@ -1873,7 +1741,7 @@ export default function Atendimento() {
                                     fontSize: 11, fontWeight: 700,
                                   }}>
                                   <RotateCcw style={{ width: 12, height: 12 }} />
-                                  EM CORREÇÃO
+                                  NOVA VERSÃO
                                 </span>
                               ) : (
                                 <span style={{
@@ -1918,7 +1786,7 @@ export default function Atendimento() {
                                     padding: '8px 20px', borderRadius: 8,
                                     backgroundColor: '#f5f5f4', color: '#1c1917',
                                     border: '1px solid transparent', cursor: 'pointer',
-                                    fontSize: 11, fontWeight: 900, textTransform: 'uppercase',
+                                    fontSize: 11, fontWeight: 700,
                                     display: 'flex', alignItems: 'center', gap: 6,
                                     transition: 'all 0.2s',
                                     minHeight: isMobile ? 44 : undefined,
@@ -1977,7 +1845,6 @@ export default function Atendimento() {
               {approvedGroupExpanded && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {approvedGroup.map(item => {
-                    const itemSps = itemSponsorsMap[item.id] || [];
                     return (
                       <div
                         key={item.id}
@@ -2013,7 +1880,9 @@ export default function Atendimento() {
                               <h5 style={{ fontSize: 13, fontWeight: 600, color: '#746e69', margin: 0 }}>{item.type}</h5>
                               <p style={{ fontSize: 11, color: '#746e69', margin: '2px 0 0' }}>{item.displayId}</p>
                             </div>
-                            <SponsorChips sponsors={itemSps} variant="colored" size="sm" />
+                            {/* Mesma linguagem dos cards pendentes: chips já com o
+                                status de cada patrocinador (todos aprovados aqui). */}
+                            <SponsorChips sponsors={sponsorsWithStatus(item)} variant="colored" size="sm" />
                             <span data-testid={`badge-aprovado-${item.id}`} style={{
                               display: 'inline-flex', alignItems: 'center', gap: 4,
                               fontSize: 11, fontWeight: 700, color: '#15803d',
@@ -2033,7 +1902,8 @@ export default function Atendimento() {
             </div>
           )}
         </div>
-      ))}
+      )}
+      </div>}
 
       {/* ─── ABA HISTÓRICO ──────────────────────────────────────── */}
       {activeTab === "history" && (() => {
@@ -2058,7 +1928,7 @@ export default function Atendimento() {
         const hasHistFilters = histEventFilter.length > 0 || histSponsorFilter.length > 0 || histPeriodFilter !== "all";
 
         return (
-          <div>
+          <div role="tabpanel" id="tabpanel-history" aria-labelledby="tab-history">
             {/* ── Barra de filtros ── */}
             <div style={{
               background: '#fafaf9', borderRadius: 12,
@@ -2073,6 +1943,7 @@ export default function Atendimento() {
                   value={histSearchTerm}
                   onChange={e => setHistSearchTerm(e.target.value)}
                   placeholder="ID, tipo ou descrição..."
+                  aria-label="Buscar no histórico por ID, tipo ou descrição"
                   style={{
                     width: '100%', paddingLeft: 36, paddingRight: histSearchTerm ? 32 : 12, paddingTop: 9, paddingBottom: 9,
                     backgroundColor: '#ffffff', borderRadius: 8, border: '1px solid #e7e5e4',
@@ -2081,7 +1952,7 @@ export default function Atendimento() {
                   }}
                 />
                 {histSearchTerm && (
-                  <button onClick={() => setHistSearchTerm("")} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#746e69' }}>
+                  <button onClick={() => setHistSearchTerm("")} aria-label="Limpar busca" style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#746e69' }}>
                     <X style={{ width: 13, height: 13 }} />
                   </button>
                 )}
@@ -2135,7 +2006,9 @@ export default function Atendimento() {
                   const ev = evById.get(item.eventId);
                   const itemSps: any[] = itemSponsorsMap[item.id] || [];
                   const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
-                  const statusCfg = HIST_STATUS[item.status] || { label: item.status, bg: '#f3f4f3', color: '#746e69' };
+                  // Badge de status pela lib canônica: mesmo rótulo e cores das
+                  // outras telas (status desconhecido cai no fallback neutro).
+                  const statusCfg = getStatusMeta(item.status);
 
                   const sponsorApprovals = itemSps.map(sp => {
                     const appr = approvals.find(a => a.sponsorId === sp.id);
@@ -2153,10 +2026,18 @@ export default function Atendimento() {
                     if (!d) return null;
                     return format(new Date(d), short ? "dd/MM" : "dd/MM/yy 'às' HH:mm", { locale: ptBR });
                   };
-                  const lastApprovedAt = approvedOnes.length > 0
-                    ? approvedOnes.map(x => x.appr?.approvedAt).filter(Boolean).sort().reverse()[0] : null;
+                  // Mesmo cálculo do sort da lista (Math.max sobre timestamps):
+                  // o sort de string anterior quebrava com formatos mistos de data.
+                  const approvedTimes = approvedOnes
+                    .map(x => (x.appr?.approvedAt ? new Date(x.appr.approvedAt).getTime() : 0))
+                    .filter(t => t > 0);
+                  const lastApprovedAt = approvedTimes.length ? new Date(Math.max(...approvedTimes)) : null;
                   const lastApprovedBy = approvedOnes.length > 0
-                    ? approvedOnes.sort((a, b) => (b.appr?.approvedAt || '') > (a.appr?.approvedAt || '') ? 1 : -1)[0]?.appr?.approvedBy : null;
+                    ? [...approvedOnes].sort((a, b) => {
+                        const ta = a.appr?.approvedAt ? new Date(a.appr.approvedAt).getTime() : 0;
+                        const tb = b.appr?.approvedAt ? new Date(b.appr.approvedAt).getTime() : 0;
+                        return tb - ta; // devolve 0 em empate (comparador válido)
+                      })[0]?.appr?.approvedBy : null;
 
                   // acento lateral por status
                   const accentColor = allApproved ? '#22c55e'
@@ -2164,19 +2045,7 @@ export default function Atendimento() {
                     : item.status === 'ready_for_production' ? '#2563eb'
                     : '#e5e7eb';
 
-                  // Pipeline de fluxo (10 etapas)
-                  const PIPELINE_STAGES = [
-                    { key: 'solicitado',   label: 'Solicitado',      color: '#f97316', statuses: ['draft','requested','solicitado'] },
-                    { key: 'vinculacao',   label: 'Vinculação',      color: '#746e69', statuses: ['awaiting_linking'] },
-                    { key: 'ag_aprovacao', label: 'Ag. Aprovação',   color: '#f97316', statuses: ['awaiting_submission','awaiting_approval','awaiting_sponsor_approval'] },
-                    { key: 'aprovado',     label: 'Aprovado',        color: '#22c55e', statuses: ['sponsor_approved'] },
-                    { key: 'finalizacao',  label: 'Finalização',     color: '#a855f7', statuses: ['awaiting_finalization','awaiting_creator_review'] },
-                    { key: 'revisao',      label: 'Revisão',         color: '#d946ef', statuses: ['awaiting_final_review'] },
-                    { key: 'pronto',       label: 'Pronto p/ Prod.', color: '#10b981', statuses: ['ready_for_production','pronto_para_producao','approved','liberado'] },
-                    { key: 'producao',     label: 'Em Produção',     color: '#f59e0b', statuses: ['inProduction','in_production','em_producao'] },
-                    { key: 'produzido',    label: 'Produzido',       color: '#ec4899', statuses: ['produced','produzido'] },
-                    { key: 'entregue',     label: 'Entregue',        color: '#7c3aed', statuses: ['conferred','conferido','delivered','entregue'] },
-                  ];
+                  // Pipeline de fluxo (10 etapas) — const de módulo PIPELINE_STAGES
                   const pipelineIdx = PIPELINE_STAGES.findIndex(s => s.statuses.includes(item.status));
                   const currentPipelineIdx = pipelineIdx === -1 ? 0 : pipelineIdx;
 
@@ -2216,8 +2085,8 @@ export default function Atendimento() {
                       <div style={{ width: 4, background: accentColor, flexShrink: 0 }} />
 
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        {/* ── Cabeçalho ── */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px 12px' }}>
+                        {/* ── Cabeçalho — empilha no mobile para não estourar a largura ── */}
+                        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: 12, padding: '14px 16px 12px' }}>
                           {/* Thumb */}
                           <div style={{
                             width: 48, height: 48, borderRadius: 8, overflow: 'hidden',
@@ -2256,18 +2125,26 @@ export default function Atendimento() {
                               <span style={{ fontSize: 11, color: '#746e69', fontWeight: 500 }}>{ev?.name || '—'}</span>
                               <span style={{
                                 fontSize: 11, fontWeight: 700,
-                                backgroundColor: statusCfg.bg, color: statusCfg.color, border: `1px solid ${statusCfg.border || statusCfg.bg}`,
+                                backgroundColor: statusCfg.bg, color: statusCfg.text, border: `1px solid ${statusCfg.border}`,
                                 padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap', lineHeight: 1.5,
-                              }}>{statusCfg.label}</span>
+                              }}>{isMobile ? getStatusShort(item.status) : getStatusLabel(item.status)}</span>
                             </div>
                           </div>
 
-                          {/* Resumo + download */}
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6, background: '#f5f5f4', border: '1px solid #ebe8e4', cursor: 'pointer' }}>
-                              <Eye style={{ width: 11, height: 11, color: '#a8a29e' }} />
+                          {/* Resumo + detalhes — empilha no mobile */}
+                          <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'flex-start' : 'center', gap: 10, flexShrink: 0 }}>
+                            {/* Afordância REAL (decisão do item 24 do backlog): parecia
+                                botão mas era um <div> decorativo — agora é um <button>
+                                com a mesma ação do card, utilizável também por teclado
+                                sem depender do card inteiro como alvo. */}
+                            <button
+                              onClick={e => { e.stopPropagation(); setHistDetailItem({ ...item, _ev: ev }); }}
+                              data-testid={`button-hist-details-${item.id}`}
+                              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 6, background: '#f5f5f4', border: '1px solid #ebe8e4', cursor: 'pointer' }}
+                            >
+                              <Eye style={{ width: 11, height: 11, color: '#746e69' }} />
                               <span style={{ fontSize: 11, fontWeight: 600, color: '#746e69', whiteSpace: 'nowrap' }}>Ver detalhes</span>
-                            </div>
+                            </button>
                             {sponsorApprovals.length > 0 && (
                               <div style={{
                                 display: 'flex', flexDirection: 'column', alignItems: 'center',
@@ -2311,7 +2188,9 @@ export default function Atendimento() {
                           </div>
                         )}
 
-                        {/* ── Pipeline de fluxo ── */}
+                        {/* ── Pipeline de fluxo — só no desktop: no mobile as 10
+                            etapas viravam scroll horizontal ilegível ── */}
+                        {!isMobile && (
                         <div style={{ borderTop: '1px solid #f5f5f4', padding: '12px 16px 14px', overflow: 'hidden' }}>
                           {/* stepper: linha absoluta + dots + labels */}
                           <div className="pipeline-scroll"><div style={{ position: 'relative', minWidth: 500 }}>
@@ -2350,6 +2229,7 @@ export default function Atendimento() {
                             </div></div>
                           </div>
                         </div>
+                        )}
 
                         {/* ── Chips de patrocinadores ── */}
                         {sortedApprovals.length > 0 && (
@@ -2359,36 +2239,30 @@ export default function Atendimento() {
                             display: 'flex', flexWrap: 'wrap', gap: 4,
                           }}>
                             {sortedApprovals.map(({ sponsor, appr }) => {
-                              const isApproved   = appr?.status === 'approved';
-                              const isRejected   = appr?.status === 'rejected';
-                              const isNewVersion = appr?.status === 'new_version_pending';
-                              const bg       = isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : isNewVersion ? '#fffbeb' : '#f5f5f4';
-                              const border   = isApproved ? '#bbf7d0' : isRejected ? '#fecaca' : isNewVersion ? '#fde68a' : '#e7e5e4';
-                              const txtColor = isApproved ? '#166534' : isRejected ? '#b91c1c' : isNewVersion ? '#92400e' : '#6b7280';
-                              const dotBg    = isApproved ? '#22c55e' : isRejected ? '#ef4444' : isNewVersion ? '#f59e0b' : '#d1d5db';
+                              const v = approvalVisual(appr?.status);
                               return (
                                 <div key={sponsor.id}
-                                  title={isApproved && appr?.approvedBy ? `${appr.approvedBy} · ${fmtDt(appr.approvedAt) ?? ''}` : undefined}
+                                  title={v.isApproved && appr?.approvedBy ? `${appr.approvedBy} · ${fmtDt(appr.approvedAt) ?? ''}` : undefined}
                                   style={{
                                     display: 'inline-flex', alignItems: 'center', gap: 5,
                                     height: 26, padding: '0 9px 0 7px',
-                                    borderRadius: 12, background: bg, border: `1px solid ${border}`,
+                                    borderRadius: 12, background: v.bg, border: `1px solid ${v.border}`,
                                     flexShrink: 0, cursor: 'default',
                                   }}>
-                                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: dotBg, flexShrink: 0 }} />
-                                  <span style={{ fontSize: 11, fontWeight: 600, color: txtColor, whiteSpace: 'nowrap', lineHeight: 1 }}>
+                                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: v.dot, flexShrink: 0 }} />
+                                  <span style={{ fontSize: 11, fontWeight: 600, color: v.text, whiteSpace: 'nowrap', lineHeight: 1 }}>
                                     {sponsor.name}
                                   </span>
-                                  {isApproved && appr?.approvedAt && (
-                                    <span style={{ fontSize: 11, color: '#4ade80', fontWeight: 500, whiteSpace: 'nowrap', lineHeight: 1 }}>
+                                  {v.isApproved && appr?.approvedAt && (
+                                    <span style={{ fontSize: 11, color: '#15803d', fontWeight: 500, whiteSpace: 'nowrap', lineHeight: 1 }}>
                                       {fmtDt(appr.approvedAt, true)}
                                     </span>
                                   )}
-                                  {!isApproved && !isRejected && !isNewVersion && (
-                                    <span style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, lineHeight: 1, textTransform: 'uppercase', letterSpacing: '0.03em' }}>Ag.</span>
+                                  {!v.isApproved && !v.isRejected && !v.isNewVersion && (
+                                    <span style={{ fontSize: 11, color: '#57534e', fontWeight: 600, lineHeight: 1, textTransform: 'uppercase', letterSpacing: '0.03em' }}>Ag.</span>
                                   )}
-                                  {isRejected && <span style={{ fontSize: 11, color: '#fca5a5', fontWeight: 700, lineHeight: 1 }}>✕</span>}
-                                  {isNewVersion && <span style={{ fontSize: 11, color: '#fcd34d', fontWeight: 700, lineHeight: 1 }}>↻</span>}
+                                  {v.isRejected && <span style={{ fontSize: 11, color: '#b91c1c', fontWeight: 700, lineHeight: 1 }}>✕</span>}
+                                  {v.isNewVersion && <span style={{ fontSize: 11, color: '#92400e', fontWeight: 700, lineHeight: 1 }}>↻</span>}
                                 </div>
                               );
                             })}
@@ -2415,7 +2289,8 @@ export default function Atendimento() {
 
       {/* ─── MODAL HISTÓRICO DE APROVAÇÕES ─────────────────────── */}
       <Dialog open={!!histDetailItem} onOpenChange={open => { if (!open) setHistDetailItem(null); }}>
-        <DialogContent style={modalSurface(620)}>
+        {/* HIDE_NATIVE_CLOSE: o modal tem botão de fechar próprio no header escuro */}
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(620)}>
           <DialogTitle className="sr-only">Histórico de aprovações</DialogTitle>
           <DialogDescription className="sr-only">Log completo de aprovações por patrocinador</DialogDescription>
           {histDetailItem && (() => {
@@ -2456,7 +2331,7 @@ export default function Atendimento() {
                     </div>
                     <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)' }}>{ev?.name || '—'}</span>
                   </div>
-                  <button onClick={() => setHistDetailItem(null)} style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <button onClick={() => setHistDetailItem(null)} aria-label="Fechar" style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <X style={{ width: 16, height: 16 }} />
                   </button>
                 </div>
@@ -2496,22 +2371,15 @@ export default function Atendimento() {
                     ? <div style={{ padding: '32px 24px', textAlign: 'center', color: '#746e69', fontSize: 13 }}>Nenhum patrocinador vinculado</div>
                     : diSps.map((sp: any, si: number) => {
                         const appr = diApprovals.find(a => a.sponsorId === sp.id);
-                        const isApproved   = appr?.status === 'approved';
-                        const isRejected   = appr?.status === 'rejected';
-                        const isNewVersion = appr?.status === 'new_version_pending';
-                        const c = sp.color || '#746e69';
-                        const statusLabel = isApproved ? 'Aprovado' : isRejected ? 'Reprovado' : isNewVersion ? 'Nova versão' : 'Aguardando';
-                        const statusColor = isApproved ? '#15803d' : isRejected ? '#b91c1c' : isNewVersion ? '#92400e' : '#6b7280';
-                        const statusBg    = isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : isNewVersion ? '#fffbeb' : '#f5f5f4';
-                        const statusBorder= isApproved ? '#bbf7d0' : isRejected ? '#fecaca' : isNewVersion ? '#fde68a' : '#e7e5e4';
-                        const dotColor    = isApproved ? '#22c55e' : isRejected ? '#ef4444' : isNewVersion ? '#f59e0b' : '#d1d5db';
+                        const v = approvalVisual(appr?.status);
+                        const { isApproved, isRejected, isNewVersion } = v;
                         return (
                           <div key={sp.id} style={{ padding: '12px 24px', borderBottom: si < diSps.length - 1 ? '1px solid #f5f5f4' : 'none', display: 'flex', alignItems: 'center', gap: 12, borderLeft: sp.color ? `3px solid ${sp.color}` : 'none', paddingLeft: sp.color ? '24px' : '27px' }}>
-                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: dotColor, flexShrink: 0, alignSelf: 'flex-start', marginTop: 3, boxShadow: `0 0 0 3px ${dotColor}33` }} />
+                            <div style={{ width: 10, height: 10, borderRadius: '50%', background: v.dot, flexShrink: 0, alignSelf: 'flex-start', marginTop: 3, boxShadow: `0 0 0 3px ${v.dot}33` }} />
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
                                 <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', textTransform: 'capitalize' }}>{sp.name}</span>
-                                <span style={{ fontSize: 11, fontWeight: 600, color: statusColor, background: statusBg, border: `1px solid ${statusBorder}`, borderRadius: 6, padding: '2px 8px', whiteSpace: 'nowrap' }}>{statusLabel}</span>
+                                <span style={{ fontSize: 11, fontWeight: 600, color: v.text, background: v.bg, border: `1px solid ${v.border}`, borderRadius: 6, padding: '2px 8px', whiteSpace: 'nowrap' }}>{v.label}</span>
                               </div>
                               {isApproved && appr?.approvedAt && (
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -2562,7 +2430,9 @@ export default function Atendimento() {
 
       {/* ─── MODAL DE REVISÃO (3 colunas) ───────────────────────── */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-6xl max-h-[92vh] p-0 gap-0 rounded-2xl overflow-hidden flex flex-col [&>button:last-child]:hidden" style={isMobile ? { maxWidth: '95vw', width: '95vw' } : undefined} onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+        {/* Escape fecha o modal, EXCETO com o formulário de reprovação aberto —
+            para não descartar o motivo digitado com um Esc acidental. */}
+        <DialogContent className={`max-w-6xl max-h-[92vh] p-0 gap-0 rounded-2xl overflow-hidden flex flex-col ${HIDE_NATIVE_CLOSE}`} style={isMobile ? { maxWidth: '95vw', width: '95vw' } : undefined} onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => { if (rejectingSponsorId) e.preventDefault(); }}>
           <DialogTitle className="sr-only">Revisão de Ativo</DialogTitle>
           <DialogDescription className="sr-only">Revise os detalhes e aprove ou reprove o ativo</DialogDescription>
 
@@ -2603,7 +2473,7 @@ export default function Atendimento() {
                     <div>
                       <h2 style={{
                         fontFamily: "'Space Grotesk', sans-serif",
-                        fontSize: 18, fontWeight: 900, letterSpacing: '-0.03em',
+                        fontSize: 18, fontWeight: 800, letterSpacing: '-0.03em',
                         color: '#1c1917', margin: 0, lineHeight: 1,
                       }}>
                         REVISÃO DE ATIVO {selectedItem.displayId}
@@ -2694,7 +2564,7 @@ export default function Atendimento() {
                     overflowY: 'auto',
                   }}>
                     <div>
-                      <h4 style={{ fontSize: 11, fontWeight: 800, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
+                      <h4 style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
                         Especificações
                       </h4>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -2720,7 +2590,7 @@ export default function Atendimento() {
 
                     {/* Links para arquivos */}
                     <div>
-                      <h4 style={{ fontSize: 11, fontWeight: 800, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 12px' }}>
+                      <h4 style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 12px' }}>
                         Arquivos
                       </h4>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -2787,7 +2657,7 @@ export default function Atendimento() {
 
                     {/* Aprovações por Patrocinador */}
                     <div>
-                      <h4 style={{ fontSize: 11, fontWeight: 800, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
+                      <h4 style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 16px' }}>
                         Decisão
                       </h4>
 
@@ -2827,9 +2697,10 @@ export default function Atendimento() {
                           {dialogSponsors.map((sponsor: any) => {
                             const approval = sponsorApprovals.find(a => a.sponsorId === sponsor.id);
                             const status = approval?.status || 'pending';
-                            const isApproved = status === 'approved';
-                            const isRejected = status === 'rejected' || status === 'awaiting_arte';
-                            const isNewVersion = status === 'new_version_pending';
+                            // Neste modal, awaiting_arte conta como reprovado (a Arte
+                            // está refazendo por causa de uma reprovação) — normaliza
+                            // antes de pedir o visual canônico.
+                            const { isApproved, isRejected, isNewVersion } = approvalVisual(status === 'awaiting_arte' ? 'rejected' : status);
                             const isPending = status === 'pending' || isNewVersion;
                             const isRejectingThis = rejectingSponsorId === sponsor.id;
 
@@ -2863,7 +2734,7 @@ export default function Atendimento() {
                                         fontSize: 11, margin: '2px 0 0', textTransform: 'uppercase', fontWeight: 700,
                                         color: isApproved ? '#15803d' : isRejected ? '#dc2626' : isNewVersion ? '#0369a1' : '#b45309',
                                       }}>
-                                        {isApproved ? 'Aprovado' : isRejected ? 'Reprovado' : isNewVersion ? 'Nova Arte Enviada' : 'Aguardando Decisão'}
+                                        {isApproved ? 'Aprovado' : isRejected ? 'Reprovado' : isNewVersion ? 'Nova versão' : 'Aguardando Decisão'}
                                       </p>
                                     </div>
                                   </div>
@@ -2872,12 +2743,14 @@ export default function Atendimento() {
                                     <div style={{ display: 'flex', gap: 6, flexDirection: isMobile ? 'column' : 'row' }}>
                                       <button
                                         onClick={() => setRejectingSponsorId(sponsor.id)}
-                                        disabled={individualRejectMutation.isPending}
+                                        disabled={individualRejectMutation.isPending || !canDecide}
+                                        title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : undefined}
                                         style={{
                                           padding: '8px 16px', borderRadius: 8,
                                           backgroundColor: '#fef2f2', border: '1px solid #fecaca',
                                           color: '#b91c1c', fontSize: 13, fontWeight: 700,
-                                          cursor: 'pointer', transition: 'all 0.15s',
+                                          cursor: canDecide ? 'pointer' : 'not-allowed', transition: 'all 0.15s',
+                                          opacity: canDecide ? 1 : 0.5,
                                           minHeight: 36,
                                           width: isMobile ? '100%' : undefined,
                                         }}
@@ -2886,13 +2759,15 @@ export default function Atendimento() {
                                       </button>
                                       <button
                                         onClick={() => setConfirmApproveIndividual({ itemId: selectedItem.id, sponsorId: sponsor.id, sponsorName: sponsor.name || 'Patrocinador' })}
-                                        disabled={individualApproveMutation.isPending}
+                                        disabled={individualApproveMutation.isPending || !canDecide}
+                                        title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : undefined}
                                         data-testid={`button-approve-sponsor-${sponsor.id}`}
                                         style={{
                                           padding: '8px 16px', borderRadius: 8,
                                           backgroundColor: '#f0fdf4', border: '1px solid #86efac',
                                           color: '#15803d', fontSize: 13, fontWeight: 700,
-                                          cursor: 'pointer', transition: 'all 0.15s',
+                                          cursor: canDecide ? 'pointer' : 'not-allowed', transition: 'all 0.15s',
+                                          opacity: canDecide ? 1 : 0.5,
                                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                                           minHeight: 36,
                                           width: isMobile ? '100%' : undefined,
@@ -2935,7 +2810,7 @@ export default function Atendimento() {
                                 {/* Motivo de reprovação existente */}
                                 {isRejected && approval?.rejectionReason && (
                                   <div style={{ marginTop: 10, padding: '10px 12px', backgroundColor: '#fff', borderRadius: 8, border: '1px solid #fecaca', borderLeft: '3px solid #dc2626' }}>
-                                    <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#fca5a5', margin: '0 0 4px' }}>Motivo</p>
+                                    <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#b91c1c', margin: '0 0 4px' }}>Motivo</p>
                                     <p style={{ fontSize: 13, fontStyle: 'italic', color: '#57534e', margin: 0, lineHeight: 1.5 }}>
                                       "{approval.rejectionReason}"
                                     </p>
@@ -2949,7 +2824,7 @@ export default function Atendimento() {
                                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 7 }}>
                                       <div style={{ width: 2, height: 12, borderRadius: 999, backgroundColor: '#dc2626', flexShrink: 0 }} />
                                       <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#dc2626' }}>Motivo da reprovação</span>
-                                      <span style={{ fontSize: 11, color: '#fca5a5', fontWeight: 700, lineHeight: 1 }}>*</span>
+                                      <span style={{ fontSize: 11, color: '#b91c1c', fontWeight: 700, lineHeight: 1 }}>*</span>
                                     </div>
 
                                     {/* Textarea nativa — sem reset de className interferindo no foco */}
@@ -2994,7 +2869,7 @@ export default function Atendimento() {
                                         style={{
                                           flex: 2, height: 36, borderRadius: 8, border: 'none',
                                           backgroundColor: rejectionReason.trim() === "" ? '#e7e5e4' : '#dc2626',
-                                          color: rejectionReason.trim() === "" ? '#a8a29e' : '#fff',
+                                          color: rejectionReason.trim() === "" ? '#57534e' : '#fff',
                                           fontSize: 13, fontWeight: 800,
                                           cursor: rejectionReason.trim() === "" ? 'not-allowed' : 'pointer',
                                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -3026,7 +2901,7 @@ export default function Atendimento() {
                     backgroundColor: 'rgba(250,250,249,0.3)',
                     overflowY: 'auto',
                   }}>
-                    <h4 style={{ fontSize: 11, fontWeight: 800, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 24px' }}>
+                    <h4 style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em', margin: '0 0 24px' }}>
                       Histórico de Alterações
                     </h4>
 
@@ -3041,24 +2916,7 @@ export default function Atendimento() {
                         }} />
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
                           {itemLogs.slice(0, 10).map((log, i) => {
-                            const ACTION_CONFIG: Record<string, { label: string; bg: string; iconColor: string; icon: any }> = {
-                              created:          { label: 'Criado',                bg: '#dbeafe', iconColor: '#1d4ed8', icon: Plus },
-                              updated:          { label: 'Atualizado',            bg: '#ffedd5', iconColor: '#c2410c', icon: Pencil },
-                              deleted:          { label: 'Excluído',              bg: '#fee2e2', iconColor: '#dc2626', icon: Trash2 },
-                              approved:         { label: 'Aprovado',              bg: '#dcfce7', iconColor: '#15803d', icon: CheckCircle },
-                              rejected:         { label: 'Reprovado',             bg: '#fee2e2', iconColor: '#dc2626', icon: XCircle },
-                              canceled:         { label: 'Cancelado',             bg: '#fee2e2', iconColor: '#dc2626', icon: XCircle },
-                              delivered:        { label: 'Entregue',              bg: '#ede9fe', iconColor: '#7c3aed', icon: Truck },
-                              produced:         { label: 'Produzido',             bg: '#e0e7ff', iconColor: '#4338ca', icon: Cog },
-                              submitted:        { label: 'Enviado',               bg: '#cffafe', iconColor: '#0e7490', icon: Send },
-                              linked:           { label: 'Vinculado',             bg: '#ccfbf1', iconColor: '#0f766e', icon: Link2 },
-                              released:         { label: 'Liberado',              bg: '#dbeafe', iconColor: '#1d4ed8', icon: Unlock },
-                              status_changed:   { label: 'Status alterado',       bg: '#ffedd5', iconColor: '#c2410c', icon: ArrowRightLeft },
-                              sponsor_approved: { label: 'Patrocinador aprovado', bg: '#dcfce7', iconColor: '#15803d', icon: CheckCircle },
-                              sponsor_rejected: { label: 'Patrocinador reprovou', bg: '#fee2e2', iconColor: '#dc2626', icon: XCircle },
-                              file_uploaded:    { label: 'Arquivo enviado',       bg: '#f3e8ff', iconColor: '#7e22ce', icon: Upload },
-                              thumb_uploaded:   { label: 'Thumb enviado',         bg: '#f3e8ff', iconColor: '#7e22ce', icon: ImageIcon },
-                            };
+                            // ACTION_CONFIG é const de módulo (topo do arquivo).
                             const cfg = ACTION_CONFIG[log.action] ?? { label: log.action?.replace(/_/g, ' ') ?? 'Ação', bg: '#e7e5e4', iconColor: '#a8a29e', icon: Clock };
                             const IconComp = cfg.icon;
                             const isSystemLog = ['updated', 'status_changed', 'file_uploaded', 'thumb_uploaded'].includes(log.action);
@@ -3119,19 +2977,24 @@ export default function Atendimento() {
                   >
                     Fechar
                   </button>
-                  {(dialogSponsors.length === 0 || allApproved) && (
+                  {/* Atalhos de peça inteira: só enquanto há decisões em aberto.
+                      Antes apareciam justamente quando allApproved — e o servidor
+                      devolvia 409 (o item já saiu de awaiting_sponsor_approval).
+                      Com tudo aprovado/decidido, o rodapé fica só com "Fechar". */}
+                  {dialogSponsors.length > 0 && !allApproved && !allDecided && (
                     <>
                       <button
                         onClick={() => sponsorRejectMutation.mutate(selectedItem.id)}
-                        disabled={sponsorRejectMutation.isPending}
+                        disabled={sponsorRejectMutation.isPending || !canDecide}
+                        title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : undefined}
                         data-testid="button-reject-item"
                         style={{
                           padding: '10px 20px', borderRadius: 8, border: 'none',
                           backgroundColor: '#ba1a1a', color: '#ffffff',
                           fontSize: 13, fontWeight: 800,
-                          cursor: 'pointer',
+                          cursor: canDecide ? 'pointer' : 'not-allowed',
                           display: 'flex', alignItems: 'center', gap: 6,
-                          opacity: sponsorRejectMutation.isPending ? 0.7 : 1,
+                          opacity: sponsorRejectMutation.isPending || !canDecide ? 0.5 : 1,
                         }}
                       >
                         {sponsorRejectMutation.isPending ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" /> : <XCircle style={{ width: 14, height: 14 }} />}
@@ -3139,16 +3002,17 @@ export default function Atendimento() {
                       </button>
                       <button
                         onClick={() => sponsorApproveMutation.mutate(selectedItem.id)}
-                        disabled={sponsorApproveMutation.isPending}
+                        disabled={sponsorApproveMutation.isPending || !canDecide}
+                        title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : undefined}
                         data-testid="button-approve-item"
                         style={{
                           padding: '10px 28px', borderRadius: 8, border: 'none',
                           backgroundColor: '#c2410c', color: '#ffffff',
                           fontSize: 13, fontWeight: 800,
-                          cursor: 'pointer',
+                          cursor: canDecide ? 'pointer' : 'not-allowed',
                           display: 'flex', alignItems: 'center', gap: 6,
                           boxShadow: '0 4px 14px rgba(249,115,22,0.3)',
-                          opacity: sponsorApproveMutation.isPending ? 0.7 : 1,
+                          opacity: sponsorApproveMutation.isPending || !canDecide ? 0.5 : 1,
                         }}
                       >
                         {sponsorApproveMutation.isPending ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" /> : <CheckCircle style={{ width: 14, height: 14 }} />}
@@ -3177,7 +3041,7 @@ export default function Atendimento() {
           <div style={{ padding: '20px 24px' }}>
             <DialogDescription style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0 }}>
               Aprovar a arte para o patrocinador <strong style={{ color: '#1c1917' }}>{confirmApproveIndividual?.sponsorName}</strong>?
-              Esta ação não pode ser desfeita.
+              Somente um administrador pode reverter.
             </DialogDescription>
           </div>
           <ModalFooter>
@@ -3219,7 +3083,7 @@ export default function Atendimento() {
           <div style={{ padding: '20px 24px' }}>
             <DialogDescription style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0 }}>
               Aprovar <strong style={{ color: '#1c1917' }}>{batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'item' : 'itens'}</strong> para o patrocinador selecionado?
-              Esta ação não pode ser desfeita.
+              Somente um administrador pode reverter.
             </DialogDescription>
           </div>
           <ModalFooter>
@@ -3245,12 +3109,12 @@ export default function Atendimento() {
         </DialogContent>
       </Dialog>
 
-      {/* Exportar PDF — mesmo motor e opcoes da Arte */}
+      {/* Exportar PDF — mesmo motor e opções da Arte */}
       <ExportPdfDialog
         open={showExportPDFModal}
         onOpenChange={setShowExportPDFModal}
         items={exportPool}
-        title="Aprovacao"
+        title="Aprovação"
       />
 
       {/* Preview da arte no lote — abre pela miniatura, sem mexer na seleção */}
@@ -3271,12 +3135,23 @@ export default function Atendimento() {
                   )}
                 </div>
               </div>
-              <div style={{ background: '#f7f8fa', maxHeight: '75vh', overflow: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+              <div style={{ background: '#f7f8fa', maxHeight: '75vh', overflow: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, position: 'relative' }}>
                 <img
                   src={batchPreviewItem.approvalThumbUrl}
                   alt={batchPreviewItem.type}
                   style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', display: 'block' }}
+                  onError={(e) => {
+                    // Mesmo fallback dos demais thumbs: esconde a imagem quebrada
+                    // e mostra o aviso ao lado.
+                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                    const fb = (e.currentTarget as HTMLImageElement).nextElementSibling as HTMLElement | null;
+                    if (fb?.dataset.fallback) fb.style.display = 'flex';
+                  }}
                 />
+                <div data-fallback="1" style={{ display: 'none', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '48px 0' }}>
+                  <FileText style={{ width: 32, height: 32, color: '#a8a29e' }} />
+                  <p style={{ fontSize: 13, color: '#746e69', margin: 0 }}>Não foi possível carregar a arte</p>
+                </div>
               </div>
             </>
           )}

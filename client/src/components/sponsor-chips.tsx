@@ -101,9 +101,11 @@ export function SponsorChips({
         // (verde aprovado, vermelho reprovado, cinza sem ação) — não a cor da
         // marca, que aqui confundiria com a decisão.
         const st = s.approvalStatus;
+        // "pending" em âmbar (spec da tela): é o chip que EXIGE ação e era
+        // justamente o mais apagado dos três estados.
         const stStyle = st === "approved" ? { color: "#15803d", bg: "#f0fdf4", bd: "#bbf7d0", title: "Aprovado" }
           : st === "rejected" ? { color: "#b91c1c", bg: "#fef2f2", bd: "#fecaca", title: "Reprovado" }
-          : st === "pending" ? { color: "#746e69", bg: "#f5f5f4", bd: "#e7e5e4", title: "Sem ação do patrocinador" }
+          : st === "pending" ? { color: "#c2410c", bg: "#fff7ed", bd: "#fed7aa", title: "Sem ação do patrocinador" }
           : null;
         return (
           <span

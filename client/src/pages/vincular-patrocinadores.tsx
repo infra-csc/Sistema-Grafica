@@ -9,12 +9,11 @@ import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Package, Check, Calendar, Truck, AlertTriangle, CheckCircle2, X, Building2, Plus, Search, Users, ClipboardList, Circle, Save, Send, ChevronDown, Info, Lock, Paperclip, ExternalLink, RotateCcw, Zap } from "lucide-react";
+import { Package, Check, Calendar, Truck, AlertTriangle, CheckCircle2, X, Building2, Plus, Search, Users, ClipboardList, Save, Send, ChevronDown, Info, Lock, Paperclip, ExternalLink, RotateCcw, Zap } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, isAfter, startOfDay } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
-import { useAuth } from "@/contexts/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { R, onColor } from "@/lib/theme";
@@ -108,38 +107,6 @@ const ITEM_RENDER_CAP = 50;
 const safeRefUrl = (u?: string | null): string | null =>
   u && /^(https?:\/\/|\/)/i.test(u.trim()) ? u.trim() : null;
 
-// Cores para cada status UI — Titanium Design System
-const UI_STATUS_CONFIG = {
-  RASCUNHO: {
-    label: 'Rascunho',
-    icon: Circle,
-    badgeStyle: { backgroundColor: '#ffedd5', color: '#c2410c' },
-    chipClass: 'bg-orange-100 text-orange-700',
-    rowBg: '#fffbf5',
-  },
-  PRONTO: {
-    label: 'Pronto',
-    icon: CheckCircle2,
-    badgeStyle: { backgroundColor: '#dcfce7', color: '#166534' },
-    chipClass: 'bg-green-100 text-green-800',
-    rowBg: '#f0fdf4',
-  },
-  ENVIADO: {
-    label: 'Enviado',
-    icon: Check,
-    badgeStyle: { backgroundColor: '#e0f2fe', color: '#0369a1' },
-    chipClass: 'bg-sky-100 text-sky-800',
-    rowBg: 'transparent',
-  },
-  PENDENTE: {
-    label: 'Pendente',
-    icon: Circle,
-    badgeStyle: { backgroundColor: '#f5f5f4', color: '#57534e' },
-    chipClass: 'bg-stone-100 text-stone-600',
-    rowBg: 'transparent',
-  }
-};
-
 // Função helper para converter hex para rgba
 const hexToRgba = (hex: string, alpha: number = 1): string => {
   const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -154,8 +121,6 @@ const COLLATOR_PTBR = new Intl.Collator('pt-BR');
 
 export default function VincularPatrocinadores() {
   const isMobile = useIsMobile();
-  const { user } = useAuth();
-  const isAdmin = user?.role === 'admin';
   const { toast } = useToast();
   const [itemSponsorsMap, setItemSponsorsMap] = useState<Record<string, string[]>>({});
   const [selectedEventForSponsors, setSelectedEventForSponsors] = useState<any>(null);
@@ -181,9 +146,7 @@ export default function VincularPatrocinadores() {
   const [sponsorFilter, setSponsorFilter] = useState<string[]>(() => listParam("sp"));
   const [itemFilter, setItemFilter] = useState<string[]>(() => listParam("tp"));
   const [statusFilter, setStatusFilter] = useState<string[]>(() => listParam("st"));
-  const [sponsorComboOpen, setSponsorComboOpen] = useState(false);
-  const [eventComboOpen, setEventComboOpen] = useState(false);
-  
+
   // Estado local para rastrear mudanças pendentes
   const [pendingChanges, setPendingChanges] = useState<Record<string, ItemChanges>>({});
   
@@ -196,6 +159,10 @@ export default function VincularPatrocinadores() {
   
   // Estado para controlar qual aba está ativa
   const [previewRefUrl, setPreviewRefUrl] = useState<string | null>(null);
+  // Falha ao carregar a imagem de referência — sem isto o onError só escondia
+  // o <img> e sobrava uma caixa cinza vazia, sem explicação.
+  const [refImgFailed, setRefImgFailed] = useState(false);
+  useEffect(() => { setRefImgFailed(false); }, [previewRefUrl]);
 
   // Vista principal: por-item (existente) | por-patrocinador (nova)
   const [viewMode, setViewMode] = useState<"por-item" | "por-patrocinador">(
@@ -283,7 +250,7 @@ export default function VincularPatrocinadores() {
   // isLoading dos eventos também gateia o spinner: visibleItems exige o evento
   // no eventById — se /api/items resolvesse antes de /api/events, a tela
   // piscava o vazio "Nada para vincular agora" até os eventos chegarem.
-  const { data: rawEvents = [], isLoading: eventsLoading } = useQuery<any[]>({
+  const { data: rawEvents = [], isLoading: eventsLoading, isError: eventsError, refetch: refetchEvents } = useQuery<any[]>({
     queryKey: ["/api/events"],
   });
 
@@ -291,7 +258,7 @@ export default function VincularPatrocinadores() {
     queryKey: ["/api/audit-logs"],
   });
 
-  const { data: sponsors = [] } = useQuery<any[]>({
+  const { data: sponsors = [], isError: sponsorsError, refetch: refetchSponsors } = useQuery<any[]>({
     queryKey: ["/api/sponsors"],
   });
   const { data: standardItems = [] } = useQuery<any[]>({ queryKey: ['/api/standard-items'] });
@@ -569,15 +536,18 @@ export default function VincularPatrocinadores() {
     });
   }, [contextVisibleItems, eventById, searchQuery, itemFilter, sponsorFilter, statusFilter, originalSponsorsMap, pendingChanges]);
 
-  // Contadores de contexto: baseados no filtro de evento ativo
+  // Contadores de contexto: sobre fullyFilteredItems (TODOS os filtros ativos).
+  // Antes usava contextVisibleItems (só filtro de evento) e a barra segmentada
+  // dos cartões somava mais que o total filtrado — estourava 100% e as ações
+  // em lote pegavam peças fora do filtro.
   const contextStatusCounts = useMemo(() => {
     const counts = { RASCUNHO: 0, PRONTO: 0, ENVIADO: 0, PENDENTE: 0 };
-    contextVisibleItems.forEach(item => {
+    fullyFilteredItems.forEach(item => {
       const status = itemUIStates[item.id] || 'PENDENTE';
       counts[status as keyof typeof counts]++;
     });
     return counts;
-  }, [contextVisibleItems, itemUIStates]);
+  }, [fullyFilteredItems, itemUIStates]);
 
   // IDs já processados — evita overwrite de updates otimistas durante mutations
   const loadedItemIdsRef = useRef(new Set<string>());
@@ -851,8 +821,17 @@ export default function VincularPatrocinadores() {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
-      // Remove item do loadedItemIdsRef para recarregar sponsors
-      if (returnModal) loadedItemIdsRef.current.delete(returnModal.id);
+      // Espelha o dropAffected do auto-vínculo: além do loadedItemIdsRef, os
+      // mapas locais e o rascunho precisam esquecer o item — o servidor zerou
+      // os vínculos, e a entrada antiga fazia a peça voltar com
+      // patrocinadores fantasma.
+      if (returnModal) {
+        const id = returnModal.id;
+        loadedItemIdsRef.current.delete(id);
+        setItemSponsorsMap(prev => { const n = { ...prev }; delete n[id]; return n; });
+        setOriginalSponsorsMap(prev => { const n = { ...prev }; delete n[id]; return n; });
+        setPendingChanges(prev => { const n = { ...prev }; delete n[id]; return n; });
+      }
       setReturnModal(null);
       toast({ title: "Peça devolvida para Criação", description: "O item voltou para a equipe de Solicitação." });
     },
@@ -949,18 +928,23 @@ export default function VincularPatrocinadores() {
     setBulkApplyDialogOpen(true);
   };
 
+  // Alterna a opção "Sem Patrocinador" do lote (usada no clique e no teclado)
+  const toggleBulkSkip = () => {
+    if (bulkSkipApproval) {
+      setBulkSkipApproval(false);
+    } else {
+      setBulkSelectedSponsors([]);
+      setBulkSkipApproval(true);
+    }
+  };
+
   const handleApplyBulkSponsors = () => {
     const allSelectedItems = Array.from(selectedItemIds);
-    
-    if (bulkSelectedSponsors.length === 0 && !bulkSkipApproval) {
-      toast({
-        title: "Nenhum patrocinador selecionado",
-        description: "Selecione pelo menos um patrocinador ou marque 'Pular aprovação'",
-        variant: "destructive",
-      });
-      return;
-    }
-    
+
+    // O botão "Aplicar em Lote" já fica desabilitado sem seleção; este guard
+    // é só cinto de segurança (sem toast destrutivo).
+    if (bulkSelectedSponsors.length === 0 && !bulkSkipApproval) return;
+
     // Aplicar patrocinadores apenas a itens NÃO isentos (skipApproval=false)
     // a menos que bulkSkipApproval seja true (nesse caso, aplica a todos)
     const itemsToUpdate: { itemId: string; sponsorIds: string[]; skipApproval: boolean }[] = [];
@@ -1051,7 +1035,7 @@ export default function VincularPatrocinadores() {
   const sponsorGroupedData = useMemo(() => {
     if (sponsors.length === 0) return [];
 
-    // Aplicar filtros de evento/tipo/busca
+    // Aplicar filtros de evento/tipo/busca/status
     const filterFn = (item: any, eventName: string) => {
       if (searchQuery) {
         const q = searchQuery.toLowerCase();
@@ -1060,17 +1044,25 @@ export default function VincularPatrocinadores() {
             !eventName.toLowerCase().includes(q)) return false;
       }
       if (itemFilter.length > 0 && !itemFilter.includes(item.type)) return false;
+      // Mesmo filtro de status da aba Por Item — antes o statusFilter era
+      // ignorado aqui e a aba parecia não responder ao filtro ativo.
+      if (statusFilter.length > 0) {
+        const orig = originalSponsorsMap[item.id] || [];
+        const pc = pendingChanges[item.id];
+        if (!statusFilter.includes(getItemUIStatus(item, orig, pc))) return false;
+      }
       return true;
     };
 
     return Object.entries(itemsByEvent)
       .filter(([eventId]) => {
         if (eventFilter.length > 0 && !eventFilter.includes(eventId)) return false;
-        const event = events.find(e => e.id === eventId);
-        return !!event;
+        // eventById (lookup O(1) sobre todos os eventos), não events.find:
+        // consistente com a aba Por Item e sem varredura por item.
+        return !!eventById.get(eventId);
       })
       .map(([eventId, eventItems]) => {
-        const event = events.find(e => e.id === eventId)!;
+        const event = eventById.get(eventId)!;
         const eventSponsorList = getEventSponsors(eventId);
 
         // Filtrar por patrocinador selecionado no filtro
@@ -1103,7 +1095,7 @@ export default function VincularPatrocinadores() {
         return { event, sponsorGroups, totalItems, linkedCount };
       })
       .filter(g => g.sponsorGroups.some(sg => sg.items.length > 0 || sg.pendingItems.length > 0) || g.totalItems > 0);
-  }, [itemsByEvent, events, sponsors, originalSponsorsMap, searchQuery, itemFilter, eventFilter, sponsorFilter, sponsorBulkSelected]);
+  }, [itemsByEvent, eventById, sponsors, originalSponsorsMap, pendingChanges, searchQuery, itemFilter, eventFilter, sponsorFilter, statusFilter]);
 
   // Contagem de patrocinadores totalmente vinculados (todos os itens do evento têm esse patrocinador)
   const sponsorLinkStats = useMemo(() => {
@@ -1258,12 +1250,15 @@ export default function VincularPatrocinadores() {
     const current = originalSponsorsMap[itemId] || [];
     if (current.includes(sponsorId)) return;
     const newSponsors = [...current, sponsorId];
+    // Preserva a isenção "sem aprovação" do item: mandar skipApproval false
+    // fixo apagava a flag de itens isentos a cada vínculo individual.
+    const skip = pendingChanges[itemId]?.skipApproval ?? items.find(i => i.id === itemId)?.skipApproval ?? false;
     setPendingChanges(prev => ({
       ...prev,
-      [itemId]: { sponsorIds: newSponsors, skipApproval: false, isDirty: true },
+      [itemId]: { sponsorIds: newSponsors, skipApproval: skip, isDirty: true },
     }));
     setItemSponsorsMap(prev => ({ ...prev, [itemId]: newSponsors }));
-    saveLinkingMutation.mutate([{ itemId, sponsorIds: newSponsors, skipApproval: false }]);
+    saveLinkingMutation.mutate([{ itemId, sponsorIds: newSponsors, skipApproval: skip }]);
   };
 
   // Desvincular patrocinador de item individual (aba Por Patrocinador)
@@ -1306,8 +1301,10 @@ export default function VincularPatrocinadores() {
   }
 
   // Falha de rede tem cara de falha, não de "nada para vincular" — sem isto o
-  // erro caía no estado vazio logo abaixo e mentia sobre a causa.
-  if (itemsError) {
+  // erro caía no estado vazio logo abaixo e mentia sobre a causa. Cobre as
+  // três queries de que a tela depende: sem eventos ou patrocinadores ela
+  // também fica inutilizável (nenhum chip para vincular).
+  if (itemsError || eventsError || sponsorsError) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', padding: 24 }}>
         <div style={{ maxWidth: 420, textAlign: 'center' }}>
@@ -1321,7 +1318,7 @@ export default function VincularPatrocinadores() {
             Verifique sua conexão e tente novamente.
           </p>
           <button
-            onClick={() => refetchItems()}
+            onClick={() => { refetchItems(); refetchEvents(); refetchSponsors(); }}
             style={{ height: 40, padding: '0 20px', backgroundColor: '#c2410c', color: '#fff', fontWeight: 700, fontSize: 13, borderRadius: R.md, border: 'none', cursor: 'pointer' }}
             data-testid="button-retry-items"
           >
@@ -1375,12 +1372,18 @@ export default function VincularPatrocinadores() {
           />
           {previewRefUrl && (
             <div style={{ backgroundColor: '#f5f5f4', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200, maxHeight: 480, overflow: 'hidden' }}>
-              <img
-                src={previewRefUrl}
-                alt="Referência visual"
-                style={{ maxWidth: '100%', maxHeight: 480, objectFit: 'contain', display: 'block' }}
-                onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
-              />
+              {refImgFailed ? (
+                <p style={{ fontSize: 13, color: '#57534e', margin: 0, padding: '24px', textAlign: 'center' }}>
+                  Não foi possível carregar a imagem
+                </p>
+              ) : (
+                <img
+                  src={previewRefUrl}
+                  alt="Referência visual"
+                  style={{ maxWidth: '100%', maxHeight: 480, objectFit: 'contain', display: 'block' }}
+                  onError={() => setRefImgFailed(true)}
+                />
+              )}
             </div>
           )}
           {previewRefUrl && (
@@ -1410,7 +1413,9 @@ export default function VincularPatrocinadores() {
             tint="#4f46e5"
             title="Auto-vincular por cota"
             subtitle="Os patrocinadores entram conforme as regras de cota do evento"
-            onClose={() => { setAutoLinkOpen(false); setAutoLinkPreview(null); }}
+            /* Durante a confirmação o modal não pode fechar (o onOpenChange já
+               bloqueia; o X precisava acompanhar). */
+            onClose={autoLinkConfirming ? undefined : () => { setAutoLinkOpen(false); setAutoLinkPreview(null); }}
           />
 
           {/* Body */}
@@ -1468,7 +1473,8 @@ export default function VincularPatrocinadores() {
           <div style={{ padding: '14px 24px', borderTop: '1px solid #f0efed', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
             <button
               onClick={() => { setAutoLinkOpen(false); setAutoLinkPreview(null); }}
-              style={{ padding: '9px 20px', backgroundColor: '#f5f5f4', color: '#1c1917', fontWeight: 600, fontSize: 13, borderRadius: 6, border: 'none', cursor: 'pointer' }}
+              disabled={autoLinkConfirming}
+              style={{ padding: '9px 20px', backgroundColor: '#f5f5f4', color: autoLinkConfirming ? '#a8a29e' : '#1c1917', fontWeight: 600, fontSize: 13, borderRadius: 6, border: 'none', cursor: autoLinkConfirming ? 'not-allowed' : 'pointer' }}
               data-testid="button-auto-link-cancel"
             >
               Cancelar
@@ -1477,10 +1483,12 @@ export default function VincularPatrocinadores() {
               disabled={!autoLinkPreview || autoLinkPreview.length === 0 || autoLinkConfirming}
               onClick={async () => {
                 if (!autoLinkPreview || autoLinkPreview.length === 0) return;
-                const totalLinks = autoLinkPreview.reduce((acc: number, e: any) => acc + e.items.length, 0);
                 setAutoLinkConfirming(true);
                 try {
-                  await apiRequest('POST', `/api/events/${eventFilter[0]}/auto-link-sponsors`);
+                  const res = await apiRequest('POST', `/api/events/${eventFilter[0]}/auto-link-sponsors`);
+                  // Contagem real retornada pela rota — o total do preview
+                  // podia divergir do que foi de fato gravado.
+                  const { linked } = await res.json();
                   // Sem isto os vínculos novos não apareciam até um reload:
                   // loadedItemIdsRef pulava os itens já vistos e o merge dos
                   // mapas preserva a entrada antiga. Esquecer os itens
@@ -1494,11 +1502,19 @@ export default function VincularPatrocinadores() {
                   };
                   setItemSponsorsMap(dropAffected);
                   setOriginalSponsorsMap(dropAffected);
+                  // Rascunhos locais dos afetados também caem: o auto-vínculo
+                  // acabou de gravar no servidor, e salvar um rascunho antigo
+                  // por cima desfaria os vínculos recém-criados.
+                  setPendingChanges(prev => {
+                    const next = { ...prev };
+                    affectedIds.forEach((id: string) => { delete next[id]; });
+                    return next;
+                  });
                   queryClient.invalidateQueries({ queryKey: ['/api/items'] });
                   queryClient.invalidateQueries({ queryKey: ['/api/audit-logs'] });
                   setAutoLinkOpen(false);
                   setAutoLinkPreview(null);
-                  toast({ title: 'Patrocinadores vinculados!', description: `${totalLinks} vínculo(s) criado(s) com sucesso.` });
+                  toast({ title: 'Patrocinadores vinculados!', description: `${linked} vínculo${linked !== 1 ? 's' : ''} criado${linked !== 1 ? 's' : ''} com sucesso.` });
                 } catch (e: any) {
                   toast({ variant: 'destructive', title: 'Erro ao vincular', description: e.message });
                 } finally {
@@ -1534,6 +1550,10 @@ export default function VincularPatrocinadores() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexShrink: 0, flexWrap: 'wrap' }}>
+          {/* O title fica no <span> porque botão desabilitado não dispara os
+              eventos de mouse — o tooltip que explica POR QUE está desabilitado
+              nunca aparecia. */}
+          <span title={eventFilter.length !== 1 ? 'Selecione exatamente um evento para usar o auto-vínculo' : 'Vincular patrocinadores automaticamente pela cota'} style={{ display: 'inline-flex' }}>
           <button
             data-testid="button-auto-vincular"
             disabled={eventFilter.length !== 1}
@@ -1543,13 +1563,14 @@ export default function VincularPatrocinadores() {
               setAutoLinkPreview(null);
               setAutoLinkLoading(true);
               try {
-                const res = await fetch(`/api/events/${eventFilter[0]}/auto-link-preview`, { credentials: 'include' });
+                // apiRequest em vez de fetch cru: herda a guarda de servidor
+                // desatualizado (HTML no lugar de JSON) e o throw em erro HTTP.
+                const res = await apiRequest('GET', `/api/events/${eventFilter[0]}/auto-link-preview`);
                 const data = await res.json();
-                // Um 500 com corpo {error} também resolve o res.json() — sem
-                // esta guarda o objeto ia parar em autoLinkPreview e o
+                // Guarda de formato: se o corpo não for a lista esperada, o
                 // .reduce() do rodapé derrubava a tela inteira.
-                if (!res.ok || !Array.isArray(data)) {
-                  throw new Error(data?.error || 'Não foi possível carregar a pré-visualização');
+                if (!Array.isArray(data)) {
+                  throw new Error('Não foi possível carregar a pré-visualização');
                 }
                 setAutoLinkPreview(data);
               } catch (e: any) {
@@ -1565,21 +1586,14 @@ export default function VincularPatrocinadores() {
             style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, height: 44, padding: '0 18px', backgroundColor: '#fff', color: eventFilter.length !== 1 ? '#746e69' : '#4338ca', fontWeight: 700, fontSize: 13, borderRadius: R.md, border: `1px solid ${eventFilter.length !== 1 ? '#e7e5e4' : '#c7d2fe'}`, cursor: eventFilter.length !== 1 ? 'not-allowed' : 'pointer' }}
             onMouseEnter={e => { if (eventFilter.length === 1) e.currentTarget.style.backgroundColor = '#eef2ff'; }}
             onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#fff'; }}
-            title={eventFilter.length !== 1 ? 'Selecione exatamente um evento para usar o auto-vínculo' : 'Vincular patrocinadores automaticamente pela cota'}
           >
             <Zap style={{ width: 14, height: 14 }} />
             Auto-vincular por cota
           </button>
-          <button
-            onClick={() => {
-              const prontoItems = contextVisibleItems.filter(i => itemUIStates[i.id] === 'PRONTO');
-              if (prontoItems.length === 0) return;
-              const pendingByItem: Record<string, Set<string>> = {};
-              prontoItems.forEach(i => { pendingByItem[i.id] = new Set(); });
-              setSendConfirmModal({ items: prontoItems, pendingByItem });
-            }}
-            disabled={contextStatusCounts.PRONTO === 0 || sendToArteMutation.isPending}
-            data-testid="button-finalizar-lote"
+          </span>
+          {/* Mesmo motivo do span acima: tooltip precisa funcionar com o
+              botão desabilitado. */}
+          <span
             title={
               contextStatusCounts.PRONTO === 0
                 ? contextStatusCounts.RASCUNHO > 0
@@ -1587,6 +1601,18 @@ export default function VincularPatrocinadores() {
                   : 'Nenhum item está pronto para envio. Vincule e salve patrocinadores primeiro.'
                 : undefined
             }
+            style={{ display: 'inline-flex' }}
+          >
+          <button
+            onClick={() => {
+              const prontoItems = fullyFilteredItems.filter(i => itemUIStates[i.id] === 'PRONTO');
+              if (prontoItems.length === 0) return;
+              const pendingByItem: Record<string, Set<string>> = {};
+              prontoItems.forEach(i => { pendingByItem[i.id] = new Set(); });
+              setSendConfirmModal({ items: prontoItems, pendingByItem });
+            }}
+            disabled={contextStatusCounts.PRONTO === 0 || sendToArteMutation.isPending}
+            data-testid="button-finalizar-lote"
             /* Uma linha e a mesma altura (44) dos outros dois: com duas linhas
                e minWidth 180 este botão ficava bem mais alto que os vizinhos e
                a barra saía desalinhada. A legenda "Conclui sua etapa de
@@ -1618,6 +1644,7 @@ export default function VincularPatrocinadores() {
               </span>
             )}
           </button>
+          </span>
         </div>
       </div>
 
@@ -1691,7 +1718,7 @@ export default function VincularPatrocinadores() {
             {contextStatusCounts.RASCUNHO > 0 && (
               <button
                 onClick={() => {
-                  const rascunhoItems = contextVisibleItems.filter(i => itemUIStates[i.id] === 'RASCUNHO');
+                  const rascunhoItems = fullyFilteredItems.filter(i => itemUIStates[i.id] === 'RASCUNHO');
                   const payloads = rascunhoItems.map(i => {
                     const ch = pendingChanges[i.id];
                     return { itemId: i.id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false };
@@ -1725,7 +1752,7 @@ export default function VincularPatrocinadores() {
             {contextStatusCounts.PRONTO > 0 && (
               <button
                 onClick={() => {
-                  const prontoItems = contextVisibleItems.filter(i => itemUIStates[i.id] === 'PRONTO');
+                  const prontoItems = fullyFilteredItems.filter(i => itemUIStates[i.id] === 'PRONTO');
                   if (prontoItems.length === 0) return;
                   const pendingByItem: Record<string, Set<string>> = {};
                   prontoItems.forEach(i => { pendingByItem[i.id] = new Set(); });
@@ -1980,8 +2007,12 @@ export default function VincularPatrocinadores() {
                   <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', color: '#ffffff', fontSize: 18, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '-0.01em', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {event.name}
                   </h2>
+                  {/* "VINCULADO", não "CONCLUÍDO": calculateProgress conta
+                      itens com patrocinador salvo (ou isentos), enquanto o
+                      "enviados" do topo conta outra coisa — os dois "concluído"
+                      divergiam na mesma tela. */}
                   <span style={{ backgroundColor: progress.completed === progress.total && progress.total > 0 ? '#16a34a' : '#3d3936', color: '#ffffff', borderRadius: 6, padding: '1px 7px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.03em' }}>
-                    {progress.completed}/{progress.total} CONCLUÍDO
+                    {progress.completed}/{progress.total} VINCULADO
                   </span>
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexShrink: 0 }}>
@@ -1990,7 +2021,7 @@ export default function VincularPatrocinadores() {
                       ficava em 3.18:1 — escuro sobre escuro. Sobre preto o
                       papel se inverte: #a8a29e, que é decorativo no claro,
                       passa em 6.34:1. */}
-                  <div style={{ display: 'flex', gap: 18, fontSize: 11, fontWeight: 600, color: '#746e69' }}>
+                  <div style={{ display: 'flex', gap: 18, fontSize: 11, fontWeight: 600, color: '#a8a29e' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       <Calendar style={{ width: 13, height: 13 }} />
                       <span>{format(parseDateLocal(event.startDate), "dd MMM yyyy", { locale: ptBR }).toUpperCase()}</span>
@@ -2026,7 +2057,15 @@ export default function VincularPatrocinadores() {
                       <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4' }}>
                         <th className="px-3 py-2 text-center w-[50px]">
                           <Checkbox
-                            checked={(() => { const sel = displayedItems.filter(item => { const s = itemUIStates[item.id] || 'PENDENTE'; return s === 'PENDENTE' || s === 'RASCUNHO'; }); return sel.length > 0 && sel.every(item => selectedItemIds.has(item.id)); })()}
+                            /* "indeterminate" em seleção parcial: sem isto o
+                               checkbox aparecia vazio mesmo com metade das
+                               linhas marcadas. */
+                            checked={(() => {
+                              const sel = displayedItems.filter(item => { const s = itemUIStates[item.id] || 'PENDENTE'; return s === 'PENDENTE' || s === 'RASCUNHO'; });
+                              if (sel.length === 0) return false;
+                              const marked = sel.filter(item => selectedItemIds.has(item.id)).length;
+                              return marked === sel.length ? true : marked > 0 ? "indeterminate" : false;
+                            })()}
                             onCheckedChange={() => toggleAllItemsInEvent(displayedItems.filter(item => { const s = itemUIStates[item.id] || 'PENDENTE'; return s === 'PENDENTE' || s === 'RASCUNHO'; }))}
                             disabled={displayedItems.filter(item => { const s = itemUIStates[item.id] || 'PENDENTE'; return s === 'PENDENTE' || s === 'RASCUNHO'; }).length === 0}
                             aria-label={`Selecionar todas as peças pendentes de ${event.name}`}
@@ -2046,13 +2085,10 @@ export default function VincularPatrocinadores() {
                     </thead>
                     <tbody>
                       {renderedItems.map((item, itemIndex) => {
-                        const itemStatus = getItemStatus(item);
                         const linkedSponsors = itemSponsorsMap[item.id] || [];
                         const currentSkipApproval = pendingChanges[item.id]?.skipApproval ?? (item.skipApproval || false);
                         const isEditable = getItemEditability(item);
                         const uiStatus = optimisticSentIds.has(item.id) ? 'ENVIADO' : (itemUIStates[item.id] || 'PENDENTE');
-                        const rowConfig = UI_STATUS_CONFIG[uiStatus];
-                        const isRascunho = uiStatus === 'RASCUNHO';
                         const prevItem = itemIndex > 0 ? renderedItems[itemIndex - 1] : null;
                         const showTypeGrouper = !prevItem || prevItem.type !== item.type;
                         const groupName = typeToGroup[item.type] || '';
@@ -2350,6 +2386,7 @@ export default function VincularPatrocinadores() {
                                           <button
                                             onClick={handleToggleAll}
                                             data-testid={`btn-select-all-${item.id}`}
+                                            aria-pressed={allSelected}
                                             title={allSelected ? 'Desmarcar todos' : 'Selecionar todos'}
                                             style={{
                                               display: 'inline-flex', alignItems: 'center', gap: 3,
@@ -2389,6 +2426,7 @@ export default function VincularPatrocinadores() {
                                                 setItemSponsorsMap(prev => ({ ...prev, [item.id]: newSponsors }));
                                               }}
                                               disabled={!isEditable}
+                                              aria-pressed={isLinked}
                                               aria-label={`Selecionar ${item.displayId} para ${sponsor.name}`}
                                               data-testid={`checkbox-sponsor-${item.id}-${sponsor.id}`}
                                               style={{
@@ -2421,6 +2459,7 @@ export default function VincularPatrocinadores() {
                                           <button
                                             onClick={(e) => { e.stopPropagation(); toggleItemSkipApproval(item); }}
                                             data-testid={`btn-skip-sponsor-${item.id}`}
+                                            aria-pressed={currentSkipApproval}
                                             style={{ background: 'none', border: 'none', fontSize: 11, color: '#746e69', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
                                           >
                                             sem pat.
@@ -2429,6 +2468,7 @@ export default function VincularPatrocinadores() {
                                           <button
                                             onClick={(e) => { e.stopPropagation(); updateItemIsReuseMutation.mutate({ itemId: item.id, isReuse: !item.isReuse }); }}
                                             data-testid={`btn-reuse-${item.id}`}
+                                            aria-pressed={!!item.isReuse}
                                             title={item.isReuse ? "Reaproveitamento ativo — clique para desativar" : "Marcar como reaproveitamento"}
                                             style={{
                                               display: 'inline-flex', alignItems: 'center', gap: 3,
@@ -2460,7 +2500,7 @@ export default function VincularPatrocinadores() {
                                     ...(uiStatus === 'RASCUNHO' ? { backgroundColor: '#ffedd5', color: '#c2410c' }
                                       : uiStatus === 'PRONTO' ? { backgroundColor: '#dcfce7', color: '#166534' }
                                       : uiStatus === 'ENVIADO' ? { backgroundColor: '#1c1917', color: '#ffffff' }
-                                      : { backgroundColor: '#e8e8e7', color: '#746e69' }),
+                                      : { backgroundColor: '#e8e8e7', color: '#57534e' }),
                                   }}
                                 >
                                   {UI_STATUS_LABEL[uiStatus] ?? uiStatus}
@@ -2469,7 +2509,7 @@ export default function VincularPatrocinadores() {
                                 <span style={{ width: 1, height: 16, backgroundColor: '#e7e5e4', display: 'inline-block' }} />
                                 {/* Ações */}
                                 {uiStatus === 'ENVIADO' && (
-                                  <Lock style={{ width: 13, height: 13, color: '#d6d3d1' }} />
+                                  <Lock style={{ width: 13, height: 13, color: '#78716c' }} />
                                 )}
                                 {uiStatus === 'RASCUNHO' && isEditable && (
                                   <>
@@ -2486,7 +2526,7 @@ export default function VincularPatrocinadores() {
                                       data-testid={`button-discard-item-${item.id}`}
                                       title="Descartar alterações"
                                       aria-label={`Descartar alterações de ${item.displayId}`}
-                                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#746e69', display: 'flex', alignItems: 'center', padding: 2 }}
+                                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#746e69', display: 'flex', alignItems: 'center', padding: 6 }}
                                     >
                                       <X style={{ width: 13, height: 13 }} />
                                     </button>
@@ -2500,7 +2540,7 @@ export default function VincularPatrocinadores() {
                                       data-testid={`button-save-item-${item.id}`}
                                       title="Salvar vinculação"
                                       aria-label={`Salvar vinculação de ${item.displayId}`}
-                                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#f97316', display: 'flex', alignItems: 'center', padding: 2 }}
+                                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c2410c', display: 'flex', alignItems: 'center', padding: 6 }}
                                     >
                                       <Save style={{ width: 14, height: 14 }} />
                                     </button>
@@ -2513,7 +2553,7 @@ export default function VincularPatrocinadores() {
                                     data-testid={`button-return-creation-${item.id}`}
                                     title="Devolver peça para Criação"
                                     aria-label={`Devolver ${item.displayId} para Criação`}
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#746e69', display: 'flex', alignItems: 'center', padding: 2 }}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#746e69', display: 'flex', alignItems: 'center', padding: 6 }}
                                   >
                                     <RotateCcw style={{ width: 13, height: 13 }} />
                                   </button>
@@ -2525,7 +2565,7 @@ export default function VincularPatrocinadores() {
                                     data-testid={`button-send-item-${item.id}`}
                                     title="Enviar para Arte"
                                     aria-label={`Enviar ${item.displayId} para Arte`}
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#166534', display: 'flex', alignItems: 'center', padding: 2 }}
+                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#166534', display: 'flex', alignItems: 'center', padding: 6 }}
                                   >
                                     <Send style={{ width: 14, height: 14 }} />
                                   </button>
@@ -2538,13 +2578,19 @@ export default function VincularPatrocinadores() {
                     </tbody>
                   </table>
                 </div>
-                {!showAllEventRows && displayedItems.length > ITEM_RENDER_CAP && (
+                {displayedItems.length > ITEM_RENDER_CAP && (
                   <button
-                    onClick={() => setShowAllRows(prev => { const n = new Set(prev); n.add(eventId); return n; })}
+                    onClick={() => setShowAllRows(prev => {
+                      const n = new Set(prev);
+                      if (showAllEventRows) n.delete(eventId); else n.add(eventId);
+                      return n;
+                    })}
                     data-testid={`button-show-all-${eventId}`}
                     style={{ width: '100%', padding: '10px 0', background: '#fafaf9', border: 'none', borderTop: '1px solid #e7e5e4', color: '#c2410c', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
                   >
-                    Mostrar todos os {displayedItems.length} itens (+{displayedItems.length - ITEM_RENDER_CAP})
+                    {showAllEventRows
+                      ? 'Mostrar menos'
+                      : `Mostrar todos os ${displayedItems.length} itens (+${displayedItems.length - ITEM_RENDER_CAP})`}
                   </button>
                 )}
               </div>
@@ -2579,7 +2625,7 @@ export default function VincularPatrocinadores() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: '#1c1917' }}>Progresso Global de Vinculação</span>
               <span style={{ fontSize: 13, color: '#746e69' }}>
-                <strong style={{ color: '#f97316' }}>{sponsorLinkStats.fullyLinked}</strong>
+                <strong style={{ color: '#c2410c' }}>{sponsorLinkStats.fullyLinked}</strong>
                 <span style={{ margin: '0 4px' }}>/</span>
                 <strong style={{ color: '#1c1917' }}>{sponsorLinkStats.total}</strong>
                 <span style={{ marginLeft: 4 }}>patrocinadores totalmente vinculados</span>
@@ -2587,13 +2633,13 @@ export default function VincularPatrocinadores() {
             </div>
             <div style={{ width: '100%', height: 6, backgroundColor: '#e7e5e4', borderRadius: 999, overflow: 'hidden' }}>
               <div style={{
-                height: '100%', borderRadius: 999, backgroundColor: '#f97316',
+                height: '100%', borderRadius: 999, backgroundColor: '#c2410c',
                 width: `${sponsorLinkStats.total > 0 ? Math.round((sponsorLinkStats.fullyLinked / sponsorLinkStats.total) * 100) : 0}%`,
                 transition: 'width 0.5s ease',
               }} />
             </div>
             {sponsorLinkStats.total > 0 && (
-              <div style={{ marginTop: 6, textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#f97316', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
+              <div style={{ marginTop: 6, textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#c2410c', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
                 {Math.round((sponsorLinkStats.fullyLinked / sponsorLinkStats.total) * 100)}% completo
               </div>
             )}
@@ -2646,22 +2692,38 @@ export default function VincularPatrocinadores() {
 
           {/* ── Lista de eventos → patrocinadores → itens ── */}
           {sponsorGroupedData.length === 0 ? (
-            /* Antes era uma frase solta no meio do branco. Esta visão agrupa
-               por patrocinador, então ficar vazia quase sempre significa que os
-               eventos ainda não têm patrocinador vinculado — dizer isso poupa
-               o usuário de procurar o que não existe. */
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '56px 24px' }}>
-              <div style={{ width: 56, height: 56, borderRadius: R.lg, backgroundColor: '#f5f5f4', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-                <Building2 style={{ width: 24, height: 24, color: '#a8a29e' }} />
+            /* Antes era uma frase solta no meio do branco. Com filtro ativo a
+               causa provável é o próprio filtro (mesmo padrão da aba Por
+               Item); sem filtro, quase sempre falta vincular patrocinadores
+               aos eventos — dizer isso poupa o usuário de procurar o que não
+               existe. */
+            (searchQuery || eventFilter.length > 0 || sponsorFilter.length > 0 || itemFilter.length > 0 || statusFilter.length > 0) ? (
+              <div style={{ backgroundColor: '#fff', border: '1px dashed #d6d3d1', borderRadius: 12, padding: '40px 24px', textAlign: 'center' }}>
+                <Search style={{ width: 26, height: 26, color: '#a8a29e', margin: '0 auto 12px', display: 'block' }} />
+                <p style={{ fontSize: 14, fontWeight: 700, color: '#1a1c1c', margin: '0 0 4px' }}>Nenhuma peça com os filtros atuais</p>
+                <p style={{ fontSize: 12, color: '#746e69', margin: '0 0 16px' }}>Ajuste a busca ou os filtros acima para ver as peças.</p>
+                <button
+                  onClick={() => { setSearchQuery(""); setEventFilter([]); setSponsorFilter([]); setItemFilter([]); setStatusFilter([]); }}
+                  data-testid="button-clear-filters-sponsor-view"
+                  style={{ height: 36, padding: '0 16px', backgroundColor: '#f5f5f4', color: '#1c1917', fontWeight: 700, fontSize: 12, borderRadius: 8, border: '1px solid #e7e5e4', cursor: 'pointer' }}
+                >
+                  Limpar filtros
+                </button>
               </div>
-              <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1c1c', margin: '0 0 6px' }}>
-                Nenhum evento com patrocinadores
-              </p>
-              <p style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0, maxWidth: 380 }}>
-                Use “Patrocinadores do evento” para definir quem participa de
-                cada evento — depois eles aparecem agrupados aqui.
-              </p>
-            </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '56px 24px' }}>
+                <div style={{ width: 56, height: 56, borderRadius: R.lg, backgroundColor: '#f5f5f4', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+                  <Building2 style={{ width: 24, height: 24, color: '#a8a29e' }} />
+                </div>
+                <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1c1c', margin: '0 0 6px' }}>
+                  Nenhum evento com patrocinadores
+                </p>
+                <p style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0, maxWidth: 380 }}>
+                  Use “Patrocinadores do evento” para definir quem participa de
+                  cada evento — depois eles aparecem agrupados aqui.
+                </p>
+              </div>
+            )
           ) : sponsorGroupedData.map(({ event, sponsorGroups, totalItems: evTotal, linkedCount }) => {
             const eventSponsorList = getEventSponsors(event.id);
             const eventPct = evTotal > 0 ? Math.round((linkedCount / evTotal) * 100) : 0;
@@ -2997,7 +3059,7 @@ export default function VincularPatrocinadores() {
                                             onClick={() => openSendModalForItem(item)}
                                             disabled={sendToArteMutation.isPending}
                                             style={{ backgroundColor: '#1c1917', color: '#ffffff', border: 'none', borderRadius: 6, height: 34, padding: '0 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-                                            onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316')}
+                                            onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#c2410c')}
                                             onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1c1917')}
                                             data-testid={`sp-btn-send-${item.id}`}
                                           >
@@ -3019,8 +3081,11 @@ export default function VincularPatrocinadores() {
                                           onClick={() => linkSponsorToItem(item.id, sponsor.id)}
                                           disabled={saveLinkingMutation.isPending}
                                           style={{ backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: 6, height: 34, padding: '0 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-                                          onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#ea580c')}
-                                          onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f97316')}
+                                          /* onMouseLeave volta ao #c2410c BASE do botão — voltar
+                                             para #f97316 deixava o botão preso num laranja claro
+                                             reprovado depois do primeiro hover. */
+                                          onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#9a3412')}
+                                          onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#c2410c')}
                                           data-testid={`sp-btn-link-${item.id}`}
                                         >
                                           <Plus style={{ width: 11, height: 11 }} /> Vincular Peça
@@ -3032,13 +3097,19 @@ export default function VincularPatrocinadores() {
                               })}
                             </tbody>
                           </table>
-                          {!showAllGroupRows && allItems.length > ITEM_RENDER_CAP && (
+                          {allItems.length > ITEM_RENDER_CAP && (
                             <button
-                              onClick={() => setShowAllRows(prev => { const n = new Set(prev); n.add(groupKey); return n; })}
+                              onClick={() => setShowAllRows(prev => {
+                                const n = new Set(prev);
+                                if (showAllGroupRows) n.delete(groupKey); else n.add(groupKey);
+                                return n;
+                              })}
                               data-testid={`button-show-all-group-${event.id}-${sponsor.id}`}
                               style={{ width: '100%', padding: '10px 0', background: '#fafaf9', border: 'none', borderTop: '1px solid #e7e5e4', color: '#c2410c', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
                             >
-                              Mostrar todos os {allItems.length} itens (+{allItems.length - ITEM_RENDER_CAP})
+                              {showAllGroupRows
+                                ? 'Mostrar menos'
+                                : `Mostrar todos os ${allItems.length} itens (+${allItems.length - ITEM_RENDER_CAP})`}
                             </button>
                           )}
                         </div>
@@ -3096,7 +3167,7 @@ export default function VincularPatrocinadores() {
                   Limpar seleção
                 </button>
               ) : (
-                <button onClick={() => setSelectedSponsorIds(sponsors.map((s: any) => s.id))} style={{ fontSize: 11, fontWeight: 600, color: '#f97316', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                <button onClick={() => setSelectedSponsorIds(sponsors.map((s: any) => s.id))} style={{ fontSize: 11, fontWeight: 600, color: '#c2410c', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
                   Selecionar todos
                 </button>
               )}
@@ -3135,6 +3206,13 @@ export default function VincularPatrocinadores() {
                   {sorted.map((sponsor: any, idx: number) => {
                     const isSelected = selectedSponsorIds.includes(sponsor.id);
                     const showDivider = selected.length > 0 && unselected.length > 0 && idx === selected.length;
+                    const toggleSponsor = () => {
+                      if (isSelected) {
+                        setSelectedSponsorIds(selectedSponsorIds.filter(id => id !== sponsor.id));
+                      } else {
+                        setSelectedSponsorIds([...selectedSponsorIds, sponsor.id]);
+                      }
+                    };
                     return (
                       <div key={sponsor.id}>
                         {showDivider && (
@@ -3142,7 +3220,13 @@ export default function VincularPatrocinadores() {
                             Disponíveis ({unselected.length})
                           </div>
                         )}
+                        {/* role/aria-checked/tabIndex/teclas: era um <div>
+                            só-mouse — leitor de tela não anunciava o estado e
+                            teclado não alcançava a linha. */}
                         <div
+                          role="checkbox"
+                          aria-checked={isSelected}
+                          tabIndex={0}
                           style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                             padding: '11px 14px',
@@ -3151,11 +3235,11 @@ export default function VincularPatrocinadores() {
                             borderRadius: 8, cursor: 'pointer',
                             transition: 'all 0.12s',
                           }}
-                          onClick={() => {
-                            if (isSelected) {
-                              setSelectedSponsorIds(selectedSponsorIds.filter(id => id !== sponsor.id));
-                            } else {
-                              setSelectedSponsorIds([...selectedSponsorIds, sponsor.id]);
+                          onClick={toggleSponsor}
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              e.preventDefault();
+                              toggleSponsor();
                             }
                           }}
                         >
@@ -3169,7 +3253,7 @@ export default function VincularPatrocinadores() {
                             )}
                           </div>
                           {isSelected ? (
-                            <div style={{ width: 18, height: 18, borderRadius: '50%', backgroundColor: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <div style={{ width: 18, height: 18, borderRadius: '50%', backgroundColor: '#c2410c', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                               <Check style={{ width: 11, height: 11, color: '#ffffff' }} />
                             </div>
                           ) : (
@@ -3193,7 +3277,7 @@ export default function VincularPatrocinadores() {
                 </span>
               </div>
               <div style={{ height: 4, borderRadius: 999, backgroundColor: '#e7e5e4', overflow: 'hidden' }}>
-                <div style={{ height: '100%', width: `${sponsors.length > 0 ? (selectedSponsorIds.length / sponsors.length) * 100 : 0}%`, backgroundColor: '#f97316', borderRadius: 999, transition: 'width 0.2s' }} />
+                <div style={{ height: '100%', width: `${sponsors.length > 0 ? (selectedSponsorIds.length / sponsors.length) * 100 : 0}%`, backgroundColor: '#c2410c', borderRadius: 999, transition: 'width 0.2s' }} />
               </div>
             </div>
             <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
@@ -3270,6 +3354,9 @@ export default function VincularPatrocinadores() {
             {/* Opção: Sem Patrocinador — aparece primeiro */}
             {!bulkSponsorSearch && (
             <div
+              role="checkbox"
+              aria-checked={bulkSkipApproval}
+              tabIndex={0}
               style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                 padding: '12px 14px',
@@ -3280,12 +3367,11 @@ export default function VincularPatrocinadores() {
                 transition: 'all 0.15s',
               }}
               data-testid="bulk-option-sem-patrocinador"
-              onClick={() => {
-                if (bulkSkipApproval) {
-                  setBulkSkipApproval(false);
-                } else {
-                  setBulkSelectedSponsors([]);
-                  setBulkSkipApproval(true);
+              onClick={toggleBulkSkip}
+              onKeyDown={e => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  toggleBulkSkip();
                 }
               }}
             >
@@ -3294,7 +3380,7 @@ export default function VincularPatrocinadores() {
                 <span style={{ fontSize: 13, fontWeight: 600, color: '#1a1c1c' }}>Sem Patrocinador</span>
               </div>
               {bulkSkipApproval ? (
-                <CheckCircle2 style={{ width: 17, height: 17, color: '#f97316', flexShrink: 0 }} />
+                <CheckCircle2 style={{ width: 17, height: 17, color: '#c2410c', flexShrink: 0 }} />
               ) : (
                 <div style={{ width: 17, height: 17, borderRadius: '50%', border: '1.5px solid #dadad9', flexShrink: 0 }} />
               )}
@@ -3333,9 +3419,20 @@ export default function VincularPatrocinadores() {
               const unselectedOnes = sorted.filter((s: any) => !bulkSelectedSponsors.includes(s.id));
               const renderSponsor = (sponsor: any) => {
                 const isSelected = bulkSelectedSponsors.includes(sponsor.id);
+                const toggleBulkSponsor = () => {
+                  if (isSelected) {
+                    setBulkSelectedSponsors(bulkSelectedSponsors.filter(id => id !== sponsor.id));
+                  } else {
+                    setBulkSkipApproval(false);
+                    setBulkSelectedSponsors([...bulkSelectedSponsors, sponsor.id]);
+                  }
+                };
                 return (
                   <div
                     key={sponsor.id}
+                    role="checkbox"
+                    aria-checked={isSelected}
+                    tabIndex={0}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                       padding: '11px 14px',
@@ -3346,12 +3443,11 @@ export default function VincularPatrocinadores() {
                     }}
                     aria-label={`Selecionar patrocinador ${sponsor.name}`}
                     data-testid={`checkbox-bulk-sponsor-${sponsor.id}`}
-                    onClick={() => {
-                      if (isSelected) {
-                        setBulkSelectedSponsors(bulkSelectedSponsors.filter(id => id !== sponsor.id));
-                      } else {
-                        setBulkSkipApproval(false);
-                        setBulkSelectedSponsors([...bulkSelectedSponsors, sponsor.id]);
+                    onClick={toggleBulkSponsor}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        toggleBulkSponsor();
                       }
                     }}
                   >
@@ -3365,7 +3461,7 @@ export default function VincularPatrocinadores() {
                       </span>
                     </div>
                     {isSelected ? (
-                      <CheckCircle2 style={{ width: 17, height: 17, color: '#f97316', flexShrink: 0 }} />
+                      <CheckCircle2 style={{ width: 17, height: 17, color: '#c2410c', flexShrink: 0 }} />
                     ) : (
                       <div style={{ width: 17, height: 17, borderRadius: '50%', border: '1.5px solid #dadad9', flexShrink: 0 }} />
                     )}
@@ -3401,12 +3497,23 @@ export default function VincularPatrocinadores() {
             >
               Cancelar
             </button>
+            {/* Desabilitado sem seleção (com o motivo no title) em vez de
+                deixar clicar e responder com toast destrutivo. */}
             <button
               onClick={handleApplyBulkSponsors}
+              disabled={bulkSelectedSponsors.length === 0 && !bulkSkipApproval}
+              title={bulkSelectedSponsors.length === 0 && !bulkSkipApproval ? "Selecione pelo menos um patrocinador ou marque 'Sem Patrocinador'" : undefined}
               data-testid="button-confirm-bulk-apply"
-              style={{ padding: '9px 20px', backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', boxShadow: '0 2px 8px rgba(249,115,22,0.3)' }}
-              onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#9a3412')}
-              onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#c2410c')}
+              style={{
+                padding: '9px 20px',
+                backgroundColor: (bulkSelectedSponsors.length === 0 && !bulkSkipApproval) ? '#e7e5e4' : '#c2410c',
+                color: (bulkSelectedSponsors.length === 0 && !bulkSkipApproval) ? '#746e69' : '#ffffff',
+                border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700,
+                cursor: (bulkSelectedSponsors.length === 0 && !bulkSkipApproval) ? 'not-allowed' : 'pointer',
+                boxShadow: (bulkSelectedSponsors.length === 0 && !bulkSkipApproval) ? 'none' : '0 2px 8px rgba(194,65,12,0.3)',
+              }}
+              onMouseEnter={e => { if (!(bulkSelectedSponsors.length === 0 && !bulkSkipApproval)) e.currentTarget.style.backgroundColor = '#9a3412'; }}
+              onMouseLeave={e => { if (!(bulkSelectedSponsors.length === 0 && !bulkSkipApproval)) e.currentTarget.style.backgroundColor = '#c2410c'; }}
             >
               Aplicar em Lote
             </button>
@@ -3424,7 +3531,7 @@ export default function VincularPatrocinadores() {
 
       {/* ===== Modal de Confirmação de Envio ===== */}
       <Dialog open={!!sendConfirmModal} onOpenChange={(open) => { if (!open && !isSending) setSendConfirmModal(null); }}>
-        <DialogContent style={modalSurface(680)}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(680)}>
           <DialogTitle className="sr-only">Confirmar Envio para Arte</DialogTitle>
           <DialogDescription className="sr-only">Revise os itens e os patrocinadores antes de enviar para a Arte</DialogDescription>
 
@@ -3433,6 +3540,20 @@ export default function VincularPatrocinadores() {
             {/* decorative circle */}
             <div style={{ position: 'absolute', top: -40, right: -40, width: 180, height: 180, borderRadius: '50%', background: 'rgba(249,115,22,0.08)', pointerEvents: 'none' }} />
             <div style={{ position: 'absolute', bottom: -30, right: 40, width: 100, height: 100, borderRadius: '50%', background: 'rgba(249,115,22,0.05)', pointerEvents: 'none' }} />
+
+            {/* O X nativo do Dialog (escuro) sumia sobre o hero escuro —
+                HIDE_NATIVE_CLOSE + um botão claro visível no próprio hero. */}
+            <button
+              onClick={() => setSendConfirmModal(null)}
+              disabled={isSending}
+              aria-label="Fechar"
+              data-testid="button-close-send-modal"
+              style={{ position: 'absolute', top: 14, right: 14, width: 30, height: 30, borderRadius: R.sm, backgroundColor: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.14)', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: isSending ? 'not-allowed' : 'pointer', opacity: isSending ? 0.5 : 1, zIndex: 1 }}
+              onMouseEnter={e => { if (!isSending) e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.16)'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)'; }}
+            >
+              <X style={{ width: 14, height: 14 }} />
+            </button>
 
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 18, position: 'relative' }}>
               {/* Icon badge */}
@@ -3524,7 +3645,7 @@ export default function VincularPatrocinadores() {
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {/* Top row */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                        <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 11, fontWeight: 700, color: '#f97316', flexShrink: 0, background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 6, padding: '1px 6px' }}>
+                        <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 11, fontWeight: 700, color: '#c2410c', flexShrink: 0, background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 6, padding: '1px 6px' }}>
                           {item.displayId}
                         </span>
                         <span style={{ fontSize: 13, fontWeight: 700, color: '#1a1c1c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
@@ -3559,7 +3680,7 @@ export default function VincularPatrocinadores() {
                               }}>
                                 <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: isNew ? '#f97316' : '#a8a29e', flexShrink: 0 }} />
                                 {sp.name}
-                                {isNew && <span style={{ fontSize: 11, color: '#f97316', fontWeight: 700, letterSpacing: '0.04em' }}>+NOVO</span>}
+                                {isNew && <span style={{ fontSize: 11, color: '#c2410c', fontWeight: 700, letterSpacing: '0.04em' }}>+NOVO</span>}
                               </span>
                             );
                           })}
@@ -3653,7 +3774,7 @@ export default function VincularPatrocinadores() {
               });
               return (
                 <div key={item.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', backgroundColor: '#f9f8f7', borderRadius: 8, border: '1px solid #e7e5e4' }}>
-                  <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#f97316', minWidth: 52 }}>{item.displayId}</span>
+                  <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#c2410c', minWidth: 52 }}>{item.displayId}</span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 13, fontWeight: 600, color: '#1a1c1c', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.type}</p>
                     {ch?.skipApproval ? (

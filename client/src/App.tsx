@@ -283,9 +283,11 @@ function AuthenticatedLayout() {
     },
     // Sem onError a falha era silêncio: o badge não mudava e o usuário
     // clicava de novo sem entender o porquê.
-    onError: () => {
+    onError: (error: Error) => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
-      toast({ title: "Não foi possível marcar como lida", description: "Tente novamente.", variant: "destructive" });
+      // A mensagem real importa: pode ser a guarda de "servidor
+      // desatualizado", que diz exatamente o que fazer.
+      toast({ title: "Não foi possível marcar como lida", description: error?.message || "Tente novamente.", variant: "destructive" });
     },
   });
 
@@ -297,9 +299,9 @@ function AuthenticatedLayout() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
     },
-    onError: () => {
+    onError: (error: Error) => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
-      toast({ title: "Não foi possível marcar todas como lidas", description: "Tente novamente.", variant: "destructive" });
+      toast({ title: "Não foi possível marcar todas como lidas", description: error?.message || "Tente novamente.", variant: "destructive" });
     },
   });
 

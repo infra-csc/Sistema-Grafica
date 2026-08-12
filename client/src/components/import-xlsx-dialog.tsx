@@ -17,6 +17,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
+
+// Ativa a edição da célula também pelo teclado (Enter/Espaço) — as células
+// eram clicáveis mas invisíveis para quem navega por Tab.
+const editableKeyDown = (activate: () => void) => (e: React.KeyboardEvent) => {
+  if (e.key === "Enter" || e.key === " ") {
+    e.preventDefault();
+    activate();
+  }
+};
 
 // ── Editable row for import preview table ────────────────────────────────
 const IMPORT_QUOTA_COLORS: Record<string, { bg: string; color: string; border: string }> = {
@@ -56,6 +66,9 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
     return (
       <td
         onClick={() => setEditField(field)}
+        tabIndex={isEditing ? -1 : 0}
+        role="button"
+        onKeyDown={isEditing ? undefined : editableKeyDown(() => setEditField(field))}
         title="Clique para editar"
         style={{
           padding: '8px 10px',
@@ -78,7 +91,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
           />
         ) : (
           <span style={{
-            color: display === '—' ? '#d0cdc9' : (opts?.dim ? '#746e69' : '#1a1c1c'),
+            color: display === '—' ? '#a8a29e' : (opts?.dim ? '#746e69' : '#1a1c1c'),
             fontSize: 13,
             fontFamily: opts?.mono ? 'DM Mono, monospace' : 'inherit',
             display: 'block',
@@ -104,14 +117,14 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
             <input autoFocus defaultValue={valW ?? ''} onBlur={e => { update(fieldW, e.target.value); setEditField(null); }} onKeyDown={e => { if (e.key==='Enter'){update(fieldW,(e.target as HTMLInputElement).value);setEditField(null);} if(e.key==='Escape')setEditField(null); }}
               style={{ width: 44, border: 'none', borderBottom: '2px solid #f97316', fontSize: 11, padding: '0 2px', backgroundColor: 'transparent', fontFamily: 'DM Mono, monospace', color: '#1a1c1c' }} />
           ) : (
-            <span onClick={() => setEditField(fieldW)} title="Clique para editar" style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: dimStyle ? '#746e69' : '#1a1c1c', cursor: 'text', minWidth: 24 }}>{dispW}</span>
+            <span onClick={() => setEditField(fieldW)} tabIndex={0} role="button" onKeyDown={editableKeyDown(() => setEditField(fieldW))} title="Clique para editar" style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: dimStyle ? '#746e69' : '#1a1c1c', cursor: 'text', minWidth: 24 }}>{dispW}</span>
           )}
           <span style={{ color: '#d0cdc9', fontSize: 10, userSelect: 'none' }}>×</span>
           {editingH ? (
             <input autoFocus defaultValue={valH ?? ''} onBlur={e => { update(fieldH, e.target.value); setEditField(null); }} onKeyDown={e => { if (e.key==='Enter'){update(fieldH,(e.target as HTMLInputElement).value);setEditField(null);} if(e.key==='Escape')setEditField(null); }}
               style={{ width: 44, border: 'none', borderBottom: '2px solid #f97316', fontSize: 11, padding: '0 2px', backgroundColor: 'transparent', fontFamily: 'DM Mono, monospace', color: '#1a1c1c' }} />
           ) : (
-            <span onClick={() => setEditField(fieldH)} title="Clique para editar" style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: dimStyle ? '#746e69' : '#1a1c1c', cursor: 'text', minWidth: 24 }}>{dispH}</span>
+            <span onClick={() => setEditField(fieldH)} tabIndex={0} role="button" onKeyDown={editableKeyDown(() => setEditField(fieldH))} title="Clique para editar" style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: dimStyle ? '#746e69' : '#1a1c1c', cursor: 'text', minWidth: 24 }}>{dispH}</span>
           )}
         </div>
       </td>
@@ -147,6 +160,9 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
       {/* Obs cell with reuse toggle */}
       <td
         onClick={() => setEditField('observations')}
+        tabIndex={editField === 'observations' ? -1 : 0}
+        role="button"
+        onKeyDown={editField === 'observations' ? undefined : editableKeyDown(() => setEditField('observations'))}
         title="Clique para editar"
         style={{ padding: '8px 10px', borderBottom: '1px solid #f0efed', cursor: 'text', backgroundColor: editField === 'observations' ? '#fffbeb' : rowBg, maxWidth: 160 }}
       >
@@ -156,7 +172,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
             onKeyDown={e => { if (e.key === 'Enter') { update('observations', (e.target as HTMLInputElement).value); setEditField(null); } if (e.key === 'Escape') setEditField(null); }}
             style={{ width: '100%', border: 'none', borderBottom: '2px solid #f97316', padding: '0 2px', fontSize: 13, backgroundColor: 'transparent' }} />
         ) : (
-          <span style={{ color: row.observations ? '#746e69' : '#d0cdc9', fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <span style={{ color: row.observations ? '#746e69' : '#a8a29e', fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {row.observations || '—'}
           </span>
         )}
@@ -168,7 +184,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
             fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 999, cursor: 'pointer',
             border: `1px solid ${row.reuse ? '#22c55e' : '#e2deda'}`,
             backgroundColor: row.reuse ? '#f0fdf4' : 'transparent',
-            color: row.reuse ? '#16a34a' : '#c4bfbb',
+            color: row.reuse ? '#16a34a' : '#57534e',
             letterSpacing: '0.04em', textTransform: 'uppercase', transition: 'all 0.15s',
           }}
         >
@@ -224,7 +240,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
             </button>
           )}
           {(row.suggestedSponsorIds ?? []).length === 0 && (
-            <span style={{ fontSize: 11, color: '#d0cdc9', fontStyle: 'italic' }}>sem patrocinador</span>
+            <span style={{ fontSize: 11, color: '#a8a29e', fontStyle: 'italic' }}>sem patrocinador</span>
           )}
         </div>
       </td>
@@ -287,6 +303,13 @@ export function ImportXlsxDialog({
   setImportDuplicateWarning,
 }: ImportXlsxDialogProps) {
   const { toast } = useToast();
+  const isMobile = useIsMobile();
+
+  // Predicado único da busca do preview — usado na contagem, no "+ Todos" e
+  // no empty-state de filtro sem resultado.
+  const importQ = importSearch.toLowerCase();
+  const matchesImportSearch = (i: any) =>
+    !importSearch || i.description?.toLowerCase().includes(importQ) || i.type?.toLowerCase().includes(importQ);
 
   return (
     <Dialog open={open} onOpenChange={(v) => {
@@ -305,9 +328,11 @@ export function ImportXlsxDialog({
         className="[&>button:last-child]:right-4 [&>button:last-child]:top-4 [&>button:last-child]:z-50"
         style={{ maxWidth: '98vw', width: importPreviewItems ? 1320 : 540, maxHeight: '92vh', padding: 0, gap: 0, borderRadius: 12, overflow: 'visible', transition: 'width 0.3s' }}
       >
-        <div style={{ display: 'flex', flexDirection: 'row', height: '100%', maxHeight: '92vh', overflow: 'hidden', borderRadius: 12 }}>
+        {/* Abaixo de 768px a sidebar empilha ACIMA da tabela (largura total) —
+            lado a lado, os 260px fixos esmagavam o preview no celular. */}
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: '100%', maxHeight: '92vh', overflow: 'hidden', borderRadius: 12 }}>
         {/* ── Left sidebar ── */}
-        <div style={{ width: 260, minWidth: 260, backgroundColor: '#ffffff', borderRight: '1px solid #e7e5e4', display: 'flex', flexDirection: 'column', padding: '22px 18px', gap: 16, overflowY: 'auto', flexShrink: 0 }}>
+        <div style={{ width: isMobile ? '100%' : 260, minWidth: isMobile ? 0 : 260, maxHeight: isMobile && importPreviewItems ? '42vh' : undefined, backgroundColor: '#ffffff', borderRight: isMobile ? 'none' : '1px solid #e7e5e4', borderBottom: isMobile ? '1px solid #e7e5e4' : 'none', display: 'flex', flexDirection: 'column', padding: '22px 18px', gap: 16, overflowY: 'auto', flexShrink: 0 }}>
           {/* Title */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -498,7 +523,7 @@ export function ImportXlsxDialog({
               </div>
               <span style={{ fontSize: 11, color: '#746e69', whiteSpace: 'nowrap', fontWeight: 600 }}>
                 {importSearch
-                  ? `${importPreviewItems.filter(i => i.description?.toLowerCase().includes(importSearch.toLowerCase()) || i.type?.toLowerCase().includes(importSearch.toLowerCase())).length} de ${importPreviewItems.length}`
+                  ? `${importPreviewItems.filter(matchesImportSearch).length} de ${importPreviewItems.length}`
                   : `${importPreviewItems.length} peças`
                 }
               </span>
@@ -545,9 +570,7 @@ export function ImportXlsxDialog({
                 </thead>
                 <tbody>
                   {(() => {
-                    const items = importSearch
-                      ? importPreviewItems.filter((i: any) => i.description?.toLowerCase().includes(importSearch.toLowerCase()) || i.type?.toLowerCase().includes(importSearch.toLowerCase()))
-                      : importPreviewItems;
+                    const items = importPreviewItems.filter(matchesImportSearch);
                     const groupMap = new Map<string, any[]>();
                     for (const item of items) {
                       const t = item.type || '—';
@@ -597,8 +620,24 @@ export function ImportXlsxDialog({
               </table>
               {importPreviewItems.length === 0 && (
                 <div style={{ padding: 60, textAlign: 'center', color: '#746e69', fontSize: 13 }}>
-                  <List style={{ width: 32, height: 32, color: '#d0cdc9', margin: '0 auto 12px' }} />
+                  <List style={{ width: 32, height: 32, color: '#a8a29e', margin: '0 auto 12px' }} />
                   <div>Nenhuma peça para importar.</div>
+                </div>
+              )}
+              {/* Filtro sem resultado: antes a tabela simplesmente sumia,
+                  sem dizer o porquê nem oferecer saída. */}
+              {importPreviewItems.length > 0 && importPreviewItems.filter(matchesImportSearch).length === 0 && (
+                <div style={{ padding: 60, textAlign: 'center', color: '#746e69', fontSize: 13 }}>
+                  <Search style={{ width: 32, height: 32, color: '#a8a29e', margin: '0 auto 12px' }} />
+                  <div style={{ fontWeight: 700, color: '#1a1c1c', marginBottom: 4 }}>Nenhuma peça corresponde ao filtro</div>
+                  <div style={{ marginBottom: 14 }}>Tente outro termo ou limpe o filtro para ver as {importPreviewItems.length} peças.</div>
+                  <button
+                    onClick={() => setImportSearch("")}
+                    data-testid="button-clear-import-search"
+                    style={{ padding: '8px 18px', backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 8, fontSize: 12, fontWeight: 700, color: '#1a1c1c', cursor: 'pointer' }}
+                  >
+                    Limpar filtro
+                  </button>
                 </div>
               )}
             </div>

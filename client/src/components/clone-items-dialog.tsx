@@ -1,4 +1,4 @@
-import { Copy, Loader2 } from "lucide-react";
+import { ChevronDown, Copy, Loader2 } from "lucide-react";
 import { getStatusLabel } from "@/lib/status";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +14,9 @@ interface CloneItemsDialogProps {
   eventId: string | undefined;
   eventName: string | undefined;
   allEvents: any[];
+  /** A lista de eventos só é buscada quando o dialog abre — sem esta flag o
+   *  select parecia vazio ("— Escolha um evento —") enquanto carregava. */
+  eventsLoading?: boolean;
   cloneSourceId: string;
   setCloneSourceId: (id: string) => void;
   isCloning: boolean;
@@ -28,6 +31,7 @@ export function CloneItemsDialog({
   eventId,
   eventName,
   allEvents,
+  eventsLoading = false,
   cloneSourceId,
   setCloneSourceId,
   isCloning,
@@ -52,27 +56,42 @@ export function CloneItemsDialog({
           <label style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 8 }}>
             Selecionar evento de origem
           </label>
-          <select
-            value={cloneSourceId}
-            onChange={e => setCloneSourceId(e.target.value)}
-            data-testid="select-clone-source"
-            style={{
-              width: '100%', padding: '10px 14px', borderRadius: 8, border: '1.5px solid #e7e5e4',
-              fontSize: 15, fontFamily: "'Space Grotesk', sans-serif", color: '#1a1c1c',
-              backgroundColor: '#ffffff', appearance: 'none', cursor: 'pointer',
-             
-            }}
-          >
-            <option value="">— Escolha um evento —</option>
-            {allEvents
-              .filter((e: any) => e.id !== eventId)
-              .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-              .map((e: any) => (
-                <option key={e.id} value={e.id}>
-                  {e.name} {e.startDate ? `(${new Date(e.startDate).toLocaleDateString('pt-BR')})` : ''}
-                </option>
-              ))}
-          </select>
+          {/* Wrapper relativo para a seta: o appearance:none tirou o chevron
+              nativo e o select parecia um input travado. */}
+          <div style={{ position: 'relative' }}>
+            <select
+              value={cloneSourceId}
+              onChange={e => setCloneSourceId(e.target.value)}
+              disabled={eventsLoading}
+              data-testid="select-clone-source"
+              style={{
+                width: '100%', padding: '10px 36px 10px 14px', borderRadius: 8, border: '1.5px solid #e7e5e4',
+                fontSize: 15, fontFamily: "'Space Grotesk', sans-serif", color: eventsLoading ? '#746e69' : '#1a1c1c',
+                backgroundColor: '#ffffff', appearance: 'none', cursor: eventsLoading ? 'wait' : 'pointer',
+              }}
+            >
+              {eventsLoading ? (
+                <option value="">Carregando eventos…</option>
+              ) : (
+                <>
+                  <option value="">— Escolha um evento —</option>
+                  {allEvents
+                    .filter((e: any) => e.id !== eventId)
+                    .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                    .map((e: any) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name} {e.startDate ? `(${new Date(e.startDate).toLocaleDateString('pt-BR')})` : ''}
+                      </option>
+                    ))}
+                </>
+              )}
+            </select>
+            {eventsLoading ? (
+              <Loader2 className="animate-spin" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: '#746e69', pointerEvents: 'none' }} />
+            ) : (
+              <ChevronDown style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: '#746e69', pointerEvents: 'none' }} />
+            )}
+          </div>
 
           {cloneSourceId && (
             <div style={{ marginTop: 16, backgroundColor: '#f0f0ff', border: '1px solid #c7d2fe', borderRadius: 8, padding: '12px 14px', display: 'flex', gap: 8, alignItems: 'flex-start' }}>

@@ -666,10 +666,12 @@ export function registerItemRoutes(app: Express): void {
         return res.status(404).json({ error: "Item not found" });
       }
 
-      // Atendimento só pode excluir peças que ainda não foram liberadas para Arte/Gráfica
+      // Atendimento só pode excluir peças que ainda não foram liberadas para Arte/Gráfica.
+      // "pronto_para_producao" incluído: o client já bloqueava, mas o servidor
+      // aceitava o DELETE direto.
       const LOCKED_STATUSES = [
         "awaiting_submission", "awaiting_approval", "awaiting_final_review",
-        "ready_for_production", "approved", "inProduction", "produced", "conferred", "delivered",
+        "ready_for_production", "pronto_para_producao", "approved", "inProduction", "produced", "conferred", "delivered",
       ];
       if (isSolicitacao && LOCKED_STATUSES.includes(item.status)) {
         return res.status(403).json({

@@ -18,6 +18,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { queryClient } from "@/lib/queryClient";
+import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { Undo2 } from "lucide-react";
 
 interface ItemDetailsDialogProps {
@@ -233,6 +234,10 @@ export function ItemDetailsDialog({
   };
   useEffect(() => {
     setApprovalsOverride(null);
+    // Sem este reset, editMode/editedItem sobreviviam entre aberturas: o
+    // Salvar da ficha usava o id da peça ANTERIOR.
+    setEditMode(false);
+    setEditedItem(item);
   }, [open, item?.id]);
 
   // Fotos que a Gráfica anexou na conferência e na entrega, para que o registro
@@ -443,7 +448,7 @@ export function ItemDetailsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-6xl max-h-[90vh] overflow-y-auto p-0 gap-0"
+        className={`max-w-6xl max-h-[90vh] overflow-y-auto p-0 gap-0 ${HIDE_NATIVE_CLOSE}`}
         /* raio 16: era 6, o único modal do app fora do degrau de modal. */
         style={{ backgroundColor: "#f9f9f8", borderRadius: 16, boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)" }}
       >
@@ -457,20 +462,28 @@ export function ItemDetailsDialog({
         <DialogDescription className="sr-only">
           Especificações, arte, patrocinadores e histórico da peça
         </DialogDescription>
-        {/* ── Close button ── */}
-        <button
-          onClick={() => onOpenChange(false)}
-          style={{
-            position: "absolute", top: 16, right: 16, zIndex: 50,
-            background: "rgba(255,255,255,0.1)", border: "none", cursor: "pointer",
-            color: "rgba(255,255,255,0.6)", padding: 6, borderRadius: 6,
-            display: "flex", alignItems: "center", transition: "color 0.15s, background 0.15s",
-          }}
-          onMouseEnter={e => { e.currentTarget.style.color = "#ffffff"; e.currentTarget.style.background = "rgba(255,255,255,0.2)"; }}
-          onMouseLeave={e => { e.currentTarget.style.color = "rgba(255,255,255,0.6)"; e.currentTarget.style.background = "rgba(255,255,255,0.1)"; }}
-        >
-          <X style={{ width: 24, height: 24 }} />
-        </button>
+        {/* ── Close button ──
+            Sticky (não absolute): o DialogContent é o próprio scroller — com
+            absolute o X sumia na primeira rolagem. O wrapper de altura zero
+            gruda no topo sem empurrar o conteúdo. */}
+        <div style={{ position: "sticky", top: 0, zIndex: 50, height: 0, display: "flex", justifyContent: "flex-end" }}>
+          <button
+            onClick={() => onOpenChange(false)}
+            aria-label="Fechar"
+            style={{
+              margin: "16px 16px 0 0",
+              // Chip escuro translúcido: legível tanto sobre o header escuro
+              // quanto sobre o corpo claro quando a ficha rola.
+              background: "rgba(28,25,23,0.55)", border: "none", cursor: "pointer",
+              color: "#ffffff", padding: 6, borderRadius: 6,
+              display: "flex", alignItems: "center", transition: "background 0.15s",
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = "rgba(28,25,23,0.8)"; }}
+            onMouseLeave={e => { e.currentTarget.style.background = "rgba(28,25,23,0.55)"; }}
+          >
+            <X style={{ width: 24, height: 24 }} />
+          </button>
+        </div>
 
         {/* ══════════════════════════════════════════════════════
             HEADER — Dark
@@ -542,7 +555,7 @@ export function ItemDetailsDialog({
                     </div>
                     <span style={{
                       fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em",
-                      color: (done || current) ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.25)",
+                      color: (done || current) ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.55)",
                       whiteSpace: "nowrap",
                     }}>
                       {s.label}
@@ -671,8 +684,8 @@ export function ItemDetailsDialog({
                       { label: "Acabamento", field: "finish" },
                     ].map(({ label, field }) => (
                       <div key={field}>
-                        <label style={{ fontSize: 11, color: "#746e69", display: "block", marginBottom: 4 }}>{label}</label>
-                        <Input value={editedItem?.[field] || ""} onChange={(e) => handleEditChange(field, e.target.value)} className="h-8 text-sm" />
+                        <label htmlFor={`detail-edit-${field}`} style={{ fontSize: 11, color: "#746e69", display: "block", marginBottom: 4 }}>{label}</label>
+                        <Input id={`detail-edit-${field}`} value={editedItem?.[field] || ""} onChange={(e) => handleEditChange(field, e.target.value)} className="h-8 text-sm" />
                       </div>
                     ))}
                     <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
@@ -724,7 +737,9 @@ export function ItemDetailsDialog({
                         key={s.id}
                         style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 12, backgroundColor: "#fafaf9", borderRadius: 8, border: "1px solid #f0ede9", transition: "background 0.15s" }}
                         onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = "#e8e8e7"}
-                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = "#f3f4f3"}
+                        // Volta à cor BASE (#fafaf9): sair do hover deixava a
+                        // linha num #f3f4f3 que não é o fundo original.
+                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = "#fafaf9"}
                       >
                         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                           <div style={{
@@ -887,7 +902,7 @@ export function ItemDetailsDialog({
               ) : (
                 <div style={{ aspectRatio: "16/9", backgroundColor: "rgba(255,255,255,0.3)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, border: "1px dashed rgba(157,67,0,0.2)" }}>
                   <FileImage style={{ width: 32, height: 32, color: "rgba(157,67,0,0.3)" }} />
-                  <p style={{ fontSize: 13, color: "rgba(157,67,0,0.5)", margin: 0 }}>Nenhum arquivo enviado</p>
+                  <p style={{ fontSize: 13, color: "rgba(157,67,0,0.8)", margin: 0 }}>Nenhum arquivo enviado</p>
                 </div>
               )}
             </section>
@@ -961,7 +976,7 @@ export function ItemDetailsDialog({
                 </>
               ) : (
                 <div style={{ padding: 24, backgroundColor: "#f5f9fc", borderRadius: 8, border: "1px dashed rgba(0,99,152,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <p style={{ fontSize: 13, color: "rgba(0,99,152,0.45)", margin: 0 }}>Arquivo final não informado</p>
+                  <p style={{ fontSize: 13, color: "rgba(0,99,152,0.8)", margin: 0 }}>Arquivo final não informado</p>
                 </div>
               )}
             </section>
@@ -1171,7 +1186,7 @@ export function ItemDetailsDialog({
                             backgroundColor: logEntry ? "#fd761a" : "#e2e2e2",
                             boxShadow: logEntry ? "0 0 0 4px rgba(253,118,26,0.1)" : "none",
                           }} />
-                          <p style={{ fontSize: logEntry ? 12 : 11, fontWeight: logEntry ? 700 : 400, textTransform: "uppercase", letterSpacing: logEntry ? "-0.04em" : "0.01em", color: logEntry ? "#1a1c1c" : "#c2b9b3", margin: "0 0 2px 0" }}>
+                          <p style={{ fontSize: logEntry ? 12 : 11, fontWeight: logEntry ? 700 : 400, textTransform: "uppercase", letterSpacing: logEntry ? "-0.04em" : "0.01em", color: logEntry ? "#1a1c1c" : "#8b8580", margin: "0 0 2px 0" }}>
                             {stage.label}
                           </p>
                           {logEntry && (

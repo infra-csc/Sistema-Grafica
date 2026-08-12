@@ -26,7 +26,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -66,7 +65,6 @@ const EMPTY_ITEM_FORM = {
   finish: "",
   measurement: "",
   observations: "",
-  sponsorId: "",
   skipApproval: false,
   isReuse: false,
   referenceUrl: "",
@@ -86,7 +84,6 @@ interface ItemFormProps {
   typeOptions: string[];
   materialOptions: string[];
   finishOptions: string[];
-  sponsors: Sponsor[];
   customMaterial: boolean;
   setCustomMaterial: (v: boolean) => void;
   customFinish: boolean;
@@ -107,10 +104,10 @@ interface ItemFormProps {
 // a mesma peça tinha duas caras. A versão do EDITAR (revisada e aprovada pelo
 // dono) virou a base; o `mode` controla só as diferenças de negócio:
 // create = tipo/qtd/descrição/dimensões/material/acabamento; edit soma
-// Reaproveitamento, Patrocinador, Referência (Ctrl+V) e Pular Aprovação.
+// Reaproveitamento, Referência (Ctrl+V) e Pular Aprovação.
 function ItemForm({
   mode, formData, setFormData, standardItems, typeOptions, materialOptions,
-  finishOptions, sponsors, customMaterial, setCustomMaterial, customFinish,
+  finishOptions, customMaterial, setCustomMaterial, customFinish,
   setCustomFinish, isMobile, isAdmin, isPending, onSubmit, onCancel,
   localRefPreview, setLocalRefPreview, getUploadUrl,
 }: ItemFormProps) {
@@ -129,9 +126,10 @@ function ItemForm({
         {/* Linha 1: Tipo (3fr) | Qtd. (1fr) | M2 Total (1fr) */}
         <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr 1fr", gap: 16 }}>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label style={FIELD_LABEL}>Tipo de Peça</label>
+            <label htmlFor="item-type" style={FIELD_LABEL}>Tipo de Peça</label>
             {isEdit ? (
               <input
+                id="item-type"
                 autoFocus
                 value={formData.type}
                 onChange={(e) => setFormData({ ...formData, type: e.target.value })}
@@ -142,19 +140,35 @@ function ItemForm({
                 onBlur={blurRing}
               />
             ) : customType ? (
-              <input
-                autoFocus
-                value={formData.type}
-                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                placeholder="Digite o novo tipo..."
-                data-testid="input-type-name-edit"
-                style={FIELD_INPUT}
-                onFocus={focusRing}
-                onBlur={blurRing}
-              />
+              <>
+                <input
+                  id="item-type"
+                  autoFocus
+                  required
+                  value={formData.type}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                  placeholder="Digite o novo tipo..."
+                  data-testid="input-type-name-edit"
+                  style={FIELD_INPUT}
+                  onFocus={focusRing}
+                  onBlur={blurRing}
+                />
+                {/* Caminho de volta: sem ele, quem clicava em "+ Novo tipo..."
+                    por engano ficava preso no modo texto livre. */}
+                <button
+                  type="button"
+                  onClick={() => { setFormData({ ...formData, type: "" }); setCustomType(false); }}
+                  data-testid="button-back-to-type-list"
+                  style={{ alignSelf: "flex-start", background: "none", border: "none", padding: 0, fontSize: 11, fontWeight: 700, color: "#c2410c", cursor: "pointer" }}
+                >
+                  ← escolher da lista
+                </button>
+              </>
             ) : (
               <select
+                id="item-type"
                 autoFocus
+                required
                 value={typeKnown ? formData.type : formData.type ? "__atual__" : ""}
                 onChange={(e) => {
                   const v = e.target.value;
@@ -197,8 +211,9 @@ function ItemForm({
             )}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label style={FIELD_LABEL}>Qtd.</label>
+            <label htmlFor="item-quantity" style={FIELD_LABEL}>Qtd.</label>
             <input
+              id="item-quantity"
               type="number"
               min="1"
               required={!isEdit}
@@ -211,8 +226,9 @@ function ItemForm({
             />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-            <label style={FIELD_LABEL}>M2 Total</label>
+            <label htmlFor="item-m2-total" style={FIELD_LABEL}>M2 Total</label>
             <input
+              id="item-m2-total"
               readOnly
               tabIndex={-1}
               value={formData.fileWidth && formData.fileHeight
@@ -230,7 +246,9 @@ function ItemForm({
             data-testid="toggle-is-reuse"
             onClick={() => setFormData({ ...formData, isReuse: !formData.isReuse })}
             style={{
-              backgroundColor: formData.isReuse ? "#059669" : "#f3f4f3",
+              // #047857 (não #059669): o subtítulo branco precisava de mais
+              // contraste sobre o fundo ativo.
+              backgroundColor: formData.isReuse ? "#047857" : "#f3f4f3",
               border: `2px solid ${formData.isReuse ? "#047857" : "#e5e7eb"}`,
               padding: "14px 18px", borderRadius: "12px",
               display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
@@ -243,7 +261,7 @@ function ItemForm({
               </div>
               <div>
                 <p style={{ fontSize: "15px", fontWeight: 700, color: formData.isReuse ? "#ffffff" : "#374151", margin: 0 }}>Reaproveitamento</p>
-                <p style={{ fontSize: "13px", color: formData.isReuse ? "rgba(255,255,255,0.8)" : "#9ca3af", margin: 0 }}>Gráfica entrega direto — sem etapa de produção</p>
+                <p style={{ fontSize: "12px", color: formData.isReuse ? "#ffffff" : "#9ca3af", margin: 0 }}>Gráfica entrega direto — sem etapa de produção</p>
               </div>
             </div>
             <Checkbox
@@ -257,8 +275,9 @@ function ItemForm({
 
         {/* Descrição */}
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label style={FIELD_LABEL}>Descrição do Item <span style={{ color: "#8b8580", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: 10 }}>(opcional)</span></label>
+          <label htmlFor="item-description" style={FIELD_LABEL}>Descrição do Item <span style={{ color: "#746e69", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: 10 }}>(opcional)</span></label>
           <input
+            id="item-description"
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
             placeholder={isEdit ? "Ex: Banner para fachada lateral com ilhós" : "Ex: Banner Frontlit Entrada Principal"}
@@ -283,14 +302,15 @@ function ItemForm({
               { label: "Arquivo Alt.", key: "fileHeight", orange: false, testId: isEdit ? "input-edit-file-height" : "input-file-height" },
             ].map((dim) => (
               <div key={dim.key} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: "#746e69", display: "flex", alignItems: "center", gap: "5px" }}>
+                <label htmlFor={`item-${dim.key}`} style={{ fontSize: 11, fontWeight: 700, color: "#746e69", display: "flex", alignItems: "center", gap: "5px" }}>
                   <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: dim.orange ? "#f97316" : "#a8a29e", display: "inline-block", flexShrink: 0 }}></span>
                   {dim.label}
                 </label>
                 <input
+                  id={`item-${dim.key}`}
                   type="number"
                   step="0.01"
-                  min={isEdit ? undefined : "0"}
+                  min="0"
                   required={!isEdit}
                   value={(formData as any)[dim.key]}
                   onChange={(e) => setFormData({ ...formData, [dim.key]: e.target.value })}
@@ -305,12 +325,13 @@ function ItemForm({
           </div>
         </div>
 
-        {/* Material | Acabamento | Patrocinador (patrocinador só na edição) */}
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : (isEdit ? "1fr 1fr 1fr" : "1fr 1fr"), gap: "16px" }}>
+        {/* Material | Acabamento */}
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px" }}>
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            <label style={FIELD_LABEL}>Material</label>
+            <label htmlFor="item-material" style={FIELD_LABEL}>Material</label>
             {customMaterial ? (
               <input
+                id="item-material"
                 autoFocus
                 value={formData.material}
                 onChange={(e) => setFormData({ ...formData, material: e.target.value })}
@@ -320,6 +341,7 @@ function ItemForm({
               />
             ) : (
               <select
+                id="item-material"
                 value={materialOptions.includes(formData.material) ? formData.material : formData.material ? "__atual__" : ""}
                 onChange={(e) => {
                   if (e.target.value === "__novo__") { setFormData({ ...formData, material: "" }); setCustomMaterial(true); return; }
@@ -345,9 +367,10 @@ function ItemForm({
             )}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            <label style={FIELD_LABEL}>Acabamento</label>
+            <label htmlFor="item-finish" style={FIELD_LABEL}>Acabamento</label>
             {customFinish ? (
               <input
+                id="item-finish"
                 autoFocus
                 value={formData.finish}
                 onChange={(e) => setFormData({ ...formData, finish: e.target.value })}
@@ -357,6 +380,7 @@ function ItemForm({
               />
             ) : (
               <select
+                id="item-finish"
                 value={finishOptions.includes(formData.finish) ? formData.finish : formData.finish ? "__atual__" : ""}
                 onChange={(e) => {
                   if (e.target.value === "__novo__") { setFormData({ ...formData, finish: "" }); setCustomFinish(true); return; }
@@ -380,39 +404,13 @@ function ItemForm({
               </span>
             )}
           </div>
-          {isEdit && (
-            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-              <label style={FIELD_LABEL}>Patrocinador</label>
-              <Select
-                value={formData.sponsorId || "none"}
-                onValueChange={(value) => setFormData({ ...formData, sponsorId: value === "none" ? "" : value })}
-              >
-                <SelectTrigger
-                  className="border-0 focus:ring-0 focus:ring-offset-0 text-sm font-medium"
-                  style={{ backgroundColor: "#f3f4f3", borderRadius: "8px", padding: "12px 16px", height: "auto", color: "#1a1c1c" }}
-                  data-testid="select-edit-sponsor"
-                >
-                  <SelectValue placeholder="Nenhum" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Nenhum</SelectItem>
-                  {sponsors.map(sponsor => (
-                    <SelectItem key={sponsor.id} value={sponsor.id}>
-                      {sponsor.name}
-                      {sponsor.company && ` (${sponsor.company})`}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
         </div>
 
         {/* Referência (opcional — só na edição, com Ctrl+V de print) */}
         {isEdit && (
           <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             <label style={FIELD_LABEL}>
-              Referência <span style={{ color: "#8b8580", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "10px" }}>(opcional — cole um print com Ctrl+V ou anexe uma imagem, em alta qualidade)</span>
+              Referência <span style={{ color: "#746e69", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "10px" }}>(opcional — cole um print com Ctrl+V ou anexe uma imagem, em alta qualidade)</span>
             </label>
             {(localRefPreview || formData.referenceUrl) ? (
               <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
@@ -462,8 +460,9 @@ function ItemForm({
 
         {/* Observações */}
         <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-          <label style={FIELD_LABEL}>Observações Internas <span style={{ color: "#8b8580", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: 10 }}>(opcional)</span></label>
+          <label htmlFor="item-observations" style={FIELD_LABEL}>Observações Internas <span style={{ color: "#746e69", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: 10 }}>(opcional)</span></label>
           <textarea
+            id="item-observations"
             value={formData.observations}
             onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
             placeholder="Reforço, instruções especiais ou observações de produção..."
@@ -610,11 +609,14 @@ export default function EventDetail() {
   );
 
   // Chips de status do cabeçalho: contagem por status presente + m² total.
+  // Derivados de mainItems (não de items): o filtro por chip roda sobre
+  // mainItems — chips de rascunho/solicitado filtravam o nada (lista vazia).
+  // Os rascunhos já têm o card próprio logo abaixo.
   const statusChips = useMemo(() => {
     const counts = new Map<string, number>();
-    items.forEach(i => counts.set(i.status, (counts.get(i.status) || 0) + 1));
+    mainItems.forEach(i => counts.set(i.status, (counts.get(i.status) || 0) + 1));
     return Array.from(counts.entries());
-  }, [items]);
+  }, [mainItems]);
   const totalM2 = useMemo(
     () => items.reduce((acc, i) => acc + (parseFloat(String(i.calculatedM2 ?? '0')) || 0), 0),
     [items],
@@ -700,7 +702,7 @@ export default function EventDetail() {
 
   // Buscar todos os eventos (para seletor de clone) — só quando o dialog de
   // clonagem abre; antes a lista inteira era baixada em toda visita à página.
-  const { data: allEvents = [] } = useQuery<any[]>({
+  const { data: allEvents = [], isLoading: loadingAllEvents } = useQuery<any[]>({
     queryKey: ["/api/events"],
     enabled: cloneDialogOpen,
     placeholderData: (previousData: any) => previousData,
@@ -800,10 +802,7 @@ export default function EventDetail() {
         skipApproval: data.skipApproval || false,
         isReuse: data.isReuse || false,
       };
-      
-      // Remover campos que não devem ir para o backend
-      delete itemData.sponsorId;
-      
+
       // Criar item
       const response = await apiRequest("POST", "/api/items", itemData);
       const createdItem = await response.json();
@@ -935,11 +934,6 @@ export default function EventDetail() {
       if (itemData.area === null) delete itemData.area;
       if (itemData.visual === null) delete itemData.visual;
       if (itemData.calculatedM2 === null) delete itemData.calculatedM2;
-
-      // Remover sponsorId se estiver vazio
-      if (!data.sponsorId) {
-        delete itemData.sponsorId;
-      }
 
       return await apiRequest("PATCH", `/api/items/${id}`, itemData);
     },
@@ -1086,7 +1080,6 @@ export default function EventDetail() {
       finish: item.finish || "",
       measurement: item.measurement || "",
       observations: item.observations || "",
-      sponsorId: item.sponsorId || "",
       skipApproval: item.skipApproval || false,
       isReuse: item.isReuse || false,
       referenceUrl: item.referenceUrl || "",
@@ -1104,6 +1097,14 @@ export default function EventDetail() {
     setBulkMode(true);
     setFormData({ ...EMPTY_ITEM_FORM });
     setOpen(false);
+  };
+
+  // Fechamento único do modal de edição (X, Cancelar e ESC/clique-fora):
+  // antes o onOpenChange cru deixava editingItem/localRefPreview para trás.
+  const handleCloseEditDialog = () => {
+    setEditDialogOpen(false);
+    setEditingItem(null);
+    setLocalRefPreview("");
   };
 
   // ── Derivações memoizadas (antes recalculavam a cada render) ─────────────
@@ -1268,7 +1269,7 @@ export default function EventDetail() {
       <div style={{ marginBottom: '40px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px', gap: '24px', flexWrap: 'wrap' }}>
           <div>
-            <p style={{ color: '#9D978F', fontSize: '11px', fontWeight: '500', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 8px 0' }}>
+            <p style={{ color: '#6F6A63', fontSize: '11px', fontWeight: '500', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 8px 0' }}>
               Criado em {new Date(event.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}
             </p>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
@@ -1385,7 +1386,7 @@ export default function EventDetail() {
               }}
               data-testid="button-add-item"
               style={{ backgroundColor: '#b45309', color: '#ffffff', padding: '11px 24px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: 'none', cursor: 'pointer', transition: 'background-color 0.18s, box-shadow 0.18s, transform 0.1s', letterSpacing: '0.03em', whiteSpace: 'nowrap', flexShrink: 0, boxShadow: '0 1px 3px rgba(217,122,30,0.25)', fontFamily: "'Space Grotesk', sans-serif" }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#C96D16'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(217,122,30,0.35)'; }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#9a3412'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(217,122,30,0.35)'; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#b45309'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(217,122,30,0.25)'; }}
               onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.97)')}
               onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
@@ -1462,7 +1463,7 @@ export default function EventDetail() {
                       bulkLeftoverRef.current = leftoverCount;
                       createBulkItemsMutation.mutate(items);
                     }}
-                    onCancel={() => setOpen(false)}
+                    onCancel={handleCloseDialog}
                     isPending={createBulkItemsMutation.isPending}
                   />
                   </div>
@@ -1475,7 +1476,6 @@ export default function EventDetail() {
                     typeOptions={itemTypes}
                     materialOptions={materialOptions}
                     finishOptions={finishOptions}
-                    sponsors={sponsors}
                     customMaterial={customMaterial}
                     setCustomMaterial={setCustomMaterial}
                     customFinish={customFinish}
@@ -1900,8 +1900,8 @@ export default function EventDetail() {
               </div>
               <Button
                 onClick={() => setSubmitConfirmOpen(true)}
-                // Gate: enviar rascunhos para a Arte é ação do gestor do evento
-                // (admin ou criador) — mesmo critério das demais ações do card.
+                // Gate: enviar rascunhos para a Arte é ação de admin ou do
+                // papel "solicitação" — mesmo critério do title abaixo.
                 disabled={submitDraftsMutation.isPending || !(hasPermission("admin") || user?.role === "solicitacao")}
                 title={!(hasPermission("admin") || user?.role === "solicitacao") ? "Apenas Solicitação ou administradores podem enviar" : undefined}
                 size="lg"
@@ -2043,7 +2043,15 @@ export default function EventDetail() {
             <p style={{ color: '#746e69', marginBottom: '16px', fontSize: '15px' }}>Adicione itens ao evento para começar</p>
             {canEditLists ? (
               <button
-                onClick={() => { setEditingItem(null); setBulkMode(true); setOpen(true); }}
+                onClick={() => {
+                  setEditingItem(null);
+                  setBulkMode(true);
+                  // Mesmo reset do botão do header: os selects com sentinela
+                  // voltam ao modo lista.
+                  setCustomMaterial(false);
+                  setCustomFinish(false);
+                  setOpen(true);
+                }}
                 style={{ backgroundColor: '#1c1917', color: '#fff', padding: '10px 20px', borderRadius: '6px', fontWeight: '700', fontSize: '15px', border: 'none', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
               >
                 <Plus className="h-4 w-4" />
@@ -2064,6 +2072,7 @@ export default function EventDetail() {
               <Search style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#a8a29e', pointerEvents: 'none' }} />
               <input
                 type="text"
+                aria-label="Buscar peça por ID, tipo ou status"
                 placeholder="Buscar peça (ID, tipo, status)..."
                 value={itemSearch}
                 onChange={e => setItemSearch(e.target.value)}
@@ -2081,8 +2090,12 @@ export default function EventDetail() {
 
           {searchedItems.length === 0 && (
             <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '40px 24px', textAlign: 'center' }}>
-              <p style={{ color: '#1c1917', fontSize: 14, fontWeight: 700, margin: '0 0 4px' }}>Nenhuma peça corresponde à busca</p>
-              <p style={{ color: '#746e69', fontSize: 13, margin: 0 }}>Tente outro termo ou limpe a busca.</p>
+              <p style={{ color: '#1c1917', fontSize: 14, fontWeight: 700, margin: '0 0 4px' }}>
+                {statusFilter.length > 0 ? 'Nenhuma peça corresponde aos filtros' : 'Nenhuma peça corresponde à busca'}
+              </p>
+              <p style={{ color: '#746e69', fontSize: 13, margin: 0 }}>
+                {statusFilter.length > 0 ? 'Tente outro termo, ou limpe a busca ou o filtro de status.' : 'Tente outro termo ou limpe a busca.'}
+              </p>
             </div>
           )}
 
@@ -2148,7 +2161,9 @@ export default function EventDetail() {
                           </div>
                           {canEditLists && (
                             <div style={{ display: 'flex', gap: 6, marginTop: 8 }} onClick={e => e.stopPropagation()}>
-                              <button onClick={() => { setEditingItem(item); setEditDialogOpen(true); }}
+                              {/* handleEditItem (não setEditingItem cru): hidrata o
+                                  formData — sem isso, salvar apagava a peça. */}
+                              <button onClick={() => handleEditItem(item)}
                                 style={{ flex: 1, minHeight: 44, borderRadius: 6, border: '1px solid #e7e5e4', background: '#fafaf9', fontSize: 13, fontWeight: 700, color: '#746e69', cursor: 'pointer' }}>
                                 Editar
                               </button>
@@ -2197,8 +2212,7 @@ export default function EventDetail() {
                               color: '#746e69', whiteSpace: 'nowrap',
                               textAlign: col === 'Ações' ? 'right' : 'left',
                               width,
-                              // Sticky: o cabeçalho acompanha a rolagem vertical.
-                              position: 'sticky', top: 0, zIndex: 1, backgroundColor: '#fafaf9',
+                              backgroundColor: '#fafaf9',
                             }}>
                             {col}
                           </th>
@@ -2510,7 +2524,7 @@ export default function EventDetail() {
       </AlertDialog>
 
       {/* Dialog separado para editar item */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+      <Dialog open={editDialogOpen} onOpenChange={(o) => { if (!o) handleCloseEditDialog(); }}>
         <DialogContent className={HIDE_NATIVE_CLOSE} style={{ maxWidth: isMobile ? "95vw" : "800px", width: "100%", padding: "0", backgroundColor: "#ffffff", borderRadius: "16px", overflow: "hidden", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
           <DialogTitle className="sr-only">Editar Peça</DialogTitle>
           <DialogDescription className="sr-only">Atualize as informações da peça</DialogDescription>
@@ -2519,7 +2533,7 @@ export default function EventDetail() {
             tint="#c2410c"
             title={editingItem ? `${editingItem.displayId} — ${editingItem.type}` : "Editar Peça"}
             subtitle={editingItem?.description || "Atualize as informações da peça"}
-            onClose={() => { setEditDialogOpen(false); setEditingItem(null); }}
+            onClose={handleCloseEditDialog}
           />
           <ItemForm
             mode="edit"
@@ -2529,7 +2543,6 @@ export default function EventDetail() {
             typeOptions={itemTypes}
             materialOptions={materialOptions}
             finishOptions={finishOptions}
-            sponsors={sponsors}
             customMaterial={customMaterial}
             setCustomMaterial={setCustomMaterial}
             customFinish={customFinish}
@@ -2543,7 +2556,7 @@ export default function EventDetail() {
                 updateItemMutation.mutate({ id: editingItem.id, data: formData });
               }
             }}
-            onCancel={() => { setEditDialogOpen(false); setEditingItem(null); }}
+            onCancel={handleCloseEditDialog}
             localRefPreview={localRefPreview}
             setLocalRefPreview={setLocalRefPreview}
             getUploadUrl={getUploadUrl}
@@ -2584,6 +2597,7 @@ export default function EventDetail() {
         eventId={eventId}
         eventName={event?.name}
         allEvents={allEvents}
+        eventsLoading={loadingAllEvents}
         cloneSourceId={cloneSourceId}
         setCloneSourceId={setCloneSourceId}
         isCloning={cloneItemsMutation.isPending}

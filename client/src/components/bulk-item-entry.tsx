@@ -70,7 +70,6 @@ interface BulkItemEntryProps {
   standardItems?: StandardItem[];
   sponsors?: Sponsor[];
   existingItems?: ExistingItem[];
-  onDeleteExistingItem?: (id: string) => void;
   /** leftoverCount = linhas incompletas que NÃO foram enviadas e seguem no grid. */
   onSubmit: (items: any[], leftoverCount: number) => void;
   /**
@@ -254,10 +253,11 @@ function createEmptyRow(): BulkItemRow {
 interface ExistingItemsPanelProps {
   items: ExistingItem[];
   standardItems?: StandardItem[];
-  onDelete?: (id: string) => void;
 }
 
-function ExistingItemsPanel({ items, standardItems = [], onDelete }: ExistingItemsPanelProps) {
+// A exclusão de peças já lançadas vive na tabela da página (com o diálogo de
+// confirmação) — o painel aqui é só leitura, sem botão de lixeira morto.
+function ExistingItemsPanel({ items, standardItems = [] }: ExistingItemsPanelProps) {
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
@@ -316,24 +316,6 @@ function ExistingItemsPanel({ items, standardItems = [], onDelete }: ExistingIte
         }}>
           {item.description || item.material || '—'}
         </span>
-        {/* Trash — visible only on hover */}
-        {onDelete && (
-          <button
-            type="button"
-            onClick={() => onDelete(item.id)}
-            title="Excluir item"
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              padding: '2px', borderRadius: '6px', lineHeight: 0,
-              color: '#fca5a5', flexShrink: 0,
-              visibility: hovered ? 'visible' : 'hidden',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
-            onMouseLeave={e => (e.currentTarget.style.color = '#fca5a5')}
-          >
-            <Trash2 size={12} />
-          </button>
-        )}
       </div>
     );
   }
@@ -474,7 +456,7 @@ function isSameItem(
 /* ── Main Component ─────────────────────────────────────────────────── */
 export function BulkItemEntry({
   eventId, standardItems = [], sponsors = [], existingItems = [],
-  onDeleteExistingItem, onSubmit, onCancel, isPending, savedTick = 0,
+  onSubmit, onCancel, isPending, savedTick = 0,
 }: BulkItemEntryProps) {
   const [rows, setRows] = useState<BulkItemRow[]>([createEmptyRow()]);
   const [replicateCounts, setReplicateCounts] = useState<Record<string, number>>({});
@@ -1074,7 +1056,7 @@ export function BulkItemEntry({
 
           {/* ══ SEÇÃO: PEÇAS JÁ LANÇADAS ══ */}
           {existingItems.length > 0 && (
-            <ExistingItemsPanel items={existingItems} standardItems={standardItems} onDelete={onDeleteExistingItem} />
+            <ExistingItemsPanel items={existingItems} standardItems={standardItems} />
           )}
 
           {/* ══ SEÇÃO: GRID DE LOTE ══ */}

@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { CheckCircle, AlertCircle, Eye, FileText, Search, X, FileImage, Maximize2, Trash2, Paperclip, Recycle } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Search, X, FileImage, Maximize2, Trash2, Paperclip, Recycle } from "lucide-react";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { FilePreview } from "@/components/file-preview";
@@ -45,27 +45,29 @@ const REVIEW_STATUS = "awaiting_final_review";
 // herdam rótulo e cor de lib/status; o mapa abaixo cobre apenas os tipos de
 // log que NÃO são status. Vive fora do componente para não ser recriado a
 // cada render.
-const NON_STATUS_LOG_CFG: Record<string, { label: string; dot: string }> = {
-  updated:          { label: "Atualizado",            dot: "#f97316" },
-  rejected:         { label: "Reprovado",             dot: "#ef4444" },
-  submitted:        { label: "Enviado",               dot: "#0e7490" },
-  linked:           { label: "Vinculado",             dot: "#0f766e" },
-  released:         { label: "Liberado",              dot: "#3b82f6" },
-  status_changed:   { label: "Status alterado",       dot: "#f97316" },
-  sponsor_approved: { label: "Patrocinador aprovado", dot: "#10b981" },
-  sponsor_rejected: { label: "Patrocinador reprovou", dot: "#ef4444" },
-  file_uploaded:    { label: "Arquivo enviado",       dot: "#7e22ce" },
-  thumb_uploaded:   { label: "Thumb enviado",         dot: "#7e22ce" },
+// `dot` (tom saturado 500) é só da bolinha; `text` (tom escuro 700, AA sobre
+// fundo claro) é o que vai no rótulo — mesma disciplina do StatusMeta.
+const NON_STATUS_LOG_CFG: Record<string, { label: string; dot: string; text: string }> = {
+  updated:          { label: "Atualizado",            dot: "#f97316", text: "#c2410c" },
+  rejected:         { label: "Reprovado",             dot: "#ef4444", text: "#b91c1c" },
+  submitted:        { label: "Enviado",               dot: "#0e7490", text: "#0e7490" },
+  linked:           { label: "Vinculado",             dot: "#0f766e", text: "#0f766e" },
+  released:         { label: "Liberado",              dot: "#3b82f6", text: "#1d4ed8" },
+  status_changed:   { label: "Status alterado",       dot: "#f97316", text: "#c2410c" },
+  sponsor_approved: { label: "Patrocinador aprovado", dot: "#10b981", text: "#047857" },
+  sponsor_rejected: { label: "Patrocinador reprovou", dot: "#ef4444", text: "#b91c1c" },
+  file_uploaded:    { label: "Arquivo enviado",       dot: "#7e22ce", text: "#7e22ce" },
+  thumb_uploaded:   { label: "Thumb enviado",         dot: "#7e22ce", text: "#7e22ce" },
 };
 
-function getLogCfg(log: any): { label: string; dot: string } {
+function getLogCfg(log: any): { label: string; dot: string; text: string } {
   const action = log?.action as string | undefined;
   if (action && STATUS[action]) {
     const m = getStatusMeta(action);
-    return { label: m.label, dot: m.dot };
+    return { label: m.label, dot: m.dot, text: m.text };
   }
   if (action && NON_STATUS_LOG_CFG[action]) return NON_STATUS_LOG_CFG[action];
-  return { label: action?.replace(/_/g, " ") ?? log?.details ?? "Ação", dot: "#a8a29e" };
+  return { label: action?.replace(/_/g, " ") ?? log?.details ?? "Ação", dot: "#a8a29e", text: "#746e69" };
 }
 
 export default function Solicitacao() {
@@ -112,10 +114,15 @@ export default function Solicitacao() {
   }, [standardItems]);
 
   const updateQuantityMutation = useMutation({
-    mutationFn: async ({ itemId, quantity }: { itemId: string; quantity: number }) =>
-      await apiRequest("PATCH", `/api/items/${itemId}`, { quantity }),
+    // apiRequest devolve o Response cru — sem o json() o "updatedItem" era o
+    // Response e updatedItem.quantity saía sempre undefined.
+    mutationFn: async ({ itemId, quantity }: { itemId: string; quantity: number }) => {
+      const res = await apiRequest("PATCH", `/api/items/${itemId}`, { quantity });
+      return await res.json();
+    },
     onSuccess: (updatedItem: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setSelectedItem((prev: any) => prev ? { ...prev, quantity: updatedItem.quantity ?? quantityValue } : prev);
       setEditingQuantity(false);
       toast({ title: "Quantidade atualizada", description: `Nova quantidade: ${updatedItem.quantity ?? quantityValue}x` });
@@ -128,6 +135,7 @@ export default function Solicitacao() {
       await apiRequest("PATCH", `/api/items/${itemId}`, { observations }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setSelectedItem((prev: any) => prev ? { ...prev, observations: cardObservations } : prev);
       toast({ title: "Observação salva" });
     },
@@ -138,6 +146,7 @@ export default function Solicitacao() {
     mutationFn: async ({ itemId }: { itemId: string }) => await apiRequest("PATCH", `/api/items/${itemId}/creator-review`, {}),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setModalOpen(false); setSelectedItem(null); setReleaseConfirmOpen(false);
       toast({ title: "Peça liberada para produção!", description: "Pronto para produção — a Arte foi notificada." });
@@ -155,14 +164,16 @@ export default function Solicitacao() {
       const results = await Promise.allSettled(
         itemIds.map(id => apiRequest("PATCH", `/api/items/${id}/creator-review`, {}))
       );
-      const failed = results.filter(r => r.status === "rejected").length;
-      return { total: itemIds.length, released: itemIds.length - failed, failed };
+      const failedIds = itemIds.filter((_, i) => results[i].status === "rejected");
+      return { total: itemIds.length, released: itemIds.length - failedIds.length, failed: failedIds.length, failedIds };
     },
-    onSuccess: ({ total, released, failed }) => {
+    onSuccess: ({ total, released, failed, failedIds }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
-      setSelectedItemIds(new Set()); setBulkReleaseConfirmOpen(false);
+      // Falha parcial: mantém selecionado só o que falhou, para a pessoa
+      // tentar de novo sem re-marcar tudo.
+      setSelectedItemIds(new Set(failedIds)); setBulkReleaseConfirmOpen(false);
       if (failed > 0) {
         toast({
           title: "Liberação parcial",
@@ -197,13 +208,15 @@ export default function Solicitacao() {
     // e responde { success, errors, items, failedItemIds }.
     mutationFn: async (payload: { ids: string[]; notes: string }) => {
       const res = await apiRequest("PATCH", "/api/items/bulk-return-to-arte", { itemIds: payload.ids, notes: payload.notes });
-      const result: { success: number; errors: number } = await res.json();
-      return { total: payload.ids.length, failed: result.errors };
+      const result: { success: number; errors: number; failedItemIds?: string[] } = await res.json();
+      return { total: payload.ids.length, failed: result.errors, failedIds: result.failedItemIds ?? [] };
     },
-    onSuccess: ({ total, failed }) => {
+    onSuccess: ({ total, failed, failedIds }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
-      setSelectedItemIds(new Set()); setBulkReturnConfirmOpen(false); setBulkReturnObservations("");
+      // Falha parcial: mantém selecionado só o que falhou, para a pessoa
+      // tentar de novo sem re-marcar tudo.
+      setSelectedItemIds(new Set(failedIds)); setBulkReturnConfirmOpen(false); setBulkReturnObservations("");
       const ok = total - failed;
       if (failed > 0) {
         toast({ title: "Devolução parcial", description: `${ok} devolvida(s), ${failed} com erro.`, variant: "destructive" });
@@ -245,13 +258,22 @@ export default function Solicitacao() {
     onSuccess: (result, { isReuse }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       const advanced = (result as any)?.statusAdvanced !== false;
+      if (isReuse && !advanced) {
+        // A marcação gravou mas o creator-review falhou: nada de prometer
+        // atualização automática — a liberação precisa ser feita à mão.
+        toast({
+          title: "Reaproveitamento marcado, mas não liberado",
+          description: "A liberação automática falhou. Abra a peça e clique em \"Liberar para Produção\" manualmente.",
+          variant: "destructive",
+        });
+        return;
+      }
       toast({
         title: isReuse ? "Reaproveitamento confirmado" : "Marcação removida",
         description: isReuse
-          ? advanced
-            ? "Peça enviada diretamente para a Gráfica como produzida."
-            : "Peça marcada para reaproveitamento. O status será atualizado em breve."
+          ? "Peça enviada diretamente para a Gráfica como produzida."
           : "A peça voltará ao fluxo normal.",
       });
     },
@@ -268,6 +290,7 @@ export default function Solicitacao() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setReuseDialogItemId(null);
       toast({
         title: "Reaproveitamento parcial confirmado",
@@ -309,9 +332,10 @@ export default function Solicitacao() {
   // Filtros facetados: cada filtro lista só o que existe aqui, aplicando o
   // OUTRO filtro ativo, com contagem por opção.
   const eventFilterOptions = useMemo(() => {
-    const DOT: Record<string, string> = { urgente: '#ef4444', urgent: '#ef4444', alta: '#f97316', media: '#eab308', baixa: '#3b82f6' };
+    // Sem dotColor aqui: o EventFilterDropdown em modo múltiplo (o desta tela)
+    // não renderiza bolinha — e o mapa local divergia do PRIORITY canônico.
     const byId = new Map(events.map((e: any) => [e.id, e]));
-    const map = new Map<string, { value: string; label: string; count: number; dotColor?: string }>();
+    const map = new Map<string, { value: string; label: string; count: number }>();
     pendingItems
       .filter(i => itemTypeFilter.length === 0 || itemTypeFilter.includes(i.type))
       .forEach((i: any) => {
@@ -320,7 +344,7 @@ export default function Solicitacao() {
         if (cur) cur.count++;
         else {
           const ev: any = byId.get(i.eventId);
-          map.set(i.eventId, { value: i.eventId, label: ev?.name || i.event?.name || 'Sem evento', count: 1, dotColor: DOT[ev?.priority] });
+          map.set(i.eventId, { value: i.eventId, label: ev?.name || i.event?.name || 'Sem evento', count: 1 });
         }
       });
     return Array.from(map.values());
@@ -344,7 +368,8 @@ export default function Solicitacao() {
     // Dentro do evento: grupo do item padrão, depois tipo.
     const sorted = [...filteredItems].sort((a, b) => {
       const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
-      return ga.localeCompare(gb) || a.type.localeCompare(b.type);
+      // type pode vir null do banco — sem o fallback o localeCompare lançava.
+      return ga.localeCompare(gb) || (a.type || '').localeCompare(b.type || '');
     });
     sorted.forEach(item => {
       const key = item.eventId || "__none__";
@@ -393,10 +418,15 @@ export default function Solicitacao() {
       // quantidade...) não pode ter Enter/Esc sequestrados pelo atalho.
       const t = e.target as HTMLElement | null;
       if (t && (t.tagName === "TEXTAREA" || t.tagName === "INPUT" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      // Com foco em botão/link, Enter ativa o próprio elemento — agir aqui
+      // também abriria dois diálogos de uma vez.
+      if (t && t.closest("button,a")) return;
       // Com um AlertDialog de confirmação aberto por cima, Enter/Esc são dele
       // (o Radix cuida); agir aqui fechava as duas camadas de uma vez.
       if (releaseConfirmOpen || returnConfirmOpen) return;
-      if (e.key === "Enter" && selectedItem) setReleaseConfirmOpen(true);
+      // Mesma checagem do botão "Liberar para Produção": sem arquivo final,
+      // o atalho não pode driblar o botão desabilitado.
+      if (e.key === "Enter" && selectedItem?.finalFileUrl) setReleaseConfirmOpen(true);
       if (e.key === "Escape") setModalOpen(false);
     };
     window.addEventListener("keydown", handler);
@@ -528,6 +558,7 @@ export default function Solicitacao() {
             <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: TI.muted, pointerEvents: "none" }} />
             <input
               placeholder="Filtrar por ID ou descrição..."
+              aria-label="Filtrar por ID ou descrição"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               data-testid="input-search"
@@ -572,6 +603,7 @@ export default function Solicitacao() {
                 <input
                   type="checkbox"
                   checked={selectedItemIds.size === filteredItems.length && filteredItems.length > 0}
+                  ref={el => { if (el) el.indeterminate = selectedItemIds.size > 0 && selectedItemIds.size < filteredItems.length; }}
                   onChange={toggleAll}
                   data-testid="checkbox-select-all"
                   style={{ accentColor: TI.accent, width: 20, height: 20 }}
@@ -609,29 +641,38 @@ export default function Solicitacao() {
                     <span style={{fontSize:11,fontWeight:900,textTransform:"uppercase",letterSpacing:"0.08em",color:"#746e69"}}>{evInfo?.name || "Sem Evento"}</span>
                   </div>
                   {eventItems.map((item:any) => (
-                    /* Card mobile: abria a peça só no toque. Sem foco nem
-                       tecla, teclado externo e leitor de tela não chegavam
-                       à revisão da peça. */
-                    <div key={item.id}
-                      role="button"
-                      tabIndex={0}
-                      aria-label={`Revisar peça ${item.displayId}`}
-                      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openModal(item); } }}
-                      onClick={() => openModal(item)}
-                      style={{backgroundColor:"#fff",border:"1px solid #e7e5e4",borderRadius:8,padding:"12px",marginBottom:8,cursor:"pointer",display:"flex",flexDirection:"column",gap:6}}>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                        <span style={{fontFamily:"monospace",fontWeight:700,color:"#f97316",fontSize:13}}>{item.displayId}</span>
-                        <input type="checkbox" checked={selectedItemIds.has(item.id)} onChange={e=>{e.stopPropagation();toggleItem(item.id);}} onClick={e=>e.stopPropagation()} style={{accentColor:"#f97316",width:20,height:20,padding:2}} />
-                      </div>
-                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
-                        <div style={{flex:1}}>
-                          <span style={{fontSize:13,fontWeight:700,color:"#1c1917"}}>{item.type}</span>
-                          {item.description && <p style={{fontSize:13,color:"#746e69",margin:"2px 0 0"}}>{item.description}</p>}
+                    /* Card mobile: o checkbox fica FORA do alvo role="button"
+                       (checkbox aninhado em botão é estrutura inválida para
+                       leitor de tela); o corpo do card segue abrindo o modal
+                       por toque, Enter e Espaço. */
+                    <div key={item.id} style={{position:"relative",backgroundColor:"#fff",border:"1px solid #e7e5e4",borderRadius:8,marginBottom:8}}>
+                      <input
+                        type="checkbox"
+                        checked={selectedItemIds.has(item.id)}
+                        onChange={()=>toggleItem(item.id)}
+                        aria-label={`Selecionar ${item.displayId}`}
+                        style={{position:"absolute",top:10,right:10,accentColor:"#f97316",width:20,height:20,padding:2,zIndex:1}}
+                      />
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        aria-label={`Revisar peça ${item.displayId}`}
+                        onKeyDown={e => { if (e.target !== e.currentTarget) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openModal(item); } }}
+                        onClick={() => openModal(item)}
+                        style={{padding:"12px",cursor:"pointer",display:"flex",flexDirection:"column",gap:6}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingRight:32}}>
+                          <span style={{fontFamily:"monospace",fontWeight:700,color:"#c2410c",fontSize:13}}>{item.displayId}</span>
                         </div>
-                        <span style={{fontSize:10,fontWeight:700,color:"#746e69",whiteSpace:"nowrap"}}>{item.quantity}×</span>
-                      </div>
-                      <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
-                        {item.sponsors?.map((s:any)=><span key={s.id} style={{fontSize:10,padding:"2px 6px",borderRadius:6,backgroundColor:"#f5f5f4",color:"#746e69",fontWeight:600}}>{s.name}</span>)}
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
+                          <div style={{flex:1}}>
+                            <span style={{fontSize:13,fontWeight:700,color:"#1c1917"}}>{item.type}</span>
+                            {item.description && <p style={{fontSize:13,color:"#746e69",margin:"2px 0 0"}}>{item.description}</p>}
+                          </div>
+                          <span style={{fontSize:10,fontWeight:700,color:"#746e69",whiteSpace:"nowrap"}}>{item.quantity}×</span>
+                        </div>
+                        <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
+                          {item.sponsors?.map((s:any)=><span key={s.id} style={{fontSize:10,padding:"2px 6px",borderRadius:6,backgroundColor:"#f5f5f4",color:"#746e69",fontWeight:600}}>{s.name}</span>)}
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -649,7 +690,9 @@ export default function Solicitacao() {
                     <input
                       type="checkbox"
                       checked={selectedItemIds.size === filteredItems.length && filteredItems.length > 0}
+                      ref={el => { if (el) el.indeterminate = selectedItemIds.size > 0 && selectedItemIds.size < filteredItems.length; }}
                       onChange={toggleAll}
+                      aria-label="Selecionar todos"
                       data-testid="checkbox-select-all-header"
                       style={{ accentColor: "#f97316", width: 20, height: 20, cursor: "pointer" }}
                     />
@@ -701,6 +744,7 @@ export default function Solicitacao() {
                             type="checkbox"
                             checked={groupSelected}
                             onChange={toggleGroup}
+                            aria-label={`Selecionar evento ${event?.name || "sem evento"}`}
                             data-testid={`checkbox-group-${eventId}`}
                             style={{ accentColor: "#f97316", width: 20, height: 20, cursor: "pointer", backgroundColor: "#292524" }}
                           />
@@ -806,6 +850,7 @@ export default function Solicitacao() {
                                 type="checkbox"
                                 checked={isSelected}
                                 onChange={() => toggleItem(item.id)}
+                                aria-label={`Selecionar ${item.displayId}`}
                                 data-testid={`checkbox-item-${item.id}`}
                                 style={{ accentColor: "#f97316", width: 20, height: 20, cursor: "pointer" }}
                               />
@@ -864,7 +909,7 @@ export default function Solicitacao() {
 
                             {/* M² */}
                             <td style={{ padding: "14px 16px" }}>
-                              <span style={{ fontSize: 13, fontWeight: 900, color: item.calculatedM2 ? TI.text : TI.muted }}>
+                              <span style={{ fontSize: 13, fontWeight: 900, color: item.calculatedM2 ? TI.text : "#78716c" }}>
                                 {item.calculatedM2 || "—"}
                               </span>
                             </td>
@@ -905,7 +950,7 @@ export default function Solicitacao() {
                                     background: item.isReuse ? "#dcfce7" : "none",
                                     border: item.isReuse ? "1px solid #86efac" : "1px solid transparent",
                                     cursor: "pointer",
-                                    color: item.isReuse ? "#15803d" : "#a8a29e",
+                                    color: item.isReuse ? "#15803d" : "#746e69",
                                     padding: 6,
                                     display: "flex", alignItems: "center",
                                     borderRadius: 6, transition: "all 0.15s",
@@ -1297,7 +1342,7 @@ export default function Solicitacao() {
                     HISTÓRICO
                   </h3>
                   {itemAuditLogs.length === 0 ? (
-                    <p style={{ fontSize: 13, color: TI.muted }}>Sem histórico disponível.</p>
+                    <p style={{ fontSize: 13, color: TI.secondary }}>Sem histórico disponível.</p>
                   ) : (
                     <div style={{ position: "relative", paddingLeft: 24 }}>
                       {/* Vertical line */}
@@ -1314,7 +1359,7 @@ export default function Solicitacao() {
                               }} />
                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                                 <div>
-                                  <p style={{ fontSize: 13, fontWeight: 700, color: cfg.dot, margin: 0 }}>{cfg.label}</p>
+                                  <p style={{ fontSize: 13, fontWeight: 700, color: cfg.text, margin: 0 }}>{cfg.label}</p>
                                   {log.userName && <p style={{ fontSize: 10, color: TI.secondary, margin: "2px 0 0" }}>{log.userName}</p>}
                                   {log.details && log.action && (
                                     <p style={{ fontSize: 11, fontStyle: "italic", color: TI.secondary, backgroundColor: "#f3f4f3", padding: "6px 8px", borderRadius: 6, margin: "6px 0 0" }}>
@@ -1322,7 +1367,7 @@ export default function Solicitacao() {
                                     </p>
                                   )}
                                 </div>
-                                <span style={{ fontSize: 10, fontWeight: 700, color: TI.muted, whiteSpace: "nowrap", fontFamily: "monospace" }}>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: "#78716c", whiteSpace: "nowrap", fontFamily: "monospace" }}>
                                   {log.createdAt ? new Date(log.createdAt).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : ""}
                                 </span>
                               </div>
@@ -1335,16 +1380,19 @@ export default function Solicitacao() {
                 </div>
               </div>
 
-              {/* Right footer — keyboard shortcuts */}
-              <div style={{ padding: "14px 24px", backgroundColor: "#fafaf9", borderTop: "1px solid #f0efee", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 10, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em" }}>Atalhos:</span>
-                  <span style={{ fontSize: 10, fontWeight: 900, backgroundColor: "#e7e5e4", padding: "2px 6px", borderRadius: 6, color: TI.text }}>Enter</span>
-                  <span style={{ fontSize: 10, color: TI.secondary }}>Liberar</span>
-                  <span style={{ fontSize: 10, fontWeight: 900, backgroundColor: "#e7e5e4", padding: "2px 6px", borderRadius: 6, color: TI.text }}>Esc</span>
-                  <span style={{ fontSize: 10, color: TI.secondary }}>Fechar</span>
+              {/* Rodapé de atalhos: só no desktop — no mobile não há teclado
+                  físico e o rodapé roubava altura do modal. */}
+              {!isMobile && (
+                <div style={{ padding: "14px 24px", backgroundColor: "#fafaf9", borderTop: "1px solid #f0efee", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em" }}>Atalhos:</span>
+                    <span style={{ fontSize: 10, fontWeight: 900, backgroundColor: "#e7e5e4", padding: "2px 6px", borderRadius: 6, color: TI.text }}>Enter</span>
+                    <span style={{ fontSize: 10, color: TI.secondary }}>Liberar</span>
+                    <span style={{ fontSize: 10, fontWeight: 900, backgroundColor: "#e7e5e4", padding: "2px 6px", borderRadius: 6, color: TI.text }}>Esc</span>
+                    <span style={{ fontSize: 10, color: TI.secondary }}>Fechar</span>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         </DialogContent>
@@ -1527,6 +1575,8 @@ export default function Solicitacao() {
                       max={qty - 1}
                       value={partialReuseQty}
                       onChange={e => setPartialReuseQty(Math.max(1, Math.min(qty - 1, parseInt(e.target.value) || 1)))}
+                      aria-label="Unidades reaproveitadas"
+                      data-testid="input-partial-reuse-qty"
                       style={{ width: 64, height: 34, padding: "0 8px", borderRadius: 6, border: "1px solid #d4d4d0", fontSize: 15, fontWeight: 700, textAlign: "center" }}
                     />
                     <span style={{ fontSize: 13, color: "#746e69" }}>de {qty} un. reaproveitadas</span>
@@ -1577,7 +1627,11 @@ export default function Solicitacao() {
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-delete-cancel">Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteConfirmItemId && deleteItemMutation.mutate(deleteConfirmItemId)}
+              onClick={(e) => {
+                e.preventDefault(); // a mutation controla o fechamento (mantém aberto em erro)
+                if (deleteConfirmItemId) deleteItemMutation.mutate(deleteConfirmItemId);
+              }}
+              disabled={deleteItemMutation.isPending}
               className="bg-destructive text-destructive-foreground"
               data-testid="button-delete-confirm"
             >

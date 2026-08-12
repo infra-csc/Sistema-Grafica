@@ -16,6 +16,15 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -305,6 +314,10 @@ export function ImportXlsxDialog({
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
+  // Confirmação de descarte no padrão visual da casa — o window.confirm
+  // nativo destoava do produto (flagrado em produção).
+  const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
+
   // Predicado único da busca do preview — usado na contagem, no "+ Todos" e
   // no empty-state de filtro sem resultado.
   const importQ = importSearch.toLowerCase();
@@ -315,10 +328,10 @@ export function ImportXlsxDialog({
     <Dialog open={open} onOpenChange={(v) => {
       if (!v) {
         // Preview carregado = trabalho de edição/vinculação em andamento.
-        // Fechar (X/Esc/clique-fora) descartava tudo sem perguntar — o irmão
-        // Modo Lote confirma; aqui passa a confirmar também.
-        if (importPreviewItems && importPreviewItems.length > 0 &&
-            !window.confirm("Descartar a importação em andamento? As edições e vinculações feitas no preview serão perdidas.")) {
+        // Fechar (X/Esc/clique-fora) descartava tudo sem perguntar; a
+        // confirmação usa o AlertDialog da casa (o confirm() nativo destoava).
+        if (importPreviewItems && importPreviewItems.length > 0) {
+          setConfirmDiscardOpen(true);
           return;
         }
         onOpenChangeClose();
@@ -510,8 +523,10 @@ export function ImportXlsxDialog({
         {/* ── Right panel: table ── */}
         {importPreviewItems && (
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-            {/* Search bar */}
-            <div style={{ padding: '10px 16px', borderBottom: '1px solid #e7e5e4', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            {/* Search bar. paddingRight extra: o X nativo do dialog vive em
+                right-4/top-4 e ficava POR CIMA do botão "+ Todos
+                patrocinadores" — colisão flagrada em produção. */}
+            <div style={{ padding: '10px 44px 10px 16px', borderBottom: '1px solid #e7e5e4', backgroundColor: '#ffffff', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
               <div style={{ position: 'relative', flex: 1 }}>
                 <Search style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', width: 13, height: 13, color: '#8a847e', pointerEvents: 'none' }} />
                 <input
@@ -645,6 +660,28 @@ export function ImportXlsxDialog({
         )}
         </div>{/* wrapper flex row */}
       </DialogContent>
+
+      {/* Confirmação de descarte da importação — padrão da casa */}
+      <AlertDialog open={confirmDiscardOpen} onOpenChange={setConfirmDiscardOpen}>
+        <AlertDialogContent style={{ width: '96vw', maxWidth: 420, borderRadius: 16 }}>
+          <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 700, color: '#1c1917' }}>
+            Descartar importação?
+          </AlertDialogTitle>
+          <AlertDialogDescription style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6 }}>
+            As edições e vinculações feitas no preview serão perdidas.
+          </AlertDialogDescription>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-keep-import">Continuar editando</AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="button-discard-import"
+              onClick={() => { setConfirmDiscardOpen(false); onOpenChangeClose(); }}
+              style={{ backgroundColor: '#dc2626', color: '#fff' }}
+            >
+              Descartar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Dialog>
   );
 }

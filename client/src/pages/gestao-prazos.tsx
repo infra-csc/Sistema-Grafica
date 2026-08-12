@@ -305,7 +305,7 @@ function KpiCard({
 export default function GestaoPrazos() {
   const isMobile = useIsMobile();
 
-  const { data, isLoading, isError, refetch, isFetching } = useQuery<PrazosPayload>({
+  const { data, isLoading, isError, error, refetch, isFetching } = useQuery<PrazosPayload>({
     queryKey: ["/api/prazos"],
   });
 
@@ -398,7 +398,9 @@ export default function GestaoPrazos() {
           Não foi possível carregar os prazos
         </p>
         <p style={{ margin: "0 0 16px", fontSize: 13, color: TI.secondary }}>
-          Verifique a conexão e tente novamente.
+          {error instanceof Error && error.message
+            ? error.message
+            : "Verifique a conexão e tente novamente."}
         </p>
         <button
           type="button"

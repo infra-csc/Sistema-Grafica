@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
   X, Trash2, Warehouse, Package2,
   Tag, Calendar, Layers, CheckCircle2,
@@ -7,8 +7,9 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { CONDITIONS, CONDITION_META, type Condition } from "@/lib/inventory-meta";
-import type { EnrichedAsset } from "@/pages/triagem-retorno";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
+import { CONDITIONS, CONDITION_META, type Condition, type EnrichedAsset } from "@/lib/inventory-meta";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type TriagemResult = "NO_GALPAO" | "MANUTENCAO" | "DESCARTADO";
@@ -43,9 +44,15 @@ export function TriagemModal({
   asset, linkedItem, entry, open, isSaving, isSaved, user,
   onOpenChange, onUpdateCondition, onUpdateResult, onUpdateNotes, onSaveAndClose,
 }: TriagemModalProps) {
+  // Hooks SEMPRE antes do guard — chamá-los depois de um return condicional
+  // viola as regras de hooks quando asset/entry alternam entre null e valor.
+  const isMobile = useIsMobile();
+  const [thumbImgFailed, setThumbImgFailed] = useState(false);
+
   if (!asset || !entry) return null;
 
-  const condition: Condition | null = entry.splits[0]?.condition ?? "PERFEITO";
+  // `?? "PERFEITO"` cobre null/undefined — daqui em diante nunca é null.
+  const condition: Condition = entry.splits[0]?.condition ?? "PERFEITO";
   const result    = entry.splits[0]?.result    ?? "NO_GALPAO";
   const notes     = entry.notes;
   const qty       = asset.quantity ?? 1;
@@ -55,7 +62,6 @@ export function TriagemModal({
     /\.(png|jpg|jpeg|gif|webp)/i.test(thumbUrl) ||
     thumbUrl.startsWith('/objects/')
   );
-  const [thumbImgFailed, setThumbImgFailed] = useState(false);
 
   async function handleSave() {
     await onSaveAndClose();
@@ -65,21 +71,28 @@ export function TriagemModal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="p-0 gap-0 overflow-hidden border-0"
+        className={`p-0 gap-0 border-0 ${HIDE_NATIVE_CLOSE}`}
         style={{
           maxWidth: 1040, width: "calc(100vw - 48px)",
           maxHeight: "90vh", borderRadius: 12,
           boxShadow: "0 32px 64px -12px rgba(0,0,0,0.45)",
-          display: "flex", flexDirection: "row",
+          // Mobile empilha sidebar e conteúdo (padrão do AssetDetailModal).
+          display: "flex", flexDirection: isMobile ? "column" : "row",
+          overflow: isMobile ? "auto" : "hidden",
         }}
       >
+        <DialogTitle className="sr-only">{`Triagem de ${asset.displayId} — ${asset.name}`}</DialogTitle>
+        <DialogDescription className="sr-only">
+          Classifique a condição e o destino do material retornado do evento.
+        </DialogDescription>
+
         {/* ══════════════════════════════════════════
             LEFT SIDEBAR — Dark
         ══════════════════════════════════════════ */}
         <aside style={{
-          width: 264, flexShrink: 0, background: "#111827",
+          width: isMobile ? "100%" : 264, flexShrink: 0, background: "#111827",
           display: "flex", flexDirection: "column",
-          borderRadius: "12px 0 0 12px",
+          borderRadius: isMobile ? "12px 12px 0 0" : "12px 0 0 12px",
         }}>
           {/* Logo */}
           <div style={{ padding: "24px 24px 20px", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
@@ -252,8 +265,10 @@ export function TriagemModal({
         ══════════════════════════════════════════ */}
         <div style={{
           flex: 1, display: "flex", flexDirection: "column",
-          minWidth: 0, maxHeight: "90vh", overflow: "hidden",
-          borderRadius: "0 12px 12px 0",
+          minWidth: 0,
+          maxHeight: isMobile ? undefined : "90vh",
+          overflow: isMobile ? "visible" : "hidden",
+          borderRadius: isMobile ? "0 0 12px 12px" : "0 12px 12px 0",
         }}>
           {/* ── Sticky Header ── */}
           <header style={{
@@ -453,22 +468,22 @@ export function TriagemModal({
                   )}
                   <button
                     onClick={handleSave}
-                    disabled={isSaving || isSaved || condition === null}
+                    disabled={isSaving || isSaved}
                     data-testid="button-triage-modal-save"
                     style={{
                       display: "flex", alignItems: "center", gap: 8,
                       padding: "10px 28px", borderRadius: 8, border: "none",
-                      background: (isSaved || condition === null) ? "#f1f5f9" : "#9d4300",
-                      color: (isSaved || condition === null) ? "#94a3b8" : "#fff",
+                      background: isSaved ? "#f1f5f9" : "#9d4300",
+                      color: isSaved ? "#94a3b8" : "#fff",
                       fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
                       fontSize: 12, textTransform: "uppercase", letterSpacing: "0.08em",
-                      cursor: (isSaved || condition === null) ? "default" : "pointer",
-                      boxShadow: (isSaved || condition === null) ? "none" : "0 4px 16px rgba(157,67,0,0.28)",
+                      cursor: isSaved ? "default" : "pointer",
+                      boxShadow: isSaved ? "none" : "0 4px 16px rgba(157,67,0,0.28)",
                       transition: "all 0.15s",
                       opacity: isSaving ? 0.6 : 1,
                     }}
                   >
-                    {isSaving ? "Salvando..." : isSaved ? "Salvo" : condition === null ? "Selecione a Condição" : "Salvar e Fechar"}
+                    {isSaving ? "Salvando..." : isSaved ? "Salvo" : "Salvar e Fechar"}
                   </button>
                 </div>
               </div>

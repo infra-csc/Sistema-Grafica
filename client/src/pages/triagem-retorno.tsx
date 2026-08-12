@@ -4,7 +4,6 @@ import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { InventoryAsset } from "@shared/schema";
 import {
   ScanSearch, CheckCircle2, Package, Save,
   CalendarDays, X, Scissors, Sparkles, Trash2, Eye, Wrench,
@@ -14,7 +13,10 @@ import { TriagemModal } from "@/components/triagem-modal";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { useAuth } from "@/contexts/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { CONDITION_META, type Condition, type ConditionMeta } from "@/lib/inventory-meta";
+import { CONDITION_META, type Condition, type ConditionMeta, type EnrichedAsset } from "@/lib/inventory-meta";
+
+// Re-export para compatibilidade — a definição vive em @/lib/inventory-meta.
+export type { EnrichedAsset };
 
 type TriagemResult = "NO_GALPAO" | "MANUTENCAO" | "DESCARTADO";
 const RESULT_META: Record<TriagemResult, { label: string; color: string; bg: string; border: string; activeBg: string; activeColor: string }> = {
@@ -47,16 +49,6 @@ function ThumbCell({ url, size = 15 }: { url?: string | null; size?: number }) {
 function makeEntry(totalQty: number): TriagemEntry {
   return { splits: makeSplits(totalQty), notes: "", selected: false, mode: "all" };
 }
-
-// Payload de /api/inventory/awaiting-triage — o servidor enriquece o ativo
-// com evento (id/nome/data) e patrocinadores resolvidos. Tipo único,
-// importado também pelo TriagemModal.
-export type EnrichedAsset = InventoryAsset & {
-  eventId: string | null;
-  eventName: string | null;
-  eventDate: string | null;
-  sponsors: { id: string; name: string }[];
-};
 
 // ─── Stat card (matches estoque layout) ───────────────────────────────────────
 function StatCard({ label, value, color, Icon }: {
@@ -201,9 +193,10 @@ function LabeledTriageToggles({
 }
 
 // ─── Split Progress Bar ───────────────────────────────────────────────────────
-const PROG_COLORS: Record<Condition, string> = {
-  PERFEITO: "#16a34a", AVARIA_LEVE: "#f59e0b", SUCATA: "#dc2626",
-};
+// Cores derivadas de CONDITION_META — fonte única, sem cópia local.
+const PROG_COLORS = Object.fromEntries(
+  (Object.entries(CONDITION_META) as [Condition, ConditionMeta][]).map(([c, m]) => [c, m.color]),
+) as Record<Condition, string>;
 function SplitProgress({ splits, total }: { splits: SplitLine[]; total: number }) {
   const sum = splits.reduce((s, l) => s + l.qty, 0);
   const pct = Math.min(100, Math.round((sum / total) * 100));
@@ -270,8 +263,11 @@ export default function TriagemRetorno() {
   const getEntry = (id: string, totalQty?: number): TriagemEntry =>
     entries[id] ?? makeEntry(totalQty ?? 1);
 
-  const updateEntry = (id: string, patch: Partial<TriagemEntry>) =>
-    setEntries(prev => ({ ...prev, [id]: { ...getEntry(id), ...patch } }));
+  // Lê `prev` dentro do updater (não o closure `entries`): duas atualizações
+  // no mesmo tick não se descartam. `totalQty` evita criar entry com splits
+  // de qty=1 para item ×N — sem ele, o Salvar travava em `splitValid`.
+  const updateEntry = (id: string, patch: Partial<TriagemEntry>, totalQty?: number) =>
+    setEntries(prev => ({ ...prev, [id]: { ...(prev[id] ?? makeEntry(totalQty ?? 1)), ...patch } }));
 
   const updateSplit = (id: string, splitIdx: number, patch: Partial<SplitLine>) =>
     setEntries(prev => {
@@ -360,18 +356,23 @@ export default function TriagemRetorno() {
   // MANUTENCAO é um conceito de UI — no banco mapeia para NO_GALPAO (condição AVARIA_LEVE indica a necessidade de reparo)
   const toDbStatus = (r: TriagemResult): string => r === "DESCARTADO" ? "DESCARTADO" : "NO_GALPAO";
 
+  // Destino MANUTENCAO persiste a condição como AVARIA_LEVE — cumpre a
+  // microcopy "Volta ao galpão como Avaria Leve para reparo" do toggle.
+  const toDbCondition = (s: SplitLine): Condition | null =>
+    s.result === "MANUTENCAO" ? "AVARIA_LEVE" : s.condition;
+
   const doTriage = async (assetId: string, totalQty: number) => {
     const entry = getEntry(assetId, totalQty);
     if (entry.splits.length === 1) {
       await apiRequest("PATCH", `/api/inventory/${assetId}/triage`, {
-        condition: entry.splits[0].condition,
+        condition: toDbCondition(entry.splits[0]),
         notes: entry.notes,
         trackingStatus: toDbStatus(entry.splits[0].result),
       });
     } else {
       await apiRequest("POST", `/api/inventory/${assetId}/triage-split`, {
         splits: entry.splits.map(s => ({
-          qty: s.qty, condition: s.condition,
+          qty: s.qty, condition: toDbCondition(s),
           trackingStatus: toDbStatus(s.result),
           notes: entry.notes,
         })),
@@ -551,7 +552,8 @@ export default function TriagemRetorno() {
 
       {/* ── Stats ── */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-        <StatCard label="Na Fila" value={awaitingAssets.length} color="#c2610c" Icon={ScanSearch} />
+        {/* Desconta os já triados na sessão — o card acompanha a fila real. */}
+        <StatCard label="Na Fila" value={Math.max(0, awaitingAssets.length - savedIds.size)} color="#c2610c" Icon={ScanSearch} />
         <StatCard label="Selecionados" value={selectedIds.length} color="#16a34a" Icon={Users} />
         <StatCard label="Triados nesta sessão" value={savedIds.size} color="#2563eb" Icon={CheckCircle2} />
       </div>
@@ -669,8 +671,18 @@ export default function TriagemRetorno() {
       {/* ── Table ── */}
       <div>
       {isLoading ? (
-        <div style={{ display: "flex", justifyContent: "center", padding: "48px 0" }}>
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
+        /* Skeleton no padrão da tabela do estoque — evita o "salto" do spinner. */
+        <div data-testid="skeleton-triagem" aria-busy="true" style={{ background: "#fff", borderRadius: 16, border: "1px solid #e2e8f0", padding: "8px 24px", boxShadow: "0 4px 16px rgba(0,0,0,0.05)" }}>
+          {[0, 1, 2, 3, 4, 5].map(i => (
+            <div key={i} className="animate-pulse" style={{ display: "flex", alignItems: "center", gap: 18, padding: "16px 0", borderBottom: i < 5 ? "1px solid #f1f5f9" : "none" }}>
+              <div style={{ width: 15, height: 15, borderRadius: 4, background: "#e2e8f0", flexShrink: 0 }} />
+              <div style={{ width: 36, height: 36, borderRadius: 8, background: "#e2e8f0", flexShrink: 0 }} />
+              <div style={{ flex: 1, height: 12, borderRadius: 6, background: "#e2e8f0" }} />
+              <div style={{ width: 130, height: 12, borderRadius: 6, background: "#e2e8f0", flexShrink: 0 }} />
+              <div style={{ width: 180, height: 22, borderRadius: 8, background: "#e2e8f0", flexShrink: 0 }} />
+              <div style={{ width: 70, height: 12, borderRadius: 6, background: "#e2e8f0", flexShrink: 0 }} />
+            </div>
+          ))}
         </div>
       ) : isError ? (
         <div style={{ background: "#fff", borderRadius: 16, border: "1px solid #fecaca", padding: 60, textAlign: "center" }}>
@@ -720,50 +732,47 @@ export default function TriagemRetorno() {
                   const splitSum = entry.splits.reduce((s, l) => s + l.qty, 0);
                   const splitValid = splitSum === qty;
                   const isFocused = focusedId === asset.id;
+                  // Cor do anel derivada de CONDITION_META — fonte única.
                   const condRingColor = entry.splits[0].condition
-                    ? ({ PERFEITO: "#16a34a", AVARIA_LEVE: "#f59e0b", SUCATA: "#dc2626" } as Record<Condition,string>)[entry.splits[0].condition]
+                    ? CONDITION_META[entry.splits[0].condition].color
                     : "#e2e8f0";
                   const thumbRing = isSaved ? "0 0 0 2px #e2e8f0" : `0 0 0 2px ${condRingColor}`;
 
                   const baseRowBg = idx % 2 === 1 ? "#fafaf9" : "#ffffff";
                   return (
                     <tr key={asset.id} data-testid={`row-triage-${asset.id}`}
-                      tabIndex={isSaved ? -1 : 0}
-                      role="button"
-                      aria-label={`Selecionar ${asset.name} para triagem em lote`}
+                      /* Sem role="button" no <tr>: a linha mantém a semântica
+                         implícita de row; o acesso por teclado é do checkbox. */
                       onClick={() => {
                         if (!isSaved) {
                           setFocusedId(asset.id);
-                          updateEntry(asset.id, { selected: !entry.selected });
-                        }
-                      }}
-                      onKeyDown={e => {
-                        if (isSaved || e.target !== e.currentTarget) return;
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          setFocusedId(asset.id);
-                          updateEntry(asset.id, { selected: !entry.selected });
+                          updateEntry(asset.id, { selected: !entry.selected }, qty);
                         }
                       }}
                       style={{
                         opacity: isSaved ? 0.8 : 1,
                         filter: isSaved ? "grayscale(0.5)" : "none",
-                        backgroundColor: isFocused && !isSaved ? "#f8fafc" : baseRowBg,
+                        // Selecionada tem realce próprio; foco e zebra são fallback.
+                        backgroundColor: entry.selected && !isSaved ? "#fff7ed"
+                          : isFocused && !isSaved ? "#f8fafc" : baseRowBg,
                         transition: "background-color 0.12s",
                         borderBottom: "1px solid rgba(226,232,240,0.6)",
-                        borderLeft: isFocused && !isSaved ? "3px solid #c2610c" : "3px solid transparent",
+                        borderLeft: (entry.selected || isFocused) && !isSaved ? "3px solid #c2610c" : "3px solid transparent",
                         cursor: isSaved ? "default" : "pointer",
                       }}
-                      onMouseEnter={e => { if (!isSaved && !isFocused) (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "#f8fafc"; }}
-                      onMouseLeave={e => { if (!isSaved && !isFocused) (e.currentTarget as HTMLTableRowElement).style.backgroundColor = baseRowBg; }}
+                      onMouseEnter={e => { if (!isSaved && !isFocused && !entry.selected) (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "#f8fafc"; }}
+                      onMouseLeave={e => { if (!isSaved && !isFocused && !entry.selected) (e.currentTarget as HTMLTableRowElement).style.backgroundColor = baseRowBg; }}
                     >
-                      {/* Checkbox */}
+                      {/* Checkbox — âncora de teclado da linha */}
                       <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
                         {isSaved
                           ? <CheckCircle2 size={17} color="#16a34a" />
                           : <input type="checkbox" data-testid={`checkbox-asset-${asset.id}`}
+                              aria-label={`Selecionar ${asset.name} para triagem em lote`}
                               checked={entry.selected}
-                              onChange={e => { e.stopPropagation(); updateEntry(asset.id, { selected: e.target.checked }); }}
+                              onChange={e => { e.stopPropagation(); updateEntry(asset.id, { selected: e.target.checked }, qty); }}
+                              onClick={e => e.stopPropagation()}
+                              onFocus={() => setFocusedId(asset.id)}
                               style={{ width: 16, height: 16, cursor: "pointer", accentColor: "#2563eb" }}
                             />
                         }
@@ -952,7 +961,7 @@ export default function TriagemRetorno() {
                           <input data-testid={`input-notes-${asset.id}`}
                             type="text" placeholder="Adicionar nota..."
                             value={entry.notes}
-                            onChange={e => updateEntry(asset.id, { notes: e.target.value })}
+                            onChange={e => updateEntry(asset.id, { notes: e.target.value }, qty)}
                             onClick={e => e.stopPropagation()}
                             onFocus={() => setFocusedId(asset.id)}
                             onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); handleSingle(asset); } }}
@@ -1017,12 +1026,18 @@ export default function TriagemRetorno() {
       {/* ── Floating pill ── */}
       {selectedIds.length > 0 && (
         <div style={{
-          position: "fixed", bottom: 52, left: "50%", transform: "translateX(-50%)",
-          zIndex: 50, pointerEvents: "auto",
+          // No mobile a pill ancora nas laterais (left/right 16) em vez de
+          // centralizar por transform — senão estoura a viewport estreita.
+          position: "fixed", bottom: 52, zIndex: 50, pointerEvents: "auto",
+          ...(isMobile
+            ? { left: 16, right: 16, transform: "none" }
+            : { left: "50%", transform: "translateX(-50%)" }),
         }}>
           <div style={{
-            display: "flex", alignItems: "center", gap: 20,
-            padding: "12px 20px", borderRadius: 9999,
+            display: "flex", alignItems: "center", gap: isMobile ? 12 : 20,
+            flexWrap: isMobile ? "wrap" : "nowrap",
+            justifyContent: isMobile ? "space-between" : "flex-start",
+            padding: "12px 20px", borderRadius: isMobile ? 20 : 9999,
             background: "#0f172a",
             boxShadow: "0 12px 40px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.06)",
           }}>
@@ -1035,25 +1050,28 @@ export default function TriagemRetorno() {
                 {selectedIds.length === 1 ? "item" : "itens"} selecionados
               </span>
             </div>
-            {/* Divider */}
-            <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.12)" }} />
-            {/* Quick presets */}
-            <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
-              <button data-testid="button-bulk-preset-perfeito" onClick={() => applyBulkPreset("PERFEITO", "NO_GALPAO")}
-                style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 11px", borderRadius: 9999, border: "1px solid rgba(147,197,253,0.4)", background: "rgba(30,64,175,0.5)", color: "#93c5fd", fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
-                <Sparkles size={10} /> Perfeitos → Galpão
-              </button>
-              <button data-testid="button-bulk-preset-manutencao" onClick={() => applyBulkPreset("AVARIA_LEVE", "MANUTENCAO")}
-                style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 11px", borderRadius: 9999, border: "1px solid rgba(252,211,77,0.4)", background: "rgba(146,64,14,0.45)", color: "#fcd34d", fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
-                <Wrench size={10} /> Avaria → Manutenção
-              </button>
-              <button data-testid="button-bulk-preset-sucata" onClick={() => applyBulkPreset("SUCATA", "DESCARTADO")}
-                style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 11px", borderRadius: 9999, border: "1px solid rgba(252,165,165,0.4)", background: "rgba(185,28,28,0.45)", color: "#fca5a5", fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
-                <Trash2 size={10} /> Sucata → Descartar
-              </button>
-            </div>
-            {/* Divider */}
-            <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.12)" }} />
+            {/* Presets rápidos — ocultos no mobile: já existem por linha e não
+                cabem na pill estreita. */}
+            {!isMobile && (
+              <>
+                <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.12)" }} />
+                <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                  <button data-testid="button-bulk-preset-perfeito" onClick={() => applyBulkPreset("PERFEITO", "NO_GALPAO")}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 11px", borderRadius: 9999, border: "1px solid rgba(147,197,253,0.4)", background: "rgba(30,64,175,0.5)", color: "#93c5fd", fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
+                    <Sparkles size={10} /> Perfeitos → Galpão
+                  </button>
+                  <button data-testid="button-bulk-preset-manutencao" onClick={() => applyBulkPreset("AVARIA_LEVE", "MANUTENCAO")}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 11px", borderRadius: 9999, border: "1px solid rgba(252,211,77,0.4)", background: "rgba(146,64,14,0.45)", color: "#fcd34d", fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
+                    <Wrench size={10} /> Avaria → Manutenção
+                  </button>
+                  <button data-testid="button-bulk-preset-sucata" onClick={() => applyBulkPreset("SUCATA", "DESCARTADO")}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "5px 11px", borderRadius: 9999, border: "1px solid rgba(252,165,165,0.4)", background: "rgba(185,28,28,0.45)", color: "#fca5a5", fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", whiteSpace: "nowrap" }}>
+                    <Trash2 size={10} /> Sucata → Descartar
+                  </button>
+                </div>
+                <div style={{ width: 1, height: 24, background: "rgba(255,255,255,0.12)" }} />
+              </>
+            )}
             {/* Actions */}
             <div style={{ display: "flex", gap: 8 }}>
               <button data-testid="button-bulk-confirm" onClick={handleBulk}
@@ -1081,13 +1099,16 @@ export default function TriagemRetorno() {
         onOpenChange={(open) => { if (!open) setSelectedAsset(null); }}
         onUpdateCondition={(c) => { if (selectedAsset) smartUpdateSplit(selectedAsset.id, 0, c); }}
         onUpdateResult={(r) => { if (selectedAsset) updateSplit(selectedAsset.id, 0, { result: r }); }}
-        onUpdateNotes={(notes) => { if (selectedAsset) updateEntry(selectedAsset.id, { notes }); }}
+        onUpdateNotes={(notes) => { if (selectedAsset) updateEntry(selectedAsset.id, { notes }, selectedAsset.quantity ?? 1); }}
         onSaveAndClose={async () => { if (selectedAsset) { await handleSingle(selectedAsset); setSelectedAsset(null); } }}
       />
 
-      {/* Iguala a altura do trigger do EventFilterDropdown aos 44px dos
-          demais filtros — componente compartilhado, sem prop de estilo. */}
-      <style>{`.event-filter-44 > div > button { height: 44px !important; }`}</style>
+      {/* Iguala o trigger do EventFilterDropdown aos demais filtros (44px de
+          altura e largura total) — componente compartilhado, sem prop de estilo. */}
+      <style>{`
+        .event-filter-44 > div { width: 100%; }
+        .event-filter-44 > div > button { height: 44px !important; width: 100%; }
+      `}</style>
     </div>
   );
 }

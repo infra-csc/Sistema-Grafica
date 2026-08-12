@@ -11,6 +11,7 @@
  */
 import type { ElementType } from "react";
 import { Sparkles, Hammer, Trash2 } from "lucide-react";
+import type { InventoryAsset } from "@shared/schema";
 
 export const CONDITIONS = ["PERFEITO", "AVARIA_LEVE", "SUCATA"] as const;
 export type Condition = (typeof CONDITIONS)[number];
@@ -28,10 +29,24 @@ export interface ConditionMeta {
   Icon: ElementType;
 }
 
+// Cores de texto no tom 700 (#15803d / #b45309 / #b91c1c): os tons 600
+// reprovavam contraste AA sobre os fundos claros dos chips.
 export const CONDITION_META: Record<Condition, ConditionMeta> = {
-  PERFEITO:    { label: "Perfeito",    color: "#16a34a", bg: "#f0fdf4", border: "#86efac", activeBg: "#dcfce7", Icon: Sparkles },
+  PERFEITO:    { label: "Perfeito",    color: "#15803d", bg: "#f0fdf4", border: "#86efac", activeBg: "#dcfce7", Icon: Sparkles },
   AVARIA_LEVE: { label: "Avaria Leve", color: "#b45309", bg: "#fffbeb", border: "#fcd34d", activeBg: "#fef3c7", Icon: Hammer },
-  SUCATA:      { label: "Sucata",      color: "#dc2626", bg: "#fef2f2", border: "#fca5a5", activeBg: "#fee2e2", Icon: Trash2 },
+  SUCATA:      { label: "Sucata",      color: "#b91c1c", bg: "#fef2f2", border: "#fca5a5", activeBg: "#fee2e2", Icon: Trash2 },
+};
+
+/**
+ * Payload de /api/inventory/awaiting-triage — o servidor enriquece o ativo
+ * com evento (id/nome/data) e patrocinadores resolvidos. Tipo único,
+ * importado por triagem-retorno e pelo TriagemModal.
+ */
+export type EnrichedAsset = InventoryAsset & {
+  eventId: string | null;
+  eventName: string | null;
+  eventDate: string | null;
+  sponsors: { id: string; name: string }[];
 };
 
 /**

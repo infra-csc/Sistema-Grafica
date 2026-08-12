@@ -9,12 +9,12 @@ import type { InventoryAsset, Sponsor, Event } from "@shared/schema";
 import {
   Archive, Search, Pencil, Trash2, CheckCircle2,
   XCircle, MapPin, Tag, X, Package, Warehouse, Truck, ScanSearch, Calendar, CalendarDays,
-  Grid3X3, Eye, Check, Sparkles, Hammer, Layers, ClipboardCheck,
+  Grid3X3, Eye, Check, Layers, ClipboardCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogContent, AlertDialogTitle, AlertDialogDescription,
 } from "@/components/ui/alert-dialog";
@@ -23,9 +23,11 @@ import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { CONDITIONS, CONDITION_META, conditionMeta, type Condition } from "@/lib/inventory-meta";
 
 // ─── Status meta ─────────────────────────────────────────────────────────────
+// Tons 700/800 (#15803d, #9a3412): os 600 reprovavam contraste AA no texto
+// pequeno em caps da coluna Status.
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
-  NO_GALPAO:          { label: "No Galpão",   color: "#16a34a", bg: "rgba(22,163,74,0.10)"  },
-  EM_USO:             { label: "Em Uso",       color: "#ea580c", bg: "rgba(234,88,12,0.10)"  },
+  NO_GALPAO:          { label: "No Galpão",   color: "#15803d", bg: "rgba(22,163,74,0.10)"  },
+  EM_USO:             { label: "Em Uso",       color: "#9a3412", bg: "rgba(234,88,12,0.10)"  },
   AGUARDANDO_TRIAGEM: { label: "Ag. Triagem",  color: "#b45309", bg: "rgba(180,83,9,0.10)"   },
   DESCARTADO:         { label: "Descartado",   color: "#6b7280", bg: "rgba(107,114,128,0.10)"},
 };
@@ -61,8 +63,8 @@ function StatCard({ label, value, Icon, color, subtext, subColor, onClick, activ
       onMouseEnter={() => setHov(true)}
       onMouseLeave={() => setHov(false)}
     >
-      {/* Label */}
-      <span style={{ fontSize: 10, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.18em" }}>
+      {/* Label — #64748b: o #94a3b8 anterior reprovava contraste AA */}
+      <span style={{ fontSize: 10, fontWeight: 700, color: "#64748b", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.18em" }}>
         {label}
       </span>
       {/* Value + faded icon */}
@@ -136,7 +138,6 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
   linkedItem?: any;
   sponsors: Sponsor[];
   onClose: () => void;
-  onSaved?: () => void;
 }) {
   const isMobile = useIsMobile();
   const assetSponsors = (asset.sponsorIds ?? []).map(id => sponsors.find(s => s.id === id)).filter(Boolean) as Sponsor[];
@@ -206,6 +207,9 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
         }}
       >
         <DialogTitle className="sr-only">{`Detalhes do ativo ${asset.displayId} — ${asset.name}`}</DialogTitle>
+        <DialogDescription className="sr-only">
+          Rastreabilidade, especificações técnicas e situação atual do ativo.
+        </DialogDescription>
 
         {/* ── Sidebar ── */}
         <aside style={{ width: isMobile ? "100%" : 264, flexShrink: 0, background: "#1c1917", display: "flex", flexDirection: "column", padding: "28px 22px" }}>
@@ -397,7 +401,7 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
               {/* Condition chip */}
               <div style={{ flex: 1, background: "#fff", borderRadius: 10, padding: "16px 20px", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ width: 40, height: 40, borderRadius: 8, background: cm.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  {asset.condition === "PERFEITO" ? <Sparkles size={18} color={cm.color} /> : asset.condition === "AVARIA_LEVE" ? <Hammer size={18} color={cm.color} /> : <Trash2 size={18} color={cm.color} />}
+                  <cm.Icon size={18} color={cm.color} />
                 </div>
                 <div>
                   <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, fontSize: 9, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.12em" }}>Condição</div>
@@ -589,7 +593,9 @@ function MapaGalpao({ value, onSelect, onClose }: {
               <DialogTitle asChild>
                 <p style={{ margin: 0, fontSize: 14, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a" }}>Mapa do Galpão</p>
               </DialogTitle>
-              <p style={{ margin: 0, fontSize: 10, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif" }}>Clique para selecionar a localização</p>
+              <DialogDescription asChild>
+                <p style={{ margin: 0, fontSize: 10, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif" }}>Clique para selecionar e confirme a localização</p>
+              </DialogDescription>
             </div>
           </div>
           <button onClick={onClose} style={{ background: "#f1f5f9", border: "none", width: 30, height: 30, borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#64748b" }}>
@@ -686,7 +692,7 @@ function AssetModal({ asset, onClose, onSaved }: {
     color: "#0f172a", outline: "none", boxSizing: "border-box",
   };
   const LBL: React.CSSProperties = {
-    fontSize: 10, fontWeight: 700, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif",
+    fontSize: 10, fontWeight: 700, color: "#64748b", fontFamily: "Space Grotesk, sans-serif",
     textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 6,
   };
 
@@ -707,6 +713,9 @@ function AssetModal({ asset, onClose, onSaved }: {
           boxShadow: "0 25px 60px rgba(0,0,0,0.2)",
         }}
       >
+        <DialogDescription className="sr-only">
+          Formulário de cadastro e edição de ativo do acervo.
+        </DialogDescription>
         <div style={{ background: "#f97316", padding: "20px 24px", display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ width: 48, height: 48, borderRadius: 12, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Archive size={22} color="#fff" />
@@ -756,7 +765,9 @@ function AssetModal({ asset, onClose, onSaved }: {
           {showMapa && (
             <MapaGalpao
               value={form.location}
-              onSelect={loc => { setForm(f => ({ ...f, location: loc })); setShowMapa(false); }}
+              /* onSelect só grava — o modal fecha no Confirmar, permitindo
+                 trocar de célula antes de decidir. */
+              onSelect={loc => setForm(f => ({ ...f, location: loc }))}
               onClose={() => setShowMapa(false)}
             />
           )}
@@ -863,8 +874,9 @@ export default function Estoque() {
   const [editing, setEditing] = useState<InventoryAsset | null | false>(false);
   const [deleting, setDeleting] = useState<InventoryAsset | null>(null);
   // Fechamento por clique-fora/Escape do popover de condição agora é do
-  // Radix (ui/popover) — sem listener manual em document.
-  const [quickEdit, setQuickEdit] = useState<{ assetId: string; field: "condition" | "status" } | null>(null);
+  // Radix (ui/popover) — sem listener manual em document. Só "condition" tem
+  // edição rápida; o status é definido pelo ciclo do evento.
+  const [quickEdit, setQuickEdit] = useState<{ assetId: string; field: "condition" } | null>(null);
   const [viewingAsset, setViewingAsset] = useState<InventoryAsset | null>(null);
 
   const { data: assets = [], isLoading, isError, refetch } = useQuery<InventoryAsset[]>({ queryKey: ["/api/inventory"] });
@@ -910,8 +922,6 @@ export default function Estoque() {
 
   const total = acervoAssets.filter(a => a.trackingStatus !== "DESCARTADO").length;
   const byStatus = (s: string) => assets.filter(a => a.trackingStatus === s).length;
-  const sucata = acervoAssets.filter(a => a.condition === "SUCATA").length;
-  const autoCount = acervoAssets.filter(a => a.autoAdded).length;
 
   const filtered = acervoAssets.filter(a => {
     // Hide DESCARTADO by default — only show when explicitly filtered
@@ -1067,7 +1077,7 @@ export default function Estoque() {
       {/* ── Filter bar ── */}
       {(() => {
         const FL: React.CSSProperties = {
-          fontSize: 11, fontWeight: 500, color: "#94a3b8",
+          fontSize: 11, fontWeight: 500, color: "#64748b",
           fontFamily: "Plus Jakarta Sans, sans-serif", marginBottom: 6, display: "block",
         };
         const SEL = (active: boolean): React.CSSProperties => ({
@@ -1260,21 +1270,16 @@ export default function Estoque() {
                   return (
                     <tr key={asset.id} data-testid={`row-asset-${asset.id}`}
                       className="group"
-                      tabIndex={0}
-                      role="button"
-                      aria-label={`Ver detalhes de ${asset.name}`}
+                      /* Sem role="button" no <tr> (mantém a semântica de row);
+                         o acesso por teclado é do botão Eye ("Ver detalhes"). */
                       onClick={() => setViewingAsset(asset)}
-                      onKeyDown={e => {
-                        if (e.target !== e.currentTarget) return;
-                        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setViewingAsset(asset); }
-                      }}
                       onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = "#f8fafc"}
                       onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = ""}
                       style={{ transition: "background 0.12s", cursor: "pointer", borderBottom: "1px solid rgba(226,232,240,0.6)" }}
                     >
-                      {/* ID */}
+                      {/* ID — #9a3412: o #c2610c dava 4,17:1 e reprovava AA */}
                       <td style={{ ...TD, paddingLeft: 24 }}>
-                        <span style={{ fontFamily: "DM Mono, monospace", fontSize: 12, fontWeight: 600, color: "#c2610c" }}>
+                        <span style={{ fontFamily: "DM Mono, monospace", fontSize: 12, fontWeight: 600, color: "#9a3412" }}>
                           {asset.displayId}
                         </span>
                       </td>
@@ -1412,7 +1417,7 @@ export default function Estoque() {
 
                           {/* View detail */}
                           <button data-testid={`button-view-asset-${asset.id}`}
-                            title="Ver detalhes" aria-label="Ver detalhes"
+                            title="Ver detalhes" aria-label={`Ver detalhes de ${asset.name}`}
                             onClick={e => { e.stopPropagation(); setViewingAsset(asset); }}
                             onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.color = "#f97316"; (e.currentTarget as HTMLButtonElement).style.background = "rgba(249,115,22,0.08)"; }}
                             onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8"; (e.currentTarget as HTMLButtonElement).style.background = "transparent"; }}
@@ -1468,12 +1473,13 @@ export default function Estoque() {
 
       {/* Ícones de ação: base 0.7, revelação por hover OU foco de teclado na
           linha (.group é a classe realmente aplicada no <tr>). O wrapper
-          .event-filter-44 iguala o trigger do EventFilterDropdown aos 44px
-          dos demais filtros. */}
+          .event-filter-44 iguala o trigger do EventFilterDropdown aos demais
+          filtros (44px de altura e largura total). */}
       <style>{`
         tr.group .row-actions { opacity: 0.7; }
         tr.group:hover .row-actions, tr.group:focus-within .row-actions { opacity: 1; }
-        .event-filter-44 > div > button { height: 44px !important; }
+        .event-filter-44 > div { width: 100%; }
+        .event-filter-44 > div > button { height: 44px !important; width: 100%; }
       `}</style>
 
       {editing !== false && (
@@ -1488,7 +1494,6 @@ export default function Estoque() {
           linkedItem={getLinkedItem(viewingAsset)}
           sponsors={sponsors}
           onClose={() => setViewingAsset(null)}
-          onSaved={() => setViewingAsset(null)}
         />
       )}
     </div>

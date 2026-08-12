@@ -891,7 +891,13 @@ export default function PainelGeral() {
               const isHistorical = groupEvent.startDate
                 ? parseDateLocal(String(groupEvent.startDate)).getTime() < today.getTime() - 3 * 86400000
                 : false;
-              deadline = isHistorical ? { text: "Encerrado", color: "#746e69" }
+              // Guarda de sanidade: saída no ano 0206 (typo de 2026) produzia
+              // "ATRASADO 664730D". Dado absurdo é problema de CADASTRO — o
+              // chip aponta a correção em vez de fazer a conta fiel do lixo.
+              const truckYear = truckDay.getFullYear();
+              deadline = (truckYear < 2000 || truckYear > 2100)
+                ? { text: "Data de saída inválida — corrija o evento", color: "#b91c1c" }
+                : isHistorical ? { text: "Encerrado", color: "#746e69" }
                 : diffDays < 0 ? { text: `Atrasado ${Math.abs(diffDays)}d`, color: "#b91c1c" }
                 : diffDays === 0 ? { text: "Sai hoje", color: "#b45309" }
                 : { text: `Faltam ${diffDays}d`, color: "#746e69" };

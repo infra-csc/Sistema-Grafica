@@ -396,7 +396,23 @@ export default function Eventos() {
     // Comparar apenas as datas do calendário (YYYY-MM-DD) sem timezone
     const startDateStr = formData.startDate; // "YYYY-MM-DD"
     const truckDateStr = formData.truckDepartureDate.substring(0, 10); // "YYYY-MM-DD"
-    
+
+    // Sanidade de ano (espelha o servidor): um "0206" no banco fez o Painel
+    // mostrar "ATRASADO 664730D". O Calendar não produz isso, mas o dado pode
+    // vir de import/edição legada — barrar aqui dá mensagem melhor que o 400.
+    const badYear = [startDateStr, truckDateStr].some((d) => {
+      const y = Number(d.slice(0, 4));
+      return !Number.isFinite(y) || y < 2000 || y > 2100;
+    });
+    if (badYear) {
+      toast({
+        title: "Data inválida",
+        description: "Confira o ano das datas (ex.: 2026) — valor fora do intervalo aceito.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (truckDateStr >= startDateStr) {
       toast({
         title: "Data inválida",

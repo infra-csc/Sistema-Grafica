@@ -19,6 +19,14 @@ function toDateOnlyStr(value: unknown): string {
   return String(value ?? "").slice(0, 10);
 }
 
+// Ano plausível para datas de evento. Um "0206" (typo de 2026) passou e o
+// Painel exibiu "ATRASADO 664730D" — a conta fiel de um dado que nunca
+// deveria ter entrado. Faixa larga de propósito: só barra o absurdo.
+function isPlausibleEventDate(dateOnly: string): boolean {
+  const year = Number(dateOnly.slice(0, 4));
+  return Number.isFinite(year) && year >= 2000 && year <= 2100;
+}
+
 export function registerEventRoutes(app: Express): void {
   // ============ EVENTS ============
   
@@ -115,12 +123,17 @@ export function registerEventRoutes(app: Express): void {
       // rejeitava com 400 o caso-limite que a UI permite.
       const s = toDateOnlyStr(validatedData.startDate);
       const t = toDateOnlyStr(validatedData.truckDepartureDate);
+      if (!isPlausibleEventDate(s) || !isPlausibleEventDate(t)) {
+        return res.status(400).json({
+          error: "Data fora do intervalo válido — confira o ano (ex.: 2026)"
+        });
+      }
       if (t >= s) {
         return res.status(400).json({
           error: "A saída do caminhão deve ser pelo menos 1 dia antes do início do evento"
         });
       }
-      
+
       const event = await storage.createEvent(validatedData);
       
       // Create audit log
@@ -152,6 +165,17 @@ export function registerEventRoutes(app: Express): void {
     }
     try {
       const validatedData = insertEventSchema.partial().parse(req.body);
+
+      // Sanidade de ano SÓ nos campos enviados — validar o lado composto do
+      // evento atual bloquearia justamente o PATCH que corrige uma data já
+      // ruim no banco (ex.: o 0206 que motivou esta guarda).
+      const sentDates = [validatedData.startDate, validatedData.truckDepartureDate]
+        .filter((d): d is NonNullable<typeof d> => d != null);
+      if (sentDates.some((d) => !isPlausibleEventDate(toDateOnlyStr(d)))) {
+        return res.status(400).json({
+          error: "Data fora do intervalo válido — confira o ano (ex.: 2026)"
+        });
+      }
 
       // Validação: se QUALQUER uma das datas está sendo alterada, verificar a
       // regra — compondo o lado ausente com o evento atual (payload parcial).

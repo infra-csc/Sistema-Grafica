@@ -1547,10 +1547,18 @@ export default function EventDetail() {
           // em vermelho num evento finalizado é alarme falso que ensina o
           // usuário a ignorar o vermelho de verdade.
           const isHistorical = event.status === 'completed' || parseDateLocal(String(event.startDate)) < today;
-          const countdownColor = isHistorical
+          // Guarda de sanidade: ano 0206 no banco (typo de 2026) virava
+          // "Atrasado 664730d". Dado absurdo pede correção, não contagem.
+          const depYear = depDay.getFullYear();
+          const depInvalid = depYear < 2000 || depYear > 2100;
+          const countdownColor = depInvalid
+            ? '#B84040'
+            : isHistorical
             ? TI.secondary
             : countdownDays < 0 ? '#B84040' : countdownDays <= 3 ? TI.attention : TI.secondary;
-          const countdownText = countdownDays < 0
+          const countdownText = depInvalid
+            ? 'Data de saída inválida — corrija o evento'
+            : countdownDays < 0
             ? (isHistorical ? `Saiu há ${Math.abs(countdownDays)}d` : `Atrasado ${Math.abs(countdownDays)}d`)
             : countdownDays === 0 ? 'Hoje'
             : `Faltam ${countdownDays} dia${countdownDays !== 1 ? 's' : ''}`;

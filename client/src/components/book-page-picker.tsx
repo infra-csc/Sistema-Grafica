@@ -21,6 +21,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { X, Download, BookOpen, Loader2, AlertCircle, FileText } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { toast } from "@/hooks/use-toast";
 
@@ -195,7 +196,7 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-none p-0 gap-0"
+        className={`max-w-none p-0 gap-0 ${HIDE_NATIVE_CLOSE}`}
         style={{ width: "min(1040px, 94vw)", borderRadius: 16, overflow: "hidden", border: "none", boxShadow: "0 32px 64px -16px rgba(0,0,0,0.28), 0 0 0 1px rgba(0,0,0,0.05)" }}>
         <DialogTitle className="sr-only">Extrair páginas do book</DialogTitle>
         <DialogDescription className="sr-only">Escolha as páginas do book e baixe um PDF apenas com elas</DialogDescription>

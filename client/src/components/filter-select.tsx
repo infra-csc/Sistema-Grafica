@@ -5,6 +5,7 @@
  */
 import { useMemo, useState, useRef, useEffect } from "react";
 import { Search, ChevronDown, Check, X } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export interface FilterOption {
   value: string;
@@ -69,6 +70,9 @@ export function FilterSelect({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  // Só a ALTURA muda no mobile (alvo de toque 44px) — componente compartilhado
+  // por várias telas, qualquer outra mudança aqui vaza para todas elas.
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (!open) return;
@@ -172,7 +176,7 @@ export function FilterSelect({
   // ── Estilos ───────────────────────────────────────────────────────────
   const pillTrigger: React.CSSProperties = {
     display: "flex", alignItems: "center",
-    gap: 6, height: 36,
+    gap: 6, height: isMobile ? 44 : 36,
     padding: "0 10px 0 12px",
     backgroundColor: open || isActive ? C.bg50 : "#ffffff",
     border: isActive ? `1.5px solid ${C.border}` : open ? `1.5px solid ${C.border}` : "1px solid #e7e5e4",
@@ -282,6 +286,8 @@ export function FilterSelect({
         data-testid={testId}
         className={triggerClassName}
         title={isActive ? triggerText : label}
+        aria-expanded={open}
+        aria-haspopup="listbox"
         onClick={() => { if (!disabled) setOpen(v => !v); }}
         style={resolvedTrigger}
       >

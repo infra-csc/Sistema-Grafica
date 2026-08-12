@@ -4,6 +4,7 @@
  */
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Search, ChevronDown, Check, X } from "lucide-react";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export interface EventOption {
   value: string;
@@ -35,6 +36,9 @@ export function EventFilterDropdown({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
+  // Só a ALTURA muda no mobile (alvo de toque 44px) — componente compartilhado
+  // por várias telas, qualquer outra mudança aqui vaza para todas elas.
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     if (!open) return;
@@ -86,9 +90,11 @@ export function EventFilterDropdown({
       {/* ── Trigger ── */}
       <button
         onClick={() => setOpen(v => !v)}
+        aria-expanded={open}
+        aria-haspopup="listbox"
         style={{
           display: "flex", alignItems: "center", gap: 6,
-          height: 36, padding: "0 10px 0 12px",
+          height: isMobile ? 44 : 36, padding: "0 10px 0 12px",
           backgroundColor: open || isActive ? "#FFF7ED" : "#ffffff",
           border: isActive ? "1.5px solid #FB923C" : open ? "1.5px solid #FB923C" : "1px solid #e7e5e4",
           borderRadius: 7, cursor: "pointer",

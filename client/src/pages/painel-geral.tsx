@@ -53,7 +53,9 @@ function StatusPill({ status }: { status: string }) {
 // esses gates nunca disparavam. pronto_para_producao é canônico (variação
 // gravada pela dispensa da Arte) e fica.
 const BLOCKED_DELETE_STATUSES: string[] = [
-  "awaiting_submission", "awaiting_approval", "awaiting_final_review",
+  "awaiting_submission", "awaiting_approval", "awaiting_sponsor_approval",
+  "awaiting_finalization", "sponsor_approved", "awaiting_creator_review",
+  "awaiting_final_review",
   "ready_for_production", "pronto_para_producao", "approved",
   ...PRODUCTION_STATUSES, ...FINAL_STATUSES,
 ];
@@ -168,6 +170,10 @@ function StatusCard({
 
 // ─── Chip de filtro ativo (removível) — linha abaixo da toolbar ─────────────
 function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  const isMobile = useIsMobile();
+  // Alvo de toque do ×: 24px no desktop, 32px no mobile. Margens negativas
+  // compensam a área extra para o chip não inflar visualmente.
+  const hit = isMobile ? 32 : 24;
   return (
     <span style={{
       display: "inline-flex", alignItems: "center", gap: 4,
@@ -180,7 +186,13 @@ function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }
         type="button"
         onClick={onRemove}
         aria-label={`Remover filtro ${label}`}
-        style={{ background: "none", border: "none", cursor: "pointer", color: "#746e69", fontSize: 13, fontWeight: 800, padding: "0 2px", lineHeight: 1, display: "flex", alignItems: "center", flexShrink: 0 }}
+        style={{
+          background: "none", border: "none", cursor: "pointer", color: "#746e69",
+          fontSize: 13, fontWeight: 800, padding: 0, lineHeight: 1,
+          display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+          minWidth: hit, minHeight: hit,
+          margin: `${-(hit - 18) / 2}px ${-(hit - 18) / 2}px ${-(hit - 18) / 2}px -2px`,
+        }}
       >
         ×
       </button>
@@ -214,14 +226,17 @@ export default function PainelGeral() {
   const [dateFilter, setDateFilter]     = useState<string[]>(() => fromCsv("saida"));
 
   // Mantém a URL espelhando os filtros (replaceState: não polui o histórico).
+  // Parte da query string ATUAL e sobrescreve só as chaves gerenciadas — um
+  // param alheio (ex.: utm_source, flag de debug) sobrevive à filtragem.
   useEffect(() => {
-    const p = new URLSearchParams();
-    if (searchTerm) p.set("busca", searchTerm);
-    if (statusFilter.length) p.set("status", statusFilter.join(","));
-    if (eventFilter.length) p.set("evento", eventFilter.join(","));
-    if (sponsorFilter.length) p.set("patrocinador", sponsorFilter.join(","));
-    if (typeFilter.length) p.set("tipo", typeFilter.join(","));
-    if (dateFilter.length) p.set("saida", dateFilter.join(","));
+    const p = new URLSearchParams(window.location.search);
+    const setOrDelete = (key: string, value: string) => value ? p.set(key, value) : p.delete(key);
+    setOrDelete("busca", searchTerm);
+    setOrDelete("status", statusFilter.join(","));
+    setOrDelete("evento", eventFilter.join(","));
+    setOrDelete("patrocinador", sponsorFilter.join(","));
+    setOrDelete("tipo", typeFilter.join(","));
+    setOrDelete("saida", dateFilter.join(","));
     const qs = p.toString();
     window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
   }, [searchTerm, statusFilter, eventFilter, sponsorFilter, typeFilter, dateFilter]);
@@ -294,7 +309,10 @@ export default function PainelGeral() {
     queryKey: ["/api/audit-logs", "item", selectedItem?.id],
     queryFn: () =>
       fetch(`/api/audit-logs?entityType=item&entityId=${selectedItem!.id}`, { credentials: "include" })
-        .then(r => r.json()),
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(`Falha ao carregar o histórico (HTTP ${r.status})`))),
+    // Resposta inesperada (HTML de erro, objeto) não pode chegar ao modal
+    // como "array" — normaliza para lista vazia.
+    select: d => (Array.isArray(d) ? d : []),
     enabled: !!selectedItem?.id,
     placeholderData: [],
   });
@@ -350,18 +368,21 @@ export default function PainelGeral() {
   // Filtragem, ordenação, agrupamento e KPIs são recomputados SÓ quando os
   // dados ou filtros mudam — sem o useMemo, cada render (ex.: abrir um modal)
   // refazia filter+sort da lista inteira.
-  const { statsItems, filteredItems, sortedGroupEntries, stats } = useMemo(() => {
+  const { filteredItems, sortedGroupEntries, stats } = useMemo(() => {
   // Hoje à meia-noite — calculado UMA vez por recomputação (antes era um
   // new Date por item dentro do filtro).
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const todayMs = today.getTime();
 
+  // Içado do applyBaseFilters: eram até 4 toLowerCase() do MESMO termo por item.
+  const q = searchTerm.toLowerCase();
+
   const applyBaseFilters = (item: any) => {
     const matchesSearch =
-      item.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.event?.name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.displayId?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.description || "").toLowerCase().includes(searchTerm.toLowerCase());
+      item.type?.toLowerCase().includes(q) ||
+      (item.event?.name || "").toLowerCase().includes(q) ||
+      item.displayId?.toLowerCase().includes(q) ||
+      (item.description || "").toLowerCase().includes(q);
     const matchesEvent   = eventFilter.length === 0   || eventFilter.includes(item.eventId);
     const matchesType    = typeFilter.length === 0    || typeFilter.includes(item.type);
     const matchesSponsor = sponsorFilter.length === 0 ||
@@ -473,7 +494,7 @@ export default function PainelGeral() {
     return diff !== 0 ? diff : a.eventName.localeCompare(b.eventName, "pt-BR");
   });
 
-  return { statsItems, filteredItems, sortedGroupEntries, stats };
+  return { filteredItems, sortedGroupEntries, stats };
   }, [items, deletedItems, showDeleted, searchTerm, statusFilter, eventFilter, sponsorFilter, typeFilter, dateFilter, typeToGroup]);
 
   // Clique no card alterna o status DENTRO do conjunto de filtros — coerente
@@ -659,10 +680,12 @@ export default function PainelGeral() {
             type="text"
             placeholder="Buscar ID, evento..."
             title="Atalho: pressione / para focar a busca"
+            aria-label="Buscar peças (atalho: /)"
+            aria-keyshortcuts="/"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             data-testid="input-search"
-            style={{ ...inputStyle, paddingLeft: 28, height: 32, fontSize: 13 }}
+            style={{ ...inputStyle, paddingLeft: 28, height: isMobile ? 44 : 32, fontSize: 13 }}
           />
         </div>
 
@@ -750,9 +773,9 @@ export default function PainelGeral() {
           {hasActiveFilters && (
             <button
               onClick={clearAllFilters}
-              style={{ display: "flex", alignItems: "center", gap: 4, background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 700, color: "#f97316", cursor: "pointer", transition: "all 0.15s", whiteSpace: "nowrap", height: 32 }}
-              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#f97316"; (e.currentTarget as HTMLButtonElement).style.color = "#fff"; }}
-              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "#fff7ed"; (e.currentTarget as HTMLButtonElement).style.color = "#f97316"; }}
+              style={{ display: "flex", alignItems: "center", gap: 4, background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 6, padding: "3px 10px", fontSize: 11, fontWeight: 700, color: "#c2410c", cursor: "pointer", transition: "all 0.15s", whiteSpace: "nowrap", height: 32 }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = "#c2410c"; (e.currentTarget as HTMLButtonElement).style.color = "#fff"; }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = "#fff7ed"; (e.currentTarget as HTMLButtonElement).style.color = "#c2410c"; }}
             >
               × Limpar
             </button>
@@ -936,7 +959,7 @@ export default function PainelGeral() {
                       ) : (
                         <h3 style={EVENT_TITLE_STYLE}>{gd.eventName}</h3>
                       )}
-                      <div style={{ display: "flex", gap: isMobile ? 10 : 14, marginTop: 5, minWidth: 0, flexWrap: isMobile ? "wrap" : "nowrap" }}>
+                      <div style={{ display: "flex", gap: isMobile ? 10 : 14, marginTop: 5, minWidth: 0, flexWrap: isMobile ? "wrap" : "nowrap", overflow: "hidden" }}>
                         {firstItem?.event?.startDate && (
                           <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: "#746e69", whiteSpace: "nowrap" }}>
                             <Calendar style={{ width: 11, height: 11, flexShrink: 0 }} />
@@ -964,7 +987,7 @@ export default function PainelGeral() {
                     backgroundColor: "#f5f5f4", color: "#57534e",
                     border: "1px solid #e7e5e4",
                     fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em",
-                    whiteSpace: "nowrap",
+                    whiteSpace: "nowrap", flexShrink: 0,
                   }}>
                     {gd.items.length} {gd.items.length === 1 ? "item" : "itens"}
                   </span>
@@ -1074,7 +1097,7 @@ export default function PainelGeral() {
                                           disabled={restoreItemMutation.isPending}
                                           title="Restaurar peça" aria-label="Restaurar peça"
                                           data-testid={`button-restore-${item.id}`}
-                                          style={{ background: "#d1fae5", border: "1px solid #6ee7b7", cursor: "pointer", borderRadius: 6, color: "#065f46", display: "flex", alignItems: "center", justifyContent: "center", height: 44, width: 44, opacity: restoringItemId === item.id ? 0.6 : 1 }}
+                                          style={{ background: "#d1fae5", border: "1px solid #6ee7b7", cursor: restoreItemMutation.isPending ? "not-allowed" : "pointer", borderRadius: 6, color: "#065f46", display: "flex", alignItems: "center", justifyContent: "center", height: 44, width: 44, opacity: restoreItemMutation.isPending ? 0.6 : 1 }}
                                         >
                                           {restoringItemId === item.id
                                             ? <Loader2 className="animate-spin" style={{ width: 15, height: 15 }} />
@@ -1115,8 +1138,8 @@ export default function PainelGeral() {
                                           // tabulação do leitor de tela e anuncia o bloqueio.
                                           <button
                                             type="button" disabled aria-disabled="true"
-                                            title="Exclusão bloqueada — peça já está em Arte ou produção"
-                                            aria-label="Exclusão bloqueada — peça já está em Arte ou produção"
+                                            title={item.status === "canceled" ? "Peça cancelada não pode ser excluída" : "Exclusão bloqueada — peça já está em Arte ou produção"}
+                                            aria-label={item.status === "canceled" ? "Peça cancelada não pode ser excluída" : "Exclusão bloqueada — peça já está em Arte ou produção"}
                                             style={{
                                               background: "none", border: "1px solid #e7e5e4", borderRadius: 6, color: "#a8a29e",
                                               display: "flex", alignItems: "center", justifyContent: "center",
@@ -1139,6 +1162,7 @@ export default function PainelGeral() {
                     {hiddenCount > 0 && (
                       <button
                         onClick={() => expandEvent(eventKey)}
+                        data-testid={`button-show-all-${eventKey}`}
                         style={{ width: "100%", padding: "13px", marginTop: 4, background: "#fafaf9", border: "1px solid #e7e5e4", borderRadius: 8, color: "#1c1917", fontWeight: 700, fontSize: 13, cursor: "pointer" }}
                       >
                         Mostrar todos os {gd.items.length} itens (+{hiddenCount})
@@ -1151,10 +1175,11 @@ export default function PainelGeral() {
                    desktop comporta a tabela; mobile usa o layout de cards. */
                 <div style={{ overflow: "visible" }}>
                   <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                    <caption className="sr-only">Peças do evento {gd.eventName}</caption>
                     <thead>
                       <tr>
                         {["ID", "Descrição", "Medidas", "Patrocinador", "Status", "Ações"].map((col, i) => (
-                          <th key={i} style={{
+                          <th key={i} scope="col" style={{
                             /* Sticky: colunas continuam visíveis ao rolar listas
                                longas. bg no th (não no tr) — th sticky sem fundo
                                ficaria transparente sobre as linhas.
@@ -1247,7 +1272,7 @@ export default function PainelGeral() {
                                       backgroundColor: isDeleted ? "#fff5f5" : (idx % 2 === 1 ? "#f6f4f1" : "#ffffff"),
                                       borderLeft: `3px solid ${isDeleted ? "#fecaca" : "transparent"}`,
                                       cursor: isDeleted ? "default" : "pointer",
-                                      opacity: isDeleted ? 0.75 : 1,
+                                      opacity: isDeleted ? 0.85 : 1,
                                       transition: "transform 0.15s, background-color 0.15s",
                                     }}
                                     onMouseEnter={(e) => {
@@ -1302,7 +1327,7 @@ export default function PainelGeral() {
                                             {item.description}
                                           </span>
                                         ) : (
-                                          <span style={{ color: "#a8a29e", fontSize: 13 }}>—</span>
+                                          <span style={{ color: "#746e69", fontSize: 13 }}>—</span>
                                         )}
                                         {!isDeleted && item.observations && (
                                           <span style={{ display: "inline-flex", alignItems: "center", gap: 3, flexShrink: 0, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "#57534e", backgroundColor: "#f0ede9", border: "1px solid #e2ddd8", borderRadius: 6, padding: "2px 6px", whiteSpace: "nowrap" }}>
@@ -1334,13 +1359,16 @@ export default function PainelGeral() {
                                           )}
                                         </div>
                                       ) : (
-                                        <span style={{ color: "#a8a29e", fontSize: 13 }}>—</span>
+                                        <span style={{ color: "#746e69", fontSize: 13 }}>—</span>
                                       )}
                                     </td>
 
-                                    {/* Patrocinador */}
+                                    {/* Patrocinador — na linha excluída a célula ganha "—" em vez
+                                        de ficar vazia (leitura de tabela: vazio parece dado faltando). */}
                                     <td style={{ padding: "10px 18px" }}>
-                                      {!isDeleted && <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={4} />}
+                                      {isDeleted
+                                        ? <span style={{ color: "#746e69", fontSize: 13 }}>—</span>
+                                        : <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={4} />}
                                     </td>
 
                                     {/* Status */}
@@ -1357,7 +1385,7 @@ export default function PainelGeral() {
                                             disabled={restoreItemMutation.isPending}
                                             title="Restaurar peça" aria-label="Restaurar peça"
                                             data-testid={`button-restore-${item.id}`}
-                                            style={{ background: "#d1fae5", border: "1px solid #6ee7b7", cursor: "pointer", borderRadius: 6, color: "#065f46", display: "flex", alignItems: "center", justifyContent: "center", padding: 6, opacity: restoringItemId === item.id ? 0.6 : 1 }}
+                                            style={{ background: "#d1fae5", border: "1px solid #6ee7b7", cursor: restoreItemMutation.isPending ? "not-allowed" : "pointer", borderRadius: 6, color: "#065f46", display: "flex", alignItems: "center", justifyContent: "center", padding: 6, opacity: restoreItemMutation.isPending ? 0.6 : 1 }}
                                           >
                                             {restoringItemId === item.id
                                               ? <Loader2 className="animate-spin" style={{ width: 14, height: 14 }} />
@@ -1402,8 +1430,8 @@ export default function PainelGeral() {
                                             // tabulação do leitor de tela e anuncia o bloqueio.
                                             <button
                                               type="button" disabled aria-disabled="true"
-                                              title="Exclusão bloqueada — peça já está em Arte ou produção"
-                                              aria-label="Exclusão bloqueada — peça já está em Arte ou produção"
+                                              title={item.status === "canceled" ? "Peça cancelada não pode ser excluída" : "Exclusão bloqueada — peça já está em Arte ou produção"}
+                                              aria-label={item.status === "canceled" ? "Peça cancelada não pode ser excluída" : "Exclusão bloqueada — peça já está em Arte ou produção"}
                                               style={{
                                                 background: "none", border: "none",
                                                 padding: 4, color: "#a8a29e",
@@ -1452,13 +1480,17 @@ export default function PainelGeral() {
 
       {/* ── Exportar PDF — mesmo modal da Arte e do Atendimento ── */}
       {/* filteredItems (não items): o PDF exporta o recorte que está na tela —
-          exportar com filtros ativos gerava um PDF da base inteira. */}
-      <ExportPdfDialog
-        open={showExportPDFModal}
-        onOpenChange={setShowExportPDFModal}
-        items={filteredItems}
-        title="Peças"
-      />
+          exportar com filtros ativos gerava um PDF da base inteira.
+          Montado só quando aberto (o modal roda facetas sobre a lista inteira
+          mesmo fechado) e sem as peças excluídas — soft-deleted não vai a PDF. */}
+      {showExportPDFModal && (
+        <ExportPdfDialog
+          open={showExportPDFModal}
+          onOpenChange={setShowExportPDFModal}
+          items={filteredItems.filter((i: any) => !i.deletedAt)}
+          title="Peças"
+        />
+      )}
 
       {/* ── Item details modal ── */}
       <ItemDetailsDialog
@@ -1485,7 +1517,13 @@ export default function PainelGeral() {
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteItemMutation.isPending}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => deleteConfirmItemId && deleteItemMutation.mutate(deleteConfirmItemId)}
+              // preventDefault: o AlertDialogAction fecha o diálogo no clique;
+              // fechado, o "Excluindo..." nunca aparecia. Quem fecha agora é o
+              // onSuccess da mutação (setDeleteConfirmItemId(null)).
+              onClick={(e) => {
+                e.preventDefault();
+                if (deleteConfirmItemId) deleteItemMutation.mutate(deleteConfirmItemId);
+              }}
               disabled={deleteItemMutation.isPending}
               style={{ backgroundColor: "#dc2626", color: "#fff" }}
               data-testid="button-confirm-delete"

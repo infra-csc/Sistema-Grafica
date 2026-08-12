@@ -669,9 +669,18 @@ export function registerItemRoutes(app: Express): void {
       // Atendimento só pode excluir peças que ainda não foram liberadas para Arte/Gráfica.
       // "pronto_para_producao" incluído: o client já bloqueava, mas o servidor
       // aceitava o DELETE direto.
+      // Espelho EXATO do BLOCKED_DELETE_STATUSES do client
+      // (client/src/pages/painel-geral.tsx) — inclui os status intermediários
+      // reais do fluxo de aprovação (awaiting_sponsor_approval,
+      // awaiting_finalization, sponsor_approved, awaiting_creator_review),
+      // que o gate anterior deixava passar.
       const LOCKED_STATUSES = [
-        "awaiting_submission", "awaiting_approval", "awaiting_final_review",
-        "ready_for_production", "pronto_para_producao", "approved", "inProduction", "produced", "conferred", "delivered",
+        "awaiting_submission", "awaiting_approval", "awaiting_sponsor_approval",
+        "awaiting_finalization", "sponsor_approved", "awaiting_creator_review",
+        "awaiting_final_review",
+        "ready_for_production", "pronto_para_producao", "approved",
+        "inProduction", "produced", "conferred", "delivered",
+        "canceled", "deleted",
       ];
       if (isSolicitacao && LOCKED_STATUSES.includes(item.status)) {
         return res.status(403).json({

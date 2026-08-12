@@ -4,9 +4,12 @@
 import { useState, useMemo, useEffect } from "react";
 import { Printer, X, FileText, FileImage, CheckCircle, SlidersHorizontal, BookOpen, Scissors } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { FilterSelect } from "@/components/filter-select";
 import { BookPagePicker } from "@/components/book-page-picker";
 import { exportMixedToPDF, groupKeyOf, MAX_ITEMS_PER_COMBINED_PAGE, convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { toast } from "@/hooks/use-toast";
 
 interface ExportPdfDialogProps {
   open: boolean;
@@ -39,12 +42,14 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
   // nunca fica marcando uma origem impossível.
   const [source, setSource] = useState<"artes" | "book">("book");
   const [pickerOpen, setPickerOpen] = useState(false);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     // Reabrir volta ao book: o padrão não pode depender do que foi escolhido na
     // exportação anterior, senão quem trocou uma vez para "artes" nunca mais vê
-    // o book como padrão.
-    if (open) { setExcludedIds(new Set()); setUngroupedKeys(new Set()); setSource("book"); }
+    // o book como padrão. Os 5 filtros também zeram — um filtro esquecido da
+    // exportação anterior recortava a lista em silêncio.
+    if (open) { setExcludedIds(new Set()); setUngroupedKeys(new Set()); setSource("book"); clearFilters(); }
     // O seletor de páginas é irmão deste Dialog, não filho — fechar a exportação
     // não o desmontaria, e ele ficaria sozinho na tela sem o modal que o abriu.
     else setPickerOpen(false);
@@ -154,9 +159,9 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="p-0 gap-0"
+        className={`p-0 gap-0 ${HIDE_NATIVE_CLOSE}`}
         style={{
-          maxWidth: 1080, width: "96vw",
+          maxWidth: isMobile ? "95vw" : 1080, width: isMobile ? "95vw" : "96vw",
           borderRadius: 16,
           backgroundColor: "#fff",
           border: "none",
@@ -201,13 +206,21 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
             era o segundo ancestral com overflow:hidden entre o dropdown de
             filtro e a borda do modal. A altura fixa (580) não depende do
             overflow para funcionar; só o overflow:hidden do DialogContent (que
-            faz a máscara dos cantos arredondados) precisa continuar como está. */}
-        <div style={{ display: "flex", height: 580, overflow: "visible" }}>
+            faz a máscara dos cantos arredondados) precisa continuar como está.
+            Mobile: colunas empilhadas e o CORPO rola (maxHeight 85dvh) — a
+            altura fixa de 580 estourava telas baixas. */}
+        <div style={{
+          display: "flex",
+          ...(isMobile
+            ? { flexDirection: "column" as const, maxHeight: "85dvh", overflowY: "auto" as const }
+            : { height: 580, overflow: "visible" as const }),
+        }}>
 
           {/* ── Painel esquerdo — Opções do PDF ─────────────────────────── */}
           <div style={{
-            width: 300, flexShrink: 0,
-            borderRight: "1px solid #ebe8e4",
+            width: isMobile ? "100%" : 300, flexShrink: 0,
+            borderRight: isMobile ? "none" : "1px solid #ebe8e4",
+            borderBottom: isMobile ? "1px solid #ebe8e4" : "none",
             display: "flex", flexDirection: "column",
             backgroundColor: "#fafaf9",
           }}>
@@ -295,10 +308,15 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                   <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
                     {groupsInSelection.map(g => {
                       const on = combinedSet.has(g.key);
+                      const toggleGroup = () => setUngroupedKeys(prev => { const n = new Set(prev); if (n.has(g.key)) n.delete(g.key); else n.add(g.key); return n; });
                       return (
                         <div
                           key={g.key}
-                          onClick={() => setUngroupedKeys(prev => { const n = new Set(prev); if (n.has(g.key)) n.delete(g.key); else n.add(g.key); return n; })}
+                          role="checkbox"
+                          aria-checked={on}
+                          tabIndex={0}
+                          onClick={toggleGroup}
+                          onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleGroup(); } }}
                           style={{
                             display: "flex", alignItems: "center", gap: 10,
                             padding: "9px 12px", borderRadius: 8,
@@ -326,7 +344,12 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                 <div style={{ marginBottom: 24 }}>
                   <p style={{ fontSize: 12, fontWeight: 700, color: "#292524", margin: "0 0 10px" }}>Divisória de eventos</p>
                   <div
+                    role="checkbox"
+                    aria-checked={groupByEvent}
+                    aria-label="Página de capa por evento"
+                    tabIndex={0}
                     onClick={() => setGroupByEvent(!groupByEvent)}
+                    onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setGroupByEvent(v => !v); } }}
                     style={{
                       display: "flex", alignItems: "center", gap: 10,
                       padding: "10px 12px", borderRadius: 8,
@@ -415,7 +438,19 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                   </button>
                   <button
                     onClick={() => {
-                      booksInSelection.forEach(b => window.open(b.url, "_blank", "noopener,noreferrer"));
+                      // O retorno do primeiro window.open denuncia o bloqueador
+                      // de pop-up — sem o teste, o clique "não fazia nada" e o
+                      // modal ainda fechava por cima.
+                      const first = window.open(booksInSelection[0]?.url, "_blank", "noopener,noreferrer");
+                      if (!first) {
+                        toast({
+                          title: "Pop-up bloqueado",
+                          description: "Permita pop-ups para abrir os books.",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                      booksInSelection.slice(1).forEach(b => window.open(b.url, "_blank", "noopener,noreferrer"));
                       onOpenChange(false);
                     }}
                     data-testid="button-export-book"
@@ -580,10 +615,16 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                   const hasThumb = !!item.approvalThumbUrl;
                   const thumbSrc = hasThumb ? convertGCSUrlToLocalPath(item.approvalThumbUrl) : null;
                   const picked   = !excludedIds.has(item.id);
+                  const toggleItem = () => setExcludedIds(prev => { const n = new Set(prev); if (n.has(item.id)) n.delete(item.id); else n.add(item.id); return n; });
                   return (
                     <div
                       key={item.id}
-                      onClick={() => setExcludedIds(prev => { const n = new Set(prev); if (n.has(item.id)) n.delete(item.id); else n.add(item.id); return n; })}
+                      role="checkbox"
+                      aria-checked={picked}
+                      aria-label={`${item.displayId} — ${item.type}`}
+                      tabIndex={0}
+                      onClick={toggleItem}
+                      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleItem(); } }}
                       style={{
                         display: "flex", alignItems: "center", gap: 12,
                         padding: "10px 14px", borderRadius: 10,

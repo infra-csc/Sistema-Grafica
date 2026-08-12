@@ -6,7 +6,8 @@ import { useFileUpload } from "@/hooks/use-file-upload";
 
 interface FileUploaderProps {
   maxFileSize?: number;
-  onGetUploadParameters: () => Promise<{
+  /** Legado (opcional): o upload passa pelo servidor e não usa mais URL assinada. */
+  onGetUploadParameters?: () => Promise<{
     method: "PUT";
     url: string;
   }>;

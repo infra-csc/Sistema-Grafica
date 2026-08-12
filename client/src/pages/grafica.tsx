@@ -1,21 +1,13 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { FilterSelect } from "@/components/filter-select";
-import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, ChevronsUpDown, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, Recycle, ImagePlus, FileSpreadsheet, ListChecks } from "lucide-react";
-import { Fragment, useState, useMemo, useEffect } from "react";
+import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, ImagePlus, FileSpreadsheet, ListChecks } from "lucide-react";
+import { Fragment, useState, useMemo, useEffect, useRef } from "react";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
-import { cn, parseDateLocal } from "@/lib/utils";
+import { parseDateLocal } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { apiRequest, queryClient, getCurrentUserName } from "@/lib/queryClient";
@@ -25,6 +17,7 @@ import { ObjectUploader } from "@/components/ObjectUploader";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { getStatusMeta, getStatusLabel } from "@/lib/status";
+import { StatusPill } from "@/components/status-pill";
 import { useAuth } from "@/contexts/auth-context";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 
@@ -33,7 +26,6 @@ const TI = {
   surface: "#ffffff",
   text: "#1c1917",
   accent: "#f97316",
-  accentDark: "#ea580c",
   border: "#e7e5e4",
   muted: "#a8a29e",
   secondary: "#78716c",
@@ -42,30 +34,282 @@ const TI = {
   stone100: "#f5f5f4",
 };
 
-// Cores/rótulos de status vêm de lib/status.ts (fonte única) — antes havia um
-// statusConfig local com paleta própria (ex.: "Liberado" azul aqui, verde no
-// Painel Geral). Usa o rótulo curto (o pill é uppercase e compacto).
-function StatusPill({ status }: { status: string }) {
-  const cfg = getStatusMeta(status);
+// ── Helpers puros de estado/quantidade — não dependem de estado do componente ──
+const isDelivered = (item: any) => item.status === "delivered" || item.status === "entregue";
+const isConferred = (item: any) => item.status === "conferred";
+const isProduced = (item: any) => item.status === "produced" || item.status === "produzido";
+const isInProd = (item: any) => item.status === "inProduction" || item.status === "em_producao";
+
+// Quantidades para reaproveitamento/conferência/entrega parciais.
+const qtyOf = (item: any) => Number(item.quantity) || 0;
+const conferredOf = (item: any) => Number(item.conferredQty) || 0;
+const deliveredOf = (item: any) => Number(item.deliveredQty) || 0;
+const reusedOf = (item: any) => Number(item.reuseQty) || 0;
+const producedOf = (item: any) => Number(item.quantityProduced) || 0;
+// Peças marcadas como reuso antes de reuseQty existir nunca conferiram — pela
+// regra antiga iam direto para a entrega. Mantidas nessa regra para não travar
+// entregas em andamento; as novas seguem pela conferência.
+const isLegacyReuse = (item: any) => item.isReuse && reusedOf(item) === 0;
+// Reuso total antigo não preencheu reuseQty, mas cobre a peça inteira.
+const reusedTotalOf = (item: any) => (item.isReuse ? qtyOf(item) : reusedOf(item));
+// Metragem que de fato vai para a impressora: o reaproveitado não é impresso.
+const m2ToProduce = (item: any) => {
+  const total = Number(item.calculatedM2) || 0;
+  const qty = qtyOf(item);
+  if (!total || !qty) return total;
+  const toPrint = qty - reusedTotalOf(item);
+  return toPrint <= 0 ? 0 : (total / qty) * toPrint;
+};
+const remainingConfer = (item: any) => qtyOf(item) - conferredOf(item);
+// Reaproveitado também confere, então a entrega sempre sai do que foi conferido.
+const remainingDeliver = (item: any) =>
+  (isLegacyReuse(item) ? qtyOf(item) : conferredOf(item)) - deliveredOf(item);
+// Sobra para reaproveitar: o que não foi reaproveitado nem produzido ainda.
+const remainingReuse = (item: any) => qtyOf(item) - reusedOf(item) - producedOf(item);
+// Botões parciais: dá pra conferir enquanto falta conferir (e já produziu);
+// dá pra entregar enquanto há conferido não entregue.
+const canConfer = (item: any) => !isDelivered(item) && !isLegacyReuse(item) && isProduced(item) && remainingConfer(item) > 0;
+const canDeliver = (item: any) => !isDelivered(item) && remainingDeliver(item) > 0;
+
+// Chip de prazo da Produção Gráfica — o mesmo visual sobre o cabeçalho escuro
+// do evento, tanto na tabela desktop quanto no card mobile.
+function DeadlineChip({ event }: { event: any }) {
+  if (!event?.truckDepartureDate) return null;
+  const days = event.deadlineProducaoGrafica ?? -1;
+  const d = new Date(new Date(event.truckDepartureDate).getTime() + days * 86400000);
+  d.setHours(0, 0, 0, 0);
+  const tod = new Date(); tod.setHours(0, 0, 0, 0);
+  const diff = Math.ceil((d.getTime() - tod.getTime()) / 86400000);
+  const ds = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  const s = diff < 0
+    ? { bg: "rgba(255,80,80,0.22)", border: "rgba(255,80,80,0.38)", text: "#ffb3b3" }
+    : diff === 0
+    ? { bg: "rgba(255,200,80,0.28)", border: "rgba(255,200,80,0.45)", text: "#ffe59c" }
+    : diff <= 3
+    ? { bg: "rgba(255,160,50,0.22)", border: "rgba(255,160,50,0.38)", text: "#ffc78a" }
+    : { bg: "rgba(255,255,255,0.12)", border: "rgba(255,255,255,0.2)", text: "rgba(255,255,255,0.72)" };
   return (
-    <span style={{
-      display: "inline-flex", alignItems: "center",
-      backgroundColor: cfg.bg, color: cfg.text,
-      border: `1px solid ${cfg.border}`,
-      borderRadius: 999, padding: "3px 10px",
-      fontSize: 10, fontWeight: 800,
-      textTransform: "uppercase", letterSpacing: "0.05em",
-      whiteSpace: "nowrap",
-    }}>
-      {cfg.short}
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 999, padding: "3px 9px", fontSize: 10, fontWeight: 700, color: s.text, letterSpacing: "0.04em", whiteSpace: "nowrap", alignSelf: "flex-start" }}>
+      Produção Gráfica · {ds}{diff >= 0 && diff <= 14 && <span style={{ opacity: 0.65, fontWeight: 500 }}> ({diff}d)</span>}
     </span>
   );
 }
 
+// Seletor de fotos (câmera + galeria) com miniaturas e remoção — unifica as
+// três cópias que existiam (modais individuais, entrega e conferência em lote).
+function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos", hint, dense = false }: {
+  photos: string[];
+  onAdd: (url: string) => void;
+  onRemove: (url: string) => void;
+  onError: (error: Error) => void;
+  label?: string;
+  hint?: string;
+  dense?: boolean;
+}) {
+  const buttons = [
+    { capture: true, Icon: Camera, text: dense ? "Câmera" : "Tirar Foto" },
+    { capture: false, Icon: ImagePlus, text: dense ? "Galeria" : "Anexar Fotos" },
+  ];
+  return (
+    <div>
+      <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 10 }}>
+        {label} {hint && <span style={{ color: "#746e69", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>{hint}</span>}
+      </label>
+
+      <div style={{ display: "flex", gap: 10 }}>
+        {buttons.map(({ capture, Icon, text }) => (
+          <div key={text} style={{ flex: 1 }}>
+            <ObjectUploader
+              {...(capture ? { capture: true } : { multiple: true })}
+              maxFileSize={10485760}
+              buttonVariant="ghost"
+              buttonClassName="w-full h-full p-0 border-0 hover:bg-transparent"
+              onComplete={r => onAdd(r.url)}
+              onError={onError}
+            >
+              <div style={{ width: "100%", padding: dense ? "12px 0" : "14px 0", backgroundColor: "#f4f3f0", borderRadius: 8, border: "2px dashed #d6d3d1", display: "flex", flexDirection: "column", alignItems: "center", gap: dense ? 5 : 6, cursor: "pointer" }}>
+                <Icon style={{ width: dense ? 18 : 20, height: dense ? 18 : 20, color: "#746e69" }} />
+                <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#746e69" }}>{text}</span>
+              </div>
+            </ObjectUploader>
+          </div>
+        ))}
+      </div>
+
+      {photos.length > 0 && (
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${dense ? 72 : 84}px, 1fr))`, gap: 8, marginTop: dense ? 10 : 12 }}>
+          {photos.map(url => (
+            <div key={url} style={{ position: "relative", aspectRatio: "1", borderRadius: 8, overflow: "hidden", border: `1px solid ${TI.border}`, backgroundColor: "#f4f3f0" }}>
+              <img src={url} alt="Foto anexada" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              {/* Alvo de toque 44×44 (área invisível maior que o X visível) e
+                  confirmação antes de remover — o botão de 20px colado na
+                  miniatura removia a foto num toque acidental, sem volta. */}
+              <button
+                type="button"
+                onClick={() => { if (window.confirm("Remover esta foto?")) onRemove(url); }}
+                title="Remover foto"
+                aria-label="Remover foto"
+                style={{ position: "absolute", top: 0, right: 0, width: 44, height: 44, background: "transparent", border: "none", display: "flex", alignItems: "flex-start", justifyContent: "flex-end", padding: 4, cursor: "pointer" }}
+              >
+                <span style={{ width: 20, height: 20, borderRadius: "50%", backgroundColor: "rgba(28,25,23,0.75)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <X style={{ width: 11, height: 11 }} />
+                </span>
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Dialog dos modos em lote — um único componente para conferência e entrega,
+// que eram duas cópias de ~150 linhas divergindo aos poucos.
+function BulkActionDialog({
+  mode, open, onClose, items, photos, onAddPhoto, onRemovePhoto, onPhotoError,
+  notes, onNotesChange, receivedBy = "", onReceivedByChange, isSubmitting, onConfirm, qtyFor,
+}: {
+  mode: "confer" | "deliver";
+  open: boolean;
+  onClose: () => void;
+  items: any[];
+  photos: string[];
+  onAddPhoto: (url: string) => void;
+  onRemovePhoto: (url: string) => void;
+  onPhotoError: (error: Error) => void;
+  notes: string;
+  onNotesChange: (v: string) => void;
+  receivedBy?: string;
+  onReceivedByChange?: (v: string) => void;
+  isSubmitting: boolean;
+  onConfirm: () => void;
+  qtyFor: (item: any) => number;
+}) {
+  const isConfer = mode === "confer";
+  const tint = isConfer ? "#0e7490" : TI.accent;
+  const canSubmit = isConfer ? photos.length > 0 : receivedBy.trim().length > 0;
+  const confirmBg = isConfer ? "#0e7490" : "#15803d";
+  const confirmHover = isConfer ? "#155e75" : "#166534";
+  const HeaderIcon = isConfer ? CheckCircle : Truck;
+  const count = items.length;
+  return (
+    <Dialog open={open} onOpenChange={o => { if (!o) onClose(); }}>
+      <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(460)}>
+        <DialogTitle className="sr-only">{isConfer ? "Confirmar Conferência em Lote" : "Confirmar Entrega em Lote"}</DialogTitle>
+        <DialogDescription className="sr-only">{isConfer ? "Registre a conferência de múltiplas peças de uma vez" : "Registre a entrega de múltiplas peças de uma vez"}</DialogDescription>
+
+        <ModalHeader
+          icon={HeaderIcon}
+          tint={tint}
+          title={isConfer ? "Conferência em lote" : "Entrega em lote"}
+          subtitle={`${count} peça${count !== 1 ? "s" : ""} selecionada${count !== 1 ? "s" : ""}`}
+          onClose={onClose}
+        />
+
+        {/* Body */}
+        <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18, background: "#fafaf9" }}>
+          {!isConfer && (
+            <div>
+              <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 10 }}>
+                Responsável pelo Recebimento *
+              </label>
+              <input
+                type="text"
+                value={receivedBy}
+                onChange={e => onReceivedByChange?.(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); onConfirm(); } }}
+                placeholder="Nome de quem recebeu"
+                autoFocus
+                style={{ width: "100%", boxSizing: "border-box", padding: "14px 16px", background: "#fff", border: "1.5px solid #e7e5e4", borderRadius: 12, fontSize: 15, fontWeight: 600, color: TI.text, transition: "border-color 0.15s, box-shadow 0.15s" }}
+                onFocus={e => { e.currentTarget.style.borderColor = tint; e.currentTarget.style.boxShadow = `0 0 0 3px ${tint}22`; }}
+                onBlur={e => { e.currentTarget.style.borderColor = "#e7e5e4"; e.currentTarget.style.boxShadow = "none"; }}
+              />
+            </div>
+          )}
+
+          <PhotoPicker
+            dense
+            photos={photos}
+            onAdd={onAddPhoto}
+            onRemove={onRemovePhoto}
+            onError={onPhotoError}
+            label={isConfer ? "Foto da conferência *" : "Comprovante fotográfico"}
+            hint={isConfer ? "· mesma para todas as peças" : "· opcional · mesmo para todas as peças"}
+          />
+
+          {/* Observações */}
+          <div>
+            <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
+              Observações <span style={{ textTransform: "none", fontWeight: 400, color: "#746e69", letterSpacing: 0 }}>(opcional)</span>
+            </label>
+            <textarea
+              value={notes}
+              onChange={e => onNotesChange(e.target.value)}
+              placeholder={isConfer ? "Ex.: conferido contra o romaneio, sem avarias..." : "Ex.: entregue na portaria, aguardando retirada..."}
+              rows={2}
+              style={{ width: "100%", boxSizing: "border-box", padding: "12px 14px", background: "#fff", border: "1.5px solid #e7e5e4", borderRadius: 12, fontSize: 13, fontFamily: "inherit", color: TI.text, resize: "none", lineHeight: 1.5 }}
+            />
+          </div>
+
+          {/* Peças selecionadas */}
+          <div style={{ background: "#fff", border: "1px solid #e7e5e4", borderRadius: 12, maxHeight: 150, overflowY: "auto" }}>
+            {items.map((item: any, idx: number) => (
+              <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: idx < count - 1 ? "1px solid #f5f5f4" : "none" }}>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: tint, flexShrink: 0 }}>{item.displayId}</span>
+                <span style={{ fontSize: 13, color: TI.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{item.type}</span>
+                <span style={{ fontSize: 11, color: TI.secondary, flexShrink: 0 }}>{qtyFor(item)} un.</span>
+              </div>
+            ))}
+          </div>
+
+          {/* Footer */}
+          <div style={{ display: "flex", gap: 10 }}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{ flex: 1, height: 48, borderRadius: 12, background: "transparent", border: "1.5px solid #e7e5e4", color: "#746e69", fontSize: 13, fontWeight: 700, cursor: "pointer", transition: "background 0.12s" }}
+              onMouseEnter={e => { e.currentTarget.style.background = "#f5f5f4"; }}
+              onMouseLeave={e => { e.currentTarget.style.background = "transparent"; }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={onConfirm}
+              disabled={isSubmitting || !canSubmit}
+              style={{
+                flex: 2, height: 48, borderRadius: 12, border: "none",
+                background: (!canSubmit || isSubmitting) ? "#e7e5e4" : confirmBg,
+                color: (!canSubmit || isSubmitting) ? "#78716c" : "#fff",
+                fontSize: 13, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif",
+                cursor: (!canSubmit || isSubmitting) ? "not-allowed" : "pointer",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                boxShadow: canSubmit && !isSubmitting ? `0 4px 14px ${confirmBg}4d` : "none",
+                transition: "all 0.15s",
+              }}
+              onMouseEnter={e => { if (canSubmit && !isSubmitting) e.currentTarget.style.background = confirmHover; }}
+              onMouseLeave={e => { if (canSubmit && !isSubmitting) e.currentTarget.style.background = confirmBg; }}
+            >
+              {isSubmitting
+                ? "Salvando..."
+                : <><HeaderIcon style={{ width: 15, height: 15 }} />{isConfer ? "Confirmar Conferência" : "Confirmar Entrega"} ({count})</>
+              }
+            </button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 export default function Grafica() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
+  // Espelha os gates do servidor (server/routes/items.ts): start-production e
+  // confer aceitam apenas grafica/admin; deliver aceita também solicitacao.
+  // Sem isto a Solicitação via botões de Produzir/Conferir que o servidor
+  // recusava com 403 depois do clique.
+  const canProduce = ["grafica", "admin"].includes(user?.role ?? "");
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [modalType, setModalType] = useState<"production" | "delivery" | "conference" | null>(null);
@@ -112,8 +356,12 @@ export default function Grafica() {
   const addBulkConferPhoto = (url: string) => setBulkConferPhotos(prev => [...prev, convertGCSUrlToLocalPath(url)]);
   const isMobile = useIsMobile();
   const { data: items = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ["/api/items/approved"] });
-  const { data: events = [] } = useQuery<any[]>({ queryKey: ["/api/events"] });
-  const { data: auditLogs = [] } = useQuery<any[]>({ queryKey: ["/api/audit-logs"] });
+  // Só busca os logs com o dialog de detalhes aberto — é o único consumidor, e
+  // a lista completa de auditoria é pesada demais para carregar junto da tela.
+  const { data: auditLogs = [] } = useQuery<any[]>({
+    queryKey: ["/api/audit-logs"],
+    enabled: !!viewDetailsItem,
+  });
   const { data: standardItems = [] } = useQuery<any[]>({ queryKey: ['/api/standard-items'] });
   const typeToGroup = useMemo(() => {
     const map: Record<string, string> = {};
@@ -205,10 +453,6 @@ export default function Grafica() {
     },
   });
 
-  const uniqueTypes = Array.from(new Set(items.map((i: any) => i.type))).sort() as string[];
-  const uniqueMaterials = Array.from(new Set(items.map((i: any) => i.material).filter(Boolean))).sort() as string[];
-  const uniqueFinishes = Array.from(new Set(items.map((i: any) => i.finish).filter(Boolean))).sort() as string[];
-
   // Filtros facetados: cada filtro lista só o que existe no recorte atual,
   // aplicando os OUTROS filtros ativos (com contagem por opção).
   const gFacetPool = (exclude: 'event' | 'status' | 'type' | 'material' | 'finish') =>
@@ -263,45 +507,23 @@ export default function Grafica() {
     { value: "11", label: "Novembro" }, { value: "12", label: "Dezembro" },
   ];
 
-  const filteredItems = items
-    .filter((item: any) => {
-      if (searchFilter) {
-        const q = searchFilter.toLowerCase();
-        if (!item.type?.toLowerCase().includes(q) &&
-            !item.description?.toLowerCase().includes(q) &&
-            !item.displayId?.toLowerCase().includes(q) &&
-            !item.event?.name?.toLowerCase().includes(q)) return false;
-      }
-      if (statusFilter.length > 0) {
-        const matchesFilter = statusFilter.some(sf => sf === "ready_for_production"
-          ? (item.status === "ready_for_production" || item.status === "pronto_para_producao" || item.status === "approved")
-          : item.status === sf);
-        if (!matchesFilter) return false;
-      }
-      if (eventFilter.length > 0 && !eventFilter.includes(item.eventId)) return false;
-      if (typeFilter.length > 0 && !typeFilter.includes(item.type)) return false;
-      if (materialFilter.length > 0 && !materialFilter.includes(item.material)) return false;
-      if (finishFilter.length > 0 && !finishFilter.includes(item.finish)) return false;
-      if (next10DaysFilter && item.event?.truckDepartureDate) {
-        const today = new Date(); today.setHours(0, 0, 0, 0);
-        const tenDays = new Date(today); tenDays.setDate(tenDays.getDate() + 10);
-        const dep = new Date(item.event.truckDepartureDate);
-        if (!(dep >= today && dep <= tenDays)) return false;
-      }
-      if (monthFilter.length > 0 && item.event?.truckDepartureDate) {
-        const month = new Date(item.event.truckDepartureDate).getMonth() + 1;
-        if (!monthFilter.includes(month.toString())) return false;
-      }
-      return true;
-    })
-    .sort((a: any, b: any) => {
-      const ea = a.event?.name || ""; const eb = b.event?.name || "";
-      if (ea !== eb) return ea.localeCompare(eb);
-      return a.type.localeCompare(b.type);
-    });
-
-  // statsPool: todos os filtros ativos (exceto status) — os cards mostram contagens dentro do contexto atual
-  const statsPool = (items as any[]).filter((item: any) => {
+  // Filtro compartilhado entre a lista e os KPIs — a única diferença é que os
+  // KPIs ignoram o filtro de status (cada card mostra a contagem do seu status
+  // dentro do recorte atual). Antes eram duas cópias quase idênticas.
+  const matchesFilters = (item: any, opts?: { skipStatus?: boolean }) => {
+    if (searchFilter) {
+      const q = searchFilter.toLowerCase();
+      if (!item.type?.toLowerCase().includes(q) &&
+          !item.description?.toLowerCase().includes(q) &&
+          !item.displayId?.toLowerCase().includes(q) &&
+          !item.event?.name?.toLowerCase().includes(q)) return false;
+    }
+    if (!opts?.skipStatus && statusFilter.length > 0) {
+      const ok = statusFilter.some(sf => sf === "ready_for_production"
+        ? (item.status === "ready_for_production" || item.status === "pronto_para_producao" || item.status === "approved")
+        : item.status === sf);
+      if (!ok) return false;
+    }
     if (eventFilter.length > 0 && !eventFilter.includes(item.eventId)) return false;
     if (typeFilter.length > 0 && !typeFilter.includes(item.type)) return false;
     if (materialFilter.length > 0 && !materialFilter.includes(item.material)) return false;
@@ -316,13 +538,32 @@ export default function Grafica() {
       const month = new Date(item.event.truckDepartureDate).getMonth() + 1;
       if (!monthFilter.includes(month.toString())) return false;
     }
-    if (searchFilter) {
-      const q = searchFilter.toLowerCase();
-      if (!item.type?.toLowerCase().includes(q) && !item.description?.toLowerCase().includes(q) &&
-          !item.displayId?.toLowerCase().includes(q) && !item.event?.name?.toLowerCase().includes(q)) return false;
-    }
     return true;
-  });
+  };
+
+  // Memoizado com as deps reais dos filtros — sem isto era um array novo por
+  // render, e os useMemo derivados (deliverable/conferable) nunca acertavam.
+  const filteredItems = useMemo(() =>
+    (items as any[])
+      .filter((item: any) => matchesFilters(item))
+      .sort((a: any, b: any) => {
+        // Urgência primeiro: evento com saída do caminhão mais próxima no topo;
+        // sem data vai para o fim. Nome desempata (e mantém os grupos estáveis).
+        const da = a.event?.truckDepartureDate ? new Date(a.event.truckDepartureDate).getTime() : Infinity;
+        const db = b.event?.truckDepartureDate ? new Date(b.event.truckDepartureDate).getTime() : Infinity;
+        if (da !== db) return da - db;
+        const ea = a.event?.name || ""; const eb = b.event?.name || "";
+        if (ea !== eb) return ea.localeCompare(eb);
+        return a.type.localeCompare(b.type);
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items, searchFilter, statusFilter, eventFilter, typeFilter, materialFilter, finishFilter, next10DaysFilter, monthFilter]);
+
+  // statsPool: todos os filtros ativos (exceto status) — os cards mostram contagens dentro do contexto atual
+  const statsPool = useMemo(() =>
+    (items as any[]).filter((item: any) => matchesFilters(item, { skipStatus: true })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [items, searchFilter, eventFilter, typeFilter, materialFilter, finishFilter, next10DaysFilter, monthFilter]);
   const stats = {
     liberados:  statsPool.filter((i: any) => i.status === 'approved' || i.status === 'ready_for_production' || i.status === 'pronto_para_producao').length,
     emProducao: statsPool.filter((i: any) => i.status === 'inProduction').length,
@@ -345,20 +586,29 @@ export default function Grafica() {
       toast({ title: "Campo obrigatório", description: "Por favor, informe quem recebeu o material", variant: "destructive" });
       return;
     }
-    if (photos.length) {
-      try {
-        await Promise.all(photos.map(photoUrl =>
-          apiRequest("POST", `/api/items/${selectedItem.id}/photos`, {
-            photoUrl, kind: "delivery",
-            uploadedBy: getCurrentUserName(),
-          })
-        ));
-      } catch {
-        toast({ title: "Erro ao salvar fotos", variant: "destructive" });
-        return;
-      }
+    // Mutation PRIMEIRO; fotos só depois do sucesso — mesma disciplina do lote.
+    // Antes as fotos eram anexadas antes da entrega, e uma entrega recusada
+    // pelo servidor deixava fotos órfãs na galeria da peça.
+    const itemId = selectedItem.id;
+    const photosToAttach = photos;
+    try {
+      await markDeliveredMutation.mutateAsync({ itemId, data: { ...deliveryData, qty: deliverQty, notes: modalNotes } });
+    } catch {
+      return; // o onError da mutation já mostrou o toast
     }
-    markDeliveredMutation.mutate({ itemId: selectedItem.id, data: { ...deliveryData, qty: deliverQty, notes: modalNotes } });
+    if (photosToAttach.length) {
+      const results = await Promise.allSettled(photosToAttach.map(photoUrl =>
+        apiRequest("POST", `/api/items/${itemId}/photos`, {
+          photoUrl, kind: "delivery",
+          uploadedBy: getCurrentUserName(),
+        })
+      ));
+      if (results.some(r => r.status === "rejected")) {
+        toast({ title: "Entrega registrada", description: "Parte das fotos não pôde ser anexada.", variant: "destructive" });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+    }
   };
 
   const handleSubmitConference = async (e: React.FormEvent) => {
@@ -368,65 +618,30 @@ export default function Grafica() {
       toast({ title: "Foto obrigatória", description: "Envie ao menos uma foto da conferência.", variant: "destructive" });
       return;
     }
-    // Todas as fotos ficam na galeria; a primeira também vai para o item, que é
-    // o campo que o restante do app já lê como "foto da conferência".
+    // Mutation PRIMEIRO (a primeira foto vai nela como conferencePhotoUrl, o
+    // campo que o restante do app lê); a galeria só recebe as fotos depois do
+    // sucesso — mesma disciplina do lote. Antes uma conferência recusada
+    // deixava fotos órfãs na galeria.
+    const itemId = selectedItem.id;
+    const photosToAttach = photos;
     try {
-      await Promise.all(photos.map(photoUrl =>
-        apiRequest("POST", `/api/items/${selectedItem.id}/photos`, {
-          photoUrl, kind: "conference",
-          uploadedBy: getCurrentUserName(),
-        })
-      ));
+      await conferMutation.mutateAsync({ itemId, conferencePhotoUrl: photosToAttach[0], qty: conferQty, notes: modalNotes });
     } catch {
-      toast({ title: "Erro ao salvar fotos", variant: "destructive" });
-      return;
+      return; // o onError da mutation já mostrou o toast
     }
-    conferMutation.mutate({ itemId: selectedItem.id, conferencePhotoUrl: photos[0], qty: conferQty, notes: modalNotes });
+    const results = await Promise.allSettled(photosToAttach.map(photoUrl =>
+      apiRequest("POST", `/api/items/${itemId}/photos`, {
+        photoUrl, kind: "conference",
+        uploadedBy: getCurrentUserName(),
+      })
+    ));
+    if (results.some(r => r.status === "rejected")) {
+      toast({ title: "Conferência registrada", description: "Parte das fotos não pôde ser anexada.", variant: "destructive" });
+    }
+    queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/items"] });
   };
 
-  const isDelivered = (item: any) => item.status === "delivered" || item.status === "entregue";
-  const isConferred = (item: any) => item.status === "conferred";
-  const isProduced = (item: any) => item.status === "produced" || item.status === "produzido";
-  const isInProd = (item: any) => item.status === "inProduction" || item.status === "em_producao";
-
-  // Quantidades para reaproveitamento/conferência/entrega parciais.
-  const qtyOf = (item: any) => Number(item.quantity) || 0;
-  const conferredOf = (item: any) => Number(item.conferredQty) || 0;
-  const deliveredOf = (item: any) => Number(item.deliveredQty) || 0;
-  const reusedOf = (item: any) => Number(item.reuseQty) || 0;
-  const producedOf = (item: any) => Number(item.quantityProduced) || 0;
-  // Peças marcadas como reuso antes de reuseQty existir nunca conferiram — pela
-  // regra antiga iam direto para a entrega. Mantidas nessa regra para não travar
-  // entregas em andamento; as novas seguem pela conferência.
-  const isLegacyReuse = (item: any) => item.isReuse && reusedOf(item) === 0;
-  // Reuso total antigo não preencheu reuseQty, mas cobre a peça inteira.
-  const reusedTotalOf = (item: any) => (item.isReuse ? qtyOf(item) : reusedOf(item));
-  // Metragem que de fato vai para a impressora: o reaproveitado não é impresso.
-  const m2ToProduce = (item: any) => {
-    const total = Number(item.calculatedM2) || 0;
-    const qty = qtyOf(item);
-    if (!total || !qty) return total;
-    const toPrint = qty - reusedTotalOf(item);
-    return toPrint <= 0 ? 0 : (total / qty) * toPrint;
-  };
-  const remainingConfer = (item: any) => qtyOf(item) - conferredOf(item);
-  // Reaproveitado também confere, então a entrega sempre sai do que foi conferido.
-  const remainingDeliver = (item: any) =>
-    (isLegacyReuse(item) ? qtyOf(item) : conferredOf(item)) - deliveredOf(item);
-  // Sobra para reaproveitar: o que não foi reaproveitado nem produzido ainda.
-  const remainingReuse = (item: any) => qtyOf(item) - reusedOf(item) - producedOf(item);
-  // Botões parciais: dá pra conferir enquanto falta conferir (e já produziu);
-  // dá pra entregar enquanto há conferido não entregue.
-  const canConfer = (item: any) => !isDelivered(item) && !isLegacyReuse(item) && isProduced(item) && remainingConfer(item) > 0;
-  const canDeliver = (item: any) => !isDelivered(item) && remainingDeliver(item) > 0;
-
-  // Anexo de fotos usado pelos modais de conferência e entrega. Dois caminhos:
-  // "Tirar foto" abre a câmera direto no celular; "Anexar" aceita várias da galeria.
-  const uploadParams = async () => {
-    const res = await fetch("/api/objects/upload", { method: "POST" });
-    const data = await res.json();
-    return { method: "PUT" as const, url: data.uploadURL };
-  };
   const onPhotoError = (error: Error) =>
     toast({ title: "Erro no upload", description: error.message, variant: "destructive" });
 
@@ -454,67 +669,6 @@ export default function Grafica() {
         data-testid="input-notes"
         style={{ width: "100%", padding: "10px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 13, color: TI.text, resize: "vertical", fontFamily: "inherit" }}
       />
-    </div>
-  );
-
-  const renderPhotoPicker = (hint: string) => (
-    <div>
-      <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 10 }}>
-        Fotos <span style={{ color: "#746e69", textTransform: "none", letterSpacing: 0, fontWeight: 400 }}>{hint}</span>
-      </label>
-
-      <div style={{ display: "flex", gap: 10 }}>
-        <div style={{ flex: 1 }}>
-          <ObjectUploader
-            capture
-            maxFileSize={10485760}
-            buttonVariant="ghost"
-            buttonClassName="w-full h-full p-0 border-0 hover:bg-transparent"
-            onGetUploadParameters={uploadParams}
-            onComplete={r => addPhoto(r.url)}
-            onError={onPhotoError}
-          >
-            <div style={{ width: "100%", padding: "14px 0", backgroundColor: "#f4f3f0", borderRadius: 8, border: "2px dashed #d6d3d1", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
-              <Camera style={{ width: 20, height: 20, color: "#746e69" }} />
-              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#746e69" }}>Tirar Foto</span>
-            </div>
-          </ObjectUploader>
-        </div>
-        <div style={{ flex: 1 }}>
-          <ObjectUploader
-            multiple
-            maxFileSize={10485760}
-            buttonVariant="ghost"
-            buttonClassName="w-full h-full p-0 border-0 hover:bg-transparent"
-            onGetUploadParameters={uploadParams}
-            onComplete={r => addPhoto(r.url)}
-            onError={onPhotoError}
-          >
-            <div style={{ width: "100%", padding: "14px 0", backgroundColor: "#f4f3f0", borderRadius: 8, border: "2px dashed #d6d3d1", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, cursor: "pointer" }}>
-              <ImagePlus style={{ width: 20, height: 20, color: "#746e69" }} />
-              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#746e69" }}>Anexar Fotos</span>
-            </div>
-          </ObjectUploader>
-        </div>
-      </div>
-
-      {photos.length > 0 && (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(84px, 1fr))", gap: 8, marginTop: 12 }}>
-          {photos.map(url => (
-            <div key={url} style={{ position: "relative", aspectRatio: "1", borderRadius: 8, overflow: "hidden", border: `1px solid ${TI.border}`, backgroundColor: "#f4f3f0" }}>
-              <img src={url} alt="Foto anexada" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              <button
-                type="button"
-                onClick={() => removePhoto(url)}
-                title="Remover foto"
-                style={{ position: "absolute", top: 4, right: 4, width: 20, height: 20, borderRadius: "50%", border: "none", backgroundColor: "rgba(28,25,23,0.75)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", padding: 0 }}
-              >
-                <X style={{ width: 11, height: 11 }} />
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   );
 
@@ -594,6 +748,48 @@ export default function Grafica() {
   const toggleBulkItem = (id: string) =>
     setBulkSelectedIds(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
+  // Peças do lote resolvidas na lista COMPLETA (para os dialogs de lote).
+  const bulkSelectedItems = useMemo(
+    () => Array.from(bulkSelectedIds).map(id => (items as any[]).find(i => i.id === id)).filter(Boolean) as any[],
+    [bulkSelectedIds, items],
+  );
+
+  const bulkConfirmRef = useRef<HTMLButtonElement>(null);
+
+  // Ao entrar num modo de lote o foco vai para o Confirmar da barra fixa —
+  // sem isso, teclado e leitor de tela ficavam perdidos no meio da tabela.
+  useEffect(() => {
+    if (bulkOn) bulkConfirmRef.current?.focus();
+  }, [bulkOn]);
+
+  // Filtros podem mudar com o lote ativo: poda a seleção para manter apenas
+  // ids visíveis e elegíveis — evita confirmar peça que não está mais na tela.
+  useEffect(() => {
+    if (!bulkOn) return;
+    setBulkSelectedIds(prev => {
+      const eligible = new Set(bulkEligibleList.map((i: any) => i.id));
+      const next = new Set(Array.from(prev).filter(id => eligible.has(id)));
+      return next.size === prev.size ? prev : next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bulkOn, bulkEligibleList]);
+
+  // Escape sai do modo lote — mas não quando há dialog aberto: o Escape do
+  // dialog fecha o dialog, e o estado ainda aponta "aberto" quando este
+  // handler roda, então os dois não conflitam.
+  useEffect(() => {
+    if (!bulkOn) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (bulkDeliveryOpen || bulkConferOpen || viewDetailsItem || selectedItem) return;
+      setBulkDeliveryMode(false);
+      setBulkConferMode(false);
+      setBulkSelectedIds(new Set());
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [bulkOn, bulkDeliveryOpen, bulkConferOpen, viewDetailsItem, selectedItem]);
+
   // Conferência em lote: mesma disciplina da entrega (allSettled + tolerância a
   // falha parcial). Foto é obrigatória (regra do servidor); a primeira vira o
   // conferencePhotoUrl de cada peça e todas entram na galeria (kind conference).
@@ -603,17 +799,22 @@ export default function Grafica() {
       return;
     }
     setIsBulkSubmitting(true);
-    const ids = Array.from(bulkSelectedIds);
+    // Busca cada peça na lista COMPLETA (items) — buscar em filteredItems fazia
+    // a peça "sumir" quando o filtro mudava com o lote aberto, e o fallback
+    // qty: 1 registrava conferência de 1 unidade em vez do restante real.
+    // Peça não encontrada SAI do lote em vez de ir com quantidade chutada.
+    const entries = Array.from(bulkSelectedIds)
+      .map(id => (items as any[]).find(i => i.id === id))
+      .filter(Boolean) as any[];
+    const ids = entries.map(i => i.id);
     try {
-      const confer = await Promise.allSettled(ids.map(itemId => {
-        const item = (filteredItems as any[]).find(i => i.id === itemId);
-        const qty = item ? remainingConfer(item) : 1;
-        return apiRequest("POST", `/api/items/${itemId}/confer`, {
+      const confer = await Promise.allSettled(entries.map(item =>
+        apiRequest("POST", `/api/items/${item.id}/confer`, {
           conferencePhotoUrl: bulkConferPhotos[0],
-          qty,
+          qty: remainingConfer(item),
           notes: bulkConferNotes || null,
-        });
-      }));
+        })
+      ));
 
       const okIds = ids.filter((_, i) => confer[i].status === "fulfilled");
       const failed = ids.length - okIds.length;
@@ -670,20 +871,23 @@ export default function Grafica() {
       return;
     }
     setIsBulkSubmitting(true);
-    const ids = Array.from(bulkSelectedIds);
+    // Mesma regra da conferência em lote: resolve na lista COMPLETA (items) e
+    // exclui do lote a peça não encontrada — nunca entrega "1" por fallback.
+    const entries = Array.from(bulkSelectedIds)
+      .map(id => (items as any[]).find(i => i.id === id))
+      .filter(Boolean) as any[];
+    const ids = entries.map(i => i.id);
     try {
       // allSettled, não all: com Promise.all a primeira falha rejeitava, mas as
       // demais requisições já tinham sido enviadas e concluíam. A tela mostrava
       // "erro na entrega em lote" enquanto as peças apareciam como entregues.
-      const delivery = await Promise.allSettled(ids.map(itemId => {
-        const item = (filteredItems as any[]).find(i => i.id === itemId);
-        const qty = item ? remainingDeliver(item) : 1;
-        return apiRequest("PATCH", `/api/items/${itemId}/deliver`, {
+      const delivery = await Promise.allSettled(entries.map(item =>
+        apiRequest("PATCH", `/api/items/${item.id}/deliver`, {
           receivedBy: bulkReceivedBy.trim(),
-          qty,
+          qty: remainingDeliver(item),
           notes: bulkDeliveryNotes || null,
-        });
-      }));
+        })
+      ));
 
       // Só anexa a foto nas peças cuja entrega passou.
       const deliveredIds = ids.filter((_, i) => delivery[i].status === "fulfilled");
@@ -763,8 +967,8 @@ export default function Grafica() {
               {stats.liberados} peça{stats.liberados !== 1 ? "s" : ""} aguardando produção
             </span>
           )}
-          {/* Botão Conferência em Lote */}
-          {conferableInFilter.length > 0 && !bulkOn && (
+          {/* Botão Conferência em Lote — só para quem pode conferir (gate do servidor) */}
+          {canProduce && conferableInFilter.length > 0 && !bulkOn && (
             <button
               onClick={() => { setBulkConferMode(true); setBulkSelectedIds(new Set()); }}
               data-testid="button-bulk-confer"
@@ -792,10 +996,11 @@ export default function Grafica() {
               onClick={() => { setBulkDeliveryMode(true); setBulkSelectedIds(new Set()); }}
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 6,
-                backgroundColor: TI.accent, color: '#fff',
+                // #c2410c (orange-700): branco sobre #f97316 dava ~2.8:1 (reprova AA)
+                backgroundColor: '#c2410c', color: '#fff',
                 border: 'none', borderRadius: 8, padding: isMobile ? '11px 16px' : '8px 14px',
                 fontSize: isMobile ? 13 : 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em',
-                cursor: 'pointer', boxShadow: '0 2px 8px rgba(249,115,22,0.3)',
+                cursor: 'pointer', boxShadow: '0 2px 8px rgba(194,65,12,0.35)',
               }}
             >
               <ListChecks style={{ width: isMobile ? 16 : 14, height: isMobile ? 16 : 14 }} />
@@ -808,39 +1013,43 @@ export default function Grafica() {
               {isMobile ? 'Lote ativo' : 'Modo entrega em lote ativo'}
             </span>
           )}
-          {/* Exportar Excel — só no desktop */}
-          {!isMobile && (
-            <button
-              onClick={handleExportXlsx}
-              disabled={isExporting || filteredItems.length === 0}
-              data-testid="button-export-xlsx"
-              title={filteredItems.length ? `Exportar ${filteredItems.length} peça(s) em Excel` : "Nada para exportar"}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                backgroundColor: TI.surface, color: TI.text,
-                border: `1px solid ${TI.border}`, borderRadius: 6, padding: "7px 14px",
-                fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em",
-                cursor: (isExporting || filteredItems.length === 0) ? "not-allowed" : "pointer",
-                opacity: (isExporting || filteredItems.length === 0) ? 0.5 : 1,
-              }}
-            >
-              <FileSpreadsheet style={{ width: 13, height: 13 }} />
-              {isExporting ? "Gerando…" : `Exportar Excel${filteredItems.length ? ` (${filteredItems.length})` : ""}`}
-            </button>
-          )}
+          {/* Exportar Excel — é só um download, funciona igualmente no celular */}
+          <button
+            onClick={handleExportXlsx}
+            disabled={isExporting || filteredItems.length === 0}
+            data-testid="button-export-xlsx"
+            title={filteredItems.length ? `Exportar ${filteredItems.length} peça(s) em Excel` : "Nada para exportar"}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 6,
+              backgroundColor: TI.surface, color: TI.text,
+              border: `1px solid ${TI.border}`, borderRadius: 6, padding: isMobile ? "10px 14px" : "7px 14px",
+              fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em",
+              cursor: (isExporting || filteredItems.length === 0) ? "not-allowed" : "pointer",
+              opacity: (isExporting || filteredItems.length === 0) ? 0.5 : 1,
+            }}
+          >
+            <FileSpreadsheet style={{ width: 13, height: 13 }} />
+            {isExporting ? "Gerando…" : `Exportar Excel${filteredItems.length ? ` (${filteredItems.length})` : ""}`}
+          </button>
         </div>
       </div>
 
       {/* ── KPI Strip ── */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(5, 1fr)", gap: isMobile ? 6 : 12 }}>
         {[
-          { label: "Liberados",    value: stats.liberados,  sub: "Aguard. produção",    borderColor: "#0369a1", numColor: "#0369a1", testId: "stat-approved",    filterVal: "ready_for_production" },
-          { label: "Em Produção",  value: stats.emProducao, sub: "Ativo",               borderColor: "#f97316", numColor: "#ea580c", testId: "stat-production",  filterVal: "inProduction" },
-          { label: "Produzidos",   value: stats.produzidos, sub: "Ag. conferência",      borderColor: "#16a34a", numColor: "#15803d", testId: "stat-produced",    filterVal: "produced" },
-          { label: "Conferidos",   value: stats.conferidos, sub: "Ag. entrega",          borderColor: "#0891b2", numColor: "#0e7490", testId: "stat-conferred",   filterVal: "conferred" },
-          { label: "Entregues",    value: stats.entregues,  sub: "Concluído",            borderColor: "#0284c7", numColor: "#166534", testId: "stat-delivered",   filterVal: "delivered" },
+          { label: "Liberados",    value: stats.liberados,  sub: "Aguard. produção", testId: "stat-approved",   filterVal: "ready_for_production" },
+          { label: "Em Produção",  value: stats.emProducao, sub: "Ativo",            testId: "stat-production", filterVal: "inProduction" },
+          { label: "Produzidos",   value: stats.produzidos, sub: "Ag. conferência",  testId: "stat-produced",   filterVal: "produced" },
+          { label: "Conferidos",   value: stats.conferidos, sub: "Ag. entrega",      testId: "stat-conferred",  filterVal: "conferred" },
+          { label: "Entregues",    value: stats.entregues,  sub: "Concluído",        testId: "stat-delivered",  filterVal: "delivered" },
         ].map(kpi => {
           const isActive = statusFilter.includes(kpi.filterVal);
+          // Cores derivadas do MESMO mapa dos pills (lib/status): dot para a
+          // borda, text (tom 700, AA) para o número e para o fundo ativo.
+          // Antes cada card tinha hex próprio — "Entregues" saía com borda azul
+          // e número verde enquanto o pill era emerald; e o fundo ativo laranja
+          // (#f97316) reprovava contraste com o texto branco.
+          const m = getStatusMeta(kpi.filterVal);
           return (
             /* Os KPIs são o filtro principal desta tela: clicar num deles é
                como se filtra por status. Eram <div> com onClick, então quem
@@ -861,22 +1070,22 @@ export default function Grafica() {
               }}
               data-testid={kpi.testId}
               style={{
-                backgroundColor: isActive ? kpi.borderColor : TI.surface,
-                borderLeft: `4px solid ${kpi.borderColor}`,
+                backgroundColor: isActive ? m.text : TI.surface,
+                borderLeft: `4px solid ${m.dot}`,
                 borderRadius: 8,
                 padding: isMobile ? "10px 10px" : "16px 18px",
-                boxShadow: isActive ? `0 4px 16px ${kpi.borderColor}33` : "0 1px 4px rgba(0,0,0,0.06)",
+                boxShadow: isActive ? `0 4px 16px ${m.dot}33` : "0 1px 4px rgba(0,0,0,0.06)",
                 cursor: "pointer",
                 transition: "all 0.15s",
-                outline: isActive ? `2px solid ${kpi.borderColor}` : "2px solid transparent",
+                outline: isActive ? `2px solid ${m.dot}` : "2px solid transparent",
                 outlineOffset: 2,
               }}
-              onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLDivElement).style.backgroundColor = `${kpi.borderColor}0f`; }}
+              onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLDivElement).style.backgroundColor = `${m.dot}0f`; }}
               onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLDivElement).style.backgroundColor = TI.surface; }}
             >
-              <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: isActive ? "rgba(255,255,255,0.7)" : TI.muted, marginBottom: isMobile ? 3 : 6, fontFamily: "'Space Grotesk', sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kpi.label}</div>
-              <div style={{ fontSize: isMobile ? 22 : 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: isActive ? "#ffffff" : kpi.numColor, lineHeight: 1 }}>{kpi.value}</div>
-              {!isMobile && <div style={{ fontSize: 11, color: isActive ? "rgba(255,255,255,0.6)" : TI.secondary, marginTop: 4 }}>{isActive ? "Clique para limpar" : kpi.sub}</div>}
+              <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: isActive ? "rgba(255,255,255,0.75)" : TI.secondary, marginBottom: isMobile ? 3 : 6, fontFamily: "'Space Grotesk', sans-serif", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{kpi.label}</div>
+              <div style={{ fontSize: isMobile ? 22 : 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: isActive ? "#ffffff" : m.text, lineHeight: 1 }}>{kpi.value}</div>
+              {!isMobile && <div style={{ fontSize: 11, color: isActive ? "rgba(255,255,255,0.7)" : TI.secondary, marginTop: 4 }}>{isActive ? "Clique para limpar" : kpi.sub}</div>}
             </div>
           );
         })}
@@ -958,22 +1167,27 @@ export default function Grafica() {
           triggerStyle={{ backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, color: TI.text }}
         />
 
-        {/* Toggle Próximos 10 dias */}
-        <div style={{ display: "flex", alignItems: "center", gap: 8, borderLeft: `1px solid ${TI.border}`, paddingLeft: 12, marginLeft: 4 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: TI.secondary, whiteSpace: "nowrap" }}>Próximos 10 dias</span>
+        {/* Toggle Próximos 10 dias — rótulo + trilho num único alvo de toque
+            (≥44px): antes só o trilho de 38×20 era clicável. */}
+        <div style={{ borderLeft: `1px solid ${TI.border}`, paddingLeft: 12, marginLeft: 4 }}>
           <button
+            role="switch"
+            aria-checked={next10DaysFilter}
             onClick={() => setNext10DaysFilter(v => !v)}
             data-testid="button-next-10-days-filter"
-            style={{
-              width: 38, height: 20, borderRadius: 999, border: "none", cursor: "pointer", position: "relative",
-              backgroundColor: next10DaysFilter ? TI.accent : "#d6d3d1", transition: "background-color 0.2s",
-            }}
+            style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 44, background: "none", border: "none", padding: 0, cursor: "pointer" }}
           >
+            <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: TI.secondary, whiteSpace: "nowrap" }}>Próximos 10 dias</span>
             <span style={{
-              position: "absolute", top: 3, width: 14, height: 14, borderRadius: "50%",
-              backgroundColor: "#ffffff", transition: "left 0.2s",
-              left: next10DaysFilter ? 20 : 3,
-            }} />
+              width: 38, height: 20, borderRadius: 999, position: "relative", flexShrink: 0, display: "inline-block",
+              backgroundColor: next10DaysFilter ? TI.accent : "#d6d3d1", transition: "background-color 0.2s",
+            }}>
+              <span style={{
+                position: "absolute", top: 3, width: 14, height: 14, borderRadius: "50%",
+                backgroundColor: "#ffffff", transition: "left 0.2s",
+                left: next10DaysFilter ? 20 : 3,
+              }} />
+            </span>
           </button>
         </div>
 
@@ -1051,19 +1265,23 @@ export default function Grafica() {
               return (
                 <Fragment key={item.id}>
                   {showEvHeader && (
-                    <div style={{ padding: '8px 8px 6px', marginTop: index > 0 ? 6 : 0, background: TI.text, borderRadius: '8px 8px 0 0' }}>
+                    <div style={{ padding: '8px 8px 6px', marginTop: index > 0 ? 6 : 0, background: TI.text, borderRadius: '8px 8px 0 0', display: 'flex', flexDirection: 'column', gap: 5 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <Package style={{ width: 13, height: 13, color: TI.accent }} />
                         <span style={{ fontSize: 11, fontWeight: 800, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.05em', fontFamily: "'Space Grotesk', sans-serif" }}>
                           {item.event?.name || 'Sem Evento'}
                         </span>
-                        {item.event && (
-                          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                            <Calendar style={{ width: 10, height: 10 }} />
-                            {parseDateLocal(item.event.startDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })}
+                        {/* A data aqui era o INÍCIO do evento — para a Gráfica o
+                            que manda é a SAÍDA do caminhão, a mesma que ordena
+                            a lista e o cabeçalho do desktop. */}
+                        {item.event?.truckDepartureDate && (
+                          <span style={{ marginLeft: 'auto', fontSize: 10, color: 'rgba(255,255,255,0.72)', display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}>
+                            <Truck style={{ width: 10, height: 10 }} />
+                            Saída {new Date(item.event.truckDepartureDate).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: 'UTC' })}
                           </span>
                         )}
                       </div>
+                      {item.event && <DeadlineChip event={item.event} />}
                     </div>
                   )}
                   <div
@@ -1134,7 +1352,7 @@ export default function Grafica() {
                         <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: item.isReuse ? '#059669' : TI.accent }}>
                           {item.displayId}
                         </span>
-                        <StatusPill status={item.status} />
+                        <StatusPill status={item.status} size="sm" showDot={false} />
                         {item.isReuse && <span style={{ fontSize: 10, fontWeight: 800, color: '#059669', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, padding: '2px 6px' }}>REAPROV.</span>}
                       </div>
                       <div style={{ fontSize: 15, fontWeight: 700, color: TI.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</div>
@@ -1145,19 +1363,21 @@ export default function Grafica() {
                       )}
                     </div>
 
-                    {/* Right: action buttons */}
-                    {!bulkDeliveryMode && (
+                    {/* Right: action buttons — some em QUALQUER modo de lote
+                        (antes só !bulkDeliveryMode: na conferência em lote os
+                        botões continuavam aparecendo e disputando o toque). */}
+                    {!bulkOn && (
                       <div style={{ flexShrink: 0, padding: '10px 10px', display: 'flex', flexDirection: 'column', gap: 5, justifyContent: 'center' }}>
                         {canDeliverItem && (
                           <button
                             onClick={e => { e.stopPropagation(); openDeliveryModal(item); }}
-                            style={{ padding: '11px 14px', borderRadius: 8, background: TI.accent, border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            style={{ padding: '11px 14px', borderRadius: 8, background: '#c2410c', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
                           >
                             <Truck style={{ width: 13, height: 13 }} />
                             {deliveredOf(item) > 0 ? `Entregar ${remainingDeliver(item)}` : 'Entregar'}
                           </button>
                         )}
-                        {canConfer(item) && (
+                        {canProduce && canConferItem && (
                           <button
                             onClick={e => { e.stopPropagation(); openConferenceModal(item); }}
                             style={{ padding: '11px 14px', borderRadius: 8, background: '#0891b2', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
@@ -1196,6 +1416,10 @@ export default function Grafica() {
                 const prev = index > 0 ? filteredItems[index - 1] : null;
                 const showEvHeader = !prev || (prev as any).event?.name !== item.event?.name;
                 const showTypeHeader = !prev || (prev as any).event?.name !== item.event?.name || (prev as any).type !== item.type;
+                // Mesmo padrão do mobile: elegível conforme o modo de lote
+                // ativo — antes só a entrega em lote tinha checkbox na tabela.
+                const isSelected = bulkSelectedIds.has(item.id);
+                const bulkEligible = bulkDeliveryMode ? canDeliver(item) : bulkConferMode ? canConfer(item) : false;
 
                 return (
                   <Fragment key={item.id}>
@@ -1235,26 +1459,7 @@ export default function Grafica() {
                                     {new Date(item.event.truckDepartureDate).toLocaleDateString("pt-BR", { timeZone: 'UTC' })} às {new Date(item.event.truckDepartureDate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: 'UTC' })}
                                   </strong>
                                 </div>
-                                {(() => {
-                                  const days = item.event.deadlineProducaoGrafica ?? -1;
-                                  const d = new Date(new Date(item.event.truckDepartureDate).getTime() + days * 86400000);
-                                  d.setHours(0,0,0,0);
-                                  const tod = new Date(); tod.setHours(0,0,0,0);
-                                  const diff = Math.ceil((d.getTime() - tod.getTime()) / 86400000);
-                                  const ds = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
-                                  const s = diff < 0
-                                    ? { bg: "rgba(255,80,80,0.22)", border: "rgba(255,80,80,0.38)", text: "#ffb3b3" }
-                                    : diff === 0
-                                    ? { bg: "rgba(255,200,80,0.28)", border: "rgba(255,200,80,0.45)", text: "#ffe59c" }
-                                    : diff <= 3
-                                    ? { bg: "rgba(255,160,50,0.22)", border: "rgba(255,160,50,0.38)", text: "#ffc78a" }
-                                    : { bg: "rgba(255,255,255,0.12)", border: "rgba(255,255,255,0.2)", text: "rgba(255,255,255,0.72)" };
-                                  return (
-                                    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 999, padding: "3px 9px", fontSize: 10, fontWeight: 700, color: s.text, letterSpacing: "0.04em", whiteSpace: "nowrap" }}>
-                                      Produção Gráfica · {ds}{diff >= 0 && diff <= 14 && <span style={{ opacity: 0.65, fontWeight: 500 }}> ({diff}d)</span>}
-                                    </span>
-                                  );
-                                })()}
+                                <DeadlineChip event={item.event} />
                               </div>
                             )}
                           </div>
@@ -1276,10 +1481,10 @@ export default function Grafica() {
 
                     {/* Linha do item */}
                     <tr
-                      style={{ borderBottom: `1px solid ${item.isReuse ? "#bbf7d0" : "#f4f3f0"}`, cursor: "pointer", transition: "background-color 0.1s", backgroundColor: item.isReuse ? "#f0fdf4" : undefined }}
-                      onMouseEnter={e => ((e.currentTarget as HTMLElement).style.backgroundColor = item.isReuse ? "#dcfce7" : "#fafaf9")}
-                      onMouseLeave={e => ((e.currentTarget as HTMLElement).style.backgroundColor = item.isReuse ? "#f0fdf4" : "")}
-                      onClick={() => setViewDetailsItem(item)}
+                      style={{ borderBottom: `1px solid ${item.isReuse ? "#bbf7d0" : "#f4f3f0"}`, cursor: "pointer", transition: "background-color 0.1s", backgroundColor: isSelected ? "#fff7ed" : item.isReuse ? "#f0fdf4" : undefined }}
+                      onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = item.isReuse ? "#dcfce7" : "#fafaf9"; }}
+                      onMouseLeave={e => ((e.currentTarget as HTMLElement).style.backgroundColor = bulkSelectedIds.has(item.id) ? "#fff7ed" : item.isReuse ? "#f0fdf4" : "")}
+                      onClick={bulkOn && bulkEligible ? () => toggleBulkItem(item.id) : () => setViewDetailsItem(item)}
                       data-testid={`row-item-${item.id}`}
                     >
                       {/* ID */}
@@ -1415,7 +1620,7 @@ export default function Grafica() {
                       </td>
                       {/* Status */}
                       <td style={{ padding: "13px 16px" }}>
-                        <StatusPill status={item.status} />
+                        <StatusPill status={item.status} size="sm" showDot={false} />
                       </td>
                       {/* Ações */}
                       <td style={{ padding: "13px 16px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
@@ -1432,9 +1637,10 @@ export default function Grafica() {
                             <Eye style={{ width: 15, height: 15 }} />
                           </button>
 
-                          {/* Iniciar / Continuar Produção — oculto para reaproveitamento.
+                          {/* Iniciar / Continuar Produção — oculto para reaproveitamento
+                              e para quem o servidor recusa (só grafica/admin produzem).
                               Depois de conferida, a peça só tem a entrega pela frente. */}
-                          {!isDelivered(item) && !isProduced(item) && !isConferred(item) && !item.isReuse && (
+                          {canProduce && !isDelivered(item) && !isProduced(item) && !isConferred(item) && !item.isReuse && (
                             <button
                               onClick={() => openProductionModal(item)}
                               title={isInProd(item) ? "Continuar Produção" : "Iniciar Produção"}
@@ -1463,7 +1669,7 @@ export default function Grafica() {
                                   data-testid={`input-reuse-qty-${item.id}`}
                                   style={{ width: 52, height: 26, padding: "0 6px", borderRadius: 6, border: `1px solid ${TI.border}`, fontSize: 11, fontWeight: 700, color: TI.text, textAlign: "center" }}
                                 />
-                                <span style={{ fontSize: 10, color: TI.muted, whiteSpace: "nowrap" }}>de {remainingReuse(item)}</span>
+                                <span style={{ fontSize: 10, color: TI.secondary, whiteSpace: "nowrap" }}>de {remainingReuse(item)}</span>
                                 <button
                                   onClick={() => markReuseMutation.mutate({ itemId: item.id, qty: reuseQty })}
                                   disabled={markReuseMutation.isPending}
@@ -1529,7 +1735,7 @@ export default function Grafica() {
                                   title={`Quantas unidades reaproveitadas (0 a ${isAdmin ? qtyOf(item) : qtyOf(item) - 1})`}
                                   style={{ width: 52, height: 26, padding: "0 6px", borderRadius: 6, border: "1px solid #fbbf24", fontSize: 11, fontWeight: 700, color: TI.text, textAlign: "center" }}
                                 />
-                                <span style={{ fontSize: 10, color: TI.muted, whiteSpace: "nowrap" }}>de {qtyOf(item)}</span>
+                                <span style={{ fontSize: 10, color: TI.secondary, whiteSpace: "nowrap" }}>de {qtyOf(item)}</span>
                                 <button
                                   onClick={() => correctReuseMutation.mutate({ itemId: item.id, correctedReuseQty: correctReuseQty })}
                                   disabled={correctReuseMutation.isPending}
@@ -1568,8 +1774,9 @@ export default function Grafica() {
                             )
                           )}
 
-                          {/* Conferir — etapa entre Produzido e Entregue (com foto) */}
-                          {canConfer(item) && (
+                          {/* Conferir — etapa entre Produzido e Entregue (com foto);
+                              gate igual ao do servidor (grafica/admin) */}
+                          {canProduce && canConfer(item) && (
                             <button
                               onClick={() => openConferenceModal(item)}
                               title={`Conferir (faltam ${remainingConfer(item)} de ${qtyOf(item)})`}
@@ -1581,21 +1788,25 @@ export default function Grafica() {
                                 cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
                                 transition: "background-color 0.15s",
                               }}
-                              onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#0e7490"}
-                              onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#0891b2"}
+                              onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#155e75"}
+                              onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#0e7490"}
                             >
                               <CheckCircle style={{ width: 11, height: 11 }} />
                               {conferredOf(item) > 0 ? `Conferir ${remainingConfer(item)}` : "Conferir"}
                             </button>
                           )}
 
-                          {/* Checkbox seleção em lote */}
-                          {bulkDeliveryMode && canDeliver(item) && (
+                          {/* Checkbox seleção em lote — nos DOIS modos (a
+                              conferência em lote não tinha checkbox na tabela) */}
+                          {bulkOn && bulkEligible && (
                             <div
+                              role="checkbox"
+                              aria-checked={isSelected}
+                              aria-label={`Selecionar ${item.displayId} para ${bulkConferMode ? 'conferência' : 'entrega'}`}
                               onClick={e => { e.stopPropagation(); toggleBulkItem(item.id); }}
-                              style={{ width: 26, height: 26, borderRadius: 6, flexShrink: 0, border: `2px solid ${bulkSelectedIds.has(item.id) ? TI.accent : '#d4d4d0'}`, background: bulkSelectedIds.has(item.id) ? TI.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.12s' }}
+                              style={{ width: 26, height: 26, borderRadius: 6, flexShrink: 0, border: `2px solid ${isSelected ? TI.accent : '#d4d4d0'}`, background: isSelected ? TI.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.12s' }}
                             >
-                              {bulkSelectedIds.has(item.id) && <Check style={{ width: 13, height: 13, color: '#fff' }} />}
+                              {isSelected && <Check style={{ width: 13, height: 13, color: '#fff' }} />}
                             </div>
                           )}
                           {/* Entregar — reaproveitamento: direto; normal: o que já foi conferido */}
@@ -1605,14 +1816,15 @@ export default function Grafica() {
                               title={`Entregar (${remainingDeliver(item)} conferido(s) pendente(s))`}
                               data-testid={`button-deliver-${item.id}`}
                               style={{
-                                backgroundColor: TI.accent, color: "#ffffff",
+                                // #c2410c: branco sobre #f97316 dava ~2.8:1 (reprova AA)
+                                backgroundColor: "#c2410c", color: "#ffffff",
                                 border: "none", borderRadius: 6, height: 30, padding: "0 12px",
                                 fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
                                 cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
                                 transition: "background-color 0.15s",
                               }}
-                              onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.accentDark}
-                              onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.accent}
+                              onMouseEnter={e => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#9a3412"}
+                              onMouseLeave={e => (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#c2410c"}
                             >
                               <Truck style={{ width: 11, height: 11 }} />
                               {deliveredOf(item) > 0 ? `Entregar ${remainingDeliver(item)}` : "Entregar"}
@@ -1678,13 +1890,16 @@ export default function Grafica() {
 
       {/* ── Barra flutuante dos modos em lote (entrega OU conferência) ── */}
       {bulkOn && (
-        <div style={{
-          position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
-          background: TI.text,
-          padding: '12px 16px',
-          display: 'flex', alignItems: 'center', gap: 10,
-          boxShadow: '0 -4px 24px rgba(0,0,0,0.28)',
-        }}>
+        <div
+          role="toolbar"
+          aria-label={bulkConferMode ? "Ações da conferência em lote" : "Ações da entrega em lote"}
+          style={{
+            position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
+            background: TI.text,
+            padding: '12px 16px',
+            display: 'flex', alignItems: 'center', gap: 10,
+            boxShadow: '0 -4px 24px rgba(0,0,0,0.28)',
+          }}>
           {/* Selecionar tudo / desmarcar */}
           <button
             onClick={() => allDeliverableSelected
@@ -1696,25 +1911,27 @@ export default function Grafica() {
             {allDeliverableSelected ? 'Desmarcar' : `Sel. ${bulkEligibleList.length}`}
           </button>
 
-          {/* Contador */}
-          <span style={{ flex: 1, color: bulkSelectedIds.size > 0 ? '#fff' : 'rgba(255,255,255,0.4)', fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {/* Contador — aria-live anuncia a contagem a cada seleção */}
+          <span aria-live="polite" style={{ flex: 1, color: bulkSelectedIds.size > 0 ? '#fff' : 'rgba(255,255,255,0.72)', fontSize: 13, fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {bulkSelectedIds.size > 0
               ? `${bulkSelectedIds.size} peça${bulkSelectedIds.size !== 1 ? 's' : ''} selecionada${bulkSelectedIds.size !== 1 ? 's' : ''}`
               : 'Toque nas peças para selecionar'}
           </span>
 
-          {/* Confirmar */}
+          {/* Confirmar — aria-disabled (não disabled) para poder receber o foco
+              ao entrar no modo; o onClick já ignora o clique sem seleção. */}
           <button
+            ref={bulkConfirmRef}
             onClick={() => { if (bulkSelectedIds.size > 0) (bulkConferMode ? setBulkConferOpen(true) : setBulkDeliveryOpen(true)); }}
-            disabled={bulkSelectedIds.size === 0}
+            aria-disabled={bulkSelectedIds.size === 0}
             style={{
               padding: '12px 18px', borderRadius: 12, border: 'none', flexShrink: 0,
-              background: bulkSelectedIds.size === 0 ? 'rgba(255,255,255,0.15)' : bulkConferMode ? '#0e7490' : TI.accent,
+              background: bulkSelectedIds.size === 0 ? 'rgba(255,255,255,0.15)' : bulkConferMode ? '#0e7490' : '#c2410c',
               color: bulkSelectedIds.size === 0 ? 'rgba(255,255,255,0.35)' : '#fff',
               fontSize: 13, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif",
               cursor: bulkSelectedIds.size === 0 ? 'not-allowed' : 'pointer',
               display: 'flex', alignItems: 'center', gap: 7,
-              boxShadow: bulkSelectedIds.size > 0 ? (bulkConferMode ? '0 4px 16px rgba(14,116,144,0.4)' : '0 4px 16px rgba(249,115,22,0.4)') : 'none',
+              boxShadow: bulkSelectedIds.size > 0 ? (bulkConferMode ? '0 4px 16px rgba(14,116,144,0.4)' : '0 4px 16px rgba(194,65,12,0.4)') : 'none',
               transition: 'all 0.15s',
             }}
           >
@@ -1732,307 +1949,39 @@ export default function Grafica() {
         </div>
       )}
 
-      {/* ── Dialog entrega em lote ── */}
-      <Dialog open={bulkDeliveryOpen} onOpenChange={o => { if (!o) { setBulkDeliveryOpen(false); setBulkDeliveryPhotos([]); } }}>
-        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(460)}>
-          <DialogTitle className="sr-only">Confirmar Entrega em Lote</DialogTitle>
-          <DialogDescription className="sr-only">Registre a entrega de múltiplas peças de uma vez</DialogDescription>
-
-          {/* rgba(255,255,255,0.45) sobre o cabeçalho escuro media 4.48:1; a
-              primitiva usa 0.72, e de quebra o modal passa a ter a mesma
-              superfície e o mesmo cabeçalho do resto do app. */}
-          <ModalHeader
-            icon={Truck}
-            tint={TI.accent}
-            title="Entrega em lote"
-            subtitle={`${bulkSelectedIds.size} peça${bulkSelectedIds.size !== 1 ? 's' : ''} selecionada${bulkSelectedIds.size !== 1 ? 's' : ''}`}
-            onClose={() => setBulkDeliveryOpen(false)}
-          />
-
-          {/* Body */}
-          <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18, background: '#fafaf9' }}>
-            {/* Responsável */}
-            <div>
-              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#746e69', marginBottom: 10 }}>
-                Responsável pelo Recebimento *
-              </label>
-              <input
-                type="text"
-                value={bulkReceivedBy}
-                onChange={e => setBulkReceivedBy(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleBulkDelivery(); } }}
-                placeholder="Nome de quem recebeu"
-                autoFocus
-                style={{ width: '100%', boxSizing: 'border-box', padding: '14px 16px', background: '#fff', border: '1.5px solid #e7e5e4', borderRadius: 12, fontSize: 15, fontWeight: 600, color: TI.text, transition: 'border-color 0.15s, box-shadow 0.15s' }}
-                onFocus={e => { e.currentTarget.style.borderColor = TI.accent; e.currentTarget.style.boxShadow = `0 0 0 3px ${TI.accent}22`; }}
-                onBlur={e => { e.currentTarget.style.borderColor = '#e7e5e4'; e.currentTarget.style.boxShadow = 'none'; }}
-              />
-            </div>
-
-            {/* Comprovante fotográfico */}
-            <div>
-              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#746e69', marginBottom: 10 }}>
-                Comprovante fotográfico <span style={{ textTransform: 'none', fontWeight: 400, color: '#746e69', letterSpacing: 0 }}>· opcional · mesmo para todas as peças</span>
-              </label>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <div style={{ flex: 1 }}>
-                  <ObjectUploader
-                    capture
-                    maxFileSize={10485760}
-                    buttonVariant="ghost"
-                    buttonClassName="w-full h-full p-0 border-0 hover:bg-transparent"
-                    onGetUploadParameters={uploadParams}
-                    onComplete={r => addBulkPhoto(r.url)}
-                    onError={onPhotoError}
-                  >
-                    <div style={{ width: '100%', padding: '12px 0', backgroundColor: '#f4f3f0', borderRadius: 8, border: '2px dashed #d6d3d1', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
-                      <Camera style={{ width: 18, height: 18, color: '#746e69' }} />
-                      <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Câmera</span>
-                    </div>
-                  </ObjectUploader>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <ObjectUploader
-                    multiple
-                    maxFileSize={10485760}
-                    buttonVariant="ghost"
-                    buttonClassName="w-full h-full p-0 border-0 hover:bg-transparent"
-                    onGetUploadParameters={uploadParams}
-                    onComplete={r => addBulkPhoto(r.url)}
-                    onError={onPhotoError}
-                  >
-                    <div style={{ width: '100%', padding: '12px 0', backgroundColor: '#f4f3f0', borderRadius: 8, border: '2px dashed #d6d3d1', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
-                      <ImagePlus style={{ width: 18, height: 18, color: '#746e69' }} />
-                      <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Galeria</span>
-                    </div>
-                  </ObjectUploader>
-                </div>
-              </div>
-              {bulkDeliveryPhotos.length > 0 && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: 8, marginTop: 10 }}>
-                  {bulkDeliveryPhotos.map(url => (
-                    <div key={url} style={{ position: 'relative', aspectRatio: '1', borderRadius: 8, overflow: 'hidden', border: '1px solid #e7e5e4', backgroundColor: '#f4f3f0' }}>
-                      <img src={url} alt="Comprovante" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      <button
-                        type="button"
-                        onClick={() => setBulkDeliveryPhotos(prev => prev.filter(u => u !== url))}
-                        style={{ position: 'absolute', top: 3, right: 3, width: 18, height: 18, borderRadius: '50%', border: 'none', backgroundColor: 'rgba(28,25,23,0.75)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
-                      >
-                        <X style={{ width: 10, height: 10 }} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Observações */}
-            <div>
-              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#746e69', marginBottom: 8 }}>
-                Observações <span style={{ textTransform: 'none', fontWeight: 400, color: '#746e69', letterSpacing: 0 }}>(opcional)</span>
-              </label>
-              <textarea
-                value={bulkDeliveryNotes}
-                onChange={e => setBulkDeliveryNotes(e.target.value)}
-                placeholder="Ex.: entregue na portaria, aguardando retirada..."
-                rows={2}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '12px 14px', background: '#fff', border: '1.5px solid #e7e5e4', borderRadius: 12, fontSize: 13, fontFamily: 'inherit', color: TI.text, resize: 'none', lineHeight: 1.5 }}
-              />
-            </div>
-
-            {/* Peças selecionadas */}
-            <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, maxHeight: 150, overflowY: 'auto' }}>
-              {Array.from(bulkSelectedIds).map((itemId, idx) => {
-                const item = (filteredItems as any[]).find(i => i.id === itemId);
-                if (!item) return null;
-                return (
-                  <div key={itemId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: idx < bulkSelectedIds.size - 1 ? '1px solid #f5f5f4' : 'none' }}>
-                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: TI.accent, flexShrink: 0 }}>{item.displayId}</span>
-                    <span style={{ fontSize: 13, color: TI.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{item.type}</span>
-                    <span style={{ fontSize: 11, color: TI.muted, flexShrink: 0 }}>{remainingDeliver(item)} un.</span>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Footer */}
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                type="button"
-                onClick={() => setBulkDeliveryOpen(false)}
-                style={{ flex: 1, height: 48, borderRadius: 12, background: 'transparent', border: '1.5px solid #e7e5e4', color: '#746e69', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'background 0.12s' }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleBulkDelivery}
-                disabled={isBulkSubmitting || !bulkReceivedBy.trim()}
-                style={{
-                  flex: 2, height: 48, borderRadius: 12, border: 'none',
-                  background: (!bulkReceivedBy.trim() || isBulkSubmitting) ? '#e7e5e4' : '#15803d',
-                  color: (!bulkReceivedBy.trim() || isBulkSubmitting) ? '#a8a29e' : '#fff',
-                  fontSize: 13, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif",
-                  cursor: (!bulkReceivedBy.trim() || isBulkSubmitting) ? 'not-allowed' : 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  boxShadow: bulkReceivedBy.trim() && !isBulkSubmitting ? '0 4px 14px rgba(21,128,61,0.3)' : 'none',
-                  transition: 'all 0.15s',
-                }}
-                onMouseEnter={e => { if (bulkReceivedBy.trim() && !isBulkSubmitting) e.currentTarget.style.background = '#166534'; }}
-                onMouseLeave={e => { if (bulkReceivedBy.trim() && !isBulkSubmitting) e.currentTarget.style.background = '#15803d'; }}
-              >
-                {isBulkSubmitting
-                  ? 'Salvando...'
-                  : <><Truck style={{ width: 15, height: 15 }} />Confirmar Entrega ({bulkSelectedIds.size})</>
-                }
-              </button>
-            </div>
-            {/* fim do dialog de entrega em lote */}
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Dialog conferência em lote ── */}
-      <Dialog open={bulkConferOpen} onOpenChange={o => { if (!o) { setBulkConferOpen(false); setBulkConferPhotos([]); } }}>
-        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(460)}>
-          <DialogTitle className="sr-only">Confirmar Conferência em Lote</DialogTitle>
-          <DialogDescription className="sr-only">Registre a conferência de múltiplas peças de uma vez</DialogDescription>
-
-          <ModalHeader
-            icon={CheckCircle}
-            tint="#0e7490"
-            title="Conferência em lote"
-            subtitle={`${bulkSelectedIds.size} peça${bulkSelectedIds.size !== 1 ? 's' : ''} selecionada${bulkSelectedIds.size !== 1 ? 's' : ''}`}
-            onClose={() => setBulkConferOpen(false)}
-          />
-
-          {/* Body */}
-          <div style={{ padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 18, background: '#fafaf9' }}>
-            {/* Foto da conferência (obrigatória, como na conferência individual) */}
-            <div>
-              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#746e69', marginBottom: 10 }}>
-                Foto da conferência * <span style={{ textTransform: 'none', fontWeight: 400, color: '#746e69', letterSpacing: 0 }}>· mesma para todas as peças</span>
-              </label>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <div style={{ flex: 1 }}>
-                  <ObjectUploader
-                    capture
-                    maxFileSize={10485760}
-                    buttonVariant="ghost"
-                    buttonClassName="w-full h-full p-0 border-0 hover:bg-transparent"
-                    onGetUploadParameters={uploadParams}
-                    onComplete={r => addBulkConferPhoto(r.url)}
-                    onError={onPhotoError}
-                  >
-                    <div style={{ width: '100%', padding: '12px 0', backgroundColor: '#f4f3f0', borderRadius: 8, border: '2px dashed #d6d3d1', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
-                      <Camera style={{ width: 18, height: 18, color: '#746e69' }} />
-                      <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Câmera</span>
-                    </div>
-                  </ObjectUploader>
-                </div>
-                <div style={{ flex: 1 }}>
-                  <ObjectUploader
-                    multiple
-                    maxFileSize={10485760}
-                    buttonVariant="ghost"
-                    buttonClassName="w-full h-full p-0 border-0 hover:bg-transparent"
-                    onGetUploadParameters={uploadParams}
-                    onComplete={r => addBulkConferPhoto(r.url)}
-                    onError={onPhotoError}
-                  >
-                    <div style={{ width: '100%', padding: '12px 0', backgroundColor: '#f4f3f0', borderRadius: 8, border: '2px dashed #d6d3d1', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 5, cursor: 'pointer' }}>
-                      <ImagePlus style={{ width: 18, height: 18, color: '#746e69' }} />
-                      <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Galeria</span>
-                    </div>
-                  </ObjectUploader>
-                </div>
-              </div>
-              {bulkConferPhotos.length > 0 && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: 8, marginTop: 10 }}>
-                  {bulkConferPhotos.map(url => (
-                    <div key={url} style={{ position: 'relative', aspectRatio: '1', borderRadius: 8, overflow: 'hidden', border: '1px solid #e7e5e4', backgroundColor: '#f4f3f0' }}>
-                      <img src={url} alt="Foto da conferência" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      <button
-                        type="button"
-                        onClick={() => setBulkConferPhotos(prev => prev.filter(u => u !== url))}
-                        style={{ position: 'absolute', top: 3, right: 3, width: 18, height: 18, borderRadius: '50%', border: 'none', backgroundColor: 'rgba(28,25,23,0.75)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
-                      >
-                        <X style={{ width: 10, height: 10 }} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Observações */}
-            <div>
-              <label style={{ display: 'block', fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#746e69', marginBottom: 8 }}>
-                Observações <span style={{ textTransform: 'none', fontWeight: 400, color: '#746e69', letterSpacing: 0 }}>(opcional)</span>
-              </label>
-              <textarea
-                value={bulkConferNotes}
-                onChange={e => setBulkConferNotes(e.target.value)}
-                placeholder="Ex.: conferido contra o romaneio, sem avarias..."
-                rows={2}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '12px 14px', background: '#fff', border: '1.5px solid #e7e5e4', borderRadius: 12, fontSize: 13, fontFamily: 'inherit', color: TI.text, resize: 'none', lineHeight: 1.5 }}
-              />
-            </div>
-
-            {/* Peças selecionadas */}
-            <div style={{ background: '#fff', border: '1px solid #e7e5e4', borderRadius: 12, maxHeight: 150, overflowY: 'auto' }}>
-              {Array.from(bulkSelectedIds).map((itemId, idx) => {
-                const item = (filteredItems as any[]).find(i => i.id === itemId);
-                if (!item) return null;
-                return (
-                  <div key={itemId} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', borderBottom: idx < bulkSelectedIds.size - 1 ? '1px solid #f5f5f4' : 'none' }}>
-                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: '#0e7490', flexShrink: 0 }}>{item.displayId}</span>
-                    <span style={{ fontSize: 13, color: TI.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{item.type}</span>
-                    <span style={{ fontSize: 11, color: TI.muted, flexShrink: 0 }}>{remainingConfer(item)} un.</span>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Footer */}
-            <div style={{ display: 'flex', gap: 10 }}>
-              <button
-                type="button"
-                onClick={() => setBulkConferOpen(false)}
-                style={{ flex: 1, height: 48, borderRadius: 12, background: 'transparent', border: '1.5px solid #e7e5e4', color: '#746e69', fontSize: 13, fontWeight: 700, cursor: 'pointer', transition: 'background 0.12s' }}
-                onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={handleBulkConference}
-                disabled={isBulkSubmitting || bulkConferPhotos.length === 0}
-                style={{
-                  flex: 2, height: 48, borderRadius: 12, border: 'none',
-                  background: (bulkConferPhotos.length === 0 || isBulkSubmitting) ? '#e7e5e4' : '#0e7490',
-                  color: (bulkConferPhotos.length === 0 || isBulkSubmitting) ? '#a8a29e' : '#fff',
-                  fontSize: 13, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif",
-                  cursor: (bulkConferPhotos.length === 0 || isBulkSubmitting) ? 'not-allowed' : 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  boxShadow: bulkConferPhotos.length > 0 && !isBulkSubmitting ? '0 4px 14px rgba(14,116,144,0.3)' : 'none',
-                  transition: 'all 0.15s',
-                }}
-                onMouseEnter={e => { if (bulkConferPhotos.length > 0 && !isBulkSubmitting) e.currentTarget.style.background = '#155e75'; }}
-                onMouseLeave={e => { if (bulkConferPhotos.length > 0 && !isBulkSubmitting) e.currentTarget.style.background = '#0e7490'; }}
-              >
-                {isBulkSubmitting
-                  ? 'Salvando...'
-                  : <><CheckCircle style={{ width: 15, height: 15 }} />Confirmar Conferência ({bulkSelectedIds.size})</>
-                }
-              </button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* ── Dialogs dos modos em lote (componente único, ver BulkActionDialog) ── */}
+      <BulkActionDialog
+        mode="deliver"
+        open={bulkDeliveryOpen}
+        onClose={() => { setBulkDeliveryOpen(false); setBulkDeliveryPhotos([]); }}
+        items={bulkSelectedItems}
+        photos={bulkDeliveryPhotos}
+        onAddPhoto={addBulkPhoto}
+        onRemovePhoto={url => setBulkDeliveryPhotos(prev => prev.filter(u => u !== url))}
+        onPhotoError={onPhotoError}
+        notes={bulkDeliveryNotes}
+        onNotesChange={setBulkDeliveryNotes}
+        receivedBy={bulkReceivedBy}
+        onReceivedByChange={setBulkReceivedBy}
+        isSubmitting={isBulkSubmitting}
+        onConfirm={handleBulkDelivery}
+        qtyFor={remainingDeliver}
+      />
+      <BulkActionDialog
+        mode="confer"
+        open={bulkConferOpen}
+        onClose={() => { setBulkConferOpen(false); setBulkConferPhotos([]); }}
+        items={bulkSelectedItems}
+        photos={bulkConferPhotos}
+        onAddPhoto={addBulkConferPhoto}
+        onRemovePhoto={url => setBulkConferPhotos(prev => prev.filter(u => u !== url))}
+        onPhotoError={onPhotoError}
+        notes={bulkConferNotes}
+        onNotesChange={setBulkConferNotes}
+        isSubmitting={isBulkSubmitting}
+        onConfirm={handleBulkConference}
+        qtyFor={remainingConfer}
+      />
 
       {/* ── Dialog de Detalhes ── */}
       <ItemDetailsDialog
@@ -2050,6 +1999,11 @@ export default function Grafica() {
               : modalType === "conference" ? "Conferir peça"
               : "Confirmar entrega"}
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            {modalType === "production" ? "Registre a quantidade produzida desta peça"
+              : modalType === "conference" ? "Anexe a foto da conferência e confirme a quantidade"
+              : "Registre quem recebeu o material e confirme a entrega"}
+          </DialogDescription>
 
           {/* rgba(255,255,255,0.4) media ~3.9:1 sobre o cabeçalho escuro — a
               legenda que diz o que fazer era a coisa menos legível do modal. */}
@@ -2119,7 +2073,7 @@ export default function Grafica() {
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
                       <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, color: selectedItem.isReuse ? '#059669' : TI.accent }}>{selectedItem.displayId}</span>
-                      <StatusPill status={selectedItem.status} />
+                      <StatusPill status={selectedItem.status} size="sm" showDot={false} />
                     </div>
                     <div style={{ fontSize: 15, fontWeight: 700, color: TI.text }}>{selectedItem.type}</div>
                     {selectedItem.description && selectedItem.description !== selectedItem.type && (
@@ -2137,21 +2091,21 @@ export default function Grafica() {
                 {/* Grade de specs */}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
                   <div style={{ background: '#fff', borderRadius: 8, padding: '8px 10px' }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.muted, marginBottom: 3 }}>Material</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.secondary, marginBottom: 3 }}>Material</div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: TI.text }}>{selectedItem.material || '—'}</div>
                     {selectedItem.visualWidth && (
                       <div style={{ fontSize: 11, color: TI.secondary, marginTop: 1 }}>{selectedItem.visualWidth} × {selectedItem.visualHeight}m</div>
                     )}
                   </div>
                   <div style={{ background: '#fff', borderRadius: 8, padding: '8px 10px' }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.muted, marginBottom: 3 }}>Acabamento</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.secondary, marginBottom: 3 }}>Acabamento</div>
                     <div style={{ fontSize: 13, fontWeight: 700, color: TI.text }}>{selectedItem.finish || '—'}</div>
                     {Number(selectedItem.calculatedM2) > 0 && (
                       <div style={{ fontSize: 11, color: TI.secondary, marginTop: 1 }}>{m2ToProduce(selectedItem).toFixed(2)} m²</div>
                     )}
                   </div>
                   <div style={{ background: '#fff', borderRadius: 8, padding: '8px 10px' }}>
-                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.muted, marginBottom: 2 }}>Quantidade</div>
+                    <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.secondary, marginBottom: 2 }}>Quantidade</div>
                     <div style={{ fontSize: 18, fontWeight: 800, color: TI.text, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{qtyOf(selectedItem)}<span style={{ fontSize: 11, fontWeight: 500, color: TI.muted, marginLeft: 3 }}>un.</span></div>
                     {selectedItem.isReuse && <div style={{ fontSize: 10, color: '#059669', marginTop: 2, fontWeight: 600 }}>Reaproveitado</div>}
                   </div>
@@ -2191,10 +2145,13 @@ export default function Grafica() {
                     Quantidade a Produzir
                   </label>
                   <div style={{ display: "flex", gap: 8 }}>
+                    {/* Teto = quantidade − reaproveitadas (a mesma conta do
+                        openProductionModal): o reaproveitado não é produzido,
+                        e o teto antigo deixava lançar produção acima do real. */}
                     <input
                       type="number"
                       min={1}
-                      max={selectedItem.quantity}
+                      max={qtyOf(selectedItem) - reusedOf(selectedItem)}
                       value={productionData.quantityProduced}
                       onChange={e => setProductionData({ quantityProduced: parseInt(e.target.value) || 0 })}
                       required
@@ -2203,7 +2160,7 @@ export default function Grafica() {
                     />
                     <button
                       type="button"
-                      onClick={() => setProductionData({ quantityProduced: selectedItem.quantity })}
+                      onClick={() => setProductionData({ quantityProduced: qtyOf(selectedItem) - reusedOf(selectedItem) })}
                       data-testid="button-set-total"
                       style={{ backgroundColor: "#e7e5e4", border: "none", borderRadius: 8, padding: "0 20px", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", color: "#57534e", cursor: "pointer", whiteSpace: "nowrap", transition: "background-color 0.15s" }}
                       onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#d6d3d1")}
@@ -2274,7 +2231,7 @@ export default function Grafica() {
                 )}
 
                 {/* Comprovante fotográfico */}
-                {renderPhotoPicker("(opcional) · pode anexar várias")}
+                <PhotoPicker photos={photos} onAdd={addPhoto} onRemove={removePhoto} onError={onPhotoError} hint="(opcional) · pode anexar várias" />
 
                 {renderNotesField("Ex.: entregue na portaria, faltou 1 caixa…")}
 
@@ -2318,7 +2275,7 @@ export default function Grafica() {
                       style={{ width: "100%", padding: "10px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 15, fontWeight: 700, color: TI.text }} />
                   </div>
                 )}
-                {renderPhotoPicker("· obrigatória, pode anexar várias")}
+                <PhotoPicker photos={photos} onAdd={addPhoto} onRemove={removePhoto} onError={onPhotoError} hint="· obrigatória, pode anexar várias" />
 
                 {renderNotesField("Ex.: cor puxando para o escuro, ilhós faltando…")}
                 <div style={modalActionsStyle}>

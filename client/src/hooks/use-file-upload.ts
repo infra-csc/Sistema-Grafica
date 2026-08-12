@@ -4,7 +4,9 @@ import { useRef, useState } from "react";
 
 export interface UseFileUploadOptions {
   maxFileSize: number;
-  onGetUploadParameters: () => Promise<{
+  /** Legado (opcional): o upload hoje passa pelo servidor (/api/objects/upload-direct)
+   *  e não usa mais URL assinada — a prop fica aceita para não quebrar consumidores. */
+  onGetUploadParameters?: () => Promise<{
     method: "PUT";
     url: string;
   }>;

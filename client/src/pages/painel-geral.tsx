@@ -20,29 +20,8 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { getStatusMeta, getStatusLabel, PRODUCTION_STATUSES, FINAL_STATUSES } from "@/lib/status";
+import { StatusPill } from "@/components/status-pill";
 import type { Event, Sponsor, StandardItem } from "@shared/schema";
-
-// Cores/rótulos de status vêm de lib/status.ts (fonte única) — antes havia um
-// STATUS_CONFIG local que divergia do status-badge (mesma peça, cor/nome
-// diferentes por tela). Usa o rótulo curto para manter a densidade da tabela.
-function StatusPill({ status }: { status: string }) {
-  const cfg = getStatusMeta(status);
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 6,
-      padding: "3px 10px",
-      backgroundColor: cfg.bg,
-      color: cfg.text,
-      border: `1px solid ${cfg.border}`,
-      borderRadius: 999,
-      fontSize: 11, fontWeight: 700,
-      whiteSpace: "nowrap",
-    }}>
-      <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: cfg.dot, flexShrink: 0 }} />
-      {cfg.short}
-    </span>
-  );
-}
 
 // ─── Constantes de módulo — não dependem de estado; hoisted para não serem
 // realocadas a cada render. ─────────────────────────────────────────────────

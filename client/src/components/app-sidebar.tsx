@@ -1,11 +1,11 @@
 import {
   Calendar, CalendarRange, Palette, Printer, Layers, LayoutDashboard,
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
-  Link2, LogOut, ScrollText, Archive, ScanSearch, Compass, Settings2, Camera,
+  Link2, LogOut, Loader2, ScrollText, Archive, ScanSearch, Compass, Settings2, Camera,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { roleLabel } from "@/lib/utils";
-import { useAuth } from "@/contexts/auth-context";
+import { useAuth, type UserRole } from "@/contexts/auth-context";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -19,13 +19,14 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   SidebarFooter,
+  SidebarRail,
 } from "@/components/ui/sidebar";
 
 type MenuItem = {
   title: string;
   url: string;
   icon: React.ElementType;
-  roles?: string[];
+  roles?: UserRole[];
 };
 
 // roles: undefined = todos os perfis autenticados
@@ -58,7 +59,7 @@ const stockItems: MenuItem[] = [
   { title: "Estoque",            url: "/estoque",          icon: Archive,    roles: ["admin"] },
 ];
 
-// Administração: apenas admin
+// Administração: apenas admin (filtrado via hasPermission no componente)
 const adminItems: MenuItem[] = [
   { title: "Usuários",        url: "/usuarios",     icon: Users },
   { title: "Logs do Sistema", url: "/logs-sistema", icon: ScrollText },
@@ -81,6 +82,22 @@ const sectionLabelStyle: React.CSSProperties = {
 // ─── Single nav item ─────────────────────────────────────
 function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
   const Icon = item.icon;
+
+  // Hover e foco de teclado compartilham o mesmo realce: os estilos são
+  // inline, então :focus-visible do CSS não alcança estas cores.
+  const highlight = (el: HTMLElement) => {
+    if (!isActive) {
+      el.style.backgroundColor = "#fafaf9";
+      el.style.color = "#292524";
+    }
+  };
+  const unhighlight = (el: HTMLElement) => {
+    if (!isActive) {
+      el.style.backgroundColor = "transparent";
+      el.style.color = "#57534e";
+    }
+  };
+
   return (
     <SidebarMenuItem style={{ margin: "0 8px" }}>
       <SidebarMenuButton
@@ -90,6 +107,7 @@ function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
       >
         <Link
           href={item.url}
+          aria-current={isActive ? "page" : undefined}
           style={{
             display: "flex",
             alignItems: "center",
@@ -99,29 +117,26 @@ function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
             fontSize: 13,
             fontFamily: "'Plus Jakarta Sans', sans-serif",
             fontWeight: isActive ? 600 : 500,
-            color: isActive ? "#f97316" : "#57534e",
+            // #f97316 sobre #fff7ed ficava ~2.5:1 — o texto ativo era o menos
+            // legível do menu. #9a3412 mantém a família laranja com contraste AA;
+            // a barrinha inset devolve a marcação de "ativo" para quem não
+            // distingue a cor.
+            color: isActive ? "#9a3412" : "#57534e",
             backgroundColor: isActive ? "#fff7ed" : "transparent",
+            boxShadow: isActive ? "inset 3px 0 0 #f97316" : "none",
             textDecoration: "none",
             transition: "background-color 0.12s ease, color 0.12s ease",
             boxSizing: "border-box",
           }}
-          onMouseEnter={(e) => {
-            if (!isActive) {
-              (e.currentTarget as HTMLElement).style.backgroundColor = "#fafaf9";
-              (e.currentTarget as HTMLElement).style.color = "#292524";
-            }
-          }}
-          onMouseLeave={(e) => {
-            if (!isActive) {
-              (e.currentTarget as HTMLElement).style.backgroundColor = "transparent";
-              (e.currentTarget as HTMLElement).style.color = "#57534e";
-            }
-          }}
+          onMouseEnter={(e) => highlight(e.currentTarget as HTMLElement)}
+          onMouseLeave={(e) => unhighlight(e.currentTarget as HTMLElement)}
+          onFocus={(e) => highlight(e.currentTarget as HTMLElement)}
+          onBlur={(e) => unhighlight(e.currentTarget as HTMLElement)}
         >
           <Icon
             style={{
               width: 18, height: 18, flexShrink: 0,
-              color: isActive ? "#f97316" : "#746e69",
+              color: isActive ? "#c2410c" : "#746e69",
               filter: isActive ? "drop-shadow(0 0 3px rgba(249,115,22,0.25))" : "none",
               transition: "filter 0.12s ease, color 0.12s ease",
             }}
@@ -130,6 +145,33 @@ function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>
+  );
+}
+
+// ─── Nav group (elimina os 4 blocos copiados de SidebarGroup) ─────────────
+function NavGroup({
+  label,
+  items,
+  isItemActive,
+  first = false,
+}: {
+  // null = grupo único visível para o papel; o rótulo vira ruído e some.
+  label: string | null;
+  items: MenuItem[];
+  isItemActive: (url: string) => boolean;
+  first?: boolean;
+}) {
+  return (
+    <SidebarGroup style={{ padding: first ? "8px 0 4px" : "20px 0 4px" }}>
+      {label !== null && <span style={sectionLabelStyle}>{label}</span>}
+      <SidebarGroupContent>
+        <SidebarMenu style={{ gap: 1 }}>
+          {items.map((item) => (
+            <NavItem key={item.title} item={item} isActive={isItemActive(item.url)} />
+          ))}
+        </SidebarMenu>
+      </SidebarGroupContent>
+    </SidebarGroup>
   );
 }
 
@@ -147,7 +189,7 @@ export function AppSidebar() {
     onSuccess: () => {
       queryClient.clear();
       // O toast que existia aqui vinha DEPOIS do redirect — nunca aparecia.
-      window.location.href = "https://norte-app-hub.replit.app/";
+      window.location.href = import.meta.env.VITE_HUB_URL ?? "/login";
     },
     onError: (error: any) => {
       // Sem isto, uma falha de rede no logout era silêncio absoluto.
@@ -155,7 +197,7 @@ export function AppSidebar() {
     },
   });
 
-  const role = user?.role || "";
+  const role = (user?.role || "") as UserRole;
   const filterByRole = (items: MenuItem[]) =>
     items.filter((item) => (item.roles ? item.roles.includes(role) : true));
 
@@ -165,19 +207,28 @@ export function AppSidebar() {
   const isItemActive = (url: string) =>
     url === "/" ? location === "/" : location === url || location.startsWith(url + "/");
 
+  const groups = [
+    { label: "Produção",             items: filterByRole(productionItems) },
+    { label: "Parceiros",            items: filterByRole(sponsorItems) },
+    { label: "Estoque & Logística",  items: filterByRole(stockItems) },
+    { label: "Administração",        items: hasPermission("admin") ? adminItems : [] },
+  ].filter((g) => g.items.length > 0);
 
-  const filteredProduction = filterByRole(productionItems);
-  const filteredSponsor   = filterByRole(sponsorItems);
-  const filteredStock     = filterByRole(stockItems);
+  // Com um único grupo visível (arte/grafica), o rótulo de seção não separa
+  // nada de nada — é só ruído acima da lista.
+  const singleGroup = groups.length === 1;
+
+  // Mesma regra de iniciais do avatar da topbar (App.tsx): duas primeiras
+  // palavras do nome. Antes cada avatar tinha forma e regra próprias.
+  const userInitials = user?.name
+    ? user.name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
+    : "U";
 
   return (
-    <Sidebar
-      style={{
-        backgroundColor: "#ffffff",
-        borderRight: "1px solid #e7e5e4",
-        height: "100dvh",
-      }}
-    >
+    // backgroundColor/borderRight ficavam no style — que o Sheet mobile
+    // descarta. Como className, o desktop os aplica e o mobile herda o
+    // bg-sidebar padrão do Sheet.
+    <Sidebar className="bg-white border-r border-[#e7e5e4]">
       {/* ── Header ── */}
       <SidebarHeader style={{ padding: "32px 24px 24px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -226,61 +277,19 @@ export function AppSidebar() {
           overflowY: "auto",
         }}
       >
-        {/* Produção */}
-        {filteredProduction.length > 0 && (
-          <SidebarGroup style={{ padding: "8px 0 4px" }}>
-            <span style={sectionLabelStyle}>Produção</span>
-            <SidebarGroupContent>
-              <SidebarMenu style={{ gap: 1 }}>
-                {filteredProduction.map((item) => (
-                  <NavItem key={item.title} item={item} isActive={isItemActive(item.url)} />
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-        {/* Patrocinadores — visível p/ solicitação, atendimento e admin */}
-        {filteredSponsor.length > 0 && (
-          <SidebarGroup style={{ padding: "20px 0 4px" }}>
-            <span style={sectionLabelStyle}>Parceiros</span>
-            <SidebarGroupContent>
-              <SidebarMenu style={{ gap: 1 }}>
-                {filteredSponsor.map((item) => (
-                  <NavItem key={item.title} item={item} isActive={isItemActive(item.url)} />
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-        {/* Estoque & Logística — apenas admin */}
-        {filteredStock.length > 0 && (
-          <SidebarGroup style={{ padding: "20px 0 4px" }}>
-            <span style={sectionLabelStyle}>Estoque &amp; Logística</span>
-            <SidebarGroupContent>
-              <SidebarMenu style={{ gap: 1 }}>
-                {filteredStock.map((item) => (
-                  <NavItem key={item.title} item={item} isActive={isItemActive(item.url)} />
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
-
-        {/* Administração — apenas admin */}
-        {hasPermission("admin") && (
-          <SidebarGroup style={{ padding: "20px 0 4px" }}>
-            <span style={sectionLabelStyle}>Administração</span>
-            <SidebarGroupContent>
-              <SidebarMenu style={{ gap: 1 }}>
-                {adminItems.map((item) => (
-                  <NavItem key={item.title} item={item} isActive={isItemActive(item.url)} />
-                ))}
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
-        )}
+        {/* display:contents mantém os grupos como filhos diretos do flex
+            column do SidebarContent — o landmark entra sem mexer no layout. */}
+        <nav aria-label="Navegação principal" style={{ display: "contents" }}>
+          {groups.map((g, i) => (
+            <NavGroup
+              key={g.label}
+              label={singleGroup ? null : g.label}
+              items={g.items}
+              isItemActive={isItemActive}
+              first={i === 0}
+            />
+          ))}
+        </nav>
       </SidebarContent>
 
       {/* ── Footer: user + logout ── */}
@@ -292,15 +301,18 @@ export function AppSidebar() {
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {/* Avatar */}
+          {/* Avatar — mesma identidade do avatar da topbar */}
           <div style={{
             width: 34, height: 34, borderRadius: "50%",
             backgroundColor: "#1c1917",
             display: "flex", alignItems: "center", justifyContent: "center",
             flexShrink: 0,
           }}>
-            <span style={{ color: "white", fontSize: 13, fontWeight: 700 }}>
-              {user?.name?.charAt(0).toUpperCase() ?? "U"}
+            <span style={{
+              fontFamily: "'Space Grotesk', sans-serif",
+              color: "#fb923c", fontSize: 12, fontWeight: 700, letterSpacing: "-0.02em",
+            }}>
+              {userInitials}
             </span>
           </div>
 
@@ -331,11 +343,14 @@ export function AppSidebar() {
             title="Sair"
             aria-label="Sair do sistema"
             style={{
-              background: "none", border: "none", cursor: "pointer",
+              background: "none", border: "none",
+              cursor: logoutMutation.isPending ? "default" : "pointer",
               padding: 6, borderRadius: 6, color: "#746e69",
               display: "flex", alignItems: "center", justifyContent: "center",
-              transition: "color 0.15s ease, background-color 0.15s ease",
+              transition: "color 0.15s ease, background-color 0.15s ease, opacity 0.15s ease",
               flexShrink: 0,
+              // Antes o clique não dava retorno nenhum até o redirect chegar.
+              opacity: logoutMutation.isPending ? 0.5 : 1,
             }}
             onMouseEnter={(e) => {
               (e.currentTarget as HTMLButtonElement).style.color = "#dc2626";
@@ -345,11 +360,23 @@ export function AppSidebar() {
               (e.currentTarget as HTMLButtonElement).style.color = "#746e69";
               (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
             }}
+            onFocus={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.color = "#dc2626";
+              (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#fef2f2";
+            }}
+            onBlur={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.color = "#746e69";
+              (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
+            }}
           >
-            <LogOut style={{ width: 15, height: 15 }} />
+            {logoutMutation.isPending
+              ? <Loader2 className="animate-spin" style={{ width: 15, height: 15 }} />
+              : <LogOut style={{ width: 15, height: 15 }} />}
           </button>
         </div>
       </SidebarFooter>
+
+      <SidebarRail />
     </Sidebar>
   );
 }

@@ -25,7 +25,7 @@ import { ptBR } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
 import { Undo2 } from "lucide-react";
-import { ModalHeader, ModalFooter, modalSurface } from "@/components/modal-shell";
+import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 
 interface SponsorApproval {
   id: string;
@@ -1064,8 +1064,10 @@ export default function Atendimento() {
               Fluxo de Verificação
             </span>
             <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#9d4300', display: 'inline-block' }} />
-            <span style={{ color: '#746e69', fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Aprovação do Patrocinador
+            {/* Eyebrow com o nome do módulo no menu (padrão do breadcrumb de
+                vincular-patrocinadores) — o texto antigo repetia o h1 logo abaixo. */}
+            <span style={{ color: '#746e69', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              Atendimento
             </span>
           </div>
           <h1 style={{
@@ -3163,7 +3165,7 @@ export default function Atendimento() {
 
       {/* ── CONFIRMAÇÃO: Aprovar Individual ─────────────────────────────── */}
       <Dialog open={!!confirmApproveIndividual} onOpenChange={(open) => { if (!open) setConfirmApproveIndividual(null); }}>
-        <DialogContent style={modalSurface(440)}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(440)}>
           <DialogTitle className="sr-only">Confirmar aprovação</DialogTitle>
           <ModalHeader
             variant="confirm"
@@ -3205,7 +3207,7 @@ export default function Atendimento() {
 
       {/* ── CONFIRMAÇÃO: Aprovar em Lote ────────────────────────────────── */}
       <Dialog open={confirmApproveBatch} onOpenChange={(open) => { if (!open) setConfirmApproveBatch(false); }}>
-        <DialogContent style={modalSurface(440)}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(440)}>
           <DialogTitle className="sr-only">Confirmar aprovação em lote</DialogTitle>
           <ModalHeader
             variant="confirm"

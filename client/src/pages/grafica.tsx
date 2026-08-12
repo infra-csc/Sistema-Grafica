@@ -26,7 +26,7 @@ import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { getStatusMeta, getStatusLabel } from "@/lib/status";
 import { useAuth } from "@/contexts/auth-context";
-import { ModalHeader, modalSurface } from "@/components/modal-shell";
+import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 
 const TI = {
   bg: "#fafaf9",
@@ -748,7 +748,7 @@ export default function Grafica() {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: isMobile ? "center" : "flex-end", flexWrap: "wrap", gap: 8 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: isMobile ? 19 : 26, fontWeight: 900, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", textTransform: "uppercase", color: TI.text }} data-testid="title-grafica">
-            {isMobile ? "Gráfica" : "Controle de Produção"}
+            Gráfica
           </h1>
           {!isMobile && (
             <p style={{ margin: "4px 0 0", fontSize: 13, color: TI.secondary }}>
@@ -1734,7 +1734,7 @@ export default function Grafica() {
 
       {/* ── Dialog entrega em lote ── */}
       <Dialog open={bulkDeliveryOpen} onOpenChange={o => { if (!o) { setBulkDeliveryOpen(false); setBulkDeliveryPhotos([]); } }}>
-        <DialogContent style={modalSurface(460)}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(460)}>
           <DialogTitle className="sr-only">Confirmar Entrega em Lote</DialogTitle>
           <DialogDescription className="sr-only">Registre a entrega de múltiplas peças de uma vez</DialogDescription>
 
@@ -1896,7 +1896,7 @@ export default function Grafica() {
 
       {/* ── Dialog conferência em lote ── */}
       <Dialog open={bulkConferOpen} onOpenChange={o => { if (!o) { setBulkConferOpen(false); setBulkConferPhotos([]); } }}>
-        <DialogContent style={modalSurface(460)}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(460)}>
           <DialogTitle className="sr-only">Confirmar Conferência em Lote</DialogTitle>
           <DialogDescription className="sr-only">Registre a conferência de múltiplas peças de uma vez</DialogDescription>
 
@@ -2044,7 +2044,7 @@ export default function Grafica() {
 
       {/* ── Modal de Produção / Entrega ── */}
       <Dialog open={!!selectedItem && !!modalType} onOpenChange={open => { if (!open) { setSelectedItem(null); setModalType(null); } }}>
-        <DialogContent style={modalSurface(468)}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(468)}>
           <DialogTitle className="sr-only">
             {modalType === "production" ? "Registrar produção"
               : modalType === "conference" ? "Conferir peça"

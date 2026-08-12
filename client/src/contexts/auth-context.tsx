@@ -2,7 +2,7 @@ import { createContext, useContext, useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 
-type UserRole = "admin" | "solicitacao" | "arte" | "grafica" | "atendimento";
+export type UserRole = "admin" | "solicitacao" | "arte" | "grafica" | "atendimento";
 
 interface User {
   id: string;

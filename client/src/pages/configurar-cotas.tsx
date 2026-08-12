@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -52,23 +52,48 @@ export default function ConfigurarCotas() {
   const isLoading = groupsLoading || rulesLoading;
   const isError = groupsError || rulesError;
 
+  // A matriz é estado local editável; o servidor é só a origem da semeadura.
+  // `seededRef` garante que a carga inicial roda UMA vez; nos refetches
+  // seguintes (ex.: pós-save da cota A) o efeito atualiza apenas as cotas SEM
+  // edição pendente — sobrescrever matrix[q] de uma cota dirty descartava as
+  // marcações de B e limpava o dirty dela em silêncio, tornando mentiroso o
+  // aviso "as pendentes continuam marcadas" do salvar em lote.
+  const seededRef = useRef(false);
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+
   useEffect(() => {
     if (isLoading) return;
-    const m: Record<string, Set<string>> = {};
-    for (const q of QUOTAS) m[q.key] = new Set();
-    if (rules.length > 0) {
-      for (const rule of rules) m[rule.quota] = new Set(rule.itemTypes);
-    } else {
-      for (const q of QUOTAS) {
-        const defaults = DEFAULT_QUOTA_RULES[q.key] ?? [];
-        m[q.key] = new Set(groups.length > 0 ? defaults.filter(t => groups.includes(t)) : defaults);
-      }
+
+    const fromServer = (key: string): Set<string> => {
+      const rule = rules.find(r => r.quota === key);
+      if (rule) return new Set(rule.itemTypes);
+      if (rules.length > 0) return new Set();
+      const defaults = DEFAULT_QUOTA_RULES[key] ?? [];
+      return new Set(groups.length > 0 ? defaults.filter(t => groups.includes(t)) : defaults);
+    };
+
+    if (!seededRef.current) {
+      seededRef.current = true;
+      const m: Record<string, Set<string>> = {};
+      for (const q of QUOTAS) m[q.key] = fromServer(q.key);
+      // Semear defaults NÃO marca dirty: "alterações pendentes" na primeira
+      // visita, sem o usuário ter tocado em nada, era alarme falso — e fazia a
+      // guarda de saída disparar à toa. Dirty só nasce de interação real.
+      setDirty(new Set());
+      setMatrix(m);
+      return;
     }
-    // Semear defaults NÃO marca dirty: "alterações pendentes" na primeira
-    // visita, sem o usuário ter tocado em nada, era alarme falso — e fazia a
-    // guarda de saída disparar à toa. Dirty só nasce de interação real.
-    setDirty(new Set());
-    setMatrix(m);
+
+    setMatrix(prev => {
+      const m: Record<string, Set<string>> = {};
+      for (const q of QUOTAS) {
+        m[q.key] = dirtyRef.current.has(q.key)
+          ? (prev[q.key] ?? new Set())
+          : fromServer(q.key);
+      }
+      return m;
+    });
   }, [rules, groups, isLoading]);
 
   // Guarda de saída: com alteração pendente de verdade, fechar/recarregar a
@@ -113,13 +138,24 @@ export default function ConfigurarCotas() {
     setDirty(prev => new Set(prev).add(quota));
   };
 
+  // Todos/Limpar operam sobre os grupos VISÍVEIS (filteredGroups): com a busca
+  // ativa, marcar/desmarcar linhas que a pessoa não está vendo era efeito
+  // colateral invisível. Sem busca, filteredGroups === groups.
   const selectAll = (quota: string) => {
-    setMatrix(prev => ({ ...prev, [quota]: new Set(groups) }));
+    setMatrix(prev => {
+      const cur = new Set(prev[quota] ?? []);
+      for (const g of filteredGroups) cur.add(g);
+      return { ...prev, [quota]: cur };
+    });
     setDirty(prev => new Set(prev).add(quota));
   };
 
   const clearAll = (quota: string) => {
-    setMatrix(prev => ({ ...prev, [quota]: new Set() }));
+    setMatrix(prev => {
+      const cur = new Set(prev[quota] ?? []);
+      for (const g of filteredGroups) cur.delete(g);
+      return { ...prev, [quota]: cur };
+    });
     setDirty(prev => new Set(prev).add(quota));
   };
 
@@ -160,7 +196,7 @@ export default function ConfigurarCotas() {
       {/* ── Header ── */}
       <div style={{ marginBottom: 28, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
         <div>
-          <span style={{ fontSize: 10, fontWeight: 900, color: T.accent, textTransform: "uppercase", letterSpacing: "0.2em", fontFamily: "'Space Grotesk', sans-serif" }}>
+          <span style={{ fontSize: 10, fontWeight: 900, color: T.accentText, textTransform: "uppercase", letterSpacing: "0.2em", fontFamily: "'Space Grotesk', sans-serif" }}>
             Automação de Vinculação
           </span>
           <h1 style={{ fontSize: 36, fontWeight: 900, color: T.text, margin: "6px 0 0", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", lineHeight: 1 }}>
@@ -184,7 +220,10 @@ export default function ConfigurarCotas() {
       </div>
 
       {/* ── Matrix card ── */}
-      <div style={{ backgroundColor: T.surface, borderRadius: 12, border: `1px solid ${T.border}`, overflow: isMobile ? "auto" : "hidden", overflowX: "auto" }}>
+      {/* O card é o ÚNICO contêiner de rolagem (as duas direções): sticky-top
+          e sticky-left grudam no mesmo scrollport. Antes, quem rolava era a
+          página e o card só clipava — o cabeçalho sticky ficava inerte. */}
+      <div style={{ backgroundColor: T.surface, borderRadius: 12, border: `1px solid ${T.border}`, overflow: "auto", maxHeight: isMobile ? "calc(100vh - 150px)" : "calc(100vh - 230px)" }}>
 
         {/* ── Sticky header ── */}
         <div style={{
@@ -313,7 +352,7 @@ export default function ConfigurarCotas() {
             {search ? (
               <>
                 <p style={{ fontSize: 13, fontWeight: 700, color: T.second, margin: "0 0 4px" }}>Nenhum grupo encontrado para "{search}"</p>
-                <button onClick={() => setSearch("")} style={{ fontSize: 12, color: T.accent, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Limpar filtro</button>
+                <button onClick={() => setSearch("")} style={{ fontSize: 12, color: T.accentText, background: "none", border: "none", cursor: "pointer", fontWeight: 600 }}>Limpar filtro</button>
               </>
             ) : (
               <>

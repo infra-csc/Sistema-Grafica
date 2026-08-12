@@ -171,10 +171,12 @@ export function registerAuthRoutes(app: Express): void {
         console.error("Failed to invalidate other sessions after password change:", sessionErr);
       }
 
-      // Create audit log
+      // Create audit log — ação específica: 'password_changed' tem badge
+      // próprio na tela de logs; como 'updated' genérico, a troca de senha
+      // sumia no meio das edições comuns de usuário.
       await createAuditLog(
         req.userName!,
-        'updated',
+        'password_changed',
         'user',
         user.id,
         'Senha alterada'

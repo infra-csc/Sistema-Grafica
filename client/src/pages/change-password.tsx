@@ -70,11 +70,13 @@ export default function ChangePassword() {
       // Invalidate auth query to refresh user data
       await queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
 
+      // O servidor derruba as outras sessões do usuário ao trocar a senha —
+      // efeito de segurança relevante demais para acontecer em silêncio.
       toast({
         title: "Senha alterada com sucesso",
-        description: isFirstLogin
-          ? "Você já pode acessar o sistema com sua nova senha"
-          : "Sua senha foi atualizada",
+        description: `${isFirstLogin
+          ? "Você já pode acessar o sistema com sua nova senha."
+          : "Sua senha foi atualizada."} As demais sessões conectadas foram encerradas.`,
       });
 
       setLocation("/");
@@ -234,7 +236,10 @@ export default function ChangePassword() {
                   </FormItem>
                 )}
               />
-              <ul className="space-y-1" aria-label="Requisitos da nova senha">
+              {/* aria-live: o checklist muda enquanto se digita — sem o anúncio,
+                  quem usa leitor de tela só descobria requisito pendente no erro
+                  do submit. */}
+              <ul className="space-y-1" aria-label="Requisitos da nova senha" aria-live="polite">
                 {requirements.map(req => (
                   <li
                     key={req.label}

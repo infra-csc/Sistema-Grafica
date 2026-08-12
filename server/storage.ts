@@ -115,6 +115,7 @@ export interface IStorage {
   
   // Audit Logs
   getAuditLogs(entityType?: string, entityId?: string): Promise<AuditLog[]>;
+  getAuditLogsCount(entityType?: string, entityId?: string): Promise<number>;
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
   
   // Users
@@ -936,6 +937,24 @@ export class DatabaseStorage implements IStorage {
       .from(auditLogs)
       .orderBy(desc(auditLogs.createdAt))
       .limit(MAX_LOGS);
+  }
+
+  // Contagem real da tabela, sem o teto de 500 do getAuditLogs: é o que
+  // permite à tela de logs dizer "últimos 500 de N" em vez de apresentar o
+  // teto como se fosse o total do sistema.
+  async getAuditLogsCount(entityType?: string, entityId?: string): Promise<number> {
+    const entityIdMatch = (id: string) =>
+      or(eq(auditLogs.entityId, id), like(auditLogs.entityId, `%${id}%`));
+
+    const conditions =
+      entityType && entityId ? and(eq(auditLogs.entityType, entityType), entityIdMatch(entityId))
+      : entityType ? eq(auditLogs.entityType, entityType)
+      : entityId ? entityIdMatch(entityId)
+      : undefined;
+
+    const base = db.select({ total: sql<number>`count(*)::int` }).from(auditLogs);
+    const [row] = conditions ? await base.where(conditions) : await base;
+    return row?.total ?? 0;
   }
 
   async createAuditLog(insertLog: InsertAuditLog): Promise<AuditLog> {

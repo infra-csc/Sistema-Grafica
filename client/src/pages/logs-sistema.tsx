@@ -33,8 +33,9 @@ const ACTION_CFG: Record<string, { label: string; bg: string; color: string }> =
   submitted:          { label: "Enviado",         bg: "#eff6ff", color: "#1d4ed8" },
   released:           { label: "Liberado",        bg: "#f0fdf4", color: "#047857" },
   rejected:           { label: "Reprovado",       bg: "#fef2f2", color: "#b91c1c" },
-  login:              { label: "Login",           bg: "#f5f3ff", color: "#6d28d9" },
   password_changed:   { label: "Senha",           bg: "#faf5ff", color: "#7e22ce" },
+  // 'login' saiu de propósito: o sistema NÃO grava log de login — manter o
+  // badge sugeria um rastreamento de acessos que não existe.
 };
 
 const getActionCfg = (action: string) =>
@@ -85,9 +86,15 @@ export default function LogsSistema() {
   const [page, setPage]               = useState(1);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const { data: logs = [], isLoading, isError, refetch } = useQuery<AuditLog[]>({
-    queryKey: ["/api/audit-logs"],
+  // ?withTotal=1: além da lista (truncada nos 500 mais recentes pelo teto do
+  // storage), a rota devolve o count REAL da tabela — sem ele o KPI "Total de
+  // registros" apresentava o teto como se fosse o total do sistema.
+  const { data, isLoading, isError, refetch } = useQuery<{ logs: AuditLog[]; total: number }>({
+    queryKey: ["/api/audit-logs?withTotal=1"],
   });
+  const logs = data?.logs ?? [];
+  const total = data?.total ?? logs.length;
+  const isTruncated = total > logs.length;
 
   const copyEntityId = (logId: string, entityId: string) => {
     navigator.clipboard?.writeText(entityId).then(() => {
@@ -114,7 +121,10 @@ export default function LogsSistema() {
   }, [logs, search, actionFilter, entityFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  // Apertar um filtro com a paginação avançada pode deixar `page` além do
+  // total — clampa em vez de renderizar uma página vazia.
+  const safePage   = Math.min(page, totalPages);
+  const paginated  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const activeFilters = [search, actionFilter !== "all", entityFilter !== "all"].filter(Boolean).length;
 
@@ -124,6 +134,11 @@ export default function LogsSistema() {
   const csvEscape = (value: string) => `"${value.replace(/"/g, '""')}"`;
 
   const handleExport = () => {
+    // Exportação parcial precisa se anunciar: sem o aviso, o CSV com 500
+    // linhas passava por "histórico completo" em qualquer análise posterior.
+    const avisoTruncado = isTruncated
+      ? [[`AVISO: exportação parcial — apenas os últimos ${logs.length} registros de ${total} no sistema`]]
+      : [];
     const header = ["Data/Hora", "Usuário", "Ação", "Descrição", "Entidade", "ID da Entidade"];
     const rows = filtered.map(l => [
       format(new Date(l.createdAt), "dd/MM/yyyy HH:mm:ss", { locale: ptBR }),
@@ -133,7 +148,7 @@ export default function LogsSistema() {
       ENTITY_LABELS[l.entityType] ?? l.entityType,
       l.entityId,
     ]);
-    const csv = [header, ...rows]
+    const csv = [...avisoTruncado, header, ...rows]
       .map(row => row.map(cell => csvEscape(String(cell))).join(";"))
       .join("\r\n");
     // UTF-8 BOM so Excel opens accented characters correctly
@@ -162,7 +177,7 @@ export default function LogsSistema() {
             Logs do Sistema
           </h1>
           <p style={{ fontSize: 15, color: T.second, margin: 0 }}>
-            Rastreamento completo de acessos e atividades administrativas
+            Rastreamento das operações do sistema
           </p>
         </div>
         <button
@@ -179,9 +194,9 @@ export default function LogsSistema() {
       </div>
 
       {/* ── KPI chips ── */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap", alignItems: "center" }}>
         {[
-          { label: "Total de registros", value: logs.length, color: T.text, bg: T.surface },
+          { label: "Total de registros", value: total, color: T.text, bg: T.surface },
           { label: "Hoje",               value: todayCount,  color: "#1d4ed8", bg: "#eff6ff" },
           { label: "Exclusões e reprovações", value: errorCount, color: "#b91c1c", bg: "#fef2f2" },
           { label: "Filtrados",          value: filtered.length, color: "#c2410c", bg: "#fff7ed" },
@@ -191,6 +206,11 @@ export default function LogsSistema() {
             <span style={{ fontSize: 10, color: T.second, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</span>
           </div>
         ))}
+        {isTruncated && (
+          <span style={{ fontSize: 11, color: T.second, fontWeight: 600 }}>
+            Exibindo os últimos {logs.length} de {total} registros
+          </span>
+        )}
       </div>
 
       {/* ── Filter bar ── */}
@@ -403,30 +423,33 @@ export default function LogsSistema() {
             {/* ── Pagination footer ── */}
             <div style={{ padding: "12px 18px", borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "rgba(243,244,243,0.5)" }}>
               <p style={{ fontSize: 11, color: T.second, fontWeight: 500, margin: 0 }}>
-                Exibindo {Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)} de{" "}
+                Exibindo {Math.min((safePage - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(safePage * PAGE_SIZE, filtered.length)} de{" "}
                 <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: T.second }}>{filtered.length}</span> registros
               </p>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <button
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={page === 1}
-                  style={{ padding: 4, color: page === 1 ? T.muted : T.second, background: "none", border: "none", cursor: page === 1 ? "not-allowed" : "pointer", opacity: page === 1 ? 0.35 : 1, display: "flex" }}
+                  onClick={() => setPage(Math.max(1, safePage - 1))}
+                  disabled={safePage === 1}
+                  aria-label="Página anterior"
+                  style={{ padding: 4, color: safePage === 1 ? T.muted : T.second, background: "none", border: "none", cursor: safePage === 1 ? "not-allowed" : "pointer", opacity: safePage === 1 ? 0.35 : 1, display: "flex" }}
                 >
                   <ChevronLeft style={{ width: 16, height: 16 }} />
                 </button>
 
                 {Array.from({ length: totalPages }, (_, i) => i + 1)
-                  .slice(Math.max(0, page - 3), Math.min(totalPages, page + 2))
+                  .slice(Math.max(0, safePage - 3), Math.min(totalPages, safePage + 2))
                   .map(p => (
                     <button
                       key={p}
                       onClick={() => setPage(p)}
+                      aria-label={`Página ${p}`}
+                      aria-current={p === safePage ? "page" : undefined}
                       style={{
                         width: 28, height: 28, borderRadius: 6,
-                        border: p === page ? `1px solid ${T.border}` : "1px solid transparent",
-                        backgroundColor: p === page ? T.surface : "transparent",
-                        fontSize: 11, fontWeight: p === page ? 900 : 600,
-                        color: p === page ? T.text : T.second, cursor: "pointer",
+                        border: p === safePage ? `1px solid ${T.border}` : "1px solid transparent",
+                        backgroundColor: p === safePage ? T.surface : "transparent",
+                        fontSize: 11, fontWeight: p === safePage ? 900 : 600,
+                        color: p === safePage ? T.text : T.second, cursor: "pointer",
                       }}
                     >
                       {p}
@@ -434,9 +457,10 @@ export default function LogsSistema() {
                   ))}
 
                 <button
-                  onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                  disabled={page === totalPages}
-                  style={{ padding: 4, color: page === totalPages ? T.muted : T.second, background: "none", border: "none", cursor: page === totalPages ? "not-allowed" : "pointer", opacity: page === totalPages ? 0.35 : 1, display: "flex" }}
+                  onClick={() => setPage(Math.min(totalPages, safePage + 1))}
+                  disabled={safePage === totalPages}
+                  aria-label="Próxima página"
+                  style={{ padding: 4, color: safePage === totalPages ? T.muted : T.second, background: "none", border: "none", cursor: safePage === totalPages ? "not-allowed" : "pointer", opacity: safePage === totalPages ? 0.35 : 1, display: "flex" }}
                 >
                   <ChevronRight style={{ width: 16, height: 16 }} />
                 </button>

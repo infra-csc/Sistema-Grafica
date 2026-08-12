@@ -21,7 +21,7 @@ const tiInput: React.CSSProperties = {
 
 const sectionLabel = (n: string, title: string) => (
   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
-    <span style={{ fontSize: 10, fontWeight: 900, color: T.accent, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "0.12em" }}>
+    <span style={{ fontSize: 10, fontWeight: 900, color: T.accentText, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "0.12em" }}>
       {n}
     </span>
     <span style={{ fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.18em" }}>
@@ -224,7 +224,7 @@ export default function Patrocinadores() {
       {/* ── Page Header ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 36, flexWrap: "wrap", gap: 16 }}>
         <div>
-          <span style={{ fontSize: 10, fontWeight: 900, color: T.accent, textTransform: "uppercase", letterSpacing: "0.2em", fontFamily: "'Space Grotesk', sans-serif" }}>
+          <span style={{ fontSize: 10, fontWeight: 900, color: T.accentText, textTransform: "uppercase", letterSpacing: "0.2em", fontFamily: "'Space Grotesk', sans-serif" }}>
             Console de Gerenciamento
           </span>
           <h1 style={{ fontSize: 26, fontWeight: 900, color: T.text, margin: "6px 0 0", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", lineHeight: 1 }}>
@@ -292,6 +292,7 @@ export default function Patrocinadores() {
               value={execFilter}
               onChange={e => { setExecFilter(e.target.value); setPage(1); }}
               data-testid="filter-account-executive"
+              aria-label="Filtrar por executivo responsável"
               style={{ ...tiInput, width: "auto", minWidth: 200, paddingTop: 10, paddingBottom: 10, cursor: "pointer" }}
             >
               <option value="all">Todos os executivos</option>
@@ -305,7 +306,10 @@ export default function Patrocinadores() {
               <button onClick={() => { setSearch(""); setExecFilter("all"); setPage(1); }}
                 style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, cursor: "pointer", fontSize: 10, fontWeight: 900, color: "#b91c1c", textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap" }}>
                 <X style={{ width: 10, height: 10 }} />
-                Limpar ({filtered.length})
+                {/* N = quantos FILTROS ativos o botão desfaz — com o nº de
+                    resultados aqui, "Limpar (0)" numa busca vazia parecia
+                    "nada a limpar" justamente quando limpar mais importa. */}
+                Limpar ({(search ? 1 : 0) + (execFilter !== "all" ? 1 : 0)})
               </button>
             )}
           </div>
@@ -592,9 +596,9 @@ export default function Patrocinadores() {
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                         <FormField control={form.control} name="name" render={({ field }) => (
                           <FormItem>
-                            <label style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Nome do Patrocinador *</label>
+                            <label htmlFor="sponsor-name" style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Nome do Patrocinador *</label>
                             <FormControl>
-                              <input {...field} placeholder="Ex: Global Logistics" data-testid="input-sponsor-name"
+                              <input {...field} id="sponsor-name" placeholder="Ex: Global Logistics" data-testid="input-sponsor-name"
                                 style={{ ...tiInput, fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700 }}
                                 onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
                                 onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
@@ -605,9 +609,9 @@ export default function Patrocinadores() {
                         )} />
                         <FormField control={form.control} name="company" render={({ field }) => (
                           <FormItem>
-                            <label style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Empresa (Razão Social)</label>
+                            <label htmlFor="sponsor-company" style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Empresa (Razão Social)</label>
                             <FormControl>
-                              <input {...field} placeholder="Razão Social Completa" data-testid="input-company"
+                              <input {...field} id="sponsor-company" placeholder="Razão Social Completa" data-testid="input-company"
                                 style={tiInput}
                                 onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
                                 onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
@@ -622,9 +626,9 @@ export default function Patrocinadores() {
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginTop: 20 }}>
                         <FormField control={form.control} name="accountExecutiveId" render={({ field }) => (
                           <FormItem>
-                            <label style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Executivo responsável (interno)</label>
+                            <label htmlFor="sponsor-account-executive" style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Executivo responsável (interno)</label>
                             <FormControl>
-                              <select {...field} data-testid="select-account-executive" style={{ ...tiInput, cursor: "pointer" }}>
+                              <select {...field} id="sponsor-account-executive" data-testid="select-account-executive" style={{ ...tiInput, cursor: "pointer" }}>
                                 <option value="">Não atribuído</option>
                                 {users.map(u => (
                                   <option key={u.id} value={u.id}>{u.name}</option>
@@ -644,9 +648,12 @@ export default function Patrocinadores() {
                       <div style={{ display: "flex", alignItems: "flex-start", gap: 32 }}>
                         <FormField control={form.control} name="color" render={({ field }) => (
                           <FormItem style={{ flexShrink: 0 }}>
-                            <label style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 12 }}>Cor da Marca</label>
+                            {/* Não há UM controle atrás deste rótulo (é um grupo
+                                de botões), então nada de htmlFor solto: o span
+                                nomeia o grupo via aria-labelledby. */}
+                            <span id="sponsor-color-label" style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 12 }}>Cor da Marca</span>
                             <FormControl>
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, maxWidth: 200 }}>
+                              <div role="group" aria-labelledby="sponsor-color-label" style={{ display: "flex", flexWrap: "wrap", gap: 8, maxWidth: 200 }}>
                                 {PRESET_COLORS.map(c => (
                                   <button key={c} type="button" data-testid={`color-${c}`}
                                     onClick={() => field.onChange(c)}
@@ -662,15 +669,20 @@ export default function Patrocinadores() {
                         )} />
 
                         <div style={{ flex: 1 }}>
-                          <label style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 12 }}>Código Hex</label>
+                          <label htmlFor="sponsor-color-hex" style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 12 }}>Código Hex</label>
                           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
                             <div style={{ width: 44, height: 44, borderRadius: 8, backgroundColor: selectedColor, flexShrink: 0, boxShadow: `0 0 0 3px ${selectedColor}30` }} />
                             <FormField control={form.control} name="color" render={({ field }) => (
                               <FormItem style={{ flex: 1, margin: 0 }}>
-                                <FormControl>
-                                  <div style={{ position: "relative" }}>
-                                    <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: T.second, fontFamily: "'DM Mono', monospace", fontWeight: 700 }}>#</span>
+                                {/* O input é o filho DIRETO do FormControl: com a
+                                    div no meio, aria-invalid/aria-describedby do
+                                    Slot paravam num elemento decorativo e o erro
+                                    de validação ficava mudo para o leitor. */}
+                                <div style={{ position: "relative" }}>
+                                  <span aria-hidden="true" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: T.second, fontFamily: "'DM Mono', monospace", fontWeight: 700 }}>#</span>
+                                  <FormControl>
                                     <input
+                                      id="sponsor-color-hex"
                                       value={(field.value || "").replace(/^#/, "")}
                                       onChange={e => field.onChange("#" + e.target.value.replace(/^#/, ""))}
                                       placeholder="F97316"
@@ -679,8 +691,8 @@ export default function Patrocinadores() {
                                       onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
                                       onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
                                     />
-                                  </div>
-                                </FormControl>
+                                  </FormControl>
+                                </div>
                                 <FormMessage />
                               </FormItem>
                             )} />
@@ -695,9 +707,9 @@ export default function Patrocinadores() {
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
                         <FormField control={form.control} name="contactPerson" render={({ field }) => (
                           <FormItem>
-                            <label style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Pessoa de contato (lado do patrocinador)</label>
+                            <label htmlFor="sponsor-contact-person" style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Pessoa de contato (lado do patrocinador)</label>
                             <FormControl>
-                              <input {...field} placeholder="Ex.: gerente de marketing do patrocinador" data-testid="input-contact-person"
+                              <input {...field} id="sponsor-contact-person" placeholder="Ex.: gerente de marketing do patrocinador" data-testid="input-contact-person"
                                 style={tiInput}
                                 onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
                                 onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
@@ -708,9 +720,9 @@ export default function Patrocinadores() {
                         )} />
                         <FormField control={form.control} name="phone" render={({ field }) => (
                           <FormItem>
-                            <label style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Telefone</label>
+                            <label htmlFor="sponsor-phone" style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Telefone</label>
                             <FormControl>
-                              <input {...field} placeholder="+55 (00) 00000-0000" data-testid="input-phone"
+                              <input {...field} id="sponsor-phone" placeholder="+55 (00) 00000-0000" data-testid="input-phone"
                                 style={tiInput}
                                 onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
                                 onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
@@ -721,9 +733,9 @@ export default function Patrocinadores() {
                         )} />
                         <FormField control={form.control} name="email" render={({ field }) => (
                           <FormItem style={{ gridColumn: "1 / -1" }}>
-                            <label style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>E-mail Institucional</label>
+                            <label htmlFor="sponsor-email" style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>E-mail Institucional</label>
                             <FormControl>
-                              <input {...field} type="email" placeholder="contato@empresa.com" data-testid="input-email"
+                              <input {...field} id="sponsor-email" type="email" placeholder="contato@empresa.com" data-testid="input-email"
                                 style={tiInput}
                                 onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
                                 onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
@@ -734,9 +746,9 @@ export default function Patrocinadores() {
                         )} />
                         <FormField control={form.control} name="notes" render={({ field }) => (
                           <FormItem style={{ gridColumn: "1 / -1" }}>
-                            <label style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Observações</label>
+                            <label htmlFor="sponsor-notes" style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Observações</label>
                             <FormControl>
-                              <textarea {...field} rows={3} placeholder="Informações adicionais sobre o contrato ou parceria..." data-testid="input-notes"
+                              <textarea {...field} id="sponsor-notes" rows={3} placeholder="Informações adicionais sobre o contrato ou parceria..." data-testid="input-notes"
                                 style={{ ...tiInput, resize: "none", lineHeight: 1.6 }}
                                 onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
                                 onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}

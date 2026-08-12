@@ -109,7 +109,7 @@ export default function Login() {
           rolar — os estilos inline vencem media queries, por isso o !important. */}
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
-        .login-submit-btn:hover:not(:disabled) { background-color: #f97316 !important; }
+        .login-submit-btn:hover:not(:disabled) { background-color: #c2410c !important; }
         @media (max-width: 900px) {
           .login-main { flex-direction: column !important; height: auto !important; min-height: 100vh !important; overflow: auto !important; }
           .login-brand-col { display: none !important; }
@@ -286,6 +286,8 @@ export default function Login() {
             type="button"
             data-testid="button-toggle-admin-login"
             onClick={() => setShowAdminForm((v) => !v)}
+            aria-expanded={showAdminForm}
+            aria-controls="admin-login-form"
             style={{
               width: "100%",
               background: "none", border: "none",
@@ -308,6 +310,7 @@ export default function Login() {
           {/* Admin email/password form */}
           {showAdminForm && (
             <form
+              id="admin-login-form"
               onSubmit={form.handleSubmit(onSubmit)}
               style={{
                 display: "flex", flexDirection: "column", gap: 20,

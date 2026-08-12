@@ -236,6 +236,10 @@ export default function Modelos() {
     },
   });
 
+  // Remoção de categoria é uma operação ENCADEADA (limpa os modelos e depois
+  // remove a opção do catálogo): o toast de sucesso fica com o chamador, para
+  // só aparecer depois que AS DUAS etapas concluírem — antes, "Grupo removido"
+  // disparava aqui e, se o encadeado falhasse, convivia com o toast de erro.
   const deleteGroupMutation = useMutation({
     mutationFn: async (name: string) =>
       await apiRequest("DELETE", "/api/standard-items/clear-group", { name }),
@@ -243,7 +247,6 @@ export default function Modelos() {
       queryClient.invalidateQueries({ queryKey: ["/api/standard-items"] });
       if (filterGroup === name) setFilterGroup("");
       setMgDeleteGroupConfirm(null);
-      toast({ title: "Grupo removido", description: `"${name}" foi removido de todos os modelos` });
     },
     onError: (error: Error) => {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
@@ -272,7 +275,7 @@ export default function Modelos() {
       queryClient.invalidateQueries({ queryKey: ["/api/standard-items"] });
       if (filterFinish === name) setFilterFinish("");
       setMgDeleteFinishConfirm(null);
-      toast({ title: "Acabamento removido", description: `"${name}" foi removido de todos os modelos` });
+      // Toast de sucesso com o chamador, após o encadeado (ver deleteGroupMutation).
     },
     onError: (error: Error) => {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
@@ -301,7 +304,7 @@ export default function Modelos() {
       queryClient.invalidateQueries({ queryKey: ["/api/standard-items"] });
       if (filterMaterial === name) setFilterMaterial("");
       setMgDeleteMaterialConfirm(null);
-      toast({ title: "Material removido", description: `"${name}" foi removido de todos os modelos` });
+      // Toast de sucesso com o chamador, após o encadeado (ver deleteGroupMutation).
     },
     onError: (error: Error) => {
       toast({ title: "Erro", description: error.message, variant: "destructive" });
@@ -1274,7 +1277,7 @@ export default function Modelos() {
               <button type="submit" disabled={createStandardItemMutation.isPending}
                 data-testid="button-submit-model"
                 style={{ padding: "10px 28px", backgroundColor: "#c2410c", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, color: "#ffffff", cursor: createStandardItemMutation.isPending ? "not-allowed" : "pointer", opacity: createStandardItemMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s" }}
-                onMouseEnter={e => { if (!createStandardItemMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#ea580c"; }}
+                onMouseEnter={e => { if (!createStandardItemMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#9a3412"; }}
                 onMouseLeave={e => { if (!createStandardItemMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#c2410c"; }}
               >
                 {createStandardItemMutation.isPending
@@ -1318,15 +1321,19 @@ export default function Modelos() {
                 ];
                 return (
                   <div style={{ display: "flex", gap: 4, borderBottom: "1px solid #f0efec" }}>
+                    {/* Aba inativa em #746e69 (não #a8a29e): é texto acionável,
+                        precisa do piso 4.5:1 — o cinza decorativo reprovava.
+                        newCatValue zera na troca: o rascunho digitado numa aba
+                        não pode virar cadastro acidental em outra. */}
                     {tabs.map(t => (
-                      <button key={t.key} onClick={() => { setManageTab(t.key); setMgEditingGroup(null); setMgEditingFinish(null); setMgEditingMaterial(null); setMgDeleteGroupConfirm(null); setMgDeleteFinishConfirm(null); setMgDeleteMaterialConfirm(null); }}
+                      <button key={t.key} onClick={() => { setManageTab(t.key); setNewCatValue(""); setMgEditingGroup(null); setMgEditingFinish(null); setMgEditingMaterial(null); setMgDeleteGroupConfirm(null); setMgDeleteFinishConfirm(null); setMgDeleteMaterialConfirm(null); }}
                         style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 16px", border: "none", borderRadius: "8px 8px 0 0", cursor: "pointer", fontSize: 13, fontWeight: manageTab === t.key ? 700 : 500, transition: "all 0.15s",
                           backgroundColor: manageTab === t.key ? "#ffffff" : "transparent",
-                          color: manageTab === t.key ? t.color : "#a8a29e",
+                          color: manageTab === t.key ? t.color : "#746e69",
                           borderBottom: manageTab === t.key ? `2px solid ${t.color}` : "2px solid transparent",
                           marginBottom: -1,
                         }}>
-                        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: 6, backgroundColor: manageTab === t.key ? t.bg : "#f5f4f0", fontSize: 11, fontWeight: 800, color: manageTab === t.key ? t.color : "#a8a29e", flexShrink: 0 }}>
+                        <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 20, height: 20, borderRadius: 6, backgroundColor: manageTab === t.key ? t.bg : "#f5f4f0", fontSize: 11, fontWeight: 800, color: manageTab === t.key ? t.color : "#746e69", flexShrink: 0 }}>
                           {t.count}
                         </span>
                         {t.label}
@@ -1350,7 +1357,13 @@ export default function Modelos() {
                 const submitNew = () => {
                   const v = newCatValue.trim();
                   if (!v) return;
-                  if (tabCfg.items.some(i => i.toLowerCase() === v.toLowerCase())) { setNewCatValue(""); return; }
+                  // Duplicata avisa em vez de sumir com o texto: o silêncio
+                  // parecia "adicionou" (ou "quebrou") — e mantém o digitado
+                  // para a pessoa corrigir.
+                  if (tabCfg.items.some(i => i.toLowerCase() === v.toLowerCase())) {
+                    toast({ title: "Opção já cadastrada", description: `"${v}" já existe em ${addLabel === "grupo" ? "grupos" : addLabel === "material" ? "materiais" : "acabamentos"}.` });
+                    return;
+                  }
                   createCatalogOptionMutation.mutate({ kind: manageTab, value: v });
                   setNewCatValue("");
                 };
@@ -1367,9 +1380,11 @@ export default function Modelos() {
                         data-testid="input-new-catalog-option"
                         style={{ flex: 1, padding: "9px 12px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#faf9f8", fontSize: 13, color: "#1c1917" }}
                       />
+                      {/* Desabilitado: texto #a8a29e sobre o cinza claro — o
+                          branco de antes praticamente desaparecia no fundo. */}
                       <button type="button" onClick={submitNew} disabled={createCatalogOptionMutation.isPending || !newCatValue.trim()}
                         data-testid="button-add-catalog-option"
-                        style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "0 14px", borderRadius: 8, border: "none", cursor: newCatValue.trim() ? "pointer" : "not-allowed", backgroundColor: newCatValue.trim() ? tabCfg.color : "#e7e5e4", color: "#fff", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}>
+                        style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "0 14px", borderRadius: 8, border: "none", cursor: newCatValue.trim() ? "pointer" : "not-allowed", backgroundColor: newCatValue.trim() ? tabCfg.color : "#e7e5e4", color: newCatValue.trim() ? "#fff" : "#a8a29e", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}>
                         <Plus style={{ width: 14, height: 14 }} /> Adicionar
                       </button>
                     </div>
@@ -1390,7 +1405,11 @@ export default function Modelos() {
                           onEditConfirm={() => { const t = mgEditGroupValue.trim(); if (t && t !== name) renameGroupMutation.mutate({ oldName: name, newName: t }); else setMgEditingGroup(null); }}
                           onEditCancel={() => setMgEditingGroup(null)} isPendingRename={renameGroupMutation.isPending}
                           isDeleting={mgDeleteGroupConfirm === name}
-                          onDeleteConfirm={() => deleteGroupMutation.mutate(name, { onSuccess: () => deleteCatalogOptionMutation.mutate({ kind: "group", value: name }) })} onDeleteCancel={() => setMgDeleteGroupConfirm(null)} isPendingDelete={deleteGroupMutation.isPending}
+                          onDeleteConfirm={() => deleteGroupMutation.mutate(name, {
+                            onSuccess: () => deleteCatalogOptionMutation.mutate({ kind: "group", value: name }, {
+                              onSuccess: () => toast({ title: "Grupo removido", description: `"${name}" foi removido de todos os modelos` }),
+                            }),
+                          })} onDeleteCancel={() => setMgDeleteGroupConfirm(null)} isPendingDelete={deleteGroupMutation.isPending}
                           onStartEdit={() => { setMgEditingGroup(name); setMgEditGroupValue(name); setMgDeleteGroupConfirm(null); }}
                           onStartDelete={() => { setMgDeleteGroupConfirm(name); setMgEditingGroup(null); }}
                         />
@@ -1401,7 +1420,11 @@ export default function Modelos() {
                           onEditConfirm={() => { const t = mgEditMaterialValue.trim(); if (t && t !== name) renameMaterialMutation.mutate({ oldName: name, newName: t }); else setMgEditingMaterial(null); }}
                           onEditCancel={() => setMgEditingMaterial(null)} isPendingRename={renameMaterialMutation.isPending}
                           isDeleting={mgDeleteMaterialConfirm === name}
-                          onDeleteConfirm={() => deleteMaterialMutation.mutate(name, { onSuccess: () => deleteCatalogOptionMutation.mutate({ kind: "material", value: name }) })} onDeleteCancel={() => setMgDeleteMaterialConfirm(null)} isPendingDelete={deleteMaterialMutation.isPending}
+                          onDeleteConfirm={() => deleteMaterialMutation.mutate(name, {
+                            onSuccess: () => deleteCatalogOptionMutation.mutate({ kind: "material", value: name }, {
+                              onSuccess: () => toast({ title: "Material removido", description: `"${name}" foi removido de todos os modelos` }),
+                            }),
+                          })} onDeleteCancel={() => setMgDeleteMaterialConfirm(null)} isPendingDelete={deleteMaterialMutation.isPending}
                           onStartEdit={() => { setMgEditingMaterial(name); setMgEditMaterialValue(name); setMgDeleteMaterialConfirm(null); }}
                           onStartDelete={() => { setMgDeleteMaterialConfirm(name); setMgEditingMaterial(null); }}
                         />
@@ -1412,7 +1435,11 @@ export default function Modelos() {
                           onEditConfirm={() => { const t = mgEditFinishValue.trim(); if (t && t !== name) renameFinishMutation.mutate({ oldName: name, newName: t }); else setMgEditingFinish(null); }}
                           onEditCancel={() => setMgEditingFinish(null)} isPendingRename={renameFinishMutation.isPending}
                           isDeleting={mgDeleteFinishConfirm === name}
-                          onDeleteConfirm={() => deleteFinishMutation.mutate(name, { onSuccess: () => deleteCatalogOptionMutation.mutate({ kind: "finish", value: name }) })} onDeleteCancel={() => setMgDeleteFinishConfirm(null)} isPendingDelete={deleteFinishMutation.isPending}
+                          onDeleteConfirm={() => deleteFinishMutation.mutate(name, {
+                            onSuccess: () => deleteCatalogOptionMutation.mutate({ kind: "finish", value: name }, {
+                              onSuccess: () => toast({ title: "Acabamento removido", description: `"${name}" foi removido de todos os modelos` }),
+                            }),
+                          })} onDeleteCancel={() => setMgDeleteFinishConfirm(null)} isPendingDelete={deleteFinishMutation.isPending}
                           onStartEdit={() => { setMgEditingFinish(name); setMgEditFinishValue(name); setMgDeleteFinishConfirm(null); }}
                           onStartDelete={() => { setMgDeleteFinishConfirm(name); setMgEditingFinish(null); }}
                         />

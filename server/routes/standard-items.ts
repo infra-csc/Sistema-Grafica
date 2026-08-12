@@ -33,10 +33,21 @@ export function registerStandardItemRoutes(app: Express): void {
     }
   });
 
+  // Rótulo pt-BR do kind para os registros de auditoria.
+  const kindLabel = (kind: string) =>
+    kind === "group" ? "grupo" : kind === "material" ? "material" : kind === "finish" ? "acabamento" : kind;
+
   app.post("/api/catalog-options", requireAuth, async (req, res) => {
     try {
       const validated = insertCatalogOptionSchema.parse(req.body);
       const option = await storage.createCatalogOption(validated);
+      await createAuditLog(
+        (req as any).userName,
+        'created',
+        'catalogOption',
+        option.value,
+        `Opção "${option.value}" adicionada ao catálogo (${kindLabel(option.kind)})`
+      );
       broadcast({ type: "catalog_option_created", option });
       res.status(201).json(option);
     } catch (error: any) {
@@ -49,6 +60,17 @@ export function registerStandardItemRoutes(app: Express): void {
       const { kind, value } = req.body ?? {};
       if (!kind || !value) return res.status(400).json({ error: "kind e value são obrigatórios" });
       const ok = await storage.deleteCatalogOption(kind, value);
+      // Auditoria só quando algo foi de fato removido: registrar exclusões de
+      // opções inexistentes poluiria a trilha com não-eventos.
+      if (ok) {
+        await createAuditLog(
+          (req as any).userName,
+          'deleted',
+          'catalogOption',
+          value,
+          `Opção "${value}" removida do catálogo (${kindLabel(kind)})`
+        );
+      }
       broadcast({ type: "catalog_option_deleted", kind, value });
       res.json({ deleted: ok });
     } catch (error: any) {

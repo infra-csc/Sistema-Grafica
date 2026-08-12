@@ -181,7 +181,10 @@ export default function Usuarios() {
     return matchQ && matchR;
   });
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
-  const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  // Excluir o último item de uma página ou apertar um filtro pode deixar
+  // `page` além do total — clampa em vez de renderizar uma página vazia.
+  const safePage = Math.min(page, totalPages);
+  const paginated = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   /* ── Role counts ── */
   const roleCounts = Object.keys(ROLE_CFG).reduce((acc, r) => {
@@ -424,26 +427,30 @@ export default function Usuarios() {
             {/* Pagination footer */}
             <div style={{ padding: "12px 20px", borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "rgba(243,244,243,0.5)" }}>
               <p style={{ fontSize: 11, color: T.second, fontWeight: 500, margin: 0 }}>
-                Exibindo {Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)} de {filtered.length} usuário{filtered.length !== 1 ? "s" : ""}
+                Exibindo {Math.min((safePage - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(safePage * PAGE_SIZE, filtered.length)} de {filtered.length} usuário{filtered.length !== 1 ? "s" : ""}
               </p>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                  style={{ padding: 4, color: page === 1 ? T.muted : T.second, background: "none", border: "none", cursor: page === 1 ? "not-allowed" : "pointer", opacity: page === 1 ? 0.35 : 1 }}>
+                <button onClick={() => setPage(Math.max(1, safePage - 1))} disabled={safePage === 1}
+                  aria-label="Página anterior"
+                  style={{ padding: 4, color: safePage === 1 ? T.muted : T.second, background: "none", border: "none", cursor: safePage === 1 ? "not-allowed" : "pointer", opacity: safePage === 1 ? 0.35 : 1 }}>
                   <ChevronLeft style={{ width: 16, height: 16 }} />
                 </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).slice(Math.max(0, page - 3), Math.min(totalPages, page + 2)).map(p => (
+                {Array.from({ length: totalPages }, (_, i) => i + 1).slice(Math.max(0, safePage - 3), Math.min(totalPages, safePage + 2)).map(p => (
                   <button key={p} onClick={() => setPage(p)}
+                    aria-label={`Página ${p}`}
+                    aria-current={p === safePage ? "page" : undefined}
                     style={{
-                      width: 28, height: 28, borderRadius: 6, border: p === page ? `1px solid ${T.border}` : "1px solid transparent",
-                      backgroundColor: p === page ? T.surface : "transparent",
-                      fontSize: 11, fontWeight: p === page ? 900 : 600,
-                      color: p === page ? T.text : T.second, cursor: "pointer",
+                      width: 28, height: 28, borderRadius: 6, border: p === safePage ? `1px solid ${T.border}` : "1px solid transparent",
+                      backgroundColor: p === safePage ? T.surface : "transparent",
+                      fontSize: 11, fontWeight: p === safePage ? 900 : 600,
+                      color: p === safePage ? T.text : T.second, cursor: "pointer",
                     }}>
                     {p}
                   </button>
                 ))}
-                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                  style={{ padding: 4, color: page === totalPages ? T.muted : T.second, background: "none", border: "none", cursor: page === totalPages ? "not-allowed" : "pointer", opacity: page === totalPages ? 0.35 : 1 }}>
+                <button onClick={() => setPage(Math.min(totalPages, safePage + 1))} disabled={safePage === totalPages}
+                  aria-label="Próxima página"
+                  style={{ padding: 4, color: safePage === totalPages ? T.muted : T.second, background: "none", border: "none", cursor: safePage === totalPages ? "not-allowed" : "pointer", opacity: safePage === totalPages ? 0.35 : 1 }}>
                   <ChevronRight style={{ width: 16, height: 16 }} />
                 </button>
               </div>
@@ -489,7 +496,7 @@ export default function Usuarios() {
             <button
               onClick={() => navigate("/logs-sistema")}
               data-testid="button-ver-logs"
-              style={{ padding: "9px 20px", backgroundColor: T.accent, color: "#fff", border: "none", borderRadius: 6, fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", cursor: "pointer", transition: "opacity 0.15s" }}
+              style={{ padding: "9px 20px", backgroundColor: T.accentText, color: "#fff", border: "none", borderRadius: 6, fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", cursor: "pointer", transition: "opacity 0.15s" }}
               onMouseEnter={e => (e.currentTarget.style.opacity = "0.85")}
               onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
             >

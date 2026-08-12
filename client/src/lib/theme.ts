@@ -30,6 +30,15 @@ export const T = {
    */
   muted: "#a8a29e",
   accent: "#f97316",
+  /**
+   * Accent em papel de TEXTO. O laranja `accent` (#f97316) rende 2,8:1 sobre
+   * branco — accent NUNCA pode ser cor de texto, nem fundo sob texto branco.
+   * Onde o laranja precisa carregar leitura (rótulos, links, botão com texto
+   * branco), use este tom escurecido da mesma família (#c2410c, ~4,9:1 sobre
+   * branco). `accent` segue reservado a elementos decorativos: barras, brilhos,
+   * ícones grandes, anéis de foco.
+   */
+  accentText: "#c2410c",
   dark: "#1c1917",
   low: "#f3f4f3",
 };

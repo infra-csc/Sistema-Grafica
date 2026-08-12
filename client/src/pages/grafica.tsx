@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { getStatusMeta, getStatusLabel } from "@/lib/status";
+import { getStatusMeta, getStatusLabel, getPriorityMeta } from "@/lib/status";
 import { StatusPill } from "@/components/status-pill";
 import { useAuth } from "@/contexts/auth-context";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
@@ -29,9 +29,6 @@ const TI = {
   border: "#e7e5e4",
   muted: "#a8a29e",
   secondary: "#78716c",
-  stone800: "#292524",
-  stone200: "#e7e5e4",
-  stone100: "#f5f5f4",
 };
 
 // ── Helpers puros de estado/quantidade — não dependem de estado do componente ──
@@ -76,11 +73,14 @@ const canDeliver = (item: any) => !isDelivered(item) && remainingDeliver(item) >
 function DeadlineChip({ event }: { event: any }) {
   if (!event?.truckDepartureDate) return null;
   const days = event.deadlineProducaoGrafica ?? -1;
-  const d = new Date(new Date(event.truckDepartureDate).getTime() + days * 86400000);
-  d.setHours(0, 0, 0, 0);
-  const tod = new Date(); tod.setHours(0, 0, 0, 0);
-  const diff = Math.ceil((d.getTime() - tod.getTime()) / 86400000);
-  const ds = d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  // Conta e formata em UTC — a mesma convenção da "Saída" exibida ao lado.
+  // Em fuso local o chip podia mostrar um dia a menos que a data do cabeçalho.
+  const base = new Date(event.truckDepartureDate);
+  const dUTC = Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() + days);
+  const now = new Date();
+  const todayUTC = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const diff = Math.round((dUTC - todayUTC) / 86400000);
+  const ds = new Date(dUTC).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" });
   const s = diff < 0
     ? { bg: "rgba(255,80,80,0.22)", border: "rgba(255,80,80,0.38)", text: "#ffb3b3" }
     : diff === 0
@@ -206,8 +206,10 @@ function BulkActionDialog({
           onClose={onClose}
         />
 
-        {/* Body */}
-        <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18, background: "#fafaf9" }}>
+        {/* Body — rola dentro do modal (mesmo padrão do modal individual): o
+            modalSurface corta com overflow hidden, e no celular com várias
+            fotos o botão Confirmar saía da tela sem caminho até ele. */}
+        <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18, background: "#fafaf9", maxHeight: "calc(88vh - 96px)", overflowY: "auto" }}>
           {!isConfer && (
             <div>
               <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 10 }}>
@@ -217,7 +219,10 @@ function BulkActionDialog({
                 type="text"
                 value={receivedBy}
                 onChange={e => onReceivedByChange?.(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); onConfirm(); } }}
+                // Mesma guarda do botão Confirmar: dois Enters seguidos
+                // disparavam o lote duas vezes (o 409 da repetição virava
+                // toast de erro falso).
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); if (!isSubmitting && canSubmit) onConfirm(); } }}
                 placeholder="Nome de quem recebeu"
                 autoFocus
                 style={{ width: "100%", boxSizing: "border-box", padding: "14px 16px", background: "#fff", border: "1.5px solid #e7e5e4", borderRadius: 12, fontSize: 15, fontWeight: 600, color: TI.text, transition: "border-color 0.15s, box-shadow 0.15s" }}
@@ -325,7 +330,7 @@ export default function Grafica() {
   const [searchFilter, setSearchFilter] = useState<string>("");
   const [isExporting, setIsExporting] = useState(false);
   const [productionData, setProductionData] = useState({ quantityProduced: 0 });
-  const [deliveryData, setDeliveryData] = useState({ photoUrl: "", receivedBy: "" });
+  const [deliveryData, setDeliveryData] = useState({ receivedBy: "" });
   const [conferQty, setConferQty] = useState(0);   // conferência parcial
   const [deliverQty, setDeliverQty] = useState(0); // entrega parcial
   // Fotos anexadas no modal aberto (conferência ou entrega). Várias por vez.
@@ -389,7 +394,7 @@ export default function Grafica() {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItem(null); setModalType(null);
-      setDeliveryData({ photoUrl: "", receivedBy: "" });
+      setDeliveryData({ receivedBy: "" });
       setPhotos([]);
       toast({ title: "Entrega confirmada", description: "O item foi marcado como entregue com sucesso" });
     },
@@ -410,8 +415,10 @@ export default function Grafica() {
   });
 
   const markReuseMutation = useMutation({
+    // apiRequest devolve o Response cru — sem o .json() o onSuccess lia
+    // quantity/reuseQty como undefined e o toast sempre dizia "peça inteira".
     mutationFn: async ({ itemId, qty }: { itemId: string; qty: number }) =>
-      await apiRequest("POST", `/api/items/${itemId}/mark-reuse`, { qty }),
+      await (await apiRequest("POST", `/api/items/${itemId}/mark-reuse`, { qty })).json(),
     onSuccess: (updated: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
@@ -432,8 +439,10 @@ export default function Grafica() {
 
   // Corrige reaproveitamento total marcado por engano (só disponível antes de conferir)
   const correctReuseMutation = useMutation({
+    // Mesmo caso do mark-reuse: o toast lia o Response cru e anunciava
+    // "voltou com as 0 un." — o .json() entrega o item atualizado de verdade.
     mutationFn: async ({ itemId, correctedReuseQty }: { itemId: string; correctedReuseQty: number }) =>
-      await apiRequest("POST", `/api/items/${itemId}/correct-reuse`, { correctedReuseQty }),
+      await (await apiRequest("POST", `/api/items/${itemId}/correct-reuse`, { correctedReuseQty })).json(),
     onSuccess: (updated: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
@@ -458,8 +467,10 @@ export default function Grafica() {
   const gFacetPool = (exclude: 'event' | 'status' | 'type' | 'material' | 'finish') =>
     (items as any[]).filter((item: any) => {
       if (exclude !== 'status' && statusFilter.length > 0) {
+        // Estrito: "pronto_para_producao" é só grafia legada do mesmo status;
+        // "approved" NÃO entra aqui (o KPI Liberados seleciona os dois valores).
         const ok = statusFilter.some(sf => sf === "ready_for_production"
-          ? (item.status === "ready_for_production" || item.status === "pronto_para_producao" || item.status === "approved")
+          ? (item.status === "ready_for_production" || item.status === "pronto_para_producao")
           : item.status === sf);
         if (!ok) return false;
       }
@@ -483,13 +494,17 @@ export default function Grafica() {
   };
 
   const eventFilterOptions = (() => {
-    const DOT: Record<string, string> = { urgente: '#ef4444', urgent: '#ef4444', alta: '#f97316', media: '#eab308', baixa: '#3b82f6' };
+    // Cores de prioridade vêm da fonte única (lib/status) — o mapa hex local
+    // divergia dela ("alta" laranja aqui, âmbar no resto do app).
+    // 'urgent' é grafia legada de 'urgente' que ainda existe em eventos antigos.
+    const dotFor = (priority: string | undefined) =>
+      getPriorityMeta(priority === 'urgent' ? 'urgente' : priority)?.dot;
     const map = new Map<string, { value: string; label: string; count: number; dotColor?: string }>();
     gFacetPool('event').forEach((i: any) => {
       if (!i.eventId) return;
       const cur = map.get(i.eventId);
       if (cur) cur.count++;
-      else map.set(i.eventId, { value: i.eventId, label: i.event?.name || 'Sem evento', count: 1, dotColor: DOT[i.event?.priority] });
+      else map.set(i.eventId, { value: i.eventId, label: i.event?.name || 'Sem evento', count: 1, dotColor: dotFor(i.event?.priority) });
     });
     return Array.from(map.values());
   })();
@@ -519,8 +534,10 @@ export default function Grafica() {
           !item.event?.name?.toLowerCase().includes(q)) return false;
     }
     if (!opts?.skipStatus && statusFilter.length > 0) {
+      // Estrito, como no gFacetPool: escolher "Pronto p/ Produção" no select
+      // não pode devolver também os "Liberados" (duplicava a outra opção).
       const ok = statusFilter.some(sf => sf === "ready_for_production"
-        ? (item.status === "ready_for_production" || item.status === "pronto_para_producao" || item.status === "approved")
+        ? (item.status === "ready_for_production" || item.status === "pronto_para_producao")
         : item.status === sf);
       if (!ok) return false;
     }
@@ -528,14 +545,21 @@ export default function Grafica() {
     if (typeFilter.length > 0 && !typeFilter.includes(item.type)) return false;
     if (materialFilter.length > 0 && !materialFilter.includes(item.material)) return false;
     if (finishFilter.length > 0 && !finishFilter.includes(item.finish)) return false;
-    if (next10DaysFilter && item.event?.truckDepartureDate) {
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-      const tenDays = new Date(today); tenDays.setDate(tenDays.getDate() + 10);
+    if (next10DaysFilter) {
+      // Sem data de saída não há como estar "nos próximos 10 dias" — antes o
+      // item sem data passava pelo filtro. E a conta é em UTC, o mesmo fuso em
+      // que a Saída é exibida na lista.
+      if (!item.event?.truckDepartureDate) return false;
+      const now = new Date();
+      const todayUTC = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
       const dep = new Date(item.event.truckDepartureDate);
-      if (!(dep >= today && dep <= tenDays)) return false;
+      const depUTC = Date.UTC(dep.getUTCFullYear(), dep.getUTCMonth(), dep.getUTCDate());
+      if (!(depUTC >= todayUTC && depUTC <= todayUTC + 10 * 86400000)) return false;
     }
     if (monthFilter.length > 0 && item.event?.truckDepartureDate) {
-      const month = new Date(item.event.truckDepartureDate).getMonth() + 1;
+      // getUTCMonth: a exibição da Saída é UTC — com getMonth() local a virada
+      // de mês perto da meia-noite UTC caía no mês errado do filtro.
+      const month = new Date(item.event.truckDepartureDate).getUTCMonth() + 1;
       if (!monthFilter.includes(month.toString())) return false;
     }
     return true;
@@ -592,7 +616,9 @@ export default function Grafica() {
     const itemId = selectedItem.id;
     const photosToAttach = photos;
     try {
-      await markDeliveredMutation.mutateAsync({ itemId, data: { ...deliveryData, qty: deliverQty, notes: modalNotes } });
+      // A primeira foto vai na própria entrega como photoUrl — é o campo que
+      // vira deliveryPhotoUrl e aparece como comprovante na timeline da peça.
+      await markDeliveredMutation.mutateAsync({ itemId, data: { ...deliveryData, photoUrl: photosToAttach[0] || null, qty: deliverQty, notes: modalNotes } });
     } catch {
       return; // o onError da mutation já mostrou o toast
     }
@@ -725,7 +751,7 @@ export default function Grafica() {
     setSelectedItem(item);
     setModalType("delivery");
     setPhotos([]); setModalNotes("");
-    setDeliveryData({ photoUrl: "", receivedBy: "" });
+    setDeliveryData({ receivedBy: "" });
     setDeliverQty(remainingDeliver(item)); // padrão: o que falta entregar
   };
 
@@ -794,6 +820,7 @@ export default function Grafica() {
   // falha parcial). Foto é obrigatória (regra do servidor); a primeira vira o
   // conferencePhotoUrl de cada peça e todas entram na galeria (kind conference).
   const handleBulkConference = async () => {
+    if (isBulkSubmitting) return; // Enter repetido no dialog disparava o lote 2x
     if (bulkConferPhotos.length === 0) {
       toast({ title: "Foto obrigatória", description: "Envie ao menos uma foto da conferência.", variant: "destructive" });
       return;
@@ -817,7 +844,8 @@ export default function Grafica() {
       ));
 
       const okIds = ids.filter((_, i) => confer[i].status === "fulfilled");
-      const failed = ids.length - okIds.length;
+      const failedIds = ids.filter((_, i) => confer[i].status === "rejected");
+      const failed = failedIds.length;
 
       let photoFailed = 0;
       if (okIds.length > 0) {
@@ -853,12 +881,22 @@ export default function Grafica() {
       }
 
       setBulkConferOpen(false);
-      setBulkConferMode(false);
-      setBulkSelectedIds(new Set());
-      setBulkConferNotes("");
-      setBulkConferPhotos([]);
+      if (failed > 0) {
+        // O toast promete que as peças que falharam "continuam na lista":
+        // mantém o modo ativo com SÓ elas selecionadas (e a foto/notas para
+        // reenviar), em vez de zerar a seleção.
+        setBulkSelectedIds(new Set(failedIds));
+      } else {
+        setBulkConferMode(false);
+        setBulkSelectedIds(new Set());
+        setBulkConferNotes("");
+        setBulkConferPhotos([]);
+      }
     } catch (e: any) {
+      // Mesmas chaves do fluxo feliz — invalidar só /approved deixava as
+      // outras telas com o cache velho.
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       toast({ title: "Erro na conferência em lote", description: e.message, variant: "destructive" });
     } finally {
       setIsBulkSubmitting(false);
@@ -866,6 +904,7 @@ export default function Grafica() {
   };
 
   const handleBulkDelivery = async () => {
+    if (isBulkSubmitting) return; // Enter repetido no dialog disparava o lote 2x
     if (!bulkReceivedBy.trim()) {
       toast({ title: "Campo obrigatório", description: "Informe quem recebeu o material", variant: "destructive" });
       return;
@@ -884,6 +923,9 @@ export default function Grafica() {
       const delivery = await Promise.allSettled(entries.map(item =>
         apiRequest("PATCH", `/api/items/${item.id}/deliver`, {
           receivedBy: bulkReceivedBy.trim(),
+          // O comprovante vai também na entrega (vira deliveryPhotoUrl e
+          // aparece na timeline) — antes só entrava na galeria.
+          photoUrl: bulkDeliveryPhotos[0] || null,
           qty: remainingDeliver(item),
           notes: bulkDeliveryNotes || null,
         })
@@ -891,7 +933,8 @@ export default function Grafica() {
 
       // Só anexa a foto nas peças cuja entrega passou.
       const deliveredIds = ids.filter((_, i) => delivery[i].status === "fulfilled");
-      const failed = ids.length - deliveredIds.length;
+      const failedIds = ids.filter((_, i) => delivery[i].status === "rejected");
+      const failed = failedIds.length;
 
       let photoFailed = 0;
       if (bulkDeliveryPhotos.length > 0 && deliveredIds.length > 0) {
@@ -932,13 +975,23 @@ export default function Grafica() {
       }
 
       setBulkDeliveryOpen(false);
-      setBulkDeliveryMode(false);
-      setBulkSelectedIds(new Set());
-      setBulkReceivedBy("");
-      setBulkDeliveryNotes("");
-      setBulkDeliveryPhotos([]);
+      if (failed > 0) {
+        // O toast promete que as peças que falharam "continuam na lista":
+        // mantém o modo ativo com SÓ elas selecionadas (e responsável/foto
+        // preservados para reenviar), em vez de zerar a seleção.
+        setBulkSelectedIds(new Set(failedIds));
+      } else {
+        setBulkDeliveryMode(false);
+        setBulkSelectedIds(new Set());
+        setBulkReceivedBy("");
+        setBulkDeliveryNotes("");
+        setBulkDeliveryPhotos([]);
+      }
     } catch (e: any) {
+      // Mesmas chaves do fluxo feliz — invalidar só /approved deixava as
+      // outras telas com o cache velho.
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       toast({ title: "Erro na entrega em lote", description: e.message, variant: "destructive" });
     } finally {
       setIsBulkSubmitting(false);
@@ -1008,7 +1061,7 @@ export default function Grafica() {
             </button>
           )}
           {bulkDeliveryMode && (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff7ed', color: TI.accent, border: '1.5px solid #fed7aa', borderRadius: 8, padding: '7px 12px', fontSize: 11, fontWeight: 800 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#fff7ed', color: '#c2410c', border: '1.5px solid #fed7aa', borderRadius: 8, padding: '7px 12px', fontSize: 11, fontWeight: 800 }}>
               <ListChecks style={{ width: 13, height: 13 }} />
               {isMobile ? 'Lote ativo' : 'Modo entrega em lote ativo'}
             </span>
@@ -1037,19 +1090,21 @@ export default function Grafica() {
       {/* ── KPI Strip ── */}
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(5, 1fr)", gap: isMobile ? 6 : 12 }}>
         {[
-          { label: "Liberados",    value: stats.liberados,  sub: "Aguard. produção", testId: "stat-approved",   filterVal: "ready_for_production" },
-          { label: "Em Produção",  value: stats.emProducao, sub: "Ativo",            testId: "stat-production", filterVal: "inProduction" },
-          { label: "Produzidos",   value: stats.produzidos, sub: "Ag. conferência",  testId: "stat-produced",   filterVal: "produced" },
-          { label: "Conferidos",   value: stats.conferidos, sub: "Ag. entrega",      testId: "stat-conferred",  filterVal: "conferred" },
-          { label: "Entregues",    value: stats.entregues,  sub: "Concluído",        testId: "stat-delivered",  filterVal: "delivered" },
+          // O KPI Liberados agrega dois status; ele seleciona os DOIS valores
+          // no filtro (o filtro em si é estrito — ver matchesFilters).
+          { label: "Liberados",    value: stats.liberados,  sub: "Aguard. produção", testId: "stat-approved",   filterVals: ["ready_for_production", "approved"] },
+          { label: "Em Produção",  value: stats.emProducao, sub: "Ativo",            testId: "stat-production", filterVals: ["inProduction"] },
+          { label: "Produzidos",   value: stats.produzidos, sub: "Ag. conferência",  testId: "stat-produced",   filterVals: ["produced"] },
+          { label: "Conferidos",   value: stats.conferidos, sub: "Ag. entrega",      testId: "stat-conferred",  filterVals: ["conferred"] },
+          { label: "Entregues",    value: stats.entregues,  sub: "Concluído",        testId: "stat-delivered",  filterVals: ["delivered"] },
         ].map(kpi => {
-          const isActive = statusFilter.includes(kpi.filterVal);
+          const isActive = kpi.filterVals.every(v => statusFilter.includes(v)) && statusFilter.length === kpi.filterVals.length;
           // Cores derivadas do MESMO mapa dos pills (lib/status): dot para a
           // borda, text (tom 700, AA) para o número e para o fundo ativo.
           // Antes cada card tinha hex próprio — "Entregues" saía com borda azul
           // e número verde enquanto o pill era emerald; e o fundo ativo laranja
           // (#f97316) reprovava contraste com o texto branco.
-          const m = getStatusMeta(kpi.filterVal);
+          const m = getStatusMeta(kpi.filterVals[0]);
           return (
             /* Os KPIs são o filtro principal desta tela: clicar num deles é
                como se filtra por status. Eram <div> com onClick, então quem
@@ -1061,11 +1116,11 @@ export default function Grafica() {
               tabIndex={0}
               aria-pressed={isActive}
               aria-label={`Filtrar por ${kpi.label}`}
-              onClick={() => setStatusFilter(isActive ? [] : [kpi.filterVal])}
+              onClick={() => setStatusFilter(isActive ? [] : kpi.filterVals)}
               onKeyDown={e => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  setStatusFilter(isActive ? [] : [kpi.filterVal]);
+                  setStatusFilter(isActive ? [] : kpi.filterVals);
                 }
               }}
               data-testid={kpi.testId}
@@ -1074,11 +1129,12 @@ export default function Grafica() {
                 borderLeft: `4px solid ${m.dot}`,
                 borderRadius: 8,
                 padding: isMobile ? "10px 10px" : "16px 18px",
-                boxShadow: isActive ? `0 4px 16px ${m.dot}33` : "0 1px 4px rgba(0,0,0,0.06)",
+                // Anel do estado ativo em boxShadow — o outline fica livre para
+                // o anel de foco do navegador ("2px solid transparent" quando
+                // inativo suprimia o foco de quem navega por teclado).
+                boxShadow: isActive ? `0 4px 16px ${m.dot}33, 0 0 0 2px ${m.dot}` : "0 1px 4px rgba(0,0,0,0.06)",
                 cursor: "pointer",
                 transition: "all 0.15s",
-                outline: isActive ? `2px solid ${m.dot}` : "2px solid transparent",
-                outlineOffset: 2,
               }}
               onMouseEnter={e => { if (!isActive) (e.currentTarget as HTMLDivElement).style.backgroundColor = `${m.dot}0f`; }}
               onMouseLeave={e => { if (!isActive) (e.currentTarget as HTMLDivElement).style.backgroundColor = TI.surface; }}
@@ -1102,17 +1158,17 @@ export default function Grafica() {
           data-testid="stat-total"
           style={{
             backgroundColor: TI.text, borderLeft: `4px solid ${TI.accent}`, borderRadius: 8,
-            padding: isMobile ? "10px 10px" : "16px 18px", boxShadow: "0 4px 16px rgba(0,0,0,0.14)",
+            padding: isMobile ? "10px 10px" : "16px 18px",
+            // Estado ativo em boxShadow, outline livre para o foco (ver KPIs).
+            boxShadow: statusFilter.length === 0 ? `0 4px 16px rgba(0,0,0,0.14), 0 0 0 2px ${TI.accent}` : "0 4px 16px rgba(0,0,0,0.14)",
             cursor: "pointer", transition: "opacity 0.15s",
-            outline: statusFilter.length === 0 ? `2px solid ${TI.accent}` : "2px solid transparent",
-            outlineOffset: 2,
           }}
           onMouseEnter={e => ((e.currentTarget as HTMLDivElement).style.opacity = "0.85")}
           onMouseLeave={e => ((e.currentTarget as HTMLDivElement).style.opacity = "1")}
         >
-          <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(255,255,255,0.6)", marginBottom: isMobile ? 3 : 6, fontFamily: "'Space Grotesk', sans-serif" }}>Total</div>
+          <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(255,255,255,0.72)", marginBottom: isMobile ? 3 : 6, fontFamily: "'Space Grotesk', sans-serif" }}>Total</div>
           <div style={{ fontSize: isMobile ? 22 : 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: "#ffffff", lineHeight: 1 }}>{stats.total}</div>
-          {!isMobile && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", marginTop: 4 }}>{statusFilter.length === 0 ? "Todos selecionados" : "Ver todos"}</div>}
+          {!isMobile && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.72)", marginTop: 4 }}>{statusFilter.length === 0 ? "Todos selecionados" : "Ver todos"}</div>}
         </div>
       </div>
 
@@ -1124,6 +1180,7 @@ export default function Grafica() {
           <input
             type="text"
             placeholder="Buscar por ID, descrição ou evento..."
+            aria-label="Buscar peças"
             value={searchFilter}
             onChange={e => setSearchFilter(e.target.value)}
             data-testid="input-search-filter"
@@ -1242,15 +1299,29 @@ export default function Grafica() {
         ) : isError ? (
           <div style={{ textAlign: "center", padding: "48px 24px" }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: "#b91c1c", marginBottom: 4 }}>Não foi possível carregar as peças</div>
-            <div style={{ fontSize: 13, color: TI.muted, marginBottom: 16 }}>Verifique sua conexão e tente novamente.</div>
+            <div style={{ fontSize: 13, color: TI.secondary, marginBottom: 16 }}>Verifique sua conexão e tente novamente.</div>
             <button onClick={() => refetch()} style={{ background: TI.text, color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
           </div>
         ) : filteredItems.length === 0 ? (
-          <div style={{ textAlign: "center", padding: "48px 24px", color: TI.muted }}>
-            <Package style={{ width: 40, height: 40, margin: "0 auto 12px", color: TI.muted }} />
-            <div style={{ fontSize: 15, fontWeight: 700, color: TI.secondary, marginBottom: 4 }}>Nenhuma peça encontrada</div>
-            <div style={{ fontSize: 13 }}>Ajuste os filtros para visualizar itens</div>
-          </div>
+          (() => {
+            // Mensagem conforme o motivo: com filtro ativo o problema é o
+            // recorte; sem filtro é a fila que está vazia mesmo — "ajuste os
+            // filtros" sem filtro nenhum só confundia.
+            const hasActiveFilters = !!searchFilter || statusFilter.length > 0 || eventFilter.length > 0 ||
+              typeFilter.length > 0 || materialFilter.length > 0 || finishFilter.length > 0 ||
+              next10DaysFilter || monthFilter.length > 0;
+            return (
+              <div style={{ textAlign: "center", padding: "48px 24px", color: TI.secondary }}>
+                <Package style={{ width: 40, height: 40, margin: "0 auto 12px", color: TI.secondary }} />
+                <div style={{ fontSize: 15, fontWeight: 700, color: TI.secondary, marginBottom: 4 }}>
+                  {hasActiveFilters ? "Nenhuma peça encontrada" : "Nenhuma peça liberada ainda"}
+                </div>
+                <div style={{ fontSize: 13 }}>
+                  {hasActiveFilters ? "Ajuste os filtros para visualizar itens" : "Quando a Arte liberar peças para produção, elas aparecem aqui"}
+                </div>
+              </div>
+            );
+          })()
         ) : isMobile ? (
           /* ── View mobile: cards ── */
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '8px 8px' }}>
@@ -1294,7 +1365,7 @@ export default function Grafica() {
                       border: `1.5px solid ${isSelected ? TI.accent : TI.border}`,
                       borderRadius: showEvHeader ? '0 0 12px 12px' : 12,
                       overflow: 'hidden',
-                      cursor: bulkOn && bulkEligible ? 'pointer' : undefined,
+                      cursor: bulkOn ? (bulkEligible ? 'pointer' : undefined) : 'pointer',
                       transition: 'border-color 0.12s, background 0.12s',
                     }}
                     /* O "checkbox" da esquerda é um <div> desenhado, não um
@@ -1310,7 +1381,12 @@ export default function Grafica() {
                         if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBulkItem(item.id); }
                       },
                     } : {})}
-                    onClick={bulkOn && bulkEligible ? () => toggleBulkItem(item.id) : undefined}
+                    // Fora do modo lote o toque no corpo do card abre o detalhe
+                    // — o ramo mobile não tinha NENHUM caminho até ele (a arte
+                    // e os botões de ação já fazem stopPropagation).
+                    onClick={bulkOn
+                      ? (bulkEligible ? () => toggleBulkItem(item.id) : undefined)
+                      : () => setViewDetailsItem(item)}
                   >
                     {/* Left stripe / checkbox */}
                     {bulkOn ? (
@@ -1349,7 +1425,7 @@ export default function Grafica() {
                     {/* Content */}
                     <div style={{ flex: 1, padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: item.isReuse ? '#059669' : TI.accent }}>
+                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: item.isReuse ? '#059669' : '#c2410c' }}>
                           {item.displayId}
                         </span>
                         <StatusPill status={item.status} size="sm" showDot={false} />
@@ -1405,7 +1481,7 @@ export default function Grafica() {
             <thead>
               <tr style={{ backgroundColor: TI.text }}>
                 {["ID", "Descrição", "QTD", "REAPROV.", "PROD", "Dimensões (V × A)", "M² a produzir", "Material", "Status", ""].map(col => (
-                  <th key={col} style={{ padding: "13px 16px", textAlign: col === "" ? "right" : "left", fontSize: 10, fontWeight: 900, color: "rgba(255,255,255,0.6)", textTransform: "uppercase", letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
+                  <th key={col} style={{ padding: "13px 16px", textAlign: col === "" ? "right" : "left", fontSize: 10, fontWeight: 900, color: "rgba(255,255,255,0.72)", textTransform: "uppercase", letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
                     {col}
                   </th>
                 ))}
@@ -1448,14 +1524,14 @@ export default function Grafica() {
                             </div>
                             {item.event && (
                               <div style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "rgba(255,255,255,0.6)" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "rgba(255,255,255,0.72)" }}>
                                   <Calendar style={{ width: 12, height: 12 }} />
-                                  Início: <strong style={{ color: "rgba(255,255,255,0.7)" }}>{parseDateLocal(item.event.startDate).toLocaleDateString("pt-BR")}</strong>
+                                  Início: <strong style={{ color: "rgba(255,255,255,0.85)" }}>{parseDateLocal(item.event.startDate).toLocaleDateString("pt-BR")}</strong>
                                 </div>
-                                <span style={{ color: "rgba(255,255,255,0.6)", fontSize: 10 }}>|</span>
-                                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "rgba(255,255,255,0.6)" }}>
+                                <span style={{ color: "rgba(255,255,255,0.72)", fontSize: 10 }}>|</span>
+                                <div style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: "rgba(255,255,255,0.72)" }}>
                                   <Truck style={{ width: 12, height: 12 }} />
-                                  Saída: <strong style={{ color: "rgba(255,255,255,0.7)" }}>
+                                  Saída: <strong style={{ color: "rgba(255,255,255,0.85)" }}>
                                     {new Date(item.event.truckDepartureDate).toLocaleDateString("pt-BR", { timeZone: 'UTC' })} às {new Date(item.event.truckDepartureDate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: 'UTC' })}
                                   </strong>
                                 </div>
@@ -1497,7 +1573,7 @@ export default function Grafica() {
                         <button
                           onClick={e => { e.stopPropagation(); setViewDetailsItem(item); }}
                           aria-label={`Ver detalhes da peça ${item.displayId}`}
-                          style={{ fontSize: 13, fontFamily: "'DM Mono', monospace", color: item.isReuse ? "#047857" : TI.accent, fontWeight: 700, letterSpacing: "0.04em", background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                          style={{ fontSize: 13, fontFamily: "'DM Mono', monospace", color: item.isReuse ? "#047857" : "#c2410c", fontWeight: 700, letterSpacing: "0.04em", background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
                           data-testid={`text-display-id-${item.id}`}
                         >
                           {item.displayId}
@@ -1538,7 +1614,7 @@ export default function Grafica() {
                         {item.description ? (
                           <div style={{ fontSize: 13, color: item.isReuse ? "#065f46" : TI.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontWeight: item.isReuse ? 600 : 400 }}>{item.description}</div>
                         ) : (
-                          <div style={{ fontSize: 13, color: TI.muted }}>—</div>
+                          <div style={{ fontSize: 13, color: TI.secondary }}>—</div>
                         )}
                         {item.observations && (
                           <div style={{ fontSize: 11, color: TI.secondary, fontStyle: "italic", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: 2 }}>{item.observations}</div>
@@ -1565,18 +1641,18 @@ export default function Grafica() {
                       {/* Qtd */}
                       <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: TI.text }}>{item.quantity}</td>
                       {/* Reaproveitado */}
-                      <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: reusedTotalOf(item) > 0 ? "#059669" : TI.muted }}>
+                      <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: reusedTotalOf(item) > 0 ? "#059669" : TI.secondary }}>
                         {reusedTotalOf(item) > 0 ? (
                           <span title={item.isReuse ? "Peça inteira reaproveitada" : `${reusedTotalOf(item)} de ${qtyOf(item)} un. reaproveitadas`}>
                             {reusedTotalOf(item)}
                             {reusedTotalOf(item) < qtyOf(item) && (
-                              <span style={{ color: TI.muted, fontWeight: 400 }}>/{qtyOf(item)}</span>
+                              <span style={{ color: TI.secondary, fontWeight: 400 }}>/{qtyOf(item)}</span>
                             )}
                           </span>
                         ) : "—"}
                       </td>
                       {/* Prod */}
-                      <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: item.quantityProduced > 0 ? TI.accent : TI.muted }}>
+                      <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: item.quantityProduced > 0 ? "#c2410c" : TI.secondary }}>
                         {item.quantityProduced || "—"}
                       </td>
                       {/* Dimensões */}
@@ -1584,16 +1660,16 @@ export default function Grafica() {
                         {item.visualWidth && item.visualHeight ? (
                           <div>
                             <div style={{ fontSize: 11, color: TI.text, fontFamily: "monospace", whiteSpace: "nowrap" }}>
-                              <span style={{ color: TI.muted, fontWeight: 600 }}>V:</span> {item.visualWidth}×{item.visualHeight}
+                              <span style={{ color: TI.secondary, fontWeight: 600 }}>V:</span> {item.visualWidth}×{item.visualHeight}
                             </div>
                             {item.fileWidth && item.fileHeight && (
-                              <div style={{ fontSize: 11, color: TI.muted, fontFamily: "monospace", whiteSpace: "nowrap" }}>
+                              <div style={{ fontSize: 11, color: TI.secondary, fontFamily: "monospace", whiteSpace: "nowrap" }}>
                                 <span style={{ fontWeight: 600 }}>A:</span> {item.fileWidth}×{item.fileHeight}
                               </div>
                             )}
                           </div>
                         ) : (
-                          <span style={{ fontSize: 13, color: TI.muted }}>—</span>
+                          <span style={{ fontSize: 13, color: TI.secondary }}>—</span>
                         )}
                       </td>
                       {/* m² a produzir — o reaproveitado não vai para a impressora */}
@@ -1606,7 +1682,7 @@ export default function Grafica() {
                           return (
                             <span title={`Total da peça: ${total.toFixed(2)} m² · reaproveitado não é impresso`}>
                               <span style={{ color: toPrint === 0 ? "#059669" : TI.text }}>{toPrint.toFixed(2)}</span>
-                              <span style={{ display: "block", fontSize: 10, fontWeight: 400, color: TI.muted, textDecoration: "line-through" }}>
+                              <span style={{ display: "block", fontSize: 10, fontWeight: 400, color: TI.secondary, textDecoration: "line-through" }}>
                                 {total.toFixed(2)}
                               </span>
                             </span>
@@ -1616,7 +1692,7 @@ export default function Grafica() {
                       {/* Material */}
                       <td style={{ padding: "13px 16px" }}>
                         <div style={{ fontSize: 13, color: TI.text }}>{item.material}</div>
-                        {item.finish && <div style={{ fontSize: 11, color: TI.muted, marginTop: 2 }}>{item.finish}</div>}
+                        {item.finish && <div style={{ fontSize: 11, color: TI.secondary, marginTop: 2 }}>{item.finish}</div>}
                       </td>
                       {/* Status */}
                       <td style={{ padding: "13px 16px" }}>
@@ -1630,9 +1706,9 @@ export default function Grafica() {
                             onClick={() => setViewDetailsItem(item)}
                             title="Ver detalhes"
                             data-testid={`button-view-${item.id}`}
-                            style={{ background: "none", border: "none", cursor: "pointer", color: TI.muted, padding: 4, borderRadius: 6, display: "flex", alignItems: "center", transition: "color 0.15s" }}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: TI.secondary, padding: 4, borderRadius: 6, display: "flex", alignItems: "center", transition: "color 0.15s" }}
                             onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.color = TI.text)}
-                            onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.color = TI.muted)}
+                            onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.color = TI.secondary)}
                           >
                             <Eye style={{ width: 15, height: 15 }} />
                           </button>
@@ -1801,9 +1877,15 @@ export default function Grafica() {
                           {bulkOn && bulkEligible && (
                             <div
                               role="checkbox"
+                              tabIndex={0}
                               aria-checked={isSelected}
                               aria-label={`Selecionar ${item.displayId} para ${bulkConferMode ? 'conferência' : 'entrega'}`}
                               onClick={e => { e.stopPropagation(); toggleBulkItem(item.id); }}
+                              // Mesmo suporte a teclado do card mobile: sem isto
+                              // o role="checkbox" nem recebia foco.
+                              onKeyDown={e => {
+                                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); toggleBulkItem(item.id); }
+                              }}
                               style={{ width: 26, height: 26, borderRadius: 6, flexShrink: 0, border: `2px solid ${isSelected ? TI.accent : '#d4d4d0'}`, background: isSelected ? TI.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 0.12s' }}
                             >
                               {isSelected && <Check style={{ width: 13, height: 13, color: '#fff' }} />}
@@ -1868,10 +1950,13 @@ export default function Grafica() {
             Exibindo <strong style={{ color: TI.text }}>{filteredItems.length}</strong> peça{filteredItems.length !== 1 ? "s" : ""} ·{" "}
             <strong style={{ color: TI.text }}>{Array.from(new Set(filteredItems.map((i: any) => i.eventId).filter(Boolean))).length}</strong> evento{Array.from(new Set(filteredItems.map((i: any) => i.eventId).filter(Boolean))).length !== 1 ? "s" : ""}
             {(() => {
-              // O total que importa para a Gráfica é o que vai ser impresso.
-              const totalM2 = filteredItems.reduce((s: number, i: any) => s + (Number(i.calculatedM2) || 0), 0);
-              const printM2 = filteredItems.reduce((s: number, i: any) => s + m2ToProduce(i), 0);
-              const reusedUn = filteredItems.reduce((s: number, i: any) => s + reusedTotalOf(i), 0);
+              // O total que importa para a Gráfica é o que AINDA vai ser
+              // impresso: peça entregue já saiu da fila e não entra na soma
+              // (nem na economia — senão o entregue viraria "economia" falsa).
+              const pending = filteredItems.filter((i: any) => !isDelivered(i));
+              const totalM2 = pending.reduce((s: number, i: any) => s + (Number(i.calculatedM2) || 0), 0);
+              const printM2 = pending.reduce((s: number, i: any) => s + m2ToProduce(i), 0);
+              const reusedUn = pending.reduce((s: number, i: any) => s + reusedTotalOf(i), 0);
               if (!totalM2) return null;
               return (
                 <>
@@ -2072,7 +2157,7 @@ export default function Grafica() {
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
-                      <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, color: selectedItem.isReuse ? '#059669' : TI.accent }}>{selectedItem.displayId}</span>
+                      <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, color: selectedItem.isReuse ? '#059669' : '#c2410c' }}>{selectedItem.displayId}</span>
                       <StatusPill status={selectedItem.status} size="sm" showDot={false} />
                     </div>
                     <div style={{ fontSize: 15, fontWeight: 700, color: TI.text }}>{selectedItem.type}</div>
@@ -2106,7 +2191,7 @@ export default function Grafica() {
                   </div>
                   <div style={{ background: '#fff', borderRadius: 8, padding: '8px 10px' }}>
                     <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.secondary, marginBottom: 2 }}>Quantidade</div>
-                    <div style={{ fontSize: 18, fontWeight: 800, color: TI.text, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{qtyOf(selectedItem)}<span style={{ fontSize: 11, fontWeight: 500, color: TI.muted, marginLeft: 3 }}>un.</span></div>
+                    <div style={{ fontSize: 18, fontWeight: 800, color: TI.text, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{qtyOf(selectedItem)}<span style={{ fontSize: 11, fontWeight: 500, color: TI.secondary, marginLeft: 3 }}>un.</span></div>
                     {selectedItem.isReuse && <div style={{ fontSize: 10, color: '#059669', marginTop: 2, fontWeight: 600 }}>Reaproveitado</div>}
                   </div>
                   {(modalType === "conference" || modalType === "delivery") && (
@@ -2114,7 +2199,7 @@ export default function Grafica() {
                       <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: modalType === "conference" ? '#0e7490' : '#c2410c', marginBottom: 2 }}>
                         {modalType === "conference" ? "A Conferir" : "A Entregar"}
                       </div>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: modalType === "conference" ? '#0891b2' : TI.accent, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: modalType === "conference" ? '#0891b2' : '#c2410c', fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>
                         {modalType === "conference" ? remainingConfer(selectedItem) : remainingDeliver(selectedItem)}<span style={{ fontSize: 11, fontWeight: 500, marginLeft: 3 }}>un.</span>
                       </div>
                       {modalType === "conference" && conferredOf(selectedItem) > 0 && (

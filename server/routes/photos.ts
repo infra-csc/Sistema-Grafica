@@ -1,5 +1,6 @@
 // Delivery-photo routes. Extracted from server/routes.ts.
 import type { Express } from "express";
+import { z } from "zod";
 import { storage } from "../storage";
 import { insertDeliveryPhotoSchema } from "@shared/schema";
 import { requireAuth, requireRole, broadcast } from "./shared";
@@ -28,20 +29,26 @@ export function registerPhotoRoutes(app: Express): void {
     }
   });
 
-  // Add a delivery photo
-  app.post("/api/items/:itemId/photos", requireAuth, async (req, res) => {
+  // Add a delivery photo — mesmo gate por perfil do fluxo de conferência/
+  // entrega (o DELETE desta família já era restrito; o POST aceitava qualquer
+  // perfil autenticado anexar comprovante em qualquer peça).
+  app.post("/api/items/:itemId/photos", requireRole("grafica", "solicitacao", "admin"), async (req, res) => {
     try {
       const validatedData = insertDeliveryPhotoSchema.parse({
         ...req.body,
         itemId: req.params.itemId,
       });
-      
+
       const photo = await storage.addDeliveryPhoto(validatedData);
-      
+
       broadcast({ type: "photo_added", photo });
-      
+
       res.json(photo);
     } catch (error: any) {
+      // Erro de validação é culpa do payload, não do servidor: 400, não 500.
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors?.[0]?.message || "Dados da foto inválidos" });
+      }
       res.status(500).json({ error: error.message });
     }
   });

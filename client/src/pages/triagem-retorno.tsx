@@ -4,26 +4,17 @@ import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import type { InventoryAsset, Sponsor } from "@shared/schema";
+import type { InventoryAsset } from "@shared/schema";
 import {
-  ScanSearch, CheckCircle2, Warehouse, Archive, Package, Save,
-  CalendarDays, X, Scissors, Sparkles, Hammer, Trash2, Eye, Wrench,
-  MapPin, ClipboardCheck, Users, Search,
+  ScanSearch, CheckCircle2, Package, Save,
+  CalendarDays, X, Scissors, Sparkles, Trash2, Eye, Wrench,
+  ClipboardCheck, Users, Search,
 } from "lucide-react";
 import { TriagemModal } from "@/components/triagem-modal";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { useAuth } from "@/contexts/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-const CONDITIONS = ["PERFEITO", "AVARIA_LEVE", "SUCATA"] as const;
-type Condition = typeof CONDITIONS[number];
-
-const CONDITION_META: Record<Condition, { label: string; color: string; bg: string; border: string; key: string; Icon: React.ElementType }> = {
-  PERFEITO:    { label: "Perfeito",    color: "#16a34a", bg: "#f0fdf4", border: "#86efac", key: "1", Icon: Sparkles },
-  AVARIA_LEVE: { label: "Avaria",      color: "#b45309", bg: "#fffbeb", border: "#fcd34d", key: "2", Icon: Hammer   },
-  SUCATA:      { label: "Sucata",      color: "#dc2626", bg: "#fff1f2", border: "#fca5a5", key: "3", Icon: Trash2   },
-};
+import { CONDITION_META, type Condition, type ConditionMeta } from "@/lib/inventory-meta";
 
 type TriagemResult = "NO_GALPAO" | "MANUTENCAO" | "DESCARTADO";
 const RESULT_META: Record<TriagemResult, { label: string; color: string; bg: string; border: string; activeBg: string; activeColor: string }> = {
@@ -57,7 +48,11 @@ function makeEntry(totalQty: number): TriagemEntry {
   return { splits: makeSplits(totalQty), notes: "", selected: false, mode: "all" };
 }
 
-type EnrichedAsset = InventoryAsset & {
+// Payload de /api/inventory/awaiting-triage — o servidor enriquece o ativo
+// com evento (id/nome/data) e patrocinadores resolvidos. Tipo único,
+// importado também pelo TriagemModal.
+export type EnrichedAsset = InventoryAsset & {
+  eventId: string | null;
   eventName: string | null;
   eventDate: string | null;
   sponsors: { id: string; name: string }[];
@@ -96,14 +91,15 @@ function ConditionToggles({ condition, onCondition, disabled, grayscale }: {
   disabled?: boolean; grayscale?: boolean;
 }) {
   return (
-    <div style={{
+    <div role="group" aria-label="Condição do item" style={{
       display: "inline-flex", background: "#f3f4f3", padding: 4, borderRadius: 8,
       filter: grayscale ? "grayscale(1)" : "none",
     }}>
-      {(Object.entries(CONDITION_META) as [Condition, typeof CONDITION_META[Condition]][]).map(([val, meta]) => {
+      {(Object.entries(CONDITION_META) as [Condition, ConditionMeta][]).map(([val, meta]) => {
         const active = condition === val;
         return (
           <button key={val} onClick={() => !disabled && onCondition(val)}
+            aria-pressed={active} disabled={disabled}
             style={{
               display: "inline-flex", alignItems: "center", gap: 4,
               padding: "5px 10px", borderRadius: 6, border: "none",
@@ -112,7 +108,7 @@ function ConditionToggles({ condition, onCondition, disabled, grayscale }: {
               letterSpacing: "0.04em", textTransform: "uppercase",
               whiteSpace: "nowrap", transition: "all 0.12s",
               background: active ? "#fff" : "transparent",
-              color: active ? meta.color : "#94a3b8",
+              color: active ? meta.color : "#475569",
               boxShadow: active ? "0 1px 3px rgba(0,0,0,0.12)" : "none",
             }}>
             <meta.Icon size={10} />
@@ -130,7 +126,7 @@ function ResultToggles({ result, onResult, disabled, grayscale }: {
   disabled?: boolean; grayscale?: boolean;
 }) {
   return (
-    <div style={{
+    <div role="group" aria-label="Destino do item" style={{
       display: "inline-flex", background: "#f3f4f3", padding: 4, borderRadius: 8,
       filter: grayscale ? "grayscale(1)" : "none",
     }}>
@@ -138,6 +134,8 @@ function ResultToggles({ result, onResult, disabled, grayscale }: {
         const active = result === val;
         return (
           <button key={val} onClick={() => !disabled && onResult(val)}
+            aria-pressed={active} disabled={disabled}
+            title={val === "MANUTENCAO" ? "Volta ao galpão como Avaria Leve para reparo" : undefined}
             style={{
               display: "inline-flex", alignItems: "center", gap: 4,
               padding: "5px 10px", borderRadius: 6, border: "none",
@@ -146,7 +144,7 @@ function ResultToggles({ result, onResult, disabled, grayscale }: {
               letterSpacing: "0.04em", textTransform: "uppercase",
               whiteSpace: "nowrap", transition: "all 0.12s",
               background: active ? meta.activeBg : "transparent",
-              color: active ? meta.activeColor : "#94a3b8",
+              color: active ? meta.activeColor : "#475569",
               boxShadow: active ? "0 1px 3px rgba(0,0,0,0.15)" : "none",
             }}>
             {val === "MANUTENCAO" && <Wrench size={9} />}
@@ -226,7 +224,7 @@ function SplitProgress({ splits, total }: { splits: SplitLine[]; total: number }
           {sum}/{total} un ({pct}%)
         </span>
         {pct < 100 && (
-          <span style={{ fontSize: 9, fontFamily: "DM Mono, monospace", color: "#94a3b8" }}>
+          <span style={{ fontSize: 9, fontFamily: "DM Mono, monospace", color: "#746e69" }}>
             faltam {total - sum} un
           </span>
         )}
@@ -236,7 +234,8 @@ function SplitProgress({ splits, total }: { splits: SplitLine[]; total: number }
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
-export default function TriagemRetorno() {  const isMobile = useIsMobile();
+export default function TriagemRetorno() {
+  const isMobile = useIsMobile();
   const { toast } = useToast();
   const { user } = useAuth();
   const [entries, setEntries] = useState<Record<string, TriagemEntry>>({});
@@ -253,23 +252,20 @@ export default function TriagemRetorno() {  const isMobile = useIsMobile();
     queryKey: ["/api/inventory/awaiting-triage"],
   });
   const { data: allItems = [] } = useQuery<any[]>({ queryKey: ["/api/items"] });
-  const { data: allSponsors = [] } = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"] });
-
-  const eventOptions = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const a of awaitingAssets) { if (a.eventName) seen.set(a.eventName, a.eventName); }
-    return Array.from(seen.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [awaitingAssets]);
-
-  const sponsorOptions = useMemo(() =>
-    [...allSponsors].sort((a, b) => a.name.localeCompare(b.name)),
-  [allSponsors]);
 
   const locationOptions = useMemo(() => {
     const seen = new Set<string>();
     for (const a of awaitingAssets) { if (a.location) seen.add(a.location); }
     return Array.from(seen).sort();
   }, [awaitingAssets]);
+
+  // Item 15 — decisão: manter o seletor "Local" condicional (só aparece com
+  // opções) e LIMPAR a seleção quando as opções somem. Sem isso, um filtro de
+  // local ativo ficava preso invisível, escondendo a fila inteira sem que o
+  // usuário tivesse como desfazer.
+  useEffect(() => {
+    if (locationOptions.length === 0 && filterLocation.length > 0) setFilterLocation([]);
+  }, [locationOptions.length, filterLocation.length]);
 
   const getEntry = (id: string, totalQty?: number): TriagemEntry =>
     entries[id] ?? makeEntry(totalQty ?? 1);
@@ -410,11 +406,13 @@ export default function TriagemRetorno() {  const isMobile = useIsMobile();
   }, [entries, savedIds, awaitingAssets]);
 
   // ── pendingAssets ──────────────────────────────────────────────────────────────
+  // Filtro de evento por ID (eventId vem do enriquecimento do servidor):
+  // nomes de evento podem se repetir entre ciclos, o id não.
   const pendingAssets = useMemo(() => {
     const q = search.trim().toLowerCase();
     return awaitingAssets.filter(a => {
       if (savedIds.has(a.id)) return false;
-      const me = filterEvent.length === 0 || filterEvent.includes(a.eventName ?? "");
+      const me = filterEvent.length === 0 || filterEvent.includes(a.eventId ?? "");
       const msp = filterSponsor.length === 0 || (a.sponsors ?? []).some(s => filterSponsor.includes(s.id));
       const mloc = filterLocation.length === 0 || filterLocation.includes(a.location ?? "");
       const msearch = !q || (a.name ?? "").toLowerCase().includes(q) || (a.displayId ?? "").toLowerCase().includes(q) || (a.location ?? "").toLowerCase().includes(q);
@@ -427,12 +425,12 @@ export default function TriagemRetorno() {  const isMobile = useIsMobile();
   const tFacetPool = (exclude: 'event' | 'sponsor' | 'location') =>
     awaitingAssets.filter(a => {
       if (savedIds.has(a.id)) return false;
-      if (exclude !== 'event' && filterEvent.length > 0 && !filterEvent.includes(a.eventName ?? "")) return false;
+      if (exclude !== 'event' && filterEvent.length > 0 && !filterEvent.includes(a.eventId ?? "")) return false;
       if (exclude !== 'sponsor' && filterSponsor.length > 0 && !(a.sponsors ?? []).some(s => filterSponsor.includes(s.id))) return false;
       if (exclude !== 'location' && filterLocation.length > 0 && !filterLocation.includes(a.location ?? "")) return false;
       return true;
     });
-  const tTally = (rows: any[], key: (r: any) => { value: string; label: string } | null) => {
+  const tTally = (rows: EnrichedAsset[], key: (r: EnrichedAsset) => { value: string; label: string } | null) => {
     const map = new Map<string, { value: string; label: string; count: number }>();
     rows.forEach(r => {
       const k = key(r);
@@ -443,11 +441,11 @@ export default function TriagemRetorno() {  const isMobile = useIsMobile();
     });
     return Array.from(map.values());
   };
-  const eventFilterOptions = tTally(tFacetPool('event'), a => a.eventName ? { value: a.eventName, label: a.eventName } : null);
+  const eventFilterOptions = tTally(tFacetPool('event'), a => a.eventId ? { value: a.eventId, label: a.eventName ?? "Evento" } : null);
   const locationFilterOptions = tTally(tFacetPool('location'), a => a.location ? { value: a.location, label: a.location } : null);
   const sponsorFilterOptions = (() => {
     const map = new Map<string, { value: string; label: string; count: number }>();
-    tFacetPool('sponsor').forEach(a => (a.sponsors ?? []).forEach((s: any) => {
+    tFacetPool('sponsor').forEach(a => (a.sponsors ?? []).forEach(s => {
       const cur = map.get(s.id);
       if (cur) cur.count++;
       else map.set(s.id, { value: s.id, label: s.name, count: 1 });
@@ -455,7 +453,9 @@ export default function TriagemRetorno() {  const isMobile = useIsMobile();
     return Array.from(map.values());
   })();
 
-  const selectedIds = Object.entries(entries).filter(([, e]) => e.selected).map(([id]) => id);
+  // Seleção deriva SEMPRE da lista visível: uma entry marcada que saiu do
+  // filtro não conta (nem no lote, nem no contador, nem nos presets).
+  const selectedIds = pendingAssets.filter(a => entries[a.id]?.selected).map(a => a.id);
 
   const handleBulk = async () => {
     if (selectedIds.length === 0 || savingIds.size > 0) return;
@@ -463,7 +463,13 @@ export default function TriagemRetorno() {  const isMobile = useIsMobile();
     const results = await Promise.allSettled(
       selectedIds.map(id => {
         const asset = awaitingAssets.find(a => a.id === id);
-        return doTriage(id, asset?.quantity ?? 1);
+        if (!asset) {
+          // Sem o ativo não dá para validar a quantidade — rejeita com erro
+          // claro e o allSettled contabiliza como falha (antes virava
+          // doTriage com qty=1 silencioso).
+          return Promise.reject(new Error(`Ativo ${id} não está mais na fila de triagem.`));
+        }
+        return doTriage(id, asset.quantity ?? 1);
       })
     );
     // Só marca como salvo (some da fila) o que realmente foi registrado. Os que
@@ -473,30 +479,27 @@ export default function TriagemRetorno() {  const isMobile = useIsMobile();
     const failed = selectedIds.length - okIds.length;
     setSavedIds(prev => new Set(Array.from(prev).concat(okIds)));
     setSavingIds(new Set());
-    setEntries(prev => { const next = { ...prev }; okIds.forEach(id => { if (next[id]) next[id].selected = false; }); return next; });
+    setEntries(prev => {
+      const next = { ...prev };
+      okIds.forEach(id => { if (next[id]) next[id] = { ...next[id], selected: false }; });
+      return next;
+    });
     toast({ title: failed > 0 ? `${okIds.length} registrada(s), ${failed} com erro.` : `${okIds.length} triagem(ns) registradas.`, variant: failed > 0 ? "destructive" : "default" });
     refetch();
   };
 
+  // Selecionar tudo opera sobre a lista FILTRADA (pendingAssets), nunca sobre
+  // awaitingAssets inteira — senão o "Confirmar Lote" triava itens fora do
+  // filtro que o usuário nem estava vendo.
   const toggleAll = (checked: boolean) => {
     const update: Record<string, TriagemEntry> = {};
-    awaitingAssets.forEach(a => { if (!savedIds.has(a.id)) update[a.id] = { ...getEntry(a.id), selected: checked }; });
+    pendingAssets.forEach(a => { update[a.id] = { ...getEntry(a.id, a.quantity ?? 1), selected: checked }; });
     setEntries(prev => ({ ...prev, ...update }));
   };
 
   const hasFilters = filterEvent.length > 0 || filterSponsor.length > 0 || filterLocation.length > 0 || !!search;
 
   const allSelected = pendingAssets.length > 0 && pendingAssets.every(a => getEntry(a.id).selected);
-
-  const filterLabel: React.CSSProperties = {
-    display: "block", fontSize: 10, fontWeight: 900,
-    textTransform: "uppercase", letterSpacing: "0.09em",
-    color: "#746e69", marginBottom: 8,
-  };
-  const selectTriggerStyle: React.CSSProperties = {
-    backgroundColor: "#ffffff", border: "1px solid #e7e5e4",
-    borderRadius: 0, height: 40, fontSize: 13, color: "#1c1917",
-  };
 
   const TH: React.CSSProperties = {
     padding: "14px 20px", fontSize: 10, fontWeight: 800, letterSpacing: "0.14em",
@@ -506,7 +509,13 @@ export default function TriagemRetorno() {  const isMobile = useIsMobile();
   };
 
   return (
-    <div style={{ padding: isMobile ? "14px 16px" : "32px 36px", background: "#f8fafc", height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", gap: isMobile ? 16 : 28 }}>
+    <div style={{
+      padding: isMobile ? "14px 16px" : "32px 36px",
+      // Compensa a pill flutuante de lote: sem isso ela cobre as últimas
+      // linhas da tabela quando há seleção.
+      paddingBottom: selectedIds.length > 0 ? 130 : undefined,
+      background: "#f8fafc", height: "100%", overflowY: "auto", display: "flex", flexDirection: "column", gap: isMobile ? 16 : 28,
+    }}>
 
       {/* ── Header ── */}
       <div style={{ display: "flex", alignItems: isMobile ? "flex-start" : "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
@@ -544,7 +553,7 @@ export default function TriagemRetorno() {  const isMobile = useIsMobile();
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
         <StatCard label="Na Fila" value={awaitingAssets.length} color="#c2610c" Icon={ScanSearch} />
         <StatCard label="Selecionados" value={selectedIds.length} color="#16a34a" Icon={Users} />
-        <StatCard label="Triados Hoje" value={savedIds.size} color="#2563eb" Icon={CheckCircle2} />
+        <StatCard label="Triados nesta sessão" value={savedIds.size} color="#2563eb" Icon={CheckCircle2} />
       </div>
 
       {/* ── Filter bar ── */}
@@ -569,8 +578,9 @@ export default function TriagemRetorno() {  const isMobile = useIsMobile();
             padding: "16px 20px 18px",
             display: "flex", alignItems: "flex-end", gap: 14, flexWrap: "wrap",
           }}>
-            {/* Evento */}
-            <div style={{ display: "flex", flexDirection: "column", flex: "1 1 160px" }}>
+            {/* Evento — wrapper .event-filter-44 iguala o trigger aos 44px dos
+                demais filtros (componente compartilhado sem prop de estilo). */}
+            <div className="event-filter-44" style={{ display: "flex", flexDirection: "column", flex: "1 1 160px" }}>
               <label style={FL}>Evento</label>
               <EventFilterDropdown
                 values={filterEvent}
@@ -648,7 +658,7 @@ export default function TriagemRetorno() {  const isMobile = useIsMobile();
                 }}>
                 <X size={12} /> Limpar filtros
               </button>
-              <span style={{ fontSize: 11, color: "#cbd5e1", fontFamily: "DM Mono, monospace", fontWeight: 600, whiteSpace: "nowrap", paddingBottom: 12 }}>
+              <span style={{ fontSize: 11, color: "#746e69", fontFamily: "DM Mono, monospace", fontWeight: 600, whiteSpace: "nowrap", paddingBottom: 12 }}>
                 {pendingAssets.length} pend. · {savedIds.size} triados
               </span>
             </div>
@@ -718,24 +728,34 @@ export default function TriagemRetorno() {  const isMobile = useIsMobile();
                   const baseRowBg = idx % 2 === 1 ? "#fafaf9" : "#ffffff";
                   return (
                     <tr key={asset.id} data-testid={`row-triage-${asset.id}`}
+                      tabIndex={isSaved ? -1 : 0}
+                      role="button"
+                      aria-label={`Selecionar ${asset.name} para triagem em lote`}
                       onClick={() => {
                         if (!isSaved) {
                           setFocusedId(asset.id);
                           updateEntry(asset.id, { selected: !entry.selected });
                         }
                       }}
+                      onKeyDown={e => {
+                        if (isSaved || e.target !== e.currentTarget) return;
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setFocusedId(asset.id);
+                          updateEntry(asset.id, { selected: !entry.selected });
+                        }
+                      }}
                       style={{
-                        opacity: isSaved ? 0.5 : 1,
+                        opacity: isSaved ? 0.8 : 1,
                         filter: isSaved ? "grayscale(0.5)" : "none",
-                        backgroundColor: isFocused && !isSaved ? "#f8fafc" : "#fff",
+                        backgroundColor: isFocused && !isSaved ? "#f8fafc" : baseRowBg,
                         transition: "background-color 0.12s",
                         borderBottom: "1px solid rgba(226,232,240,0.6)",
                         borderLeft: isFocused && !isSaved ? "3px solid #c2610c" : "3px solid transparent",
                         cursor: isSaved ? "default" : "pointer",
-                        pointerEvents: isSaved ? "none" : "auto",
                       }}
                       onMouseEnter={e => { if (!isSaved && !isFocused) (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "#f8fafc"; }}
-                      onMouseLeave={e => { if (!isSaved && !isFocused) (e.currentTarget as HTMLTableRowElement).style.backgroundColor = "#fff"; }}
+                      onMouseLeave={e => { if (!isSaved && !isFocused) (e.currentTarget as HTMLTableRowElement).style.backgroundColor = baseRowBg; }}
                     >
                       {/* Checkbox */}
                       <td style={{ padding: "12px 14px", verticalAlign: "middle" }}>
@@ -776,7 +796,7 @@ export default function TriagemRetorno() {  const isMobile = useIsMobile();
                                 background: qty > 1 ? "#0f172a" : "#f1f5f9",
                                 color: qty > 1 ? "#fff" : "#94a3b8",
                                 fontSize: 10, fontWeight: 800, fontFamily: "DM Mono, monospace",
-                              }}>+{qty}</span>
+                              }}>×{qty}</span>
                             </div>
                           </div>
                         </div>
@@ -816,7 +836,7 @@ export default function TriagemRetorno() {  const isMobile = useIsMobile();
                                 fontSize: 10, fontWeight: 700, color: "#94a3b8",
                                 fontFamily: "Space Grotesk, sans-serif",
                                 textTransform: "uppercase", letterSpacing: "0.06em",
-                              }}>Galpão SP</span>
+                              }}>{asset.location ?? "—"}</span>
                             </div>
                           </div>
                         ) : <span style={{ fontSize: 11, color: "#94a3b8", fontStyle: "italic", fontFamily: "Plus Jakarta Sans, sans-serif" }}>—</span>}
@@ -891,10 +911,10 @@ export default function TriagemRetorno() {  const isMobile = useIsMobile();
                                       <span style={{ fontSize: 9, fontWeight: 700, color: "#64748b", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.08em" }}>Lote {si + 1}</span>
                                       <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                                         <button data-testid={`button-split-minus-${asset.id}-${si}`} onClick={() => stepSplit(asset.id, si, -1, qty)} disabled={split.qty <= 1}
-                                          style={{ width: 20, height: 20, borderRadius: 5, border: "1px solid #e2e8f0", background: "#fff", cursor: split.qty <= 1 ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, lineHeight: 1, color: split.qty <= 1 ? "#cbd5e1" : "#0f172a", fontWeight: 700, padding: 0 }}>−</button>
+                                          style={{ width: 20, height: 20, borderRadius: 5, border: "1px solid #e2e8f0", background: "#fff", cursor: split.qty <= 1 ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, lineHeight: 1, color: split.qty <= 1 ? "#a8a29e" : "#0f172a", fontWeight: 700, padding: 0 }}>−</button>
                                         <span style={{ minWidth: 28, textAlign: "center", fontSize: 12, fontWeight: 800, fontFamily: "DM Mono, monospace", color: splitValid ? "#0f172a" : "#dc2626" }}>{split.qty}</span>
                                         <button data-testid={`button-split-plus-${asset.id}-${si}`} onClick={() => stepSplit(asset.id, si, +1, qty)} disabled={splitSum >= qty}
-                                          style={{ width: 20, height: 20, borderRadius: 5, border: "1px solid #e2e8f0", background: "#fff", cursor: splitSum >= qty ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, lineHeight: 1, color: splitSum >= qty ? "#cbd5e1" : "#0f172a", fontWeight: 700, padding: 0 }}>+</button>
+                                          style={{ width: 20, height: 20, borderRadius: 5, border: "1px solid #e2e8f0", background: "#fff", cursor: splitSum >= qty ? "not-allowed" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, lineHeight: 1, color: splitSum >= qty ? "#a8a29e" : "#0f172a", fontWeight: 700, padding: 0 }}>+</button>
                                       </div>
                                       {entry.splits.length >= 2 && (
                                         <button data-testid={`button-remove-split-${asset.id}-${si}`} onClick={() => removeSplit(asset.id, si)}
@@ -972,7 +992,7 @@ export default function TriagemRetorno() {  const isMobile = useIsMobile();
                               display: "inline-flex", alignItems: "center", gap: 6,
                               padding: "7px 14px", borderRadius: 8, border: "none",
                               background: isSaving || !splitValid ? "#e2e8f0" : "#f97316",
-                              color: isSaving || !splitValid ? "#94a3b8" : "#fff",
+                              color: isSaving || !splitValid ? "#64748b" : "#fff",
                               fontSize: 12, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
                               cursor: isSaving || !splitValid ? "not-allowed" : "pointer",
                               boxShadow: !isSaving && splitValid ? "0 2px 8px rgba(249,115,22,0.35)" : "none",
@@ -1038,7 +1058,7 @@ export default function TriagemRetorno() {  const isMobile = useIsMobile();
             <div style={{ display: "flex", gap: 8 }}>
               <button data-testid="button-bulk-confirm" onClick={handleBulk}
                 disabled={savingIds.size > 0}
-                style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 16px", borderRadius: 9999, border: "none", background: savingIds.size > 0 ? "#64748b" : "#22c55e", color: "#fff", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: savingIds.size > 0 ? "not-allowed" : "pointer", whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(34,197,94,0.3)" }}>
+                style={{ display: "flex", alignItems: "center", gap: 5, padding: "7px 16px", borderRadius: 9999, border: "none", background: savingIds.size > 0 ? "#64748b" : "#15803d", color: "#fff", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: savingIds.size > 0 ? "not-allowed" : "pointer", whiteSpace: "nowrap", boxShadow: "0 2px 8px rgba(21,128,61,0.3)" }}>
                 <CheckCircle2 size={13} /> {savingIds.size > 0 ? "Registrando…" : "Confirmar Triagem"}
               </button>
               <button data-testid="button-bulk-cancel" onClick={() => Object.keys(entries).forEach(id => updateEntry(id, { selected: false }))}
@@ -1064,6 +1084,10 @@ export default function TriagemRetorno() {  const isMobile = useIsMobile();
         onUpdateNotes={(notes) => { if (selectedAsset) updateEntry(selectedAsset.id, { notes }); }}
         onSaveAndClose={async () => { if (selectedAsset) { await handleSingle(selectedAsset); setSelectedAsset(null); } }}
       />
+
+      {/* Iguala a altura do trigger do EventFilterDropdown aos 44px dos
+          demais filtros — componente compartilhado, sem prop de estilo. */}
+      <style>{`.event-filter-44 > div > button { height: 44px !important; }`}</style>
     </div>
   );
 }

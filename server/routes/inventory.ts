@@ -76,6 +76,7 @@ export function registerInventoryRoutes(app: Express): void {
           .map(s => ({ id: s.id, name: s.name }));
         return {
           ...asset,
+          eventId: event?.id ?? null,
           eventName: event?.name ?? null,
           eventDate: event?.startDate ?? null,
           sponsors,

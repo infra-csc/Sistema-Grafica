@@ -1,40 +1,20 @@
 import { useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import {
-  X, Sparkles, Hammer, Trash2, Warehouse, Package2,
-  Tag, Calendar, Ruler, Layers, CheckCircle2,
+  X, Trash2, Warehouse, Package2,
+  Tag, Calendar, Layers, CheckCircle2,
   Archive, Truck, ClipboardCheck, Image, Wrench,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { CONDITIONS, CONDITION_META, type Condition } from "@/lib/inventory-meta";
+import type { EnrichedAsset } from "@/pages/triagem-retorno";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
-const CONDITIONS = ["PERFEITO", "AVARIA_LEVE", "SUCATA"] as const;
-type Condition = typeof CONDITIONS[number];
 type TriagemResult = "NO_GALPAO" | "MANUTENCAO" | "DESCARTADO";
 
 interface SplitLine { qty: number; condition: Condition | null; result: TriagemResult; }
 interface TriagemEntry { splits: SplitLine[]; notes: string; selected: boolean; mode: "all" | "split"; }
-
-type EnrichedAsset = {
-  id: string;
-  displayId: string;
-  name: string;
-  condition: string;
-  location?: string | null;
-  trackingStatus: string;
-  sponsorIds?: string[] | null;
-  approvalThumbUrl?: string | null;
-  autoAdded?: boolean;
-  quantity?: number | null;
-  notes?: string | null;
-  originalItemId?: string | null;
-  franchiseTags?: string[] | null;
-  eventName: string | null;
-  eventDate: string | null;
-  sponsors: { id: string; name: string }[];
-  [key: string]: any;
-};
 
 interface TriagemModalProps {
   asset: EnrichedAsset | null;
@@ -51,21 +31,12 @@ interface TriagemModalProps {
   onSaveAndClose: () => Promise<void>;
 }
 
-const CONDITION_META: Record<Condition, {
-  label: string; color: string; bg: string; border: string; activeBg: string;
-  Icon: React.ElementType;
-}> = {
-  PERFEITO:    { label: "Perfeito",    color: "#16a34a", bg: "#f0fdf4", border: "#86efac", activeBg: "#dcfce7", Icon: Sparkles },
-  AVARIA_LEVE: { label: "Avaria Leve", color: "#d97706", bg: "#fffbeb", border: "#fcd34d", activeBg: "#fef3c7", Icon: Hammer   },
-  SUCATA:      { label: "Sucata",      color: "#dc2626", bg: "#fef2f2", border: "#fca5a5", activeBg: "#fee2e2", Icon: Trash2   },
-};
-
 const RESULT_META: Record<TriagemResult, {
   label: string; subLabel: string; color: string; bg: string; border: string; Icon: React.ElementType;
 }> = {
-  NO_GALPAO:  { label: "Galpão Central", subLabel: "Retorna ao estoque",       color: "#1e40af", bg: "#eff6ff", border: "#93c5fd", Icon: Warehouse },
-  MANUTENCAO: { label: "Manutenção",     subLabel: "Encaminhar para reparo",    color: "#92400e", bg: "#fffbeb", border: "#fcd34d", Icon: Wrench    },
-  DESCARTADO: { label: "Descartar",      subLabel: "Remover do inventário",     color: "#991b1b", bg: "#fef2f2", border: "#fca5a5", Icon: Trash2    },
+  NO_GALPAO:  { label: "Galpão Central", subLabel: "Retorna ao estoque",                            color: "#1e40af", bg: "#eff6ff", border: "#93c5fd", Icon: Warehouse },
+  MANUTENCAO: { label: "Manutenção",     subLabel: "Volta ao galpão como Avaria Leve para reparo",  color: "#92400e", bg: "#fffbeb", border: "#fcd34d", Icon: Wrench    },
+  DESCARTADO: { label: "Descartar",      subLabel: "Remover do inventário",                         color: "#991b1b", bg: "#fef2f2", border: "#fca5a5", Icon: Trash2    },
 };
 
 export function TriagemModal({
@@ -416,6 +387,7 @@ export function TriagemModal({
                           <button
                             key={r}
                             onClick={() => onUpdateResult(r)}
+                            title={m.subLabel}
                             style={{
                               flex: 1, display: "flex", alignItems: "center",
                               justifyContent: "center", gap: 8, padding: "12px 10px",

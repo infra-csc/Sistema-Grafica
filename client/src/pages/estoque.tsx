@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
@@ -7,13 +7,20 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import type { InventoryAsset, Sponsor, Event } from "@shared/schema";
 import {
-  Archive, Plus, Search, Pencil, Trash2, CheckCircle2, AlertTriangle,
-  XCircle, MapPin, Tag, X, Package, Warehouse, Truck, ScanSearch, Flame, Calendar, CalendarDays,
-  TrendingUp, Grid3X3, Eye, Check, Sparkles, Hammer, Layers, ClipboardCheck,
+  Archive, Search, Pencil, Trash2, CheckCircle2,
+  XCircle, MapPin, Tag, X, Package, Warehouse, Truck, ScanSearch, Calendar, CalendarDays,
+  Grid3X3, Eye, Check, Sparkles, Hammer, Layers, ClipboardCheck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogContent, AlertDialogTitle, AlertDialogDescription,
+} from "@/components/ui/alert-dialog";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
+import { CONDITIONS, CONDITION_META, conditionMeta, type Condition } from "@/lib/inventory-meta";
 
 // ─── Status meta ─────────────────────────────────────────────────────────────
 const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
@@ -24,46 +31,9 @@ const STATUS_META: Record<string, { label: string; color: string; bg: string }> 
 };
 const ALL_STATUSES = ["NO_GALPAO", "EM_USO", "AGUARDANDO_TRIAGEM", "DESCARTADO"] as const;
 type TrackingStatus = typeof ALL_STATUSES[number];
-
-// ─── Condition meta ───────────────────────────────────────────────────────────
-const CONDITION_META: Record<string, { label: string; color: string; bg: string }> = {
-  PERFEITO:    { label: "Perfeito",    color: "#16a34a", bg: "rgba(22,163,74,0.08)"  },
-  AVARIA_LEVE: { label: "Avaria Leve", color: "#d97706", bg: "rgba(217,119,6,0.08)"  },
-  SUCATA:      { label: "Sucata",      color: "#dc2626", bg: "rgba(220,38,38,0.08)"  },
-};
-const CONDITIONS = ["PERFEITO", "AVARIA_LEVE", "SUCATA"] as const;
-type Condition = typeof CONDITIONS[number];
-
-// ─── Status badge (pill + dot) ────────────────────────────────────────────────
-function StatusBadge({ color, bg, label, dot }: { color: string; bg: string; label: string; dot?: string }) {
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center", gap: 6,
-      padding: "5px 12px", borderRadius: 9999,
-      fontSize: 12, fontWeight: 600,
-      fontFamily: "Plus Jakarta Sans, sans-serif",
-      color, background: bg,
-    }}>
-      <span style={{ width: 7, height: 7, borderRadius: "50%", background: dot ?? color, flexShrink: 0 }} />
-      {label}
-    </span>
-  );
-}
-
-// ─── Condition badge (compact) ────────────────────────────────────────────────
-function ConditionBadge({ color, bg, label }: { color: string; bg: string; label: string }) {
-  return (
-    <span style={{
-      display: "inline-flex", alignItems: "center",
-      padding: "3px 10px", borderRadius: 6,
-      fontSize: 10, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase",
-      fontFamily: "Space Grotesk, sans-serif",
-      color, background: bg,
-    }}>
-      {label}
-    </span>
-  );
-}
+// Status que o usuário pode definir manualmente. EM_USO e AGUARDANDO_TRIAGEM
+// são definidos pelo ciclo do evento (despacho/retorno) — nunca à mão.
+const MANUAL_STATUSES: TrackingStatus[] = ["NO_GALPAO", "DESCARTADO"];
 
 // ─── Stat card with watermark icon ───────────────────────────────────────────
 function StatCard({ label, value, Icon, color, subtext, subColor, onClick, active }: {
@@ -110,125 +80,53 @@ function StatCard({ label, value, Icon, color, subtext, subColor, onClick, activ
   );
 }
 
-// ─── Sponsor avatar stack ─────────────────────────────────────────────────────
-function SponsorStack({ sponsorIds, sponsors }: { sponsorIds: string[]; sponsors: Sponsor[] }) {
-  if (!sponsorIds || sponsorIds.length === 0)
-    return <span style={{ color: "#cbd5e1", fontSize: 12 }}>—</span>;
-  const matched = sponsorIds.map(id => sponsors.find(s => s.id === id)).filter(Boolean) as Sponsor[];
-  const shown = matched.slice(0, 4);
-  const extra = matched.length - shown.length;
-  const COLORS = ["#3b82f6","#8b5cf6","#10b981","#f59e0b","#ef4444","#06b6d4"];
-  return (
-    <div style={{ display: "flex" }}>
-      {shown.map((sp, i) => {
-        const initials = sp.name.split(" ").map(w => w[0]).slice(0, 2).join("").toUpperCase();
-        const fg = COLORS[i % COLORS.length];
-        return (
-          <div key={sp.id} title={sp.name} style={{
-            width: 28, height: 28, borderRadius: "50%",
-            border: "2px solid #fff", background: fg + "18",
-            marginLeft: i === 0 ? 0 : -10,
-            display: "flex", alignItems: "center", justifyContent: "center",
-            fontSize: 8, fontWeight: 700, color: fg,
-            fontFamily: "Space Grotesk, sans-serif",
-            boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
-            zIndex: shown.length - i, position: "relative",
-          }}>
-            {initials}
-          </div>
-        );
-      })}
-      {extra > 0 && (
-        <div style={{
-          width: 28, height: 28, borderRadius: "50%", border: "2px solid #fff",
-          background: "#f1f5f9", marginLeft: -10, position: "relative",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          fontSize: 8, fontWeight: 700, color: "#64748b", fontFamily: "Space Grotesk, sans-serif",
-          boxShadow: "0 1px 3px rgba(0,0,0,0.12)",
-        }}>
-          +{extra}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Art thumbnail with hover popover ────────────────────────────────────────
-function ArtThumb({ url }: { url: string }) {
-  const [show, setShow] = useState(false);
-  const [failed, setFailed] = useState(false);
-  const handleError = () => setFailed(true);
-  return (
-    <div style={{ position: "relative", display: "inline-block", cursor: failed ? "default" : "zoom-in" }}
-      onMouseEnter={() => !failed && setShow(true)}
-      onMouseLeave={() => setShow(false)}
-    >
-      <div style={{
-        width: 36, height: 36, borderRadius: 8, overflow: "hidden",
-        border: `2px solid ${show ? "rgba(37,99,235,0.3)" : "#e2e8f0"}`,
-        boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
-        transition: "border-color 0.15s",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        background: "#f1f5f9",
-      }}>
-        {failed
-          ? <Package size={15} color="#94a3b8" />
-          : <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} onError={handleError} />
-        }
-      </div>
-      {show && !failed && (
-        <div style={{
-          position: "absolute", bottom: "calc(100% + 10px)", left: 0,
-          background: "#fff", borderRadius: 12, padding: 6,
-          boxShadow: "0 20px 60px rgba(0,0,0,0.18)", zIndex: 9999,
-          border: "1px solid #e2e8f0",
-          transform: "scale(1)", opacity: 1,
-          transformOrigin: "bottom left",
-        }}>
-          <img src={url} alt="" style={{ width: 192, height: 192, borderRadius: 8, objectFit: "cover", display: "block" }} onError={handleError} />
-          <p style={{ textAlign: "center", fontSize: 10, color: "#94a3b8", margin: "5px 0 0", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-            Arte aprovada
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Delete Modal ─────────────────────────────────────────────────────────────
-function DeleteModal({ asset, onClose, onConfirm }: {
-  asset: InventoryAsset; onClose: () => void; onConfirm: () => void;
+// ─── Delete Modal (ui/alert-dialog — Escape, foco e backdrop pelo Radix) ─────
+function DeleteModal({ asset, onClose, onConfirm, isPending }: {
+  asset: InventoryAsset; onClose: () => void; onConfirm: () => void; isPending: boolean;
 }) {
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: "#fff", borderRadius: 20, width: 420, overflow: "hidden", boxShadow: "0 25px 60px rgba(0,0,0,0.2)" }}>
+    <AlertDialog open onOpenChange={open => { if (!open && !isPending) onClose(); }}>
+      <AlertDialogContent
+        className="p-0 gap-0 border-0"
+        style={{
+          display: "block", padding: 0, overflow: "hidden", borderRadius: 20,
+          width: "min(420px, calc(100vw - 32px))", maxWidth: "min(420px, calc(100vw - 32px))",
+          boxShadow: "0 25px 60px rgba(0,0,0,0.2)",
+        }}
+      >
         <div style={{ background: "#ef4444", padding: "16px 20px" }}>
-          <p style={{ color: "#fff", fontWeight: 800, fontSize: 13, fontFamily: "Space Grotesk, sans-serif", margin: 0, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-            Atenção: Ação Irreversível
-          </p>
+          <AlertDialogTitle asChild>
+            <p style={{ color: "#fff", fontWeight: 800, fontSize: 13, fontFamily: "Space Grotesk, sans-serif", margin: 0, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+              Atenção: Ação Irreversível
+            </p>
+          </AlertDialogTitle>
         </div>
         <div style={{ padding: 24 }}>
-          <p style={{ fontSize: 14, color: "#1e293b", margin: "0 0 8px", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
-            Tem certeza que deseja excluir este ativo permanentemente?
-          </p>
+          <AlertDialogDescription asChild>
+            <p style={{ fontSize: 14, color: "#1e293b", margin: "0 0 8px", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+              Tem certeza que deseja excluir este ativo permanentemente?
+            </p>
+          </AlertDialogDescription>
           <p style={{ fontSize: 12, color: "#64748b", fontFamily: "DM Mono, monospace", margin: "0 0 24px" }}>
             {asset.displayId} — {asset.name}
           </p>
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-            <button onClick={onClose} data-testid="button-cancel-delete" style={{
+            <button onClick={onClose} disabled={isPending} data-testid="button-cancel-delete" style={{
               padding: "9px 18px", borderRadius: 10, border: "1px solid #e2e8f0",
-              background: "#f8fafc", color: "#1e293b", fontSize: 13, cursor: "pointer",
+              background: "#f8fafc", color: "#1e293b", fontSize: 13,
+              cursor: isPending ? "not-allowed" : "pointer", opacity: isPending ? 0.6 : 1,
               fontFamily: "Space Grotesk, sans-serif", fontWeight: 600,
             }}>Manter</button>
-            <button onClick={onConfirm} data-testid="button-confirm-delete" style={{
+            <button onClick={onConfirm} disabled={isPending} data-testid="button-confirm-delete" style={{
               padding: "9px 18px", borderRadius: 10, border: "none",
-              background: "#ef4444", color: "#fff", fontSize: 13, cursor: "pointer",
+              background: isPending ? "#fca5a5" : "#ef4444", color: "#fff", fontSize: 13,
+              cursor: isPending ? "not-allowed" : "pointer",
               fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-            }}>Sim, Excluir</button>
+            }}>{isPending ? "Excluindo..." : "Sim, Excluir"}</button>
           </div>
         </div>
-      </div>
-    </div>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -240,34 +138,34 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
   onClose: () => void;
   onSaved?: () => void;
 }) {
+  const isMobile = useIsMobile();
   const assetSponsors = (asset.sponsorIds ?? []).map(id => sponsors.find(s => s.id === id)).filter(Boolean) as Sponsor[];
   const sm = STATUS_META[asset.trackingStatus ?? "NO_GALPAO"];
-  const cm = CONDITION_META[asset.condition ?? "PERFEITO"];
+  const cm = conditionMeta(asset.condition);
   const ts = asset.trackingStatus ?? "NO_GALPAO";
 
   const eventName = linkedItem?.event?.name ?? null;
   const eventDate = linkedItem?.event?.startDate ?? null;
 
+  // Sem queryFn inline: o default do queryClient junta a queryKey com "/",
+  // inclui credenciais e lança em !res.ok — o fetch().json() anterior engolia
+  // erros HTTP e derrubava a tela com JSON inválido.
   const { data: allocations = [] } = useQuery<any[]>({
     queryKey: ["/api/inventory", asset.id, "allocations"],
-    queryFn: () => fetch(`/api/inventory/${asset.id}/allocations`, { credentials: "include" }).then(r => r.json()),
   });
   const currentAlloc = ts === "EM_USO" ? allocations[allocations.length - 1] : null;
-  const pastAllocs = ts === "EM_USO" ? allocations.slice(0, -1) : allocations;
 
   const { data: assetLogs = [] } = useQuery<any[]>({
-    queryKey: ["/api/audit-logs", "inventory_asset", asset.id],
-    queryFn: () => fetch(`/api/audit-logs?entityType=inventory_asset&entityId=${asset.id}`, { credentials: "include" }).then(r => r.json()),
+    queryKey: [`/api/audit-logs?entityType=inventory_asset&entityId=${asset.id}`],
   });
   const productionLog = assetLogs.find((l: any) => l.action === 'cadastrado');
   const triageLog = assetLogs.find((l: any) => l.action === 'triagem');
 
   // Timeline logic — 4 steps
   // 1. Entrada no Estoque: always done
-  // 2. Em Uso no Evento: done once dispatched
+  // 2. Em Uso no Evento: done once dispatched (todo ativo listado já passou por despacho)
   // 3. Aguardando Triagem: done when triage passed
   // 4. Situação Atual: active when on final state
-  const step2Done   = ts !== "NO_GALPAO" || true; // dispatched = true once it has any non-initial status (we treat all as dispatched)
   const step2Active = ts === "EM_USO";
   const step3Done   = ts === "NO_GALPAO" || ts === "DESCARTADO";
   const step3Active = ts === "AGUARDANDO_TRIAGEM";
@@ -297,11 +195,20 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
   };
 
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.6)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ display: "flex", flexDirection: "row", width: "min(1040px, calc(100vw - 48px))", maxHeight: "90vh", borderRadius: 16, overflow: "hidden", boxShadow: "0 32px 64px -12px rgba(0,0,0,0.45)" }}>
+    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+      <DialogContent
+        className={`p-0 gap-0 border-0 ${HIDE_NATIVE_CLOSE}`}
+        style={{
+          display: "flex", flexDirection: isMobile ? "column" : "row", padding: 0,
+          width: "min(1040px, calc(100vw - 32px))", maxWidth: "min(1040px, calc(100vw - 32px))",
+          maxHeight: "90vh", borderRadius: 16, overflow: isMobile ? "auto" : "hidden",
+          boxShadow: "0 32px 64px -12px rgba(0,0,0,0.45)",
+        }}
+      >
+        <DialogTitle className="sr-only">{`Detalhes do ativo ${asset.displayId} — ${asset.name}`}</DialogTitle>
 
         {/* ── Sidebar ── */}
-        <aside style={{ width: 264, flexShrink: 0, background: "#1c1917", display: "flex", flexDirection: "column", padding: "28px 22px" }}>
+        <aside style={{ width: isMobile ? "100%" : 264, flexShrink: 0, background: "#1c1917", display: "flex", flexDirection: "column", padding: "28px 22px" }}>
           {/* Brand */}
           <div style={{ marginBottom: 28 }}>
             <div style={{ fontFamily: "Space Grotesk, sans-serif", fontWeight: 900, fontSize: 22, color: "#f9f9f8", letterSpacing: "-0.05em", lineHeight: 1 }}>NORTE</div>
@@ -364,7 +271,7 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
                 /* No allocations yet — show generic step */
                 eventName && (
                   <div style={{ position: "relative", marginBottom: 28 }}>
-                    {sidebarDot(step2Done && !step2Active, step2Active, <Truck size={10} color={step2Active ? "#f97316" : "#9ca3af"} />)}
+                    {sidebarDot(!step2Active, step2Active, <Truck size={10} color={step2Active ? "#f97316" : "#9ca3af"} />)}
                     <div style={{ paddingTop: 3, paddingLeft: 8 }}>
                       <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: step2Active ? 700 : 600, fontSize: 12, color: step2Active ? "#f97316" : "#d1d5db" }}>
                         {eventName}
@@ -653,8 +560,8 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
             </button>
           </footer>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -666,13 +573,22 @@ function MapaGalpao({ value, onSelect, onClose }: {
 }) {
   const [hov, setHov] = useState<string | null>(null);
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.6)", zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: "#fff", borderRadius: 20, width: 480, overflow: "hidden", boxShadow: "0 25px 60px rgba(0,0,0,0.2)" }}>
+    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+      <DialogContent
+        className={`p-0 gap-0 border-0 ${HIDE_NATIVE_CLOSE}`}
+        style={{
+          display: "block", padding: 0, overflow: "hidden", borderRadius: 20,
+          width: "min(480px, calc(100vw - 32px))", maxWidth: "min(480px, calc(100vw - 32px))",
+          boxShadow: "0 25px 60px rgba(0,0,0,0.2)",
+        }}
+      >
         <div style={{ padding: "16px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <Grid3X3 size={18} color="#f97316" />
             <div>
-              <p style={{ margin: 0, fontSize: 14, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a" }}>Mapa do Galpão</p>
+              <DialogTitle asChild>
+                <p style={{ margin: 0, fontSize: 14, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", color: "#0f172a" }}>Mapa do Galpão</p>
+              </DialogTitle>
               <p style={{ margin: 0, fontSize: 10, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif" }}>Clique para selecionar a localização</p>
             </div>
           </div>
@@ -727,8 +643,8 @@ function MapaGalpao({ value, onSelect, onClose }: {
             Confirmar
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -774,17 +690,33 @@ function AssetModal({ asset, onClose, onSaved }: {
     textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 6,
   };
 
+  // Status automático (EM_USO / AGUARDANDO_TRIAGEM) não pode ser trocado à
+  // mão — quem o define é o ciclo do evento. Só NO_GALPAO/DESCARTADO são
+  // escolhas manuais válidas.
+  const lockedStatus = isEdit && !MANUAL_STATUSES.includes(form.trackingStatus);
+  const saveDisabled = !form.name.trim() || mutation.isPending;
+
   return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,0.55)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <div style={{ background: "#fff", borderRadius: 20, width: 500, maxHeight: "90vh", overflow: "auto", boxShadow: "0 25px 60px rgba(0,0,0,0.2)" }}>
+    <Dialog open onOpenChange={open => { if (!open) onClose(); }}>
+      <DialogContent
+        className={`p-0 gap-0 border-0 ${HIDE_NATIVE_CLOSE}`}
+        style={{
+          display: "block", padding: 0, borderRadius: 20,
+          width: "min(500px, calc(100vw - 32px))", maxWidth: "min(500px, calc(100vw - 32px))",
+          maxHeight: "90vh", overflow: "auto",
+          boxShadow: "0 25px 60px rgba(0,0,0,0.2)",
+        }}
+      >
         <div style={{ background: "#f97316", padding: "20px 24px", display: "flex", alignItems: "center", gap: 16 }}>
           <div style={{ width: 48, height: 48, borderRadius: 12, background: "rgba(255,255,255,0.2)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <Archive size={22} color="#fff" />
           </div>
           <div style={{ flex: 1 }}>
-            <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", color: "#fff", lineHeight: 1 }}>
-              {isEdit ? "Editar Ativo" : "Cadastrar Novo Ativo"}
-            </h3>
+            <DialogTitle asChild>
+              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif", color: "#fff", lineHeight: 1 }}>
+                {isEdit ? "Editar Ativo" : "Cadastrar Novo Ativo"}
+              </h3>
+            </DialogTitle>
             <p style={{ margin: "4px 0 0", fontSize: 10, color: "rgba(255,255,255,0.7)", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.15em" }}>
               Norte Assets
             </p>
@@ -795,22 +727,22 @@ function AssetModal({ asset, onClose, onSaved }: {
         </div>
         <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 18 }}>
           <div>
-            <label style={LBL}>Nome / Descrição *</label>
-            <input data-testid="input-asset-name" style={INP} value={form.name}
+            <label htmlFor="asset-name" style={LBL}>Nome / Descrição *</label>
+            <input id="asset-name" data-testid="input-asset-name" style={INP} value={form.name}
               onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
               placeholder="Ex: Banner 3×1m — Patrocinador A" />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
-              <label style={LBL}>Quantidade</label>
-              <input data-testid="input-asset-quantity" type="number" min={1} style={INP}
+              <label htmlFor="asset-quantity" style={LBL}>Quantidade</label>
+              <input id="asset-quantity" data-testid="input-asset-quantity" type="number" min={1} style={INP}
                 value={form.quantity}
                 onChange={e => setForm(f => ({ ...f, quantity: Math.max(1, parseInt(e.target.value) || 1) }))} />
             </div>
             <div>
-              <label style={LBL}>Localização</label>
+              <label htmlFor="asset-location" style={LBL}>Localização</label>
               <div style={{ display: "flex", gap: 6 }}>
-                <input data-testid="input-asset-location" style={{ ...INP, flex: 1 }} value={form.location}
+                <input id="asset-location" data-testid="input-asset-location" style={{ ...INP, flex: 1 }} value={form.location}
                   onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
                   placeholder="Ex: Setor A - Corredor 3" />
                 <button type="button" onClick={() => setShowMapa(true)}
@@ -830,28 +762,39 @@ function AssetModal({ asset, onClose, onSaved }: {
           )}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
-              <label style={LBL}>Condição</label>
-              <select data-testid="select-asset-condition" style={{ ...INP, cursor: "pointer" }}
+              <label htmlFor="asset-condition" style={LBL}>Condição</label>
+              <select id="asset-condition" data-testid="select-asset-condition" style={{ ...INP, cursor: "pointer" }}
                 value={form.condition} onChange={e => setForm(f => ({ ...f, condition: e.target.value as Condition }))}>
                 {CONDITIONS.map(c => <option key={c} value={c}>{CONDITION_META[c].label}</option>)}
               </select>
             </div>
             <div>
-              <label style={LBL}>Status</label>
-              <select data-testid="select-asset-status" style={{ ...INP, cursor: "pointer" }}
-                value={form.trackingStatus} onChange={e => setForm(f => ({ ...f, trackingStatus: e.target.value as TrackingStatus }))}>
-                {ALL_STATUSES.map(s => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
-              </select>
+              <label htmlFor="asset-status" style={LBL}>Status</label>
+              {lockedStatus ? (
+                <div>
+                  <input id="asset-status" data-testid="select-asset-status" readOnly disabled
+                    value={STATUS_META[form.trackingStatus]?.label ?? form.trackingStatus}
+                    style={{ ...INP, color: "#64748b", cursor: "not-allowed" }} />
+                  <p style={{ margin: "5px 0 0", fontSize: 10, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif" }}>
+                    Status definido pelo ciclo do evento.
+                  </p>
+                </div>
+              ) : (
+                <select id="asset-status" data-testid="select-asset-status" style={{ ...INP, cursor: "pointer" }}
+                  value={form.trackingStatus} onChange={e => setForm(f => ({ ...f, trackingStatus: e.target.value as TrackingStatus }))}>
+                  {MANUAL_STATUSES.map(s => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
+                </select>
+              )}
             </div>
           </div>
           <div>
-            <label style={LBL}>Patrocinadores</label>
+            <label id="asset-sponsors-label" style={LBL}>Patrocinadores</label>
             {allSponsors.length === 0 ? (
               <p style={{ margin: 0, fontSize: 12, color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif", fontStyle: "italic" }}>
                 Nenhum patrocinador cadastrado no sistema.
               </p>
             ) : (
-              <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              <div role="group" aria-labelledby="asset-sponsors-label" style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {allSponsors.map(sp => {
                   const selected = form.sponsorIds.includes(sp.id);
                   return (
@@ -877,8 +820,8 @@ function AssetModal({ asset, onClose, onSaved }: {
             )}
           </div>
           <div>
-            <label style={LBL}>Observações</label>
-            <textarea data-testid="input-asset-notes" style={{ ...INP, minHeight: 72, resize: "vertical" as const }}
+            <label htmlFor="asset-notes" style={LBL}>Observações</label>
+            <textarea id="asset-notes" data-testid="input-asset-notes" style={{ ...INP, minHeight: 72, resize: "vertical" as const }}
               value={form.notes}
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
               placeholder="Informações adicionais..." />
@@ -886,27 +829,28 @@ function AssetModal({ asset, onClose, onSaved }: {
         </div>
         <div style={{ padding: "16px 24px", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", gap: 8 }}>
           <button onClick={onClose} style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: "#f1f5f9", color: "#475569", fontSize: 13, cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>Cancelar</button>
-          <button data-testid="button-save-asset" disabled={!form.name.trim() || mutation.isPending}
+          <button data-testid="button-save-asset" disabled={saveDisabled}
             onClick={() => mutation.mutate(form)} style={{
               padding: "10px 24px", borderRadius: 10, border: "none",
-              background: !form.name.trim() ? "#e2e8f0" : "#f97316",
-              color: !form.name.trim() ? "#94a3b8" : "#fff",
-              fontSize: 13, cursor: !form.name.trim() ? "not-allowed" : "pointer",
+              background: saveDisabled ? "#e2e8f0" : "#f97316",
+              color: saveDisabled ? "#64748b" : "#fff",
+              fontSize: 13, cursor: saveDisabled ? "not-allowed" : "pointer",
               fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-              boxShadow: form.name.trim() ? "0 4px 14px rgba(249,115,22,0.35)" : "none",
+              boxShadow: saveDisabled ? "none" : "0 4px 14px rgba(249,115,22,0.35)",
             }}>
             {mutation.isPending ? "Salvando..." : "+ SALVAR ATIVO"}
           </button>
         </div>
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
-export default function Estoque() {  const isMobile = useIsMobile();
+export default function Estoque() {
+  const isMobile = useIsMobile();
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [search, setSearch] = useState("");
@@ -915,17 +859,13 @@ export default function Estoque() {  const isMobile = useIsMobile();
   const [filterAutoAdded, setFilterAutoAdded] = useState("all");
   const [filterEvent, setFilterEvent] = useState<string[]>([]);
   const [filterSponsor, setFilterSponsor] = useState<string[]>([]);
+  const [filterFranchise, setFilterFranchise] = useState<string[]>([]);
   const [editing, setEditing] = useState<InventoryAsset | null | false>(false);
   const [deleting, setDeleting] = useState<InventoryAsset | null>(null);
+  // Fechamento por clique-fora/Escape do popover de condição agora é do
+  // Radix (ui/popover) — sem listener manual em document.
   const [quickEdit, setQuickEdit] = useState<{ assetId: string; field: "condition" | "status" } | null>(null);
   const [viewingAsset, setViewingAsset] = useState<InventoryAsset | null>(null);
-
-  useEffect(() => {
-    if (!quickEdit) return;
-    const close = () => setQuickEdit(null);
-    document.addEventListener("click", close);
-    return () => document.removeEventListener("click", close);
-  }, [quickEdit]);
 
   const { data: assets = [], isLoading, isError, refetch } = useQuery<InventoryAsset[]>({ queryKey: ["/api/inventory"] });
   const { data: sponsors = [] } = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"] });
@@ -951,13 +891,6 @@ export default function Estoque() {  const isMobile = useIsMobile();
     }
     return map;
   }, [assets, allItems, allEvents]);
-
-  // Unique events that appear in the current asset list
-  const eventOptions = useMemo(() => {
-    const seen = new Map<string, string>();
-    for (const v of Object.values(assetEventMap)) seen.set(v.id, v.name);
-    return Array.from(seen.entries()).sort((a, b) => a[1].localeCompare(b[1]));
-  }, [assetEventMap]);
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => apiRequest("DELETE", `/api/inventory/${id}`),
@@ -990,14 +923,15 @@ export default function Estoque() {  const isMobile = useIsMobile();
     const ma = filterAutoAdded === "all" || (filterAutoAdded === "auto" ? a.autoAdded : !a.autoAdded);
     const me = filterEvent.length === 0 || filterEvent.includes(assetEventMap[a.id]?.id);
     const msp = filterSponsor.length === 0 || (a.sponsorIds ?? []).some(sid => filterSponsor.includes(sid));
-    return ms && mst && mc && ma && me && msp;
+    const mf = filterFranchise.length === 0 || (a.franchiseTags ?? []).some(t => filterFranchise.includes(t));
+    return ms && mst && mc && ma && me && msp && mf;
   });
 
-  const hasFilters = !!(search || filterStatus.length > 0 || filterCondition.length > 0 || filterAutoAdded !== "all" || filterEvent.length > 0 || filterSponsor.length > 0);
+  const hasFilters = !!(search || filterStatus.length > 0 || filterCondition.length > 0 || filterAutoAdded !== "all" || filterEvent.length > 0 || filterSponsor.length > 0 || filterFranchise.length > 0);
 
   // Filtros facetados: cada filtro lista só o que existe no acervo já recortado
   // pelos OUTROS filtros ativos, com a contagem de ativos por opção.
-  const eFacetPool = (exclude: 'status' | 'condition' | 'auto' | 'event' | 'sponsor') =>
+  const eFacetPool = (exclude: 'status' | 'condition' | 'auto' | 'event' | 'sponsor' | 'franchise') =>
     acervoAssets.filter(a => {
       if (exclude !== 'status') {
         if (filterStatus.length === 0 && a.trackingStatus === "DESCARTADO") return false;
@@ -1007,6 +941,7 @@ export default function Estoque() {  const isMobile = useIsMobile();
       if (exclude !== 'auto' && filterAutoAdded !== "all" && (filterAutoAdded === "auto" ? !a.autoAdded : a.autoAdded)) return false;
       if (exclude !== 'event' && filterEvent.length > 0 && !filterEvent.includes(assetEventMap[a.id]?.id)) return false;
       if (exclude !== 'sponsor' && filterSponsor.length > 0 && !(a.sponsorIds ?? []).some(sid => filterSponsor.includes(sid))) return false;
+      if (exclude !== 'franchise' && filterFranchise.length > 0 && !(a.franchiseTags ?? []).some(t => filterFranchise.includes(t))) return false;
       return true;
     });
 
@@ -1039,9 +974,18 @@ export default function Estoque() {  const isMobile = useIsMobile();
   const statusFilterOptions = tally(eFacetPool('status'), a =>
     a.trackingStatus === "AGUARDANDO_TRIAGEM" ? null : { value: a.trackingStatus, label: STATUS_META[a.trackingStatus]?.label ?? a.trackingStatus });
   const conditionFilterOptions = tally(eFacetPool('condition'), a =>
-    ({ value: a.condition, label: CONDITION_META[a.condition]?.label ?? a.condition }));
+    ({ value: a.condition, label: conditionMeta(a.condition).label }));
   const originFilterOptions = tally(eFacetPool('auto'), a =>
     ({ value: a.autoAdded ? "auto" : "manual", label: a.autoAdded ? "Gráfica" : "Manual" }));
+  const franchiseFilterOptions = (() => {
+    const map = new Map<string, { value: string; label: string; count: number }>();
+    eFacetPool('franchise').forEach(a => (a.franchiseTags ?? []).forEach(t => {
+      const cur = map.get(t);
+      if (cur) cur.count++;
+      else map.set(t, { value: t, label: t, count: 1 });
+    }));
+    return Array.from(map.values());
+  })();
 
   const TH: React.CSSProperties = {
     padding: "14px 20px", fontSize: 10, fontWeight: 800, letterSpacing: "0.14em",
@@ -1090,8 +1034,8 @@ export default function Estoque() {  const isMobile = useIsMobile();
         <StatCard
           label="Total Acervo" value={total} Icon={Package} color="#2563eb"
           subtext="Ativos cadastrados"
-          active={filterStatus.length === 0 && filterCondition.length === 0 && filterAutoAdded === "all"}
-          onClick={() => { setFilterStatus([]); setFilterCondition([]); setFilterAutoAdded("all"); }}
+          active={!hasFilters}
+          onClick={() => { setSearch(""); setFilterStatus([]); setFilterCondition([]); setFilterAutoAdded("all"); setFilterEvent([]); setFilterSponsor([]); setFilterFranchise([]); }}
         />
         <StatCard
           label="Descartados" value={byStatus("DESCARTADO")} Icon={XCircle} color="#6b7280"
@@ -1114,7 +1058,7 @@ export default function Estoque() {  const isMobile = useIsMobile();
         />
         <StatCard
           label="Ag. Triagem" value={triageCount} Icon={ScanSearch} color="#b45309"
-          subtext={triageCount > 0 ? "Ir para triagem →" : "Nenhum pendente"}
+          subtext={triageCount > 0 ? "Ir para triagem ↗" : "Abrir triagem ↗"}
           subColor={triageCount > 0 ? "#b45309" : "#94a3b8"}
           onClick={() => navigate("/triagem-retorno")}
         />
@@ -1142,8 +1086,10 @@ export default function Estoque() {  const isMobile = useIsMobile();
             padding: "16px 20px 18px", marginBottom: 20,
             display: "flex", alignItems: "flex-end", gap: 14, flexWrap: "wrap",
           }}>
-            {/* Evento */}
-            <div style={{ display: "flex", flexDirection: "column", flex: "1 1 160px" }}>
+            {/* Evento — wrapper .event-filter-44 iguala a altura do trigger (44px)
+                aos demais filtros; o componente é compartilhado e não expõe
+                triggerStyle. */}
+            <div className="event-filter-44" style={{ display: "flex", flexDirection: "column", flex: "1 1 160px" }}>
               <label style={FL}>Evento</label>
               <EventFilterDropdown
                 values={filterEvent}
@@ -1162,6 +1108,19 @@ export default function Estoque() {  const isMobile = useIsMobile();
                 options={sponsorFilterOptions}
                 searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador encontrado."
                 testId="select-filter-sponsor" triggerStyle={SEL(filterSponsor.length > 0)}
+              />
+            </div>
+
+            {/* Franquia */}
+            <div style={{ display: "flex", flexDirection: "column", flex: "1 1 140px" }}>
+              <label style={FL}>Franquia</label>
+              <FilterSelect
+                fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
+                label="Franquia" allLabel="Todas as franquias"
+                values={filterFranchise} onValuesChange={setFilterFranchise}
+                options={franchiseFilterOptions}
+                searchPlaceholder="Buscar franquia..." emptyText="Nenhuma franquia encontrada."
+                testId="select-filter-franchise" triggerStyle={SEL(filterFranchise.length > 0)}
               />
             </div>
 
@@ -1228,7 +1187,7 @@ export default function Estoque() {  const isMobile = useIsMobile();
               <button
                 data-testid="button-clear-filters"
                 disabled={!hasFilters}
-                onClick={() => { setSearch(""); setFilterStatus([]); setFilterCondition([]); setFilterAutoAdded("all"); setFilterEvent([]); setFilterSponsor([]); }}
+                onClick={() => { setSearch(""); setFilterStatus([]); setFilterCondition([]); setFilterAutoAdded("all"); setFilterEvent([]); setFilterSponsor([]); setFilterFranchise([]); }}
                 style={{
                   height: 44, display: "flex", alignItems: "center", gap: 5, padding: "0 14px",
                   borderRadius: 8,
@@ -1249,8 +1208,17 @@ export default function Estoque() {  const isMobile = useIsMobile();
       {/* ── Table ── */}
       <div style={{ background: "#fff", borderRadius: 20, border: "1px solid #e2e8f0", overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.06)" }}>
         {isLoading ? (
-          <div style={{ padding: 60, textAlign: "center", color: "#94a3b8", fontFamily: "Plus Jakarta Sans, sans-serif", fontSize: 14 }}>
-            Carregando estoque...
+          <div data-testid="skeleton-estoque" aria-busy="true" style={{ padding: "8px 24px" }}>
+            {[0, 1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="animate-pulse" style={{ display: "flex", alignItems: "center", gap: 18, padding: "16px 0", borderBottom: i < 5 ? "1px solid #f1f5f9" : "none" }}>
+                <div style={{ width: 88, height: 12, borderRadius: 6, background: "#e2e8f0", flexShrink: 0 }} />
+                <div style={{ width: 40, height: 40, borderRadius: 8, background: "#e2e8f0", flexShrink: 0 }} />
+                <div style={{ flex: 1, height: 12, borderRadius: 6, background: "#e2e8f0" }} />
+                <div style={{ width: 130, height: 12, borderRadius: 6, background: "#e2e8f0", flexShrink: 0 }} />
+                <div style={{ width: 84, height: 22, borderRadius: 9999, background: "#e2e8f0", flexShrink: 0 }} />
+                <div style={{ width: 70, height: 12, borderRadius: 6, background: "#e2e8f0", flexShrink: 0 }} />
+              </div>
+            ))}
           </div>
         ) : isError ? (
           <div style={{ padding: 72, textAlign: "center" }}>
@@ -1286,13 +1254,20 @@ export default function Estoque() {  const isMobile = useIsMobile();
               <tbody>
                 {filtered.map(asset => {
                   const sm = STATUS_META[asset.trackingStatus ?? "NO_GALPAO"];
-                  const cm = CONDITION_META[asset.condition ?? "PERFEITO"];
+                  const cm = conditionMeta(asset.condition);
                   const thumbOk = asset.approvalThumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(asset.approvalThumbUrl) || asset.approvalThumbUrl.startsWith('/objects/'));
                   const assetSponsors = (asset.sponsorIds ?? []).map(id => sponsors.find(s => s.id === id)).filter(Boolean);
                   return (
                     <tr key={asset.id} data-testid={`row-asset-${asset.id}`}
                       className="group"
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`Ver detalhes de ${asset.name}`}
                       onClick={() => setViewingAsset(asset)}
+                      onKeyDown={e => {
+                        if (e.target !== e.currentTarget) return;
+                        if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setViewingAsset(asset); }
+                      }}
                       onMouseEnter={e => (e.currentTarget as HTMLTableRowElement).style.background = "#f8fafc"}
                       onMouseLeave={e => (e.currentTarget as HTMLTableRowElement).style.background = ""}
                       style={{ transition: "background 0.12s", cursor: "pointer", borderBottom: "1px solid rgba(226,232,240,0.6)" }}
@@ -1354,48 +1329,70 @@ export default function Estoque() {  const isMobile = useIsMobile();
                         </div>
                       </td>
 
-                      {/* Localização */}
+                      {/* Localização + franquias */}
                       <td style={TD}>
-                        {asset.location ? (
-                          <div>
+                        <div>
+                          {asset.location ? (
                             <span style={{ fontSize: 13, fontWeight: 600, color: "#0f172a", fontFamily: "Plus Jakarta Sans, sans-serif", display: "block" }}>
                               {asset.location}
                             </span>
-                            <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                              {asset.autoAdded ? "Gráfica" : "Manual"}
-                            </span>
-                          </div>
-                        ) : (
-                          <span style={{ color: "#cbd5e1", fontSize: 12 }}>—</span>
-                        )}
+                          ) : (
+                            <span style={{ color: "#cbd5e1", fontSize: 12, display: "block" }}>—</span>
+                          )}
+                          <span style={{ fontSize: 10, color: "#94a3b8", fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                            {asset.autoAdded ? "Gráfica" : "Manual"}
+                          </span>
+                          {(asset.franchiseTags ?? []).length > 0 && (
+                            <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 4 }}>
+                              {(asset.franchiseTags ?? []).map(t => (
+                                <span key={t} style={{
+                                  padding: "1px 6px", borderRadius: 4,
+                                  background: "#eff6ff", color: "#1d4ed8",
+                                  fontSize: 9, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif",
+                                  letterSpacing: "0.04em", textTransform: "uppercase", whiteSpace: "nowrap",
+                                }}>{t}</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </td>
 
-                      {/* Condição — clicável para edição rápida */}
-                      <td style={{ ...TD, position: "relative" }}>
-                        <button data-testid={`button-quick-condition-${asset.id}`}
-                          onClick={e => { e.stopPropagation(); setQuickEdit(quickEdit?.assetId === asset.id && quickEdit.field === "condition" ? null : { assetId: asset.id, field: "condition" }); }}
-                          style={{
-                            padding: "3px 10px", borderRadius: 9999, border: "none",
-                            background: cm.bg, color: cm.color,
-                            fontSize: 10, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif",
-                            cursor: "pointer", letterSpacing: "0.06em", textTransform: "uppercase", whiteSpace: "nowrap",
-                          }}>
-                          {cm.label}
-                        </button>
-                        {quickEdit?.assetId === asset.id && quickEdit.field === "condition" && (
-                          <div style={{ position: "absolute", left: 0, top: "calc(100% + 4px)", zIndex: 50, background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.12)", padding: 6, display: "flex", flexDirection: "column", gap: 2, minWidth: 130 }}>
+                      {/* Condição — edição rápida via ui/popover: portal (não é
+                          cortado pela tabela), abre para cima quando falta
+                          espaço, fecha por Escape/clique-fora via Radix. */}
+                      <td style={TD} onClick={e => e.stopPropagation()}>
+                        <Popover
+                          open={quickEdit?.assetId === asset.id && quickEdit.field === "condition"}
+                          onOpenChange={open => setQuickEdit(open ? { assetId: asset.id, field: "condition" } : null)}
+                        >
+                          <PopoverTrigger asChild>
+                            <button data-testid={`button-quick-condition-${asset.id}`}
+                              style={{
+                                padding: "3px 10px", borderRadius: 9999, border: "none",
+                                background: cm.bg, color: cm.color,
+                                fontSize: 10, fontWeight: 800, fontFamily: "Space Grotesk, sans-serif",
+                                cursor: "pointer", letterSpacing: "0.06em", textTransform: "uppercase", whiteSpace: "nowrap",
+                              }}>
+                              {cm.label}
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent align="start" sideOffset={4} className="w-auto p-1.5"
+                            style={{ minWidth: 130, borderRadius: 10, display: "flex", flexDirection: "column", gap: 2, boxShadow: "0 8px 24px rgba(0,0,0,0.12)" }}
+                            onClick={e => e.stopPropagation()}
+                          >
                             {CONDITIONS.map(c => {
                               const meta = CONDITION_META[c];
                               return (
-                                <button key={c} onClick={e => { e.stopPropagation(); patchMutation.mutate({ id: asset.id, data: { condition: c } }); }}
-                                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 7, border: "none", background: asset.condition === c ? meta.bg : "transparent", color: asset.condition === c ? meta.color : "#475569", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: "pointer", textAlign: "left", letterSpacing: "0.04em", textTransform: "uppercase" }}>
+                                <button key={c} disabled={patchMutation.isPending}
+                                  onClick={e => { e.stopPropagation(); patchMutation.mutate({ id: asset.id, data: { condition: c } }); }}
+                                  style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 7, border: "none", background: asset.condition === c ? meta.bg : "transparent", color: asset.condition === c ? meta.color : "#475569", fontSize: 11, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", cursor: patchMutation.isPending ? "wait" : "pointer", opacity: patchMutation.isPending ? 0.55 : 1, textAlign: "left", letterSpacing: "0.04em", textTransform: "uppercase" }}>
                                   {asset.condition === c && <CheckCircle2 size={11} />}
                                   {meta.label}
                                 </button>
                               );
                             })}
-                          </div>
-                        )}
+                          </PopoverContent>
+                        </Popover>
                       </td>
 
                       {/* Status — dot + label */}
@@ -1408,12 +1405,10 @@ export default function Estoque() {  const isMobile = useIsMobile();
                         </div>
                       </td>
 
-                      {/* Actions */}
+                      {/* Actions — opacidade base 0.7 e revelação total por
+                          hover/focus-within da linha via CSS (.group/.row-actions). */}
                       <td style={{ ...TD, textAlign: "right", paddingRight: 20 }}>
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2, opacity: 0.35, transition: "opacity 0.15s" }}
-                          onMouseEnter={e => (e.currentTarget as HTMLDivElement).style.opacity = "1"}
-                          onMouseLeave={e => (e.currentTarget as HTMLDivElement).style.opacity = "0.35"}
-                        >
+                        <div className="row-actions" style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 2, transition: "opacity 0.15s" }}>
 
                           {/* View detail */}
                           <button data-testid={`button-view-asset-${asset.id}`}
@@ -1452,24 +1447,40 @@ export default function Estoque() {  const isMobile = useIsMobile();
               </tbody>
             </table>
 
-            {/* Table footer */}
+            {/* Table footer — "N de M" comparava conjuntos diferentes (o M
+                excluía descartados) e produzia "12 de 8". Agora: total exibido
+                + quantos registros os filtros estão ocultando. */}
             <div style={{ padding: "16px 24px", background: "rgba(248,250,252,0.8)", borderTop: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <p style={{ margin: 0, fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.15em", color: "#94a3b8" }}>
-                Exibindo <span style={{ color: "#0f172a" }}>{filtered.length}</span> de <span style={{ color: "#0f172a" }}>{total}</span> registros
-              </p>
+              {(() => {
+                const baseline = acervoAssets.filter(a => filterStatus.length > 0 || a.trackingStatus !== "DESCARTADO").length;
+                const ocultos = Math.max(0, baseline - filtered.length);
+                return (
+                  <p style={{ margin: 0, fontSize: 10, fontWeight: 700, fontFamily: "Space Grotesk, sans-serif", textTransform: "uppercase", letterSpacing: "0.15em", color: "#94a3b8" }}>
+                    Exibindo <span style={{ color: "#0f172a" }}>{filtered.length}</span> {filtered.length === 1 ? "registro" : "registros"}
+                    {ocultos > 0 && <span> ({ocultos} {ocultos === 1 ? "oculto" : "ocultos"} pelos filtros)</span>}
+                  </p>
+                );
+              })()}
             </div>
           </div>
         )}
       </div>
 
-      {/* Hover-show actions via CSS injection */}
-      <style>{`tr:hover .group-row-actions { opacity: 1 !important; }`}</style>
+      {/* Ícones de ação: base 0.7, revelação por hover OU foco de teclado na
+          linha (.group é a classe realmente aplicada no <tr>). O wrapper
+          .event-filter-44 iguala o trigger do EventFilterDropdown aos 44px
+          dos demais filtros. */}
+      <style>{`
+        tr.group .row-actions { opacity: 0.7; }
+        tr.group:hover .row-actions, tr.group:focus-within .row-actions { opacity: 1; }
+        .event-filter-44 > div > button { height: 44px !important; }
+      `}</style>
 
       {editing !== false && (
         <AssetModal asset={editing} onClose={() => setEditing(false)} onSaved={() => setEditing(false)} />
       )}
       {deleting && (
-        <DeleteModal asset={deleting} onClose={() => setDeleting(null)} onConfirm={() => deleteMutation.mutate(deleting.id)} />
+        <DeleteModal asset={deleting} onClose={() => setDeleting(null)} onConfirm={() => deleteMutation.mutate(deleting.id)} isPending={deleteMutation.isPending} />
       )}
       {viewingAsset && (
         <AssetDetailModal

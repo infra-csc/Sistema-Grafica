@@ -24,23 +24,59 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useState, useMemo, useEffect, Fragment, useRef } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/contexts/auth-context";
+import { STATUS, getStatusMeta } from "@/lib/status";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 
+// Tons de texto desta paleta valem para superfícies CLARAS (bg/surface).
+// Sobre os painéis escuros (#0c0a09/#1c1917) use #a8a29e ou mais claro —
+// #746e69 e #57534e reprovam WCAG AA nesses fundos.
 const TI = {
   bg: "#fafaf9", surface: "#ffffff", border: "#e7e5e4",
   text: "#1c1917", secondary: "#746e69", muted: "#a8a29e",
   accent: "#f97316", dark: "#0c0a09",
 };
 
+// Status que esta tela revisa. O vocabulário canônico (rótulo/cores) vive em
+// lib/status: "awaiting_final_review" → "Aguardando Revisão Final".
+const REVIEW_STATUS = "awaiting_final_review";
+
+// Config do HISTÓRICO: ações de log que correspondem a status do vocabulário
+// herdam rótulo e cor de lib/status; o mapa abaixo cobre apenas os tipos de
+// log que NÃO são status. Vive fora do componente para não ser recriado a
+// cada render.
+const NON_STATUS_LOG_CFG: Record<string, { label: string; dot: string }> = {
+  updated:          { label: "Atualizado",            dot: "#f97316" },
+  rejected:         { label: "Reprovado",             dot: "#ef4444" },
+  submitted:        { label: "Enviado",               dot: "#0e7490" },
+  linked:           { label: "Vinculado",             dot: "#0f766e" },
+  released:         { label: "Liberado",              dot: "#3b82f6" },
+  status_changed:   { label: "Status alterado",       dot: "#f97316" },
+  sponsor_approved: { label: "Patrocinador aprovado", dot: "#10b981" },
+  sponsor_rejected: { label: "Patrocinador reprovou", dot: "#ef4444" },
+  file_uploaded:    { label: "Arquivo enviado",       dot: "#7e22ce" },
+  thumb_uploaded:   { label: "Thumb enviado",         dot: "#7e22ce" },
+};
+
+function getLogCfg(log: any): { label: string; dot: string } {
+  const action = log?.action as string | undefined;
+  if (action && STATUS[action]) {
+    const m = getStatusMeta(action);
+    return { label: m.label, dot: m.dot };
+  }
+  if (action && NON_STATUS_LOG_CFG[action]) return NON_STATUS_LOG_CFG[action];
+  return { label: action?.replace(/_/g, " ") ?? log?.details ?? "Ação", dot: "#a8a29e" };
+}
+
 export default function Solicitacao() {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [returnObservations, setReturnObservations] = useState("");
   const [editingQuantity, setEditingQuantity] = useState(false);
   const [quantityValue, setQuantityValue] = useState<number>(1);
   const quantityInputRef = useRef<HTMLInputElement>(null);
-  const [showReturnForm, setShowReturnForm] = useState(false);
   const [releaseConfirmOpen, setReleaseConfirmOpen] = useState(false);
   // Campo de observação do card: precisa existir por conta própria, sem
   // depender de "Liberar" ou "Devolver" — a pessoa pode querer deixar um
@@ -50,10 +86,6 @@ export default function Solicitacao() {
   const [bulkReleaseConfirmOpen, setBulkReleaseConfirmOpen] = useState(false);
   const [bulkReturnConfirmOpen, setBulkReturnConfirmOpen] = useState(false);
   const [bulkReturnObservations, setBulkReturnObservations] = useState("");
-  const [bulkCancelConfirmOpen, setBulkCancelConfirmOpen] = useState(false);
-  const [bulkCancelObservations, setBulkCancelObservations] = useState("");
-  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
-  const [cancelObservations, setCancelObservations] = useState("");
   const [returnConfirmOpen, setReturnConfirmOpen] = useState(false);
   const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null);
 
@@ -63,9 +95,15 @@ export default function Solicitacao() {
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const isMobile = useIsMobile();
   const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({ queryKey: ["/api/items"] });
-  const { data: events = [], isLoading: eventsLoading } = useQuery<any[]>({ queryKey: ["/api/events"] });
-  const { data: sponsors = [] } = useQuery<any[]>({ queryKey: ["/api/sponsors"] });
-  const { data: auditLogs = [] } = useQuery<any[]>({ queryKey: ["/api/audit-logs"] });
+  const { data: events = [], isLoading: eventsLoading, isError: eventsError, refetch: refetchEvents } = useQuery<any[]>({ queryKey: ["/api/events"] });
+  // Histórico da peça: só busca com o modal aberto, já filtrado e limitado no
+  // servidor. A chave em duas partes ("/api/audit-logs" + querystring) mantém
+  // o prefixo casando com as invalidateQueries(["/api/audit-logs"]) das
+  // mutations (o queryFn junta as partes com "/").
+  const { data: itemAuditLogs = [] } = useQuery<any[]>({
+    queryKey: ["/api/audit-logs", `?entityId=${selectedItem?.id}&limit=8`],
+    enabled: modalOpen && !!selectedItem?.id,
+  });
   const { data: standardItems = [] } = useQuery<any[]>({ queryKey: ['/api/standard-items'] });
   const typeToGroup = useMemo(() => {
     const map: Record<string, string> = {};
@@ -102,16 +140,17 @@ export default function Solicitacao() {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setModalOpen(false); setSelectedItem(null); setReleaseConfirmOpen(false);
-      toast({ title: "Peça liberada para produção!", description: "A peça foi revisada e liberada para a gráfica." });
+      toast({ title: "Peça liberada para produção!", description: "Pronto para produção — a Arte foi notificada." });
     },
     onError: (error: any) => toast({ title: "Erro ao liberar peça", description: error.message, variant: "destructive" }),
   });
 
   const bulkReleaseMutation = useMutation({
-    // Não existe rota em lote para isto: a chamada a /bulk-creator-review caía
-    // no fallback do SPA (200 + HTML) e a tela dava "peças liberadas" sem que
-    // nada tivesse acontecido. Usa a rota individual, que é idempotente, e
-    // reporta o que de fato passou.
+    // LIBERAÇÃO não tem rota em lote (/bulk-creator-review não existe: a
+    // chamada caía no fallback do SPA — 200 + HTML — e a tela dava "peças
+    // liberadas" sem nada acontecer). Usa a rota individual, idempotente, e
+    // reporta o que de fato passou. Devolução é diferente: essa TEM rota em
+    // lote (bulk-return-to-arte), usada pelo bulkReturnMutation abaixo.
     mutationFn: async (itemIds: string[]) => {
       const results = await Promise.allSettled(
         itemIds.map(id => apiRequest("PATCH", `/api/items/${id}/creator-review`, {}))
@@ -147,18 +186,19 @@ export default function Solicitacao() {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       setModalOpen(false); setSelectedItem(null);
-      setReturnConfirmOpen(false); setReturnObservations(""); setShowReturnForm(false);
+      setReturnConfirmOpen(false); setReturnObservations("");
       toast({ title: "Peça devolvida para Arte", description: "A peça foi devolvida com observações." });
     },
     onError: (error: any) => toast({ title: "Erro ao devolver peça", description: error.message, variant: "destructive" }),
   });
 
   const bulkReturnMutation = useMutation({
+    // Uma chamada só: a rota de lote existe (PATCH /api/items/bulk-return-to-arte)
+    // e responde { success, errors, items, failedItemIds }.
     mutationFn: async (payload: { ids: string[]; notes: string }) => {
-      const results = await Promise.allSettled(
-        payload.ids.map(id => apiRequest("PATCH", `/api/items/${id}/return-to-arte`, { notes: payload.notes }))
-      );
-      return { total: payload.ids.length, failed: results.filter(r => r.status === "rejected").length };
+      const res = await apiRequest("PATCH", "/api/items/bulk-return-to-arte", { itemIds: payload.ids, notes: payload.notes });
+      const result: { success: number; errors: number } = await res.json();
+      return { total: payload.ids.length, failed: result.errors };
     },
     onSuccess: ({ total, failed }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
@@ -172,19 +212,6 @@ export default function Solicitacao() {
       }
     },
     onError: (error: any) => toast({ title: "Erro ao devolver peças", description: error.message, variant: "destructive" }),
-  });
-
-  const bulkCancelMutation = useMutation({
-    mutationFn: async (payload: { itemIds: string[]; notes?: string }) =>
-      await apiRequest("PATCH", `/api/items/bulk-cancel`, { itemIds: payload.itemIds, notes: payload.notes }),
-    onSuccess: (result: any) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
-      setSelectedItemIds(new Set()); setSelectedItem(null);
-      setModalOpen(false); setCancelConfirmOpen(false); setBulkCancelConfirmOpen(false);
-      toast({ title: "Peças canceladas", description: `${result.canceled} peça(s) cancelada(s).` });
-    },
-    onError: (error: any) => toast({ title: "Erro ao cancelar", description: error.message, variant: "destructive" }),
   });
 
   const deleteItemMutation = useMutation({
@@ -250,7 +277,7 @@ export default function Solicitacao() {
     onError: (error: any) => toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" }),
   });
 
-  const pendingItems = useMemo(() => items.filter(item => item.status === "awaiting_final_review"), [items]);
+  const pendingItems = useMemo(() => items.filter(item => item.status === REVIEW_STATUS), [items]);
 
   const filteredItems = useMemo(() => pendingItems.filter(item => {
     const matchesSearch = searchTerm === "" ||
@@ -261,6 +288,17 @@ export default function Solicitacao() {
     const matchesType = itemTypeFilter.length === 0 || itemTypeFilter.includes(item.type);
     return matchesSearch && matchesEvent && matchesType;
   }), [pendingItems, searchTerm, eventFilter, itemTypeFilter]);
+
+  // Seleção sobrevive ao filtro: quando a lista filtrada muda, mantém marcado
+  // só o que continua visível — senão "Liberar Selecionadas" agiria sobre
+  // peças que a pessoa não está mais vendo.
+  useEffect(() => {
+    setSelectedItemIds(prev => {
+      const visible = new Set(filteredItems.map((i: any) => i.id));
+      if (Array.from(prev).every(id => visible.has(id))) return prev;
+      return new Set(Array.from(prev).filter(id => visible.has(id)));
+    });
+  }, [filteredItems]);
 
   const uniqueItemTypes = useMemo(() => Array.from(new Set(pendingItems.map(i => i.type).filter(Boolean))).sort(), [pendingItems]);
   const eventsWithItems = useMemo(() => {
@@ -303,23 +341,30 @@ export default function Solicitacao() {
 
   const itemsByEvent = useMemo(() => {
     const map = new Map<string, any[]>();
+    // Dentro do evento: grupo do item padrão, depois tipo.
     const sorted = [...filteredItems].sort((a, b) => {
-      const ea = a.event?.name || "", eb = b.event?.name || "";
       const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
-      return ea.localeCompare(eb) || ga.localeCompare(gb) || a.type.localeCompare(b.type);
+      return ga.localeCompare(gb) || a.type.localeCompare(b.type);
     });
     sorted.forEach(item => {
       const key = item.eventId || "__none__";
       if (!map.has(key)) map.set(key, []);
       map.get(key)!.push(item);
     });
-    return map;
-  }, [filteredItems, typeToGroup]);
+    // Grupos na ordem da urgência real: saída do caminhão ascendente (quem
+    // sai primeiro aparece primeiro), sem data por último, nome desempata.
+    const byId = new Map(events.map((e: any) => [e.id, e]));
+    const entries = Array.from(map.entries()).sort(([idA], [idB]) => {
+      const ea: any = byId.get(idA), eb: any = byId.get(idB);
+      const ta = ea?.truckDepartureDate ? new Date(ea.truckDepartureDate).getTime() : Infinity;
+      const tb = eb?.truckDepartureDate ? new Date(eb.truckDepartureDate).getTime() : Infinity;
+      if (ta !== tb) return ta < tb ? -1 : 1;
+      return (ea?.name || "").localeCompare(eb?.name || "");
+    });
+    return new Map(entries);
+  }, [filteredItems, typeToGroup, events]);
 
   const getEventInfo = (eventId: string) => events.find(e => e.id === eventId);
-  const itemAuditLogs = useMemo(() => selectedItem
-    ? auditLogs.filter((l: any) => l.entityId === selectedItem.id).slice(0, 8)
-    : [], [auditLogs, selectedItem]);
 
   const toggleItem = (id: string) => setSelectedItemIds(prev => {
     const s = new Set(prev);
@@ -336,7 +381,6 @@ export default function Solicitacao() {
     setSelectedItem(item);
     setQuantityValue(item.quantity ?? 1);
     setEditingQuantity(false);
-    setShowReturnForm(false);
     setReturnObservations("");
     setCardObservations(item.observations || "");
     setModalOpen(true);
@@ -345,12 +389,19 @@ export default function Solicitacao() {
   useEffect(() => {
     if (!modalOpen) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Enter" && !showReturnForm && selectedItem) setReleaseConfirmOpen(true);
+      // Quem está digitando num campo (textarea de observação, input de
+      // quantidade...) não pode ter Enter/Esc sequestrados pelo atalho.
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "TEXTAREA" || t.tagName === "INPUT" || t.tagName === "SELECT" || t.isContentEditable)) return;
+      // Com um AlertDialog de confirmação aberto por cima, Enter/Esc são dele
+      // (o Radix cuida); agir aqui fechava as duas camadas de uma vez.
+      if (releaseConfirmOpen || returnConfirmOpen) return;
+      if (e.key === "Enter" && selectedItem) setReleaseConfirmOpen(true);
       if (e.key === "Escape") setModalOpen(false);
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [modalOpen, showReturnForm, selectedItem]);
+  }, [modalOpen, selectedItem, releaseConfirmOpen, returnConfirmOpen]);
 
   if (itemsLoading || eventsLoading) {
     return (
@@ -360,12 +411,14 @@ export default function Solicitacao() {
     );
   }
 
-  if (itemsError) {
+  if (itemsError || eventsError) {
     return (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12, textAlign: "center", padding: "0 24px" }}>
-        <p style={{ fontSize: 15, fontWeight: 700, color: "#b91c1c", margin: 0 }}>Não foi possível carregar os itens</p>
-        <p style={{ fontSize: 13, color: TI.muted, margin: 0 }}>Verifique sua conexão e tente novamente.</p>
-        <button onClick={() => refetchItems()} style={{ marginTop: 4, background: TI.text, color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
+        <p style={{ fontSize: 15, fontWeight: 700, color: "#b91c1c", margin: 0 }}>
+          {itemsError ? "Não foi possível carregar os itens" : "Não foi possível carregar os eventos"}
+        </p>
+        <p style={{ fontSize: 13, color: TI.secondary, margin: 0 }}>Verifique sua conexão e tente novamente.</p>
+        <button onClick={() => { refetchItems(); refetchEvents(); }} style={{ marginTop: 4, background: TI.text, color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
       </div>
     );
   }
@@ -405,7 +458,7 @@ export default function Solicitacao() {
                 border: "1px solid #292524",
               }}>
                 <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#f97316", flexShrink: 0 }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#746e69" }}>Aguardando:</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#a8a29e" }}>Aguardando:</span>
                 <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#fff" }}>{pendingItems.length}</span>
               </div>
               <div style={{
@@ -414,7 +467,7 @@ export default function Solicitacao() {
                 border: "1px solid #292524",
               }}>
                 <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#10b981", flexShrink: 0 }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#746e69" }}>Selecionadas:</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: "#a8a29e" }}>Selecionadas:</span>
                 <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#f97316" }}>{selectedItemIds.size}</span>
               </div>
             </div>
@@ -426,33 +479,37 @@ export default function Solicitacao() {
             padding: 24, borderRadius: 12, border: "1px solid #292524",
             width: isMobile ? "100%" : 280, display: "flex", flexDirection: "column", gap: 16, flexShrink: isMobile ? 1 : 0,
           }}>
-            <p style={{ fontSize: 10, fontWeight: 700, color: "#57534e", letterSpacing: "0.18em", textTransform: "uppercase", margin: 0 }}>AÇÃO RÁPIDA</p>
+            <p style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", letterSpacing: "0.18em", textTransform: "uppercase", margin: 0 }}>AÇÃO RÁPIDA</p>
             <button
               onClick={() => selectedItemIds.size > 0 && setBulkReleaseConfirmOpen(true)}
-              disabled={selectedItemIds.size === 0}
+              disabled={selectedItemIds.size === 0 || bulkReleaseMutation.isPending}
               data-testid="button-bulk-release-hero"
               style={{
                 width: "100%", padding: "12px 0", borderRadius: 6, border: "none",
                 backgroundColor: selectedItemIds.size === 0 ? "#292524" : "#9d4300",
-                color: selectedItemIds.size === 0 ? "#57534e" : "#fff",
+                color: selectedItemIds.size === 0 ? "rgba(255,255,255,0.45)" : "#fff",
                 fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em",
-                cursor: selectedItemIds.size === 0 ? "not-allowed" : "pointer",
+                cursor: selectedItemIds.size === 0 || bulkReleaseMutation.isPending ? "not-allowed" : "pointer",
               }}>
-              Liberar Selecionadas {selectedItemIds.size > 0 && `(${selectedItemIds.size})`}
+              {bulkReleaseMutation.isPending
+                ? "Processando..."
+                : `Liberar Selecionadas ${selectedItemIds.size > 0 ? `(${selectedItemIds.size})` : ""}`}
             </button>
             <button
               onClick={() => selectedItemIds.size > 0 && setBulkReturnConfirmOpen(true)}
-              disabled={selectedItemIds.size === 0}
+              disabled={selectedItemIds.size === 0 || bulkReturnMutation.isPending}
               data-testid="button-bulk-return-hero"
               style={{
                 width: "100%", padding: "12px 0", borderRadius: 6,
                 border: "1px solid #44403c",
                 backgroundColor: "transparent",
-                color: selectedItemIds.size === 0 ? "#44403c" : "#d6d3d1",
+                color: selectedItemIds.size === 0 ? "rgba(255,255,255,0.45)" : "#d6d3d1",
                 fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em",
-                cursor: selectedItemIds.size === 0 ? "not-allowed" : "pointer",
+                cursor: selectedItemIds.size === 0 || bulkReturnMutation.isPending ? "not-allowed" : "pointer",
               }}>
-              Devolver Selecionadas {selectedItemIds.size > 0 && `(${selectedItemIds.size})`}
+              {bulkReturnMutation.isPending
+                ? "Processando..."
+                : `Devolver Selecionadas ${selectedItemIds.size > 0 ? `(${selectedItemIds.size})` : ""}`}
             </button>
           </div>
         </div>
@@ -477,7 +534,7 @@ export default function Solicitacao() {
               style={{ width: "100%", paddingLeft: 34, paddingRight: searchTerm ? 32 : 12, paddingTop: 9, paddingBottom: 9, backgroundColor: "#f3f4f3", border: "none", borderRadius: 8, fontSize: 13, color: TI.text, boxSizing: "border-box" }}
             />
             {searchTerm && (
-              <button onClick={() => setSearchTerm("")} style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: TI.muted, padding: 0 }}>
+              <button onClick={() => setSearchTerm("")} aria-label="Limpar busca" style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: TI.muted, padding: 8, display: "flex" }}>
                 <X style={{ width: 13, height: 13 }} />
               </button>
             )}
@@ -517,12 +574,12 @@ export default function Solicitacao() {
                   checked={selectedItemIds.size === filteredItems.length && filteredItems.length > 0}
                   onChange={toggleAll}
                   data-testid="checkbox-select-all"
-                  style={{ accentColor: TI.accent, width: 14, height: 14 }}
+                  style={{ accentColor: TI.accent, width: 20, height: 20 }}
                 />
                 Selecionar todos
               </label>
             )}
-            <span style={{ fontSize: 11, color: TI.muted, whiteSpace: "nowrap" }}>
+            <span style={{ fontSize: 11, color: TI.secondary, whiteSpace: "nowrap" }}>
               {filteredItems.length} de {pendingItems.length} peças
             </span>
           </div>
@@ -537,7 +594,7 @@ export default function Solicitacao() {
             <p style={{ fontSize: 15, fontWeight: 700, color: TI.secondary, margin: "0 0 8px" }}>
               {pendingItems.length === 0 ? "Tudo revisado!" : "Nenhum resultado encontrado"}
             </p>
-            <p style={{ fontSize: 13, color: TI.muted, margin: 0 }}>
+            <p style={{ fontSize: 13, color: TI.secondary, margin: 0 }}>
               {pendingItems.length === 0 ? "Não há itens aguardando sua revisão no momento." : "Tente ajustar os filtros."}
             </p>
           </div>
@@ -564,7 +621,7 @@ export default function Solicitacao() {
                       style={{backgroundColor:"#fff",border:"1px solid #e7e5e4",borderRadius:8,padding:"12px",marginBottom:8,cursor:"pointer",display:"flex",flexDirection:"column",gap:6}}>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
                         <span style={{fontFamily:"monospace",fontWeight:700,color:"#f97316",fontSize:13}}>{item.displayId}</span>
-                        <input type="checkbox" checked={selectedItemIds.has(item.id)} onChange={e=>{e.stopPropagation();toggleItem(item.id);}} onClick={e=>e.stopPropagation()} style={{accentColor:"#f97316",width:16,height:16}} />
+                        <input type="checkbox" checked={selectedItemIds.has(item.id)} onChange={e=>{e.stopPropagation();toggleItem(item.id);}} onClick={e=>e.stopPropagation()} style={{accentColor:"#f97316",width:20,height:20,padding:2}} />
                       </div>
                       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
                         <div style={{flex:1}}>
@@ -583,8 +640,8 @@ export default function Solicitacao() {
             })}
           </div>
         ) : (
-          <div style={{ backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 8, overflow: "hidden", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
-            <table style={{ width: "100%", textAlign: "left", borderCollapse: "collapse" }}>
+          <div style={{ backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 8, overflowX: "auto", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+            <table style={{ width: "100%", minWidth: 860, textAlign: "left", borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ backgroundColor: "#fafaf9", borderBottom: "1px solid #e7e5e4" }}>
                   {/* Select all */}
@@ -593,8 +650,8 @@ export default function Solicitacao() {
                       type="checkbox"
                       checked={selectedItemIds.size === filteredItems.length && filteredItems.length > 0}
                       onChange={toggleAll}
-                      data-testid="checkbox-select-all"
-                      style={{ accentColor: "#f97316", width: 14, height: 14, cursor: "pointer" }}
+                      data-testid="checkbox-select-all-header"
+                      style={{ accentColor: "#f97316", width: 20, height: 20, cursor: "pointer" }}
                     />
                   </th>
                   {[
@@ -636,16 +693,16 @@ export default function Solicitacao() {
                   };
 
                   return (
-                    <>
+                    <Fragment key={eventId}>
                       {/* ── Group header row ── */}
-                      <tr key={`group-${eventId}`} style={{ backgroundColor: "#1c1917", borderTop: "1px solid #292524", borderBottom: "1px solid #292524" }}>
+                      <tr style={{ backgroundColor: "#1c1917", borderTop: "1px solid #292524", borderBottom: "1px solid #292524" }}>
                         <td style={{ padding: "10px 24px", textAlign: "center" }}>
                           <input
                             type="checkbox"
                             checked={groupSelected}
                             onChange={toggleGroup}
                             data-testid={`checkbox-group-${eventId}`}
-                            style={{ accentColor: "#f97316", width: 14, height: 14, cursor: "pointer", backgroundColor: "#292524" }}
+                            style={{ accentColor: "#f97316", width: 20, height: 20, cursor: "pointer", backgroundColor: "#292524" }}
                           />
                         </td>
                         <td colSpan={7} style={{ padding: "10px 16px" }}>
@@ -668,7 +725,7 @@ export default function Solicitacao() {
                               </span>
                             </div>
                             {event && (
-                              <div style={{ display: "flex", gap: 12, fontSize: 10, color: "#57534e", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", flexWrap: "wrap", alignItems: "center" }}>
+                              <div style={{ display: "flex", gap: 12, fontSize: 10, color: "#d6d3d1", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", flexWrap: "wrap", alignItems: "center" }}>
                                 {event.startDate && (
                                   <span>Início: <span style={{ color: "#d6d3d1" }}>{parseDateLocal(event.startDate).toLocaleDateString("pt-BR")}</span></span>
                                 )}
@@ -750,7 +807,7 @@ export default function Solicitacao() {
                                 checked={isSelected}
                                 onChange={() => toggleItem(item.id)}
                                 data-testid={`checkbox-item-${item.id}`}
-                                style={{ accentColor: "#f97316", width: 14, height: 14, cursor: "pointer" }}
+                                style={{ accentColor: "#f97316", width: 20, height: 20, cursor: "pointer" }}
                               />
                             </td>
 
@@ -849,7 +906,7 @@ export default function Solicitacao() {
                                     border: item.isReuse ? "1px solid #86efac" : "1px solid transparent",
                                     cursor: "pointer",
                                     color: item.isReuse ? "#15803d" : "#a8a29e",
-                                    padding: "4px 6px",
+                                    padding: 6,
                                     display: "flex", alignItems: "center",
                                     borderRadius: 6, transition: "all 0.15s",
                                   }}
@@ -868,28 +925,33 @@ export default function Solicitacao() {
                                 >
                                   <Recycle style={{ width: 15, height: 15 }} />
                                 </button>
-                                <button
-                                  onClick={() => setDeleteConfirmItemId(item.id)}
-                                  data-testid={`button-delete-${item.id}`}
-                                  title="Excluir peça"
-                                  style={{
-                                    background: "none", border: "none", cursor: "pointer",
-                                    color: "#746e69", padding: "4px",
-                                    display: "flex", alignItems: "center",
-                                    borderRadius: 6, transition: "color 0.15s",
-                                  }}
-                                  onMouseEnter={e => (e.currentTarget.style.color = "#ef4444")}
-                                  onMouseLeave={e => (e.currentTarget.style.color = "#746e69")}
-                                >
-                                  <Trash2 style={{ width: 15, height: 15 }} />
-                                </button>
+                                {/* Toda peça desta tela está em awaiting_final_review —
+                                    status TRAVADO para "solicitacao" no DELETE do servidor.
+                                    Mostrar a lixeira para esse perfil só rendia um 403. */}
+                                {user?.role === "admin" && (
+                                  <button
+                                    onClick={() => setDeleteConfirmItemId(item.id)}
+                                    data-testid={`button-delete-${item.id}`}
+                                    title="Excluir peça"
+                                    style={{
+                                      background: "none", border: "none", cursor: "pointer",
+                                      color: "#746e69", padding: 6,
+                                      display: "flex", alignItems: "center",
+                                      borderRadius: 6, transition: "color 0.15s",
+                                    }}
+                                    onMouseEnter={e => (e.currentTarget.style.color = "#ef4444")}
+                                    onMouseLeave={e => (e.currentTarget.style.color = "#746e69")}
+                                  >
+                                    <Trash2 style={{ width: 15, height: 15 }} />
+                                  </button>
+                                )}
                               </div>
                             </td>
                           </tr>
                           </Fragment>
                         );
                       })}
-                    </>
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -928,31 +990,65 @@ export default function Solicitacao() {
       </section>
 
       {/* ── 5. REVIEW MODAL ────────────────────────────────────────────── */}
-      <Dialog open={modalOpen} onOpenChange={open => { setModalOpen(open); if (!open) { setShowReturnForm(false); setReturnObservations(""); } }}>
+      <Dialog open={modalOpen} onOpenChange={open => { setModalOpen(open); if (!open) setReturnObservations(""); }}>
         <DialogContent className={`review-dialog-shell max-w-6xl p-0 gap-0 rounded-xl overflow-hidden flex flex-col ${HIDE_NATIVE_CLOSE}`} style={{ height: isMobile ? "94dvh" : "87vh", maxHeight: 900, maxWidth: isMobile ? "95vw" : undefined }} onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+          <DialogTitle className="sr-only">Decisão de Revisão</DialogTitle>
+          <DialogDescription className="sr-only">
+            Compare o thumb aprovado pelo patrocinador com o arquivo final da Arte e libere ou devolva a peça
+          </DialogDescription>
           <div className="review-modal-columns" style={{ height: "100%" }}>
 
-            {/* Left column — art visualizer (40%) */}
+            {/* Left column — comparação aprovado × final (40%) */}
             <div style={{ width: isMobile ? "100%" : "40%", backgroundColor: "#f5f5f4", display: "flex", flexDirection: "column", borderRight: "1px solid #e7e5e4", overflow: "hidden" }}>
               {/* Left header */}
               <div style={{ padding: "14px 18px", backgroundColor: "#1c1917", borderBottom: "2px solid #f97316", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#fff" }}>Visualizador de Arte</span>
-                <Maximize2 style={{ width: 16, height: 16, color: "rgba(255,255,255,0.7)" }} />
+                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#fff" }}>Comparação de Arquivos</span>
+                {selectedItem?.finalFileUrl && (
+                  <a
+                    href={selectedItem.finalFileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    title="Abrir arquivo final em nova aba"
+                    aria-label="Abrir arquivo final em nova aba"
+                    style={{ display: "flex", padding: 4, borderRadius: 6, color: "rgba(255,255,255,0.7)" }}
+                  >
+                    <Maximize2 style={{ width: 16, height: 16 }} />
+                  </a>
+                )}
               </div>
 
-              {/* Left content */}
-              <div className="review-modal-scroll" style={{ flex: 1, padding: isMobile ? 14 : 20, overflowY: "auto", display: "flex", flexDirection: "column", gap: 20 }}>
-                {/* Art preview */}
-                <div style={{ aspectRatio: "1/1", width: "100%", backgroundColor: "#fff", borderRadius: 8, overflow: "hidden", border: "1px solid #e7e5e4", boxShadow: "inset 0 1px 4px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {selectedItem?.approvalThumbUrl ? (
-                    <FilePreview url={selectedItem.approvalThumbUrl} linkUrl={selectedItem.finalFileUrl || selectedItem.approvalThumbUrl} objectFit="contain" />
-                  ) : (
-                    <div style={{ textAlign: "center", color: "#746e69" }}>
-                      <FileImage style={{ width: 40, height: 40, margin: "0 auto 8px" }} />
-                      <p style={{ fontSize: 13 }}>Sem thumb disponível</p>
+              {/* Left content — os dois arquivos empilhados, cada um com ~40%
+                  da altura da coluna: a decisão da tela É comparar o que o
+                  patrocinador aprovou com o que a Arte finalizou. */}
+              <div className="review-modal-scroll" style={{ flex: 1, padding: isMobile ? 14 : 20, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
+                {[
+                  { label: "Aprovado pelo patrocinador", url: selectedItem?.approvalThumbUrl, empty: "Sem thumb aprovado" },
+                  { label: "Arquivo final da Arte", url: selectedItem?.finalFileUrl, empty: "A Arte ainda não subiu o arquivo final" },
+                ].map(({ label, url, empty }) => (
+                  <div key={label} style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>{label}</p>
+                    <div style={{ height: isMobile ? 220 : "32vh", minHeight: 180, width: "100%", backgroundColor: "#fff", borderRadius: 8, overflow: "hidden", border: "1px solid #e7e5e4", boxShadow: "inset 0 1px 4px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      {url ? (
+                        <FilePreview url={url} noLink objectFit="contain" />
+                      ) : (
+                        <div style={{ textAlign: "center", color: TI.secondary, padding: 12 }}>
+                          <FileImage style={{ width: 32, height: 32, margin: "0 auto 8px", color: "#a8a29e" }} />
+                          <p style={{ fontSize: 12, fontWeight: 600, margin: 0 }}>{empty}</p>
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
+                    {url && (
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ alignSelf: "flex-start", fontSize: 11, fontWeight: 700, color: "#c2410c", textDecoration: "none", borderBottom: "1px solid #fed7aa", paddingBottom: 1 }}
+                      >
+                        Abrir em nova aba
+                      </a>
+                    )}
+                  </div>
+                ))}
 
                 {/* File path */}
                 <div>
@@ -1040,14 +1136,14 @@ export default function Solicitacao() {
                         <button
                           onClick={() => updateQuantityMutation.mutate({ itemId: selectedItem.id, quantity: quantityValue })}
                           disabled={updateQuantityMutation.isPending}
-                          style={{ padding: "2px 8px", fontSize: 10, fontWeight: 800, backgroundColor: "#c2410c", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", textTransform: "uppercase" }}
+                          style={{ padding: "6px 10px", fontSize: 10, fontWeight: 800, backgroundColor: "#c2410c", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", textTransform: "uppercase" }}
                           data-testid="button-confirm-quantity"
                         >
                           {updateQuantityMutation.isPending ? "..." : "OK"}
                         </button>
                         <button
                           onClick={() => { setQuantityValue(selectedItem.quantity ?? 1); setEditingQuantity(false); }}
-                          style={{ padding: "2px 6px", fontSize: 10, fontWeight: 800, backgroundColor: "#f3f4f3", color: "#746e69", border: "none", borderRadius: 6, cursor: "pointer" }}
+                          style={{ padding: "6px 8px", fontSize: 10, fontWeight: 800, backgroundColor: "#f3f4f3", color: "#746e69", border: "none", borderRadius: 6, cursor: "pointer" }}
                           data-testid="button-cancel-quantity"
                         >
                           ✕
@@ -1065,32 +1161,21 @@ export default function Solicitacao() {
 
             {/* Right column — decision & timeline (60%) */}
             <div style={{ flex: 1, display: "flex", flexDirection: "column", backgroundColor: "#fafaf9", overflow: "hidden" }}>
-              {/* Right header */}
-              <div style={{ padding: isMobile ? "16px 18px" : "20px 24px", borderBottom: "1px solid #e7e5e4", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexShrink: 0 }}>
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                    <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 22, textTransform: "uppercase", letterSpacing: "-0.03em", color: TI.text, margin: 0 }}>
-                      Decisão de Revisão
-                    </h2>
-                    {selectedItem?.isReuse && (
-                      <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "3px 10px", flexShrink: 0 }}>
-                        Reaproveitamento
-                      </span>
-                    )}
-                  </div>
-                  <p style={{ fontSize: 13, color: TI.secondary, margin: "4px 0 0" }}>
-                    {selectedItem?.displayId && `ID: ${selectedItem.displayId}`}
-                    {selectedItem?.type && ` | ${selectedItem.type}`}
-                  </p>
-                </div>
-                <button
-                  onClick={() => setModalOpen(false)}
-                  style={{ background: "none", border: "none", cursor: "pointer", color: TI.muted, padding: 4, display: "flex", borderRadius: 6 }}
-                  onMouseEnter={e => (e.currentTarget.style.color = TI.text)}
-                  onMouseLeave={e => (e.currentTarget.style.color = TI.muted)}
-                >
-                          <X style={{ width: 20, height: 20 }} />
-                </button>
+              {/* Right header — ModalHeader compartilhado (X com aria-label). */}
+              <div style={{ flexShrink: 0 }}>
+                <ModalHeader
+                  variant="confirm"
+                  icon={Eye}
+                  tint="#c2410c"
+                  title="Decisão de Revisão"
+                  subtitle={[selectedItem?.displayId && `ID: ${selectedItem.displayId}`, selectedItem?.type].filter(Boolean).join(" | ")}
+                  onClose={() => setModalOpen(false)}
+                  trailing={selectedItem?.isReuse ? (
+                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "3px 10px", flexShrink: 0 }}>
+                      Reaproveitamento
+                    </span>
+                  ) : undefined}
+                />
               </div>
 
               {/* Right body */}
@@ -1128,7 +1213,7 @@ export default function Solicitacao() {
                       {creatorReviewMutation.isPending ? "Liberando..." : "Liberar para Produção"}
                     </button>
                     <button
-                      onClick={() => setShowReturnForm(f => !f)}
+                      onClick={() => setReturnConfirmOpen(true)}
                       data-testid="button-return-toggle"
                       style={{
                         flex: 1, padding: "14px 0", borderRadius: 6,
@@ -1140,40 +1225,6 @@ export default function Solicitacao() {
                       Devolver para Arte
                     </button>
                   </div>
-
-                  {/* Return form */}
-                  {showReturnForm && (
-                    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                      <textarea
-                        placeholder="Adicionar observação técnica para a equipe..."
-                        value={returnObservations}
-                        onChange={e => setReturnObservations(e.target.value)}
-                        data-testid="textarea-return-observations"
-                        style={{
-                          width: "100%", minHeight: 100, padding: 14, borderRadius: 8,
-                          backgroundColor: "#1c1917", border: "1px solid #44403c",
-                          color: "#fff", fontSize: 13, resize: "none",
-                          fontFamily: "inherit", boxSizing: "border-box",
-                        }}
-                      />
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button
-                          onClick={() => setReturnConfirmOpen(true)}
-                          disabled={returnToArteMutation.isPending}
-                          data-testid="button-confirm-return"
-                          style={{ flex: 1, padding: "10px 0", borderRadius: 6, border: "none", backgroundColor: "#dc2626", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.08em" }}
-                        >
-                          {returnToArteMutation.isPending ? "Devolvendo..." : "Confirmar Devolução"}
-                        </button>
-                        <button
-                          onClick={() => { setShowReturnForm(false); setReturnObservations(""); }}
-                          style={{ padding: "10px 16px", borderRadius: 6, border: "1px solid #44403c", backgroundColor: "transparent", color: "#746e69", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
-                        >
-                          Cancelar
-                        </button>
-                      </div>
-                    </div>
-                  )}
                 </div>
 
                 {/* Observações do item — campo próprio, sempre editável.
@@ -1223,6 +1274,23 @@ export default function Solicitacao() {
                   </div>
                 </div>
 
+                {/* Patrocinadores da peça — quem aprovou o thumb que está
+                    sendo comparado ali ao lado. Vem no payload de /api/items. */}
+                {(selectedItem?.sponsors?.length ?? 0) > 0 && (
+                  <div>
+                    <h3 style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em", color: TI.secondary, paddingBottom: 10, borderBottom: "1px solid #f0efee", margin: "0 0 12px" }}>
+                      PATROCINADORES DA PEÇA
+                    </h3>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {selectedItem.sponsors.map((s: any) => (
+                        <span key={s.id} style={{ fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999, backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4", color: TI.secondary }}>
+                          {s.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* History timeline */}
                 <div>
                   <h3 style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em", color: TI.secondary, paddingBottom: 10, borderBottom: "1px solid #f0efee", margin: "0 0 20px" }}>
@@ -1236,25 +1304,7 @@ export default function Solicitacao() {
                       <div style={{ position: "absolute", left: 11, top: 8, bottom: 0, width: 2, backgroundColor: "#f0efee" }} />
                       <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
                         {itemAuditLogs.map((log: any, idx: number) => {
-                          const ACTION_CFG: Record<string, { label: string; dot: string }> = {
-                            created:          { label: 'Criado',                dot: '#3b82f6' },
-                            updated:          { label: 'Atualizado',            dot: '#f97316' },
-                            deleted:          { label: 'Excluído',              dot: '#ef4444' },
-                            approved:         { label: 'Aprovado',              dot: '#10b981' },
-                            rejected:         { label: 'Reprovado',             dot: '#ef4444' },
-                            canceled:         { label: 'Cancelado',             dot: '#ef4444' },
-                            delivered:        { label: 'Entregue',              dot: '#7c3aed' },
-                            produced:         { label: 'Produzido',             dot: '#4338ca' },
-                            submitted:        { label: 'Enviado',               dot: '#0e7490' },
-                            linked:           { label: 'Vinculado',             dot: '#0f766e' },
-                            released:         { label: 'Liberado',              dot: '#3b82f6' },
-                            status_changed:   { label: 'Status alterado',       dot: '#f97316' },
-                            sponsor_approved: { label: 'Patrocinador aprovado', dot: '#10b981' },
-                            sponsor_rejected: { label: 'Patrocinador reprovou', dot: '#ef4444' },
-                            file_uploaded:    { label: 'Arquivo enviado',       dot: '#7e22ce' },
-                            thumb_uploaded:   { label: 'Thumb enviado',         dot: '#7e22ce' },
-                          };
-                          const cfg = ACTION_CFG[log.action] ?? { label: log.action?.replace(/_/g, ' ') ?? log.details ?? 'Ação', dot: '#a8a29e' };
+                          const cfg = getLogCfg(log);
                           return (
                             <div key={log.id || idx} style={{ position: "relative" }}>
                               <span style={{
@@ -1294,7 +1344,6 @@ export default function Solicitacao() {
                   <span style={{ fontSize: 10, fontWeight: 900, backgroundColor: "#e7e5e4", padding: "2px 6px", borderRadius: 6, color: TI.text }}>Esc</span>
                   <span style={{ fontSize: 10, color: TI.secondary }}>Fechar</span>
                 </div>
-                <p style={{ fontSize: 10, fontWeight: 700, color: TI.muted, margin: 0 }}>NORTE v2.0</p>
               </div>
             </div>
           </div>
@@ -1316,6 +1365,7 @@ export default function Solicitacao() {
             <AlertDialogCancel data-testid="button-release-cancel">Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => selectedItem && creatorReviewMutation.mutate({ itemId: selectedItem.id })}
+              disabled={creatorReviewMutation.isPending}
               style={{ backgroundColor: TI.text, color: "#fff" }}
               data-testid="button-release-confirm"
             >
@@ -1336,7 +1386,7 @@ export default function Solicitacao() {
           </AlertDialogHeader>
           <div style={{ padding: 0 }}>
             <textarea
-              placeholder="Descreva as alterações necessárias (opcional)..."
+              placeholder="Descreva as alterações necessárias..."
               value={returnObservations}
               onChange={e => setReturnObservations(e.target.value)}
               data-testid="textarea-return-quick"
@@ -1347,6 +1397,8 @@ export default function Solicitacao() {
             <AlertDialogCancel data-testid="button-return-cancel" onClick={() => { setReturnObservations(""); }}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => selectedItem && returnToArteMutation.mutate({ itemId: selectedItem.id, notes: returnObservations })}
+              disabled={returnToArteMutation.isPending || !returnObservations.trim()}
+              title={!returnObservations.trim() ? "Descreva o motivo da devolução — a Arte precisa saber o que corrigir" : undefined}
               style={{ backgroundColor: TI.text, color: "#fff" }}
               data-testid="button-return-confirm"
             >
@@ -1369,6 +1421,7 @@ export default function Solicitacao() {
             <AlertDialogCancel data-testid="button-bulk-release-cancel">Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => bulkReleaseMutation.mutate(Array.from(selectedItemIds))}
+              disabled={bulkReleaseMutation.isPending}
               style={{ backgroundColor: TI.text, color: "#fff" }}
               data-testid="button-bulk-release-confirm"
             >
@@ -1389,7 +1442,7 @@ export default function Solicitacao() {
           </AlertDialogHeader>
           <div style={{ padding: 0 }}>
             <textarea
-              placeholder="Observações (opcional)..."
+              placeholder="Descreva o motivo da devolução..."
               value={bulkReturnObservations}
               onChange={e => setBulkReturnObservations(e.target.value)}
               data-testid="textarea-bulk-return"
@@ -1403,42 +1456,12 @@ export default function Solicitacao() {
                 e.preventDefault(); // a mutation controla o fechamento (mantém aberto em erro)
                 bulkReturnMutation.mutate({ ids: Array.from(selectedItemIds), notes: bulkReturnObservations });
               }}
-              disabled={bulkReturnMutation.isPending}
+              disabled={bulkReturnMutation.isPending || !bulkReturnObservations.trim()}
+              title={!bulkReturnObservations.trim() ? "Descreva o motivo da devolução — a Arte precisa saber o que corrigir" : undefined}
               style={{ backgroundColor: TI.text, color: "#fff" }}
               data-testid="button-bulk-return-confirm"
             >
               {bulkReturnMutation.isPending ? "Devolvendo..." : "Devolver para Arte"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Cancel single */}
-      <AlertDialog open={cancelConfirmOpen} onOpenChange={setCancelConfirmOpen}>
-        <AlertDialogContent className="review-confirm-content">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Cancelar Item</AlertDialogTitle>
-            <AlertDialogDescription>
-              {selectedItem && <span><strong>{selectedItem.displayId}</strong> — {selectedItem.type}</span>}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <div style={{ padding: 0 }}>
-            <textarea
-              placeholder="Motivo do cancelamento (opcional)..."
-              value={cancelObservations}
-              onChange={e => setCancelObservations(e.target.value)}
-              data-testid="textarea-cancel"
-              className="w-full min-h-20 p-2 border rounded-md bg-background text-foreground resize-none text-sm"
-            />
-          </div>
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-cancel">Manter Item</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => selectedItem && bulkCancelMutation.mutate({ itemIds: [selectedItem.id], notes: cancelObservations })}
-              className="bg-destructive text-destructive-foreground"
-              data-testid="button-cancel-confirm"
-            >
-              {bulkCancelMutation.isPending ? "Cancelando..." : "Confirmar Cancelamento"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

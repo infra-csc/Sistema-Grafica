@@ -6,6 +6,12 @@ interface FilePreviewProps {
   linkUrl?: string;
   style?: React.CSSProperties;
   objectFit?: "contain" | "cover";
+  /**
+   * Não envolver a imagem num <a>. Para telas que oferecem "Abrir em nova
+   * aba" como ação explícita ao lado do preview — o clique na imagem inteira
+   * (com title de "resolução máxima") vira ruído nesses casos.
+   */
+  noLink?: boolean;
 }
 
 export function isPdf(url: string): boolean {
@@ -20,7 +26,7 @@ export function isImageUrl(url: string): boolean {
   );
 }
 
-function ImageWithFallback({ url, linkUrl, objectFit }: { url: string; linkUrl?: string; objectFit: "contain" | "cover" }) {
+function ImageWithFallback({ url, linkUrl, objectFit, noLink }: { url: string; linkUrl?: string; objectFit: "contain" | "cover"; noLink?: boolean }) {
   const [errored, setErrored] = useState(false);
 
   if (errored) {
@@ -40,22 +46,34 @@ function ImageWithFallback({ url, linkUrl, objectFit }: { url: string; linkUrl?:
     );
   }
 
+  const img = (
+    <img
+      src={url}
+      alt="Preview"
+      style={{ maxWidth: "100%", maxHeight: "100%", width: "auto", height: "auto", objectFit, display: "block", imageRendering: "auto" }}
+      onError={() => setErrored(true)}
+    />
+  );
+
+  if (noLink) {
+    return (
+      <div style={{ display: "flex", width: "100%", height: "100%", alignItems: "center", justifyContent: "center" }}>
+        {img}
+      </div>
+    );
+  }
+
   return (
     <a href={linkUrl || url} target="_blank" rel="noopener noreferrer"
       style={{ display: "flex", width: "100%", height: "100%", alignItems: "center", justifyContent: "center" }}
       title="Clique para ver em resolução máxima"
     >
-      <img
-        src={url}
-        alt="Preview"
-        style={{ maxWidth: "100%", maxHeight: "100%", width: "auto", height: "auto", objectFit, display: "block", imageRendering: "auto" }}
-        onError={() => setErrored(true)}
-      />
+      {img}
     </a>
   );
 }
 
-export function FilePreview({ url, linkUrl, style, objectFit = "contain" }: FilePreviewProps) {
+export function FilePreview({ url, linkUrl, style, objectFit = "contain", noLink }: FilePreviewProps) {
   const containerStyle: React.CSSProperties = {
     width: "100%", height: "100%",
     display: "flex", alignItems: "center", justifyContent: "center",
@@ -74,7 +92,7 @@ export function FilePreview({ url, linkUrl, style, objectFit = "contain" }: File
   }
 
   if (isImageUrl(url)) {
-    return <ImageWithFallback url={url} linkUrl={linkUrl} objectFit={objectFit} />;
+    return <ImageWithFallback url={url} linkUrl={linkUrl} objectFit={objectFit} noLink={noLink} />;
   }
 
   return (

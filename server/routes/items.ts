@@ -1754,7 +1754,9 @@ export function registerItemRoutes(app: Express): void {
         finalFileUrl: null,
         approvalThumbUrl: null,
         rejectedByCreator: true,
-        observations: notes || currentItem.observations,
+        // O motivo da devolução SUBSTITUI a observação: motivo vazio não pode
+        // herdar a observação antiga como se fosse o feedback desta devolução.
+        observations: notes ?? "",
         hasModifiedData: true, // Flag: Arte precisa revisar dados modificados
       });
       

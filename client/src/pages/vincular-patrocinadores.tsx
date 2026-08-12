@@ -3571,8 +3571,9 @@ export default function VincularPatrocinadores() {
                   Os itens serão encaminhados à equipe de Arte para aprovação e finalização.
                 </p>
               </div>
-              {/* Count pill */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 18px', background: 'rgba(249,115,22,0.15)', border: '1px solid rgba(249,115,22,0.3)', borderRadius: 12, flexShrink: 0 }}>
+              {/* Count pill. marginRight abre espaço para o X do canto
+                  (top:14/right:14/30px) — sem isso os dois se sobrepunham. */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '10px 18px', background: 'rgba(249,115,22,0.15)', border: '1px solid rgba(249,115,22,0.3)', borderRadius: 12, flexShrink: 0, marginRight: 30 }}>
                 <span style={{ fontSize: 26, fontWeight: 700, color: '#fb923c', fontFamily: 'Space Grotesk, sans-serif', lineHeight: 1 }}>
                   {sendConfirmModal?.items.length ?? 0}
                 </span>

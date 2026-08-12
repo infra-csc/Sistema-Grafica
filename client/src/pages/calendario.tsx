@@ -94,7 +94,8 @@ export default function Calendario() {
     const p = new URLSearchParams();
     if (searchTerm) p.set("busca", searchTerm);
     const qs = p.toString();
-    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+    // + hash: replaceState com URL sem #... apagava o fragmento da barra.
+    window.history.replaceState(null, "", (qs ? `?${qs}` : window.location.pathname) + window.location.hash);
   }, [searchTerm]);
 
   // Atalho "/" foca a busca (paridade com eventos.tsx e Painel Geral).
@@ -112,6 +113,15 @@ export default function Calendario() {
   }, []);
 
   const { data: events = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ["/api/events"] });
+
+  // Tick de 1 min: as contagens regressivas usam "agora", e a tela fica aberta
+  // por horas (TV do galpão). Sem o tick, os valores congelavam no instante do
+  // primeiro render — um "2h 10min" podia estar exibido com o caminhão já na rua.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const year  = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -172,27 +182,31 @@ export default function Calendario() {
   const getEventsForDate    = (date: Date) => byDay.get(date.toDateString())?.events ?? [];
   const getDeadlinesForDate = (date: Date) => byDay.get(date.toDateString())?.deadlines ?? [];
 
-  /* Urgent: departure < 48h away */
+  /* Urgent: departure < 48h away.
+     toUTCDisplayDate: o horário de saída foi gravado como UTC mas É o de
+     exibição — com new Date() cru, em UTC-3 a contagem ganhava 3h de folga
+     fantasma (grade, dialog e chips já usam a mesma conversão). */
   const urgentEvents = useMemo(() =>
     events.filter(ev => {
-      const hrs = (new Date(ev.truckDepartureDate).getTime() - Date.now()) / 3_600_000;
+      const hrs = (toUTCDisplayDate(ev.truckDepartureDate).getTime() - now) / 3_600_000;
       return hrs > 0 && hrs < 48;
-    }).sort((a, b) => new Date(a.truckDepartureDate).getTime() - new Date(b.truckDepartureDate).getTime()),
-  [events]);
+    }).sort((a, b) => toUTCDisplayDate(a.truckDepartureDate).getTime() - toUTCDisplayDate(b.truckDepartureDate).getTime()),
+  [events, now]);
 
   /* Next 5 events for sidebar */
   const upcomingEvents = useMemo(() =>
     events
-      .filter(ev => parseDateLocal(ev.startDate).getTime() >= Date.now() && ev.status !== "completed")
+      .filter(ev => parseDateLocal(ev.startDate).getTime() >= now && ev.status !== "completed")
       .sort((a, b) => parseDateLocal(a.startDate).getTime() - parseDateLocal(b.startDate).getTime())
       .slice(0, 5),
-  [events]);
+  [events, now]);
 
-  /* Month stats */
-  const monthEvents = events.filter(ev => {
+  /* Month stats — useMemo: era refiltrado a cada render (inclusive a cada
+     tecla da busca), para um resultado que só muda com dados ou mês. */
+  const monthEvents = useMemo(() => events.filter(ev => {
     const d = parseDateLocal(ev.startDate);
     return d.getFullYear() === year && d.getMonth() === month;
-  });
+  }), [events, year, month]);
   const completedCount = monthEvents.filter(e => e.status === "completed").length;
   const urgentCount    = monthEvents.filter(e => e.priority === "urgente").length;
 
@@ -202,10 +216,12 @@ export default function Calendario() {
     return `${h}h ${m}min`;
   }
 
-  /* pill background for urgent countdown */
+  /* pill background for urgent countdown.
+     #c2410c (orange-700): branco sobre o #f97316 saturado ficava em ~2,8:1 —
+     o aviso mais urgente da tela era o menos legível (AA pede 4,5:1). */
   function urgentBg(ev: any) {
-    const hrs = (new Date(ev.truckDepartureDate).getTime() - Date.now()) / 3_600_000;
-    return hrs < 24 ? "#dc2626" : "#f97316";
+    const hrs = (toUTCDisplayDate(ev.truckDepartureDate).getTime() - now) / 3_600_000;
+    return hrs < 24 ? "#dc2626" : "#c2410c";
   }
 
   return (
@@ -255,7 +271,7 @@ export default function Calendario() {
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
             {urgentEvents.map(ev => {
-              const remaining = new Date(ev.truckDepartureDate).getTime() - Date.now();
+              const remaining = toUTCDisplayDate(ev.truckDepartureDate).getTime() - now;
               return (
                 <button key={ev.id}
                   onClick={() => setLocation(`/eventos/${ev.id}`)}
@@ -302,6 +318,7 @@ export default function Calendario() {
             <div style={{ position: "relative" }}>
               <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: P.muted }} />
               <input placeholder="Filtrar evento..."
+                aria-label="Filtrar eventos do calendário"
                 ref={searchRef}
                 value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
                 style={{ paddingLeft: 32, paddingRight: 12, height: isMobile ? 44 : 36, width: isMobile ? 160 : 200, backgroundColor: "#eeeeed", border: "none", borderRadius: 8, fontSize: 13, color: P.text }} />
@@ -398,6 +415,10 @@ export default function Calendario() {
                     tabIndex: 0,
                     "aria-label": `Dia ${day} — ver eventos`,
                     onKeyDown: (e: React.KeyboardEvent) => {
+                      // Enter/Espaço numa pill INTERNA borbulha até aqui: sem o
+                      // guard, ativar a pill abria também o dialog do dia por
+                      // cima da navegação que a pill disparou.
+                      if (e.target !== e.currentTarget) return;
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault(); setSelectedDate(date); setDialogOpen(true);
                       }
@@ -419,13 +440,14 @@ export default function Calendario() {
                   onMouseEnter={e => { if (hasAny) (e.currentTarget.style.backgroundColor = "#f9f9f8"); }}
                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = P.surface)}
                 >
-                  {/* Day number */}
+                  {/* Day number — #c2410c: branco sobre o #f97316 saturado
+                      ficava em ~2,8:1, abaixo do AA. */}
                   <div style={{ marginBottom: 2 }}>
                     {isToday ? (
                       <span style={{
                         display: "inline-flex", alignItems: "center", justifyContent: "center",
                         width: 22, height: 22, borderRadius: "50%",
-                        backgroundColor: P.accent, color: "#ffffff",
+                        backgroundColor: "#c2410c", color: "#ffffff",
                         fontSize: 11, fontWeight: 900,
                       }}>{day}</span>
                     ) : (
@@ -449,7 +471,7 @@ export default function Calendario() {
                           />
                         ))}
                         {allCellItems.length > 3 && (
-                          <span style={{ fontSize: 9, fontWeight: 700, color: P.secondary }}>+{allCellItems.length - 3}</span>
+                          <span style={{ fontSize: 10, fontWeight: 700, color: P.secondary }}>+{allCellItems.length - 3}</span>
                         )}
                       </div>
                     ) : null
@@ -460,8 +482,8 @@ export default function Calendario() {
                           const ev        = item.ev;
                           const isStart   = ev._type === "start";
                           const meta      = prioMeta(ev);
-                          const depTime   = new Date(ev.truckDepartureDate);
-                          const remaining = depTime.getTime() - Date.now();
+                          const depTime   = toUTCDisplayDate(ev.truckDepartureDate);
+                          const remaining = depTime.getTime() - now;
                           const isUrgent  = !isStart && remaining > 0 && remaining < 48 * 3_600_000;
                           const isCrit    = !isStart && remaining > 0 && remaining < 24 * 3_600_000;
                           return (
@@ -495,7 +517,7 @@ export default function Calendario() {
                                 </span>
                               </span>
                               {isUrgent && (
-                                <span style={{ fontSize: 10, fontWeight: 900, color: "#ffffff", backgroundColor: isCrit ? "#dc2626" : "#f97316", borderRadius: 6, padding: "1px 4px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                                <span style={{ fontSize: 10, fontWeight: 900, color: "#ffffff", backgroundColor: isCrit ? "#dc2626" : "#c2410c", borderRadius: 6, padding: "1px 4px", whiteSpace: "nowrap", flexShrink: 0 }}>
                                   {msToHM(remaining)}
                                 </span>
                               )}
@@ -663,7 +685,11 @@ export default function Calendario() {
             </DialogTitle>
           </DialogHeader>
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
-            {selectedDate && getEventsForDate(selectedDate).map(ev => {
+            {/* Mesmo filtro de busca da grade: a célula anunciava "2 itens"
+                (filtrados) e o dialog abria com todos — números que não batiam. */}
+            {selectedDate && getEventsForDate(selectedDate)
+              .filter(ev => !searchTerm || ev.name.toLowerCase().includes(searchTerm.toLowerCase()))
+              .map(ev => {
               const meta = prioMeta(ev);
               const isStart = ev._type === "start";
               // toUTCDisplayDate: MESMA conversão usada no agrupamento da
@@ -702,7 +728,9 @@ export default function Calendario() {
 
             {/* ── Deadline entries in dialog ── */}
             {selectedDate && (() => {
-              const deadlines = getDeadlinesForDate(selectedDate);
+              // Busca aplicada também aqui — mesma regra dos prazos na grade.
+              const deadlines = getDeadlinesForDate(selectedDate)
+                .filter(d => !searchTerm || d.event.name.toLowerCase().includes(searchTerm.toLowerCase()));
               if (!deadlines.length) return null;
               return (
                 <>

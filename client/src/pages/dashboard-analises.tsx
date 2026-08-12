@@ -140,8 +140,10 @@ export default function DashboardAnalises() {
 
   const { data: events   = [], isLoading: evLoading, isError: evError, refetch: refetchEvents } = useQuery<any[]>({ queryKey: ["/api/events"]   });
   const { data: items    = [], isLoading: itLoading, isError: itError, refetch: refetchItems } = useQuery<any[]>({ queryKey: ["/api/items"]    });
-  const { data: sponsors = [], isError: spError, refetch: refetchSponsors } = useQuery<any[]>({ queryKey: ["/api/sponsors"] });
-  const isLoading = evLoading || itLoading;
+  const { data: sponsors = [], isLoading: spLoading, isError: spError, refetch: refetchSponsors } = useQuery<any[]>({ queryKey: ["/api/sponsors"] });
+  // spLoading incluso: sem ele, a tela pintava com "Top Patrocinadores" vazio
+  // e o filtro de patrocinador sem opções até a terceira fonte chegar.
+  const isLoading = evLoading || itLoading || spLoading;
   // Qualquer uma das 3 fontes falhando distorce os números em silêncio
   // (ex.: sem /api/sponsors o "Top Patrocinadores" viraria "sem dados") —
   // melhor avisar e oferecer nova tentativa do que exibir análises erradas.
@@ -181,7 +183,9 @@ export default function DashboardAnalises() {
   // mesmo recorte do resto da tela.
   const monthlyData = useMemo(() =>
     monthKeys.map(k => {
-      const label = format(new Date(k + "-01"), "MMM", { locale: ptBR }).toUpperCase();
+      // Com ano ("JAN/26"): a janela de 6 meses cruza a virada do ano e um
+      // "JAN" solto era ambíguo no gráfico — e pior ainda no CSV arquivado.
+      const label = format(new Date(k + "-01"), "MMM/yy", { locale: ptBR }).toUpperCase();
       const producao = fItems.filter(i => format(new Date(i.createdAt), "yyyy-MM") === k)
         .reduce((s, i) => s + (i.quantity || 1), 0);
       const entregas = fItems.filter(i => i.status === "delivered" &&
@@ -204,10 +208,14 @@ export default function DashboardAnalises() {
     if (total - covered > 0) {
       groups.push({
         label: "Outros",
-        color: "#57534e",
+        // #78716c: 3,65:1 sobre o card escuro (T.dark) — o #57534e antigo
+        // ficava abaixo de 3:1 e a fatia sumia na rosca e na legenda.
+        color: "#78716c",
         qty: total - covered,
-        // pct por diferença: os arredondamentos dos grupos fecham em 100%.
-        pct: Math.max(0, 100 - groups.reduce((s, g) => s + g.pct, 0)),
+        // pct por diferença: os arredondamentos dos grupos fecham em ~100%.
+        // Mínimo 1%: com qty > 0, anunciar "0%" é mentira de arredondamento
+        // (a soma pode dar 101% — preço aceito pela honestidade).
+        pct: Math.max(1, 100 - groups.reduce((s, g) => s + g.pct, 0)),
       });
     }
     return groups.filter(g => g.qty > 0);
@@ -242,11 +250,13 @@ export default function DashboardAnalises() {
   }, [fItems]);
 
   /* ── Alerts ──
-     fEvents (não events): os alertas de evento ignoravam o período filtrado
-     enquanto os de peça o respeitavam — a mesma lista misturava dois recortes. */
+     Urgência e saída iminente olham para `events` (todos), de propósito: o
+     recorte de período filtra pela data de CRIAÇÃO, e a urgência é da data de
+     SAÍDA — um caminhão que sai amanhã não deixa de ser urgente porque o
+     evento foi criado fora do período. As métricas continuam sobre fEvents. */
   const alerts = useMemo(() => {
     const list: { tag: string; title: string; desc: string; eventId?: string }[] = [];
-    fEvents.filter(e => e.status === "urgent").slice(0, 1).forEach(e => {
+    events.filter(e => e.status === "urgent").slice(0, 1).forEach(e => {
       list.push({ tag: "URGENTE", title: `Evento Urgente: ${e.name}`, desc: "Verificar todos os itens pendentes.", eventId: e.id });
     });
     const stale = fItems.filter(i =>
@@ -257,7 +267,7 @@ export default function DashboardAnalises() {
     const ready = fItems.filter(i => i.status === "ready_for_production");
     if (ready.length > 0)
       list.push({ tag: "PRODUÇÃO", title: `${ready.length} peça${ready.length > 1 ? "s" : ""} aguardando gráfica`, desc: "Liberadas pela Arte, ainda não iniciadas na produção.", eventId: ready[0].eventId });
-    const nearDep = fEvents.filter(e => {
+    const nearDep = events.filter(e => {
       if (!e.truckDepartureDate) return false;
       const hrs = differenceInHours(new Date(e.truckDepartureDate), new Date());
       return hrs > 0 && hrs < 72;
@@ -267,7 +277,7 @@ export default function DashboardAnalises() {
       list.push({ tag: "SAÍDA IMINENTE", title: `${e.name} — saída em ${hrs}h`, desc: "Confirmar que todos os itens estão prontos para envio.", eventId: e.id });
     });
     return list.slice(0, 4);
-  }, [fEvents, fItems]);
+  }, [events, fItems]);
 
   /* ── Exportação ──────────────────────────────────────────────────────
      "Exportar" e "Partilhar" eram botões sem onClick: pareciam ações e não
@@ -281,15 +291,25 @@ export default function DashboardAnalises() {
   const exportarCsv = () => {
     const esc = (v: unknown) => {
       const t = String(v ?? "");
-      return /[";\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+      // \r incluso: um retorno de carro solto num nome quebraria a linha do
+      // CSV (as linhas do arquivo usam \r\n como separador).
+      return /[";\n\r]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
     };
     const linha = (cols: unknown[]) => cols.map(esc).join(";");
     const periodoLabel = PERIODS.find(p => p.value === period)?.label ?? period;
+    // Os 4 filtros declarados no cabeçalho: o CSV circula sozinho e, sem o
+    // recorte escrito nele, os números pareceriam globais.
+    const eventoLabel  = eventFilter  === "all" ? "Todos" : ((events as any[]).find(e => e.id === eventFilter)?.name ?? eventFilter);
+    const statusLabel  = statusFilter === "all" ? "Todos" : (STATUS_LABELS[statusFilter] ?? statusFilter);
+    const sponsorLabel = sponsorFilter === "all" ? "Todos" : ((sponsors as any[]).find(s => s.id === sponsorFilter)?.name ?? sponsorFilter);
 
     const blocos: string[] = [];
     blocos.push(linha(["Análises & Performance"]));
     blocos.push(linha(["Gerado em", format(new Date(), "dd/MM/yyyy HH:mm", { locale: ptBR })]));
     blocos.push(linha(["Período", periodoLabel]));
+    blocos.push(linha(["Evento", eventoLabel]));
+    blocos.push(linha(["Status", statusLabel]));
+    blocos.push(linha(["Patrocinador", sponsorLabel]));
     blocos.push("");
 
     blocos.push(linha(["INDICADORES"]));
@@ -316,7 +336,10 @@ export default function DashboardAnalises() {
     const a = document.createElement("a");
     a.href = url;
     a.download = `Análises ${format(new Date(), "dd-MM-yyyy")}.csv`;
+    // Fora do DOM, alguns navegadores (Firefox, iOS) ignoram o click sintético.
+    document.body.appendChild(a);
     a.click();
+    a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 30_000);
   };
 
@@ -422,12 +445,35 @@ export default function DashboardAnalises() {
               <div style={{ width: 1, height: 40, backgroundColor: T.border, flexShrink: 0 }} />
             )}
 
-            <EventFilterDropdown
-              value={eventFilter}
-              onChange={setEventFilter}
-              options={(events as any[]).map(e => ({ value: e.id, label: e.name }))}
-              allLabel={`Todos os eventos (${(events as any[]).length})`}
-            />
+            {/* Mesmo invólucro do Fld (rótulo + ponto de ativo): o filtro de
+                evento era o único do card sem rótulo — parecia de outra tela.
+                O EventFilterDropdown é compartilhado e trava a própria largura
+                com estilos inline (flexShrink/maxWidth); no celular, o
+                override escopado abaixo o estica para a coluna sem tocar no
+                componente (que serve outras telas). */}
+            <div className="fld-evento-analises" style={{ flex: 1 }}>
+              {isMobile && (
+                <style>{`
+                  .fld-evento-analises > div:last-child { width: 100%; }
+                  .fld-evento-analises > div:last-child > button { max-width: none !important; width: 100%; }
+                  .fld-evento-analises > div:last-child > button > span:first-child { max-width: none !important; flex: 1; text-align: left; }
+                `}</style>
+              )}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
+                <span style={{ fontSize: 10, fontWeight: 900, color: eventFilter !== "all" ? ACCENT_TEXT : T.second, textTransform: "uppercase", letterSpacing: "0.16em", transition: "color 0.15s" }}>
+                  Evento
+                </span>
+                {eventFilter !== "all" && (
+                  <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: T.accent, flexShrink: 0 }} />
+                )}
+              </div>
+              <EventFilterDropdown
+                value={eventFilter}
+                onChange={setEventFilter}
+                options={(events as any[]).map(e => ({ value: e.id, label: e.name }))}
+                allLabel={`Todos os eventos (${(events as any[]).length})`}
+              />
+            </div>
 
             <Fld
               label="Status" allLabel="Todos os status"
@@ -627,7 +673,10 @@ export default function DashboardAnalises() {
             </h3>
             <span style={{ fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.14em" }}>Dados em tempo real</span>
           </div>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          {/* No celular as 4 colunas esmagavam a barra de eficiência a zero:
+              a tabela mantém uma largura mínima e rola dentro do card. */}
+          <div style={{ overflowX: isMobile ? "auto" : "visible" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: isMobile ? 460 : undefined }}>
             <thead>
               <tr style={{ backgroundColor: T.low }}>
                 {["Categoria", "Volume", "Eficiência", "Status"].map(h => (
@@ -674,6 +723,7 @@ export default function DashboardAnalises() {
               ))}
             </tbody>
           </table>
+          </div>
         </div>
 
         {/* Central Operacional — status board */}

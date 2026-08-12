@@ -71,6 +71,10 @@ export default function Registros() {
   // por fora (o span imperativo sobrevivia a re-render e vazava entre fotos).
   const [brokenIds, setBrokenIds]     = useState<Set<string>>(() => new Set());
 
+  // Um refetch pode trazer URLs novas/corrigidas: o conjunto de quebradas é
+  // da lista antiga e não deve condenar fotos que voltaram a carregar.
+  useEffect(() => { setBrokenIds(new Set()); }, [photos]);
+
   useEffect(() => {
     const p = new URLSearchParams();
     if (search) p.set("busca", search);
@@ -177,6 +181,11 @@ export default function Registros() {
     return () => window.removeEventListener("keydown", onKey);
   }, [zoomIdx, filtered.length]);
 
+  // Se a lista filtrada mudar com o zoom aberto (refetch em background), o
+  // índice passaria a apontar para OUTRA foto sem aviso — fechar é honesto.
+  // Com o zoom fechado, setZoomIdx(null) sobre null é no-op (React ignora).
+  useEffect(() => { setZoomIdx(null); }, [filtered]);
+
   // Foto grande demora a chegar no 4G do galpão; sem indicação, a troca de
   // imagem parece que travou porque a anterior fica na tela até a nova pintar.
   const [zoomLoading, setZoomLoading] = useState(false);
@@ -204,7 +213,11 @@ export default function Registros() {
         .filter(Boolean).join(" ").replace(/[\\/:*?"<>|]/g, "-");
       const href = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = href; a.download = `${nome}.${ext}`; a.click();
+      a.href = href; a.download = `${nome}.${ext}`;
+      // Fora do DOM, alguns navegadores (Firefox, iOS) ignoram o click sintético.
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
       setTimeout(() => URL.revokeObjectURL(href), 30_000);
     } catch (e: any) {
       toast({ title: "Não foi possível baixar", description: e?.message ?? "Tente abrir o original.", variant: "destructive" });
@@ -252,7 +265,7 @@ export default function Registros() {
                 <button key={label} className="group"
                   onClick={() => { setKindFilter(kind && !active ? [kind] : []); setVisible(PAGE_SIZE); }}
                   data-testid={`stat-${kind ?? "total"}`}
-                  aria-pressed={!!kind && active}
+                  aria-pressed={active}
                   title={kind ? `Ver só ${label.toLowerCase()}` : "Ver tudo"}
                   style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" }}>
                   <p style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: dim ? 600 : 700, fontSize: FS.h2, color: dim ? T.second : color, margin: 0, lineHeight: 1, transition: "color 0.15s" }}>{n}</p>
@@ -270,6 +283,7 @@ export default function Registros() {
                 ref={searchRef}
                 value={search}
                 onChange={e => { setSearch(e.target.value); setVisible(PAGE_SIZE); }}
+                aria-label="Buscar registros"
                 placeholder="Buscar peça, ID, evento ou quem recebeu…"
                 data-testid="input-search-registros"
                 style={{ width: "100%", height: controlHeight, padding: "0 12px 0 34px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, fontSize: FS.body, color: T.text }}
@@ -291,13 +305,29 @@ export default function Registros() {
             />
             {/* Período — mesmo padrão das outras telas. radiogroup: é uma
                 escolha exclusiva, e o papel certo deixa o leitor de tela
-                anunciar "3 de 5" em vez de cinco botões soltos. */}
+                anunciar "3 de 5" em vez de cinco botões soltos. Roving
+                tabindex (WAI-ARIA): o Tab entra no grupo pelo item ativo e
+                as setas / Home / End movem a SELEÇÃO — cinco tabs para
+                atravessar um "radio" é o custo de fingir o papel sem o
+                comportamento. */}
             <div role="radiogroup" aria-label="Período" style={{ display: "flex", border: `1px solid ${T.border}`, borderRadius: R.md, overflow: "hidden", backgroundColor: T.surface }}>
-              {PERIODS.map(p => (
+              {PERIODS.map((p, i) => (
                 <button key={p}
                   role="radio"
                   aria-checked={period === p}
+                  tabIndex={period === p ? 0 : -1}
                   onClick={() => { setPeriod(p); setVisible(PAGE_SIZE); }}
+                  onKeyDown={e => {
+                    const dir = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
+                    const next = dir !== 0
+                      ? (i + dir + PERIODS.length) % PERIODS.length
+                      : e.key === "Home" ? 0 : e.key === "End" ? PERIODS.length - 1 : -1;
+                    if (next < 0) return;
+                    e.preventDefault();
+                    setPeriod(PERIODS[next]);
+                    setVisible(PAGE_SIZE);
+                    (e.currentTarget.parentElement?.children[next] as HTMLElement | undefined)?.focus();
+                  }}
                   data-testid={`button-period-${p}`}
                   className={period === p ? undefined : "hover:bg-black/[0.04]"}
                   style={{
@@ -416,8 +446,10 @@ export default function Registros() {
                       <span style={{ position: "absolute", top: 8, left: 8, display: "inline-flex", alignItems: "center", gap: 4, fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: "#ffffff", backgroundColor: k.color, borderRadius: R.sm, padding: "3px 7px", boxShadow: SHADOW.sm }}>
                         <Icon style={{ width: 10, height: 10 }} /> {k.label}
                       </span>
+                      {/* alfa 0.72: a 0.6 o fundo do ID dependia da foto atrás
+                          — sobre foto clara o branco caía abaixo de 4,5:1. */}
                       {p.displayId && (
-                        <span style={{ position: "absolute", top: 8, right: 8, fontFamily: "monospace", fontSize: FS.small, fontWeight: 700, color: "#ffffff", backgroundColor: "rgba(28,25,23,0.6)", borderRadius: R.sm, padding: "2px 7px" }}>{p.displayId}</span>
+                        <span style={{ position: "absolute", top: 8, right: 8, fontFamily: "monospace", fontSize: FS.small, fontWeight: 700, color: "#ffffff", backgroundColor: "rgba(28,25,23,0.72)", borderRadius: R.sm, padding: "2px 7px" }}>{p.displayId}</span>
                       )}
 
                       {/* Afordância de zoom — só aparece no hover, pra não competir com a foto. */}

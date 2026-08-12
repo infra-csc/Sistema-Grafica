@@ -18,7 +18,9 @@ const P = {
   surface: "#ffffff",
   border:  "#e7e5e4",
   text:    "#1c1917",
-  second:  "#78716c",
+  // #746e69: o antigo #78716c reprovava AA sobre os fundos acinzentados da
+  // tela (#f3f4f3) — é o mesmo cinza AA de lib/theme.
+  second:  "#746e69",
   // Apenas decorativo (ícones, bolinhas) — como texto reprova AA; rótulos e
   // cabeçalhos usam #746e69 (o cinza AA de lib/theme).
   muted:   "#a8a29e",
@@ -604,16 +606,11 @@ export default function Historico() {
     () => urlParams.get("acao")?.split(",").filter(Boolean) ?? [],
   );
   const [searchFilter, setSearchFilter] = useState(() => urlParams.get("busca") ?? "");
-  const [page, setPage] = useState(1);
-
-  useEffect(() => {
-    const p = new URLSearchParams();
-    if (searchFilter) p.set("busca", searchFilter);
-    if (actionFilter.length) p.set("acao", actionFilter.join(","));
-    if (eventFilter.length) p.set("evento", eventFilter.join(","));
-    const qs = p.toString();
-    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-  }, [searchFilter, actionFilter, eventFilter]);
+  // Página também vem da URL: F5 na página 7 voltava para a 1.
+  const [page, setPage] = useState(() => {
+    const n = parseInt(urlParams.get("pagina") ?? "", 10);
+    return Number.isFinite(n) && n >= 1 ? n : 1;
+  });
 
   // Atalho "/" foca a busca (paridade com eventos.tsx e Painel Geral).
   const searchRef = useRef<HTMLInputElement>(null);
@@ -669,20 +666,37 @@ export default function Historico() {
   // Sincroniza o estado com o total: quando um filtro encolhe a lista, `page`
   // ficava além de totalPages e o "próxima" parecia quebrado (o disabled era
   // calculado sobre safePage, mas o clique somava sobre o page inflado).
+  // O guard de logsLoading protege o ?pagina= da URL: durante o carregamento
+  // totalPages ainda é 1 e o clamp descartaria a página restaurada.
   useEffect(() => {
+    if (logsLoading) return;
     if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages]);
+  }, [page, totalPages, logsLoading]);
   const safePage   = Math.min(page, totalPages);
   const pageItems  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  // Filtros e página espelhados na URL (o efeito vive aqui embaixo porque
+  // depende de safePage). + hash: replaceState sem #... apagava o fragmento.
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (searchFilter) p.set("busca", searchFilter);
+    if (actionFilter.length) p.set("acao", actionFilter.join(","));
+    if (eventFilter.length) p.set("evento", eventFilter.join(","));
+    if (safePage > 1) p.set("pagina", String(safePage));
+    const qs = p.toString();
+    window.history.replaceState(null, "", (qs ? `?${qs}` : window.location.pathname) + window.location.hash);
+  }, [searchFilter, actionFilter, eventFilter, safePage]);
 
   const handleFilterChange = (setter: (v: string[]) => void) => (v: string[]) => {
     setter(v);
     setPage(1);
   };
 
-  /* page buttons: show at most 5 */
+  /* page buttons: show at most 5 — a janela desliza para manter a página
+     atual centrada; perto do fim, ancora nas 5 últimas (antes o fim da lista
+     mostrava a atual encostada na borda com botões "vazios" à direita). */
   const pageWindow: number[] = [];
-  const start = Math.max(1, safePage - 2);
+  const start = Math.max(1, Math.min(safePage - 2, totalPages - 4));
   const end   = Math.min(totalPages, start + 4);
   for (let i = start; i <= end; i++) pageWindow.push(i);
 
@@ -795,14 +809,16 @@ export default function Historico() {
             options={events.map((ev: any) => ({ value: ev.id, label: ev.name }))}
           />
 
-          {/* Counter chip — aria-live anuncia o novo total a cada filtro. */}
+          {/* Counter chip — aria-live anuncia o novo total a cada filtro.
+              Sobre o #e8e8e7 do chip, #c2410c e o cinza de rótulo perdiam
+              contraste: número em #9a3412 e rótulo em #57534e passam AA. */}
           <div aria-live="polite" style={{
             display: "flex", alignItems: "center", gap: 8,
             backgroundColor: "#e8e8e7", borderRadius: 8, padding: "9px 14px",
             marginLeft: "auto",
           }}>
-            <span style={{ fontSize: 10, fontWeight: 800, color: P.label, textTransform: "uppercase", letterSpacing: "0.08em" }}>Total</span>
-            <span style={{ fontSize: 15, fontWeight: 900, color: "#c2410c" }}>{filtered.length}</span>
+            <span style={{ fontSize: 10, fontWeight: 800, color: "#57534e", textTransform: "uppercase", letterSpacing: "0.08em" }}>Total</span>
+            <span style={{ fontSize: 15, fontWeight: 900, color: "#9a3412" }}>{filtered.length}</span>
           </div>
         </div>
 
@@ -876,13 +892,14 @@ export default function Historico() {
                  lugar nenhum. role="link" porque a ação é navegar, e só
                  quando existe evento para onde ir. O aria-label diz PARA
                  QUAL evento — "abrir evento deste registro" repetido 25
-                 vezes não distinguia nada. */
+                 vezes não distinguia nada. Só Enter ativa: num link nativo
+                 o Espaço rola a página, e role="link" deve imitá-lo. */
               const linkProps = entry.eventId ? {
                 role: "link" as const,
                 tabIndex: 0,
                 "aria-label": `Abrir evento ${entry.eventName}`,
                 onKeyDown: (e: React.KeyboardEvent) => {
-                  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setLocation(`/eventos/${entry.eventId}`); }
+                  if (e.key === "Enter") { e.preventDefault(); setLocation(`/eventos/${entry.eventId}`); }
                 },
               } : {};
 
@@ -994,9 +1011,11 @@ export default function Historico() {
             </span>
 
             <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              {/* Prev */}
+              {/* Prev/Next sobre safePage (não o functional p): `page` pode
+                  estar inflado após um filtro encolher a lista — somar sobre
+                  ele pulava páginas em relação ao que a tela exibia. */}
               <PageBtn
-                onClick={() => setPage(p => Math.max(1, p - 1))}
+                onClick={() => setPage(Math.max(1, safePage - 1))}
                 disabled={safePage === 1}
                 testId="button-prev-page"
                 label="Página anterior"
@@ -1031,7 +1050,7 @@ export default function Historico() {
 
               {/* Next */}
               <PageBtn
-                onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                onClick={() => setPage(Math.min(totalPages, safePage + 1))}
                 disabled={safePage === totalPages}
                 testId="button-next-page"
                 label="Próxima página"

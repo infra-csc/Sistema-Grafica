@@ -67,10 +67,11 @@ function getEventPriority(event: any): PriorityLevel {
 }
 
 // Cores/rótulos derivados de PRIORITY (lib/status) — antes havia mapas hex duplicados aqui.
-const PRIORITY_FALLBACK = { label: "Sem Prioridade", hex: '#a8a29e' };
-function getPriorityConfig(priority: string | null | undefined): { label: string; hex: string } {
+// `hex` (saturado) fica para borda/ícone/barra; `text` (tom escuro AA) é o que vai em texto.
+const PRIORITY_FALLBACK = { label: "Sem Prioridade", hex: '#a8a29e', text: '#57534e' };
+function getPriorityConfig(priority: string | null | undefined): { label: string; hex: string; text: string } {
   const meta = getPriorityMeta(priority);
-  return meta ? { label: meta.label, hex: meta.dot } : PRIORITY_FALLBACK;
+  return meta ? { label: meta.label, hex: meta.dot, text: meta.text || '#57534e' } : PRIORITY_FALLBACK;
 }
 
 const MONTH_NAMES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
@@ -84,6 +85,7 @@ function EventCardActions({
   canEdit,
   canDelete,
   canSetPriority,
+  isCompleted,
   isMobile,
 }: {
   event: any;
@@ -94,6 +96,7 @@ function EventCardActions({
   canEdit: boolean;
   canDelete: boolean;
   canSetPriority: boolean;
+  isCompleted?: boolean;
   isMobile?: boolean;
 }) {
   // Alvo de toque: 44px no mobile, 32px no desktop.
@@ -115,8 +118,9 @@ function EventCardActions({
       style={{ display: 'flex', gap: '6px', transition: 'opacity 0.2s', flexShrink: 0 }}
       onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
     >
-      {/* canSetPriority: espelha o gate do servidor (admin/atendimento/solicitacao). */}
-      {canSetPriority && (
+      {/* canSetPriority: espelha o gate do servidor (admin/atendimento/solicitacao).
+          Evento concluído não tem prioridade a definir — a bandeira some. */}
+      {canSetPriority && !isCompleted && (
         <button
           onClick={(e) => onSetPriority(event, e)}
           title="Definir prioridade"
@@ -227,36 +231,44 @@ export default function Eventos() {
 
   const createEventMutation = useMutation({
     mutationFn: async (data: typeof formData) => {
+      let response;
       try {
-        const response = await apiRequest("POST", "/api/events", data);
-        const event = await response.json();
-        
-        // Vincular todos os patrocinadores em paralelo com Promise.all
-        // Nota: Se falhar, o evento já foi criado e não será revertido automaticamente.
-        // Para transações atômicas completas, considere implementar lógica server-side.
-        if (selectedSponsorIds.length > 0) {
+        response = await apiRequest("POST", "/api/events", data);
+      } catch (error: any) {
+        throw new Error(error?.message || "Erro ao criar evento");
+      }
+      const event = await response.json();
+
+      // Vincular patrocinadores em paralelo. Se o evento JÁ foi criado, uma
+      // falha aqui não vira erro do fluxo (o toast de erro sugeriria tentar de
+      // novo e duplicar o evento) — sinalizamos para o onSuccess avisar.
+      if (selectedSponsorIds.length > 0) {
+        try {
           await Promise.all(
             selectedSponsorIds.map((sponsorId) =>
               apiRequest("POST", `/api/events/${event.id}/sponsors`, { sponsorId, quota: sponsorQuotaMap[sponsorId] || null })
             )
           );
+        } catch {
+          return { event, sponsorsFailed: true };
         }
-        
-        return event;
-      } catch (error) {
-        throw new Error("Erro ao criar evento e vincular patrocinadores");
       }
+
+      return { event, sponsorsFailed: false };
     },
-    onSuccess: () => {
+    onSuccess: ({ sponsorsFailed }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       setOpen(false);
       setFormData({ name: "", startDate: "", truckDepartureDate: "", ...DEFAULT_DEADLINES });
       setSelectedSponsorIds([]);
       setSponsorQuotaMap({});
+      setSponsorSearch("");
       setPrazosExpanded(false);
       toast({
         title: "Evento criado",
-        description: "O evento foi criado com sucesso",
+        description: sponsorsFailed
+          ? "Alguns patrocinadores não foram vinculados — edite o evento para revisar."
+          : "O evento foi criado com sucesso",
       });
     },
     onError: (error: Error) => {
@@ -303,8 +315,8 @@ export default function Eventos() {
         if (operations.length > 0) {
           await Promise.all(operations);
         }
-      } catch (error) {
-        throw new Error("Erro ao atualizar evento e patrocinadores");
+      } catch (error: any) {
+        throw new Error(error?.message || "Erro ao atualizar evento e patrocinadores");
       }
     },
     onSuccess: () => {
@@ -314,6 +326,7 @@ export default function Eventos() {
       setFormData({ name: "", startDate: "", truckDepartureDate: "", ...DEFAULT_DEADLINES });
       setSelectedSponsorIds([]);
       setSponsorQuotaMap({});
+      setSponsorSearch("");
       setPrazosExpanded(false);
       toast({
         title: "Evento atualizado",
@@ -425,11 +438,11 @@ export default function Eventos() {
       // sem o slice, fmtDateBR/parseDateStr quebravam a exibição no modal.
       startDate: (event.startDate || "").slice(0, 10),
       truckDepartureDate: event.truckDepartureDate ? new Date(event.truckDepartureDate).toISOString().slice(0, 16) : "",
-      deadlineListaImagens: event.deadlineListaImagens ?? -25,
-      deadlineEntregaLayouts: event.deadlineEntregaLayouts ?? -20,
-      deadlineAprovacaoLayout: event.deadlineAprovacaoLayout ?? -12,
-      deadlineRevisaoLista: event.deadlineRevisaoLista ?? -8,
-      deadlineProducaoGrafica: event.deadlineProducaoGrafica ?? -1,
+      deadlineListaImagens: event.deadlineListaImagens ?? DEFAULT_DEADLINES.deadlineListaImagens,
+      deadlineEntregaLayouts: event.deadlineEntregaLayouts ?? DEFAULT_DEADLINES.deadlineEntregaLayouts,
+      deadlineAprovacaoLayout: event.deadlineAprovacaoLayout ?? DEFAULT_DEADLINES.deadlineAprovacaoLayout,
+      deadlineRevisaoLista: event.deadlineRevisaoLista ?? DEFAULT_DEADLINES.deadlineRevisaoLista,
+      deadlineProducaoGrafica: event.deadlineProducaoGrafica ?? DEFAULT_DEADLINES.deadlineProducaoGrafica,
     });
     setOpen(true);
   }, []);
@@ -447,33 +460,42 @@ export default function Eventos() {
     setSelectedSponsorIds([]);
     setSponsorQuotaMap({});
     setSponsorSearch("");
+    // Sem estes resets, um erro/carregamento pendente do modo EDITAR
+    // contaminava a próxima abertura em modo CRIAR (banner de erro fantasma).
+    setSponsorsError(false);
+    setSponsorsLoading(false);
     setPrazosExpanded(false);
   };
 
-  // Buscar patrocinadores vinculados ao editar evento
+  // Buscar patrocinadores vinculados ao editar evento — extraído do useEffect
+  // para o banner de erro poder oferecer "Tentar novamente".
+  const fetchEventSponsors = useCallback((eventId: string) => {
+    setSponsorsLoading(true);
+    setSponsorsError(false);
+    apiRequest("GET", `/api/events/${eventId}/sponsors`)
+      .then((res) => res.json())
+      .then((eventSponsors) => {
+        const sponsorIds = eventSponsors.map((es: any) => es.sponsorId);
+        const quotaMap: Record<string, string> = {};
+        eventSponsors.forEach((es: any) => { if (es.quota) quotaMap[es.sponsorId] = es.quota; });
+        setSelectedSponsorIds(sponsorIds);
+        setSponsorQuotaMap(quotaMap);
+        setSponsorsLoading(false);
+      })
+      .catch((error) => {
+        // NÃO zera selectedSponsorIds aqui: se zerasse e o usuário salvasse,
+        // o updateEvent removeria TODOS os vínculos de patrocinador do evento.
+        console.error("Erro ao buscar patrocinadores:", error);
+        setSponsorsError(true);
+        setSponsorsLoading(false);
+      });
+  }, []);
+
   useEffect(() => {
     if (editingEvent) {
-      setSponsorsLoading(true);
-      setSponsorsError(false);
-      apiRequest("GET", `/api/events/${editingEvent.id}/sponsors`)
-        .then((res) => res.json())
-        .then((eventSponsors) => {
-          const sponsorIds = eventSponsors.map((es: any) => es.sponsorId);
-          const quotaMap: Record<string, string> = {};
-          eventSponsors.forEach((es: any) => { if (es.quota) quotaMap[es.sponsorId] = es.quota; });
-          setSelectedSponsorIds(sponsorIds);
-          setSponsorQuotaMap(quotaMap);
-          setSponsorsLoading(false);
-        })
-        .catch((error) => {
-          // NÃO zera selectedSponsorIds aqui: se zerasse e o usuário salvasse,
-          // o updateEvent removeria TODOS os vínculos de patrocinador do evento.
-          console.error("Erro ao buscar patrocinadores:", error);
-          setSponsorsError(true);
-          setSponsorsLoading(false);
-        });
+      fetchEventSponsors(editingEvent.id);
     }
-  }, [editingEvent]);
+  }, [editingEvent, fetchEventSponsors]);
 
   const handleSetPriority = useCallback((event: any, e: React.MouseEvent) => {
     e.preventDefault();
@@ -608,6 +630,16 @@ export default function Eventos() {
     return `${p[2]}/${p[1]}/${p[0]}`;
   };
 
+  // Formulário "sujo" do modal criar/editar: com dados em jogo, Esc/clique-fora
+  // ficam bloqueados; pristine pode fechar sem cerimônia. No modo edição o
+  // formulário já abre preenchido, então é sempre tratado como sujo (comparar
+  // com um snapshot custaria mais do que vale aqui).
+  const formDirty = !!editingEvent
+    || formData.name.trim() !== ""
+    || formData.startDate !== ""
+    || formData.truckDepartureDate !== ""
+    || selectedSponsorIds.length > 0;
+
   return (
     <div style={{ backgroundColor: '#fafaf9', height: '100%', overflowY: 'auto', padding: isMobile ? '12px' : '32px', display: 'flex', flexDirection: 'column', gap: isMobile ? '14px' : '20px' }}>
 
@@ -628,7 +660,7 @@ export default function Eventos() {
           {canCreate && (
             <Button
               data-testid="button-create-event"
-              onClick={() => { setEditingEvent(null); setOpen(true); }}
+              onClick={() => { setEditingEvent(null); setSponsorsError(false); setSponsorsLoading(false); setOpen(true); }}
               style={{ flexShrink: 0, backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: '12px', fontWeight: '700', fontSize: '13px', padding: '0 18px', height: '34px', gap: '7px', boxShadow: '0 2px 8px rgba(249,115,22,0.28)', display: 'flex', alignItems: 'center' }}
             >
               <Plus style={{ width: '14px', height: '14px' }} />
@@ -641,8 +673,8 @@ export default function Eventos() {
           <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleCloseDialog(); else setOpen(true); }}>
             {/* ── MODAL CRIAR / EDITAR ── */}
             <DialogContent className="sm:max-w-[720px] p-0 gap-0" style={{ borderRadius: '16px', overflow: 'visible', boxShadow: '0 24px 48px -12px rgba(26,28,28,0.22)', maxHeight: 'calc(100dvh - 48px)', display: 'flex', flexDirection: 'column', maxWidth: isMobile ? '95vw' : undefined }}
-              onInteractOutside={e => e.preventDefault()}
-              onEscapeKeyDown={e => e.preventDefault()}>{/* evita descartar o formulário (nome, datas, prazos, patrocinadores) por clique fora/Esc acidental — usar Cancelar/Salvar */}
+              onInteractOutside={e => { if (formDirty) e.preventDefault(); }}
+              onEscapeKeyDown={e => { if (formDirty) e.preventDefault(); }}>{/* com dados preenchidos, evita descartar o formulário por clique fora/Esc acidental — usar Cancelar/Salvar; pristine fecha normalmente */}
               {/* Cabeçalho */}
               <div style={{ borderRadius: '16px 16px 0 0', overflow: 'hidden' }}>
                 {/* Faixa laranja */}
@@ -781,7 +813,7 @@ export default function Eventos() {
                             <button
                               type="button"
                               onClick={() => setOpenTruckDate(false)}
-                              style={{ marginLeft: 'auto', height: 34, padding: '0 14px', borderRadius: 6, border: 'none', background: '#f97316', color: '#ffffff', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+                              style={{ marginLeft: 'auto', height: 34, padding: '0 14px', borderRadius: 6, border: 'none', background: '#c2410c', color: '#ffffff', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
                             >
                               Ok
                             </button>
@@ -806,7 +838,7 @@ export default function Eventos() {
                       Patrocinadores
                       <span style={{ color: '#746e69', fontWeight: '400', textTransform: 'none', letterSpacing: 0 }}>(opcional)</span>
                       {selectedSponsorIds.length > 0 && (
-                        <span style={{ marginLeft: 'auto', fontSize: '10px', fontWeight: '700', color: '#f97316', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '999px', padding: '1px 8px', letterSpacing: 0, textTransform: 'none' }}>
+                        <span style={{ marginLeft: 'auto', fontSize: '10px', fontWeight: '700', color: '#c2410c', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '999px', padding: '1px 8px', letterSpacing: 0, textTransform: 'none' }}>
                           {selectedSponsorIds.length} selecionado{selectedSponsorIds.length > 1 ? 's' : ''}
                         </span>
                       )}
@@ -821,12 +853,22 @@ export default function Eventos() {
                     ) : (sponsorsQueryError || sponsorsError) ? (
                       <div role="alert" style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '12px 16px', fontSize: '13px', fontWeight: '600', color: '#b45309', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
                         <AlertTriangle style={{ width: '15px', height: '15px', flexShrink: 0, marginTop: '1px' }} />
-                        <span>Não foi possível carregar os patrocinadores — feche e tente de novo.</span>
+                        <span style={{ flex: 1 }}>Não foi possível carregar os patrocinadores.</span>
+                        {editingEvent && sponsorsError && (
+                          <button
+                            type="button"
+                            onClick={() => fetchEventSponsors(editingEvent.id)}
+                            data-testid="button-retry-sponsors"
+                            style={{ flexShrink: 0, background: 'transparent', border: 'none', padding: 0, fontSize: '13px', fontWeight: '700', color: '#b45309', textDecoration: 'underline', cursor: 'pointer', fontFamily: 'inherit' }}
+                          >
+                            Tentar novamente
+                          </button>
+                        )}
                       </div>
                     ) : sponsors.length === 0 ? (
                       <p style={{ fontSize: '13px', color: '#57534e', backgroundColor: '#f0efee', borderRadius: '8px', padding: '12px 16px' }}>
                         Nenhum patrocinador cadastrado.{" "}
-                        <Link href="/patrocinadores" style={{ color: '#f97316', fontWeight: '600' }}>Cadastre agora</Link>
+                        <Link href="/patrocinadores" style={{ color: '#c2410c', fontWeight: '600' }}>Cadastre agora</Link>
                       </p>
                     ) : (
                       <div style={{ backgroundColor: '#f0efee', borderRadius: '12px', overflow: 'hidden' }}>
@@ -876,8 +918,7 @@ export default function Eventos() {
                                   }}
                                   onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = '#f5f4f2'; }}
                                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = isSelected ? '#fff8f2' : 'transparent'; }}
-                                  onClick={(e) => {
-                                    if (!e.isTrusted) return;
+                                  onClick={() => {
                                     if (isSelected) {
                                       setSelectedSponsorIds(prev => prev.filter(id => id !== sponsor.id));
                                       setSponsorQuotaMap(prev => { const n = { ...prev }; delete n[sponsor.id]; return n; });
@@ -915,6 +956,7 @@ export default function Eventos() {
                                     >
                                       <SelectTrigger
                                         data-testid={`quota-select-${sponsor.id}`}
+                                        aria-label={`Cota de ${sponsor.name}`}
                                         className="w-auto"
                                         style={{
                                           fontSize: '11px',
@@ -949,6 +991,7 @@ export default function Eventos() {
                                   {/* Checkbox */}
                                   <Checkbox
                                     id={`sponsor-${sponsor.id}`}
+                                    aria-label={sponsor.name}
                                     checked={isSelected}
                                     onCheckedChange={(checked) => {
                                       if (checked) {
@@ -985,7 +1028,7 @@ export default function Eventos() {
                         if (dow === 6) d.setDate(d.getDate() - 1); // sábado → sexta
                         else if (dow === 0) d.setDate(d.getDate() + 1); // domingo → segunda
                       }
-                      return d.toISOString().slice(0, 10);
+                      return toDateStr(d);
                     };
                     // Converte data escolhida de volta em offset (dias)
                     const dateStrToOffset = (dateStr: string): number => {
@@ -1160,8 +1203,10 @@ export default function Eventos() {
           />
         </div>
 
-        {/* Divisor */}
-        <div style={{ width: '1px', height: '20px', backgroundColor: '#e7e5e4', flexShrink: 0 }} />
+        {/* Divisor — só no desktop; no mobile a busca ocupa a linha inteira e o traço ficava órfão */}
+        {!isMobile && (
+          <div style={{ width: '1px', height: '20px', backgroundColor: '#e7e5e4', flexShrink: 0 }} />
+        )}
 
         {/* Filtro de prioridade — múltiplo, cores de PRIORITY, contagens da lista já filtrada */}
         <FilterSelect
@@ -1339,7 +1384,7 @@ export default function Eventos() {
                   {/* Linha 1: badge de status/prioridade + ações */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', position: 'relative', zIndex: 1 }}>
                     {isCompleted ? (
-                      <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', padding: '4px 10px', borderRadius: '6px' }}>
+                      <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#047857', backgroundColor: 'rgba(16,185,129,0.1)', padding: '4px 10px', borderRadius: '6px' }}>
                         Concluído
                       </span>
                     ) : !event.priority ? (
@@ -1348,7 +1393,7 @@ export default function Eventos() {
                         Sem prioridade
                       </span>
                     ) : (
-                      <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.07em', color: cardBorderHex, backgroundColor: cardBorderHex + '12', padding: '4px 10px', borderRadius: '6px' }}>
+                      <span style={{ fontSize: '10px', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.07em', color: priorityConfig.text, backgroundColor: cardBorderHex + '12', padding: '4px 10px', borderRadius: '6px' }}>
                         {priorityConfig.label}
                       </span>
                     )}
@@ -1361,6 +1406,7 @@ export default function Eventos() {
                       canEdit={canEdit}
                       canDelete={canDelete}
                       canSetPriority={canSetPriority}
+                      isCompleted={isCompleted}
                       isMobile={isMobile}
                     />
                   </div>
@@ -1386,7 +1432,7 @@ export default function Eventos() {
                   <div style={{ margin: '4px 0', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                       <p style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Saída Caminhão</p>
-                      <div className={!isCompleted && truckUrgency === 'urgent' ? 'animate-pulse' : ''} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                      <div className={!isCompleted && truckUrgency === 'urgent' ? 'motion-safe:animate-pulse' : ''} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                         <Truck style={{ width: '16px', height: '16px', color: truckIconColor, flexShrink: 0 }} />
                         <span style={{ fontSize: '16px', fontWeight: '700', color: truckTextColor }}>
                           {new Date(event.truckDepartureDate).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', timeZone: 'UTC' }).replace('.', '')}
@@ -1415,13 +1461,13 @@ export default function Eventos() {
                         {isCompleted && itemCount === 0 ? 'Sem peças' : `${deliveredCount}/${itemCount} Entregues`}
                       </span>
                       {isCompleted ? (
-                        <span style={{ fontSize: '11px', fontWeight: '800', color: '#10b981' }}>Concluído</span>
+                        <span style={{ fontSize: '11px', fontWeight: '800', color: '#047857' }}>Concluído</span>
                       ) : (
                         <span style={{ fontSize: '11px', fontWeight: '800', color: '#1c1917' }}>{progressPct}%</span>
                       )}
                     </div>
                     <div style={{ width: '100%', backgroundColor: '#f0efee', borderRadius: '999px', height: '8px', overflow: 'hidden' }}>
-                      <div style={{ height: '100%', backgroundColor: isCompleted ? '#10b981' : progressColor, borderRadius: '999px', width: isCompleted ? '100%' : `${progressPct}%`, transition: 'width 0.4s ease' }} />
+                      <div style={{ height: '100%', backgroundColor: isCompleted ? '#10b981' : progressColor, borderRadius: '999px', width: `${progressPct}%`, transition: 'width 0.4s ease' }} />
                     </div>
                   </div>
                 </div>
@@ -1458,6 +1504,7 @@ export default function Eventos() {
 
           <AlertDialogFooter style={{ padding: "16px 32px 32px 32px", display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px" }}>
             <AlertDialogCancel
+              disabled={deleteEventMutation.isPending}
               style={{ padding: "9px 24px", backgroundColor: "transparent", border: "1px solid #e0c0b1", borderRadius: "6px", fontSize: "13px", fontWeight: "700", color: "#625d5b", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif", transition: "background-color 0.15s" }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#f3f4f3")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
@@ -1482,10 +1529,11 @@ export default function Eventos() {
       <Dialog open={priorityDialogOpen} onOpenChange={setPriorityDialogOpen}>
         <DialogContent className="sm:max-w-md p-0 gap-0" style={{ borderRadius: '12px', overflow: 'hidden' }}>
           {/* Cabeçalho */}
-          <div style={{ backgroundColor: '#f3f4f3', borderBottom: '1px solid #e7e5e4', padding: '18px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ backgroundColor: '#f3f4f3', borderBottom: '1px solid #e7e5e4', padding: '18px 24px', paddingRight: 48, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '15px', fontWeight: '700', color: '#1c1917', margin: 0, textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
               Definir Prioridade
             </DialogTitle>
+            <DialogDescription className="sr-only">Escolha o nível de prioridade do evento.</DialogDescription>
             {selectedEventForPriority && (
               <span style={{ fontSize: '10px', fontWeight: '700', color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                 {selectedEventForPriority.name.length > 20 ? selectedEventForPriority.name.slice(0, 20) + '…' : selectedEventForPriority.name}
@@ -1505,6 +1553,7 @@ export default function Eventos() {
                   key={key}
                   onClick={() => handlePrioritySelect(key)}
                   disabled={isPending}
+                  aria-pressed={isSelected}
                   style={{
                     height: '72px',
                     display: 'flex', alignItems: 'center', gap: '12px',

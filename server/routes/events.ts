@@ -11,6 +11,14 @@ import {
 
 import { eventsCache, setEventsCache } from "../cache";
 
+// Normaliza startDate/truckDepartureDate (string "YYYY-MM-DD[THH:MM...]" ou Date
+// vindo do storage) para a data-calendário "YYYY-MM-DD", sem envolver timezone
+// local. Datetimes do app são tratados como UTC em toda a UI.
+function toDateOnlyStr(value: unknown): string {
+  if (value instanceof Date) return value.toISOString().slice(0, 10);
+  return String(value ?? "").slice(0, 10);
+}
+
 export function registerEventRoutes(app: Express): void {
   // ============ EVENTS ============
   
@@ -100,17 +108,16 @@ export function registerEventRoutes(app: Express): void {
         return res.status(403).json({ error: "Sem permissão para criar eventos" });
       }
       const validatedData = insertEventSchema.parse(req.body);
-      
-      // Validação: Saída do caminhão deve ser pelo menos 1 dia antes do início do evento
-      const startDate = new Date(validatedData.startDate);
-      const truckDate = new Date(validatedData.truckDepartureDate);
-      startDate.setHours(0, 0, 0, 0);
-      const truckDateOnly = new Date(truckDate);
-      truckDateOnly.setHours(0, 0, 0, 0);
-      
-      if (truckDateOnly >= startDate) {
-        return res.status(400).json({ 
-          error: "A saída do caminhão deve ser pelo menos 1 dia antes do início do evento" 
+
+      // Validação: saída do caminhão deve ser pelo menos 1 dia antes do início.
+      // Comparação por STRING (YYYY-MM-DD), igual ao cliente — new Date() misturava
+      // UTC (date-only) com horário local (datetime) e, em America/Sao_Paulo,
+      // rejeitava com 400 o caso-limite que a UI permite.
+      const s = toDateOnlyStr(validatedData.startDate);
+      const t = toDateOnlyStr(validatedData.truckDepartureDate);
+      if (t >= s) {
+        return res.status(400).json({
+          error: "A saída do caminhão deve ser pelo menos 1 dia antes do início do evento"
         });
       }
       
@@ -146,15 +153,23 @@ export function registerEventRoutes(app: Express): void {
     try {
       const validatedData = insertEventSchema.partial().parse(req.body);
 
-      // Validação: Se ambas as datas estão sendo atualizadas, verificar regra
-      if (validatedData.startDate && validatedData.truckDepartureDate) {
-        const startDate = new Date(validatedData.startDate);
-        const truckDate = new Date(validatedData.truckDepartureDate);
-        startDate.setHours(0, 0, 0, 0);
-        const truckDateOnly = new Date(truckDate);
-        truckDateOnly.setHours(0, 0, 0, 0);
-
-        if (truckDateOnly >= startDate) {
+      // Validação: se QUALQUER uma das datas está sendo alterada, verificar a
+      // regra — compondo o lado ausente com o evento atual (payload parcial).
+      // Comparação por STRING (YYYY-MM-DD), igual ao cliente e ao POST acima.
+      if (validatedData.startDate || validatedData.truckDepartureDate) {
+        let startRaw: unknown = validatedData.startDate;
+        let truckRaw: unknown = validatedData.truckDepartureDate;
+        if (!startRaw || !truckRaw) {
+          const current = await storage.getEvent(req.params.id);
+          if (!current) {
+            return res.status(404).json({ error: "Event not found" });
+          }
+          startRaw = startRaw || current.startDate;
+          truckRaw = truckRaw || current.truckDepartureDate;
+        }
+        const s = toDateOnlyStr(startRaw);
+        const t = toDateOnlyStr(truckRaw);
+        if (s && t && t >= s) {
           return res.status(400).json({
             error: "A saída do caminhão deve ser pelo menos 1 dia antes do início do evento"
           });

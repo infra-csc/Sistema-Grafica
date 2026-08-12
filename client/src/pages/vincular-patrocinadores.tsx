@@ -16,7 +16,7 @@ import { ptBR } from "date-fns/locale";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useAuth } from "@/contexts/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { ModalHeader, ModalFooter, modalSurface } from "@/components/modal-shell";
+import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { R, onColor } from "@/lib/theme";
 
 type ItemChanges = {
@@ -1363,7 +1363,7 @@ export default function VincularPatrocinadores() {
 
       {/* ── Preview de Referência Visual ── */}
       <Dialog open={!!previewRefUrl} onOpenChange={open => !open && setPreviewRefUrl(null)}>
-        <DialogContent style={modalSurface(560)}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(560)}>
           <DialogTitle className="sr-only">Referência visual</DialogTitle>
           <DialogDescription className="sr-only">Imagem de referência anexada à peça</DialogDescription>
           <ModalHeader
@@ -1402,7 +1402,7 @@ export default function VincularPatrocinadores() {
 
       {/* ── Dialog: Auto-vincular por Cota ── */}
       <Dialog open={autoLinkOpen} onOpenChange={open => { if (autoLinkConfirming) return; if (!open) { setAutoLinkOpen(false); setAutoLinkPreview(null); } }}>
-        <DialogContent style={modalSurface(600)}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(600)}>
           <DialogTitle className="sr-only">Auto-vincular por cota</DialogTitle>
           <DialogDescription className="sr-only">Vincula patrocinadores conforme as regras de cota do evento</DialogDescription>
           <ModalHeader
@@ -3054,7 +3054,7 @@ export default function VincularPatrocinadores() {
 
       {/* Dialog — Gerenciar Patrocinadores do Evento */}
       <Dialog open={sponsorDialogOpen} onOpenChange={(open) => { setSponsorDialogOpen(open); if (!open) setSponsorModalSearch(''); }}>
-        <DialogContent style={modalSurface(600)}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(600)}>
           <DialogTitle className="sr-only">Patrocinadores do evento</DialogTitle>
           <DialogDescription className="sr-only">Escolha quais patrocinadores participam deste evento</DialogDescription>
           <ModalHeader
@@ -3219,7 +3219,7 @@ export default function VincularPatrocinadores() {
 
       {/* Dialog — Aplicar Patrocinadores em Lote */}
       <Dialog open={bulkApplyDialogOpen} onOpenChange={(o) => { setBulkApplyDialogOpen(o); if (!o) setBulkSponsorSearch(''); }}>
-        <DialogContent style={modalSurface(560)}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(560)}>
           <DialogTitle className="sr-only">Aplicar patrocinadores em lote</DialogTitle>
           <DialogDescription className="sr-only">Aplica os patrocinadores escolhidos a todas as peças selecionadas</DialogDescription>
           <ModalHeader
@@ -3631,7 +3631,7 @@ export default function VincularPatrocinadores() {
 
       {/* ── MODAL DE CONFIRMAÇÃO DE SALVAMENTO ── */}
       <Dialog open={!!saveConfirmModal} onOpenChange={open => { if (!open && !saveLinkingMutation.isPending) setSaveConfirmModal(null); }}>
-        <DialogContent style={modalSurface(480)}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(480)}>
           <DialogTitle className="sr-only">Confirmar salvamento</DialogTitle>
           <ModalHeader
             variant="confirm"
@@ -3695,7 +3695,7 @@ export default function VincularPatrocinadores() {
 
       {/* ── MODAL DE CONFIRMAÇÃO: DEVOLVER PARA CRIAÇÃO ── */}
       <Dialog open={!!returnModal} onOpenChange={open => { if (!open && !returnToCreationMutation.isPending) setReturnModal(null); }}>
-        <DialogContent style={modalSurface(440)}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(440)}>
           <DialogTitle className="sr-only">Devolver para Criação</DialogTitle>
           <ModalHeader
             variant="confirm"

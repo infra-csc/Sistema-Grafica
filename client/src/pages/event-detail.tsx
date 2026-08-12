@@ -4,7 +4,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { getStatusLabel, getStatusMeta, FINAL_STATUSES, PRODUCTION_STATUSES } from "@/lib/status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, ChevronsUpDown, Building2, Loader2, User, History, Lock, Paperclip, ExternalLink, X, RotateCcw, Recycle, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, Search } from "lucide-react";
+import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, Building2, Loader2, User, History, Lock, Paperclip, ExternalLink, X, RotateCcw, Recycle, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, Search } from "lucide-react";
 import { Fragment, useState, useEffect, useMemo, useRef } from "react";
 import type { Sponsor, Item, Event as EventRecord } from "@shared/schema";
 import {
@@ -12,9 +12,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogFooter,
-  DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -29,8 +27,6 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -38,7 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { BulkItemEntry } from "@/components/bulk-item-entry";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { useAuth } from "@/contexts/auth-context";
-import { cn, parseDateLocal } from "@/lib/utils";
+import { parseDateLocal } from "@/lib/utils";
 import { calculateM2 } from "@/lib/calculateM2";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -49,7 +45,7 @@ import { useEventImport, useEventClone } from "@/hooks/use-event-import";
 import { useEventReference } from "@/hooks/use-event-reference";
 import { useEventItemFlags } from "@/hooks/use-event-item-flags";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { ModalHeader, modalSurface } from "@/components/modal-shell";
+import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 
 const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
 const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];
@@ -76,6 +72,455 @@ const EMPTY_ITEM_FORM = {
   referenceUrl: "",
 };
 
+type ItemFormData = typeof EMPTY_ITEM_FORM;
+
+// Tipografia e controles do formulário de peça — a MESMA cara nos dois fluxos.
+const FIELD_LABEL: React.CSSProperties = { fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" };
+const FIELD_INPUT: React.CSSProperties = { width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: 8, padding: "12px 16px", fontSize: 15, fontWeight: 500, color: "#1a1c1c", transition: "box-shadow 0.15s" };
+
+interface ItemFormProps {
+  mode: "create" | "edit";
+  formData: ItemFormData;
+  setFormData: React.Dispatch<React.SetStateAction<ItemFormData>>;
+  standardItems: any[];
+  typeOptions: string[];
+  materialOptions: string[];
+  finishOptions: string[];
+  sponsors: Sponsor[];
+  customMaterial: boolean;
+  setCustomMaterial: (v: boolean) => void;
+  customFinish: boolean;
+  setCustomFinish: (v: boolean) => void;
+  isMobile: boolean;
+  isAdmin: boolean;
+  isPending: boolean;
+  onSubmit: (e: React.FormEvent) => void;
+  onCancel: () => void;
+  localRefPreview: string;
+  setLocalRefPreview: (v: string) => void;
+  getUploadUrl: () => Promise<{ method: "PUT"; url: string }>;
+}
+
+// Formulário de peça unificado. Antes eram DUAS implementações independentes
+// da mesma entidade: o modo simples do "Adicionar Peça" (Popover+Command,
+// primário #1c1917) e o "Editar Peça" (selects nativos, primário #c2410c) —
+// a mesma peça tinha duas caras. A versão do EDITAR (revisada e aprovada pelo
+// dono) virou a base; o `mode` controla só as diferenças de negócio:
+// create = tipo/qtd/descrição/dimensões/material/acabamento; edit soma
+// Reaproveitamento, Patrocinador, Referência (Ctrl+V) e Pular Aprovação.
+function ItemForm({
+  mode, formData, setFormData, standardItems, typeOptions, materialOptions,
+  finishOptions, sponsors, customMaterial, setCustomMaterial, customFinish,
+  setCustomFinish, isMobile, isAdmin, isPending, onSubmit, onCancel,
+  localRefPreview, setLocalRefPreview, getUploadUrl,
+}: ItemFormProps) {
+  const isEdit = mode === "edit";
+  // "Digitar novo tipo" só existe no criar — no editar o tipo já é texto livre.
+  const [customType, setCustomType] = useState(false);
+  const focusRing = (e: React.FocusEvent<HTMLElement>) => ((e.currentTarget as HTMLElement).style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)");
+  const blurRing = (e: React.FocusEvent<HTMLElement>) => ((e.currentTarget as HTMLElement).style.boxShadow = "none");
+
+  const typeKnown = standardItems.some((s: any) => s.name === formData.type) || typeOptions.includes(formData.type);
+
+  return (
+    <form onSubmit={onSubmit} style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0 }}>
+      <div className="scrollbar-visible" style={{ flex: 1, overflowY: "auto", padding: "28px", display: "flex", flexDirection: "column", gap: 24 }}>
+
+        {/* Linha 1: Tipo (3fr) | Qtd. (1fr) | M2 Total (1fr) */}
+        <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr 1fr", gap: 16 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <label style={FIELD_LABEL}>Tipo de Peça</label>
+            {isEdit ? (
+              <input
+                autoFocus
+                value={formData.type}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                placeholder="Ex: Banner Lona Frontlight"
+                data-testid="input-edit-type"
+                style={FIELD_INPUT}
+                onFocus={focusRing}
+                onBlur={blurRing}
+              />
+            ) : customType ? (
+              <input
+                autoFocus
+                value={formData.type}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                placeholder="Digite o novo tipo..."
+                data-testid="input-type-name-edit"
+                style={FIELD_INPUT}
+                onFocus={focusRing}
+                onBlur={blurRing}
+              />
+            ) : (
+              <select
+                autoFocus
+                value={typeKnown ? formData.type : formData.type ? "__atual__" : ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "__novo__") { setFormData({ ...formData, type: "" }); setCustomType(true); return; }
+                  if (v === "__atual__") return;
+                  const model = standardItems.find((s: any) => s.name === v);
+                  if (model) {
+                    // Selecionar um Modelo pré-preenche dimensões/material/
+                    // acabamento — mesmo comportamento do Popover antigo.
+                    setFormData({
+                      ...formData,
+                      type: model.name,
+                      visualWidth: model.visualWidth ? String(model.visualWidth) : (model.area ? String(model.area) : ""),
+                      visualHeight: model.visualHeight ? String(model.visualHeight) : (model.visual ? String(model.visual) : ""),
+                      fileWidth: model.fileWidth ? String(model.fileWidth) : "",
+                      fileHeight: model.fileHeight ? String(model.fileHeight) : "",
+                      material: model.material || "",
+                      finish: model.finish || "",
+                      measurement: (model.visualWidth && model.visualHeight) ? `${model.visualWidth} × ${model.visualHeight}` : (model.area && model.visual ? `${model.area} × ${model.visual}` : ""),
+                    });
+                    return;
+                  }
+                  setFormData({ ...formData, type: v });
+                }}
+                data-testid="select-item-type"
+                style={{ ...FIELD_INPUT, cursor: "pointer" }}
+              >
+                <option value="">— selecione —</option>
+                {formData.type && !typeKnown && <option value="__atual__">{formData.type} (atual)</option>}
+                {standardItems.length > 0 && (
+                  <optgroup label="Modelos">
+                    {standardItems.map((s: any) => <option key={s.id} value={s.name}>{s.name}</option>)}
+                  </optgroup>
+                )}
+                <optgroup label="Outros Tipos">
+                  {typeOptions.filter(t => !standardItems.some((s: any) => s.name === t)).map(t => <option key={t} value={t}>{t}</option>)}
+                </optgroup>
+                <option value="__novo__">+ Novo tipo...</option>
+              </select>
+            )}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <label style={FIELD_LABEL}>Qtd.</label>
+            <input
+              type="number"
+              min="1"
+              required={!isEdit}
+              value={formData.quantity}
+              onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
+              data-testid={isEdit ? "input-edit-quantity" : "input-quantity"}
+              style={FIELD_INPUT}
+              onFocus={focusRing}
+              onBlur={blurRing}
+            />
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            <label style={FIELD_LABEL}>M2 Total</label>
+            <input
+              readOnly
+              tabIndex={-1}
+              value={formData.fileWidth && formData.fileHeight
+                ? calculateM2(formData.quantity, parseFloat(formData.fileWidth) || 0, parseFloat(formData.fileHeight) || 0).toFixed(2) + " m²"
+                : "—"
+              }
+              style={{ ...FIELD_INPUT, fontWeight: 700, color: formData.fileWidth && formData.fileHeight ? "#f97316" : "#746e69", cursor: "default" }}
+            />
+          </div>
+        </div>
+
+        {/* Reaproveitamento — banner topo (só na edição) */}
+        {isEdit && (
+          <div
+            data-testid="toggle-is-reuse"
+            onClick={() => setFormData({ ...formData, isReuse: !formData.isReuse })}
+            style={{
+              backgroundColor: formData.isReuse ? "#059669" : "#f3f4f3",
+              border: `2px solid ${formData.isReuse ? "#047857" : "#e5e7eb"}`,
+              padding: "14px 18px", borderRadius: "12px",
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
+              cursor: "pointer", transition: "all 0.15s",
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div style={{ backgroundColor: formData.isReuse ? "rgba(255,255,255,0.2)" : "#e5e7eb", borderRadius: "8px", padding: "8px", flexShrink: 0 }}>
+                <RotateCcw style={{ width: 18, height: 18, color: formData.isReuse ? "#ffffff" : "#6b7280" }} />
+              </div>
+              <div>
+                <p style={{ fontSize: "15px", fontWeight: 700, color: formData.isReuse ? "#ffffff" : "#374151", margin: 0 }}>Reaproveitamento</p>
+                <p style={{ fontSize: "13px", color: formData.isReuse ? "rgba(255,255,255,0.8)" : "#9ca3af", margin: 0 }}>Gráfica entrega direto — sem etapa de produção</p>
+              </div>
+            </div>
+            <Checkbox
+              checked={formData.isReuse}
+              onCheckedChange={(checked) => setFormData({ ...formData, isReuse: !!checked })}
+              data-testid="checkbox-is-reuse"
+              style={{ width: "20px", height: "20px", accentColor: "#ffffff", pointerEvents: "none", flexShrink: 0 }}
+            />
+          </div>
+        )}
+
+        {/* Descrição */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          <label style={FIELD_LABEL}>Descrição do Item <span style={{ color: "#8b8580", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: 10 }}>(opcional)</span></label>
+          <input
+            value={formData.description}
+            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+            placeholder={isEdit ? "Ex: Banner para fachada lateral com ilhós" : "Ex: Banner Frontlit Entrada Principal"}
+            data-testid={isEdit ? "input-edit-description" : "input-description"}
+            style={FIELD_INPUT}
+            onFocus={focusRing}
+            onBlur={blurRing}
+          />
+        </div>
+
+        {/* Dimensões — painel bg */}
+        <div style={{ backgroundColor: "rgba(243,244,243,0.6)", padding: "24px", borderRadius: "12px" }}>
+          <div style={{ ...FIELD_LABEL, marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
+            <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#f97316", display: "inline-block", flexShrink: 0 }}></span>
+            Dimensões de Produção
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: "12px" }}>
+            {[
+              { label: "Visual Larg.", key: "visualWidth", orange: true, testId: isEdit ? "input-edit-visual-width" : "input-visual-width" },
+              { label: "Visual Alt.", key: "visualHeight", orange: true, testId: isEdit ? "input-edit-visual-height" : "input-visual-height" },
+              { label: "Arquivo Larg.", key: "fileWidth", orange: false, testId: isEdit ? "input-edit-file-width" : "input-file-width" },
+              { label: "Arquivo Alt.", key: "fileHeight", orange: false, testId: isEdit ? "input-edit-file-height" : "input-file-height" },
+            ].map((dim) => (
+              <div key={dim.key} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: "#746e69", display: "flex", alignItems: "center", gap: "5px" }}>
+                  <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: dim.orange ? "#f97316" : "#a8a29e", display: "inline-block", flexShrink: 0 }}></span>
+                  {dim.label}
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min={isEdit ? undefined : "0"}
+                  required={!isEdit}
+                  value={(formData as any)[dim.key]}
+                  onChange={(e) => setFormData({ ...formData, [dim.key]: e.target.value })}
+                  placeholder="0.00"
+                  data-testid={dim.testId}
+                  style={{ width: "100%", backgroundColor: "#ffffff", border: "none", borderRadius: "8px", padding: "8px 12px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", transition: "box-shadow 0.15s" }}
+                  onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
+                  onBlur={(e) => (e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.08)")}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Material | Acabamento | Patrocinador (patrocinador só na edição) */}
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : (isEdit ? "1fr 1fr 1fr" : "1fr 1fr"), gap: "16px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <label style={FIELD_LABEL}>Material</label>
+            {customMaterial ? (
+              <input
+                autoFocus
+                value={formData.material}
+                onChange={(e) => setFormData({ ...formData, material: e.target.value })}
+                placeholder="Digite o novo material..."
+                data-testid={isEdit ? "input-edit-material" : "select-material"}
+                style={FIELD_INPUT}
+              />
+            ) : (
+              <select
+                value={materialOptions.includes(formData.material) ? formData.material : formData.material ? "__atual__" : ""}
+                onChange={(e) => {
+                  if (e.target.value === "__novo__") { setFormData({ ...formData, material: "" }); setCustomMaterial(true); return; }
+                  if (e.target.value === "__atual__") return;
+                  setFormData({ ...formData, material: e.target.value });
+                }}
+                data-testid={isEdit ? "input-edit-material" : "select-material"}
+                style={{ ...FIELD_INPUT, cursor: "pointer" }}
+              >
+                <option value="">— selecione —</option>
+                {formData.material && !materialOptions.includes(formData.material) && (
+                  <option value="__atual__">{formData.material} (atual)</option>
+                )}
+                {materialOptions.map(m => <option key={m} value={m}>{m}</option>)}
+                <option value="__novo__">+ Novo material...</option>
+              </select>
+            )}
+            {/* O cadastro automático no catálogo só acontece no PATCH de edição. */}
+            {isEdit && formData.material.trim() && !materialOptions.some(m => m.toLowerCase() === formData.material.trim().toLowerCase()) && (
+              <span style={{ fontSize: "11px", fontWeight: 600, color: "#b45309", display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
+                <Plus style={{ width: 12, height: 12, flexShrink: 0 }} /> Novo material — será criado no catálogo ao salvar
+              </span>
+            )}
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <label style={FIELD_LABEL}>Acabamento</label>
+            {customFinish ? (
+              <input
+                autoFocus
+                value={formData.finish}
+                onChange={(e) => setFormData({ ...formData, finish: e.target.value })}
+                placeholder="Digite o novo acabamento..."
+                data-testid={isEdit ? "input-edit-finish" : "select-finish"}
+                style={FIELD_INPUT}
+              />
+            ) : (
+              <select
+                value={finishOptions.includes(formData.finish) ? formData.finish : formData.finish ? "__atual__" : ""}
+                onChange={(e) => {
+                  if (e.target.value === "__novo__") { setFormData({ ...formData, finish: "" }); setCustomFinish(true); return; }
+                  if (e.target.value === "__atual__") return;
+                  setFormData({ ...formData, finish: e.target.value });
+                }}
+                data-testid={isEdit ? "input-edit-finish" : "select-finish"}
+                style={{ ...FIELD_INPUT, cursor: "pointer" }}
+              >
+                <option value="">— selecione —</option>
+                {formData.finish && !finishOptions.includes(formData.finish) && (
+                  <option value="__atual__">{formData.finish} (atual)</option>
+                )}
+                {finishOptions.map(f => <option key={f} value={f}>{f}</option>)}
+                <option value="__novo__">+ Novo acabamento...</option>
+              </select>
+            )}
+            {isEdit && formData.finish.trim() && !finishOptions.some(f => f.toLowerCase() === formData.finish.trim().toLowerCase()) && (
+              <span style={{ fontSize: "11px", fontWeight: 600, color: "#065f46", display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
+                <Plus style={{ width: 12, height: 12, flexShrink: 0 }} /> Novo acabamento — será criado no catálogo ao salvar
+              </span>
+            )}
+          </div>
+          {isEdit && (
+            <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+              <label style={FIELD_LABEL}>Patrocinador</label>
+              <Select
+                value={formData.sponsorId || "none"}
+                onValueChange={(value) => setFormData({ ...formData, sponsorId: value === "none" ? "" : value })}
+              >
+                <SelectTrigger
+                  className="border-0 focus:ring-0 focus:ring-offset-0 text-sm font-medium"
+                  style={{ backgroundColor: "#f3f4f3", borderRadius: "8px", padding: "12px 16px", height: "auto", color: "#1a1c1c" }}
+                  data-testid="select-edit-sponsor"
+                >
+                  <SelectValue placeholder="Nenhum" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">Nenhum</SelectItem>
+                  {sponsors.map(sponsor => (
+                    <SelectItem key={sponsor.id} value={sponsor.id}>
+                      {sponsor.name}
+                      {sponsor.company && ` (${sponsor.company})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+
+        {/* Referência (opcional — só na edição, com Ctrl+V de print) */}
+        {isEdit && (
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <label style={FIELD_LABEL}>
+              Referência <span style={{ color: "#8b8580", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "10px" }}>(opcional — cole um print com Ctrl+V ou anexe uma imagem, em alta qualidade)</span>
+            </label>
+            {(localRefPreview || formData.referenceUrl) ? (
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+                {/* Thumbnail preview */}
+                <div style={{ flexShrink: 0, width: 80, height: 80, borderRadius: 8, overflow: "hidden", border: "1px solid #e7e5e4", backgroundColor: "#f5f5f4" }}>
+                  <img
+                    src={localRefPreview || formData.referenceUrl}
+                    style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                    alt="Referência visual"
+                    onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                  />
+                </div>
+                {/* Ações */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 6, justifyContent: "center", paddingTop: 4 }}>
+                  <ObjectUploader
+                    onGetUploadParameters={getUploadUrl}
+                    onFileSelect={(_file, previewUrl) => setLocalRefPreview(previewUrl)}
+                    onComplete={({ url }) => { setFormData(f => ({ ...f, referenceUrl: url })); setLocalRefPreview(""); }}
+                    buttonVariant="outline"
+                  >
+                    <Paperclip className="h-3 w-3 mr-1" /> Trocar imagem
+                  </ObjectUploader>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive justify-start px-2"
+                    onClick={() => { setFormData(f => ({ ...f, referenceUrl: "" })); setLocalRefPreview(""); }}
+                    data-testid="button-remove-reference"
+                  >
+                    <X className="h-3 w-3 mr-1" /> Remover
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <ObjectUploader
+                onGetUploadParameters={getUploadUrl}
+                onFileSelect={(_file, previewUrl) => setLocalRefPreview(previewUrl)}
+                onComplete={({ url }) => { setFormData(f => ({ ...f, referenceUrl: url })); setLocalRefPreview(""); }}
+                buttonVariant="outline"
+              >
+                <Paperclip className="h-3.5 w-3.5 mr-1.5" /> Adicionar referência visual
+              </ObjectUploader>
+            )}
+          </div>
+        )}
+
+        {/* Observações */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          <label style={FIELD_LABEL}>Observações Internas <span style={{ color: "#8b8580", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: 10 }}>(opcional)</span></label>
+          <textarea
+            value={formData.observations}
+            onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
+            placeholder="Reforço, instruções especiais ou observações de produção..."
+            rows={3}
+            data-testid={isEdit ? "textarea-edit-observations" : "textarea-observations"}
+            style={{ ...FIELD_INPUT, resize: "none", fontFamily: "inherit" }}
+            onFocus={focusRing}
+            onBlur={blurRing}
+          />
+        </div>
+
+        {/* Pular Aprovação — apenas Admin, só na edição */}
+        {isEdit && isAdmin && (
+          <div style={{ backgroundColor: "#fffbeb", borderLeft: "4px solid #fbbf24", padding: "14px 16px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <AlertTriangle style={{ width: 20, height: 20, color: "#d97706", flexShrink: 0 }} />
+              <p style={{ fontSize: "15px", fontWeight: 500, color: "#92400e" }}>Pular aprovação técnica <span style={{ fontSize: "13px", color: "#b45309" }}>(Apenas Administrativo)</span></p>
+            </div>
+            <Checkbox
+              id="skip-approval-edit"
+              checked={formData.skipApproval}
+              onCheckedChange={(checked) => setFormData({ ...formData, skipApproval: !!checked })}
+              data-testid="checkbox-skip-approval"
+              style={{ width: "20px", height: "20px", accentColor: "#d97706" }}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Rodapé — primário ÚNICO #c2410c nos dois modos */}
+      <ModalFooter>
+        <button
+          type="submit"
+          disabled={isPending}
+          data-testid={isEdit ? "button-save-edit" : "button-submit-item"}
+          style={{ width: "100%", height: 44, borderRadius: 8, border: "none", backgroundColor: "#c2410c", color: "#fff", fontSize: 13, fontWeight: 800, cursor: isPending ? "wait" : "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, opacity: isPending ? 0.7 : 1, transition: "background-color 0.15s" }}
+          onMouseEnter={(e) => { if (!isPending) e.currentTarget.style.backgroundColor = "#9a3412"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#c2410c"; }}
+        >
+          {isEdit ? <Check style={{ width: 15, height: 15 }} /> : <Plus style={{ width: 15, height: 15 }} />}
+          {isEdit
+            ? (isPending ? "Salvando..." : "Salvar Alterações")
+            : (isPending ? "Adicionando..." : "Adicionar Peça")}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          data-testid={isEdit ? "button-cancel-edit" : "button-cancel-item"}
+          style={{ width: "100%", height: 36, borderRadius: 8, border: "none", background: "none", fontSize: 13, fontWeight: 600, color: "#746e69", cursor: "pointer" }}
+        >
+          Cancelar
+        </button>
+      </ModalFooter>
+    </form>
+  );
+}
+
 export default function EventDetail() {
   const { hasPermission, user } = useAuth();
   const [, params] = useRoute("/eventos/:id");
@@ -92,13 +537,6 @@ export default function EventDetail() {
   // Objeto inteiro (não só o id): o diálogo de confirmação escreve QUAL peça
   // vai ser excluída — com só o id, a mensagem era genérica.
   const [deletingItem, setDeletingItem] = useState<any | null>(null);
-  const [typePopoverOpen, setTypePopoverOpen] = useState(false);
-  const [materialPopoverOpen, setMaterialPopoverOpen] = useState(false);
-  const [finishPopoverOpen, setFinishPopoverOpen] = useState(false);
-  const [customTypeInput, setCustomTypeInput] = useState("");
-  const [editingTypeName, setEditingTypeName] = useState(false);
-  const [customMaterialInput, setCustomMaterialInput] = useState("");
-  const [customFinishInput, setCustomFinishInput] = useState("");
   const [selectedItemForDetails, setSelectedItemForDetails] = useState<any | null>(null);
   const [itemSearch, setItemSearch] = useState("");
   const [showAllItems, setShowAllItems] = useState(false);
@@ -939,6 +1377,10 @@ export default function EventDetail() {
               onClick={() => {
                 setEditingItem(null);
                 setBulkMode(true);
+                // O form simples compartilha os selects com sentinela do
+                // editar — volta Material/Acabamento ao modo lista.
+                setCustomMaterial(false);
+                setCustomFinish(false);
                 setOpen(true);
               }}
               data-testid="button-add-item"
@@ -968,73 +1410,46 @@ export default function EventDetail() {
               }
             }}>
               <DialogContent
-                className={`${bulkMode && !editingItem ? "max-w-[95vw] h-[90vh] p-0 gap-0 flex flex-col" : "sm:max-w-lg max-h-[90vh] overflow-y-auto p-0 gap-0"} [&>button:last-child]:hidden`}
-                style={bulkMode && !editingItem ? { display: 'flex', flexDirection: 'column', overflow: 'hidden' } : (isMobile ? { maxWidth: '95vw' } : undefined)}
+                className={`${bulkMode && !editingItem ? "max-w-[95vw] h-[90vh] p-0 gap-0 flex flex-col" : "p-0 gap-0"} ${HIDE_NATIVE_CLOSE}`}
+                style={bulkMode && !editingItem
+                  ? { display: 'flex', flexDirection: 'column', overflow: 'hidden' }
+                  : { maxWidth: isMobile ? '95vw' : '800px', width: '100%', padding: 0, backgroundColor: '#ffffff', borderRadius: '16px', overflow: 'hidden', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}
                 // Bloquear ESC/clique-fora SÓ no modo lote (onde há grade com
                 // linhas não salvas). No modo simples o fechamento acidental
                 // não custa nada e o bloqueio só irritava.
                 onInteractOutside={(e) => { if (bulkMode && !editingItem) e.preventDefault(); }}
                 onEscapeKeyDown={(e) => { if (bulkMode && !editingItem) e.preventDefault(); }}
               >
-                {/* HEADER */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '24px 32px', backgroundColor: '#f9f9f8', borderBottom: '1px solid rgba(231,229,228,0.5)' }}>
-                  <div>
-                    <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: '22px', fontWeight: '700', letterSpacing: '-0.03em', color: '#1a1c1c', margin: 0 }}>
-                      {editingItem
-                        ? `${editingItem.displayId} — ${editingItem.type}`
-                        : (bulkMode ? "Entrada Rápida" : (formData.type || "Nova Peça"))}
-                    </DialogTitle>
-                    <DialogDescription style={{ fontSize: '11px', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69', marginTop: '2px' }}>
-                      {editingItem
-                        ? (editingItem.description ? editingItem.description : "Editar peça de produção")
-                        : (bulkMode ? "Modo Lote — entrada rápida de peças" : (formData.type ? "Nova peça de produção" : "Selecione o tipo para começar"))}
-                    </DialogDescription>
-                  </div>
-                  {!editingItem && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      {bulkMode ? (
-                        <button
-                          onClick={() => setBulkMode(false)}
-                          data-testid="button-toggle-mode"
-                          style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', backgroundColor: 'rgba(231,229,228,0.6)', color: '#57534e', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', transition: 'background-color 0.15s' }}
-                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#e7e5e4')}
-                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(231,229,228,0.6)')}
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          Modo Simples
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => setBulkMode(true)}
-                          data-testid="button-toggle-mode"
-                          style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', backgroundColor: 'rgba(255,237,213,0.6)', color: '#ea580c', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '700', transition: 'background-color 0.15s' }}
-                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#fed7aa')}
-                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(255,237,213,0.6)')}
-                        >
-                          <List className="h-3.5 w-3.5" />
-                          Entrada Rápida
-                        </button>
-                      )}
-                      {/* X do modo lote: única saída além de salvar. confirm()
-                          nativo — exceção aprovada ao padrão de dialogs para
-                          não inflar o arquivo com mais um AlertDialog. */}
-                      {bulkMode && (
-                        <button
-                          onClick={() => { if (window.confirm("Descartar linhas não salvas?")) handleCloseDialog(); }}
-                          aria-label="Fechar entrada em lote"
-                          title="Fechar (descarta linhas não salvas)"
-                          data-testid="button-close-bulk"
-                          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, backgroundColor: 'transparent', color: '#746e69', borderRadius: '8px', border: 'none', cursor: 'pointer', transition: 'background-color 0.15s, color 0.15s' }}
-                          onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e7e5e4'; e.currentTarget.style.color = '#1a1c1c'; }}
-                          onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; e.currentTarget.style.color = '#746e69'; }}
-                        >
-                          <X className="h-4 w-4" />
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-                
+                <DialogTitle className="sr-only">{bulkMode && !editingItem ? "Entrada Rápida" : "Adicionar Peça"}</DialogTitle>
+                <DialogDescription className="sr-only">
+                  {bulkMode && !editingItem ? "Modo lote — entrada rápida de peças" : "Nova peça de produção"}
+                </DialogDescription>
+                {/* Header no padrão ModalHeader. O X do modo lote é a única
+                    saída além de salvar: confirma antes de descartar as linhas
+                    não salvas (window.confirm — exceção aprovada ao padrão de
+                    dialogs para não inflar o arquivo com mais um AlertDialog). */}
+                <ModalHeader
+                  icon={bulkMode && !editingItem ? List : Plus}
+                  tint="#c2410c"
+                  title={bulkMode && !editingItem ? "Entrada Rápida" : "Adicionar Peça"}
+                  subtitle={bulkMode && !editingItem ? "Modo Lote — entrada rápida de peças" : (event.name || "Nova peça de produção")}
+                  onClose={bulkMode && !editingItem
+                    ? () => { if (window.confirm("Descartar linhas não salvas?")) handleCloseDialog(); }
+                    : handleCloseDialog}
+                  trailing={!editingItem ? (
+                    <button
+                      onClick={() => setBulkMode(!bulkMode)}
+                      data-testid="button-toggle-mode"
+                      style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', backgroundColor: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.85)', borderRadius: 8, border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0, transition: 'background-color 0.15s' }}
+                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.16)')}
+                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.08)')}
+                    >
+                      {bulkMode ? <Plus className="h-3.5 w-3.5" /> : <List className="h-3.5 w-3.5" />}
+                      {bulkMode ? "Modo Simples" : "Entrada Rápida"}
+                    </button>
+                  ) : undefined}
+                />
+
                 {bulkMode && !editingItem ? (
                   <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
                   <BulkItemEntry
@@ -1052,310 +1467,28 @@ export default function EventDetail() {
                   />
                   </div>
                 ) : (
-                  <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column' }}>
-                    {/* Corpo */}
-                    <div style={{ padding: '24px 32px', display: 'flex', flexDirection: 'column', gap: '20px', overflowY: 'auto' }}>
-
-                      {/* LINHA 1: Tipo + Quantidade lado a lado */}
-                      <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-end' }}>
-                        {/* Tipo de Item — flex-1 */}
-                        <div style={{ flex: 1 }}>
-                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69' }}>
-                            Tipo de Peça
-                          </label>
-                          {editingTypeName ? (
-                            <div style={{ display: 'flex', gap: 6 }}>
-                              <input
-                                autoFocus
-                                type="text"
-                                value={formData.type}
-                                onChange={e => setFormData({ ...formData, type: e.target.value })}
-                                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); setEditingTypeName(false); } if (e.key === 'Escape') setEditingTypeName(false); }}
-                                onBlur={() => setEditingTypeName(false)}
-                                data-testid="input-type-name-edit"
-                                style={{ flex: 1, padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '12px', border: '1.5px solid #f97316', fontSize: '15px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-                              />
-                              <button
-                                type="button"
-                                onMouseDown={() => setEditingTypeName(false)}
-                                data-testid="button-confirm-type-name"
-                                style={{ padding: '0 14px', backgroundColor: '#c2410c', borderRadius: '12px', border: 'none', cursor: 'pointer', color: '#fff', fontWeight: 700, fontSize: 13, flexShrink: 0 }}
-                              >
-                                OK
-                              </button>
-                            </div>
-                          ) : (
-                          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                          <Popover open={typePopoverOpen} onOpenChange={setTypePopoverOpen}>
-                            <PopoverTrigger asChild>
-                              <button
-                                type="button"
-                                role="combobox"
-                                aria-expanded={typePopoverOpen}
-                                data-testid="select-item-type"
-                                style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '15px', color: formData.type ? '#1a1c1c' : '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-                              >
-                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formData.type || "Selecione o tipo"}</span>
-                                <ChevronsUpDown className="h-4 w-4 flex-shrink-0 ml-2" style={{ color: '#a8a29e' }} />
-                              </button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-full p-0" align="start">
-                              <Command>
-                                <CommandInput placeholder="Buscar ou adicionar tipo..." value={customTypeInput} onValueChange={setCustomTypeInput} />
-                                <CommandList>
-                                  <CommandEmpty>
-                                    <div className="p-2 space-y-2">
-                                      <p className="text-sm text-muted-foreground">Nenhum tipo encontrado.</p>
-                                      {customTypeInput && (
-                                        <Button type="button" size="sm" className="w-full" onClick={() => { setFormData({ ...formData, type: customTypeInput }); setCustomTypeInput(""); setTypePopoverOpen(false); }}>
-                                          <Plus className="h-3 w-3 mr-1" /> Adicionar "{customTypeInput}"
-                                        </Button>
-                                      )}
-                                    </div>
-                                  </CommandEmpty>
-                                  {standardItems.length > 0 && (
-                                    <CommandGroup heading="Modelos">
-                                      {standardItems.map((item: any) => (
-                                        <CommandItem key={item.id} value={item.name} onSelect={() => {
-                                          setFormData({ ...formData, type: item.name, visualWidth: item.visualWidth ? String(item.visualWidth) : (item.area ? String(item.area) : ""), visualHeight: item.visualHeight ? String(item.visualHeight) : (item.visual ? String(item.visual) : ""), fileWidth: item.fileWidth ? String(item.fileWidth) : "", fileHeight: item.fileHeight ? String(item.fileHeight) : "", material: item.material || "", finish: item.finish || "", measurement: (item.visualWidth && item.visualHeight) ? `${item.visualWidth} × ${item.visualHeight}` : (item.area && item.visual ? `${item.area} × ${item.visual}` : "") });
-                                          setCustomTypeInput(""); setTypePopoverOpen(false);
-                                        }}>
-                                          <Check className={cn("mr-2 h-4 w-4", formData.type === item.name ? "opacity-100" : "opacity-0")} />
-                                          {item.name}
-                                        </CommandItem>
-                                      ))}
-                                    </CommandGroup>
-                                  )}
-                                  <CommandGroup heading="Outros Tipos">
-                                    {itemTypes.map((type) => (
-                                      <CommandItem key={type} value={type} onSelect={() => { setFormData({ ...formData, type }); setCustomTypeInput(""); setTypePopoverOpen(false); }}>
-                                        <Check className={cn("mr-2 h-4 w-4", formData.type === type ? "opacity-100" : "opacity-0")} />
-                                        {type}
-                                      </CommandItem>
-                                    ))}
-                                  </CommandGroup>
-                                </CommandList>
-                              </Command>
-                            </PopoverContent>
-                          </Popover>
-                          {formData.type && (
-                            <button
-                              type="button"
-                              onClick={() => setEditingTypeName(true)}
-                              data-testid="button-edit-type-name"
-                              title="Editar nome do tipo"
-                              style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 42, height: 42, backgroundColor: '#f0efee', borderRadius: '12px', border: 'none', cursor: 'pointer', color: '#57534e' }}
-                              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#e7e5e4'; (e.currentTarget as HTMLButtonElement).style.color = '#f97316'; }}
-                              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = '#f0efee'; (e.currentTarget as HTMLButtonElement).style.color = '#746e69'; }}
-                            >
-                              <Pencil style={{ width: 15, height: 15 }} />
-                            </button>
-                          )}
-                          </div>
-                          )}
-                        </div>
-                        {/* Quantidade — fixo 96px */}
-                        <div style={{ width: '96px' }}>
-                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69' }}>Qtd</label>
-                          <input
-                            id="quantity"
-                            type="number"
-                            min="1"
-                            value={formData.quantity}
-                            onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
-                            required
-                            data-testid="input-quantity"
-                            style={{ width: '100%', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '12px', border: 'none', fontSize: '15px', color: '#1a1c1c', textAlign: 'center', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-                            onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249,115,22,0.15)')}
-                            onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
-                          />
-                        </div>
-                      </div>
-
-                      {/* Descrição */}
-                      <div>
-                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69' }}>Descrição <span style={{ color: '#8b8580', fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '10px' }}>(opcional)</span></label>
-                        <input
-                          id="description"
-                          type="text"
-                          value={formData.description}
-                          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                          placeholder="Ex: Banner Frontlit Entrada Principal"
-                          data-testid="input-description"
-                          style={{ width: '100%', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '12px', border: 'none', fontSize: '15px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", boxSizing: 'border-box' }}
-                          onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249,115,22,0.15)')}
-                          onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
-                        />
-                      </div>
-
-                      {/* Bloco dimensões: grid 2 colunas dentro de container */}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', padding: '16px', backgroundColor: 'rgba(240,239,238,0.5)', borderRadius: '12px' }}>
-                        {/* Dimensões Visuais */}
-                        <div style={{ paddingLeft: '16px', borderLeft: '4px solid #f97316', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                          <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#f97316' }}>Dimensões Visuais (m)</span>
-                          <div>
-                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Largura</label>
-                            <input id="visualWidth" type="number" step="0.01" min="0" value={formData.visualWidth} onChange={e => setFormData({ ...formData, visualWidth: e.target.value })} placeholder="Ex: 2.00" required data-testid="input-visual-width"
-                              style={{ width: '100%', padding: '10px 14px', backgroundColor: '#fff', borderRadius: '8px', border: 'none', fontSize: '15px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", boxSizing: 'border-box' }}
-                              onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249,115,22,0.20)')}
-                              onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
-                            />
-                          </div>
-                          <div>
-                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Altura</label>
-                            <input id="visualHeight" type="number" step="0.01" min="0" value={formData.visualHeight} onChange={e => setFormData({ ...formData, visualHeight: e.target.value })} placeholder="Ex: 1.00" required data-testid="input-visual-height"
-                              style={{ width: '100%', padding: '10px 14px', backgroundColor: '#fff', borderRadius: '8px', border: 'none', fontSize: '15px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", boxSizing: 'border-box' }}
-                              onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249,115,22,0.20)')}
-                              onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
-                            />
-                          </div>
-                        </div>
-                        {/* Dimensões Arquivo */}
-                        <div style={{ paddingLeft: '16px', borderLeft: '4px solid #d6d3d1', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                          <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69' }}>Dimensões Arquivo (m)</span>
-                          <div>
-                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Largura</label>
-                            <input id="fileWidth" type="number" step="0.01" min="0" value={formData.fileWidth} onChange={e => setFormData({ ...formData, fileWidth: e.target.value })} placeholder="Ex: 1.90" required data-testid="input-file-width"
-                              style={{ width: '100%', padding: '10px 14px', backgroundColor: '#fff', borderRadius: '8px', border: 'none', fontSize: '15px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", boxSizing: 'border-box' }}
-                              onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(120,113,108,0.15)')}
-                              onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
-                            />
-                          </div>
-                          <div>
-                            <label style={{ display: 'block', marginBottom: '4px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: '#746e69' }}>Altura</label>
-                            <input id="fileHeight" type="number" step="0.01" min="0" value={formData.fileHeight} onChange={e => setFormData({ ...formData, fileHeight: e.target.value })} placeholder="Ex: 0.90" required data-testid="input-file-height"
-                              style={{ width: '100%', padding: '10px 14px', backgroundColor: '#fff', borderRadius: '8px', border: 'none', fontSize: '15px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", boxSizing: 'border-box' }}
-                              onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(120,113,108,0.15)')}
-                              onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Barra M² Total — dark */}
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#1c1917', borderRadius: '12px' }}>
-                        <span style={{ fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.1em', color: '#746e69' }}>M² Total (calculado)</span>
-                        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: '700', fontSize: '18px', color: formData.fileWidth && formData.fileHeight ? '#fff' : '#57534e' }}>
-                          {formData.fileWidth && formData.fileHeight && formData.quantity
-                            ? (formData.quantity * parseFloat(formData.fileWidth || "0") * parseFloat(formData.fileHeight || "0")).toFixed(2) + " m²"
-                            : "—"
-                          }
-                        </span>
-                      </div>
-
-                      {/* Material | Acabamento */}
-                      <div style={{ display: 'flex', gap: '16px' }}>
-                        <div style={{ flex: 1 }}>
-                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69' }}>Material</label>
-                          <Popover open={materialPopoverOpen} onOpenChange={setMaterialPopoverOpen}>
-                            <PopoverTrigger asChild>
-                              <button type="button" role="combobox" data-testid="select-material"
-                                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '15px', color: formData.material ? '#1a1c1c' : '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-                              >
-                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formData.material || "Selecionar"}</span>
-                                <ChevronsUpDown className="h-4 w-4 flex-shrink-0 ml-2" style={{ color: '#a8a29e' }} />
-                              </button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-full p-0" align="start">
-                              <Command>
-                                <CommandInput placeholder="Buscar ou adicionar..." value={customMaterialInput} onValueChange={setCustomMaterialInput} />
-                                <CommandList>
-                                  <CommandEmpty>
-                                    <div className="p-2 space-y-2">
-                                      <p className="text-sm text-muted-foreground">Nenhum material encontrado.</p>
-                                      {customMaterialInput && <Button type="button" size="sm" className="w-full" onClick={() => { setFormData({ ...formData, material: customMaterialInput }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}><Plus className="h-3 w-3 mr-1" /> Adicionar "{customMaterialInput}"</Button>}
-                                    </div>
-                                  </CommandEmpty>
-                                  <CommandGroup>
-                                    {materialOptions.map(material => (
-                                      <CommandItem key={material} value={material} onSelect={() => { setFormData({ ...formData, material }); setCustomMaterialInput(""); setMaterialPopoverOpen(false); }}>
-                                        <Check className={cn("mr-2 h-4 w-4", formData.material === material ? "opacity-100" : "opacity-0")} />{material}
-                                      </CommandItem>
-                                    ))}
-                                  </CommandGroup>
-                                </CommandList>
-                              </Command>
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                        <div style={{ flex: 1 }}>
-                          <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69' }}>Acabamento</label>
-                          <Popover open={finishPopoverOpen} onOpenChange={setFinishPopoverOpen}>
-                            <PopoverTrigger asChild>
-                              <button type="button" role="combobox" data-testid="select-finish"
-                                style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '15px', color: formData.finish ? '#1a1c1c' : '#746e69', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-                              >
-                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{formData.finish || "Selecionar"}</span>
-                                <ChevronsUpDown className="h-4 w-4 flex-shrink-0 ml-2" style={{ color: '#a8a29e' }} />
-                              </button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-full p-0" align="start">
-                              <Command>
-                                <CommandInput placeholder="Buscar ou adicionar..." value={customFinishInput} onValueChange={setCustomFinishInput} />
-                                <CommandList>
-                                  <CommandEmpty>
-                                    <div className="p-2 space-y-2">
-                                      <p className="text-sm text-muted-foreground">Nenhum acabamento encontrado.</p>
-                                      {customFinishInput && <Button type="button" size="sm" className="w-full" onClick={() => { setFormData({ ...formData, finish: customFinishInput }); setCustomFinishInput(""); setFinishPopoverOpen(false); }}><Plus className="h-3 w-3 mr-1" /> Adicionar "{customFinishInput}"</Button>}
-                                    </div>
-                                  </CommandEmpty>
-                                  <CommandGroup>
-                                    {finishOptions.map(finish => (
-                                      <CommandItem key={finish} value={finish} onSelect={() => { setFormData({ ...formData, finish }); setCustomFinishInput(""); setFinishPopoverOpen(false); }}>
-                                        <Check className={cn("mr-2 h-4 w-4", formData.finish === finish ? "opacity-100" : "opacity-0")} />{finish}
-                                      </CommandItem>
-                                    ))}
-                                  </CommandGroup>
-                                </CommandList>
-                              </Command>
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                      </div>
-
-                      {/* Observações */}
-                      <div>
-                        <label style={{ display: 'block', marginBottom: '6px', fontSize: '10px', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69' }}>Observações <span style={{ color: '#8b8580', fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: '10px' }}>(opcional)</span></label>
-                        <textarea
-                          id="observations"
-                          value={formData.observations}
-                          onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
-                          placeholder="Informações adicionais para produção..."
-                          rows={2}
-                          data-testid="textarea-observations"
-                          style={{ width: '100%', padding: '12px 16px', backgroundColor: '#f0efee', borderRadius: '12px', border: 'none', fontSize: '15px', color: '#1a1c1c', fontFamily: "'Plus Jakarta Sans', sans-serif", resize: 'vertical', boxSizing: 'border-box' }}
-                          onFocus={e => (e.currentTarget.style.boxShadow = '0 0 0 2px rgba(249,115,22,0.15)')}
-                          onBlur={e => (e.currentTarget.style.boxShadow = 'none')}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Rodapé */}
-                    <div style={{ padding: '20px 32px', display: 'flex', gap: '12px' }}>
-                      <button
-                        type="button"
-                        onClick={handleCloseDialog}
-                        style={{ flex: 1, padding: '12px', border: '1px solid #e7e5e4', borderRadius: '12px', backgroundColor: '#fff', color: '#57534e', fontWeight: '700', fontSize: '15px', cursor: 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'background-color 0.15s' }}
-                        onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#f9f9f8')}
-                        onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#fff')}
-                      >
-                        CANCELAR
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={createItemMutation.isPending || updateItemMutation.isPending}
-                        style={{ flex: 2, padding: '12px', border: 'none', borderRadius: '12px', backgroundColor: createItemMutation.isPending || updateItemMutation.isPending ? '#57534e' : '#1c1917', color: '#fff', fontWeight: '700', fontSize: '15px', cursor: createItemMutation.isPending || updateItemMutation.isPending ? 'not-allowed' : 'pointer', fontFamily: "'Plus Jakarta Sans', sans-serif", transition: 'background-color 0.15s' }}
-                        onMouseEnter={e => { if (!createItemMutation.isPending && !updateItemMutation.isPending) e.currentTarget.style.backgroundColor = '#f97316'; }}
-                        onMouseLeave={e => { if (!createItemMutation.isPending && !updateItemMutation.isPending) e.currentTarget.style.backgroundColor = '#1c1917'; }}
-                        data-testid="button-submit-item"
-                      >
-                        {editingItem
-                          ? (updateItemMutation.isPending ? "SALVANDO..." : "SALVAR ALTERAÇÕES")
-                          : (createItemMutation.isPending ? "ADICIONANDO..." : "ADICIONAR ITEM")
-                        }
-                      </button>
-                    </div>
-                  </form>
+                  <ItemForm
+                    mode="create"
+                    formData={formData}
+                    setFormData={setFormData}
+                    standardItems={standardItems}
+                    typeOptions={itemTypes}
+                    materialOptions={materialOptions}
+                    finishOptions={finishOptions}
+                    sponsors={sponsors}
+                    customMaterial={customMaterial}
+                    setCustomMaterial={setCustomMaterial}
+                    customFinish={customFinish}
+                    setCustomFinish={setCustomFinish}
+                    isMobile={isMobile}
+                    isAdmin={user?.role === 'admin'}
+                    isPending={createItemMutation.isPending || updateItemMutation.isPending}
+                    onSubmit={handleSubmit}
+                    onCancel={handleCloseDialog}
+                    localRefPreview={localRefPreview}
+                    setLocalRefPreview={setLocalRefPreview}
+                    getUploadUrl={getUploadUrl}
+                  />
                 )}
               </DialogContent>
             </Dialog>
@@ -1792,7 +1925,7 @@ export default function EventDetail() {
 
         {/* ── Modal de confirmação de envio com lista de itens ── */}
         <Dialog open={submitConfirmOpen} onOpenChange={setSubmitConfirmOpen}>
-          <DialogContent style={modalSurface(560)}>
+          <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(560)}>
             <DialogTitle className="sr-only">Confirmar envio para vinculação</DialogTitle>
             <DialogDescription className="sr-only">
               Revise os itens antes de enviá-los para a vinculação de patrocinadores
@@ -2378,365 +2511,43 @@ export default function EventDetail() {
 
       {/* Dialog separado para editar item */}
       <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent style={{ maxWidth: isMobile ? "95vw" : "800px", width: "100%", padding: "0", backgroundColor: "#ffffff", borderRadius: "16px", overflow: "hidden", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
-
-          {/* Cabeçalho */}
-          <DialogHeader style={{ padding: "24px 28px", borderBottom: "1px solid #eeeeed" }}>
-            <div className="flex items-start gap-4">
-              <div style={{ backgroundColor: "#fff7ed", padding: "12px", borderRadius: "12px", flexShrink: 0 }}>
-                <Pencil className="h-5 w-5" style={{ color: "#f97316" }} />
-              </div>
-              <div>
-                <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "22px", fontWeight: 900, letterSpacing: "-0.03em", color: "#1a1c1c", lineHeight: 1.1 }}>
-                  {editingItem ? `${editingItem.displayId} — ${editingItem.type}` : "Editar Peça"}
-                </DialogTitle>
-                <DialogDescription style={{ fontSize: "15px", fontWeight: 500, color: "#746e69", marginTop: "2px" }}>
-                  {editingItem?.description || "Atualize as informações da peça"}
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-
-          <form
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={{ maxWidth: isMobile ? "95vw" : "800px", width: "100%", padding: "0", backgroundColor: "#ffffff", borderRadius: "16px", overflow: "hidden", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
+          <DialogTitle className="sr-only">Editar Peça</DialogTitle>
+          <DialogDescription className="sr-only">Atualize as informações da peça</DialogDescription>
+          <ModalHeader
+            icon={Pencil}
+            tint="#c2410c"
+            title={editingItem ? `${editingItem.displayId} — ${editingItem.type}` : "Editar Peça"}
+            subtitle={editingItem?.description || "Atualize as informações da peça"}
+            onClose={() => { setEditDialogOpen(false); setEditingItem(null); }}
+          />
+          <ItemForm
+            mode="edit"
+            formData={formData}
+            setFormData={setFormData}
+            standardItems={standardItems}
+            typeOptions={itemTypes}
+            materialOptions={materialOptions}
+            finishOptions={finishOptions}
+            sponsors={sponsors}
+            customMaterial={customMaterial}
+            setCustomMaterial={setCustomMaterial}
+            customFinish={customFinish}
+            setCustomFinish={setCustomFinish}
+            isMobile={isMobile}
+            isAdmin={user?.role === 'admin'}
+            isPending={updateItemMutation.isPending}
             onSubmit={(e) => {
               e.preventDefault();
               if (editingItem) {
                 updateItemMutation.mutate({ id: editingItem.id, data: formData });
               }
             }}
-            style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
-          >
-            <div className="scrollbar-visible" style={{ flex: 1, overflowY: "auto", padding: "32px 28px", display: "flex", flexDirection: "column", gap: "24px" }}>
-
-              {/* Linha 1: Tipo (3fr) | Qtd. (1fr) | M2 Total (1fr) */}
-              <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr 1fr", gap: "16px" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>Tipo de Peça</label>
-                  <input
-                    value={formData.type}
-                    onChange={(e) => setFormData({ ...formData, type: e.target.value })}
-                    placeholder="Ex: Banner Lona Frontlight"
-                    data-testid="input-edit-type"
-                    style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c", transition: "box-shadow 0.15s" }}
-                    onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
-                    onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
-                  />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>Qtd.</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={formData.quantity}
-                    onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
-                    data-testid="input-edit-quantity"
-                    style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c", transition: "box-shadow 0.15s" }}
-                    onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
-                    onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
-                  />
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>M2 Total</label>
-                  <input
-                    readOnly
-                    value={formData.fileWidth && formData.fileHeight
-                      ? calculateM2(formData.quantity, parseFloat(formData.fileWidth) || 0, parseFloat(formData.fileHeight) || 0).toFixed(2) + " m²"
-                      : "—"
-                    }
-                    style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 700, color: formData.fileWidth && formData.fileHeight ? "#f97316" : "#746e69", cursor: "default" }}
-                  />
-                </div>
-              </div>
-
-              {/* Reaproveitamento — banner topo */}
-              <div
-                data-testid="toggle-is-reuse"
-                onClick={() => setFormData({ ...formData, isReuse: !formData.isReuse })}
-                style={{
-                  backgroundColor: formData.isReuse ? "#059669" : "#f3f4f3",
-                  border: `2px solid ${formData.isReuse ? "#047857" : "#e5e7eb"}`,
-                  padding: "14px 18px", borderRadius: "12px",
-                  display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px",
-                  cursor: "pointer", transition: "all 0.15s",
-                }}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                  <div style={{ backgroundColor: formData.isReuse ? "rgba(255,255,255,0.2)" : "#e5e7eb", borderRadius: "8px", padding: "8px", flexShrink: 0 }}>
-                    <RotateCcw style={{ width: 18, height: 18, color: formData.isReuse ? "#ffffff" : "#6b7280" }} />
-                  </div>
-                  <div>
-                    <p style={{ fontSize: "15px", fontWeight: 700, color: formData.isReuse ? "#ffffff" : "#374151", margin: 0 }}>Reaproveitamento</p>
-                    <p style={{ fontSize: "13px", color: formData.isReuse ? "rgba(255,255,255,0.8)" : "#9ca3af", margin: 0 }}>Gráfica entrega direto — sem etapa de produção</p>
-                  </div>
-                </div>
-                <Checkbox
-                  checked={formData.isReuse}
-                  onCheckedChange={(checked) => setFormData({ ...formData, isReuse: !!checked })}
-                  data-testid="checkbox-is-reuse"
-                  style={{ width: "20px", height: "20px", accentColor: "#ffffff", pointerEvents: "none", flexShrink: 0 }}
-                />
-              </div>
-
-              {/* Linha 2: Descrição */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>Descrição do Item</label>
-                <input
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Ex: Banner para fachada lateral com ilhós"
-                  data-testid="input-edit-description"
-                  style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c", transition: "box-shadow 0.15s" }}
-                  onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
-                  onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
-                />
-              </div>
-
-              {/* Linha 3: Dimensões — painel bg */}
-              <div style={{ backgroundColor: "rgba(243,244,243,0.6)", padding: "24px", borderRadius: "12px" }}>
-                <div style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#f97316", display: "inline-block", flexShrink: 0 }}></span>
-                  Dimensões de Produção
-                </div>
-                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: "12px" }}>
-                  {[
-                    { label: "Visual Larg.", key: "visualWidth", orange: true, testId: "input-edit-visual-width" },
-                    { label: "Visual Alt.", key: "visualHeight", orange: true, testId: "input-edit-visual-height" },
-                    { label: "Arquivo Larg.", key: "fileWidth", orange: false, testId: "input-edit-file-width" },
-                    { label: "Arquivo Alt.", key: "fileHeight", orange: false, testId: "input-edit-file-height" },
-                  ].map((dim) => (
-                    <div key={dim.key} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                      <label style={{ fontSize: "10px", fontWeight: 700, color: "#746e69", display: "flex", alignItems: "center", gap: "5px" }}>
-                        <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: dim.orange ? "#f97316" : "#a8a29e", display: "inline-block", flexShrink: 0 }}></span>
-                        {dim.label}
-                      </label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={(formData as any)[dim.key]}
-                        onChange={(e) => setFormData({ ...formData, [dim.key]: e.target.value })}
-                        placeholder="0.00"
-                        data-testid={dim.testId}
-                        style={{ width: "100%", backgroundColor: "#ffffff", border: "none", borderRadius: "8px", padding: "8px 12px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", transition: "box-shadow 0.15s" }}
-                        onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
-                        onBlur={(e) => (e.currentTarget.style.boxShadow = "0 1px 3px rgba(0,0,0,0.08)")}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Linha 4: Material | Acabamento | Patrocinador */}
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: "16px" }}>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>Material</label>
-                  {customMaterial ? (
-                    <input
-                      autoFocus
-                      value={formData.material}
-                      onChange={(e) => setFormData({ ...formData, material: e.target.value })}
-                      placeholder="Digite o novo material..."
-                      data-testid="input-edit-material"
-                      style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c" }}
-                    />
-                  ) : (
-                    <select
-                      value={materialOptions.includes(formData.material) ? formData.material : formData.material ? "__atual__" : ""}
-                      onChange={(e) => {
-                        if (e.target.value === "__novo__") { setFormData({ ...formData, material: "" }); setCustomMaterial(true); return; }
-                        if (e.target.value === "__atual__") return;
-                        setFormData({ ...formData, material: e.target.value });
-                      }}
-                      data-testid="input-edit-material"
-                      style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c", cursor: "pointer" }}
-                    >
-                      <option value="">— selecione —</option>
-                      {formData.material && !materialOptions.includes(formData.material) && (
-                        <option value="__atual__">{formData.material} (atual)</option>
-                      )}
-                      {materialOptions.map(m => <option key={m} value={m}>{m}</option>)}
-                      <option value="__novo__">+ Novo material...</option>
-                    </select>
-                  )}
-                  {formData.material.trim() && !materialOptions.some(m => m.toLowerCase() === formData.material.trim().toLowerCase()) && (
-                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#b45309", display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
-                      <Plus style={{ width: 12, height: 12, flexShrink: 0 }} /> Novo material — será criado no catálogo ao salvar
-                    </span>
-                  )}
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>Acabamento</label>
-                  {customFinish ? (
-                    <input
-                      autoFocus
-                      value={formData.finish}
-                      onChange={(e) => setFormData({ ...formData, finish: e.target.value })}
-                      placeholder="Digite o novo acabamento..."
-                      data-testid="input-edit-finish"
-                      style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c" }}
-                    />
-                  ) : (
-                    <select
-                      value={finishOptions.includes(formData.finish) ? formData.finish : formData.finish ? "__atual__" : ""}
-                      onChange={(e) => {
-                        if (e.target.value === "__novo__") { setFormData({ ...formData, finish: "" }); setCustomFinish(true); return; }
-                        if (e.target.value === "__atual__") return;
-                        setFormData({ ...formData, finish: e.target.value });
-                      }}
-                      data-testid="input-edit-finish"
-                      style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c", cursor: "pointer" }}
-                    >
-                      <option value="">— selecione —</option>
-                      {formData.finish && !finishOptions.includes(formData.finish) && (
-                        <option value="__atual__">{formData.finish} (atual)</option>
-                      )}
-                      {finishOptions.map(f => <option key={f} value={f}>{f}</option>)}
-                      <option value="__novo__">+ Novo acabamento...</option>
-                    </select>
-                  )}
-                  {formData.finish.trim() && !finishOptions.some(f => f.toLowerCase() === formData.finish.trim().toLowerCase()) && (
-                    <span style={{ fontSize: "11px", fontWeight: 600, color: "#065f46", display: "flex", alignItems: "center", gap: "4px", marginTop: "2px" }}>
-                      <Plus style={{ width: 12, height: 12, flexShrink: 0 }} /> Novo acabamento — será criado no catálogo ao salvar
-                    </span>
-                  )}
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                  <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>Patrocinador</label>
-                  <Select
-                    value={formData.sponsorId || "none"}
-                    onValueChange={(value) => setFormData({ ...formData, sponsorId: value === "none" ? "" : value })}
-                  >
-                    <SelectTrigger
-                      className="border-0 focus:ring-0 focus:ring-offset-0 text-sm font-medium"
-                      style={{ backgroundColor: "#f3f4f3", borderRadius: "8px", padding: "12px 16px", height: "auto", color: "#1a1c1c" }}
-                      data-testid="select-edit-sponsor"
-                    >
-                      <SelectValue placeholder="Nenhum" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="none">Nenhum</SelectItem>
-                      {sponsors.map(sponsor => (
-                        <SelectItem key={sponsor.id} value={sponsor.id}>
-                          {sponsor.name}
-                          {sponsor.company && ` (${sponsor.company})`}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Linha 5: Referência (opcional) */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>
-                  Referência <span style={{ color: "#8b8580", fontWeight: 400, textTransform: "none", letterSpacing: 0, fontSize: "10px" }}>(opcional — cole um print com Ctrl+V ou anexe uma imagem, em alta qualidade)</span>
-                </label>
-                {(localRefPreview || formData.referenceUrl) ? (
-                  <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                    {/* Thumbnail preview */}
-                    <div style={{ flexShrink: 0, width: 80, height: 80, borderRadius: 8, overflow: "hidden", border: "1px solid #e7e5e4", backgroundColor: "#f5f5f4" }}>
-                      <img
-                        src={localRefPreview || formData.referenceUrl}
-                        style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                        alt="Referência visual"
-                        onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                      />
-                    </div>
-                    {/* Ações */}
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6, justifyContent: "center", paddingTop: 4 }}>
-                      <ObjectUploader
-                        onGetUploadParameters={getUploadUrl}
-                        onFileSelect={(_file, previewUrl) => setLocalRefPreview(previewUrl)}
-                        onComplete={({ url }) => { setFormData(f => ({ ...f, referenceUrl: url })); setLocalRefPreview(""); }}
-                        buttonVariant="outline"
-                      >
-                        <Paperclip className="h-3 w-3 mr-1" /> Trocar imagem
-                      </ObjectUploader>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive justify-start px-2"
-                        onClick={() => { setFormData(f => ({ ...f, referenceUrl: "" })); setLocalRefPreview(""); }}
-                        data-testid="button-remove-reference"
-                      >
-                        <X className="h-3 w-3 mr-1" /> Remover
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <ObjectUploader
-                    onGetUploadParameters={getUploadUrl}
-                    onFileSelect={(_file, previewUrl) => setLocalRefPreview(previewUrl)}
-                    onComplete={({ url }) => { setFormData(f => ({ ...f, referenceUrl: url })); setLocalRefPreview(""); }}
-                    buttonVariant="outline"
-                  >
-                    <Paperclip className="h-3.5 w-3.5 mr-1.5" /> Adicionar referência visual
-                  </ObjectUploader>
-                )}
-              </div>
-
-              {/* Linha 6: Observações */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                <label style={{ fontSize: "10px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>Observações Internas</label>
-                <textarea
-                  value={formData.observations}
-                  onChange={(e) => setFormData({ ...formData, observations: e.target.value })}
-                  placeholder="Reforço, instruções especiais ou observações de produção..."
-                  rows={3}
-                  data-testid="textarea-edit-observations"
-                  style={{ width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: "8px", padding: "12px 16px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c", resize: "none", fontFamily: "inherit", transition: "box-shadow 0.15s" }}
-                  onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.25)")}
-                  onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
-                />
-              </div>
-
-              {/* Pular Aprovação — apenas Admin */}
-              {user?.role === 'admin' && (
-                <div style={{ backgroundColor: "#fffbeb", borderLeft: "4px solid #fbbf24", padding: "14px 16px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d97706" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
-                    <p style={{ fontSize: "15px", fontWeight: 500, color: "#92400e" }}>Pular aprovação técnica <span style={{ fontSize: "13px", color: "#b45309" }}>(Apenas Administrativo)</span></p>
-                  </div>
-                  <Checkbox
-                    id="skip-approval-edit"
-                    checked={formData.skipApproval}
-                    onCheckedChange={(checked) => setFormData({ ...formData, skipApproval: !!checked })}
-                    data-testid="checkbox-skip-approval"
-                    style={{ width: "20px", height: "20px", accentColor: "#d97706" }}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Rodapé */}
-            <div style={{ padding: "20px 28px", backgroundColor: "#f3f4f3", display: "flex", justifyContent: "flex-end", gap: "12px" }}>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditDialogOpen(false);
-                  setEditingItem(null);
-                }}
-                data-testid="button-cancel-edit"
-                style={{ padding: "10px 24px", backgroundColor: "transparent", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: 700, color: "#746e69", cursor: "pointer", transition: "background-color 0.15s" }}
-                onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = "#e8e8e7")}
-                onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={updateItemMutation.isPending}
-                data-testid="button-save-edit"
-                style={{ padding: "10px 32px", backgroundColor: "#c2410c", border: "none", borderRadius: "8px", fontSize: "15px", fontWeight: 700, color: "#ffffff", cursor: "pointer", boxShadow: "0 4px 12px rgba(249,115,22,0.25)", transition: "filter 0.15s, transform 0.1s", opacity: updateItemMutation.isPending ? 0.7 : 1 }}
-                onMouseEnter={(e) => { if (!updateItemMutation.isPending) e.currentTarget.style.backgroundColor = "#9a3412"; }}
-                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#c2410c"; }}
-                onMouseDown={(e) => { e.currentTarget.style.transform = "scale(0.97)"; }}
-                onMouseUp={(e) => { e.currentTarget.style.transform = "scale(1)"; }}
-              >
-                {updateItemMutation.isPending ? "Salvando..." : "Salvar Alterações"}
-              </button>
-            </div>
-          </form>
+            onCancel={() => { setEditDialogOpen(false); setEditingItem(null); }}
+            localRefPreview={localRefPreview}
+            setLocalRefPreview={setLocalRefPreview}
+            getUploadUrl={getUploadUrl}
+          />
         </DialogContent>
       </Dialog>
 

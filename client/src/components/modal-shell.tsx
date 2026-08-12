@@ -18,6 +18,15 @@ import type { LucideIcon } from "lucide-react";
 import { X } from "lucide-react";
 import { R, SHADOW } from "@/lib/theme";
 
+/**
+ * O DialogContent base (ui/dialog.tsx) renderiza um X próprio no canto
+ * superior direito. Modais que usam ModalHeader (que TEM X próprio via
+ * `onClose`) ficavam com DOIS botões de fechar sobrepostos. Passe esta
+ * constante no className do DialogContent para esconder o X nativo.
+ * Só use junto com ModalHeader — dialogs sem ele dependem do X nativo.
+ */
+export const HIDE_NATIVE_CLOSE = "[&>button:last-child]:hidden";
+
 /** Raio e sombra de qualquer modal do app. R.xl é o degrau de "modal". */
 export const MODAL_RADIUS = R.xl;
 export const MODAL_SHADOW = "0 32px 64px -16px rgba(0,0,0,0.28), 0 0 0 1px rgba(0,0,0,0.05)";

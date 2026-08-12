@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useState, useMemo, useEffect, Fragment, useRef } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { ModalHeader, modalSurface } from "@/components/modal-shell";
+import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 
 const TI = {
   bg: "#fafaf9", surface: "#ffffff", border: "#e7e5e4",
@@ -929,7 +929,7 @@ export default function Solicitacao() {
 
       {/* ── 5. REVIEW MODAL ────────────────────────────────────────────── */}
       <Dialog open={modalOpen} onOpenChange={open => { setModalOpen(open); if (!open) { setShowReturnForm(false); setReturnObservations(""); } }}>
-        <DialogContent className="review-dialog-shell max-w-6xl p-0 gap-0 rounded-xl overflow-hidden flex flex-col [&>button:last-child]:hidden" style={{ height: isMobile ? "94dvh" : "87vh", maxHeight: 900, maxWidth: isMobile ? "95vw" : undefined }} onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+        <DialogContent className={`review-dialog-shell max-w-6xl p-0 gap-0 rounded-xl overflow-hidden flex flex-col ${HIDE_NATIVE_CLOSE}`} style={{ height: isMobile ? "94dvh" : "87vh", maxHeight: 900, maxWidth: isMobile ? "95vw" : undefined }} onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
           <div className="review-modal-columns" style={{ height: "100%" }}>
 
             {/* Left column — art visualizer (40%) */}
@@ -1451,7 +1451,7 @@ export default function Solicitacao() {
           `window.innerWidth` lido na renderização — girar o celular deixava o
           painel no tamanho antigo. */}
       <Dialog open={!!reuseDialogItemId} onOpenChange={o => { if (!o) setReuseDialogItemId(null); }}>
-        <DialogContent style={modalSurface(420)}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(420)}>
           {(() => {
             const dialogItem = pendingItems.find(i => i.id === reuseDialogItemId);
             if (!dialogItem) return null;

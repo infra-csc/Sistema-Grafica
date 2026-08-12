@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
-import { parseDateLocal } from "@/lib/utils";
+import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
+import { getPriorityMeta, getStatusMeta } from "@/lib/status";
 import { ChevronLeft, ChevronRight, AlertTriangle, Calendar, Truck, Search, BarChart2, Flag } from "lucide-react";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
 import {
   Dialog,
@@ -17,43 +18,49 @@ const P = {
   surface:  "#ffffff",
   border:   "#e7e5e4",
   text:     "#1c1917",
-  secondary:"#78716c",
+  // #746e69 é o cinza que passa AA em todas as superfícies do app (ver
+  // lib/theme.ts) — o antigo #78716c reprovava sobre os fundos acinzentados.
+  secondary:"#746e69",
+  // Apenas decorativo (ícones, placeholders) — nunca como cor de texto.
   muted:    "#a8a29e",
   accent:   "#f97316",
   low:      "#f5f4f0",
 };
 
-/* ── Priority → border-left color ── */
-const PRIO_COLOR: Record<string, string> = {
-  urgente:   "#dc2626",
-  alta:      "#f97316",
-  media:     "#eab308",
-  baixa:     "#3b82f6",
-  completed: "#22c55e",
-  none:      "#d6d3d1",
-};
-
-const PRIO_LABEL: Record<string, string> = {
-  urgente:   "Urgente",
-  alta:      "Alta",
-  media:     "Média",
-  baixa:     "Normal",
-  completed: "Concluído",
-  none:      "Sem prioridade",
-};
-
-function prioKey(ev: any): string {
-  if (ev.status === "completed") return "completed";
-  return ev.priority || "none";
+/* ── Prioridade → cores canônicas (lib/status) ──
+   Antes havia um mapa hex local (PRIO_COLOR) que usava a cor saturada como
+   texto — reprovava WCAG AA e divergia das outras telas. Agora: `text` (tom
+   escuro) no texto, `dot` (saturada) na bolinha/barra, como no resto do app.
+   "completed" reaproveita o verde do status de evento concluído; sem
+   prioridade cai na família neutra. */
+const NO_PRIO = { label: "Sem prioridade", bg: "#f5f5f4", text: "#44403c", border: "#e7e5e4", dot: "#78716c" };
+function prioMeta(ev: any): { label: string; bg: string; text: string; border: string; dot: string } {
+  if (ev.status === "completed") {
+    const m = getStatusMeta("completed");
+    return { label: m.label, bg: m.bg, text: m.text, border: m.border, dot: m.dot };
+  }
+  return getPriorityMeta(ev.priority) ?? NO_PRIO;
 }
 
-/* ── Deadline types (same colors as event-detail) ── */
+/* Legenda de prioridades — derivada da mesma fonte única. */
+const LEGEND_PRIOS: { label: string; dot: string }[] = [
+  ...(["urgente", "alta", "media", "baixa"] as const).map(k => {
+    const m = getPriorityMeta(k)!;
+    return { label: m.label, dot: m.dot };
+  }),
+  { label: getStatusMeta("completed").label, dot: getStatusMeta("completed").dot },
+];
+
+/* ── Deadline types (same colors as event-detail) ──
+   `text` é o tom 700 da MESMA família da cor saturada (violet→#6d28d9,
+   blue→#1d4ed8, amber→#b45309, emerald→#047857, orange→#c2410c): a cor
+   saturada como texto a 10px reprovava AA sobre o fundo tingido. */
 const DEADLINE_TYPES = [
-  { key: "deadlineListaImagens",    label: "Lista de Imagens",    short: "Lista Img",       color: "#8b5cf6" },
-  { key: "deadlineEntregaLayouts",  label: "Entrega de Layouts",  short: "Entrega Layout",  color: "#3b82f6" },
-  { key: "deadlineAprovacaoLayout", label: "Aprovação de Layout", short: "Aprov. Layout",   color: "#f59e0b" },
-  { key: "deadlineRevisaoLista",    label: "Revisão de Lista",    short: "Revisão Lista",   color: "#10b981" },
-  { key: "deadlineProducaoGrafica", label: "Produção Gráfica",    short: "Prod. Gráfica",   color: "#f97316" },
+  { key: "deadlineListaImagens",    label: "Lista de Imagens",    short: "Lista Img",       color: "#8b5cf6", text: "#6d28d9" },
+  { key: "deadlineEntregaLayouts",  label: "Entrega de Layouts",  short: "Entrega Layout",  color: "#3b82f6", text: "#1d4ed8" },
+  { key: "deadlineAprovacaoLayout", label: "Aprovação de Layout", short: "Aprov. Layout",   color: "#f59e0b", text: "#b45309" },
+  { key: "deadlineRevisaoLista",    label: "Revisão de Lista",    short: "Revisão Lista",   color: "#10b981", text: "#047857" },
+  { key: "deadlineProducaoGrafica", label: "Produção Gráfica",    short: "Prod. Gráfica",   color: "#f97316", text: "#c2410c" },
 ] as const;
 
 const DEADLINE_DEFAULTS: Record<string, number> = {
@@ -72,15 +79,39 @@ const MONTH_NAMES = [
   "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro",
 ];
 
-export default function Calendario() {  const isMobile = useIsMobile();
+export default function Calendario() {
+  const isMobile = useIsMobile();
   const [currentDate, setCurrentDate] = useState(new Date());
   const [, setLocation] = useLocation();
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [activeView, setActiveView] = useState<"mes"|"semana"|"lista">("mes");
+  // Busca inicializa da URL e é espelhada nela (mesmo padrão de eventos.tsx):
+  // F5 não perde o filtro e o link filtrado é compartilhável.
+  const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
+  const [searchTerm, setSearchTerm] = useState(() => urlParams.get("busca") ?? "");
 
-  const { data: events = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/events"] });
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (searchTerm) p.set("busca", searchTerm);
+    const qs = p.toString();
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+  }, [searchTerm]);
+
+  // Atalho "/" foca a busca (paridade com eventos.tsx e Painel Geral).
+  const searchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/") return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const { data: events = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ["/api/events"] });
 
   const year  = currentDate.getFullYear();
   const month = currentDate.getMonth();
@@ -96,37 +127,50 @@ export default function Calendario() {  const isMobile = useIsMobile();
   /* pad to complete last row */
   while (days.length % 7 !== 0) days.push(null);
 
-  const getEventsForDate = (date: Date) => {
-    const ds = date.toDateString();
-    const starts = events.filter(e => parseDateLocal(e.startDate).toDateString() === ds)
-      .map(e => ({ ...e, _type: "start" as const }));
-    const deps = events.filter(e => new Date(e.truckDepartureDate).toDateString() === ds)
-      .map(e => ({ ...e, _type: "departure" as const }));
-    return [...starts, ...deps];
-  };
+  /* ── Índice por dia ──
+     Antes cada célula varria a lista inteira de eventos (O(células×eventos))
+     a cada render — e a busca re-renderiza a cada tecla. O índice é montado
+     uma vez por mudança de dados e cada célula vira um lookup.
 
-  const getDeadlinesForDate = (date: Date) => {
-    const ds = date.toDateString();
-    const result: Array<{ event: any; dtype: typeof DEADLINE_TYPES[number] }> = [];
+     Fuso: a saída do caminhão usa toUTCDisplayDate (lib/utils) — o valor foi
+     gravado como UTC mas o horário digitado É o de exibição. Com new Date()
+     cru, em UTC-3 uma saída "00:30" caía na grade um dia antes do que o
+     dialog e os chips de prazo mostravam. Prazos são ancorados na SAÍDA DO
+     CAMINHÃO (não no início do evento) — mesma âncora dos chips de prazo
+     (event-detail/arte/atendimento) e dos alertas do servidor. */
+  const byDay = useMemo(() => {
+    const map = new Map<string, {
+      events: any[];
+      deadlines: Array<{ event: any; dtype: typeof DEADLINE_TYPES[number] }>;
+    }>();
+    const bucket = (ds: string) => {
+      let b = map.get(ds);
+      if (!b) { b = { events: [], deadlines: [] }; map.set(ds, b); }
+      return b;
+    };
     for (const ev of events) {
-      // Prazos são ancorados na SAÍDA DO CAMINHÃO (não no início do evento) —
-      // mesma âncora dos chips de prazo (event-detail/arte/atendimento) e dos
-      // alertas do servidor (deadlineAlerts). Antes usava startDate: o
-      // calendário exibia o prazo num dia diferente de quando o alerta dispara.
+      if (ev.startDate) {
+        bucket(parseDateLocal(ev.startDate).toDateString()).events.push({ ...ev, _type: "start" as const });
+      }
       if (!ev.truckDepartureDate) continue;
-      const base = new Date(ev.truckDepartureDate);
+      bucket(toUTCDisplayDate(ev.truckDepartureDate).toDateString()).events.push({ ...ev, _type: "departure" as const });
+      const base = toUTCDisplayDate(ev.truckDepartureDate);
       base.setHours(0, 0, 0, 0);
       for (const dt of DEADLINE_TYPES) {
         const offset: number = (ev as any)[dt.key] ?? DEADLINE_DEFAULTS[dt.key];
         const d = new Date(base);
         d.setDate(d.getDate() + offset);
-        if (d.toDateString() === ds) {
-          result.push({ event: ev, dtype: dt });
-        }
+        bucket(d.toDateString()).deadlines.push({ event: ev, dtype: dt });
       }
     }
-    return result;
-  };
+    // Dentro da célula, inícios antes de saídas (ordem que a varredura
+    // antiga produzia) — sort estável preserva a ordem dos eventos.
+    map.forEach(b => b.events.sort((a, c) => (a._type === c._type ? 0 : a._type === "start" ? -1 : 1)));
+    return map;
+  }, [events]);
+
+  const getEventsForDate    = (date: Date) => byDay.get(date.toDateString())?.events ?? [];
+  const getDeadlinesForDate = (date: Date) => byDay.get(date.toDateString())?.deadlines ?? [];
 
   /* Urgent: departure < 48h away */
   const urgentEvents = useMemo(() =>
@@ -152,10 +196,6 @@ export default function Calendario() {  const isMobile = useIsMobile();
   const completedCount = monthEvents.filter(e => e.status === "completed").length;
   const urgentCount    = monthEvents.filter(e => e.priority === "urgente").length;
 
-  const filteredSearch = searchTerm
-    ? events.filter(e => e.name.toLowerCase().includes(searchTerm.toLowerCase()))
-    : events;
-
   function msToHM(ms: number) {
     const h = Math.floor(ms / 3_600_000);
     const m = Math.floor((ms % 3_600_000) / 60_000);
@@ -171,64 +211,69 @@ export default function Calendario() {  const isMobile = useIsMobile();
   return (
     <div style={{ backgroundColor: P.bg, height: "100%", overflowY: "auto", padding: isMobile ? "14px 14px 32px" : "28px 28px 48px" }}>
 
-      {/* ── Header ── */}
-      <div style={{ marginBottom: 28, display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
-        <div>
-          <h1 data-testid="title-calendario" style={{
-            fontSize: 26, fontWeight: 800, color: P.text, margin: 0,
-            textTransform: "uppercase", letterSpacing: "-0.03em",
-            fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1,
-          }}>
-            Calendário de Eventos
-          </h1>
-          <p style={{ fontSize: 13, color: P.secondary, margin: "6px 0 0", fontWeight: 500 }}>
-            Gestão tática e logística — {MONTH_NAMES[month]} {year}
-          </p>
-        </div>
-
-        {/* View switcher */}
-        <div style={{ display: "flex", backgroundColor: "#eeeeed", borderRadius: 12, padding: 4, gap: 2 }}>
-          {(["mes", "semana", "lista"] as const).map(v => (
-            <button key={v} onClick={() => setActiveView(v)}
-              style={{
-                padding: "6px 18px", borderRadius: 8, border: "none", cursor: "pointer",
-                fontSize: 13, fontWeight: 700,
-                backgroundColor: activeView === v ? "#ffffff" : "transparent",
-                color: activeView === v ? P.text : P.muted,
-                boxShadow: activeView === v ? "0 1px 3px rgba(0,0,0,0.08)" : "none",
-                transition: "all 0.15s",
-              }}>
-              {v === "mes" ? "Mês" : v === "semana" ? "Semana" : "Lista"}
-            </button>
-          ))}
-        </div>
+      {/* ── Header ──
+          As abas Semana/Lista saíram: eram estado morto — trocavam um
+          activeView que nada na tela lia, então "Semana" e "Lista" mostravam
+          exatamente a mesma grade de mês. Melhor não oferecer visões que não
+          existem; se um dia existirem, voltam com conteúdo próprio. */}
+      <div style={{ marginBottom: 28 }}>
+        <h1 data-testid="title-calendario" style={{
+          fontSize: 26, fontWeight: 800, color: P.text, margin: 0,
+          textTransform: "uppercase", letterSpacing: "-0.03em",
+          fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1,
+        }}>
+          Calendário de Eventos
+        </h1>
+        <p style={{ fontSize: 13, color: P.secondary, margin: "6px 0 0", fontWeight: 500 }}>
+          Gestão tática e logística — {MONTH_NAMES[month]} {year}
+        </p>
       </div>
 
-      {/* ── Alert strip (urgent < 48h) ── */}
+      {/* ── Alert strip (urgent < 48h) ──
+          role="alert": leitor de tela anuncia a urgência ao chegar na tela.
+          O antigo "Ver Detalhes" abria só o dia do PRIMEIRO urgente; agora
+          cada urgente é um botão que leva direto ao seu evento. */}
       {urgentEvents.length > 0 && (
-        <div style={{
+        <div role="alert" style={{
           marginBottom: 20,
           backgroundColor: "#fef2f2",
           borderLeft: "6px solid #dc2626",
           borderRadius: 12,
           border: "1px solid #fca5a5",
           padding: "14px 20px",
-          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <AlertTriangle style={{ width: 18, height: 18, color: "#dc2626", flexShrink: 0 }} />
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#7f1d1d" }}>
-              {urgentEvents.length} evento{urgentEvents.length > 1 ? "s" : ""} com saída do caminhão nas próximas 48h
-            </span>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <AlertTriangle style={{ width: 18, height: 18, color: "#dc2626", flexShrink: 0 }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#7f1d1d" }}>
+                {urgentEvents.length} evento{urgentEvents.length > 1 ? "s" : ""} com saída do caminhão nas próximas 48h
+              </span>
+            </div>
             <span style={{ fontSize: 10, fontWeight: 900, color: "#ffffff", backgroundColor: "#dc2626", borderRadius: 999, padding: "2px 10px", textTransform: "uppercase", letterSpacing: "0.06em" }}>
               Crítico
             </span>
-            <button onClick={() => { setSelectedDate(new Date(urgentEvents[0].truckDepartureDate)); setDialogOpen(true); }}
-              style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", background: "none", border: "none", cursor: "pointer", textDecoration: "underline", padding: 0 }}>
-              Ver Detalhes
-            </button>
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+            {urgentEvents.map(ev => {
+              const remaining = new Date(ev.truckDepartureDate).getTime() - Date.now();
+              return (
+                <button key={ev.id}
+                  onClick={() => setLocation(`/eventos/${ev.id}`)}
+                  data-testid={`urgent-event-${ev.id}`}
+                  aria-label={`Abrir evento ${ev.name} — saída em ${msToHM(remaining)}`}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 8,
+                    minHeight: isMobile ? 44 : 32, padding: "4px 6px 4px 12px",
+                    backgroundColor: "#ffffff", border: "1px solid #fca5a5", borderRadius: 999,
+                    fontSize: 12, fontWeight: 700, color: "#7f1d1d", cursor: "pointer",
+                  }}>
+                  <span style={{ maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.name}</span>
+                  <span style={{ fontSize: 10, fontWeight: 900, color: "#ffffff", backgroundColor: urgentBg(ev), borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap" }}>
+                    {msToHM(remaining)}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
@@ -237,16 +282,16 @@ export default function Calendario() {  const isMobile = useIsMobile();
       <div style={{ backgroundColor: P.surface, borderRadius: 12, overflow: "hidden", boxShadow: "0 8px 32px rgba(0,0,0,0.06)", marginBottom: 28 }}>
 
         {/* Navigation bar */}
-        <div style={{ padding: "20px 32px", backgroundColor: "#f9f9f8", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+        <div style={{ padding: isMobile ? "14px 16px" : "20px 32px", backgroundColor: "#f9f9f8", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <h2 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: P.text, textTransform: "uppercase", letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif" }}>
+            <h2 style={{ margin: 0, fontSize: isMobile ? 20 : 26, fontWeight: 800, color: P.text, textTransform: "uppercase", letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif" }}>
               {MONTH_NAMES[month]} {year}
             </h2>
             <div style={{ display: "flex", gap: 4 }}>
-              <NavBtn onClick={() => setCurrentDate(new Date(year, month - 1, 1))} testId="button-prev-month">
+              <NavBtn onClick={() => setCurrentDate(new Date(year, month - 1, 1))} testId="button-prev-month" big={isMobile} label="Mês anterior">
                 <ChevronLeft style={{ width: 18, height: 18 }} />
               </NavBtn>
-              <NavBtn onClick={() => setCurrentDate(new Date(year, month + 1, 1))} testId="button-next-month">
+              <NavBtn onClick={() => setCurrentDate(new Date(year, month + 1, 1))} testId="button-next-month" big={isMobile} label="Próximo mês">
                 <ChevronRight style={{ width: 18, height: 18 }} />
               </NavBtn>
             </div>
@@ -257,11 +302,13 @@ export default function Calendario() {  const isMobile = useIsMobile();
             <div style={{ position: "relative" }}>
               <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: P.muted }} />
               <input placeholder="Filtrar evento..."
+                ref={searchRef}
                 value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-                style={{ paddingLeft: 32, paddingRight: 12, height: 36, width: 200, backgroundColor: "#eeeeed", border: "none", borderRadius: 8, fontSize: 13, color: P.text }} />
+                style={{ paddingLeft: 32, paddingRight: 12, height: isMobile ? 44 : 36, width: isMobile ? 160 : 200, backgroundColor: "#eeeeed", border: "none", borderRadius: 8, fontSize: 13, color: P.text }} />
             </div>
+            {/* Alvo de toque: 44px no celular, como os demais controles de navegação. */}
             <button onClick={() => setCurrentDate(new Date())} data-testid="button-today"
-              style={{ padding: "7px 20px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: P.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+              style={{ padding: "0 20px", height: isMobile ? 44 : 36, borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: P.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
               onMouseEnter={e => (e.currentTarget.style.backgroundColor = P.bg)}
               onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#ffffff")}>
               Hoje
@@ -272,6 +319,15 @@ export default function Calendario() {  const isMobile = useIsMobile();
         {isLoading ? (
           <div style={{ display: "flex", justifyContent: "center", padding: 64 }}>
             <div style={{ width: 32, height: 32, border: "3px solid #e7e5e4", borderTopColor: P.accent, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          </div>
+        ) : isError ? (
+          <div role="alert" style={{ padding: "56px 24px", textAlign: "center" }}>
+            <h3 style={{ color: "#b91c1c", fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Não foi possível carregar o calendário</h3>
+            <p style={{ color: "#746e69", fontSize: 13, marginBottom: 20 }}>Verifique sua conexão e tente novamente.</p>
+            <button onClick={() => refetch()} data-testid="button-retry-calendar"
+              style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}>
+              Tentar novamente
+            </button>
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
@@ -294,6 +350,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
             {days.map((day, idx) => {
               const col = idx % 7;
               const isOutside = day === null;
+              const cellHeight = isMobile ? 62 : 90;
 
               /* ── Previous month days to fill the gap ── */
               if (isOutside) {
@@ -303,7 +360,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
                   : idx - daysInMonth - startDow + 1;
                 return (
                   <div key={`out-${idx}`} style={{
-                    height: 90, backgroundColor: "rgba(250,250,249,0.6)", padding: "8px 8px",
+                    height: cellHeight, backgroundColor: "rgba(250,250,249,0.6)", padding: "8px 8px",
                     borderRight: col !== 6 ? "1px solid #eeeeed" : undefined,
                     borderBottom: "1px solid #eeeeed",
                   }}>
@@ -348,7 +405,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
                   } : {})}
                   onClick={() => { if (hasAny) { setSelectedDate(date); setDialogOpen(true); } }}
                   style={{
-                    height: 90, padding: "7px 7px",
+                    height: cellHeight, padding: isMobile ? "5px 5px" : "7px 7px",
                     borderRight: col !== 6 ? "1px solid #eeeeed" : undefined,
                     borderBottom: "1px solid #eeeeed",
                     backgroundColor: P.surface,
@@ -376,72 +433,106 @@ export default function Calendario() {  const isMobile = useIsMobile();
                     )}
                   </div>
 
-                  {/* Event + deadline pills (max 2 visible) */}
-                  {allCellItems.slice(0, 2).map((item, i) => {
-                    if (item.kind === "event") {
-                      const ev        = item.ev;
-                      const isStart   = ev._type === "start";
-                      const color     = PRIO_COLOR[prioKey(ev)];
-                      const depTime   = new Date(ev.truckDepartureDate);
-                      const remaining = depTime.getTime() - Date.now();
-                      const isUrgent  = !isStart && remaining > 0 && remaining < 48 * 3_600_000;
-                      const isCrit    = !isStart && remaining > 0 && remaining < 24 * 3_600_000;
-                      return (
-                        <div
-                          key={`ev-${ev.id}-${ev._type}`}
-                          data-testid={`event-${ev.id}-${ev._type}`}
-                          onClick={e => { e.stopPropagation(); setLocation(`/eventos/${ev.id}`); }}
-                          title={ev.name}
-                          style={{
-                            display: "flex", alignItems: "center", justifyContent: "space-between",
-                            gap: 4, padding: "2px 6px",
-                            backgroundColor: isCrit ? "#fef2f2" : "#ffffff",
-                            borderLeft: `3px solid ${color}`,
-                            borderRadius: 6,
-                            boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
-                            overflow: "hidden", cursor: "pointer",
-                          }}
-                        >
-                          <div style={{ display: "flex", alignItems: "center", gap: 4, overflow: "hidden", flex: 1 }}>
-                            {isStart
-                              ? <Calendar style={{ width: 9, height: 9, color: P.muted, flexShrink: 0 }} />
-                              : <Truck    style={{ width: 9, height: 9, color: P.muted, flexShrink: 0 }} />}
-                            <span style={{ fontSize: 10, fontWeight: 700, color: P.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {ev.name}
-                            </span>
-                          </div>
-                          {isUrgent && (
-                            <span style={{ fontSize: 10, fontWeight: 900, color: "#ffffff", backgroundColor: isCrit ? "#dc2626" : "#f97316", borderRadius: 6, padding: "1px 4px", whiteSpace: "nowrap", flexShrink: 0 }}>
-                              {msToHM(remaining)}
-                            </span>
-                          )}
-                        </div>
-                      );
-                    } else {
-                      const { event, dtype } = item;
-                      return (
-                        <div
-                          key={`dl-${event.id}-${dtype.key}-${i}`}
-                          onClick={e => { e.stopPropagation(); setLocation(`/eventos/${event.id}`); }}
-                          title={`${event.name} — ${dtype.label}`}
-                          style={{
-                            display: "flex", alignItems: "center", gap: 4, padding: "2px 6px",
-                            backgroundColor: `${dtype.color}12`,
-                            borderLeft: `3px dashed ${dtype.color}`,
-                            borderRadius: 6,
-                            overflow: "hidden", cursor: "pointer",
-                          }}
-                        >
-                          <Flag style={{ width: 9, height: 9, color: dtype.color, flexShrink: 0 }} />
-                          <span style={{ fontSize: 10, fontWeight: 700, color: dtype.color, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {dtype.short}
-                          </span>
-                        </div>
-                      );
-                    }
-                  })}
-                  {allCellItems.length > 2 && (
-                    <span style={{ fontSize: 10, color: P.muted, paddingLeft: 2 }}>+{allCellItems.length - 2} mais</span>
+                  {/* No celular a célula de 62px não comporta pill legível:
+                      cada item vira uma barra na cor da prioridade/prazo e o
+                      detalhe fica no dialog do dia (que já existe). */}
+                  {isMobile ? (
+                    hasAny ? (
+                      <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                        {allCellItems.slice(0, 3).map((item, i) => (
+                          <div
+                            key={item.kind === "event" ? `ev-${item.ev.id}-${item.ev._type}` : `dl-${item.event.id}-${item.dtype.key}-${i}`}
+                            style={{
+                              height: 4, borderRadius: 2,
+                              backgroundColor: item.kind === "event" ? prioMeta(item.ev).dot : item.dtype.color,
+                            }}
+                          />
+                        ))}
+                        {allCellItems.length > 3 && (
+                          <span style={{ fontSize: 9, fontWeight: 700, color: P.secondary }}>+{allCellItems.length - 3}</span>
+                        )}
+                      </div>
+                    ) : null
+                  ) : (
+                    <>
+                      {allCellItems.slice(0, 2).map((item, i) => {
+                        if (item.kind === "event") {
+                          const ev        = item.ev;
+                          const isStart   = ev._type === "start";
+                          const meta      = prioMeta(ev);
+                          const depTime   = new Date(ev.truckDepartureDate);
+                          const remaining = depTime.getTime() - Date.now();
+                          const isUrgent  = !isStart && remaining > 0 && remaining < 48 * 3_600_000;
+                          const isCrit    = !isStart && remaining > 0 && remaining < 24 * 3_600_000;
+                          return (
+                            /* <button>: a pill navega para o evento, mas era um
+                               div sem foco — invisível para o teclado. */
+                            <button
+                              key={`ev-${ev.id}-${ev._type}`}
+                              type="button"
+                              data-testid={`event-${ev.id}-${ev._type}`}
+                              onClick={e => { e.stopPropagation(); setLocation(`/eventos/${ev.id}`); }}
+                              title={ev.name}
+                              aria-label={`Abrir evento ${ev.name}`}
+                              style={{
+                                display: "flex", alignItems: "center", justifyContent: "space-between",
+                                gap: 4, padding: "2px 6px", width: "100%", textAlign: "left",
+                                backgroundColor: isCrit ? "#fef2f2" : "#ffffff",
+                                border: "none",
+                                borderLeft: `3px solid ${meta.dot}`,
+                                borderRadius: 6,
+                                boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
+                                overflow: "hidden", cursor: "pointer",
+                                font: "inherit",
+                              }}
+                            >
+                              <span style={{ display: "flex", alignItems: "center", gap: 4, overflow: "hidden", flex: 1 }}>
+                                {isStart
+                                  ? <Calendar style={{ width: 9, height: 9, color: P.muted, flexShrink: 0 }} />
+                                  : <Truck    style={{ width: 9, height: 9, color: P.muted, flexShrink: 0 }} />}
+                                <span style={{ fontSize: 10, fontWeight: 700, color: P.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {ev.name}
+                                </span>
+                              </span>
+                              {isUrgent && (
+                                <span style={{ fontSize: 10, fontWeight: 900, color: "#ffffff", backgroundColor: isCrit ? "#dc2626" : "#f97316", borderRadius: 6, padding: "1px 4px", whiteSpace: "nowrap", flexShrink: 0 }}>
+                                  {msToHM(remaining)}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        } else {
+                          const { event, dtype } = item;
+                          return (
+                            <button
+                              key={`dl-${event.id}-${dtype.key}-${i}`}
+                              type="button"
+                              onClick={e => { e.stopPropagation(); setLocation(`/eventos/${event.id}`); }}
+                              title={`${event.name} — ${dtype.label}`}
+                              aria-label={`Abrir evento ${event.name} — prazo de ${dtype.label}`}
+                              style={{
+                                display: "flex", alignItems: "center", gap: 4, padding: "2px 6px",
+                                width: "100%", textAlign: "left",
+                                backgroundColor: `${dtype.color}12`,
+                                border: "none",
+                                borderLeft: `3px dashed ${dtype.color}`,
+                                borderRadius: 6,
+                                overflow: "hidden", cursor: "pointer",
+                                font: "inherit",
+                              }}
+                            >
+                              <Flag style={{ width: 9, height: 9, color: dtype.color, flexShrink: 0 }} />
+                              <span style={{ fontSize: 10, fontWeight: 700, color: dtype.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {dtype.short}
+                              </span>
+                            </button>
+                          );
+                        }
+                      })}
+                      {allCellItems.length > 2 && (
+                        <span style={{ fontSize: 10, color: P.secondary, paddingLeft: 2 }}>+{allCellItems.length - 2} mais</span>
+                      )}
+                    </>
                   )}
                 </div>
               );
@@ -452,16 +543,10 @@ export default function Calendario() {  const isMobile = useIsMobile();
         {/* ── Legend footer ── */}
         <div style={{ padding: "14px 32px", borderTop: "1px solid #eeeeed", backgroundColor: "#f9f9f8", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 16 }}>
           {/* Priority legend */}
-          {[
-            { key: "urgente",   label: "Urgente" },
-            { key: "alta",      label: "Alta" },
-            { key: "media",     label: "Média" },
-            { key: "baixa",     label: "Normal" },
-            { key: "completed", label: "Concluído" },
-          ].map(({ key, label }) => (
-            <div key={key} style={{ display: "flex", alignItems: "center", gap: 5 }}>
-              <div style={{ width: 9, height: 9, borderRadius: "50%", backgroundColor: PRIO_COLOR[key] }} />
-              <span style={{ fontSize: 10, fontWeight: 700, color: P.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</span>
+          {LEGEND_PRIOS.map(({ label, dot }) => (
+            <div key={label} style={{ display: "flex", alignItems: "center", gap: 5 }}>
+              <div style={{ width: 9, height: 9, borderRadius: "50%", backgroundColor: dot }} />
+              <span style={{ fontSize: 10, fontWeight: 700, color: P.secondary, textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</span>
             </div>
           ))}
 
@@ -472,7 +557,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
           {DEADLINE_TYPES.map(dt => (
             <div key={dt.key} style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <div style={{ width: 14, height: 9, borderRadius: 6, borderLeft: `3px dashed ${dt.color}`, backgroundColor: `${dt.color}15` }} />
-              <span style={{ fontSize: 10, fontWeight: 700, color: P.muted, textTransform: "uppercase", letterSpacing: "0.07em" }}>{dt.short}</span>
+              <span style={{ fontSize: 10, fontWeight: 700, color: P.secondary, textTransform: "uppercase", letterSpacing: "0.07em" }}>{dt.short}</span>
             </div>
           ))}
 
@@ -507,27 +592,27 @@ export default function Calendario() {  const isMobile = useIsMobile();
               Próximos Eventos
             </h3>
             {upcomingEvents.length === 0 ? (
-              <p style={{ fontSize: 13, color: P.muted }}>Nenhum evento futuro no momento.</p>
+              <p style={{ fontSize: 13, color: P.secondary }}>Nenhum evento futuro no momento.</p>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {upcomingEvents.map(ev => {
-                  const dep = new Date(ev.truckDepartureDate);
-                  const color = PRIO_COLOR[prioKey(ev)];
+                  const dep = toUTCDisplayDate(ev.truckDepartureDate);
+                  const meta = prioMeta(ev);
                   return (
                     <div key={ev.id}
                       data-testid={`upcoming-event-${ev.id}`}
                       role="link" tabIndex={0} aria-label={`Abrir evento ${ev.name}`} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); setLocation(`/eventos/${ev.id}`); } }} onClick={() => setLocation(`/eventos/${ev.id}`)}
-                      style={{ backgroundColor: "#ffffff", borderRadius: 8, padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderLeft: `4px solid ${color}`, cursor: "pointer" }}
+                      style={{ backgroundColor: "#ffffff", borderRadius: 8, padding: "12px 14px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, borderLeft: `4px solid ${meta.dot}`, cursor: "pointer" }}
                       onMouseEnter={e => (e.currentTarget.style.backgroundColor = P.bg)}
                       onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#ffffff")}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: P.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{ev.name}</p>
-                        <p style={{ margin: "3px 0 0", fontSize: 11, color: P.muted }}>
+                        <p style={{ margin: "3px 0 0", fontSize: 11, color: P.secondary }}>
                           Saída: {dep.toLocaleDateString("pt-BR")} às {dep.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                         </p>
                       </div>
-                      <span style={{ fontSize: 10, fontWeight: 700, color, backgroundColor: `${color}18`, borderRadius: 999, padding: "3px 10px", whiteSpace: "nowrap", textTransform: "uppercase", letterSpacing: "0.05em" }}>
-                        {PRIO_LABEL[prioKey(ev)]}
+                      <span style={{ fontSize: 10, fontWeight: 700, color: meta.text, backgroundColor: meta.bg, border: `1px solid ${meta.border}`, borderRadius: 999, padding: "3px 10px", whiteSpace: "nowrap", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                        {meta.label}
                       </span>
                     </div>
                   );
@@ -579,16 +664,17 @@ export default function Calendario() {  const isMobile = useIsMobile();
           </DialogHeader>
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
             {selectedDate && getEventsForDate(selectedDate).map(ev => {
-              const pk = prioKey(ev);
-              const color = PRIO_COLOR[pk];
+              const meta = prioMeta(ev);
               const isStart = ev._type === "start";
-              const dateTime = isStart ? parseDateLocal(ev.startDate) : new Date(ev.truckDepartureDate);
+              // toUTCDisplayDate: MESMA conversão usada no agrupamento da
+              // grade — grade e dialog exibem a saída no mesmo dia/horário.
+              const dateTime = isStart ? parseDateLocal(ev.startDate) : toUTCDisplayDate(ev.truckDepartureDate);
 
               return (
                 <div key={`${ev.id}-${ev._type}`}
                   data-testid={`dialog-event-${ev.id}-${ev._type}`}
                   role="link" tabIndex={0} aria-label={`Abrir evento ${ev.name}`} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); setDialogOpen(false); setLocation(`/eventos/${ev.id}`); } }} onClick={() => { setDialogOpen(false); setLocation(`/eventos/${ev.id}`); }}
-                  style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", backgroundColor: P.surface, border: `1px solid ${P.border}`, borderLeft: `4px solid ${color}`, borderRadius: 8, cursor: "pointer" }}
+                  style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: "12px 14px", backgroundColor: P.surface, border: `1px solid ${P.border}`, borderLeft: `4px solid ${meta.dot}`, borderRadius: 8, cursor: "pointer" }}
                   onMouseEnter={e => (e.currentTarget.style.backgroundColor = P.bg)}
                   onMouseLeave={e => (e.currentTarget.style.backgroundColor = P.surface)}
                 >
@@ -598,15 +684,15 @@ export default function Calendario() {  const isMobile = useIsMobile();
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
                       <p style={{ fontSize: 15, fontWeight: 600, color: P.text, margin: 0 }}>{ev.name}</p>
-                      <span style={{ fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", color: P.secondary, backgroundColor: P.bg, border: `1px solid ${P.border}`, borderRadius: 6, padding: "2px 6px" }}>
-                        {PRIO_LABEL[pk]}
+                      <span style={{ fontSize: 10, fontWeight: 600, whiteSpace: "nowrap", color: meta.text, backgroundColor: meta.bg, border: `1px solid ${meta.border}`, borderRadius: 6, padding: "2px 6px" }}>
+                        {meta.label}
                       </span>
                     </div>
-                    <p style={{ fontSize: 13, color: P.muted, margin: "4px 0 0" }}>
+                    <p style={{ fontSize: 13, color: P.secondary, margin: "4px 0 0" }}>
                       {isStart ? "Início: " : "Saída do caminhão: "}
-                      <strong style={{ color: P.secondary }}>
-                        {isStart ? dateTime.toLocaleDateString("pt-BR") : dateTime.toLocaleDateString("pt-BR", { timeZone: 'UTC' })}
-                        {!isStart && ` às ${dateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: 'UTC' })}`}
+                      <strong style={{ color: P.text }}>
+                        {dateTime.toLocaleDateString("pt-BR")}
+                        {!isStart && ` às ${dateTime.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`}
                       </strong>
                     </p>
                   </div>
@@ -621,7 +707,7 @@ export default function Calendario() {  const isMobile = useIsMobile();
               return (
                 <>
                   <div style={{ borderTop: "1px solid #eeeeed", paddingTop: 6, paddingBottom: 2 }}>
-                    <span style={{ fontSize: 10, fontWeight: 900, color: P.muted, textTransform: "uppercase", letterSpacing: "0.12em" }}>
+                    <span style={{ fontSize: 10, fontWeight: 900, color: P.secondary, textTransform: "uppercase", letterSpacing: "0.12em" }}>
                       Prazos de Layout
                     </span>
                   </div>
@@ -647,8 +733,8 @@ export default function Calendario() {  const isMobile = useIsMobile();
                             {dtype.short}
                           </span>
                         </div>
-                        <p style={{ fontSize: 13, color: P.muted, margin: "4px 0 0" }}>
-                          Prazo: <strong style={{ color: P.secondary }}>{dtype.label}</strong>
+                        <p style={{ fontSize: 13, color: P.secondary, margin: "4px 0 0" }}>
+                          Prazo: <strong style={{ color: P.text }}>{dtype.label}</strong>
                         </p>
                       </div>
                     </div>
@@ -664,12 +750,15 @@ export default function Calendario() {  const isMobile = useIsMobile();
 }
 
 /* ── Nav arrow button ── */
-function NavBtn({ onClick, children, testId }: { onClick: () => void; children: React.ReactNode; testId: string }) {
+function NavBtn({ onClick, children, testId, big, label }: {
+  onClick: () => void; children: React.ReactNode; testId: string; big?: boolean; label: string;
+}) {
   const [h, setH] = useState(false);
+  const size = big ? 44 : 34;
   return (
-    <button onClick={onClick} data-testid={testId}
+    <button onClick={onClick} data-testid={testId} aria-label={label}
       onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
-      style={{ width: 34, height: 34, borderRadius: "50%", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: h ? "#eeeeed" : "transparent", color: "#1c1917", transition: "background 0.12s" }}>
+      style={{ width: size, height: size, borderRadius: "50%", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: h ? "#eeeeed" : "transparent", color: "#1c1917", transition: "background 0.12s" }}>
       {children}
     </button>
   );

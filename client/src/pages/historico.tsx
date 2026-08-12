@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
@@ -10,6 +10,7 @@ import { useLocation } from "wouter";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { getStatusMeta } from "@/lib/status";
 
 /* ── Palette ── */
 const P = {
@@ -18,9 +19,21 @@ const P = {
   border:  "#e7e5e4",
   text:    "#1c1917",
   second:  "#78716c",
+  // Apenas decorativo (ícones, bolinhas) — como texto reprova AA; rótulos e
+  // cabeçalhos usam #746e69 (o cinza AA de lib/theme).
   muted:   "#a8a29e",
+  label:   "#746e69",
   accent:  "#f97316",
 };
+
+/* Deriva as cores da pill do STATUS de peça correspondente (lib/status.ts,
+   fonte única): o mesmo estado aparecia aqui com cor diferente das outras
+   telas (ex.: "Entregue" era roxo no histórico e esmeralda no resto do app).
+   Rótulo e ícone continuam locais — são específicos do histórico. */
+function fromStatus(status: string, label: string, icon: any) {
+  const m = getStatusMeta(status);
+  return { label, dot: m.dot, bg: m.bg, border: m.border, color: m.text, icon };
+}
 
 /* ── Type pill config ── */
 const TYPE_CONFIG: Record<string, {
@@ -32,7 +45,8 @@ const TYPE_CONFIG: Record<string, {
     icon: Calendar,
   },
   item_created: {
-    label: "Peça Adicionada", dot: "#f97316", bg: "#fff7ed", border: "#fed7aa", color: "#f97316",
+    // #c2410c (orange-700): o #f97316 saturado como texto reprovava AA.
+    label: "Peça Adicionada", dot: "#f97316", bg: "#fff7ed", border: "#fed7aa", color: "#c2410c",
     icon: Plus,
   },
   sponsor_linked: {
@@ -48,17 +62,15 @@ const TYPE_CONFIG: Record<string, {
     icon: RefreshCw,
   },
   final_file_added: {
-    label: "Arq. Final", dot: "#06b6d4", bg: "#ecfeff", border: "#a5f3fc", color: "#0891b2",
+    // #0e7490 (cyan-700): #0891b2 como texto a 10px não passava AA.
+    label: "Arq. Final", dot: "#06b6d4", bg: "#ecfeff", border: "#a5f3fc", color: "#0e7490",
     icon: FileCheck,
   },
   final_file_replaced: {
     label: "Arq. Final Trocado", dot: "#0e7490", bg: "#ecfeff", border: "#67e8f9", color: "#155e75",
     icon: RefreshCw,
   },
-  item_sent: {
-    label: "Enviado p/ Aprov.", dot: "#f97316", bg: "#fff7ed", border: "#fed7aa", color: "#ea580c",
-    icon: Clock,
-  },
+  item_sent:          fromStatus("awaiting_approval", "Enviado p/ Aprov.", Clock),
   sponsor_approved: {
     label: "Pat. Aprovou", dot: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", color: "#15803d",
     icon: FileCheck,
@@ -67,58 +79,35 @@ const TYPE_CONFIG: Record<string, {
     label: "Pat. Reprovou", dot: "#dc2626", bg: "#fef2f2", border: "#fecaca", color: "#b91c1c",
     icon: Activity,
   },
-  item_approved: {
-    label: "Peça Liberada", dot: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", color: "#15803d",
-    icon: FileCheck,
-  },
-  item_released: {
-    label: "Lib. p/ Produção", dot: "#2563eb", bg: "#eff6ff", border: "#bfdbfe", color: "#1d4ed8",
-    icon: Package,
-  },
+  item_approved:      fromStatus("approved", "Peça Liberada", FileCheck),
+  item_released:      fromStatus("approved", "Lib. p/ Produção", Package),
   item_dispensed: {
     label: "Dispensado", dot: "#6b7280", bg: "#f3f4f6", border: "#e5e7eb", color: "#374151",
     icon: Activity,
   },
-  item_deleted: {
-    label: "Excluído", dot: "#ef4444", bg: "#fef2f2", border: "#fecaca", color: "#b91c1c",
-    icon: Activity,
-  },
-  production_started: {
-    label: "Em Produção", dot: "#3b82f6", bg: "#eff6ff", border: "#bfdbfe", color: "#1d4ed8",
-    icon: Package,
-  },
-  item_produced: {
-    label: "Produzido", dot: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", color: "#15803d",
-    icon: Package,
-  },
-  item_delivered: {
-    label: "Peça Entregue", dot: "#9333ea", bg: "#faf5ff", border: "#e9d5ff", color: "#7e22ce",
-    icon: Truck,
-  },
+  item_deleted:       fromStatus("deleted", "Excluído", Activity),
+  production_started: fromStatus("inProduction", "Em Produção", Package),
+  item_produced:      fromStatus("produced", "Produzido", Package),
+  item_delivered:     fromStatus("delivered", "Peça Entregue", Truck),
   book_sent: {
     label: "Envio de Book", dot: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe", color: "#6d28d9",
     icon: FileText,
   },
-  item_conferred: {
-    label: "Conferência", dot: "#0891b2", bg: "#ecfeff", border: "#a5f3fc", color: "#0e7490",
-    icon: FileCheck,
-  },
+  item_conferred:     fromStatus("conferred", "Conferência", FileCheck),
   item_reused: {
     label: "Reaproveitamento", dot: "#059669", bg: "#f0fdf4", border: "#bbf7d0", color: "#047857",
     icon: RefreshCw,
   },
   item_reused_partial: {
-    label: "Reaprov. Parcial", dot: "#10b981", bg: "#f0fdf4", border: "#a7f3d0", color: "#059669",
+    // #047857 (emerald-700): o #059669 reprovava AA sobre o tint claro.
+    label: "Reaprov. Parcial", dot: "#10b981", bg: "#f0fdf4", border: "#a7f3d0", color: "#047857",
     icon: RefreshCw,
   },
   item_reuse_corrected: {
     label: "Reaprov. Corrigido", dot: "#d97706", bg: "#fffbeb", border: "#fde68a", color: "#92400e",
     icon: RefreshCw,
   },
-  item_canceled: {
-    label: "Cancelada", dot: "#dc2626", bg: "#fef2f2", border: "#fecaca", color: "#b91c1c",
-    icon: Activity,
-  },
+  item_canceled:      fromStatus("canceled", "Cancelada", Activity),
   item_returned: {
     label: "Devolvida p/ Arte", dot: "#d97706", bg: "#fffbeb", border: "#fde68a", color: "#b45309",
     icon: Activity,
@@ -155,12 +144,12 @@ function UserAvatar({ name }: { name?: string }) {
         width: 28, height: 28, borderRadius: "50%",
         backgroundColor: "#e8e8e7",
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 10, fontWeight: 800, color: unknown ? P.muted : P.text,
+        fontSize: 10, fontWeight: 800, color: unknown ? P.label : P.text,
         flexShrink: 0, letterSpacing: "0.02em",
       }}>
         {initials}
       </div>
-      <span style={{ fontSize: 13, fontWeight: 700, color: unknown ? P.muted : P.text, whiteSpace: "nowrap" }}>
+      <span style={{ fontSize: 13, fontWeight: 700, color: unknown ? P.label : P.text, whiteSpace: "nowrap" }}>
         {display}
       </span>
     </div>
@@ -184,63 +173,73 @@ interface TimelineEvent {
   logDetails?: string;
 }
 
+/* ── Micro-componentes da descrição ──
+   <B> (negrito no texto principal) e <Id> (código da peça) se repetiam
+   inline dezenas de vezes em buildDescription — extraídos, a descrição fica
+   legível e o estilo muda num lugar só. */
+function B({ children }: { children: React.ReactNode }) {
+  return <strong style={{ color: P.text }}>{children}</strong>;
+}
+function Id({ id }: { id?: string }) {
+  if (!id) return null;
+  return <code style={{ fontFamily: "monospace", fontWeight: 700, color: P.second, fontSize: 13 }}>{id}</code>;
+}
+
 /* ── Description builder ── */
 function buildDescription(e: TimelineEvent) {
-  const ID = e.itemDisplayId
-    ? <code style={{ fontFamily: "monospace", fontWeight: 700, color: P.second, fontSize: 13 }}>{e.itemDisplayId}</code>
-    : null;
+  const ID = <Id id={e.itemDisplayId} />;
 
   switch (e.type) {
     case "event_created":
-      return <span>Evento <strong style={{ color: P.text }}>{e.eventName}</strong> foi criado</span>;
+      return <span>Evento <B>{e.eventName}</B> foi criado</span>;
     case "item_created":
-      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> ({e.quantity} un.) adicionado ao evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+      return <span>{ID} <B>{e.itemType}</B> ({e.quantity} un.) adicionado ao evento <B>{e.eventName}</B></span>;
     case "sponsor_linked":
       return (
         <span>
-          {ID} <strong style={{ color: P.text }}>{e.itemType}</strong> —{" "}
+          {ID} <B>{e.itemType}</B> —{" "}
           {e.sponsorCount != null
             ? <>{e.sponsorCount} {e.sponsorCount === 1 ? "patrocinador vinculado" : "patrocinadores vinculados"}</>
             : "patrocinadores atualizados"
           }{" "}
-          no evento <strong style={{ color: P.text }}>{e.eventName}</strong>
+          no evento <B>{e.eventName}</B>
         </span>
       );
     case "thumb_uploaded":
-      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — thumb de aprovação enviado · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+      return <span>{ID} <B>{e.itemType}</B> — thumb de aprovação enviado · evento <B>{e.eventName}</B></span>;
     case "thumb_replaced":
-      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — thumb trocado (versão anterior guardada) · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+      return <span>{ID} <B>{e.itemType}</B> — thumb trocado (versão anterior guardada) · evento <B>{e.eventName}</B></span>;
     case "final_file_added":
-      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — arquivo final adicionado · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+      return <span>{ID} <B>{e.itemType}</B> — arquivo final adicionado · evento <B>{e.eventName}</B></span>;
     case "final_file_replaced":
-      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — arquivo final substituído · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+      return <span>{ID} <B>{e.itemType}</B> — arquivo final substituído · evento <B>{e.eventName}</B></span>;
     case "item_sent":
-      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> enviado para aprovação de patrocinador · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+      return <span>{ID} <B>{e.itemType}</B> enviado para aprovação de patrocinador · evento <B>{e.eventName}</B></span>;
     case "sponsor_approved":
-      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — {e.logDetails || "patrocinador aprovou"} · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+      return <span>{ID} <B>{e.itemType}</B> — {e.logDetails || "patrocinador aprovou"} · evento <B>{e.eventName}</B></span>;
     case "sponsor_rejected":
-      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — {e.logDetails || "patrocinador reprovou"} · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+      return <span>{ID} <B>{e.itemType}</B> — {e.logDetails || "patrocinador reprovou"} · evento <B>{e.eventName}</B></span>;
     case "item_approved":
-      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> de <strong style={{ color: P.text }}>{e.eventName}</strong> liberado para produção</span>;
+      return <span>{ID} <B>{e.itemType}</B> de <B>{e.eventName}</B> liberado para produção</span>;
     case "item_released":
-      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> revisado e liberado para produção · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+      return <span>{ID} <B>{e.itemType}</B> revisado e liberado para produção · evento <B>{e.eventName}</B></span>;
     case "item_dispensed":
-      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> dispensado (aprovação ignorada) · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+      return <span>{ID} <B>{e.itemType}</B> dispensado (aprovação ignorada) · evento <B>{e.eventName}</B></span>;
     case "item_deleted":
-      return <span>Peça <strong style={{ color: P.text }}>{e.itemType}</strong> excluída do evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+      return <span>Peça <B>{e.itemType}</B> excluída do evento <B>{e.eventName}</B></span>;
     case "production_started":
-      return <span>Produção de {ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — {e.quantityProduced}/{e.quantity} un. · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+      return <span>Produção de {ID} <B>{e.itemType}</B> — {e.quantityProduced}/{e.quantity} un. · evento <B>{e.eventName}</B></span>;
     case "item_produced":
-      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> produzida — {e.quantityProduced ?? e.quantity}/{e.quantity} un. · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+      return <span>{ID} <B>{e.itemType}</B> produzida — {e.quantityProduced ?? e.quantity}/{e.quantity} un. · evento <B>{e.eventName}</B></span>;
     case "item_delivered":
       return (
         <span>
-          {ID} <strong style={{ color: P.text }}>{e.itemType}</strong> de <strong style={{ color: P.text }}>{e.eventName}</strong> entregue
-          {e.receivedBy && <> para <strong style={{ color: P.text }}>{e.receivedBy}</strong></>}
+          {ID} <B>{e.itemType}</B> de <B>{e.eventName}</B> entregue
+          {e.receivedBy && <> para <B>{e.receivedBy}</B></>}
         </span>
       );
     case "item_reused":
-      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> marcada como reaproveitamento — não vai para produção · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+      return <span>{ID} <B>{e.itemType}</B> marcada como reaproveitamento — não vai para produção · evento <B>{e.eventName}</B></span>;
     case "item_reused_partial": {
       // Dois formatos gravam o parcial: o da Gráfica ("6/10 reaproveitadas") e o
       // da Revisão ("6 un. de 10"). O número que interessa é o mesmo.
@@ -249,27 +248,27 @@ function buildDescription(e: TimelineEvent) {
       const toProduce = d.match(/(\d+)\s*a produzir/i)?.[1];
       return (
         <span>
-          {ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — reaproveitamento parcial
+          {ID} <B>{e.itemType}</B> — reaproveitamento parcial
           {m ? <> ({m[1]} de {m[2]} un.{toProduce ? `, ${toProduce} a produzir` : ""})</> : null}
-          {" · evento "}<strong style={{ color: P.text }}>{e.eventName}</strong>
+          {" · evento "}<B>{e.eventName}</B>
         </span>
       );
     }
     case "item_reuse_corrected":
-      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> — {e.logDetails || "reaproveitamento corrigido"} · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+      return <span>{ID} <B>{e.itemType}</B> — {e.logDetails || "reaproveitamento corrigido"} · evento <B>{e.eventName}</B></span>;
     case "item_conferred":
-      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> conferida{e.logDetails?.match(/\((\d+\/\d+)\)/) ? <> — {e.logDetails.match(/\((\d+\/\d+)\)/)![1]} un.</> : null} · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+      return <span>{ID} <B>{e.itemType}</B> conferida{e.logDetails?.match(/\((\d+\/\d+)\)/) ? <> — {e.logDetails.match(/\((\d+\/\d+)\)/)![1]} un.</> : null} · evento <B>{e.eventName}</B></span>;
     case "item_canceled":
-      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> cancelada · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+      return <span>{ID} <B>{e.itemType}</B> cancelada · evento <B>{e.eventName}</B></span>;
     case "item_returned":
-      return <span>{ID} <strong style={{ color: P.text }}>{e.itemType}</strong> devolvida para a Arte · evento <strong style={{ color: P.text }}>{e.eventName}</strong></span>;
+      return <span>{ID} <B>{e.itemType}</B> devolvida para a Arte · evento <B>{e.eventName}</B></span>;
     case "book_sent": {
       const removido = (e.logDetails || "").toLowerCase().includes("removido");
       return (
         <span>
           Book de aprovação {removido ? "removido de" : "enviado com"}{" "}
-          {e.quantity ? <strong style={{ color: P.text }}>{e.quantity} peça{e.quantity === 1 ? "" : "s"}</strong> : "peças"}
-          {" "}· evento <strong style={{ color: P.text }}>{e.eventName}</strong>
+          {e.quantity ? <B>{e.quantity} peça{e.quantity === 1 ? "" : "s"}</B> : "peças"}
+          {" "}· evento <B>{e.eventName}</B>
         </span>
       );
     }
@@ -278,17 +277,11 @@ function buildDescription(e: TimelineEvent) {
   }
 }
 
-export default function Historico() {  const isMobile = useIsMobile();
-  const [, setLocation] = useLocation();
-  const [eventFilter, setEventFilter] = useState<string[]>([]);
-  const [actionFilter, setActionFilter] = useState<string[]>([]);
-  const [searchFilter, setSearchFilter] = useState("");
-  const [page, setPage] = useState(1);
-
-  const { data: events = [] } = useQuery<any[]>({ queryKey: ["/api/events"] });
-  const { data: items = [] }  = useQuery<any[]>({ queryKey: ["/api/items"] });
-  const { data: auditLogs = [], isLoading: logsLoading } = useQuery<any[]>({ queryKey: ["/api/audit-logs"] });
-
+/* ── Pipeline: sintetiza a linha do tempo a partir de 3 tabelas ──
+   Fica FORA do componente e roda dentro de um useMemo: antes ele
+   reconstruía a timeline inteira (e refazia um events.find O(n) por item) a
+   CADA render — inclusive a cada tecla digitada na busca. */
+function buildTimeline(events: any[], items: any[], auditLogs: any[]): TimelineEvent[] {
   /* ── Build lookup maps ── */
   // Keep FIRST log per entity+action for userName lookups (created/delivered fire once)
   const auditLogMap = new Map<string, any>();
@@ -299,6 +292,10 @@ export default function Historico() {  const isMobile = useIsMobile();
 
   const itemMap = new Map<string, any>();
   items.forEach(item => itemMap.set(item.id, item));
+
+  // events.find(...) por item era O(n×m); o Map torna cada lookup O(1).
+  const eventMap = new Map<string, any>();
+  events.forEach(event => eventMap.set(event.id, event));
 
   const timeline: TimelineEvent[] = [];
 
@@ -330,7 +327,7 @@ export default function Historico() {  const isMobile = useIsMobile();
   });
 
   items.forEach(item => {
-    const event = events.find(e => e.id === item.eventId);
+    const event = eventMap.get(item.eventId);
     const eventName = event?.name || "Evento desconhecido";
     // Peças importadas via Excel antigas só têm o log agregado no evento —
     // usa-o como fallback para não exibir "Sistema" como autor.
@@ -400,7 +397,7 @@ export default function Historico() {  const isMobile = useIsMobile();
     // aqui (os demais viram entradas próprias a partir da tabela de eventos).
     if (entityType === "event") {
       if (detailsLower.includes("book")) {
-        const ev = events.find(e => e.id === itemId);
+        const ev = eventMap.get(itemId);
         const qtd = details.match(/(\d+)\s+pe/i)?.[1];
         timeline.push({
           id: `book-${log.id ?? itemId + ts}`,
@@ -423,7 +420,7 @@ export default function Historico() {  const isMobile = useIsMobile();
     }
 
     const item = itemMap.get(itemId);
-    const event = item ? events.find(e => e.id === item.eventId) : null;
+    const event = item ? eventMap.get(item.eventId) : null;
 
     // Extrai nome do evento e tipo da peça dos detalhes do log quando o item foi deletado
     const eventNameFromDetails = details.match(/(?:do|no) evento "(.+?)"/i)?.[1];
@@ -578,7 +575,7 @@ export default function Historico() {  const isMobile = useIsMobile();
     if (action === "created" && !item) {
       // Resumos de importação antigos foram gravados como 'item' mas com o id do
       // EVENTO — não são peças, e renderizavam "Peça ( un.) — Evento desconhecido".
-      if (events.some(e => e.id === itemId)) return;
+      if (eventMap.has(itemId)) return;
       timeline.push({
         id: `item-created-log-${log.id ?? itemId + ts}`,
         type: "item_created",
@@ -589,24 +586,92 @@ export default function Historico() {  const isMobile = useIsMobile();
     }
   });
 
-  const sorted = timeline.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  // Cópia antes do sort: não muta o array que acabou de ser montado à toa,
+  // e deixa explícito que a ordenação é responsabilidade de quem consome.
+  return [...timeline].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+}
 
-  /* ── Filters ── */
-  let filtered = eventFilter.length === 0 ? sorted : sorted.filter(e => eventFilter.includes(e.eventId));
-  if (actionFilter.length > 0) filtered = filtered.filter(e => actionFilter.includes(e.type));
-  if (searchFilter.trim()) {
-    const q = searchFilter.toLowerCase();
-    filtered = filtered.filter(e =>
-      e.eventName.toLowerCase().includes(q) ||
-      e.userName?.toLowerCase().includes(q) ||
-      e.itemType?.toLowerCase().includes(q) ||
-      e.itemDisplayId?.toLowerCase().includes(q) ||
-      e.receivedBy?.toLowerCase().includes(q)
-    );
-  }
+export default function Historico() {
+  const isMobile = useIsMobile();
+  const [, setLocation] = useLocation();
+  // Filtros inicializam da URL e são espelhados nela (mesmo padrão de
+  // eventos.tsx): F5 não perde o estado e o link filtrado é compartilhável.
+  const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
+  const [eventFilter, setEventFilter] = useState<string[]>(
+    () => urlParams.get("evento")?.split(",").filter(Boolean) ?? [],
+  );
+  const [actionFilter, setActionFilter] = useState<string[]>(
+    () => urlParams.get("acao")?.split(",").filter(Boolean) ?? [],
+  );
+  const [searchFilter, setSearchFilter] = useState(() => urlParams.get("busca") ?? "");
+  const [page, setPage] = useState(1);
+
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (searchFilter) p.set("busca", searchFilter);
+    if (actionFilter.length) p.set("acao", actionFilter.join(","));
+    if (eventFilter.length) p.set("evento", eventFilter.join(","));
+    const qs = p.toString();
+    window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+  }, [searchFilter, actionFilter, eventFilter]);
+
+  // Atalho "/" foca a busca (paridade com eventos.tsx e Painel Geral).
+  const searchRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/") return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const { data: events = [], isError: eventsError, refetch: refetchEvents } = useQuery<any[]>({ queryKey: ["/api/events"] });
+  const { data: items = [], isError: itemsError, refetch: refetchItems }  = useQuery<any[]>({ queryKey: ["/api/items"] });
+  const { data: auditLogs = [], isLoading: logsLoading, isError: logsError, refetch: refetchLogs } = useQuery<any[]>({ queryKey: ["/api/audit-logs"] });
+
+  // Qualquer uma das 3 fontes falhando deixa a timeline incompleta de um jeito
+  // silencioso (ex.: tudo vira "Evento desconhecido") — melhor avisar e
+  // oferecer nova tentativa do que exibir um histórico pela metade.
+  const isError = eventsError || itemsError || logsError;
+  const retryAll = () => { refetchEvents(); refetchItems(); refetchLogs(); };
+
+  const sorted = useMemo(
+    () => buildTimeline(events, items, auditLogs),
+    [events, items, auditLogs],
+  );
+
+  /* ── Filters — memoizados à parte: mudar filtro não reconstrói a timeline ── */
+  const filtered = useMemo(() => {
+    let list = eventFilter.length === 0 ? sorted : sorted.filter(e => eventFilter.includes(e.eventId));
+    if (actionFilter.length > 0) list = list.filter(e => actionFilter.includes(e.type));
+    if (searchFilter.trim()) {
+      const q = searchFilter.toLowerCase();
+      list = list.filter(e =>
+        e.eventName.toLowerCase().includes(q) ||
+        e.userName?.toLowerCase().includes(q) ||
+        e.itemType?.toLowerCase().includes(q) ||
+        e.itemDisplayId?.toLowerCase().includes(q) ||
+        e.receivedBy?.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [sorted, eventFilter, actionFilter, searchFilter]);
+
+  const hasActiveFilters = eventFilter.length > 0 || actionFilter.length > 0 || !!searchFilter.trim();
+  const clearFilters = () => { setEventFilter([]); setActionFilter([]); setSearchFilter(""); setPage(1); };
 
   /* ── Pagination ── */
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  // Sincroniza o estado com o total: quando um filtro encolhe a lista, `page`
+  // ficava além de totalPages e o "próxima" parecia quebrado (o disabled era
+  // calculado sobre safePage, mas o clique somava sobre o page inflado).
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
   const safePage   = Math.min(page, totalPages);
   const pageItems  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
@@ -661,7 +726,7 @@ export default function Historico() {  const isMobile = useIsMobile();
 
         {/* Filter strip */}
         <div style={{
-          padding: "20px 24px",
+          padding: isMobile ? "14px 16px" : "20px 24px",
           borderBottom: `1px solid ${P.border}`,
           backgroundColor: "#f3f4f3",
           display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center",
@@ -675,6 +740,7 @@ export default function Historico() {  const isMobile = useIsMobile();
             }} />
             <input
               placeholder="Buscar por ID, evento ou usuário..."
+              ref={searchRef}
               value={searchFilter}
               onChange={e => { setSearchFilter(e.target.value); setPage(1); }}
               data-testid="input-search-filter"
@@ -729,68 +795,142 @@ export default function Historico() {  const isMobile = useIsMobile();
             options={events.map((ev: any) => ({ value: ev.id, label: ev.name }))}
           />
 
-          {/* Counter chip */}
-          <div style={{
+          {/* Counter chip — aria-live anuncia o novo total a cada filtro. */}
+          <div aria-live="polite" style={{
             display: "flex", alignItems: "center", gap: 8,
             backgroundColor: "#e8e8e7", borderRadius: 8, padding: "9px 14px",
             marginLeft: "auto",
           }}>
-            <span style={{ fontSize: 10, fontWeight: 800, color: P.muted, textTransform: "uppercase", letterSpacing: "0.08em" }}>Total</span>
-            <span style={{ fontSize: 15, fontWeight: 900, color: P.accent }}>{filtered.length}</span>
+            <span style={{ fontSize: 10, fontWeight: 800, color: P.label, textTransform: "uppercase", letterSpacing: "0.08em" }}>Total</span>
+            <span style={{ fontSize: 15, fontWeight: 900, color: "#c2410c" }}>{filtered.length}</span>
           </div>
         </div>
 
-        {/* Table header */}
-        <div style={{
-          display: "grid", gridTemplateColumns: "2fr 5fr 2fr 3fr",
-          padding: "14px 32px",
-          backgroundColor: "#f3f4f3",
-          borderBottom: `1px solid ${P.border}`,
-        }}>
-          {["Tipo", "Ação", "Data / Hora", "Realizado Por"].map(h => (
-            <div key={h} style={{ fontSize: 10, fontWeight: 900, color: P.muted, textTransform: "uppercase", letterSpacing: "0.12em" }}>
-              {h}
-            </div>
-          ))}
-        </div>
+        {/* Table header — no celular as linhas viram cards empilhados, então
+            o cabeçalho de colunas deixa de fazer sentido. */}
+        {!isMobile && (
+          <div style={{
+            display: "grid", gridTemplateColumns: "2fr 5fr 2fr 3fr",
+            padding: "14px 32px",
+            backgroundColor: "#f3f4f3",
+            borderBottom: `1px solid ${P.border}`,
+          }}>
+            {["Tipo", "Ação", "Data / Hora", "Realizado Por"].map(h => (
+              <div key={h} style={{ fontSize: 10, fontWeight: 900, color: P.label, textTransform: "uppercase", letterSpacing: "0.12em" }}>
+                {h}
+              </div>
+            ))}
+          </div>
+        )}
 
         {/* Rows */}
         {logsLoading ? (
           <div style={{ display: "flex", justifyContent: "center", padding: "80px 24px" }}>
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           </div>
-        ) : filtered.length === 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", textAlign: "center" }}>
-            <div style={{ width: 72, height: 72, borderRadius: "50%", backgroundColor: "#e8e8e7", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, opacity: 0.5 }}>
-              <Search style={{ width: 32, height: 32, color: P.muted }} />
-            </div>
-            <h3 style={{ fontSize: 18, fontWeight: 700, color: P.text, margin: "0 0 8px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.01em" }}>
-              Nenhuma atividade encontrada
-            </h3>
-            <p style={{ fontSize: 13, color: P.second, margin: 0 }}>Tente ajustar os filtros para encontrar o que procura</p>
+        ) : isError ? (
+          <div role="alert" style={{ padding: "72px 24px", textAlign: "center" }}>
+            <h3 style={{ color: "#b91c1c", fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Não foi possível carregar o histórico</h3>
+            <p style={{ color: P.label, fontSize: 13, marginBottom: 20 }}>Verifique sua conexão e tente novamente.</p>
+            <button onClick={retryAll} data-testid="button-retry-historico"
+              style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}>
+              Tentar novamente
+            </button>
           </div>
+        ) : filtered.length === 0 ? (
+          sorted.length === 0 ? (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", textAlign: "center" }}>
+              <div style={{ width: 72, height: 72, borderRadius: "50%", backgroundColor: "#e8e8e7", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, opacity: 0.5 }}>
+                <Activity style={{ width: 32, height: 32, color: P.muted }} />
+              </div>
+              <h3 style={{ fontSize: 18, fontWeight: 700, color: P.text, margin: "0 0 8px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.01em" }}>
+                Nenhuma atividade ainda
+              </h3>
+              <p style={{ fontSize: 13, color: P.second, margin: 0 }}>As ações da equipe aparecem aqui conforme acontecem</p>
+            </div>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", textAlign: "center" }}>
+              <div style={{ width: 72, height: 72, borderRadius: "50%", backgroundColor: "#e8e8e7", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, opacity: 0.5 }}>
+                <Search style={{ width: 32, height: 32, color: P.muted }} />
+              </div>
+              <h3 style={{ fontSize: 18, fontWeight: 700, color: P.text, margin: "0 0 8px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.01em" }}>
+                Nenhuma atividade encontrada
+              </h3>
+              <p style={{ fontSize: 13, color: P.second, margin: "0 0 20px" }}>Nenhum registro corresponde aos filtros ativos</p>
+              {hasActiveFilters && (
+                <button onClick={clearFilters} data-testid="button-clear-filters"
+                  style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}>
+                  Limpar filtros
+                </button>
+              )}
+            </div>
+          )
         ) : (
           <div style={{ borderBottom: `1px solid ${P.border}` }}>
             {pageItems.map((entry, idx) => {
               const cfg = TYPE_CONFIG[entry.type] ?? DEFAULT_CFG;
               const isLast = idx === pageItems.length - 1;
 
+              /* A linha do histórico leva ao evento no clique, mas era um
+                 div sem foco: por teclado o histórico não navegava para
+                 lugar nenhum. role="link" porque a ação é navegar, e só
+                 quando existe evento para onde ir. O aria-label diz PARA
+                 QUAL evento — "abrir evento deste registro" repetido 25
+                 vezes não distinguia nada. */
+              const linkProps = entry.eventId ? {
+                role: "link" as const,
+                tabIndex: 0,
+                "aria-label": `Abrir evento ${entry.eventName}`,
+                onKeyDown: (e: React.KeyboardEvent) => {
+                  if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setLocation(`/eventos/${entry.eventId}`); }
+                },
+              } : {};
+
+              if (isMobile) {
+                return (
+                  <div
+                    key={entry.id}
+                    data-testid={`timeline-event-${idx}`}
+                    {...linkProps}
+                    onClick={entry.eventId ? () => setLocation(`/eventos/${entry.eventId}`) : undefined}
+                    style={{
+                      display: "flex", flexDirection: "column", gap: 8,
+                      padding: "14px 16px",
+                      borderBottom: isLast ? "none" : `1px solid #f0efee`,
+                      cursor: entry.eventId ? "pointer" : "default",
+                    }}
+                  >
+                    <div>
+                      <span style={{
+                        display: "inline-flex", alignItems: "center", gap: 6,
+                        padding: "4px 10px", borderRadius: 999,
+                        backgroundColor: cfg.bg, border: `1px solid ${cfg.border}`,
+                        fontSize: 10, fontWeight: 800, color: cfg.color,
+                        textTransform: "uppercase", letterSpacing: "0.04em",
+                        whiteSpace: "nowrap",
+                      }}>
+                        <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: cfg.dot, flexShrink: 0 }} />
+                        {cfg.label}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 13, color: P.second, lineHeight: 1.45 }}>
+                      {buildDescription(entry)}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: P.text }}>
+                        {format(entry.timestamp, "dd MMM yyyy, HH:mm", { locale: ptBR })}
+                      </span>
+                      <UserAvatar name={entry.userName} />
+                    </div>
+                  </div>
+                );
+              }
+
               return (
-                /* A linha do histórico leva ao evento no clique, mas era um
-                   div sem foco: por teclado o histórico não navegava para
-                   lugar nenhum. role="link" porque a ação é navegar, e só
-                   quando existe evento para onde ir. */
                 <div
                   key={entry.id}
                   data-testid={`timeline-event-${idx}`}
-                  {...(entry.eventId ? {
-                    role: "link" as const,
-                    tabIndex: 0,
-                    "aria-label": `Abrir evento deste registro`,
-                    onKeyDown: (e: React.KeyboardEvent) => {
-                      if (e.key === "Enter") { e.preventDefault(); setLocation(`/eventos/${entry.eventId}`); }
-                    },
-                  } : {})}
+                  {...linkProps}
                   onClick={entry.eventId ? () => setLocation(`/eventos/${entry.eventId}`) : undefined}
                   style={{
                     display: "grid", gridTemplateColumns: "2fr 5fr 2fr 3fr",
@@ -826,7 +966,7 @@ export default function Historico() {  const isMobile = useIsMobile();
                     <div style={{ fontSize: 13, fontWeight: 700, color: P.text }}>
                       {format(entry.timestamp, "dd MMM, HH:mm", { locale: ptBR })}
                     </div>
-                    <div style={{ fontSize: 10, color: P.muted, marginTop: 2 }}>
+                    <div style={{ fontSize: 10, color: P.label, marginTop: 2 }}>
                       {format(entry.timestamp, "yyyy", { locale: ptBR })}
                     </div>
                   </div>
@@ -842,12 +982,12 @@ export default function Historico() {  const isMobile = useIsMobile();
         )}
 
         {/* Footer pagination */}
-        {filtered.length > 0 && (
+        {!isError && filtered.length > 0 && (
           <div style={{
-            padding: "14px 32px",
+            padding: isMobile ? "14px 16px" : "14px 32px",
             backgroundColor: "#f3f4f3",
             borderTop: `1px solid ${P.border}`,
-            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+            display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
           }}>
             <span style={{ fontSize: 13, color: P.second }}>
               Exibindo <strong style={{ color: P.text }}>{Math.min((safePage - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(safePage * PAGE_SIZE, filtered.length)}</strong> de <strong style={{ color: P.text }}>{filtered.length}</strong> registros
@@ -859,6 +999,7 @@ export default function Historico() {  const isMobile = useIsMobile();
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={safePage === 1}
                 testId="button-prev-page"
+                label="Página anterior"
               >
                 <ChevronLeft style={{ width: 14, height: 14 }} />
               </PageBtn>
@@ -869,11 +1010,14 @@ export default function Historico() {  const isMobile = useIsMobile();
                   key={p}
                   onClick={() => setPage(p)}
                   data-testid={`button-page-${p}`}
+                  aria-current={p === safePage ? "page" : undefined}
                   style={{
                     padding: "4px 10px", borderRadius: 6, border: "none",
                     fontSize: 13, fontWeight: p === safePage ? 900 : 700,
                     cursor: "pointer",
-                    backgroundColor: p === safePage ? P.accent : "transparent",
+                    // #c2410c: o branco sobre #f97316 ficava em 2.8:1 — a
+                    // página ativa era justamente a menos legível do grupo.
+                    backgroundColor: p === safePage ? "#c2410c" : "transparent",
                     color: p === safePage ? "#ffffff" : P.second,
                     transition: "all 0.12s",
                     minWidth: 32,
@@ -890,6 +1034,7 @@ export default function Historico() {  const isMobile = useIsMobile();
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={safePage === totalPages}
                 testId="button-next-page"
+                label="Próxima página"
               >
                 <ChevronRight style={{ width: 14, height: 14 }} />
               </PageBtn>
@@ -902,23 +1047,27 @@ export default function Historico() {  const isMobile = useIsMobile();
 }
 
 /* ── Pagination arrow button ── */
-function PageBtn({ onClick, disabled, children, testId }: {
-  onClick: () => void; disabled: boolean; children: React.ReactNode; testId: string;
+function PageBtn({ onClick, disabled, children, testId, label }: {
+  onClick: () => void; disabled: boolean; children: React.ReactNode; testId: string; label: string;
 }) {
   const [h, setH] = useState(false);
   return (
     <button
       onClick={onClick}
       disabled={disabled}
+      aria-disabled={disabled}
+      aria-label={label}
       data-testid={testId}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       style={{
         padding: 6, borderRadius: 6, border: "none", cursor: disabled ? "default" : "pointer",
         backgroundColor: h && !disabled ? "#e8e8e7" : "transparent",
-        color: disabled ? "#d4d0cc" : "#57534e",
+        // Desabilitada fica em #a8a29e SEM opacity por cima: opacity 0.35
+        // sobre um cinza claro sumia com a seta em vez de só recuá-la.
+        color: disabled ? "#a8a29e" : "#57534e",
         display: "flex", alignItems: "center", justifyContent: "center",
-        transition: "background 0.12s", opacity: disabled ? 0.35 : 1,
+        transition: "background 0.12s",
       }}
     >
       {children}

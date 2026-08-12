@@ -39,11 +39,20 @@ export default function Login() {
   const { toast } = useToast();
   const [showAdminForm, setShowAdminForm] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [btnHover, setBtnHover] = useState(false);
+  // Erro de credencial também fica inline (role="alert"): o toast some sozinho
+  // e quem digitou errado ficava sem pista do que aconteceu.
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   const [ssoError] = useState(() => {
     const code = new URLSearchParams(search).get("error") ?? "";
-    return SSO_ERROR_MESSAGES[code] ?? null;
+    if (!code) return null;
+    // Código desconhecido ainda é uma falha de autenticação: melhor um aviso
+    // genérico do que voltar à tela como se nada tivesse acontecido.
+    return SSO_ERROR_MESSAGES[code] ?? {
+      title: "Falha na autenticação",
+      description:
+        "Não foi possível completar o acesso pelo portal. Tente novamente ou contate o administrador.",
+    };
   });
 
   // Chegar aqui expulso do meio do trabalho, sem explicação, faz parecer bug do
@@ -74,6 +83,7 @@ export default function Login() {
       setTimeout(() => setLocation("/"), 100);
     },
     onError: (error: any) => {
+      setLoginError(error.message || "Email ou senha inválidos");
       toast({
         variant: "destructive",
         title: "Erro ao fazer login",
@@ -82,7 +92,10 @@ export default function Login() {
     },
   });
 
-  const onSubmit = (data: LoginForm) => loginMutation.mutate(data);
+  const onSubmit = (data: LoginForm) => {
+    setLoginError(null);
+    loginMutation.mutate(data);
+  };
 
   return (
     <main className="login-main" style={{
@@ -95,6 +108,8 @@ export default function Login() {
       {/* Responsivo: em telas pequenas empilha, esconde o branding e permite
           rolar — os estilos inline vencem media queries, por isso o !important. */}
       <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .login-submit-btn:hover:not(:disabled) { background-color: #f97316 !important; }
         @media (max-width: 900px) {
           .login-main { flex-direction: column !important; height: auto !important; min-height: 100vh !important; overflow: auto !important; }
           .login-brand-col { display: none !important; }
@@ -127,10 +142,10 @@ export default function Login() {
           }}>
             <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 24, color: "white" }}>N</span>
           </div>
-          <h1 style={{
+          <p style={{
             fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 20,
             letterSpacing: "-0.02em", color: "#f9f9f8", margin: 0,
-          }}>NORTE Marketing Esportivo</h1>
+          }}>NORTE Marketing Esportivo</p>
         </div>
 
         <div style={{ position: "relative", zIndex: 1, maxWidth: 420 }}>
@@ -162,7 +177,7 @@ export default function Login() {
                 </div>
                 <div>
                   <p style={{ color: "white", fontWeight: 500, fontSize: 14, margin: 0 }}>{f.title}</p>
-                  <p style={{ color: "rgba(255,255,255,0.40)", fontSize: 12, margin: "2px 0 0 0" }}>{f.sub}</p>
+                  <p style={{ color: "rgba(255,255,255,0.72)", fontSize: 12, margin: "2px 0 0 0" }}>{f.sub}</p>
                 </div>
               </div>
             ))}
@@ -170,8 +185,8 @@ export default function Login() {
         </div>
 
         <footer style={{ position: "relative", zIndex: 1 }}>
-          <p style={{ color: "rgba(255,255,255,0.30)", fontSize: 11, margin: 0 }}>
-            © 2024 NORTE Marketing Esportivo. All rights reserved.
+          <p style={{ color: "rgba(255,255,255,0.64)", fontSize: 11, margin: 0 }}>
+            © {new Date().getFullYear()} NORTE Marketing Esportivo. Todos os direitos reservados.
           </p>
         </footer>
       </section>
@@ -184,6 +199,7 @@ export default function Login() {
         position: "relative", padding: "0 32px",
       }}>
         <div style={{ width: "100%", maxWidth: 448 }}>
+          <h1 className="sr-only">Entrar no sistema — NORTE Marketing Esportivo</h1>
 
           {/* Header */}
           <header style={{ marginBottom: 40 }}>
@@ -303,7 +319,7 @@ export default function Login() {
               }}
             >
               <p style={{ margin: 0, fontSize: 12, color: "#746e69" }}>
-                Acesso de emergência para administradores do sistema.
+                Acesso por e-mail e senha.
               </p>
 
               {/* Email */}
@@ -311,11 +327,12 @@ export default function Login() {
                 <label htmlFor="email" style={{
                   fontSize: 10, fontWeight: 700,
                   textTransform: "uppercase", letterSpacing: "0.1em",
-                  color: "rgba(88,66,55,0.70)",
+                  color: "#746e69",
                 }}>Endereço de E-mail</label>
                 <input
                   id="email"
                   type="email"
+                  autoComplete="username"
                   placeholder="nome@norte.com.br"
                   {...form.register("email")}
                   data-testid="input-email"
@@ -347,12 +364,13 @@ export default function Login() {
                 <label htmlFor="password" style={{
                   fontSize: 10, fontWeight: 700,
                   textTransform: "uppercase", letterSpacing: "0.1em",
-                  color: "rgba(88,66,55,0.70)",
+                  color: "#746e69",
                 }}>Senha de Acesso</label>
                 <div style={{ position: "relative" }}>
                   <input
                     id="password"
                     type={showPassword ? "text" : "password"}
+                    autoComplete="current-password"
                     placeholder="••••••••••••"
                     {...form.register("password")}
                     data-testid="input-password"
@@ -389,13 +407,29 @@ export default function Login() {
                 )}
               </div>
 
+              {loginError && (
+                <div
+                  role="alert"
+                  data-testid="login-error-inline"
+                  style={{
+                    display: "flex", alignItems: "flex-start", gap: 10,
+                    backgroundColor: "#fef2f2", border: "1.5px solid #fecaca",
+                    borderRadius: 8, padding: "12px 14px",
+                  }}
+                >
+                  <AlertTriangle style={{ width: 16, height: 16, color: "#dc2626", flexShrink: 0, marginTop: 1 }} />
+                  <p style={{ margin: 0, fontSize: 12, color: "#991b1b", lineHeight: 1.5 }}>{loginError}</p>
+                </div>
+              )}
+
               <button
                 type="submit"
                 disabled={loginMutation.isPending}
                 data-testid="button-login"
+                className="login-submit-btn"
                 style={{
                   width: "100%", height: 48,
-                  backgroundColor: btnHover && !loginMutation.isPending ? "#f97316" : "#1c1917",
+                  backgroundColor: "#1c1917",
                   color: "white", border: "none", borderRadius: 8,
                   fontSize: 14, fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700,
                   cursor: loginMutation.isPending ? "not-allowed" : "pointer",
@@ -403,8 +437,6 @@ export default function Login() {
                   display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                   transition: "background-color 0.25s",
                 }}
-                onMouseEnter={() => setBtnHover(true)}
-                onMouseLeave={() => setBtnHover(false)}
               >
                 {loginMutation.isPending ? (
                   <>
@@ -425,24 +457,15 @@ export default function Login() {
         {/* Security seal */}
         <footer style={{
           position: "absolute", bottom: 48, right: 48,
-          display: "flex", alignItems: "center", gap: 6, opacity: 0.40,
+          display: "flex", alignItems: "center", gap: 6,
         }}>
-          <Lock style={{ width: 13, height: 13, color: "#1c1917" }} />
+          <Lock style={{ width: 13, height: 13, color: "#746e69" }} />
           <span style={{
             fontSize: 10, fontWeight: 700,
-            textTransform: "uppercase", letterSpacing: "0.1em", color: "#1c1917",
+            textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69",
           }}>Conexão Segura SSL 256-bit</span>
         </footer>
       </section>
-
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg); } }
-        @media (max-width: 900px) {
-          .login-root { flex-direction: column; height: auto; min-height: 100vh; overflow: auto; }
-          .login-branding { display: none !important; }
-          .login-form-col { width: 100% !important; padding: 40px 20px !important; }
-        }
-      `}</style>
     </main>
   );
 }

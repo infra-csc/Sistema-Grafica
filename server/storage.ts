@@ -897,6 +897,12 @@ export class DatabaseStorage implements IStorage {
     const entityIdMatch = (id: string) =>
       or(eq(auditLogs.entityId, id), like(auditLogs.entityId, `%${id}%`));
 
+    // Teto de 500 registros (mais recentes primeiro): a tabela só cresce e a
+    // listagem sem filtro devolvia o histórico INTEIRO em toda carga de tela.
+    // Paginação real (offset/cursor + parâmetro limit na rota) fica para
+    // depois — este teto é o curativo até lá.
+    const MAX_LOGS = 500;
+
     if (entityType && entityId) {
       return await db
         .select()
@@ -907,25 +913,29 @@ export class DatabaseStorage implements IStorage {
             entityIdMatch(entityId)
           )
         )
-        .orderBy(desc(auditLogs.createdAt));
+        .orderBy(desc(auditLogs.createdAt))
+        .limit(MAX_LOGS);
     } else if (entityType) {
       return await db
         .select()
         .from(auditLogs)
         .where(eq(auditLogs.entityType, entityType))
-        .orderBy(desc(auditLogs.createdAt));
+        .orderBy(desc(auditLogs.createdAt))
+        .limit(MAX_LOGS);
     } else if (entityId) {
       return await db
         .select()
         .from(auditLogs)
         .where(entityIdMatch(entityId))
-        .orderBy(desc(auditLogs.createdAt));
+        .orderBy(desc(auditLogs.createdAt))
+        .limit(MAX_LOGS);
     }
-    
+
     return await db
       .select()
       .from(auditLogs)
-      .orderBy(desc(auditLogs.createdAt));
+      .orderBy(desc(auditLogs.createdAt))
+      .limit(MAX_LOGS);
   }
 
   async createAuditLog(insertLog: InsertAuditLog): Promise<AuditLog> {

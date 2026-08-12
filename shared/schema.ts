@@ -556,12 +556,29 @@ export const loginSchema = z.object({
 });
 
 export const changePasswordSchema = z.object({
+  // Obrigatória sempre que NÃO for primeiro acesso (ver superRefine abaixo).
   currentPassword: z.string().optional(),
-  newPassword: z.string().min(6, "Nova senha deve ter no mínimo 6 caracteres"),
+  newPassword: z.string().min(8, "Nova senha deve ter no mínimo 8 caracteres"),
   confirmPassword: z.string(),
-}).refine((data) => data.newPassword === data.confirmPassword, {
-  message: "As senhas não coincidem",
-  path: ["confirmPassword"],
+  // Quem decide este flag é o SERVIDOR (user.mustChangePassword), que o
+  // sobrescreve antes do parse — o valor vindo do client nunca é confiável
+  // como isenção. No client ele serve só para a validação ao vivo do form.
+  isFirstAccess: z.boolean().optional(),
+}).superRefine((data, ctx) => {
+  if (!data.isFirstAccess && !data.currentPassword) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Senha atual é obrigatória",
+      path: ["currentPassword"],
+    });
+  }
+  if (data.newPassword !== data.confirmPassword) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "As senhas não coincidem",
+      path: ["confirmPassword"],
+    });
+  }
 });
 
 export const insertCommentSchema = createInsertSchema(comments).omit({

@@ -60,9 +60,17 @@ export function registerStandardItemRoutes(app: Express): void {
     try {
       const validatedData = insertStandardItemSchema.parse(req.body);
       const item = await storage.createStandardItem(validatedData);
-      
+
+      await createAuditLog(
+        (req as any).userName,
+        'created',
+        'standardItem',
+        item.id,
+        `Modelo "${item.name}" criado`
+      );
+
       broadcast({ type: "standard_item_created", item });
-      
+
       res.status(201).json(item);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -77,6 +85,14 @@ export function registerStandardItemRoutes(app: Express): void {
         return res.status(400).json({ error: "oldName e newName são obrigatórios" });
       }
       const count = await storage.renameStandardItemGroup(oldName, newName.trim());
+      // Operação em massa: não há um id único — registra o nome como entityId.
+      await createAuditLog(
+        (req as any).userName,
+        'updated',
+        'standardItem',
+        newName.trim(),
+        `Grupo "${oldName}" renomeado para "${newName.trim()}" (${count} modelos)`
+      );
       broadcast({ type: "standard_item_group_renamed", oldName, newName: newName.trim() });
       res.json({ count });
     } catch (error: any) {
@@ -90,6 +106,13 @@ export function registerStandardItemRoutes(app: Express): void {
       const { name } = req.body;
       if (!name) return res.status(400).json({ error: "name é obrigatório" });
       const count = await storage.deleteStandardItemGroup(name);
+      await createAuditLog(
+        (req as any).userName,
+        'deleted',
+        'standardItem',
+        name,
+        `Grupo "${name}" removido de ${count} modelos`
+      );
       broadcast({ type: "standard_item_group_deleted", name });
       res.json({ count });
     } catch (error: any) {
@@ -105,6 +128,13 @@ export function registerStandardItemRoutes(app: Express): void {
         return res.status(400).json({ error: "oldName e newName são obrigatórios" });
       }
       const count = await storage.renameStandardItemFinish(oldName, newName.trim());
+      await createAuditLog(
+        (req as any).userName,
+        'updated',
+        'standardItem',
+        newName.trim(),
+        `Acabamento "${oldName}" renomeado para "${newName.trim()}" (${count} modelos)`
+      );
       broadcast({ type: "standard_item_finish_renamed", oldName, newName: newName.trim() });
       res.json({ count });
     } catch (error: any) {
@@ -118,6 +148,13 @@ export function registerStandardItemRoutes(app: Express): void {
       const { name } = req.body;
       if (!name) return res.status(400).json({ error: "name é obrigatório" });
       const count = await storage.deleteStandardItemFinish(name);
+      await createAuditLog(
+        (req as any).userName,
+        'deleted',
+        'standardItem',
+        name,
+        `Acabamento "${name}" removido de ${count} modelos`
+      );
       broadcast({ type: "standard_item_finish_deleted", name });
       res.json({ count });
     } catch (error: any) {
@@ -133,6 +170,13 @@ export function registerStandardItemRoutes(app: Express): void {
         return res.status(400).json({ error: "oldName e newName são obrigatórios" });
       }
       const count = await storage.renameStandardItemMaterial(oldName, newName.trim());
+      await createAuditLog(
+        (req as any).userName,
+        'updated',
+        'standardItem',
+        newName.trim(),
+        `Material "${oldName}" renomeado para "${newName.trim()}" (${count} modelos)`
+      );
       broadcast({ type: "standard_item_material_renamed", oldName, newName: newName.trim() });
       res.json({ count });
     } catch (error: any) {
@@ -146,6 +190,13 @@ export function registerStandardItemRoutes(app: Express): void {
       const { name } = req.body;
       if (!name) return res.status(400).json({ error: "name é obrigatório" });
       const count = await storage.deleteStandardItemMaterial(name);
+      await createAuditLog(
+        (req as any).userName,
+        'deleted',
+        'standardItem',
+        name,
+        `Material "${name}" removido de ${count} modelos`
+      );
       broadcast({ type: "standard_item_material_deleted", name });
       res.json({ count });
     } catch (error: any) {

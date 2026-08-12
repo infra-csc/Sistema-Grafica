@@ -1,9 +1,9 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { FilterSelect } from "@/components/filter-select";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Search, ChevronLeft, ChevronRight, X, Download } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight, X, Download, Copy, Check } from "lucide-react";
 import { T } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -19,20 +19,22 @@ interface AuditLog {
 }
 
 /* ── Action config ── */
+// Tons 700 das mesmas famílias: os 500/600 anteriores reprovavam o piso de
+// contraste 4.5:1 sobre os fundos pastéis dos badges.
 const ACTION_CFG: Record<string, { label: string; bg: string; color: string }> = {
-  created:            { label: "Criado",         bg: "#eff6ff", color: "#2563eb" },
-  updated:            { label: "Atualizado",      bg: "#fff7ed", color: "#ea580c" },
-  deleted:            { label: "Excluído",        bg: "#fef2f2", color: "#dc2626" },
-  approved:           { label: "Aprovado",        bg: "#f0fdf4", color: "#16a34a" },
-  delivered:          { label: "Entregue",        bg: "#f0fdf4", color: "#059669" },
-  status_changed:     { label: "Status",          bg: "#faf5ff", color: "#9333ea" },
-  sponsor_linked:     { label: "Patrocinador",    bg: "#fff7ed", color: "#ea580c" },
-  sponsor_approved:   { label: "Pat. Aprovado",   bg: "#f0fdf4", color: "#16a34a" },
-  submitted:          { label: "Enviado",         bg: "#eff6ff", color: "#2563eb" },
-  released:           { label: "Liberado",        bg: "#f0fdf4", color: "#059669" },
-  rejected:           { label: "Reprovado",       bg: "#fef2f2", color: "#dc2626" },
-  login:              { label: "Login",           bg: "#f5f3ff", color: "#7c3aed" },
-  password_changed:   { label: "Senha",           bg: "#faf5ff", color: "#9333ea" },
+  created:            { label: "Criado",         bg: "#eff6ff", color: "#1d4ed8" },
+  updated:            { label: "Atualizado",      bg: "#fff7ed", color: "#c2410c" },
+  deleted:            { label: "Excluído",        bg: "#fef2f2", color: "#b91c1c" },
+  approved:           { label: "Aprovado",        bg: "#f0fdf4", color: "#15803d" },
+  delivered:          { label: "Entregue",        bg: "#f0fdf4", color: "#047857" },
+  status_changed:     { label: "Status",          bg: "#faf5ff", color: "#7e22ce" },
+  sponsor_linked:     { label: "Patrocinador",    bg: "#fff7ed", color: "#c2410c" },
+  sponsor_approved:   { label: "Pat. Aprovado",   bg: "#f0fdf4", color: "#15803d" },
+  submitted:          { label: "Enviado",         bg: "#eff6ff", color: "#1d4ed8" },
+  released:           { label: "Liberado",        bg: "#f0fdf4", color: "#047857" },
+  rejected:           { label: "Reprovado",       bg: "#fef2f2", color: "#b91c1c" },
+  login:              { label: "Login",           bg: "#f5f3ff", color: "#6d28d9" },
+  password_changed:   { label: "Senha",           bg: "#faf5ff", color: "#7e22ce" },
 };
 
 const getActionCfg = (action: string) =>
@@ -47,14 +49,11 @@ const ENTITY_LABELS: Record<string, string> = {
   comment: "Comentário",
 };
 
-/* ── Role colors (for avatar) ── */
-const ROLE_AVATAR: Record<string, { bg: string; color: string }> = {
-  admin:       { bg: "#fee2e2", color: "#b91c1c" },
-  solicitacao: { bg: "#dbeafe", color: "#1d4ed8" },
-  arte:        { bg: "#ede9fe", color: "#7c3aed" },
-  grafica:     { bg: "#ffedd5", color: "#c2410c" },
-  atendimento: { bg: "#dcfce7", color: "#15803d" },
-};
+/* ── Avatar ── */
+// O payload de /api/audit-logs NÃO traz o papel do usuário (só userName), então
+// colorir o avatar "por papel" era mentira: todos caíam no mesmo fallback verde
+// de atendimento. Até o log carregar userRole, um neutro único é o honesto.
+const AVATAR_NEUTRAL = { bg: T.low, color: T.second };
 
 function initials(name: string) {
   return name.split(" ").filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join("");
@@ -78,15 +77,24 @@ const filterSel: React.CSSProperties = {
   transition: "all 0.2s",
 };
 
-export default function LogsSistema() {  const isMobile = useIsMobile();
+export default function LogsSistema() {
+  const isMobile = useIsMobile();
   const [search, setSearch]           = useState("");
   const [actionFilter, setActionFilter] = useState("all");
   const [entityFilter, setEntityFilter] = useState("all");
   const [page, setPage]               = useState(1);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  const { data: logs = [], isLoading } = useQuery<AuditLog[]>({
+  const { data: logs = [], isLoading, isError, refetch } = useQuery<AuditLog[]>({
     queryKey: ["/api/audit-logs"],
   });
+
+  const copyEntityId = (logId: string, entityId: string) => {
+    navigator.clipboard?.writeText(entityId).then(() => {
+      setCopiedId(logId);
+      window.setTimeout(() => setCopiedId(current => (current === logId ? null : current)), 1500);
+    });
+  };
 
   /* ── Derived filter options ── */
   const allActions = useMemo(() =>
@@ -121,7 +129,7 @@ export default function LogsSistema() {  const isMobile = useIsMobile();
       format(new Date(l.createdAt), "dd/MM/yyyy HH:mm:ss", { locale: ptBR }),
       l.userName,
       getActionCfg(l.action).label,
-      l.details ?? `${l.action} em ${l.entityType}`,
+      l.details ?? `${getActionCfg(l.action).label} em ${ENTITY_LABELS[l.entityType] ?? l.entityType}`,
       ENTITY_LABELS[l.entityType] ?? l.entityType,
       l.entityId,
     ]);
@@ -174,13 +182,13 @@ export default function LogsSistema() {  const isMobile = useIsMobile();
       <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
         {[
           { label: "Total de registros", value: logs.length, color: T.text, bg: T.surface },
-          { label: "Hoje",               value: todayCount,  color: "#2563eb", bg: "#eff6ff" },
-          { label: "Ações críticas",     value: errorCount,  color: "#dc2626", bg: "#fef2f2" },
-          { label: "Filtrados",          value: filtered.length, color: T.accent, bg: "#fff7ed" },
+          { label: "Hoje",               value: todayCount,  color: "#1d4ed8", bg: "#eff6ff" },
+          { label: "Exclusões e reprovações", value: errorCount, color: "#b91c1c", bg: "#fef2f2" },
+          { label: "Filtrados",          value: filtered.length, color: "#c2410c", bg: "#fff7ed" },
         ].map(({ label, value, color, bg }) => (
           <div key={label} style={{ padding: "8px 16px", backgroundColor: bg, border: `1px solid ${T.border}`, borderRadius: 8, display: "flex", flexDirection: "column", gap: 1 }}>
             <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 700, color, lineHeight: 1 }}>{value}</span>
-            <span style={{ fontSize: 10, color: T.muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</span>
+            <span style={{ fontSize: 10, color: T.second, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.08em" }}>{label}</span>
           </div>
         ))}
       </div>
@@ -237,7 +245,7 @@ export default function LogsSistema() {  const isMobile = useIsMobile();
           </button>
         )}
 
-        <span style={{ marginLeft: "auto", fontSize: 11, color: T.muted, fontWeight: 600, flexShrink: 0 }}>
+        <span style={{ marginLeft: "auto", fontSize: 11, color: T.second, fontWeight: 600, flexShrink: 0 }}>
           {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
         </span>
       </div>
@@ -245,12 +253,43 @@ export default function LogsSistema() {  const isMobile = useIsMobile();
       {/* ── Table ── */}
       <section style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden" }}>
         {isLoading ? (
-          <div style={{ padding: "64px 0", textAlign: "center", fontSize: 13, color: T.muted }}>
+          <div style={{ padding: "64px 0", textAlign: "center", fontSize: 13, color: T.second }}>
             Carregando logs...
           </div>
+        ) : isError ? (
+          <div style={{ padding: "64px 24px", textAlign: "center" }}>
+            <p style={{ fontSize: 13, color: T.text, fontWeight: 700, margin: "0 0 4px" }}>
+              Não foi possível carregar os logs
+            </p>
+            <p style={{ fontSize: 12, color: T.second, margin: "0 0 16px" }}>
+              Verifique sua conexão e tente novamente.
+            </p>
+            <button
+              onClick={() => refetch()}
+              style={{ padding: "8px 18px", backgroundColor: T.dark, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}
+            >
+              Tentar novamente
+            </button>
+          </div>
         ) : filtered.length === 0 ? (
-          <div style={{ padding: "64px 0", textAlign: "center", fontSize: 13, color: T.muted }}>
-            Nenhum registro encontrado
+          <div style={{ padding: "64px 24px", textAlign: "center" }}>
+            {logs.length === 0 ? (
+              <p style={{ fontSize: 13, color: T.second, margin: 0 }}>
+                Nenhuma atividade registrada ainda — os logs aparecem aqui conforme o sistema é usado.
+              </p>
+            ) : (
+              <>
+                <p style={{ fontSize: 13, color: T.second, margin: "0 0 14px" }}>
+                  Nenhum registro corresponde à busca e aos filtros aplicados.
+                </p>
+                <button
+                  onClick={clearFilters}
+                  style={{ padding: "8px 16px", backgroundColor: T.surface, border: `1px solid ${T.bdark}`, borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700, color: T.text, textTransform: "uppercase", letterSpacing: "0.06em" }}
+                >
+                  Limpar filtros
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <>
@@ -265,7 +304,7 @@ export default function LogsSistema() {  const isMobile = useIsMobile();
                       { label: "Descrição",     w: undefined },
                       { label: "Entidade",      w: 120 },
                     ].map(col => (
-                      <th key={col.label} style={{ padding: "11px 18px", fontSize: 10, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", whiteSpace: "nowrap", width: col.w }}>
+                      <th key={col.label} scope="col" style={{ padding: "11px 18px", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.16em", whiteSpace: "nowrap", width: col.w }}>
                         {col.label}
                       </th>
                     ))}
@@ -275,8 +314,8 @@ export default function LogsSistema() {  const isMobile = useIsMobile();
                   {paginated.map(log => {
                     const aCfg = getActionCfg(log.action);
                     const init = initials(log.userName);
-                    const avatarCfg = ROLE_AVATAR.atendimento; // fallback neutral
-                    let description = log.details ?? `${log.action} em ${log.entityType}`;
+                    const avatarCfg = AVATAR_NEUTRAL;
+                    const description = log.details ?? `${aCfg.label} em ${ENTITY_LABELS[log.entityType] ?? log.entityType}`;
 
                     return (
                       <tr
@@ -291,7 +330,7 @@ export default function LogsSistema() {  const isMobile = useIsMobile();
                           <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: T.text, fontWeight: 500 }}>
                             {format(new Date(log.createdAt), "dd/MM/yyyy", { locale: ptBR })}
                           </div>
-                          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: T.muted, marginTop: 2 }}>
+                          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: T.second, marginTop: 2 }}>
                             {format(new Date(log.createdAt), "HH:mm:ss", { locale: ptBR })}
                           </div>
                         </td>
@@ -337,8 +376,21 @@ export default function LogsSistema() {  const isMobile = useIsMobile();
                           <div style={{ fontSize: 11, fontWeight: 700, color: T.second, textTransform: "capitalize" }}>
                             {ENTITY_LABELS[log.entityType] ?? log.entityType}
                           </div>
-                          <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: T.muted, marginTop: 1 }}>
-                            {log.entityId.slice(0, 8)}…
+                          <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 1 }}>
+                            <span title={log.entityId} style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, color: T.second }}>
+                              {log.entityId.slice(0, 8)}…
+                            </span>
+                            <button
+                              onClick={() => copyEntityId(log.id, log.entityId)}
+                              aria-label={`Copiar ID completo ${log.entityId}`}
+                              title="Copiar ID completo"
+                              style={{ background: "none", border: "none", cursor: "pointer", padding: 2, display: "flex", color: copiedId === log.id ? "#15803d" : T.second }}
+                            >
+                              {copiedId === log.id
+                                ? <Check style={{ width: 11, height: 11 }} />
+                                : <Copy style={{ width: 11, height: 11 }} />
+                              }
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -350,7 +402,7 @@ export default function LogsSistema() {  const isMobile = useIsMobile();
 
             {/* ── Pagination footer ── */}
             <div style={{ padding: "12px 18px", borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "rgba(243,244,243,0.5)" }}>
-              <p style={{ fontSize: 11, color: T.muted, fontWeight: 500, margin: 0 }}>
+              <p style={{ fontSize: 11, color: T.second, fontWeight: 500, margin: 0 }}>
                 Exibindo {Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)} de{" "}
                 <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: T.second }}>{filtered.length}</span> registros
               </p>
@@ -374,7 +426,7 @@ export default function LogsSistema() {  const isMobile = useIsMobile();
                         border: p === page ? `1px solid ${T.border}` : "1px solid transparent",
                         backgroundColor: p === page ? T.surface : "transparent",
                         fontSize: 11, fontWeight: p === page ? 900 : 600,
-                        color: p === page ? T.text : T.muted, cursor: "pointer",
+                        color: p === page ? T.text : T.second, cursor: "pointer",
                       }}
                     >
                       {p}

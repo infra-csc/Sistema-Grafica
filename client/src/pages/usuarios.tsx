@@ -1,5 +1,5 @@
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useLocation } from "wouter";
 import { FilterSelect } from "@/components/filter-select";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -11,24 +11,29 @@ import { z } from "zod";
 import {
   Form, FormControl, FormField, FormItem, FormMessage,
 } from "@/components/ui/form";
-import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import {
   UserPlus, Pencil, Trash2, Search,
-  ChevronLeft, ChevronRight, X, AlertTriangle, ShieldCheck,
+  ChevronLeft, ChevronRight, X, AlertTriangle,
 } from "lucide-react";
 import { T } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 /* ── Role config ── */
+// Tons 700 nos textos dos badges: os 500/600 anteriores reprovavam o piso de
+// contraste 4.5:1 sobre os fundos pastéis.
 const ROLE_CFG: Record<string, { label: string; bg: string; color: string; avatarBg: string; avatarColor: string }> = {
-  admin:       { label: "Admin",        bg: "#fef2f2", color: "#dc2626", avatarBg: "#fee2e2", avatarColor: "#b91c1c" },
-  solicitacao: { label: "Solicitação",  bg: "#eff6ff", color: "#2563eb", avatarBg: "#dbeafe", avatarColor: "#1d4ed8" },
-  arte:        { label: "Arte",         bg: "#faf5ff", color: "#9333ea", avatarBg: "#ede9fe", avatarColor: "#7c3aed" },
-  grafica:     { label: "Gráfica",      bg: "#fff7ed", color: "#ea580c", avatarBg: "#ffedd5", avatarColor: "#c2410c" },
-  atendimento: { label: "Atendimento",  bg: "#f0fdf4", color: "#16a34a", avatarBg: "#dcfce7", avatarColor: "#15803d" },
+  admin:       { label: "Admin",        bg: "#fef2f2", color: "#b91c1c", avatarBg: "#fee2e2", avatarColor: "#b91c1c" },
+  solicitacao: { label: "Solicitação",  bg: "#eff6ff", color: "#1d4ed8", avatarBg: "#dbeafe", avatarColor: "#1d4ed8" },
+  arte:        { label: "Arte",         bg: "#faf5ff", color: "#7e22ce", avatarBg: "#ede9fe", avatarColor: "#6d28d9" },
+  grafica:     { label: "Gráfica",      bg: "#fff7ed", color: "#c2410c", avatarBg: "#ffedd5", avatarColor: "#c2410c" },
+  atendimento: { label: "Atendimento",  bg: "#f0fdf4", color: "#15803d", avatarBg: "#dcfce7", avatarColor: "#15803d" },
 };
+
+// Rótulos completos para o <select> do formulário, derivados de ROLE_CFG para
+// as opções nunca divergirem dos perfis reais.
+const ROLE_FORM_LABELS: Record<string, string> = { admin: "Administrador" };
 
 const userSchema = z.object({
   name:  z.string().min(1, "Nome obrigatório"),
@@ -65,7 +70,8 @@ const filterSel: React.CSSProperties = {
   appearance: "none", WebkitAppearance: "none",
 };
 
-export default function Usuarios() {  const isMobile = useIsMobile();
+export default function Usuarios() {
+  const isMobile = useIsMobile();
   const [, navigate] = useLocation();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
@@ -75,7 +81,11 @@ export default function Usuarios() {  const isMobile = useIsMobile();
   const [page, setPage] = useState(1);
   const { toast } = useToast();
 
-  const { data: users = [], isLoading } = useQuery<User[]>({ queryKey: ["/api/users"] });
+  const { data: users = [], isLoading, isError, refetch } = useQuery<User[]>({ queryKey: ["/api/users"] });
+
+  // Usuário logado: esconde a lixeira da própria linha (o servidor já bloqueia
+  // a auto-exclusão) e permite avisar antes de rebaixar o próprio papel.
+  const { data: me } = useQuery<User>({ queryKey: ["/api/auth/me"] });
 
   const form = useForm<UserForm>({
     resolver: zodResolver(userSchema),
@@ -91,7 +101,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
       setModalOpen(false); form.reset();
       toast({ title: "Usuário criado com sucesso", description: "O usuário já pode acessar o sistema via Microsoft" });
     },
-    onError: (e: any) => toast({ variant: "destructive", title: "Erro ao criar usuário", description: e.message }),
+    onError: (e: Error) => toast({ variant: "destructive", title: "Erro ao criar usuário", description: e.message }),
   });
 
   const updateMutation = useMutation({
@@ -104,7 +114,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
       setModalOpen(false); setEditingUser(null); form.reset();
       toast({ title: "Usuário atualizado com sucesso" });
     },
-    onError: (e: any) => toast({ variant: "destructive", title: "Erro ao atualizar", description: e.message }),
+    onError: (e: Error) => toast({ variant: "destructive", title: "Erro ao atualizar", description: e.message }),
   });
 
   const deleteMutation = useMutation({
@@ -117,7 +127,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
       setDeletingUser(null);
       toast({ title: "Usuário excluído com sucesso" });
     },
-    onError: (e: any) => toast({ variant: "destructive", title: "Erro ao excluir", description: e.message }),
+    onError: (e: Error) => toast({ variant: "destructive", title: "Erro ao excluir", description: e.message }),
   });
 
   const openCreate = () => {
@@ -132,8 +142,27 @@ export default function Usuarios() {  const isMobile = useIsMobile();
     setModalOpen(true);
   };
 
+  // Saída única do modal (X, Cancelar, Esc, clique fora): confirma descarte só
+  // quando há alteração real e sempre zera editingUser — antes, fechar pelo X
+  // deixava o usuário em edição "grudado" na próxima abertura.
+  const requestClose = () => {
+    if (form.formState.isDirty && !window.confirm("Descartar as alterações deste formulário?")) return;
+    setModalOpen(false);
+    setEditingUser(null);
+    form.reset({ name: "", email: "", role: "solicitacao" });
+  };
+
   const onSubmit = (data: UserForm) => {
     if (editingUser) {
+      // Rebaixar o próprio papel derruba a própria sessão (o servidor invalida
+      // as sessões ao trocar papel) e tranca esta tela — merece confirmação.
+      if (
+        me && editingUser.id === me.id &&
+        editingUser.role === "admin" && data.role !== "admin" &&
+        !window.confirm("Você está removendo seu próprio acesso de administrador. Sua sessão será encerrada e você perderá o acesso a esta tela. Continuar?")
+      ) {
+        return;
+      }
       const update: Partial<UserForm> = {};
       if (data.name !== editingUser.name) update.name = data.name;
       if (data.email !== editingUser.email) update.email = data.email;
@@ -159,9 +188,6 @@ export default function Usuarios() {  const isMobile = useIsMobile();
     acc[r] = users.filter(u => u.role === r).length;
     return acc;
   }, {} as Record<string, number>);
-
-  /* ── Security score (% users that don't need password change) ── */
-  const secScore = users.length > 0 ? Math.round((users.filter(u => !u.mustChangePassword).length / users.length) * 100) : 100;
 
   return (
     <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "14px 16px 48px" : "28px 32px 64px" }}>
@@ -213,7 +239,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
             {cfg.label}
           </button>
         ))}
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: T.muted, fontWeight: 600 }}>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: T.second, fontWeight: 600 }}>
           <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: T.second }}>{users.length}</span> usuários totais
         </div>
       </div>
@@ -246,7 +272,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
             <X style={{ width: 10, height: 10 }} /> Limpar
           </button>
         )}
-        <span style={{ marginLeft: "auto", fontSize: 11, color: T.muted, fontWeight: 600 }}>
+        <span style={{ marginLeft: "auto", fontSize: 11, color: T.second, fontWeight: 600 }}>
           {filtered.length} resultado{filtered.length !== 1 ? "s" : ""}
         </span>
       </div>
@@ -254,29 +280,53 @@ export default function Usuarios() {  const isMobile = useIsMobile();
       {/* ── Table ── */}
       <section style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, overflow: "hidden", marginBottom: 20 }}>
         {isLoading ? (
-          <div style={{ padding: "56px 0", textAlign: "center", fontSize: 13, color: T.muted }}>Carregando usuários...</div>
+          <div style={{ padding: "56px 0", textAlign: "center", fontSize: 13, color: T.second }}>Carregando usuários...</div>
+        ) : isError ? (
+          <div style={{ padding: "56px 24px", textAlign: "center" }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: T.text, margin: "0 0 4px" }}>Não foi possível carregar os usuários</p>
+            <p style={{ fontSize: 12, color: T.second, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
+            <button
+              onClick={() => refetch()}
+              style={{ padding: "8px 18px", backgroundColor: T.dark, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}
+            >
+              Tentar novamente
+            </button>
+          </div>
         ) : filtered.length === 0 ? (
-          <div style={{ padding: "56px 0", textAlign: "center", fontSize: 13, color: T.muted }}>Nenhum usuário encontrado</div>
+          <div style={{ padding: "56px 24px", textAlign: "center" }}>
+            {users.length === 0 ? (
+              <p style={{ fontSize: 13, color: T.second, margin: 0 }}>Nenhum usuário cadastrado ainda — use "Novo Usuário" para criar o primeiro.</p>
+            ) : (
+              <>
+                <p style={{ fontSize: 13, color: T.second, margin: "0 0 14px" }}>Nenhum usuário corresponde à busca e aos filtros aplicados.</p>
+                <button
+                  onClick={() => { setSearch(""); setRoleFilter("all"); setPage(1); }}
+                  style={{ padding: "8px 16px", backgroundColor: T.surface, border: `1px solid ${T.bdark}`, borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700, color: T.text, textTransform: "uppercase", letterSpacing: "0.06em" }}
+                >
+                  Limpar filtros
+                </button>
+              </>
+            )}
+          </div>
         ) : (
           <>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left" }}>
                 <thead>
                   <tr style={{ backgroundColor: T.low, borderBottom: `1px solid ${T.border}` }}>
-                    {["#", "Nome", "Email", "Perfil", "Status", "Criado em", "Ações"].map((h, i) => (
-                      <th key={h} style={{
+                    {["Nome", "Email", "Perfil", "Status", "Criado em", "Ações"].map((h, i) => (
+                      <th key={h} scope="col" style={{
                         padding: "12px 20px", fontSize: 10, fontWeight: 900,
-                        color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em",
-                        textAlign: i === 6 ? "right" : "left",
+                        color: T.second, textTransform: "uppercase", letterSpacing: "0.16em",
+                        textAlign: i === 5 ? "right" : "left",
                       }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {paginated.map((user, idx) => {
+                  {paginated.map(user => {
                     const cfg = ROLE_CFG[user.role] || ROLE_CFG.solicitacao;
                     const init = initials(user.name);
-                    const displayId = `#NRT-${String((page - 1) * PAGE_SIZE + idx + 1).padStart(4, "0")}`;
                     return (
                       <tr key={user.id}
                         data-testid={`row-user-${user.id}`}
@@ -284,11 +334,6 @@ export default function Usuarios() {  const isMobile = useIsMobile();
                         onMouseEnter={e => (e.currentTarget.style.backgroundColor = "#fafaf9")}
                         onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
                       >
-                        {/* ID */}
-                        <td style={{ padding: "14px 20px", fontFamily: "'DM Mono', monospace", fontSize: 11, color: T.muted }}>
-                          {displayId}
-                        </td>
-
                         {/* Nome + avatar */}
                         <td style={{ padding: "14px 20px" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -332,7 +377,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
                           ) : (
                             <span style={{ display: "flex", alignItems: "center", gap: 6, paddingLeft: 4 }}>
                               <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: "#22c55e" }} />
-                              <span style={{ fontSize: 10, color: T.muted, fontWeight: 600 }}>Ativo</span>
+                              <span style={{ fontSize: 10, color: T.second, fontWeight: 600 }}>Ativo</span>
                             </span>
                           )}
                         </td>
@@ -348,21 +393,25 @@ export default function Usuarios() {  const isMobile = useIsMobile();
                             <button
                               data-testid={`button-edit-${user.id}`}
                               onClick={() => openEdit(user)}
-                              style={{ padding: 7, color: T.muted, backgroundColor: "transparent", border: "none", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", transition: "all 0.12s" }}
+                              aria-label={`Editar usuário ${user.name}`}
+                              style={{ padding: 7, color: T.second, backgroundColor: "transparent", border: "none", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", transition: "all 0.12s" }}
                               onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; e.currentTarget.style.color = T.text; }}
-                              onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.muted; }}
+                              onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.second; }}
                             >
                               <Pencil style={{ width: 15, height: 15 }} />
                             </button>
-                            <button
-                              data-testid={`button-delete-${user.id}`}
-                              onClick={() => setDeletingUser(user)}
-                              style={{ padding: 7, color: T.muted, backgroundColor: "transparent", border: "none", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", transition: "all 0.12s" }}
-                              onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#fef2f2"; e.currentTarget.style.color = "#dc2626"; }}
-                              onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.muted; }}
-                            >
-                              <Trash2 style={{ width: 15, height: 15 }} />
-                            </button>
+                            {me?.id !== user.id && (
+                              <button
+                                data-testid={`button-delete-${user.id}`}
+                                onClick={() => setDeletingUser(user)}
+                                aria-label={`Excluir usuário ${user.name}`}
+                                style={{ padding: 7, color: T.second, backgroundColor: "transparent", border: "none", borderRadius: 6, cursor: "pointer", display: "flex", alignItems: "center", transition: "all 0.12s" }}
+                                onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#fef2f2"; e.currentTarget.style.color = "#b91c1c"; }}
+                                onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.second; }}
+                              >
+                                <Trash2 style={{ width: 15, height: 15 }} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -374,7 +423,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
 
             {/* Pagination footer */}
             <div style={{ padding: "12px 20px", borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", backgroundColor: "rgba(243,244,243,0.5)" }}>
-              <p style={{ fontSize: 11, color: T.muted, fontWeight: 500, margin: 0 }}>
+              <p style={{ fontSize: 11, color: T.second, fontWeight: 500, margin: 0 }}>
                 Exibindo {Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)} de {filtered.length} usuário{filtered.length !== 1 ? "s" : ""}
               </p>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -388,7 +437,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
                       width: 28, height: 28, borderRadius: 6, border: p === page ? `1px solid ${T.border}` : "1px solid transparent",
                       backgroundColor: p === page ? T.surface : "transparent",
                       fontSize: 11, fontWeight: p === page ? 900 : 600,
-                      color: p === page ? T.text : T.muted, cursor: "pointer",
+                      color: p === page ? T.text : T.second, cursor: "pointer",
                     }}>
                     {p}
                   </button>
@@ -403,16 +452,21 @@ export default function Usuarios() {  const isMobile = useIsMobile();
         )}
       </section>
 
-      {/* ── Bento grid ── */}
-      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16, marginTop: 24 }}>
+      {/* ── Bento ── */}
+      {/* O card "Nível de Segurança" foi REMOVIDO: ele media a fração de
+          usuários sem mustChangePassword, mas o cadastro atual é SSO-only e
+          sempre grava mustChangePassword=false — o "health score" era 100%
+          por construção (e virava "100% seguro" até quando a query falhava).
+          Se um fluxo com senha provisória voltar, o card pode voltar com ele. */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16, marginTop: 24 }}>
         {/* Dark card — Relatório de Acessos */}
-        <div style={{ backgroundColor: T.dark, borderRadius: 12, padding: "28px 32px", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 200, position: "relative", overflow: "hidden" }}>
+        <div style={{ backgroundColor: T.dark, borderRadius: 12, padding: isMobile ? "22px 20px" : "28px 32px", display: "flex", flexDirection: "column", justifyContent: "space-between", minHeight: 200, position: "relative", overflow: "hidden" }}>
           <div style={{ position: "absolute", top: -40, right: -40, width: 180, height: 180, borderRadius: "50%", backgroundColor: T.accent, opacity: 0.12, filter: "blur(60px)" }} />
           <div>
             <h3 style={{ fontSize: 22, fontWeight: 900, color: "#fff", margin: "0 0 8px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", textTransform: "uppercase", lineHeight: 1 }}>
               Controle de Acessos
             </h3>
-            <p style={{ fontSize: 13, color: "#746e69", margin: 0, maxWidth: 340 }}>
+            <p style={{ fontSize: 13, color: "rgba(255,255,255,0.72)", margin: 0, maxWidth: 340 }}>
               Monitore a atividade e o status de segurança dos usuários da plataforma em tempo real.
             </p>
           </div>
@@ -443,31 +497,6 @@ export default function Usuarios() {  const isMobile = useIsMobile();
             </button>
           </div>
         </div>
-
-        {/* Light card — Nível de Segurança */}
-        <div style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: 12, padding: "28px 28px", display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
-          <div>
-            <ShieldCheck style={{ width: 32, height: 32, color: T.accent, marginBottom: 12 }} />
-            <h3 style={{ fontSize: 18, fontWeight: 900, color: T.text, margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase", letterSpacing: "-0.02em" }}>
-              Nível de Segurança
-            </h3>
-            <p style={{ fontSize: 11, color: T.second, margin: 0 }}>
-              Usuários sem senha padrão
-            </p>
-          </div>
-          <div style={{ marginTop: 20 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 8 }}>
-              <span style={{ fontSize: 10, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.14em" }}>Health Score</span>
-              <span style={{ fontSize: 26, fontWeight: 900, color: T.text, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", lineHeight: 1 }}>{secScore}%</span>
-            </div>
-            <div style={{ width: "100%", height: 5, backgroundColor: T.low, borderRadius: 999, overflow: "hidden" }}>
-              <div style={{ height: "100%", width: `${secScore}%`, backgroundColor: secScore >= 80 ? "#22c55e" : secScore >= 60 ? T.accent : "#ef4444", borderRadius: 999, transition: "width 0.5s" }} />
-            </div>
-            <p style={{ fontSize: 10, color: T.muted, margin: "8px 0 0" }}>
-              {users.filter(u => u.mustChangePassword).length} usuário{users.filter(u => u.mustChangePassword).length !== 1 ? "s" : ""} com senha padrão pendente
-            </p>
-          </div>
-        </div>
       </div>
 
       {/* ══════════════════════════════
@@ -482,7 +511,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
         open={modalOpen}
         onOpenChange={o => {
           if (o) return;
-          if (window.confirm("Descartar as alterações deste formulário?")) setModalOpen(false);
+          requestClose();
         }}
       >
         <DialogContent
@@ -498,12 +527,13 @@ export default function Usuarios() {  const isMobile = useIsMobile();
                 <h2 style={{ fontSize: 22, fontWeight: 900, color: T.text, margin: "0 0 3px", fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase", letterSpacing: "-0.03em" }}>
                   {editingUser ? "Editar Usuário" : "Novo Usuário"}
                 </h2>
-                <p style={{ fontSize: 11, color: T.muted, margin: 0 }}>
+                <p style={{ fontSize: 11, color: T.second, margin: 0 }}>
                   {editingUser ? "Edite as informações do perfil abaixo" : "Preencha as informações do perfil abaixo"}
                 </p>
               </div>
-              <button onClick={() => setModalOpen(false)}
-                style={{ padding: 6, color: T.muted, background: "none", border: "none", cursor: "pointer", borderRadius: 6, display: "flex", alignItems: "center" }}
+              <button onClick={requestClose}
+                aria-label="Fechar formulário"
+                style={{ padding: 6, color: T.second, background: "none", border: "none", cursor: "pointer", borderRadius: 6, display: "flex", alignItems: "center" }}
                 onMouseEnter={e => (e.currentTarget.style.backgroundColor = T.border)}
                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}>
                 <X style={{ width: 18, height: 18 }} />
@@ -517,9 +547,9 @@ export default function Usuarios() {  const isMobile = useIsMobile();
                 {/* Nome */}
                 <FormField control={form.control} name="name" render={({ field }) => (
                   <FormItem>
-                    <div style={{ fontSize: 10, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 }}>Nome Completo</div>
+                    <label htmlFor="user-form-name" style={{ display: "block", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 }}>Nome Completo</label>
                     <FormControl>
-                      <input {...field} placeholder="Ex: Roberto Carlos" data-testid="input-name"
+                      <input {...field} id="user-form-name" placeholder="Ex: Roberto Carlos" data-testid="input-name"
                         style={tiInput}
                         onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
                         onBlur={e => { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
@@ -530,12 +560,12 @@ export default function Usuarios() {  const isMobile = useIsMobile();
                 )} />
 
                 {/* Email + Perfil grid */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 14 }}>
                   <FormField control={form.control} name="email" render={({ field }) => (
                     <FormItem>
-                      <div style={{ fontSize: 10, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 }}>Email</div>
+                      <label htmlFor="user-form-email" style={{ display: "block", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 }}>Email</label>
                       <FormControl>
-                        <input {...field} type="email" placeholder="email@norte.com" data-testid="input-email"
+                        <input {...field} id="user-form-email" type="email" placeholder="email@norte.com" data-testid="input-email"
                           style={tiInput}
                           onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
                           onBlur={e => { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
@@ -547,18 +577,16 @@ export default function Usuarios() {  const isMobile = useIsMobile();
 
                   <FormField control={form.control} name="role" render={({ field }) => (
                     <FormItem>
-                      <div style={{ fontSize: 10, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 }}>Perfil</div>
+                      <label htmlFor="user-form-role" style={{ display: "block", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 }}>Perfil</label>
                       <FormControl>
-                        <select {...field} data-testid="select-role"
+                        <select {...field} id="user-form-role" data-testid="select-role"
                           style={{ ...tiInput, appearance: "none", WebkitAppearance: "none", cursor: "pointer" }}
                           onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
                           onBlur={e => { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
                         >
-                          <option value="admin">Administrador</option>
-                          <option value="solicitacao">Solicitação</option>
-                          <option value="arte">Arte</option>
-                          <option value="grafica">Gráfica</option>
-                          <option value="atendimento">Atendimento</option>
+                          {Object.entries(ROLE_CFG).map(([value, cfg]) => (
+                            <option key={value} value={value}>{ROLE_FORM_LABELS[value] ?? cfg.label}</option>
+                          ))}
                         </select>
                       </FormControl>
                       <FormMessage />
@@ -568,7 +596,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
 
                 {/* Buttons */}
                 <div style={{ display: "flex", gap: 10, paddingTop: 6 }}>
-                  <button type="button" onClick={() => setModalOpen(false)}
+                  <button type="button" onClick={requestClose}
                     data-testid="button-cancel"
                     style={{ flex: 1, padding: "11px 0", border: `1px solid ${T.border}`, backgroundColor: "transparent", borderRadius: 6, fontSize: 11, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer" }}>
                     Cancelar
@@ -620,7 +648,7 @@ export default function Usuarios() {  const isMobile = useIsMobile();
                   <button
                     data-testid="button-cancel-delete"
                     onClick={() => setDeletingUser(null)}
-                    style={{ fontSize: 10, fontWeight: 900, color: T.muted, background: "none", border: "none", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.12em" }}>
+                    style={{ fontSize: 10, fontWeight: 900, color: T.second, background: "none", border: "none", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.12em" }}>
                     Manter
                   </button>
                 </div>

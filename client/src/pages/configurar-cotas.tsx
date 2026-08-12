@@ -4,22 +4,24 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Save, Search, X } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { T, darkenToContrast } from "@/lib/theme";
 
 /* ── Constants ── */
+// Pendência anotada: QUOTAS também existe em outras telas — mover para
+// shared/ fica para uma rodada dedicada, fora do escopo desta.
+// darkenToContrast: MASTER/MIDIA/MINISTERIO usavam tons 500/600 que reprovam
+// 4.5:1 sobre os fundos claros; o ajuste escurece só o necessário, na matiz.
 const QUOTAS = [
-  { key: "MASTER",     label: "Master",     color: "#ef4444", bg: "#fef2f2", light: "#fee2e2" },
-  { key: "GOLD",       label: "Gold",       color: "#1d4ed8", bg: "#eff6ff", light: "#dbeafe" },
-  { key: "SILVER",     label: "Silver",     color: "#7c3aed", bg: "#f5f3ff", light: "#ede9fe" },
-  { key: "APOIO",      label: "Apoio",      color: "#6b7280", bg: "#f9fafb", light: "#f3f4f6" },
-  { key: "MIDIA",      label: "Mídia",      color: "#0891b2", bg: "#ecfeff", light: "#cffafe" },
-  { key: "MINISTERIO", label: "Ministério", color: "#059669", bg: "#ecfdf5", light: "#d1fae5" },
+  { key: "MASTER",     label: "Master",     color: darkenToContrast("#ef4444", "#fee2e2"), bg: "#fef2f2", light: "#fee2e2" },
+  { key: "GOLD",       label: "Gold",       color: darkenToContrast("#1d4ed8", "#dbeafe"), bg: "#eff6ff", light: "#dbeafe" },
+  { key: "SILVER",     label: "Silver",     color: darkenToContrast("#7c3aed", "#ede9fe"), bg: "#f5f3ff", light: "#ede9fe" },
+  { key: "APOIO",      label: "Apoio",      color: darkenToContrast("#6b7280", "#f3f4f6"), bg: "#f9fafb", light: "#f3f4f6" },
+  { key: "MIDIA",      label: "Mídia",      color: darkenToContrast("#0891b2", "#cffafe"), bg: "#ecfeff", light: "#cffafe" },
+  { key: "MINISTERIO", label: "Ministério", color: darkenToContrast("#059669", "#d1fae5"), bg: "#ecfdf5", light: "#d1fae5" },
 ];
 
-const T = {
-  bg: "#f9f9f8", surface: "#ffffff", border: "#e8e8e7",
-  text: "#1a1c1c", second: "#78716c", muted: "#a8a29e",
-  accent: "#f97316", dark: "#1c1917", low: "#f5f5f4", stripe: "#fafaf9",
-};
+// Listra da zebra — tom local, não existe no theme compartilhado.
+const STRIPE = "#fafaf9";
 
 const DEFAULT_QUOTA_RULES: Record<string, string[]> = {
   MASTER:     ["Palco", "Gradil", "Pórtico", "Rolo"],
@@ -32,21 +34,23 @@ const DEFAULT_QUOTA_RULES: Record<string, string[]> = {
 
 type GlobalRule = { quota: string; itemTypes: string[] };
 
-export default function ConfigurarCotas() {  const isMobile = useIsMobile();
+export default function ConfigurarCotas() {
+  const isMobile = useIsMobile();
   const { toast } = useToast();
   const [matrix, setMatrix] = useState<Record<string, Set<string>>>({});
   const [dirty, setDirty] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
 
-  const { data: groups = [], isLoading: groupsLoading } = useQuery<string[]>({
+  const { data: groups = [], isLoading: groupsLoading, isError: groupsError, refetch: refetchGroups } = useQuery<string[]>({
     queryKey: ["/api/quota-rules/groups"],
   });
 
-  const { data: rules = [], isLoading: rulesLoading } = useQuery<GlobalRule[]>({
+  const { data: rules = [], isLoading: rulesLoading, isError: rulesError, refetch: refetchRules } = useQuery<GlobalRule[]>({
     queryKey: ["/api/quota-rules/global"],
   });
 
   const isLoading = groupsLoading || rulesLoading;
+  const isError = groupsError || rulesError;
 
   useEffect(() => {
     if (isLoading) return;
@@ -54,16 +58,31 @@ export default function ConfigurarCotas() {  const isMobile = useIsMobile();
     for (const q of QUOTAS) m[q.key] = new Set();
     if (rules.length > 0) {
       for (const rule of rules) m[rule.quota] = new Set(rule.itemTypes);
-      setDirty(new Set());
     } else {
       for (const q of QUOTAS) {
         const defaults = DEFAULT_QUOTA_RULES[q.key] ?? [];
         m[q.key] = new Set(groups.length > 0 ? defaults.filter(t => groups.includes(t)) : defaults);
       }
-      setDirty(new Set(QUOTAS.map(q => q.key)));
     }
+    // Semear defaults NÃO marca dirty: "alterações pendentes" na primeira
+    // visita, sem o usuário ter tocado em nada, era alarme falso — e fazia a
+    // guarda de saída disparar à toa. Dirty só nasce de interação real.
+    setDirty(new Set());
     setMatrix(m);
   }, [rules, groups, isLoading]);
+
+  // Guarda de saída: com alteração pendente de verdade, fechar/recarregar a
+  // aba pergunta antes de descartar. (Navegação interna SPA não passa por
+  // beforeunload — pendência conhecida.)
+  useEffect(() => {
+    if (dirty.size === 0) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty.size]);
 
   const filteredGroups = useMemo(() => {
     if (!search.trim()) return groups;
@@ -81,7 +100,8 @@ export default function ConfigurarCotas() {  const isMobile = useIsMobile();
       setDirty(prev => { const n = new Set(prev); n.delete(vars.quota); return n; });
       toast({ title: `Regras para ${vars.quota} salvas` });
     },
-    onError: (e: any) => toast({ variant: "destructive", title: "Erro ao salvar", description: e.message }),
+    // O erro é tratado por chamada: toast individual no saveQuota, resumo
+    // agregado no saveAll — um onError global duplicaria os avisos.
   });
 
   const toggleCell = (quota: string, type: string) => {
@@ -104,12 +124,31 @@ export default function ConfigurarCotas() {  const isMobile = useIsMobile();
   };
 
   const saveQuota = (quota: string) => {
-    saveMutation.mutate({ quota, itemTypes: Array.from(matrix[quota] ?? []) });
+    saveMutation.mutate(
+      { quota, itemTypes: Array.from(matrix[quota] ?? []) },
+      { onError: (e: any) => toast({ variant: "destructive", title: "Erro ao salvar", description: e.message }) },
+    );
   };
 
+  // Uma falha no meio não pode abortar o lote em silêncio: salva o que der,
+  // acumula o que falhou e reporta "salvas N de M — X e Y falharam".
   const saveAll = async () => {
-    for (const q of Array.from(dirty)) {
-      await saveMutation.mutateAsync({ quota: q, itemTypes: Array.from(matrix[q] ?? []) });
+    const pending = Array.from(dirty);
+    const failed: string[] = [];
+    for (const q of pending) {
+      try {
+        await saveMutation.mutateAsync({ quota: q, itemTypes: Array.from(matrix[q] ?? []) });
+      } catch {
+        failed.push(q);
+      }
+    }
+    if (failed.length > 0) {
+      const labels = failed.map(k => QUOTAS.find(q => q.key === k)?.label ?? k).join(", ");
+      toast({
+        variant: "destructive",
+        title: `Salvas ${pending.length - failed.length} de ${pending.length} cotas`,
+        description: `Falharam: ${labels}. As pendentes continuam marcadas — tente salvar de novo.`,
+      });
     }
   };
 
@@ -155,9 +194,10 @@ export default function ConfigurarCotas() {  const isMobile = useIsMobile();
           backgroundColor: T.surface,
           boxShadow: "0 2px 8px rgba(0,0,0,0.06)",
         }}>
-          {/* Left corner: search */}
-          <div style={{ padding: "14px 16px", borderRight: `1px solid ${T.border}`, display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 8 }}>
-            <span style={{ fontSize: 9, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", fontFamily: "'Space Grotesk', sans-serif" }}>
+          {/* Left corner: search — sticky à esquerda para a coluna de grupo
+              não sumir no scroll horizontal */}
+          <div style={{ position: "sticky", left: 0, zIndex: 11, backgroundColor: T.surface, padding: "14px 16px", borderRight: `1px solid ${T.border}`, display: "flex", flexDirection: "column", justifyContent: "flex-end", gap: 8 }}>
+            <span style={{ fontSize: 9, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.16em", fontFamily: "'Space Grotesk', sans-serif" }}>
               Grupo de Peça
             </span>
             {groups.length > 6 && (
@@ -178,7 +218,7 @@ export default function ConfigurarCotas() {  const isMobile = useIsMobile();
               </div>
             )}
             {!isLoading && (
-              <span style={{ fontSize: 10, color: T.muted, fontWeight: 600 }}>
+              <span style={{ fontSize: 10, color: T.second, fontWeight: 600 }}>
                 {search ? `${filteredGroups.length} de ${groups.length}` : `${groups.length} grupos`}
               </span>
             )}
@@ -208,7 +248,7 @@ export default function ConfigurarCotas() {  const isMobile = useIsMobile();
                     borderRadius: 99,
                     backgroundColor: count > 0 ? q.light : T.low,
                     fontSize: 10, fontWeight: 700,
-                    color: count > 0 ? q.color : T.muted,
+                    color: count > 0 ? q.color : T.second,
                   }}>
                     {count} grupo{count !== 1 ? "s" : ""}
                   </div>
@@ -219,14 +259,16 @@ export default function ConfigurarCotas() {  const isMobile = useIsMobile();
                   <button
                     onClick={() => selectAll(q.key)}
                     data-testid={`btn-all-${q.key}`}
-                    style={{ fontSize: 9, fontWeight: 700, color: q.color, background: q.bg, border: `1px solid ${q.light}`, borderRadius: 4, padding: "2px 7px", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em" }}
+                    aria-label={`Marcar todos os grupos para a cota ${q.label}`}
+                    style={{ fontSize: 9, fontWeight: 700, color: q.color, background: q.bg, border: `1px solid ${q.light}`, borderRadius: 4, padding: isMobile ? "12px 10px" : "2px 7px", minHeight: isMobile ? 44 : undefined, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em" }}
                   >
                     Todos
                   </button>
                   <button
                     onClick={() => clearAll(q.key)}
                     data-testid={`btn-clear-${q.key}`}
-                    style={{ fontSize: 9, fontWeight: 700, color: T.muted, background: T.low, border: `1px solid ${T.border}`, borderRadius: 4, padding: "2px 7px", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em" }}
+                    aria-label={`Desmarcar todos os grupos da cota ${q.label}`}
+                    style={{ fontSize: 9, fontWeight: 700, color: T.second, background: T.low, border: `1px solid ${T.border}`, borderRadius: 4, padding: isMobile ? "12px 10px" : "2px 7px", minHeight: isMobile ? 44 : undefined, cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em" }}
                   >
                     Limpar
                   </button>
@@ -235,7 +277,8 @@ export default function ConfigurarCotas() {  const isMobile = useIsMobile();
                       onClick={() => saveQuota(q.key)}
                       disabled={saveMutation.isPending}
                       data-testid={`save-quota-${q.key}`}
-                      style={{ display: "flex", alignItems: "center", justifyContent: "center", width: 22, height: 22, backgroundColor: T.dark, border: "none", borderRadius: 4, cursor: "pointer", opacity: saveMutation.isPending ? 0.6 : 1, flexShrink: 0 }}
+                      aria-label={`Salvar regras da cota ${q.label}`}
+                      style={{ display: "flex", alignItems: "center", justifyContent: "center", width: isMobile ? 44 : 22, height: isMobile ? 44 : 22, backgroundColor: T.dark, border: "none", borderRadius: 4, cursor: "pointer", opacity: saveMutation.isPending ? 0.6 : 1, flexShrink: 0 }}
                       title={`Salvar ${q.label}`}
                     >
                       <Save style={{ width: 11, height: 11, color: "#fff" }} />
@@ -254,6 +297,17 @@ export default function ConfigurarCotas() {  const isMobile = useIsMobile();
               <div key={i} style={{ height: 40, margin: "2px 0", background: T.low, borderRadius: 4, animation: "pulse 1.5s infinite", opacity: 0.5 }} />
             ))}
           </div>
+        ) : isError ? (
+          <div style={{ padding: "60px 24px", textAlign: "center" }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: T.text, margin: "0 0 4px" }}>Não foi possível carregar as regras de cota</p>
+            <p style={{ fontSize: 12, color: T.second, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
+            <button
+              onClick={() => { refetchGroups(); refetchRules(); }}
+              style={{ padding: "9px 18px", backgroundColor: T.dark, color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}
+            >
+              Tentar novamente
+            </button>
+          </div>
         ) : filteredGroups.length === 0 ? (
           <div style={{ padding: "60px 0", textAlign: "center" }}>
             {search ? (
@@ -264,7 +318,7 @@ export default function ConfigurarCotas() {  const isMobile = useIsMobile();
             ) : (
               <>
                 <p style={{ fontSize: 14, fontWeight: 700, color: T.second, margin: "0 0 6px" }}>Nenhum grupo de peça encontrado</p>
-                <p style={{ fontSize: 12, color: T.muted, margin: 0 }}>Importe eventos com itens para que os grupos apareçam aqui</p>
+                <p style={{ fontSize: 12, color: T.second, margin: 0 }}>Importe eventos com itens para que os grupos apareçam aqui</p>
               </>
             )}
           </div>
@@ -277,11 +331,11 @@ export default function ConfigurarCotas() {  const isMobile = useIsMobile();
                 style={{
                   display: "grid", gridTemplateColumns: COLS,
                   borderBottom: idx < filteredGroups.length - 1 ? `1px solid ${T.border}` : "none",
-                  backgroundColor: isEven ? T.surface : T.stripe,
+                  backgroundColor: isEven ? T.surface : STRIPE,
                 }}
               >
-                {/* Group name */}
-                <div style={{ padding: "10px 16px", display: "flex", alignItems: "center", borderRight: `1px solid ${T.border}` }}>
+                {/* Group name — sticky à esquerda, acompanha o cabeçalho */}
+                <div style={{ position: "sticky", left: 0, zIndex: 1, backgroundColor: isEven ? T.surface : STRIPE, padding: "10px 16px", display: "flex", alignItems: "center", borderRight: `1px solid ${T.border}` }}>
                   <span style={{ fontSize: 12, fontWeight: 600, color: T.text, fontFamily: "'Space Grotesk', sans-serif" }}>
                     {group}
                   </span>
@@ -293,7 +347,17 @@ export default function ConfigurarCotas() {  const isMobile = useIsMobile();
                   return (
                     <div
                       key={q.key}
+                      role="checkbox"
+                      aria-checked={checked}
+                      aria-label={`${group} na cota ${q.label}`}
+                      tabIndex={0}
                       onClick={() => toggleCell(q.key, group)}
+                      onKeyDown={e => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          toggleCell(q.key, group);
+                        }
+                      }}
                       data-testid={`cell-${q.key}-${group}`}
                       style={{
                         borderLeft: `1px solid ${T.border}`,
@@ -301,7 +365,7 @@ export default function ConfigurarCotas() {  const isMobile = useIsMobile();
                         cursor: "pointer",
                         backgroundColor: checked ? q.bg : "transparent",
                         transition: "background 0.1s",
-                        minHeight: 40,
+                        minHeight: isMobile ? 44 : 40,
                       }}
                     >
                       <div style={{
@@ -325,11 +389,11 @@ export default function ConfigurarCotas() {  const isMobile = useIsMobile();
         {/* ── Footer ── */}
         {!isLoading && groups.length > 0 && (
           <div style={{ padding: "10px 16px", backgroundColor: T.low, borderTop: `2px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-            <span style={{ fontSize: 11, color: T.muted, fontWeight: 600 }}>
+            <span style={{ fontSize: 11, color: T.second, fontWeight: 600 }}>
               {filteredGroups.length} de {groups.length} grupo{groups.length !== 1 ? "s" : ""} · clique nas células para marcar
             </span>
             {dirty.size > 0 && (
-              <span style={{ fontSize: 11, fontWeight: 700, color: T.accent }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: "#c2410c" }}>
                 {dirty.size} cota{dirty.size !== 1 ? "s" : ""} com alterações — lembre de salvar
               </span>
             )}

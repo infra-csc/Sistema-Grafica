@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus, Layers, Search, Check, ChevronsUpDown, Pencil, Trash2, Ruler, Filter, MoreVertical, X, Settings } from "lucide-react";
+import { Plus, Layers, Search, Check, ChevronsUpDown, Pencil, Trash2, Ruler, X, Settings, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
 import { FilterSelect } from "@/components/filter-select";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,7 +18,6 @@ import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/compone
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/contexts/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 // Mantém o rótulo e o visual desta tela, mas delega o comportamento ao filtro
@@ -84,9 +83,86 @@ function tipoPillStyle(type: string) {
   return { backgroundColor: "#f5f5f4", color: "#57534e" };
 }
 
-export default function Modelos() {  const isMobile = useIsMobile();
-  const { hasPermission } = useAuth();
+/* ── Linha do modal "Gerenciar Categorias" ──
+   Fica FORA do componente da página de propósito: definida dentro do render,
+   ela virava um componente NOVO a cada tecla digitada no rename — o React
+   desmontava e remontava a linha e o input perdia o foco a cada caractere. */
+function CatRow({ name, count, accentColor, accentBg,
+  isEditing, editValue, onEditChange, onEditConfirm, onEditCancel, isPendingRename,
+  isDeleting, onDeleteConfirm, onDeleteCancel, isPendingDelete,
+  onStartEdit, onStartDelete,
+}: {
+  name: string; count: number; accentColor: string; accentBg: string;
+  isEditing: boolean; editValue: string; onEditChange: (v: string) => void;
+  onEditConfirm: () => void; onEditCancel: () => void; isPendingRename: boolean;
+  isDeleting: boolean; onDeleteConfirm: () => void; onDeleteCancel: () => void; isPendingDelete: boolean;
+  onStartEdit: () => void; onStartDelete: () => void;
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 12, backgroundColor: isDeleting ? "#fff5f5" : "#fafaf9", border: `1px solid ${isDeleting ? "#fecaca" : "#f0efec"}`, transition: "all 0.15s" }}>
+      {/* Dot */}
+      <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: accentColor, flexShrink: 0, opacity: isDeleting ? 0.4 : 1 }} />
+
+      {isEditing ? (
+        <>
+          <input autoFocus value={editValue} onChange={e => onEditChange(e.target.value)}
+            aria-label={`Novo nome para "${name}"`}
+            onKeyDown={e => { if (e.key === "Enter") onEditConfirm(); if (e.key === "Escape") onEditCancel(); }}
+            style={{ flex: 1, fontSize: 13, fontWeight: 600, borderRadius: 8, padding: "5px 10px", border: `1.5px solid ${accentColor}`, color: "#1c1917", background: accentBg }}
+          />
+          <button onClick={onEditConfirm} disabled={isPendingRename} aria-label={`Confirmar novo nome de "${name}"`}
+            style={{ width: 30, height: 30, borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: accentColor, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <Check style={{ width: 13, height: 13 }} />
+          </button>
+          <button onClick={onEditCancel} aria-label="Cancelar renomeação"
+            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #e7e5e4", cursor: "pointer", backgroundColor: "#ffffff", color: "#746e69", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+            <X style={{ width: 13, height: 13 }} />
+          </button>
+        </>
+      ) : isDeleting ? (
+        <>
+          <div style={{ flex: 1 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#dc2626" }}>Remover </span>
+            <span style={{ fontSize: 13, fontWeight: 800, color: "#dc2626" }}>"{name}"</span>
+            <span style={{ fontSize: 13, color: "#b91c1c" }}> de {count} {count === 1 ? "modelo" : "modelos"}?</span>
+          </div>
+          <button onClick={onDeleteConfirm} disabled={isPendingDelete}
+            style={{ padding: "5px 14px", borderRadius: 8, border: "none", cursor: isPendingDelete ? "not-allowed" : "pointer", backgroundColor: "#dc2626", color: "#fff", fontSize: 13, fontWeight: 700, flexShrink: 0, opacity: isPendingDelete ? 0.7 : 1 }}>
+            {isPendingDelete ? "Removendo..." : "Remover"}
+          </button>
+          <button onClick={onDeleteCancel}
+            style={{ padding: "5px 14px", borderRadius: 8, border: "1px solid #e7e5e4", cursor: "pointer", backgroundColor: "#fff", color: "#746e69", fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
+            Cancelar
+          </button>
+        </>
+      ) : (
+        <>
+          <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#1c1917" }}>{name}</span>
+          <span style={{ fontSize: 11, fontWeight: 600, color: "#746e69", backgroundColor: "#f5f4f0", borderRadius: 6, padding: "2px 8px", marginRight: 2 }}>
+            {count} {count === 1 ? "modelo" : "modelos"}
+          </span>
+          <button onClick={onStartEdit} title={`Renomear "${name}"`} aria-label={`Renomear "${name}"`}
+            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid transparent", cursor: "pointer", backgroundColor: "transparent", color: "#746e69", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = accentBg; (e.currentTarget as HTMLButtonElement).style.color = accentColor; (e.currentTarget as HTMLButtonElement).style.borderColor = accentColor + "40"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#746e69"; (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent"; }}>
+            <Pencil style={{ width: 12, height: 12 }} />
+          </button>
+          <button onClick={onStartDelete} title={`Remover "${name}"`} aria-label={`Remover "${name}"`}
+            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid transparent", cursor: "pointer", backgroundColor: "transparent", color: "#746e69", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#fee2e2"; (e.currentTarget as HTMLButtonElement).style.color = "#dc2626"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#fca5a540"; }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#746e69"; (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent"; }}>
+            <Trash2 style={{ width: 12, height: 12 }} />
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+export default function Modelos() {
+  const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
+  const [page, setPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterGroup, setFilterGroup] = useState("");
   const [filterType, setFilterType] = useState("");
@@ -118,11 +194,11 @@ export default function Modelos() {  const isMobile = useIsMobile();
   const [mgDeleteFinishConfirm, setMgDeleteFinishConfirm] = useState<string | null>(null);
   const [mgDeleteMaterialConfirm, setMgDeleteMaterialConfirm] = useState<string | null>(null);
 
-  const { data: standardItems = [], isLoading } = useQuery<any[]>({
+  const { data: standardItems = [], isLoading, isError, refetch } = useQuery<any[]>({
     queryKey: ["/api/standard-items"],
   });
 
-  const { data: catalogOptions = [] } = useQuery<{ kind: string; value: string }[]>({
+  const { data: catalogOptions = [], isError: catalogError, refetch: refetchCatalog } = useQuery<{ kind: string; value: string }[]>({
     queryKey: ["/api/catalog-options"],
   });
 
@@ -269,17 +345,21 @@ export default function Modelos() {  const isMobile = useIsMobile();
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const toStr = (v: string) => (v === "" || v === null || v === undefined) ? null : String(v);
+    // Com medida variável, as medidas fixas saem no SUBMIT (viram null), não no
+    // toggle: assim desligar o interruptor devolve os valores que a pessoa
+    // tinha digitado, em vez de apagá-los sem aviso.
+    const variable = formData.hasVariableMeasurement;
     const dataToSubmit: any = {
       ...formData,
       group: formData.group || null,
       material: formData.material || null,
       finish: formData.finish || null,
-      area: toStr(formData.area),
-      visual: toStr(formData.visual),
-      visualWidth: toStr(formData.visualWidth),
-      visualHeight: toStr(formData.visualHeight),
-      fileWidth: toStr(formData.fileWidth),
-      fileHeight: toStr(formData.fileHeight),
+      area: variable ? null : toStr(formData.area),
+      visual: variable ? null : toStr(formData.visual),
+      visualWidth: variable ? null : toStr(formData.visualWidth),
+      visualHeight: variable ? null : toStr(formData.visualHeight),
+      fileWidth: variable ? null : toStr(formData.fileWidth),
+      fileHeight: variable ? null : toStr(formData.fileHeight),
     };
     createStandardItemMutation.mutate(dataToSubmit);
   };
@@ -355,7 +435,15 @@ export default function Modelos() {  const isMobile = useIsMobile();
   const materialCounts = mFacetCounts('material');
   const finishCounts = mFacetCounts('finish');
 
-  const isAdmin = true; // all roles with page access can manage models
+  // Paginação client-side: o catálogo cresce e a tabela renderizava tudo.
+  const PAGE_SIZE = 20;
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const paginatedItems = filteredItems.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  // Opções do combobox de Tipo: catálogo fixo + valores já usados nos modelos
+  // (fim do palco/Palco/PALCO — quem digita escolhe um valor existente).
+  const allTypeOptions = Array.from(new Set([...itemTypes, ...allTypes])).sort((a, b) => a.localeCompare(b, "pt-BR"));
 
   /* ── shared field style ── */
   const fieldStyle: React.CSSProperties = {
@@ -369,7 +457,12 @@ export default function Modelos() {  const isMobile = useIsMobile();
   };
 
   return (
-    <div style={{ backgroundColor: "#fafaf9", height: "100%", overflowY: "auto", padding: isMobile ? "12px 14px 16px" : "24px 28px 20px" }}>
+    <div className="modelos-page" style={{ backgroundColor: "#fafaf9", height: "100%", overflowY: "auto", padding: isMobile ? "12px 14px 16px" : "24px 28px 20px" }}>
+      {/* Placeholder nativo dos inputs: o cinza padrão do navegador reprova
+          contraste sobre #f0efee — #78716c passa em todas as superfícies. */}
+      <style>{`
+        .modelos-page input::placeholder, .modelos-page textarea::placeholder { color: #78716c; opacity: 1; }
+      `}</style>
 
       {/* ── Page Header ── */}
       <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 32, gap: 16, flexWrap: "wrap" }}>
@@ -389,9 +482,9 @@ export default function Modelos() {  const isMobile = useIsMobile();
             <input
               placeholder="Buscar modelos..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
               data-testid="input-search-models"
-              style={{ paddingLeft: 38, paddingRight: 14, height: 40, width: 280, backgroundColor: "#e8e8e7", border: "none", borderRadius: 12, fontSize: 13, color: "#1c1917" }}
+              style={{ paddingLeft: 38, paddingRight: 14, height: 40, width: isMobile ? "100%" : 280, backgroundColor: "#e8e8e7", border: "none", borderRadius: 12, fontSize: 13, color: "#1c1917" }}
             />
           </div>
 
@@ -426,22 +519,22 @@ export default function Modelos() {  const isMobile = useIsMobile();
         <div style={{ marginBottom: 16, display: "flex", alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
 
           {allGroups.length > 0 && (
-            <SearchableSelect label="Grupo" placeholder="Todos os grupos" value={filterGroup} options={allGroups} counts={groupCounts} onChange={setFilterGroup} testId="filter-group-select" />
+            <SearchableSelect label="Grupo" placeholder="Todos os grupos" value={filterGroup} options={allGroups} counts={groupCounts} onChange={v => { setFilterGroup(v); setPage(1); }} testId="filter-group-select" />
           )}
           {allTypes.length > 0 && (
-            <SearchableSelect label="Tipo" placeholder="Todos os tipos" value={filterType} options={allTypes} counts={typeCounts} onChange={setFilterType} testId="filter-type-select" />
+            <SearchableSelect label="Tipo" placeholder="Todos os tipos" value={filterType} options={allTypes} counts={typeCounts} onChange={v => { setFilterType(v); setPage(1); }} testId="filter-type-select" />
           )}
           {allMats.length > 0 && (
-            <SearchableSelect label="Material" placeholder="Todos os materiais" value={filterMaterial} options={allMats} counts={materialCounts} onChange={setFilterMaterial} testId="filter-material-select" />
+            <SearchableSelect label="Material" placeholder="Todos os materiais" value={filterMaterial} options={allMats} counts={materialCounts} onChange={v => { setFilterMaterial(v); setPage(1); }} testId="filter-material-select" />
           )}
           {allFinishes.length > 0 && (
-            <SearchableSelect label="Acabamento" placeholder="Todos os acabamentos" value={filterFinish} options={allFinishes} counts={finishCounts} onChange={setFilterFinish} testId="filter-finish-select" />
+            <SearchableSelect label="Acabamento" placeholder="Todos os acabamentos" value={filterFinish} options={allFinishes} counts={finishCounts} onChange={v => { setFilterFinish(v); setPage(1); }} testId="filter-finish-select" />
           )}
 
           {/* Limpar filtros */}
           {activeFilters > 0 && (
             <button
-              onClick={() => { setFilterGroup(""); setFilterType(""); setFilterMaterial(""); setFilterFinish(""); }}
+              onClick={() => { setFilterGroup(""); setFilterType(""); setFilterMaterial(""); setFilterFinish(""); setPage(1); }}
               style={{ height: 36, paddingLeft: 12, paddingRight: 12, fontSize: 13, fontWeight: 600, color: "#746e69", background: "none", border: "1px solid #e7e5e4", borderRadius: 8, cursor: "pointer", display: "flex", alignItems: "center", gap: 4, alignSelf: "flex-end" }}
             >
               <X style={{ width: 11, height: 11 }} />
@@ -451,10 +544,34 @@ export default function Modelos() {  const isMobile = useIsMobile();
         </div>
       )}
 
+      {/* Falha na query auxiliar do catálogo de opções: avisa sem esconder a tabela */}
+      {catalogError && (
+        <div role="alert" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 10, marginBottom: 12 }}>
+          <AlertTriangle style={{ width: 14, height: 14, color: "#b45309", flexShrink: 0 }} />
+          <span style={{ fontSize: 12, color: "#92400e", flex: 1 }}>
+            Falha ao carregar as opções de catálogo — grupos, materiais e acabamentos podem aparecer incompletos.
+          </span>
+          <button onClick={() => refetchCatalog()}
+            style={{ padding: "6px 12px", backgroundColor: "#fff", border: "1px solid #fde68a", borderRadius: 6, cursor: "pointer", fontSize: 10, fontWeight: 800, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}>
+            Tentar novamente
+          </button>
+        </div>
+      )}
+
       {/* ── Table Card ── */}
       {isLoading ? (
         <div style={{ display: "flex", justifyContent: "center", padding: "64px 0" }}>
           <div style={{ width: 32, height: 32, border: "3px solid #e7e5e4", borderTopColor: "#f97316", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+        </div>
+      ) : isError ? (
+        <div style={{ backgroundColor: "#ffffff", borderRadius: 12, padding: "64px 32px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.04)" }}>
+          <AlertTriangle style={{ width: 40, height: 40, color: "#b45309", margin: "0 auto 14px" }} />
+          <p style={{ fontSize: 15, fontWeight: 600, color: "#1c1917", margin: "0 0 6px" }}>Não foi possível carregar os modelos</p>
+          <p style={{ fontSize: 13, color: "#746e69", margin: "0 0 20px" }}>Verifique sua conexão e tente novamente</p>
+          <button onClick={() => refetch()}
+            style={{ backgroundColor: "#1c1917", color: "#ffffff", border: "none", borderRadius: 12, padding: "9px 20px", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
+            Tentar novamente
+          </button>
         </div>
       ) : standardItems.length === 0 ? (
         <div style={{ backgroundColor: "#ffffff", borderRadius: 12, padding: "64px 32px", textAlign: "center", boxShadow: "0 4px 20px rgba(0,0,0,0.04)" }}>
@@ -515,8 +632,8 @@ export default function Modelos() {  const isMobile = useIsMobile();
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ backgroundColor: "rgba(243,244,243,0.5)", borderBottom: "1px solid #e7e5e4" }}>
-                    {["Nome", "Grupo", "Tipo", "Medidas", "Material", "Acabamento", isAdmin ? "Ações" : ""].filter(Boolean).map(col => (
-                      <th key={col} style={{
+                    {["Nome", "Grupo", "Tipo", "Medidas", "Material", "Acabamento", "Ações"].map(col => (
+                      <th key={col} scope="col" style={{
                         padding: "14px 24px",
                         textAlign: col === "Ações" ? "right" : "left",
                         fontSize: 10, fontWeight: 700, color: "#746e69",
@@ -528,7 +645,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                   </tr>
                 </thead>
                 <tbody style={{ borderTop: "none" }}>
-                  {filteredItems.map((item) => {
+                  {paginatedItems.map((item) => {
                     const isHovered = hoveredRow === item.id;
                     const pillStyle = tipoPillStyle(item.type || "");
                     return (
@@ -553,7 +670,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                             <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", borderRadius: 999, padding: "3px 10px", display: "inline-block", backgroundColor: "#f0f9ff", color: "#0369a1", whiteSpace: "nowrap" }}>
                               {item.group}
                             </span>
-                          ) : <span style={{ color: "#d4d0cc", fontSize: 13 }}>—</span>}
+                          ) : <span style={{ color: "#746e69", fontSize: 13 }}>—</span>}
                         </td>
 
                         {/* Tipo */}
@@ -562,7 +679,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                             <span style={{ ...pillStyle, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", borderRadius: 999, padding: "3px 10px", display: "inline-block", whiteSpace: "nowrap" }}>
                               {item.type}
                             </span>
-                          ) : <span style={{ color: "#d4d0cc", fontSize: 13 }}>—</span>}
+                          ) : <span style={{ color: "#746e69", fontSize: 13 }}>—</span>}
                         </td>
 
                         {/* Medidas */}
@@ -591,50 +708,82 @@ export default function Modelos() {  const isMobile = useIsMobile();
                               )}
                             </div>
                           ) : (
-                            <span style={{ fontSize: 13, color: "#d4d0cc" }}>—</span>
+                            <span style={{ fontSize: 13, color: "#746e69" }}>—</span>
                           )}
                         </td>
 
                         {/* Material */}
                         <td style={{ padding: "18px 24px" }}>
-                          <span style={{ fontSize: 13, color: item.material ? "#57534e" : "#d4d0cc" }}>
+                          <span style={{ fontSize: 13, color: item.material ? "#57534e" : "#746e69" }}>
                             {item.material || "—"}
                           </span>
                         </td>
 
                         {/* Acabamento */}
                         <td style={{ padding: "18px 24px" }}>
-                          <span style={{ fontSize: 13, color: item.finish ? "#57534e" : "#d4d0cc" }}>
+                          <span style={{ fontSize: 13, color: item.finish ? "#57534e" : "#746e69" }}>
                             {item.finish || "—"}
                           </span>
                         </td>
 
-                        {/* Ações (admin) */}
-                        {isAdmin && (
-                          <td style={{ padding: "18px 24px", textAlign: "right", whiteSpace: "nowrap" }}>
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
-                              <HoverIconBtn
-                                icon={<Pencil style={{ width: 16, height: 16 }} />}
-                                hoverBg="#fff7ed" hoverColor="#f97316"
-                                onClick={() => handleEdit(item)}
-                                testId={`button-edit-model-${item.id}`}
-                                title="Editar modelo"
-                              />
-                              <HoverIconBtn
-                                icon={<Trash2 style={{ width: 16, height: 16 }} />}
-                                hoverBg="#fef2f2" hoverColor="#dc2626"
-                                onClick={() => setDeleteConfirm(item)}
-                                testId={`button-delete-model-${item.id}`}
-                                title="Excluir modelo"
-                              />
-                            </div>
-                          </td>
-                        )}
+                        {/* Ações — o gate real de escrita é o requireRole
+                            (solicitacao/admin) do servidor + o guard da rota */}
+                        <td style={{ padding: "18px 24px", textAlign: "right", whiteSpace: "nowrap" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 4 }}>
+                            <HoverIconBtn
+                              icon={<Pencil style={{ width: 16, height: 16 }} />}
+                              hoverBg="#fff7ed" hoverColor="#c2410c"
+                              onClick={() => handleEdit(item)}
+                              testId={`button-edit-model-${item.id}`}
+                              title="Editar modelo"
+                              ariaLabel={`Editar modelo ${item.name}`}
+                            />
+                            <HoverIconBtn
+                              icon={<Trash2 style={{ width: 16, height: 16 }} />}
+                              hoverBg="#fef2f2" hoverColor="#dc2626"
+                              onClick={() => setDeleteConfirm(item)}
+                              testId={`button-delete-model-${item.id}`}
+                              title="Excluir modelo"
+                              ariaLabel={`Excluir modelo ${item.name}`}
+                            />
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Paginação */}
+          {filteredItems.length > PAGE_SIZE && (
+            <div style={{ padding: "12px 24px", borderTop: "1px solid #e7e5e4", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+              <span style={{ fontSize: 11, color: "#746e69", fontWeight: 600 }}>
+                Exibindo {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filteredItems.length)} de {filteredItems.length} modelos
+              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}
+                  aria-label="Página anterior"
+                  style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #e7e5e4", backgroundColor: "#fff", borderRadius: 8, cursor: safePage === 1 ? "not-allowed" : "pointer", color: safePage === 1 ? "#a8a29e" : "#57534e" }}>
+                  <ChevronLeft style={{ width: 14, height: 14 }} />
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .slice(Math.max(0, safePage - 3), Math.min(totalPages, safePage + 2))
+                  .map(p => (
+                    <button key={p} onClick={() => setPage(p)}
+                      aria-label={`Página ${p}`}
+                      aria-current={p === safePage ? "page" : undefined}
+                      style={{ width: 30, height: 30, borderRadius: 8, border: p === safePage ? "1px solid #1c1917" : "1px solid #e7e5e4", backgroundColor: p === safePage ? "#1c1917" : "#fff", fontSize: 11, fontWeight: 700, color: p === safePage ? "#fff" : "#57534e", cursor: "pointer" }}>
+                      {p}
+                    </button>
+                  ))}
+                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}
+                  aria-label="Próxima página"
+                  style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #e7e5e4", backgroundColor: "#fff", borderRadius: 8, cursor: safePage === totalPages ? "not-allowed" : "pointer", color: safePage === totalPages ? "#a8a29e" : "#57534e" }}>
+                  <ChevronRight style={{ width: 14, height: 14 }} />
+                </button>
+              </div>
             </div>
           )}
         </div>
@@ -643,6 +792,8 @@ export default function Modelos() {  const isMobile = useIsMobile();
       {/* ── Modal Criar / Editar ── */}
       <Dialog open={open} onOpenChange={open => { if (!open) handleCloseDialog(); }}>
         <DialogContent style={{ padding: 0, gap: 0, maxWidth: 640, borderRadius: 16, overflow: "hidden", backgroundColor: "#ffffff", display: "flex", flexDirection: "column", maxHeight: "90vh" }}>
+          <DialogTitle className="sr-only">{editingItem ? "Editar modelo de item" : "Novo modelo de item"}</DialogTitle>
+          <DialogDescription className="sr-only">Definição técnica do modelo: nome, tipo, grupo, medidas, material e acabamento</DialogDescription>
 
           {/* Header */}
           <div style={{ padding: "24px 32px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", borderBottom: "1px solid #f5f4f0", flexShrink: 0 }}>
@@ -658,12 +809,13 @@ export default function Modelos() {  const isMobile = useIsMobile();
 
           {/* Body */}
           <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-            <div style={{ padding: "28px 32px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, overflowY: "auto", flex: 1 }}>
+            <div style={{ padding: isMobile ? "20px 18px" : "28px 32px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20, overflowY: "auto", flex: 1 }}>
 
               {/* Nome */}
               <div>
-                <label style={labelStyle}>Nome do Modelo</label>
+                <label htmlFor="model-name" style={labelStyle}>Nome do Modelo</label>
                 <input
+                  id="model-name"
                   value={formData.name}
                   onChange={e => setFormData({ ...formData, name: e.target.value })}
                   placeholder="Ex: Backdrop Premium v2"
@@ -673,24 +825,82 @@ export default function Modelos() {  const isMobile = useIsMobile();
                 />
               </div>
 
-              {/* Tipo */}
+              {/* Tipo — combobox: catálogo + valores já usados, com criação.
+                  O texto livre gerava variações como palco/Palco/PALCO. */}
               <div>
-                <label style={labelStyle}>
+                <label htmlFor="model-type" style={labelStyle}>
                   Tipo{" "}
                   <span style={{ fontWeight: 400, color: "#746e69", textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
                 </label>
-                <input
-                  value={formData.type}
-                  onChange={e => setFormData({ ...formData, type: e.target.value })}
-                  placeholder="Ex: Palco, Stand, WindBanner..."
-                  data-testid="input-model-type"
-                  style={fieldStyle}
-                />
+                <Popover open={typePopoverOpen} onOpenChange={open => { setTypePopoverOpen(open); if (!open) setCustomTypeInput(""); }}>
+                  <PopoverTrigger asChild>
+                    <button type="button" id="model-type" data-testid="input-model-type"
+                      style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.type ? "#1c1917" : "#78716c" }}>
+                      {formData.type ? (
+                        <span style={{ ...tipoPillStyle(formData.type), display: "inline-flex", alignItems: "center", borderRadius: 6, padding: "2px 10px", fontSize: 13, fontWeight: 600 }}>
+                          {formData.type}
+                        </span>
+                      ) : (
+                        <span>Selecionar ou criar tipo...</span>
+                      )}
+                      <ChevronsUpDown style={{ width: 14, height: 14, color: "#a8a29e", flexShrink: 0, marginLeft: 4 }} />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent style={{ width: 300, padding: 0 }} align="start">
+                    <Command>
+                      <CommandInput placeholder="Buscar ou criar tipo..." value={customTypeInput} onValueChange={setCustomTypeInput} />
+                      <CommandList>
+                        <CommandEmpty>
+                          {customTypeInput ? (
+                            <div style={{ padding: "8px 12px" }}>
+                              <button type="button"
+                                onClick={() => { setFormData({ ...formData, type: customTypeInput }); setCustomTypeInput(""); setTypePopoverOpen(false); }}
+                                style={{ width: "100%", padding: "8px 12px", backgroundColor: "#1c1917", color: "#fff", border: "none", borderRadius: 6, fontSize: 13, fontWeight: 600, cursor: "pointer", textAlign: "left" }}>
+                                <Plus style={{ width: 13, height: 13, display: "inline", marginRight: 6 }} />
+                                Criar "{customTypeInput}"
+                              </button>
+                            </div>
+                          ) : (
+                            <p style={{ padding: "12px 16px", fontSize: 13, color: "#746e69", margin: 0 }}>Nenhum tipo cadastrado</p>
+                          )}
+                        </CommandEmpty>
+                        {allTypeOptions.length > 0 && (
+                          <CommandGroup heading="Tipos existentes">
+                            {allTypeOptions.map(t => (
+                              <CommandItem key={t} value={t}
+                                onSelect={() => { setFormData({ ...formData, type: t }); setCustomTypeInput(""); setTypePopoverOpen(false); }}>
+                                <span style={{ ...tipoPillStyle(t), display: "inline-flex", alignItems: "center", borderRadius: 6, padding: "2px 10px", fontSize: 13, fontWeight: 600, marginRight: 8 }}>
+                                  {t}
+                                </span>
+                                <Check className={cn("ml-auto h-4 w-4", formData.type === t ? "opacity-100" : "opacity-0")} />
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        )}
+                        {customTypeInput && !allTypeOptions.some(t => t.toLowerCase() === customTypeInput.toLowerCase()) && (
+                          <CommandGroup heading="Novo">
+                            <CommandItem value={`__new__${customTypeInput}`}
+                              onSelect={() => { setFormData({ ...formData, type: customTypeInput }); setCustomTypeInput(""); setTypePopoverOpen(false); }}>
+                              <Plus style={{ width: 14, height: 14, marginRight: 8, color: "#57534e" }} />
+                              <span style={{ fontSize: 13, color: "#57534e", fontWeight: 600 }}>Criar "{customTypeInput}"</span>
+                            </CommandItem>
+                          </CommandGroup>
+                        )}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+                {formData.type && (
+                  <button type="button" onClick={() => setFormData({ ...formData, type: "" })}
+                    style={{ marginTop: 4, fontSize: 11, color: "#746e69", background: "none", border: "none", cursor: "pointer", padding: 0 }}>
+                    Limpar
+                  </button>
+                )}
               </div>
 
               {/* Grupo Pai */}
               <div>
-                <label style={labelStyle}>
+                <label htmlFor="model-group" style={labelStyle}>
                   Grupo Pai{" "}
                   <span style={{ fontWeight: 400, color: "#746e69", textTransform: "none", letterSpacing: 0 }}>(opcional)</span>
                 </label>
@@ -698,12 +908,13 @@ export default function Modelos() {  const isMobile = useIsMobile();
                   <PopoverTrigger asChild>
                     <button
                       type="button"
+                      id="model-group"
                       data-testid="input-model-group"
                       style={{
                         ...fieldStyle,
                         display: "flex", alignItems: "center", justifyContent: "space-between",
                         cursor: "pointer",
-                        color: formData.group ? "#1c1917" : "#a8a29e",
+                        color: formData.group ? "#1c1917" : "#78716c",
                       }}
                     >
                       {formData.group ? (
@@ -805,11 +1016,11 @@ export default function Modelos() {  const isMobile = useIsMobile();
                   tabIndex={0}
                   aria-checked={formData.hasVariableMeasurement}
                   aria-label="Medida variável"
-                  onClick={() => setFormData({ ...formData, hasVariableMeasurement: !formData.hasVariableMeasurement, area: !formData.hasVariableMeasurement ? "" : formData.area, visual: !formData.hasVariableMeasurement ? "" : formData.visual, fileWidth: "", fileHeight: "" })}
+                  onClick={() => setFormData({ ...formData, hasVariableMeasurement: !formData.hasVariableMeasurement })}
                   onKeyDown={e => {
                     if (e.key === "Enter" || e.key === " ") {
                       e.preventDefault();
-                      setFormData({ ...formData, hasVariableMeasurement: !formData.hasVariableMeasurement, area: !formData.hasVariableMeasurement ? "" : formData.area, visual: !formData.hasVariableMeasurement ? "" : formData.visual, fileWidth: "", fileHeight: "" });
+                      setFormData({ ...formData, hasVariableMeasurement: !formData.hasVariableMeasurement });
                     }
                   }}
                   style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}
@@ -833,9 +1044,10 @@ export default function Modelos() {  const isMobile = useIsMobile();
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
-                    <label style={{ ...labelStyle, color: "#746e69" }}>Largura — VIS. L</label>
+                    <label htmlFor="model-vis-w" style={{ ...labelStyle, color: "#746e69" }}>Largura — VIS. L</label>
                     <input
-                      type="number" step="0.01"
+                      id="model-vis-w"
+                      type="number" step="0.01" min="0"
                       value={formData.area}
                       onChange={e => {
                         const v = e.target.value;
@@ -850,9 +1062,10 @@ export default function Modelos() {  const isMobile = useIsMobile();
                     />
                   </div>
                   <div>
-                    <label style={{ ...labelStyle, color: "#746e69" }}>Altura — VIS. A</label>
+                    <label htmlFor="model-vis-h" style={{ ...labelStyle, color: "#746e69" }}>Altura — VIS. A</label>
                     <input
-                      type="number" step="0.01"
+                      id="model-vis-h"
+                      type="number" step="0.01" min="0"
                       value={formData.visual}
                       onChange={e => {
                         const v = e.target.value;
@@ -877,9 +1090,10 @@ export default function Modelos() {  const isMobile = useIsMobile();
                 </label>
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                   <div>
-                    <label style={{ ...labelStyle, color: "#746e69" }}>Largura — ARQ. L</label>
+                    <label htmlFor="model-arq-w" style={{ ...labelStyle, color: "#746e69" }}>Largura — ARQ. L</label>
                     <input
-                      type="number" step="0.01"
+                      id="model-arq-w"
+                      type="number" step="0.01" min="0"
                       value={formData.fileWidth}
                       onChange={e => setFormData({ ...formData, fileWidth: e.target.value })}
                       placeholder="0.00"
@@ -889,9 +1103,10 @@ export default function Modelos() {  const isMobile = useIsMobile();
                     />
                   </div>
                   <div>
-                    <label style={{ ...labelStyle, color: "#746e69" }}>Altura — ARQ. A</label>
+                    <label htmlFor="model-arq-h" style={{ ...labelStyle, color: "#746e69" }}>Altura — ARQ. A</label>
                     <input
-                      type="number" step="0.01"
+                      id="model-arq-h"
+                      type="number" step="0.01" min="0"
                       value={formData.fileHeight}
                       onChange={e => setFormData({ ...formData, fileHeight: e.target.value })}
                       placeholder="0.00"
@@ -905,11 +1120,11 @@ export default function Modelos() {  const isMobile = useIsMobile();
 
               {/* Material */}
               <div>
-                <label style={labelStyle}>Material Base</label>
+                <label htmlFor="model-material" style={labelStyle}>Material Base</label>
                 <Popover open={materialPopoverOpen} onOpenChange={open => { setMaterialPopoverOpen(open); if (!open) setCustomMaterialInput(""); }}>
                   <PopoverTrigger asChild>
-                    <button type="button" data-testid="input-model-material"
-                      style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.material ? "#1c1917" : "#a8a29e" }}>
+                    <button type="button" id="model-material" data-testid="input-model-material"
+                      style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.material ? "#1c1917" : "#78716c" }}>
                       {formData.material ? (
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: "#fff7ed", color: "#c2410c", borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: 600 }}>
                           <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "#f97316", flexShrink: 0 }} />
@@ -976,11 +1191,11 @@ export default function Modelos() {  const isMobile = useIsMobile();
 
               {/* Acabamento */}
               <div>
-                <label style={labelStyle}>Acabamento</label>
+                <label htmlFor="model-finish" style={labelStyle}>Acabamento</label>
                 <Popover open={finishPopoverOpen} onOpenChange={open => { setFinishPopoverOpen(open); if (!open) setCustomFinishInput(""); }}>
                   <PopoverTrigger asChild>
-                    <button type="button" data-testid="input-model-finish"
-                      style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.finish ? "#1c1917" : "#a8a29e" }}>
+                    <button type="button" id="model-finish" data-testid="input-model-finish"
+                      style={{ ...fieldStyle, display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", color: formData.finish ? "#1c1917" : "#78716c" }}>
                       {formData.finish ? (
                         <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: "#f5f4f0", color: "#57534e", borderRadius: 6, padding: "2px 10px 2px 8px", fontSize: 13, fontWeight: 600 }}>
                           <span style={{ width: 5, height: 5, borderRadius: "50%", backgroundColor: "#a8a29e", flexShrink: 0 }} />
@@ -1060,7 +1275,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                 data-testid="button-submit-model"
                 style={{ padding: "10px 28px", backgroundColor: "#c2410c", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 700, color: "#ffffff", cursor: createStandardItemMutation.isPending ? "not-allowed" : "pointer", opacity: createStandardItemMutation.isPending ? 0.7 : 1, transition: "background-color 0.15s" }}
                 onMouseEnter={e => { if (!createStandardItemMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#ea580c"; }}
-                onMouseLeave={e => { if (!createStandardItemMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f97316"; }}
+                onMouseLeave={e => { if (!createStandardItemMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#c2410c"; }}
               >
                 {createStandardItemMutation.isPending
                   ? (editingItem ? "Atualizando..." : "Criando...")
@@ -1125,78 +1340,6 @@ export default function Modelos() {  const isMobile = useIsMobile();
             {/* Body — scrollable list */}
             <div style={{ overflowY: "auto", padding: "16px 28px 24px", flex: 1 }}>
               {(() => {
-                // Shared row renderer
-                function CatRow({ name, count, accentColor, accentBg,
-                  isEditing, editValue, onEditChange, onEditConfirm, onEditCancel, isPendingRename,
-                  isDeleting, onDeleteConfirm, onDeleteCancel, isPendingDelete,
-                  onStartEdit, onStartDelete,
-                }: {
-                  name: string; count: number; accentColor: string; accentBg: string;
-                  isEditing: boolean; editValue: string; onEditChange: (v: string) => void;
-                  onEditConfirm: () => void; onEditCancel: () => void; isPendingRename: boolean;
-                  isDeleting: boolean; onDeleteConfirm: () => void; onDeleteCancel: () => void; isPendingDelete: boolean;
-                  onStartEdit: () => void; onStartDelete: () => void;
-                }) {
-                  return (
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "11px 14px", borderRadius: 12, backgroundColor: isDeleting ? "#fff5f5" : "#fafaf9", border: `1px solid ${isDeleting ? "#fecaca" : "#f0efec"}`, transition: "all 0.15s" }}>
-                      {/* Dot */}
-                      <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: accentColor, flexShrink: 0, opacity: isDeleting ? 0.4 : 1 }} />
-
-                      {isEditing ? (
-                        <>
-                          <input autoFocus value={editValue} onChange={e => onEditChange(e.target.value)}
-                            onKeyDown={e => { if (e.key === "Enter") onEditConfirm(); if (e.key === "Escape") onEditCancel(); }}
-                            style={{ flex: 1, fontSize: 13, fontWeight: 600, borderRadius: 8, padding: "5px 10px", border: `1.5px solid ${accentColor}`, color: "#1c1917", background: accentBg }}
-                          />
-                          <button onClick={onEditConfirm} disabled={isPendingRename}
-                            style={{ width: 30, height: 30, borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: accentColor, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            <Check style={{ width: 13, height: 13 }} />
-                          </button>
-                          <button onClick={onEditCancel}
-                            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #e7e5e4", cursor: "pointer", backgroundColor: "#ffffff", color: "#746e69", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                            <X style={{ width: 13, height: 13 }} />
-                          </button>
-                        </>
-                      ) : isDeleting ? (
-                        <>
-                          <div style={{ flex: 1 }}>
-                            <span style={{ fontSize: 13, fontWeight: 600, color: "#dc2626" }}>Remover </span>
-                            <span style={{ fontSize: 13, fontWeight: 800, color: "#dc2626" }}>"{name}"</span>
-                            <span style={{ fontSize: 13, color: "#ef4444" }}> de {count} {count === 1 ? "modelo" : "modelos"}?</span>
-                          </div>
-                          <button onClick={onDeleteConfirm} disabled={isPendingDelete}
-                            style={{ padding: "5px 14px", borderRadius: 8, border: "none", cursor: "pointer", backgroundColor: "#dc2626", color: "#fff", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
-                            Remover
-                          </button>
-                          <button onClick={onDeleteCancel}
-                            style={{ padding: "5px 14px", borderRadius: 8, border: "1px solid #e7e5e4", cursor: "pointer", backgroundColor: "#fff", color: "#746e69", fontSize: 13, fontWeight: 600, flexShrink: 0 }}>
-                            Cancelar
-                          </button>
-                        </>
-                      ) : (
-                        <>
-                          <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: "#1c1917" }}>{name}</span>
-                          <span style={{ fontSize: 11, fontWeight: 600, color: "#746e69", backgroundColor: "#f5f4f0", borderRadius: 6, padding: "2px 8px", marginRight: 2 }}>
-                            {count} {count === 1 ? "modelo" : "modelos"}
-                          </span>
-                          <button onClick={onStartEdit} title={`Renomear "${name}"`}
-                            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid transparent", cursor: "pointer", backgroundColor: "transparent", color: "#c4bfbb", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = accentBg; (e.currentTarget as HTMLButtonElement).style.color = accentColor; (e.currentTarget as HTMLButtonElement).style.borderColor = accentColor + "40"; }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#c4bfbb"; (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent"; }}>
-                            <Pencil style={{ width: 12, height: 12 }} />
-                          </button>
-                          <button onClick={onStartDelete} title={`Remover "${name}"`}
-                            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid transparent", cursor: "pointer", backgroundColor: "transparent", color: "#c4bfbb", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
-                            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#fee2e2"; (e.currentTarget as HTMLButtonElement).style.color = "#dc2626"; (e.currentTarget as HTMLButtonElement).style.borderColor = "#fca5a540"; }}
-                            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#c4bfbb"; (e.currentTarget as HTMLButtonElement).style.borderColor = "transparent"; }}>
-                            <Trash2 style={{ width: 12, height: 12 }} />
-                          </button>
-                        </>
-                      )}
-                    </div>
-                  );
-                }
-
                 const tabCfg = {
                   group:    { items: allGroups,   color: "#0369a1", bg: "#e0f2fe", empty: "Nenhum grupo cadastrado." },
                   material: { items: allMats,      color: "#b45309", bg: "#fef3c7", empty: "Nenhum material cadastrado." },
@@ -1247,7 +1390,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                           onEditConfirm={() => { const t = mgEditGroupValue.trim(); if (t && t !== name) renameGroupMutation.mutate({ oldName: name, newName: t }); else setMgEditingGroup(null); }}
                           onEditCancel={() => setMgEditingGroup(null)} isPendingRename={renameGroupMutation.isPending}
                           isDeleting={mgDeleteGroupConfirm === name}
-                          onDeleteConfirm={() => { deleteGroupMutation.mutate(name); deleteCatalogOptionMutation.mutate({ kind: "group", value: name }); }} onDeleteCancel={() => setMgDeleteGroupConfirm(null)} isPendingDelete={deleteGroupMutation.isPending}
+                          onDeleteConfirm={() => deleteGroupMutation.mutate(name, { onSuccess: () => deleteCatalogOptionMutation.mutate({ kind: "group", value: name }) })} onDeleteCancel={() => setMgDeleteGroupConfirm(null)} isPendingDelete={deleteGroupMutation.isPending}
                           onStartEdit={() => { setMgEditingGroup(name); setMgEditGroupValue(name); setMgDeleteGroupConfirm(null); }}
                           onStartDelete={() => { setMgDeleteGroupConfirm(name); setMgEditingGroup(null); }}
                         />
@@ -1258,7 +1401,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                           onEditConfirm={() => { const t = mgEditMaterialValue.trim(); if (t && t !== name) renameMaterialMutation.mutate({ oldName: name, newName: t }); else setMgEditingMaterial(null); }}
                           onEditCancel={() => setMgEditingMaterial(null)} isPendingRename={renameMaterialMutation.isPending}
                           isDeleting={mgDeleteMaterialConfirm === name}
-                          onDeleteConfirm={() => { deleteMaterialMutation.mutate(name); deleteCatalogOptionMutation.mutate({ kind: "material", value: name }); }} onDeleteCancel={() => setMgDeleteMaterialConfirm(null)} isPendingDelete={deleteMaterialMutation.isPending}
+                          onDeleteConfirm={() => deleteMaterialMutation.mutate(name, { onSuccess: () => deleteCatalogOptionMutation.mutate({ kind: "material", value: name }) })} onDeleteCancel={() => setMgDeleteMaterialConfirm(null)} isPendingDelete={deleteMaterialMutation.isPending}
                           onStartEdit={() => { setMgEditingMaterial(name); setMgEditMaterialValue(name); setMgDeleteMaterialConfirm(null); }}
                           onStartDelete={() => { setMgDeleteMaterialConfirm(name); setMgEditingMaterial(null); }}
                         />
@@ -1269,7 +1412,7 @@ export default function Modelos() {  const isMobile = useIsMobile();
                           onEditConfirm={() => { const t = mgEditFinishValue.trim(); if (t && t !== name) renameFinishMutation.mutate({ oldName: name, newName: t }); else setMgEditingFinish(null); }}
                           onEditCancel={() => setMgEditingFinish(null)} isPendingRename={renameFinishMutation.isPending}
                           isDeleting={mgDeleteFinishConfirm === name}
-                          onDeleteConfirm={() => { deleteFinishMutation.mutate(name); deleteCatalogOptionMutation.mutate({ kind: "finish", value: name }); }} onDeleteCancel={() => setMgDeleteFinishConfirm(null)} isPendingDelete={deleteFinishMutation.isPending}
+                          onDeleteConfirm={() => deleteFinishMutation.mutate(name, { onSuccess: () => deleteCatalogOptionMutation.mutate({ kind: "finish", value: name }) })} onDeleteCancel={() => setMgDeleteFinishConfirm(null)} isPendingDelete={deleteFinishMutation.isPending}
                           onStartEdit={() => { setMgEditingFinish(name); setMgEditFinishValue(name); setMgDeleteFinishConfirm(null); }}
                           onStartDelete={() => { setMgDeleteFinishConfirm(name); setMgEditingFinish(null); }}
                         />
@@ -1313,19 +1456,19 @@ export default function Modelos() {  const isMobile = useIsMobile();
 }
 
 /* ── Icon button with hover color ── */
-function HoverIconBtn({ icon, hoverBg, hoverColor, onClick, testId, title }: {
+function HoverIconBtn({ icon, hoverBg, hoverColor, onClick, testId, title, ariaLabel }: {
   icon: React.ReactNode; hoverBg: string; hoverColor: string;
-  onClick: () => void; testId: string; title: string;
+  onClick: () => void; testId: string; title: string; ariaLabel?: string;
 }) {
   const [hovered, setHovered] = useState(false);
   return (
-    <button onClick={onClick} data-testid={testId} title={title}
+    <button onClick={onClick} data-testid={testId} title={title} aria-label={ariaLabel ?? title}
       onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)}
       style={{
         display: "inline-flex", alignItems: "center", justifyContent: "center",
         width: 32, height: 32, borderRadius: 8, border: "none", cursor: "pointer",
         backgroundColor: hovered ? hoverBg : "transparent",
-        color: hovered ? hoverColor : "#a8a29e",
+        color: hovered ? hoverColor : "#746e69",
         transition: "all 0.15s",
       }}
     >

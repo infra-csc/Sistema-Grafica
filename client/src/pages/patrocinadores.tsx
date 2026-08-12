@@ -1,5 +1,5 @@
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -40,6 +40,9 @@ const PRESET_COLORS = [
 
 const PAGE_SIZE = 20;
 
+// `quota` (campo global legado) saiu do formulário de propósito: a cota real
+// vive por evento em event_sponsors. Como o modal não tinha campo para ela,
+// todo PATCH reenviava quota vazia e zerava o valor gravado no banco.
 const sponsorSchema = z.object({
   name:          z.string().min(1, "Nome obrigatório"),
   email:         z.string().email("Email inválido").optional().or(z.literal("")),
@@ -47,13 +50,13 @@ const sponsorSchema = z.object({
   company:       z.string().optional(),
   contactPerson: z.string().optional(),
   notes:         z.string().optional(),
-  color:         z.string().min(1, "Cor obrigatória"),
-  quota:         z.string().optional(),
+  color:         z.string().regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Cor deve ser um hex válido, ex.: #F97316"),
   accountExecutiveId: z.string().optional(),
 });
 type SponsorForm = z.infer<typeof sponsorSchema>;
 
-export default function Patrocinadores() {  const isMobile = useIsMobile();
+export default function Patrocinadores() {
+  const isMobile = useIsMobile();
   const [modalOpen, setModalOpen]             = useState(false);
   const [editingSponsor, setEditingSponsor]   = useState<Sponsor | null>(null);
   const [deletingSponsor, setDeletingSponsor] = useState<Sponsor | null>(null);
@@ -65,28 +68,33 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
   const [execFilter, setExecFilter]           = useState<string>("all");
   const { toast } = useToast();
 
-  const { data: sponsors = [], isLoading } = useQuery<Sponsor[]>({
+  const { data: sponsors = [], isLoading, isError: sponsorsError, refetch: refetchSponsors } = useQuery<Sponsor[]>({
     queryKey: ["/api/sponsors"],
   });
 
   // Usuários para o seletor de executivo responsável (lista enxuta, sem e-mail).
-  const { data: users = [] } = useQuery<{ id: string; name: string; role: string }[]>({
+  const { data: users = [], isError: usersError, refetch: refetchUsers } = useQuery<{ id: string; name: string; role: string }[]>({
     queryKey: ["/api/users/basic"],
   });
   // Quantos eventos/peças cada patrocinador tem — mostra quem está ativo e
   // quem nunca foi usado (candidato a limpeza).
-  const { data: usage = {} } = useQuery<Record<string, { events: number; items: number }>>({
+  const { data: usage = {}, isError: usageError, refetch: refetchUsage } = useQuery<Record<string, { events: number; items: number }>>({
     queryKey: ["/api/sponsors/usage"],
   });
 
+  // Papel do usuário logado: a lixeira só aparece para admin, espelhando o
+  // DELETE /api/sponsors/:id que é requireAdmin no servidor.
+  const { data: me } = useQuery<{ id: string; role: string }>({ queryKey: ["/api/auth/me"] });
+  const isAdmin = me?.role === "admin";
+
   const userById = new Map(users.map(u => [u.id, u]));
-  const execName = (s: Sponsor) => (s as any).accountExecutiveId
-    ? userById.get((s as any).accountExecutiveId)?.name ?? "—"
+  const execName = (s: Sponsor) => s.accountExecutiveId
+    ? userById.get(s.accountExecutiveId)?.name ?? "—"
     : "";
 
   const form = useForm<SponsorForm>({
     resolver: zodResolver(sponsorSchema),
-    defaultValues: { name: "", email: "", phone: "", company: "", contactPerson: "", notes: "", color: "#f97316", quota: "", accountExecutiveId: "" },
+    defaultValues: { name: "", email: "", phone: "", company: "", contactPerson: "", notes: "", color: "#f97316", accountExecutiveId: "" },
   });
 
   const selectedColor = form.watch("color") || "#f97316";
@@ -101,7 +109,7 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
       setModalOpen(false); form.reset();
       toast({ title: "Patrocinador criado com sucesso" });
     },
-    onError: (e: any) => toast({ variant: "destructive", title: "Erro ao criar patrocinador", description: e.message }),
+    onError: (e: Error) => toast({ variant: "destructive", title: "Erro ao criar patrocinador", description: e.message }),
   });
 
   const updateMutation = useMutation({
@@ -114,7 +122,7 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
       setModalOpen(false); setEditingSponsor(null); form.reset();
       toast({ title: "Patrocinador atualizado com sucesso" });
     },
-    onError: (e: any) => toast({ variant: "destructive", title: "Erro ao atualizar", description: e.message }),
+    onError: (e: Error) => toast({ variant: "destructive", title: "Erro ao atualizar", description: e.message }),
   });
 
   const deleteMutation = useMutation({
@@ -127,18 +135,18 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
       setDeletingSponsor(null);
       toast({ title: "Patrocinador excluído com sucesso" });
     },
-    onError: (e: any) => toast({ variant: "destructive", title: "Erro ao excluir", description: e.message }),
+    onError: (e: Error) => toast({ variant: "destructive", title: "Erro ao excluir", description: e.message }),
   });
 
   const openCreate = () => {
     setEditingSponsor(null);
-    form.reset({ name: "", email: "", phone: "", company: "", contactPerson: "", notes: "", color: "#f97316", quota: "", accountExecutiveId: "" });
+    form.reset({ name: "", email: "", phone: "", company: "", contactPerson: "", notes: "", color: "#f97316", accountExecutiveId: "" });
     setModalOpen(true);
   };
 
   const openEdit = (s: Sponsor) => {
     setEditingSponsor(s);
-    form.reset({ name: s.name, email: s.email || "", phone: s.phone || "", company: s.company || "", contactPerson: s.contactPerson || "", notes: s.notes || "", color: s.color || "#f97316", quota: (s as any).quota || "", accountExecutiveId: (s as any).accountExecutiveId || "" });
+    form.reset({ name: s.name, email: s.email || "", phone: s.phone || "", company: s.company || "", contactPerson: s.contactPerson || "", notes: s.notes || "", color: s.color || "#f97316", accountExecutiveId: s.accountExecutiveId || "" });
     setModalOpen(true);
   };
 
@@ -150,7 +158,14 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
     }
   };
 
-  const closeModal = () => { setModalOpen(false); setEditingSponsor(null); form.reset(); };
+  // Saída única do modal (X, Cancelar, Esc, clique fora): confirma o descarte
+  // apenas quando há alteração real no formulário.
+  const requestClose = () => {
+    if (form.formState.isDirty && !window.confirm("Descartar as alterações deste formulário?")) return;
+    setModalOpen(false);
+    setEditingSponsor(null);
+    form.reset();
+  };
 
   /* ── Filtered + sorted + paginated ── */
   const filtered = sponsors
@@ -161,8 +176,8 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
         || execName(s).toLowerCase().includes(q);
       if (!matchesSearch) return false;
       if (execFilter === "all") return true;
-      if (execFilter === "__none__") return !(s as any).accountExecutiveId;
-      return (s as any).accountExecutiveId === execFilter;
+      if (execFilter === "__none__") return !s.accountExecutiveId;
+      return s.accountExecutiveId === execFilter;
     })
     // Ordenação padrão alfabética (pt-BR, ignorando acentos/maiúsculas).
     .sort((a, b) => {
@@ -190,16 +205,24 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
   const paginated  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   const thStyle: React.CSSProperties = {
-    padding: "14px 20px", fontSize: 10, fontWeight: 900, color: T.muted,
+    padding: "14px 20px", fontSize: 10, fontWeight: 900, color: T.second,
     textTransform: "uppercase", letterSpacing: "0.16em", textAlign: "left",
     fontFamily: "'Space Grotesk', sans-serif", whiteSpace: "nowrap",
+  };
+
+  // Falha na lista principal bloqueia a tabela; falha nas queries auxiliares
+  // (executivos, uso por evento) vira banner com retry sem esconder a lista.
+  const auxError = usersError || usageError;
+  const retryAux = () => {
+    if (usersError) refetchUsers();
+    if (usageError) refetchUsage();
   };
 
   return (
     <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "16px 16px 60px" : "36px 40px 80px" }}>
 
       {/* ── Page Header ── */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 36 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 36, flexWrap: "wrap", gap: 16 }}>
         <div>
           <span style={{ fontSize: 10, fontWeight: 900, color: T.accent, textTransform: "uppercase", letterSpacing: "0.2em", fontFamily: "'Space Grotesk', sans-serif" }}>
             Console de Gerenciamento
@@ -208,15 +231,15 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
             Gerenciamento de Patrocinadores
           </h1>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
           <div style={{ textAlign: "right" }}>
-            <p style={{ fontSize: 10, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.16em", margin: "0 0 4px" }}>Total Parceiros</p>
+            <p style={{ fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.16em", margin: "0 0 4px" }}>Total Parceiros</p>
             <p style={{ fontSize: 26, fontWeight: 900, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>{sponsors.length}</p>
           </div>
           <div style={{ width: 1, height: 44, backgroundColor: T.border }} />
           {/* Contas sem executivo: clicar filtra a lista para resolver. */}
           {(() => {
-            const semExec = sponsors.filter(s => !(s as any).accountExecutiveId).length;
+            const semExec = sponsors.filter(s => !s.accountExecutiveId).length;
             const ativo = execFilter === "__none__";
             return (
               <button
@@ -225,7 +248,7 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
                 title={ativo ? "Mostrar todos" : "Ver apenas patrocinadores sem executivo"}
                 style={{ textAlign: "right", background: "none", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit" }}
               >
-                <p style={{ fontSize: 10, fontWeight: 900, color: ativo ? T.accent : T.muted, textTransform: "uppercase", letterSpacing: "0.16em", margin: "0 0 4px" }}>Sem Executivo</p>
+                <p style={{ fontSize: 10, fontWeight: 900, color: ativo ? "#c2410c" : T.second, textTransform: "uppercase", letterSpacing: "0.16em", margin: "0 0 4px" }}>Sem Executivo</p>
                 <p style={{ fontSize: 26, fontWeight: 900, color: semExec > 0 ? "#b45309" : T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif" }}>
                   {semExec}
                 </p>
@@ -249,8 +272,8 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
       <div style={{ backgroundColor: T.surface, borderRadius: 12, border: `1px solid ${T.border}`, overflow: "hidden", boxShadow: "0 2px 16px rgba(26,28,28,0.06)" }}>
 
         {/* Controls bar */}
-        <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${T.border}`, backgroundColor: T.surface }}>
-          <div style={{ position: "relative", width: 380 }}>
+        <div style={{ padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${T.border}`, backgroundColor: T.surface, flexWrap: "wrap", gap: 10 }}>
+          <div style={{ position: "relative", width: isMobile ? "100%" : 380 }}>
             <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: T.muted }} />
             <input
               value={search}
@@ -288,17 +311,49 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
           </div>
         </div>
 
+        {/* Falha nas queries auxiliares: avisa sem esconder a tabela */}
+        {auxError && (
+          <div role="alert" style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 20px", backgroundColor: "#fffbeb", borderBottom: `1px solid #fde68a` }}>
+            <AlertTriangle style={{ width: 14, height: 14, color: "#b45309", flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: "#92400e", flex: 1 }}>
+              Falha ao carregar {usersError ? "a lista de executivos" : ""}{usersError && usageError ? " e " : ""}{usageError ? "o uso por evento" : ""} — a tabela pode exibir dados incompletos.
+            </span>
+            <button
+              onClick={retryAux}
+              style={{ padding: "6px 12px", backgroundColor: "#fff", border: "1px solid #fde68a", borderRadius: 6, cursor: "pointer", fontSize: 10, fontWeight: 800, color: "#92400e", textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}
+            >
+              Tentar novamente
+            </button>
+          </div>
+        )}
+
         {/* Table */}
         {isLoading ? (
-          <div style={{ padding: "72px 0", textAlign: "center", fontSize: 13, color: T.muted }}>Carregando patrocinadores...</div>
+          <div style={{ padding: "72px 0", textAlign: "center", fontSize: 13, color: T.second }}>Carregando patrocinadores...</div>
+        ) : sponsorsError ? (
+          <div style={{ padding: "72px 24px", textAlign: "center" }}>
+            <AlertTriangle style={{ width: 40, height: 40, color: "#b45309", margin: "0 auto 12px" }} />
+            <p style={{ fontSize: 15, fontWeight: 700, color: T.text, margin: "0 0 6px" }}>
+              Não foi possível carregar os patrocinadores
+            </p>
+            <p style={{ fontSize: 13, color: T.second, margin: "0 0 18px" }}>
+              Verifique sua conexão e tente novamente.
+            </p>
+            <button
+              onClick={() => refetchSponsors()}
+              style={{ padding: "10px 22px", backgroundColor: T.dark, color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.1em" }}
+            >
+              Tentar novamente
+            </button>
+          </div>
         ) : filtered.length === 0 ? (
           <div style={{ padding: "72px 0", textAlign: "center" }}>
             <Building2 style={{ width: 44, height: 44, color: T.muted, margin: "0 auto 12px" }} />
             <p style={{ fontSize: 15, fontWeight: 700, color: T.second, margin: "0 0 6px" }}>
-              {search ? "Nenhum patrocinador encontrado" : "Nenhum patrocinador cadastrado"}
+              {search || execFilter !== "all" ? "Nenhum patrocinador encontrado" : "Nenhum patrocinador cadastrado"}
             </p>
-            <p style={{ fontSize: 13, color: T.muted, margin: 0 }}>
-              {search ? "Tente buscar por outro termo" : "Clique em \"Novo Patrocinador\" para começar"}
+            <p style={{ fontSize: 13, color: T.second, margin: 0 }}>
+              {search || execFilter !== "all" ? "Tente buscar por outro termo ou limpe os filtros" : "Clique em \"Novo Patrocinador\" para começar"}
             </p>
           </div>
         ) : (
@@ -368,7 +423,7 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
                       {/* Empresa */}
                       <td style={{ padding: "16px 20px" }}>
                         <span style={{ fontSize: 13, color: T.second }}>
-                          {sponsor.company || <span style={{ color: T.muted, fontStyle: "italic" }}>—</span>}
+                          {sponsor.company || <span style={{ color: T.second, fontStyle: "italic" }}>—</span>}
                         </span>
                       </td>
 
@@ -386,7 +441,7 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
                             {execName(sponsor)}
                           </span>
                         ) : (
-                          <span style={{ color: T.muted, fontStyle: "italic", fontSize: 13 }}>não atribuído</span>
+                          <span style={{ color: T.second, fontStyle: "italic", fontSize: 13 }}>não atribuído</span>
                         )}
                       </td>
 
@@ -399,8 +454,8 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
                           }
                           return (
                             <span title={`${u.items} peça(s) vinculada(s)`} style={{ fontSize: 13, color: T.text, fontWeight: 700, whiteSpace: "nowrap" }}>
-                              {u.events} <span style={{ fontWeight: 500, color: T.muted }}>{u.events === 1 ? "evento" : "eventos"}</span>
-                              {u.items > 0 && <span style={{ color: T.muted, fontWeight: 500 }}> · {u.items} pç</span>}
+                              {u.events} <span style={{ fontWeight: 500, color: T.second }}>{u.events === 1 ? "evento" : "eventos"}</span>
+                              {u.items > 0 && <span style={{ color: T.second, fontWeight: 500 }}> · {u.items} pç</span>}
                             </span>
                           );
                         })()}
@@ -409,45 +464,54 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
                       {/* Contato */}
                       <td style={{ padding: "16px 20px" }}>
                         <span style={{ fontSize: 13, fontWeight: 500, color: T.text }}>
-                          {sponsor.contactPerson || <span style={{ color: T.muted, fontStyle: "italic" }}>—</span>}
+                          {sponsor.contactPerson || <span style={{ color: T.second, fontStyle: "italic" }}>—</span>}
                         </span>
                       </td>
 
                       {/* Email */}
                       <td style={{ padding: "16px 20px" }}>
                         <span style={{ fontSize: 13, color: T.second, fontFamily: "'DM Mono', monospace" }}>
-                          {sponsor.email || <span style={{ color: T.muted, fontStyle: "italic", fontFamily: "inherit" }}>—</span>}
+                          {sponsor.email || <span style={{ color: T.second, fontStyle: "italic", fontFamily: "inherit" }}>—</span>}
                         </span>
                       </td>
 
                       {/* Telefone */}
                       <td style={{ padding: "16px 20px" }}>
                         <span style={{ fontSize: 13, color: T.second, fontFamily: "'DM Mono', monospace" }}>
-                          {sponsor.phone || <span style={{ color: T.muted, fontStyle: "italic", fontFamily: "inherit" }}>—</span>}
+                          {sponsor.phone || <span style={{ color: T.second, fontStyle: "italic", fontFamily: "inherit" }}>—</span>}
                         </span>
                       </td>
 
-                      {/* Ações */}
-                      <td style={{ padding: "16px 20px" }} onClick={e => e.stopPropagation()}>
+                      {/* Ações — também visíveis quando algum botão recebe
+                          foco por teclado, não só no hover do mouse */}
+                      <td
+                        style={{ padding: "16px 20px" }}
+                        onClick={e => e.stopPropagation()}
+                        onFocus={() => setHoveredRow(sponsor.id)}
+                        onBlur={() => setHoveredRow(current => (current === sponsor.id ? null : current))}
+                      >
                         <div style={{ display: "flex", justifyContent: "flex-end", gap: 4, opacity: isHover ? 1 : 0, transition: "opacity 0.15s" }}>
                           <button
                             data-testid={`button-edit-${sponsor.id}`}
                             tabIndex={0} aria-label={`Editar ${sponsor.name}`} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); openEdit(sponsor); } }} onClick={() => openEdit(sponsor)}
-                            style={{ padding: 8, backgroundColor: "transparent", border: "none", borderRadius: 6, cursor: "pointer", color: T.muted, display: "flex", alignItems: "center", transition: "all 0.12s" }}
+                            style={{ padding: 8, backgroundColor: "transparent", border: "none", borderRadius: 6, cursor: "pointer", color: T.second, display: "flex", alignItems: "center", transition: "all 0.12s" }}
                             onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; e.currentTarget.style.color = T.accent; }}
-                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.muted; }}
+                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.second; }}
                           >
                             <Pencil style={{ width: 15, height: 15 }} />
                           </button>
-                          <button
-                            data-testid={`button-delete-${sponsor.id}`}
-                            onClick={() => setDeletingSponsor(sponsor)}
-                            style={{ padding: 8, backgroundColor: "transparent", border: "none", borderRadius: 6, cursor: "pointer", color: T.muted, display: "flex", alignItems: "center", transition: "all 0.12s" }}
-                            onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#fef2f2"; e.currentTarget.style.color = "#dc2626"; }}
-                            onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.muted; }}
-                          >
-                            <Trash2 style={{ width: 15, height: 15 }} />
-                          </button>
+                          {isAdmin && (
+                            <button
+                              data-testid={`button-delete-${sponsor.id}`}
+                              onClick={() => setDeletingSponsor(sponsor)}
+                              aria-label={`Excluir patrocinador ${sponsor.name}`}
+                              style={{ padding: 8, backgroundColor: "transparent", border: "none", borderRadius: 6, cursor: "pointer", color: T.second, display: "flex", alignItems: "center", transition: "all 0.12s" }}
+                              onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#fef2f2"; e.currentTarget.style.color = "#b91c1c"; }}
+                              onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.second; }}
+                            >
+                              <Trash2 style={{ width: 15, height: 15 }} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -461,7 +525,7 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
         {/* Pagination */}
         {filtered.length > PAGE_SIZE && (
           <div style={{ padding: "14px 20px", backgroundColor: T.low, borderTop: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 11, color: T.muted, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>
+            <span style={{ fontSize: 11, color: T.second, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.1em" }}>
               Mostrando {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} de {filtered.length} patrocinadores
             </span>
             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
@@ -488,7 +552,7 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
       {/* ══════════════════════════════
           MODAL: Criar / Editar
       ══════════════════════════════ */}
-      <Dialog open={modalOpen} onOpenChange={o => { if (!o && window.confirm("Descartar as alterações deste formulário?")) closeModal(); }}>
+      <Dialog open={modalOpen} onOpenChange={o => { if (!o) requestClose(); }}>
 
         <DialogContent className="p-0 gap-0 border-none" style={{ maxWidth: 640, width: "96vw", borderRadius: 12, overflow: "hidden" }}>
           <DialogTitle className="sr-only">{editingSponsor ? "Editar patrocinador" : "Novo patrocinador"}</DialogTitle>
@@ -503,14 +567,15 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
                 <h2 style={{ fontSize: 26, fontWeight: 900, color: T.text, margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.04em", textTransform: "uppercase" }}>
                   {editingSponsor ? "Editar Patrocinador" : "Cadastro de Patrocinador"}
                 </h2>
-                <p style={{ fontSize: 10, color: T.muted, margin: 0, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em" }}>
+                <p style={{ fontSize: 10, color: T.second, margin: 0, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.14em" }}>
                   {editingSponsor ? "Atualize os detalhes da parceria" : "Insira os detalhes da nova parceria"}
                 </p>
               </div>
-              <button onClick={closeModal}
-                style={{ padding: 6, color: T.muted, background: "none", border: "none", cursor: "pointer", borderRadius: 6, display: "flex", marginTop: 2 }}
+              <button onClick={requestClose}
+                aria-label="Fechar formulário"
+                style={{ padding: 6, color: T.second, background: "none", border: "none", cursor: "pointer", borderRadius: 6, display: "flex", marginTop: 2 }}
                 onMouseEnter={e => { e.currentTarget.style.backgroundColor = T.low; e.currentTarget.style.color = T.text; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.muted; }}>
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = T.second; }}>
                 <X style={{ width: 20, height: 20 }} />
               </button>
             </div>
@@ -585,7 +650,9 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
                                 {PRESET_COLORS.map(c => (
                                   <button key={c} type="button" data-testid={`color-${c}`}
                                     onClick={() => field.onChange(c)}
-                                    style={{ width: 30, height: 30, borderRadius: "50%", backgroundColor: c, border: "none", cursor: "pointer", transition: "all 0.15s", flexShrink: 0, boxShadow: field.value === c ? `0 0 0 2px #fff, 0 0 0 4px ${c}` : "none", transform: field.value === c ? "scale(1.2)" : "scale(1)" }}
+                                    aria-label={`Selecionar a cor ${c}`}
+                                    aria-pressed={field.value === c}
+                                    style={{ width: isMobile ? 44 : 30, height: isMobile ? 44 : 30, borderRadius: "50%", backgroundColor: c, border: "none", cursor: "pointer", transition: "all 0.15s", flexShrink: 0, boxShadow: field.value === c ? `0 0 0 2px #fff, 0 0 0 4px ${c}` : "none", transform: field.value === c ? "scale(1.2)" : "scale(1)" }}
                                   />
                                 ))}
                               </div>
@@ -602,7 +669,7 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
                               <FormItem style={{ flex: 1, margin: 0 }}>
                                 <FormControl>
                                   <div style={{ position: "relative" }}>
-                                    <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: T.muted, fontFamily: "'DM Mono', monospace", fontWeight: 700 }}>#</span>
+                                    <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", fontSize: 13, color: T.second, fontFamily: "'DM Mono', monospace", fontWeight: 700 }}>#</span>
                                     <input
                                       value={(field.value || "").replace(/^#/, "")}
                                       onChange={e => field.onChange("#" + e.target.value.replace(/^#/, ""))}
@@ -687,7 +754,7 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
 
             {/* Footer */}
             <div style={{ padding: "18px 32px", borderTop: `1px solid ${T.border}`, backgroundColor: T.low, display: "flex", justifyContent: "flex-end", gap: 14, flexShrink: 0 }}>
-              <button type="button" data-testid="button-cancel" onClick={closeModal}
+              <button type="button" data-testid="button-cancel" onClick={requestClose}
                 style={{ padding: "11px 22px", background: "none", border: "none", cursor: "pointer", fontSize: 11, fontWeight: 800, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: "'Space Grotesk', sans-serif", borderRadius: 6, transition: "background 0.15s" }}
                 onMouseEnter={e => (e.currentTarget.style.backgroundColor = T.border)}
                 onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
@@ -737,7 +804,7 @@ export default function Patrocinadores() {  const isMobile = useIsMobile();
             </div>
             <div style={{ padding: "14px 28px 24px", display: "flex", justifyContent: "flex-end", gap: 20 }}>
               <button data-testid="button-cancel-delete" onClick={() => setDeletingSponsor(null)}
-                style={{ padding: "8px 0", background: "none", border: "none", cursor: "pointer", fontSize: 10, fontWeight: 900, color: T.muted, textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: "'Space Grotesk', sans-serif" }}>
+                style={{ padding: "8px 0", background: "none", border: "none", cursor: "pointer", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: "'Space Grotesk', sans-serif" }}>
                 Manter
               </button>
               <button data-testid="button-confirm-delete"

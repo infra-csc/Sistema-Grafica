@@ -121,16 +121,27 @@ export function registerAuthRoutes(app: Express): void {
   // Change password
   app.post("/api/auth/change-password", requireAuth, changePasswordRateLimiter, async (req, res) => {
     try {
-      const { currentPassword, newPassword } = changePasswordSchema.parse(req.body);
-
-      // Get current user
+      // Get current user first: o flag isFirstAccess do schema é decidido
+      // AQUI, pelo registro do usuário — nunca pelo body. Antes, bastava o
+      // client omitir currentPassword para trocar a senha de uma sessão
+      // aberta sem provar que conhecia a senha atual.
       const user = await storage.getUser(req.userId!);
       if (!user) {
         return res.status(404).json({ error: "Usuário não encontrado" });
       }
 
-      // If not first login, verify current password
-      if (!user.mustChangePassword && currentPassword) {
+      const { currentPassword, newPassword } = changePasswordSchema.parse({
+        ...req.body,
+        isFirstAccess: user.mustChangePassword,
+      });
+
+      // Not first login: current password is ALWAYS required and verified.
+      if (!user.mustChangePassword) {
+        if (!currentPassword) {
+          // Redundante com o superRefine do schema, mas explícito de propósito:
+          // é a garantia de segurança, não uma regra de formulário.
+          return res.status(400).json({ error: "Senha atual é obrigatória" });
+        }
         const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
         if (!isValid) {
           return res.status(401).json({ error: "Senha atual incorreta" });
@@ -145,6 +156,20 @@ export function registerAuthRoutes(app: Express): void {
         passwordHash,
         mustChangePassword: false,
       });
+
+      // Invalida as DEMAIS sessões ativas do usuário (mesmo padrão da troca de
+      // papel em PATCH /api/users/:id), preservando a sessão atual: quem trocou
+      // a senha continua logado; qualquer outra sessão (outro navegador, uma
+      // sessão comprometida) cai e exige novo login com a senha nova.
+      try {
+        await pool.query(
+          `DELETE FROM session WHERE (sess->>'userId') = $1 AND sid <> $2`,
+          [user.id, req.sessionID]
+        );
+      } catch (sessionErr) {
+        // Non-fatal: log the error but don't fail the password change.
+        console.error("Failed to invalidate other sessions after password change:", sessionErr);
+      }
 
       // Create audit log
       await createAuditLog(

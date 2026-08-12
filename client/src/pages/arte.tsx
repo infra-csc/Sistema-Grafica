@@ -440,6 +440,7 @@ export default function Arte() {
 
   const [isDragOver, setIsDragOver] = useState(false);
   const [isDragOverBulk, setIsDragOverBulk] = useState(false);
+  const [isDragOverCorrecao, setIsDragOverCorrecao] = useState(false);
   const [showBulkThumbModal, setShowBulkThumbModal] = useState(false);
   type BulkThumbEntry = { id: string; file: File; preview: string; matchedItemId: string | null; status: 'pending' | 'uploading' | 'done' | 'error'; errorMsg?: string };
   const [bulkThumbEntries, setBulkThumbEntries] = useState<BulkThumbEntry[]>([]);
@@ -2644,14 +2645,32 @@ export default function Arte() {
                       </button>
                     </div>
                   ) : (
-                    /* Empty state */
+                    /* Empty state. A zona dizia "Arraste ou" mas nunca teve
+                       handler de drag — só o link e o Ctrl+V funcionavam. */
                     <div style={{
-                      height: 130, border: isPasteUploading ? '2px dashed #dc2626' : '2px dashed #e2e0dd', borderRadius: 12,
-                      backgroundColor: isPasteUploading ? '#fff5f5' : '#fafaf9', display: 'flex', flexDirection: 'column',
+                      height: 130, border: (isPasteUploading || isDragOverCorrecao) ? '2px dashed #dc2626' : '2px dashed #e2e0dd', borderRadius: 12,
+                      backgroundColor: (isPasteUploading || isDragOverCorrecao) ? '#fff5f5' : '#fafaf9', display: 'flex', flexDirection: 'column',
                       alignItems: 'center', justifyContent: 'center', gap: 2, transition: 'all 0.15s', cursor: 'default'
                     }}
-                      onMouseEnter={e => { if (!isPasteUploading) { (e.currentTarget as HTMLElement).style.backgroundColor = '#f5f5f4'; (e.currentTarget as HTMLElement).style.borderColor = '#c7c3be'; } }}
-                      onMouseLeave={e => { if (!isPasteUploading) { (e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9'; (e.currentTarget as HTMLElement).style.borderColor = '#e2e0dd'; } }}
+                      onMouseEnter={e => { if (!isPasteUploading && !isDragOverCorrecao) { (e.currentTarget as HTMLElement).style.backgroundColor = '#f5f5f4'; (e.currentTarget as HTMLElement).style.borderColor = '#c7c3be'; } }}
+                      onMouseLeave={e => { if (!isPasteUploading && !isDragOverCorrecao) { (e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9'; (e.currentTarget as HTMLElement).style.borderColor = '#e2e0dd'; } }}
+                      onDragOver={e => { e.preventDefault(); setIsDragOverCorrecao(true); }}
+                      onDragEnter={e => { e.preventDefault(); setIsDragOverCorrecao(true); }}
+                      onDragLeave={e => { e.preventDefault(); setIsDragOverCorrecao(false); }}
+                      onDrop={e => {
+                        e.preventDefault();
+                        setIsDragOverCorrecao(false);
+                        if (isPasteUploading) return;
+                        const file = e.dataTransfer.files[0];
+                        if (!file) return;
+                        const ok = file.type.startsWith('image/') || file.type === 'application/pdf';
+                        if (!ok) {
+                          toast({ title: "Arquivo inválido", description: "Aceito: PDF, PNG, SVG ou outras imagens", variant: "destructive" });
+                          return;
+                        }
+                        setCorrecaoFileName(file.name);
+                        uploadFileDirect(file, (localPath) => setCorrecaoThumbUrl(localPath));
+                      }}
                     >
                       <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
                         {isPasteUploading

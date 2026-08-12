@@ -540,8 +540,14 @@ export function registerItemRoutes(app: Express): void {
   });
 
   // Update item
-  app.patch("/api/items/:id", requireAuth, async (req, res) => {
+  app.patch("/api/items/:id", requireAuth, async (req, res, next) => {
     try {
+      // As rotas de lote (/api/items/bulk-return-to-arte, bulk-cancel,
+      // bulk-creator-reject) são registradas DEPOIS desta — sem este desvio o
+      // Express casava :id = "bulk-..." e as três ficavam INALCANÇÁVEIS
+      // ("Devolver Selecionadas" nunca chegou ao handler certo).
+      if (req.params.id.startsWith("bulk-")) return next();
+
       // Gate de papel: quem edita peça é quem gerencia a lista (admin,
       // solicitação, criador do evento) ou os papéis com edições pontuais no
       // fluxo (arte: thumbs/refs; atendimento: vinculação). Gráfica usa as
@@ -559,6 +565,17 @@ export function registerItemRoutes(app: Express): void {
       // Allow-list explícita: barra `status` e campos de fluxo (ver
       // updateItemSchema). Transições de status só pelas rotas dedicadas.
       const validatedData = updateItemSchema.parse(req.body);
+
+      // O arquivo final tem rotas próprias com gate de status (submit/update-
+      // final-file). Pelo PATCH genérico, arte/atendimento não trocam o
+      // arquivo que a Gráfica imprime — admin/solicitação (gestores da lista)
+      // seguem podendo para correções administrativas.
+      if (["arte", "atendimento"].includes(role) &&
+          ("finalFileUrl" in validatedData || "finalFileName" in validatedData)) {
+        return res.status(403).json({
+          error: "Arquivo final só pode ser alterado pela rota de envio da Arte (com validação de status)."
+        });
+      }
 
       // Normalize referenceUrl from raw GCS URL to /objects/ proxy path and
       // record an ACL policy so the object is attributed to its uploader.
@@ -1618,6 +1635,16 @@ export function registerItemRoutes(app: Express): void {
       const isFullReuse = currentItem.isReuse || (askedReuse && rawReuseQty! >= currentItem.quantity);
       const isPartialReuse = askedReuse && !isFullReuse;
 
+      // O botão do client já exige arquivo final, mas a liberação em lote e o
+      // atalho de teclado chegavam aqui sem ele — e uma peça sem arquivo
+      // liberada para produção trava a Gráfica. Reaproveitamento TOTAL
+      // dispensa (não produz nada); parcial produz o restante e precisa.
+      if (!currentItem.finalFileUrl && !isFullReuse) {
+        return res.status(409).json({
+          error: "A peça ainda não tem arquivo final — a Arte precisa enviá-lo antes da liberação."
+        });
+      }
+
       // Peças de reaproveitamento total não passam pela produção: já entram como produzidas.
       // Reaproveitamento parcial vai para ready_for_production (as demais unidades precisam produzir).
       const nextStatus = isFullReuse ? "produced" : "ready_for_production";
@@ -1830,7 +1857,9 @@ export function registerItemRoutes(app: Express): void {
           finalFileUrl: null,
           approvalThumbUrl: null,
           rejectedByCreator: true,
-          observations: notes || currentItem.observations,
+          // `?? ""` (e não `|| currentItem.observations`): o return individual
+          // substitui a observação — o lote herdava a antiga silenciosamente.
+          observations: notes ?? "",
         });
         
         if (item) {
@@ -2152,6 +2181,16 @@ export function registerItemRoutes(app: Express): void {
       // to compute the new status — replicating startProduction logic inside tx).
       const before = await storage.getItem(req.params.id);
       if (!before) return res.status(404).json({ error: "Item not found" });
+
+      // Teto: produzido + reaproveitado não pode passar da quantidade da peça —
+      // sem isto qualquer número era aceito e virava esse total de ativos no
+      // inventário quando a peça fechava como "produced".
+      const itemQty = parseInt(before.quantity.toString());
+      if (quantityProduced + (before.reuseQty || 0) > itemQty) {
+        return res.status(400).json({
+          error: `Quantidade inválida: ${quantityProduced} produzida(s) + ${before.reuseQty || 0} reaproveitada(s) excede as ${itemQty} un. da peça`,
+        });
+      }
 
       // Determine new status (same logic as storage.startProduction)
       const newProdStatus =

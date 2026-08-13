@@ -149,6 +149,7 @@ export interface IStorage {
   
   // Item Sponsor Approvals (individual sponsor approval tracking)
   getAllItemSponsorApprovals(): Promise<ItemSponsorApproval[]>;
+  getOpenItemSponsorApprovals(): Promise<ItemSponsorApproval[]>;
   getItemSponsorApprovals(itemId: string): Promise<ItemSponsorApproval[]>;
   getItemSponsorApproval(itemId: string, sponsorId: string): Promise<ItemSponsorApproval | undefined>;
   createItemSponsorApproval(approval: InsertItemSponsorApproval): Promise<ItemSponsorApproval>;
@@ -1169,6 +1170,15 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(itemSponsorApprovals)
       .orderBy(desc(itemSponsorApprovals.createdAt));
+  }
+
+  // Só as aprovações em aberto (tudo que não é 'approved') — a Gestão de
+  // Prazos precisa das pendências, não do histórico inteiro da tabela.
+  async getOpenItemSponsorApprovals(): Promise<ItemSponsorApproval[]> {
+    return await db
+      .select()
+      .from(itemSponsorApprovals)
+      .where(ne(itemSponsorApprovals.status, "approved"));
   }
 
   async getItemSponsorApprovals(itemId: string): Promise<ItemSponsorApproval[]> {

@@ -63,6 +63,10 @@ export const STATUS: Record<string, StatusMeta> = {
   sponsor_approved:        meta("Aguardando Finalização", "Ag. Finalização", P.purple, Clock),
   awaiting_creator_review: meta("Aguardando Finalização", "Ag. Finalização", P.purple, Clock),
   awaiting_final_review:   meta("Aguardando Revisão Final","Ag. Revisão",     P.fuchsia, Clock),
+  // Variações registradas em ITEM_STATUSES (shared/schema) que circulam no
+  // banco — sem elas, telas que exibem o status cru mostravam a chave inglesa.
+  awaiting_review:         meta("Aguardando Revisão",     "Ag. Revisão",     P.fuchsia, Clock),
+  in_review:               meta("Em Revisão",             "Em Revisão",      P.fuchsia, Clock),
   // ── Pronto / liberado ──
   ready_for_production:  meta("Pronto para Produção",   "Pronto Prod.",   P.teal,  CheckCircle),
   pronto_para_producao:  meta("Pronto para Produção",   "Pronto Prod.",   P.teal,  CheckCircle),

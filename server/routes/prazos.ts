@@ -115,11 +115,11 @@ const AWAITING_SPONSOR = new Set(["awaiting_approval", "awaiting_sponsor_approva
 export function registerPrazoRoutes(app: Express): void {
   app.get("/api/prazos", requireRole("admin"), async (_req, res) => {
     try {
-      const [allEvents, allItems, allSponsors, allApprovals] = await Promise.all([
+      const [allEvents, allItems, allSponsors, openApprovals] = await Promise.all([
         storage.getAllEvents(),
         storage.getAllItems(),
         storage.getAllSponsors(),
-        storage.getAllItemSponsorApprovals(),
+        storage.getOpenItemSponsorApprovals(),
       ]);
 
       const itemsByEvent = new Map<string, any[]>();
@@ -131,15 +131,17 @@ export function registerPrazoRoutes(app: Express): void {
       const sponsorNameById = new Map<string, string>();
       for (const s of allSponsors) sponsorNameById.set(s.id, s.name);
 
-      // Aprovações ainda pendentes, agrupadas por peça (para detalhar quem
-      // está segurando cada uma) — só contam quando a peça está de fato
-      // aguardando aprovação, senão registros órfãos viram ruído.
-      const pendingApprovalsByItem = new Map<string, any[]>();
-      for (const ap of allApprovals) {
-        if (ap.status !== "pending") continue;
-        const arr = pendingApprovalsByItem.get(ap.itemId);
-        if (arr) arr.push(ap); else pendingApprovalsByItem.set(ap.itemId, [ap]);
+      // Aprovações em aberto, agrupadas por peça. Guardamos TODOS os estados
+      // não-aprovados: pending/new_version_pending = bola com o PATROCINADOR;
+      // awaiting_arte/rejected = bola com a ARTE. O drill mostra os dois — um
+      // "—" sem explicação parecia dado quebrado quando a peça aguardava a
+      // Arte refazer, não o patrocinador decidir.
+      const openApprovalsByItem = new Map<string, any[]>();
+      for (const ap of openApprovals) {
+        const arr = openApprovalsByItem.get(ap.itemId);
+        if (arr) arr.push(ap); else openApprovalsByItem.set(ap.itemId, [ap]);
       }
+      const SPONSOR_TURN = new Set(["pending", "new_version_pending"]);
 
       // Agregado cross-evento: quais patrocinadores estão atrasando aprovação.
       const sponsorAgg = new Map<string, { name: string; pendingCount: number; maxDays: number; eventIds: Set<string> }>();
@@ -210,32 +212,45 @@ export function registerPrazoRoutes(app: Express): void {
           const pendingItems = eventItems
             .filter((it) => STATUS_STAGE_RANK[it.status] !== undefined)
             .map((it) => {
+              // APROXIMAÇÃO documentada: updatedAt é tocado por QUALQUER
+              // edição (inclusive atribuir book, que varre o evento inteiro),
+              // não só por transição de status. Por isso a UI rotula "sem
+              // movimento há Xd" — não "parada no status há Xd". O relógio
+              // exato pede uma coluna statusChangedAt (dívida registrada).
               const waitingDays = daysSince(it.updatedAt ?? it.createdAt, today);
-              let pendingSponsors: { name: string; days: number }[] | undefined;
+              let sponsors: { name: string; days: number; holder: "sponsor" | "arte" }[] | undefined;
               if (AWAITING_SPONSOR.has(it.status)) {
-                const pend = pendingApprovalsByItem.get(it.id) ?? [];
-                pendingSponsors = pend.map((ap) => ({
-                  name: sponsorNameById.get(ap.sponsorId) ?? "Patrocinador removido",
-                  days: daysSince(ap.createdAt, today),
-                }));
-                for (const ap of pend) {
+                const open = openApprovalsByItem.get(it.id) ?? [];
+                sponsors = open.map((ap) => {
                   const name = sponsorNameById.get(ap.sponsorId) ?? "Patrocinador removido";
-                  const agg = sponsorAgg.get(ap.sponsorId) ?? { name, pendingCount: 0, maxDays: 0, eventIds: new Set<string>() };
-                  agg.pendingCount += 1;
-                  agg.maxDays = Math.max(agg.maxDays, daysSince(ap.createdAt, today));
-                  agg.eventIds.add(event.id);
-                  sponsorAgg.set(ap.sponsorId, agg);
-                }
+                  // updatedAt ?? createdAt: o registro sobrevive ao ciclo
+                  // reprovar→reenviar (o reset só bumpa updatedAt) — contar de
+                  // createdAt cobraria o patrocinador por dias em que a bola
+                  // estava com a Arte. Recém-criado, os dois são iguais.
+                  const days = daysSince(ap.updatedAt ?? ap.createdAt, today);
+                  const holder: "sponsor" | "arte" = SPONSOR_TURN.has(ap.status) ? "sponsor" : "arte";
+                  if (holder === "sponsor") {
+                    const agg = sponsorAgg.get(ap.sponsorId) ?? { name, pendingCount: 0, maxDays: 0, eventIds: new Set<string>() };
+                    agg.pendingCount += 1;
+                    agg.maxDays = Math.max(agg.maxDays, days);
+                    agg.eventIds.add(event.id);
+                    sponsorAgg.set(ap.sponsorId, agg);
+                  }
+                  return { name, days, holder };
+                });
               }
               return {
                 id: it.id,
                 displayId: it.displayId,
                 status: it.status,
+                // Etapa calculada AQUI (fonte única): o front não mantém mais
+                // um espelho do mapa status→etapa que podia divergir.
+                stageIndex: STATUS_STAGE_RANK[it.status],
                 type: it.type,
                 description: it.description ?? null,
                 quantity: it.quantity,
                 waitingDays,
-                pendingSponsors,
+                sponsors,
               };
             });
 

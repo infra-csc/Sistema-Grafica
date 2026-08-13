@@ -29,11 +29,12 @@ interface PrazoPendingItem {
   id: string;
   displayId: string;
   status: string;
+  stageIndex: number; // etapa calculada no servidor (fonte única)
   type: string;
   description: string | null;
   quantity: number;
-  waitingDays: number;
-  pendingSponsors?: { name: string; days: number }[];
+  waitingDays: number; // dias sem movimento (updatedAt) — aproximação, ver servidor
+  sponsors?: { name: string; days: number; holder: "sponsor" | "arte" }[];
 }
 
 interface SponsorDelay {
@@ -92,18 +93,14 @@ const STAGE_SECTOR: Record<string, { sector: string; url: string | null }> = {
   producao:     { sector: "Gráfica",     url: "/grafica" },
 };
 
-// status da peça → índice da etapa (espelho do servidor, só p/ agrupar chips).
-// Inclui as grafias LEGADAS em pt que circulam no banco — sem elas o
-// drill-down descartava em silêncio peças que o servidor mandou.
-const STATUS_STAGE: Record<string, number> = {
-  draft: 0, requested: 0, awaiting_linking: 0,
-  awaiting_submission: 1,
-  awaiting_approval: 2, awaiting_sponsor_approval: 2,
-  awaiting_finalization: 3, sponsor_approved: 3,
-  awaiting_final_review: 3, awaiting_review: 3, in_review: 3, awaiting_creator_review: 3,
-  ready_for_production: 4, approved: 4, inProduction: 4, produced: 4, conferred: 4,
-  pronto_para_producao: 4, liberado: 4, em_producao: 4, produzido: 4,
-};
+// A etapa de cada peça vem do servidor (stageIndex) — o espelho local do
+// mapa status→etapa foi removido de propósito: era duplicação que já furou
+// uma vez (peças legadas descartadas em silêncio pelo drill).
+
+// Cor dos dias de espera — régua ÚNICA dos três blocos: ≥7 vermelho, ≥3 âmbar.
+function dayColor(days: number): string {
+  return days >= 7 ? TI.red : days >= 3 ? TI.amber : "#57534e";
+}
 
 const MONTH_LABELS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
 
@@ -176,10 +173,8 @@ function EventDrilldown({ ev }: { ev: PrazoEvent }) {
   const groups = useMemo(() => {
     const byStage = new Map<number, PrazoPendingItem[]>();
     for (const it of ev.pendingItems) {
-      const rank = STATUS_STAGE[it.status];
-      if (rank === undefined) continue;
-      const arr = byStage.get(rank);
-      if (arr) arr.push(it); else byStage.set(rank, [it]);
+      const arr = byStage.get(it.stageIndex);
+      if (arr) arr.push(it); else byStage.set(it.stageIndex, [it]);
     }
     return ev.stages
       .map((stage, i) => ({ stage, items: byStage.get(i) ?? [] }))
@@ -246,8 +241,10 @@ function EventDrilldown({ ev }: { ev: PrazoEvent }) {
                     <th scope="col" style={DRILL_TH}>Peça</th>
                     <th scope="col" style={{ ...DRILL_TH, textAlign: "left" }}>Descrição</th>
                     <th scope="col" style={DRILL_TH}>Qtd</th>
-                    <th scope="col" style={DRILL_TH}>Parada há</th>
-                    {isAprovacao && <th scope="col" style={{ ...DRILL_TH, textAlign: "left" }}>Aguardando patrocinador</th>}
+                    <th scope="col" style={DRILL_TH} title="Dias desde a última alteração da peça — qualquer edição atualiza este relógio">
+                      Sem movimento
+                    </th>
+                    {isAprovacao && <th scope="col" style={{ ...DRILL_TH, textAlign: "left" }}>Aprovação com quem</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -276,21 +273,29 @@ function EventDrilldown({ ev }: { ev: PrazoEvent }) {
                       <td style={{
                         padding: "6px 10px", textAlign: "center", whiteSpace: "nowrap",
                         fontSize: 12, fontWeight: 700,
-                        color: it.waitingDays >= 7 ? TI.red : it.waitingDays >= 3 ? TI.amber : "#57534e",
+                        color: dayColor(it.waitingDays),
                       }}>
                         {it.waitingDays === 0 ? "hoje" : `${it.waitingDays}d`}
                       </td>
                       {isAprovacao && (
                         <td style={{ padding: "6px 10px", fontSize: 12, color: "#57534e" }}>
-                          {it.pendingSponsors && it.pendingSponsors.length > 0
-                            ? it.pendingSponsors.map((s, i) => (
-                                <span key={`${it.id}-${s.name}`} style={{ whiteSpace: "nowrap" }}>
+                          {it.sponsors && it.sponsors.length > 0
+                            ? it.sponsors.map((s, i) => (
+                                <span key={`${it.id}-${s.name}-${i}`} style={{ whiteSpace: "nowrap" }}>
                                   {i > 0 && ", "}
-                                  <strong style={{ color: s.days >= 7 ? TI.red : TI.title }}>{s.name}</strong>
-                                  <span style={{ color: TI.label }}> ({s.days === 0 ? "hoje" : `${s.days}d`})</span>
+                                  {s.holder === "sponsor" ? (
+                                    <>
+                                      <strong style={{ color: s.days >= 7 ? TI.red : TI.title }}>{s.name}</strong>
+                                      <span style={{ color: dayColor(s.days) }}> ({s.days === 0 ? "hoje" : `${s.days}d`})</span>
+                                    </>
+                                  ) : (
+                                    <span style={{ color: TI.label }} title={`${s.name} devolveu — a Arte precisa reenviar antes de nova aprovação`}>
+                                      {s.name} — com a Arte
+                                    </span>
+                                  )}
                                 </span>
                               ))
-                            : <span style={{ color: TI.label }}>—</span>}
+                            : <span style={{ color: TI.label }} title="Aprovações ainda não inicializadas para esta peça">—</span>}
                         </td>
                       )}
                     </tr>
@@ -315,7 +320,7 @@ function EventDrilldown({ ev }: { ev: PrazoEvent }) {
 
 const DRILL_TH: React.CSSProperties = {
   padding: "6px 10px",
-  fontSize: 9, fontWeight: 700, textTransform: "uppercase",
+  fontSize: 10, fontWeight: 700, textTransform: "uppercase",
   letterSpacing: "0.08em", color: TI.label, textAlign: "center",
   fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: "nowrap",
 };
@@ -474,9 +479,8 @@ export default function GestaoPrazos() {
     }));
     for (const ev of events) {
       for (const it of ev.pendingItems) {
-        const rank = STATUS_STAGE[it.status];
-        if (rank === undefined) continue;
-        const s = acc[rank];
+        const s = acc[it.stageIndex];
+        if (!s) continue;
         s.count += 1;
         s.totalDays += it.waitingDays;
         s.maxDays = Math.max(s.maxDays, it.waitingDays);
@@ -906,7 +910,8 @@ export default function GestaoPrazos() {
             </h2>
             <div style={{
               display: "grid", gap: 10,
-              gridTemplateColumns: isMobile ? "repeat(2, minmax(0,1fr))" : "repeat(5, minmax(0,1fr))",
+              // auto-fit no mobile: sem o 5º card órfão ocupando meia linha.
+              gridTemplateColumns: isMobile ? "repeat(auto-fit, minmax(140px, 1fr))" : "repeat(5, minmax(0,1fr))",
             }}>
               {sectorSummary.map((s) => (
                 <div
@@ -934,8 +939,11 @@ export default function GestaoPrazos() {
                     peça{s.count !== 1 ? "s" : ""}
                   </span>
                   {s.count > 0 ? (
-                    <span style={{ display: "block", fontSize: 11, color: s.maxDays >= 7 ? TI.red : TI.secondary, marginTop: 4 }}>
-                      espera média {s.avgDays}d · pior {s.maxDays}d · {s.eventCount} evento{s.eventCount !== 1 ? "s" : ""}
+                    <span
+                      title="Dias desde a última alteração de cada peça"
+                      style={{ display: "block", fontSize: 11, color: s.maxDays >= 3 ? dayColor(s.maxDays) : TI.secondary, marginTop: 4 }}
+                    >
+                      sem movimento: média {s.avgDays}d · pior {s.maxDays}d · {s.eventCount} evento{s.eventCount !== 1 ? "s" : ""}
                     </span>
                   ) : (
                     <span style={{ display: "block", fontSize: 11, color: TI.label, marginTop: 4 }}>
@@ -968,7 +976,7 @@ export default function GestaoPrazos() {
                   <tr style={{ borderBottom: `1px solid ${TI.border}` }}>
                     <th scope="col" style={{ ...DRILL_TH, textAlign: "left", paddingLeft: 14 }}>Patrocinador</th>
                     <th scope="col" style={DRILL_TH}>Peças aguardando</th>
-                    <th scope="col" style={DRILL_TH}>Esperando há até</th>
+                    <th scope="col" style={DRILL_TH}>Pior espera</th>
                     <th scope="col" style={DRILL_TH}>Eventos</th>
                     <th scope="col" style={DRILL_TH}><span className="sr-only">Ação</span></th>
                   </tr>
@@ -979,12 +987,18 @@ export default function GestaoPrazos() {
                       <td style={{ padding: "8px 10px 8px 14px", fontSize: 13, fontWeight: 700, color: TI.title }}>
                         {sp.name}
                       </td>
-                      <td style={{ padding: "8px 10px", textAlign: "center", fontSize: 13, fontWeight: 800, color: TI.red, fontFamily: "'Space Grotesk', sans-serif" }}>
+                      <td style={{
+                        padding: "8px 10px", textAlign: "center", fontSize: 13, fontWeight: 800,
+                        fontFamily: "'Space Grotesk', sans-serif",
+                        // Vermelho é GANHO por atraso real (≥7d), não pela mera
+                        // existência de pendência — senão nada se destaca.
+                        color: sp.maxDays >= 7 ? TI.red : TI.title,
+                      }}>
                         {sp.pendingCount}
                       </td>
                       <td style={{
                         padding: "8px 10px", textAlign: "center", fontSize: 12, fontWeight: 700,
-                        color: sp.maxDays >= 7 ? TI.red : sp.maxDays >= 3 ? TI.amber : "#57534e",
+                        color: dayColor(sp.maxDays),
                       }}>
                         {sp.maxDays === 0 ? "hoje" : `${sp.maxDays}d`}
                       </td>
@@ -992,7 +1006,11 @@ export default function GestaoPrazos() {
                         {sp.eventCount}
                       </td>
                       <td style={{ padding: "8px 14px 8px 10px", textAlign: "right", whiteSpace: "nowrap" }}>
-                        <Link href="/atendimento" style={{ fontSize: 11, fontWeight: 700, color: "#9a3412", textDecoration: "none" }}>
+                        <Link
+                          href="/atendimento"
+                          aria-label={`Cobrar ${sp.name} no Atendimento`}
+                          style={{ fontSize: 11, fontWeight: 700, color: "#9a3412", textDecoration: "none" }}
+                        >
                           Cobrar no Atendimento →
                         </Link>
                       </td>

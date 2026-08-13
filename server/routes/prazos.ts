@@ -55,9 +55,18 @@ const STAGE_DEFS: StageDef[] = [
   {
     key: "producao", label: "Produção Gráfica",
     offsetField: "deadlineProducaoGrafica", defaultOffset: -1, allDays: true,
-    pendingStatuses: ["ready_for_production", "approved", "inProduction", "produced", "conferred"],
+    // Os 4 últimos são grafias LEGADAS em pt que circulam no banco (a
+    // dispensa da Arte grava pronto_para_producao; ver items.ts:1599) —
+    // sem elas a peça sumia do funil e a etapa virava verde falso.
+    pendingStatuses: [
+      "ready_for_production", "approved", "inProduction", "produced", "conferred",
+      "pronto_para_producao", "liberado", "em_producao", "produzido",
+    ],
   },
 ];
+
+// "entregue" é a grafia legada de delivered — conta como pronta, não pendente.
+const DELIVERED = new Set(["delivered", "entregue"]);
 
 // status → índice da etapa em que a peça está travada (0-4).
 // Fora do mapa = já passou por tudo (delivered) ou está fora do funil.
@@ -113,10 +122,12 @@ export function registerPrazoRoutes(app: Express): void {
           const eventItems = (itemsByEvent.get(event.id) ?? [])
             .filter((it) => !OUT_OF_FUNNEL.has(it.status));
 
-          // Mesma régua do GET /api/events: evento concluído, com tudo
-          // entregue ou que já começou é história — sai da gestão de prazos.
-          const allDelivered = eventItems.length > 0 && eventItems.every((it) => it.status === "delivered");
-          const startPassed = Date.now() > new Date(event.startDate).getTime();
+          // Evento concluído, com tudo entregue ou já começado é história —
+          // sai da gestão de prazos. startPassed compara DIA-calendário UTC
+          // (não o instante): com timestamp à meia-noite UTC, o evento sumia
+          // da tela às 21h da VÉSPERA em UTC-3 — as horas de crise.
+          const allDelivered = eventItems.length > 0 && eventItems.every((it) => DELIVERED.has(it.status));
+          const startPassed = today > truckDayUTC(event.startDate).getTime();
           if (event.status === "completed" || allDelivered || startPassed) return null;
 
           const truckDay = truckDayUTC(event.truckDepartureDate);
@@ -131,6 +142,11 @@ export function registerPrazoRoutes(app: Express): void {
             const rank = STATUS_STAGE_RANK[it.status];
             if (rank !== undefined) directCounts[rank] += 1;
           }
+          // Evento sem NENHUMA peça: runningPending 0 deixaria as 5 etapas
+          // "done" — verde falso para um evento em que nada começou. Etapas
+          // ficam neutras e o front sinaliza "sem peças cadastradas".
+          const noItems = eventItems.length === 0;
+
           let runningPending = 0;
           const stages = STAGE_DEFS.map((def, i) => {
             runningPending += directCounts[i];
@@ -139,7 +155,8 @@ export function registerPrazoRoutes(app: Express): void {
             const diffDays = Math.round((deadline.getTime() - today) / 86400000);
 
             let state: StageState;
-            if (runningPending === 0) state = "done";
+            if (noItems) state = "upcoming";
+            else if (runningPending === 0) state = "done";
             else if (invalidDate) state = "upcoming"; // sem data confiável não há atraso confiável
             else if (diffDays < 0) state = "overdue";
             else if (diffDays <= 3) state = "warning";
@@ -156,15 +173,13 @@ export function registerPrazoRoutes(app: Express): void {
             };
           });
 
-          const deliveredCount = eventItems.filter((it) => it.status === "delivered").length;
+          const deliveredCount = eventItems.filter((it) => DELIVERED.has(it.status)).length;
 
           // Peças pendentes para o drill-down (só o essencial; o detalhe
           // completo vive nas telas de cada setor).
           const pendingItems = eventItems
             .filter((it) => STATUS_STAGE_RANK[it.status] !== undefined)
             .map((it) => ({ id: it.id, displayId: it.displayId, status: it.status, type: it.type }));
-
-          const worstOverdue = stages.reduce((acc, s) => (s.state === "overdue" ? Math.min(acc, s.diffDays) : acc), 0);
 
           return {
             id: event.id,
@@ -177,8 +192,6 @@ export function registerPrazoRoutes(app: Express): void {
             deliveredItems: deliveredCount,
             stages,
             pendingItems,
-            // dias do pior atraso (negativo) — 0 = sem atraso; usado p/ KPI e ordenação
-            worstOverdueDays: worstOverdue,
           };
         })
         .filter((e): e is NonNullable<typeof e> => e !== null)

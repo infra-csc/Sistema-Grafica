@@ -43,7 +43,6 @@ interface PrazoEvent {
   deliveredItems: number;
   stages: PrazoStage[];
   pendingItems: PrazoPendingItem[];
-  worstOverdueDays: number;
 }
 
 interface PrazosPayload {
@@ -80,7 +79,9 @@ const STAGE_SECTOR: Record<string, { sector: string; url: string | null }> = {
   producao:     { sector: "Gráfica",     url: "/grafica" },
 };
 
-// status da peça → índice da etapa (espelho do servidor, só p/ agrupar chips)
+// status da peça → índice da etapa (espelho do servidor, só p/ agrupar chips).
+// Inclui as grafias LEGADAS em pt que circulam no banco — sem elas o
+// drill-down descartava em silêncio peças que o servidor mandou.
 const STATUS_STAGE: Record<string, number> = {
   draft: 0, requested: 0, awaiting_linking: 0,
   awaiting_submission: 1,
@@ -88,6 +89,7 @@ const STATUS_STAGE: Record<string, number> = {
   awaiting_finalization: 3, sponsor_approved: 3,
   awaiting_final_review: 3, awaiting_review: 3, in_review: 3, awaiting_creator_review: 3,
   ready_for_production: 4, approved: 4, inProduction: 4, produced: 4, conferred: 4,
+  pronto_para_producao: 4, liberado: 4, em_producao: 4, produzido: 4,
 };
 
 const MONTH_LABELS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -120,12 +122,13 @@ function eventHasOverdue(ev: PrazoEvent): boolean {
 }
 
 // ─── Célula do semáforo ──────────────────────────────────────────────────────
-function StageCell({ stage }: { stage: PrazoStage }) {
+function StageCell({ stage, invalidDate }: { stage: PrazoStage; invalidDate?: boolean }) {
   const st = STAGE_STYLE[stage.state];
   const statusText =
-    stage.state === "done" ? "concluída"
+    invalidDate ? "sem data confiável — corrija a saída do evento"
+    : stage.state === "done" ? "concluída"
     : stage.state === "overdue" ? `vencida há ${Math.abs(stage.diffDays)}d com ${stage.pendingCount} peça${stage.pendingCount !== 1 ? "s" : ""} pendente${stage.pendingCount !== 1 ? "s" : ""}`
-    : stage.state === "warning" ? `vence em ${stage.diffDays}d com ${stage.pendingCount} pendente${stage.pendingCount !== 1 ? "s" : ""}`
+    : stage.state === "warning" ? (stage.diffDays === 0 ? `vence hoje com ${stage.pendingCount} pendente${stage.pendingCount !== 1 ? "s" : ""}` : `vence em ${stage.diffDays}d com ${stage.pendingCount} pendente${stage.pendingCount !== 1 ? "s" : ""}`)
     : `prevista para ${fmtDayMonth(stage.deadline)}`;
 
   return (
@@ -147,7 +150,7 @@ function StageCell({ stage }: { stage: PrazoStage }) {
         {stage.state === "done" ? "✓" : stage.state === "overdue" ? `${Math.abs(stage.diffDays)}d` : stage.pendingCount}
       </span>
       <span style={{ fontSize: 10, color: stage.state === "overdue" ? TI.red : TI.label, fontWeight: stage.state === "overdue" ? 700 : 500 }}>
-        {fmtDayMonth(stage.deadline)}
+        {invalidDate ? "—" : fmtDayMonth(stage.deadline)}
       </span>
       <span className="sr-only">{stage.label}: {statusText}</span>
     </div>
@@ -169,6 +172,18 @@ function EventDrilldown({ ev }: { ev: PrazoEvent }) {
       .map((stage, i) => ({ stage, items: byStage.get(i) ?? [] }))
       .filter((g) => g.items.length > 0);
   }, [ev]);
+
+  if (ev.totalItems === 0) {
+    return (
+      <p style={{ margin: 0, padding: "10px 0", fontSize: 13, color: TI.secondary }}>
+        Nenhuma peça cadastrada ainda —{" "}
+        <Link href={`/eventos/${ev.id}`} style={{ color: "#9a3412", fontWeight: 600 }}>
+          cadastre as peças no evento
+        </Link>{" "}
+        para o funil começar a contar.
+      </p>
+    );
+  }
 
   if (groups.length === 0) {
     return (
@@ -198,7 +213,7 @@ function EventDrilldown({ ev }: { ev: PrazoEvent }) {
               <span style={{ fontSize: 12, color: stage.state === "overdue" ? TI.red : TI.secondary, fontWeight: stage.state === "overdue" ? 700 : 500 }}>
                 {items.length} peça{items.length !== 1 ? "s" : ""}
                 {stage.state === "overdue" && ` · vencida há ${Math.abs(stage.diffDays)}d`}
-                {stage.state === "warning" && ` · vence em ${stage.diffDays}d`}
+                {stage.state === "warning" && (stage.diffDays === 0 ? " · vence hoje" : ` · vence em ${stage.diffDays}d`)}
               </span>
               <Link
                 href={sectorUrl}
@@ -248,14 +263,17 @@ function EventDrilldown({ ev }: { ev: PrazoEvent }) {
 }
 
 // ─── KPI card ───────────────────────────────────────────────────────────────
+// Informativo vira <div> (button disabled sai da ordem de tab e leitores
+// anunciam "indisponível" para algo que não é ação nenhuma).
 function KpiCard({
-  label, value, tone, active, onClick, testId,
+  label, value, tone, active, onClick, title, testId,
 }: {
   label: string;
   value: number;
   tone: "red" | "amber" | "green" | "neutral";
   active?: boolean;
   onClick?: () => void;
+  title?: string;
   testId: string;
 }) {
   const colors = {
@@ -267,22 +285,17 @@ function KpiCard({
   const clickable = !!onClick;
   const zero = value === 0;
 
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={!clickable}
-      aria-pressed={clickable ? !!active : undefined}
-      data-testid={testId}
-      style={{
-        textAlign: "left", cursor: clickable ? "pointer" : "default",
-        backgroundColor: TI.card, borderRadius: 12,
-        border: active ? `1.5px solid ${colors.ring}` : `1px solid ${TI.border}`,
-        padding: "14px 16px", minWidth: 0,
-        boxShadow: active ? "0 4px 12px rgba(28,25,23,0.07)" : "0 1px 3px rgba(28,25,23,0.04)",
-        transition: "box-shadow 0.12s ease, border-color 0.12s ease",
-      }}
-    >
+  const cardStyle: React.CSSProperties = {
+    textAlign: "left", cursor: clickable ? "pointer" : "default",
+    backgroundColor: TI.card, borderRadius: 12,
+    border: active ? `1.5px solid ${colors.ring}` : `1px solid ${TI.border}`,
+    padding: "14px 16px", minWidth: 0,
+    boxShadow: active ? "0 4px 12px rgba(28,25,23,0.07)" : "0 1px 3px rgba(28,25,23,0.04)",
+    transition: "box-shadow 0.12s ease, border-color 0.12s ease",
+  };
+
+  const content = (
+    <>
       <span style={{
         display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase",
         letterSpacing: "0.1em", color: TI.label, marginBottom: 6,
@@ -297,6 +310,22 @@ function KpiCard({
       }}>
         {value}
       </span>
+    </>
+  );
+
+  if (!clickable) {
+    return <div title={title} data-testid={testId} style={cardStyle}>{content}</div>;
+  }
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={!!active}
+      title={title}
+      data-testid={testId}
+      style={cardStyle}
+    >
+      {content}
     </button>
   );
 }
@@ -324,13 +353,18 @@ export default function GestaoPrazos() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   // Espelha filtros na URL sem empilhar histórico (preserva o hash).
+  // Debounce: replaceState a cada tecla estoura o rate-limit do Safari
+  // (~100 chamadas/30s lançam SecurityError e derrubam a árvore React).
   useEffect(() => {
-    const p = new URLSearchParams();
-    if (soAtrasados) p.set("atrasados", "1");
-    if (busca) p.set("q", busca);
-    if (prioridade !== "all") p.set("prioridade", prioridade);
-    const qs = p.toString();
-    window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash}`);
+    const timer = setTimeout(() => {
+      const p = new URLSearchParams();
+      if (soAtrasados) p.set("atrasados", "1");
+      if (busca) p.set("q", busca);
+      if (prioridade !== "all") p.set("prioridade", prioridade);
+      const qs = p.toString();
+      window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash}`);
+    }, 300);
+    return () => clearTimeout(timer);
   }, [soAtrasados, busca, prioridade]);
 
   const events = data?.events ?? [];
@@ -345,8 +379,15 @@ export default function GestaoPrazos() {
       const diff = Math.round((d.getTime() - today.getTime()) / 86400000);
       return diff >= 0 && diff <= 7;
     });
-    const pecasAtrasadas = events.reduce((acc, ev) =>
-      acc + ev.stages.reduce((a, s) => a + (s.state === "overdue" ? s.directCount : 0), 0), 0);
+    // Por evento: a etapa vencida MAIS AVANÇADA, com sua pendência acumulada
+    // (peça presa em etapa anterior também está atrasada para esse marco).
+    // Somar directCount daria "0 peças" com N eventos atrasados quando o
+    // gargalo está todo em etapas anteriores à vencida.
+    const pecasAtrasadas = events.reduce((acc, ev) => {
+      const overdueStages = ev.stages.filter((s) => s.state === "overdue");
+      const worst = overdueStages[overdueStages.length - 1];
+      return acc + (worst ? worst.pendingCount : 0);
+    }, 0);
     return {
       atrasados: atrasados.length,
       saidas7d: saidas7d.length,
@@ -529,9 +570,9 @@ export default function GestaoPrazos() {
               <div style={{ display: "flex", justifyContent: "space-between", gap: 4, marginTop: 12 }}>
                 {ev.stages.map((s) => (
                   <div key={s.key} style={{ flex: 1, minWidth: 0, textAlign: "center" }}>
-                    <StageCell stage={s} />
+                    <StageCell stage={s} invalidDate={ev.invalidDate} />
                     <span style={{ display: "block", fontSize: 9, color: TI.label, marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {s.label.split(" ")[0]}
+                      {STAGE_SHORT[s.key] ?? s.label}
                     </span>
                   </div>
                 ))}
@@ -551,7 +592,9 @@ export default function GestaoPrazos() {
                 type="button"
                 onClick={() => setExpandedId(expanded ? null : ev.id)}
                 aria-expanded={expanded}
-                aria-controls={`drill-${ev.id}`}
+                // aria-controls só quando o alvo existe no DOM (o drill é
+                // renderizado condicionalmente) — referência pendurada é erro de AT.
+                aria-controls={expanded ? `drill-${ev.id}` : undefined}
                 data-testid={`button-expandir-${ev.id}`}
                 style={{
                   display: "flex", alignItems: "center", gap: 6, marginTop: 12,
@@ -609,20 +652,24 @@ export default function GestaoPrazos() {
                       backgroundColor: overdue ? "#fffafa" : "transparent",
                     }}
                   >
-                    <td style={{ padding: "12px 8px 12px 18px", verticalAlign: "middle" }}>
+                    <td style={{ padding: "12px 8px 12px 18px", verticalAlign: "middle", maxWidth: 320 }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
                         {prio && (
                           <span title={`Prioridade: ${prio.label}`} aria-hidden="true" style={{
                             width: 8, height: 8, borderRadius: 4, backgroundColor: prio.dot, flexShrink: 0,
                           }} />
                         )}
+                        {/* minWidth 0 no flex item: sem ele o ellipsis nunca
+                            dispara e um nome gigante alarga a coluna toda. */}
                         <Link
                           href={`/eventos/${ev.id}`}
                           data-testid={`link-evento-${ev.id}`}
+                          title={ev.name}
                           style={{
                             fontSize: 13, fontWeight: 800, color: TI.title, textDecoration: "none",
                             fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase",
                             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                            minWidth: 0, flex: "0 1 auto",
                           }}
                         >
                           {ev.name}
@@ -645,7 +692,7 @@ export default function GestaoPrazos() {
                     </td>
                     {ev.stages.map((s) => (
                       <td key={s.key} style={{ padding: "10px 4px", verticalAlign: "middle", textAlign: "center" }}>
-                        <StageCell stage={s} />
+                        <StageCell stage={s} invalidDate={ev.invalidDate} />
                       </td>
                     ))}
                     <td style={{ padding: "12px 8px", verticalAlign: "middle", textAlign: "center" }}>
@@ -661,7 +708,7 @@ export default function GestaoPrazos() {
                         type="button"
                         onClick={() => setExpandedId(expanded ? null : ev.id)}
                         aria-expanded={expanded}
-                        aria-controls={`drill-${ev.id}`}
+                        aria-controls={expanded ? `drill-${ev.id}` : undefined}
                         aria-label={expanded ? `Esconder pendências de ${ev.name}` : `Ver pendências de ${ev.name}`}
                         data-testid={`button-expandir-${ev.id}`}
                         style={{
@@ -711,21 +758,26 @@ export default function GestaoPrazos() {
             </p>
           </div>
           {data && (
-            <button
-              type="button"
-              onClick={() => refetch()}
-              disabled={isFetching}
-              data-testid="button-atualizar-prazos"
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 7,
-                padding: "8px 14px", borderRadius: 9, border: `1px solid ${TI.border}`,
-                backgroundColor: TI.card, color: isFetching ? TI.label : "#57534e",
-                fontSize: 12, fontWeight: 700, cursor: isFetching ? "default" : "pointer",
-              }}
-            >
-              <RotateCcw aria-hidden="true" className={isFetching ? "animate-spin" : undefined} style={{ width: 14, height: 14 }} />
-              {isFetching ? "Atualizando..." : "Atualizar"}
-            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: 11, color: TI.label }}>
+                Atualizado às {new Date(data.generatedAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+              </span>
+              <button
+                type="button"
+                onClick={() => refetch()}
+                disabled={isFetching}
+                data-testid="button-atualizar-prazos"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 7,
+                  padding: "8px 14px", borderRadius: 9, border: `1px solid ${TI.border}`,
+                  backgroundColor: TI.card, color: isFetching ? TI.label : "#57534e",
+                  fontSize: 12, fontWeight: 700, cursor: isFetching ? "default" : "pointer",
+                }}
+              >
+                <RotateCcw aria-hidden="true" className={isFetching ? "animate-spin" : undefined} style={{ width: 14, height: 14 }} />
+                {isFetching ? "Atualizando..." : "Atualizar"}
+              </button>
+            </div>
           )}
         </div>
 
@@ -741,7 +793,11 @@ export default function GestaoPrazos() {
               testId="kpi-atrasados"
             />
             <KpiCard label="Saídas em 7 dias" value={kpis.saidas7d} tone="amber" testId="kpi-saidas-7d" />
-            <KpiCard label="Peças em etapa vencida" value={kpis.pecasAtrasadas} tone="red" testId="kpi-pecas-atrasadas" />
+            <KpiCard
+              label="Peças em etapa vencida" value={kpis.pecasAtrasadas} tone="red"
+              title="Peças que ainda não passaram pela etapa vencida mais avançada de cada evento"
+              testId="kpi-pecas-atrasadas"
+            />
             <KpiCard label="Eventos em dia" value={kpis.emDia} tone="green" testId="kpi-em-dia" />
           </div>
         )}
@@ -841,3 +897,9 @@ const STAGE_HEADERS = [
   { key: "revisao", short: "Revisão", full: "Revisão de Lista" },
   { key: "producao", short: "Produção", full: "Produção Gráfica" },
 ];
+
+// Rótulo curto por etapa — o mobile usava label.split(" ")[0], que produzia
+// "Entrega" para Entrega de Layouts (ambíguo com entrega de peças).
+const STAGE_SHORT: Record<string, string> = Object.fromEntries(
+  STAGE_HEADERS.map((h) => [h.key, h.short]),
+);

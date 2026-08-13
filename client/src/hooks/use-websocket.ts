@@ -31,6 +31,13 @@ export function useWebSocket() {
       try {
         const data = JSON.parse(event.data);
 
+        // Gestão de Prazos deriva de eventos+itens: qualquer mutação nesses
+        // domínios invalida '/api/prazos' — com o staleTime Infinity padrão,
+        // sem isto a tela do diretor congelava no primeiro carregamento.
+        if (/^(event_|item|production_|deadline_alert)/.test(data.type)) {
+          queryClient.invalidateQueries({ queryKey: ['/api/prazos'] });
+        }
+
         switch (data.type) {
           case 'connected':
             console.log('WebSocket connection confirmed');

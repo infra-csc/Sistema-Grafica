@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { toUTCDisplayDate } from "@/lib/utils";
 import { getStatusLabel, getPriorityMeta, PRIORITY } from "@/lib/status";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -185,6 +186,14 @@ function TrendArrow({ delta, goodWhenUp }: { delta: number | undefined; goodWhen
 
 function eventHasOverdue(ev: PrazoEvent): boolean {
   return ev.stages.some((s) => s.state === "overdue");
+}
+
+// Etapa ATUAL do evento no funil: a primeira com pendência acumulada — é a
+// coluna do quadro em que o card vive (modelo Unmense: evento anda de coluna
+// em coluna conforme as etapas fecham).
+function currentStageIdx(ev: PrazoEvent): number {
+  const idx = ev.stages.findIndex((s) => s.pendingCount > 0);
+  return idx === -1 ? ev.stages.length - 1 : idx;
 }
 
 // ─── Célula do semáforo ──────────────────────────────────────────────────────
@@ -542,6 +551,8 @@ export default function GestaoPrazos() {
       // "Mais atrasado" é o padrão: a tela existe para cobrar atraso — o
       // pior evento tem que ser a primeira linha, não estar no meio da lista.
       ordem: p.get("ordem") === "saida" ? "saida" : "atraso",
+      // Quadro é a visão principal (o funil visto de cima); tabela é a densa.
+      visao: p.get("visao") === "tabela" ? "tabela" : "quadro",
     };
   }, []);
   const [soAtrasados, setSoAtrasados] = useState(initial.soAtrasados);
@@ -549,6 +560,10 @@ export default function GestaoPrazos() {
   const [busca, setBusca] = useState(initial.busca);
   const [prioridade, setPrioridade] = useState(initial.prioridade);
   const [ordem, setOrdem] = useState<"saida" | "atraso">(initial.ordem as "saida" | "atraso");
+  const [visao, setVisao] = useState<"quadro" | "tabela">(initial.visao as "quadro" | "tabela");
+  // Card do quadro abre o drill num modal (o detalhe "por cima", como na
+  // referência do dono) — a tabela continua expandindo inline.
+  const [detailId, setDetailId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedSponsorId, setExpandedSponsorId] = useState<string | null>(null);
   const [showAllSponsors, setShowAllSponsors] = useState(false);
@@ -567,11 +582,12 @@ export default function GestaoPrazos() {
       if (busca) p.set("q", busca);
       if (prioridade !== "all") p.set("prioridade", prioridade);
       if (ordem !== "atraso") p.set("ordem", ordem);
+      if (visao !== "quadro") p.set("visao", visao);
       const qs = p.toString();
       window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash}`);
     }, 300);
     return () => clearTimeout(timer);
-  }, [soAtrasados, soSaidas7d, busca, prioridade, ordem]);
+  }, [soAtrasados, soSaidas7d, busca, prioridade, ordem, visao]);
 
   const events = data?.events ?? [];
 
@@ -690,9 +706,10 @@ export default function GestaoPrazos() {
   useEffect(() => {
     if (autoExpandedRef.current || !data) return;
     autoExpandedRef.current = true;
+    // Só na tabela: no quadro o detalhe é modal, e modal não se auto-abre.
     const worst = filtered.find(eventHasOverdue);
-    if (worst) setExpandedId(worst.id);
-  }, [data, filtered]);
+    if (worst && visao === "tabela") setExpandedId(worst.id);
+  }, [data, filtered, visao]);
 
   const hasActiveFilters = soAtrasados || soSaidas7d || busca.trim() !== "" || prioridade !== "all";
   const clearFilters = () => { setSoAtrasados(false); setSoSaidas7d(false); setBusca(""); setPrioridade("all"); };
@@ -921,6 +938,131 @@ export default function GestaoPrazos() {
         })}
       </div>
     );
+  } else if (visao === "quadro") {
+    // ── Quadro (visão principal): uma coluna por etapa, o evento é um card
+    // na coluna onde o funil dele está travado. Clique abre o drill em modal.
+    body = (
+      <div style={{ display: "flex", gap: 12, overflowX: "auto", alignItems: "flex-start", paddingBottom: 8 }}>
+        {stageMeta.map((m, i) => {
+          const colEvents = filtered.filter((ev) => currentStageIdx(ev) === i);
+          const colOverdue = colEvents.filter((ev) => ev.stages[i]?.state === "overdue").length;
+          return (
+            <div key={m.key} style={{ flex: "0 0 272px", minWidth: 272 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "0 4px 8px" }}>
+                <span style={{
+                  fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em",
+                  color: TI.label, fontFamily: "'Plus Jakarta Sans', sans-serif",
+                }}>
+                  {m.label}
+                </span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: TI.secondary }}>{colEvents.length}</span>
+                {colOverdue > 0 && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 800, color: TI.red, backgroundColor: TI.redBg,
+                    padding: "1px 7px", borderRadius: 999,
+                  }}>
+                    {colOverdue} vencido{colOverdue !== 1 ? "s" : ""}
+                  </span>
+                )}
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {colEvents.length === 0 && (
+                  <div style={{
+                    border: `1px dashed ${TI.idle}`, borderRadius: 12, padding: "18px 12px",
+                    fontSize: 12, color: TI.label, textAlign: "center",
+                  }}>
+                    Nenhum evento nesta etapa
+                  </div>
+                )}
+                {colEvents.map((ev) => {
+                  const stage = ev.stages[i];
+                  const chip = saidaChip(ev);
+                  const pct = ev.totalItems > 0 ? Math.round((ev.deliveredItems / ev.totalItems) * 100) : 0;
+                  const prio = getPriorityMeta(ev.priority);
+                  const cobranca = cobrancas[`event:${ev.id}`];
+                  const overdue = stage?.state === "overdue";
+                  return (
+                    <button
+                      key={ev.id}
+                      type="button"
+                      onClick={() => setDetailId(ev.id)}
+                      data-testid={`card-quadro-${ev.id}`}
+                      style={{
+                        textAlign: "left", width: "100%", cursor: "pointer",
+                        backgroundColor: TI.card, borderRadius: 12, padding: "12px 14px",
+                        border: overdue ? "1.5px solid #fca5a5" : `1px solid ${TI.border}`,
+                        boxShadow: "0 1px 3px rgba(28,25,23,0.04)",
+                        transition: "box-shadow 0.12s ease",
+                      }}
+                      onMouseEnter={(e) => { e.currentTarget.style.boxShadow = "0 4px 14px rgba(28,25,23,0.10)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "0 1px 3px rgba(28,25,23,0.04)"; }}
+                    >
+                      <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                        {prio && (
+                          <span title={`Prioridade: ${prio.label}`} aria-hidden="true" style={{
+                            width: 8, height: 8, borderRadius: 4, backgroundColor: prio.dot, flexShrink: 0,
+                          }} />
+                        )}
+                        <span style={{
+                          fontSize: 13, fontWeight: 800, color: TI.title,
+                          fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase",
+                          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                        }}>
+                          {ev.name}
+                        </span>
+                      </span>
+                      <span style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 7, flexWrap: "wrap" }}>
+                        <span style={{
+                          padding: "2px 8px", borderRadius: 999, backgroundColor: chip.bg,
+                          color: chip.color, fontSize: 11, fontWeight: 700,
+                        }}>
+                          {chip.text}
+                        </span>
+                        {ev.riskCritical && (
+                          <span style={{
+                            padding: "2px 8px", borderRadius: 999, backgroundColor: TI.red, color: "#ffffff",
+                            fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em",
+                          }}>
+                            risco
+                          </span>
+                        )}
+                      </span>
+                      {stage && (
+                        <span style={{
+                          display: "block", marginTop: 7, fontSize: 12, fontWeight: 700,
+                          color: overdue ? TI.red : stage.state === "warning" ? TI.amber : TI.secondary,
+                        }}>
+                          {overdue
+                            ? `Etapa vencida há ${Math.abs(stage.diffDays)}d · ${stage.pendingCount} pç`
+                            : stage.state === "warning"
+                            ? (stage.diffDays === 0 ? `Vence hoje · ${stage.pendingCount} pç` : `Vence em ${stage.diffDays}d · ${stage.pendingCount} pç`)
+                            : ev.totalItems === 0
+                            ? "Sem peças cadastradas"
+                            : `Marco em ${fmtDayMonth(stage.deadline)} · ${stage.pendingCount} pç`}
+                        </span>
+                      )}
+                      <span style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+                        <span aria-hidden="true" style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: "#f0efee", overflow: "hidden" }}>
+                          <span style={{ display: "block", width: `${pct}%`, height: "100%", borderRadius: 2, backgroundColor: pct === 100 ? TI.green : "#57534e" }} />
+                        </span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: TI.secondary, whiteSpace: "nowrap" }}>
+                          {ev.deliveredItems}/{ev.totalItems}
+                        </span>
+                      </span>
+                      {cobranca && (
+                        <span style={{ display: "block", marginTop: 6, fontSize: 10, fontWeight: 600, color: cobranca.daysAgo >= 3 ? TI.red : TI.label }}>
+                          cobrado {cobranca.daysAgo === 0 ? "hoje" : `há ${cobranca.daysAgo}d`} por {cobranca.userName}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
   } else {
     // ── Tabela desktop ──────────────────────────────────────────────────────
     // maxHeight + overflow auto: o thead sticky precisa de um scrollport —
@@ -1067,6 +1209,8 @@ export default function GestaoPrazos() {
   // ── Diagnóstico (setores + patrocinadores): abaixo da tabela e RECOLHIDO
   // por padrão. O caminho principal da tela é evento → peça; a análise
   // agregada é segundo passo — quando aberta, aparece em 2 colunas.
+  const detailEv = detailId ? events.find((e) => e.id === detailId) ?? null : null;
+
   const worstSector = sectorSummary.find((s) => s.isWorst);
   const diagBand = data && events.length > 0 ? (
     <section aria-label="Análise por setor e patrocinador" style={{ marginTop: 22 }}>
@@ -1437,6 +1581,30 @@ export default function GestaoPrazos() {
         {/* Filtros + legenda do semáforo */}
         {data && events.length > 0 && (
           <div className="gp-no-print" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+            {!isMobile && (
+              <div role="group" aria-label="Modo de visualização" style={{
+                display: "inline-flex", borderRadius: 9, border: `1px solid ${TI.border}`,
+                overflow: "hidden", flexShrink: 0,
+              }}>
+                {(["quadro", "tabela"] as const).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => setVisao(v)}
+                    aria-pressed={visao === v}
+                    data-testid={`visao-${v}`}
+                    style={{
+                      padding: "8px 14px", border: "none", cursor: "pointer",
+                      fontSize: 12, fontWeight: 700, textTransform: "capitalize",
+                      backgroundColor: visao === v ? "#1c1917" : TI.card,
+                      color: visao === v ? "#ffffff" : "#57534e",
+                    }}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            )}
             <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : "0 1 280px" }}>
               <Search aria-hidden="true" style={{
                 position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)",
@@ -1522,7 +1690,7 @@ export default function GestaoPrazos() {
             </span>
             {/* Legenda do semáforo: a bolinha muda de significado por estado —
                 sem isto a gramática só existia no hover, célula a célula. */}
-            {!isMobile && (
+            {!isMobile && visao === "tabela" && (
               <span style={{ flexBasis: "100%", fontSize: 11, color: TI.label, paddingTop: 2 }}>
                 Semáforo: <strong style={{ color: TI.green }}>✓</strong> etapa concluída ·{" "}
                 <strong style={{ color: TI.amber }}>nº</strong> peças aguardando o marco ·{" "}
@@ -1533,6 +1701,40 @@ export default function GestaoPrazos() {
         )}
 
         {body}
+
+        {/* Detalhe do evento (visão quadro): o drill de cobrança em modal. */}
+        <Dialog open={!!detailEv} onOpenChange={(open) => { if (!open) setDetailId(null); }}>
+          <DialogContent style={{ maxWidth: 760, maxHeight: "86vh", overflowY: "auto" }}>
+            {detailEv && (
+              <>
+                <DialogTitle style={{
+                  fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 800,
+                  color: TI.title, textTransform: "uppercase", paddingRight: 28,
+                }}>
+                  {detailEv.name}
+                </DialogTitle>
+                <DialogDescription style={{ fontSize: 13, color: TI.secondary, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span>Saída: {fmtSaida(detailEv.truckDepartureDate)}</span>
+                  <span style={{
+                    padding: "2px 8px", borderRadius: 999,
+                    backgroundColor: saidaChip(detailEv).bg, color: saidaChip(detailEv).color,
+                    fontSize: 11, fontWeight: 700,
+                  }}>
+                    {saidaChip(detailEv).text}
+                  </span>
+                  <span>· {detailEv.deliveredItems}/{detailEv.totalItems} prontas</span>
+                </DialogDescription>
+                <EventDrilldown ev={detailEv} cobranca={cobrancas[`event:${detailEv.id}`]} />
+                <Link
+                  href={`/eventos/${detailEv.id}`}
+                  style={{ fontSize: 12, fontWeight: 700, color: "#9a3412", textDecoration: "none" }}
+                >
+                  Abrir o evento completo →
+                </Link>
+              </>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {diagBand}
       </div>

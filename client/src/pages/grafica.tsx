@@ -68,6 +68,14 @@ const remainingReuse = (item: any) => qtyOf(item) - reusedOf(item) - producedOf(
 const canConfer = (item: any) => !isDelivered(item) && !isLegacyReuse(item) && isProduced(item) && remainingConfer(item) > 0;
 const canDeliver = (item: any) => !isDelivered(item) && remainingDeliver(item) > 0;
 
+// Chip de quantidade do card mobile (reaproveitado/produzido/conferido/
+// entregue). Tons 700 sobre fundo claro: 10px precisa passar AA.
+const qtyChip = (color: string, bg: string): React.CSSProperties => ({
+  fontSize: 10, fontWeight: 800, color, backgroundColor: bg,
+  border: `1px solid ${color}33`, borderRadius: 6, padding: "2px 6px",
+  letterSpacing: "0.04em", whiteSpace: "nowrap",
+});
+
 // Chip de prazo da Produção Gráfica — o mesmo visual sobre o cabeçalho escuro
 // do evento, tanto na tabela desktop quanto no card mobile.
 function DeadlineChip({ event }: { event: any }) {
@@ -1612,9 +1620,40 @@ export default function Grafica() {
                           {item.description}
                         </div>
                       )}
+                      {/* QUANTIDADES — o desktop tem as colunas QTD, REAPROV. e
+                          PROD; o celular não mostrava número nenhum, e é nele
+                          que se produz e confere com a peça na mão. Cada etapa
+                          só aparece depois de existir, para a linha não virar
+                          uma fileira de zeros. */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginTop: 3 }}>
+                        <span style={{ fontSize: 14, fontWeight: 800, color: TI.text, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>
+                          {qtyOf(item)}
+                          <span style={{ fontSize: 11, fontWeight: 600, color: TI.secondary, marginLeft: 3 }}>un.</span>
+                        </span>
+                        {reusedTotalOf(item) > 0 && (
+                          <span style={qtyChip('#047857', '#dcfce7')} title={item.isReuse ? 'Peça inteira reaproveitada' : `${reusedTotalOf(item)} de ${qtyOf(item)} un. reaproveitadas`}>
+                            REAPROV. {reusedTotalOf(item)}
+                          </span>
+                        )}
+                        {producedOf(item) > 0 && (
+                          <span style={qtyChip('#c2410c', '#fff7ed')} title={`${producedOf(item)} de ${qtyOf(item)} un. produzidas`}>
+                            PROD. {producedOf(item)}
+                          </span>
+                        )}
+                        {conferredOf(item) > 0 && (
+                          <span style={qtyChip('#0e7490', '#ecfeff')} title={`${conferredOf(item)} de ${qtyOf(item)} un. conferidas`}>
+                            CONF. {conferredOf(item)}
+                          </span>
+                        )}
+                        {deliveredOf(item) > 0 && (
+                          <span style={qtyChip('#15803d', '#f0fdf4')} title={`${deliveredOf(item)} de ${qtyOf(item)} un. entregues`}>
+                            ENTREG. {deliveredOf(item)}
+                          </span>
+                        )}
+                      </div>
                       {item.observations && (
-                        <div style={{ fontSize: 11, color: '#d97706', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
-                          <AlertCircle style={{ width: 10, height: 10 }} />{item.observations}
+                        <div style={{ fontSize: 11, color: '#b45309', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
+                          <AlertCircle style={{ width: 10, height: 10, flexShrink: 0 }} />{item.observations}
                         </div>
                       )}
                     </div>

@@ -101,12 +101,25 @@ function stageDeadline(truckDay: Date, offsetDays: number, allDays: boolean): Da
   return d;
 }
 
+// Dias-calendário (UTC) desde um timestamp — "parado há Xd".
+function daysSince(ts: Date | string | null | undefined, today: number): number {
+  if (!ts) return 0;
+  const d = new Date(ts);
+  const day = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  return Math.max(0, Math.round((today - day) / 86400000));
+}
+
+// Status em que a peça está esperando decisão de patrocinador.
+const AWAITING_SPONSOR = new Set(["awaiting_approval", "awaiting_sponsor_approval"]);
+
 export function registerPrazoRoutes(app: Express): void {
   app.get("/api/prazos", requireRole("admin"), async (_req, res) => {
     try {
-      const [allEvents, allItems] = await Promise.all([
+      const [allEvents, allItems, allSponsors, allApprovals] = await Promise.all([
         storage.getAllEvents(),
         storage.getAllItems(),
+        storage.getAllSponsors(),
+        storage.getAllItemSponsorApprovals(),
       ]);
 
       const itemsByEvent = new Map<string, any[]>();
@@ -114,6 +127,22 @@ export function registerPrazoRoutes(app: Express): void {
         const arr = itemsByEvent.get(it.eventId);
         if (arr) arr.push(it); else itemsByEvent.set(it.eventId, [it]);
       }
+
+      const sponsorNameById = new Map<string, string>();
+      for (const s of allSponsors) sponsorNameById.set(s.id, s.name);
+
+      // Aprovações ainda pendentes, agrupadas por peça (para detalhar quem
+      // está segurando cada uma) — só contam quando a peça está de fato
+      // aguardando aprovação, senão registros órfãos viram ruído.
+      const pendingApprovalsByItem = new Map<string, any[]>();
+      for (const ap of allApprovals) {
+        if (ap.status !== "pending") continue;
+        const arr = pendingApprovalsByItem.get(ap.itemId);
+        if (arr) arr.push(ap); else pendingApprovalsByItem.set(ap.itemId, [ap]);
+      }
+
+      // Agregado cross-evento: quais patrocinadores estão atrasando aprovação.
+      const sponsorAgg = new Map<string, { name: string; pendingCount: number; maxDays: number; eventIds: Set<string> }>();
 
       const today = todayUTCms();
 
@@ -175,11 +204,40 @@ export function registerPrazoRoutes(app: Express): void {
 
           const deliveredCount = eventItems.filter((it) => DELIVERED.has(it.status)).length;
 
-          // Peças pendentes para o drill-down (só o essencial; o detalhe
-          // completo vive nas telas de cada setor).
+          // Peças pendentes para o drill-down — detalhadas de propósito: a
+          // tela existe para o diretor COBRAR, então cada linha diz o que é,
+          // há quantos dias está parada e (na aprovação) quem está segurando.
           const pendingItems = eventItems
             .filter((it) => STATUS_STAGE_RANK[it.status] !== undefined)
-            .map((it) => ({ id: it.id, displayId: it.displayId, status: it.status, type: it.type }));
+            .map((it) => {
+              const waitingDays = daysSince(it.updatedAt ?? it.createdAt, today);
+              let pendingSponsors: { name: string; days: number }[] | undefined;
+              if (AWAITING_SPONSOR.has(it.status)) {
+                const pend = pendingApprovalsByItem.get(it.id) ?? [];
+                pendingSponsors = pend.map((ap) => ({
+                  name: sponsorNameById.get(ap.sponsorId) ?? "Patrocinador removido",
+                  days: daysSince(ap.createdAt, today),
+                }));
+                for (const ap of pend) {
+                  const name = sponsorNameById.get(ap.sponsorId) ?? "Patrocinador removido";
+                  const agg = sponsorAgg.get(ap.sponsorId) ?? { name, pendingCount: 0, maxDays: 0, eventIds: new Set<string>() };
+                  agg.pendingCount += 1;
+                  agg.maxDays = Math.max(agg.maxDays, daysSince(ap.createdAt, today));
+                  agg.eventIds.add(event.id);
+                  sponsorAgg.set(ap.sponsorId, agg);
+                }
+              }
+              return {
+                id: it.id,
+                displayId: it.displayId,
+                status: it.status,
+                type: it.type,
+                description: it.description ?? null,
+                quantity: it.quantity,
+                waitingDays,
+                pendingSponsors,
+              };
+            });
 
           return {
             id: event.id,
@@ -197,7 +255,19 @@ export function registerPrazoRoutes(app: Express): void {
         .filter((e): e is NonNullable<typeof e> => e !== null)
         .sort((a, b) => new Date(a.truckDepartureDate).getTime() - new Date(b.truckDepartureDate).getTime());
 
-      res.json({ generatedAt: new Date().toISOString(), events });
+      // Ranking de patrocinadores segurando aprovação (pior primeiro):
+      // mais peças pendentes desempata por espera máxima.
+      const sponsorDelays = Array.from(sponsorAgg.entries())
+        .map(([sponsorId, a]) => ({
+          sponsorId,
+          name: a.name,
+          pendingCount: a.pendingCount,
+          maxDays: a.maxDays,
+          eventCount: a.eventIds.size,
+        }))
+        .sort((x, y) => y.pendingCount - x.pendingCount || y.maxDays - x.maxDays);
+
+      res.json({ generatedAt: new Date().toISOString(), events, sponsorDelays });
     } catch (error: any) {
       console.error("GET /api/prazos:", error);
       res.status(500).json({ error: "Não foi possível carregar os prazos" });

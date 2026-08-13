@@ -30,6 +30,18 @@ interface PrazoPendingItem {
   displayId: string;
   status: string;
   type: string;
+  description: string | null;
+  quantity: number;
+  waitingDays: number;
+  pendingSponsors?: { name: string; days: number }[];
+}
+
+interface SponsorDelay {
+  sponsorId: string;
+  name: string;
+  pendingCount: number;
+  maxDays: number;
+  eventCount: number;
 }
 
 interface PrazoEvent {
@@ -48,6 +60,7 @@ interface PrazoEvent {
 interface PrazosPayload {
   generatedAt: string;
   events: PrazoEvent[];
+  sponsorDelays: SponsorDelay[];
 }
 
 // ─── Paleta (Titanium, igual às demais telas) ────────────────────────────────
@@ -193,16 +206,19 @@ function EventDrilldown({ ev }: { ev: PrazoEvent }) {
     );
   }
 
-  const CHIP_CAP = 12;
+  const ROW_CAP = 15;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12, padding: "4px 0 8px" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: 14, padding: "4px 0 8px" }}>
       {groups.map(({ stage, items }) => {
         const sector = STAGE_SECTOR[stage.key];
         const st = STAGE_STYLE[stage.state];
-        const shown = items.slice(0, CHIP_CAP);
-        const hidden = items.length - shown.length;
+        // Pior primeiro: a lista é de cobrança, quem espera há mais tempo abre.
+        const sorted = [...items].sort((a, b) => b.waitingDays - a.waitingDays);
+        const shown = sorted.slice(0, ROW_CAP);
+        const hidden = sorted.length - shown.length;
         const sectorUrl = sector.url ?? `/eventos/${ev.id}`;
+        const isAprovacao = stage.key === "aprovacao";
         return (
           <div key={stage.key}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
@@ -223,44 +239,86 @@ function EventDrilldown({ ev }: { ev: PrazoEvent }) {
                 Resolver em {sector.sector} →
               </Link>
             </div>
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {shown.map((it) => (
-                <Link
-                  key={it.id}
-                  href={`/eventos/${ev.id}?item=${it.id}`}
-                  title={`${it.displayId} — ${getStatusLabel(it.status)} (${it.type})`}
-                  style={{
-                    display: "inline-flex", alignItems: "center", gap: 5,
-                    padding: "3px 9px", borderRadius: 999,
-                    backgroundColor: "#f5f5f4", border: `1px solid ${TI.border}`,
-                    fontSize: 11, fontWeight: 600, color: "#57534e",
-                    textDecoration: "none", lineHeight: 1.5,
-                  }}
-                >
-                  {it.displayId}
-                  <span style={{ fontWeight: 500, color: TI.label }}>{getStatusLabel(it.status)}</span>
-                </Link>
-              ))}
-              {hidden > 0 && (
-                <Link
-                  href={`/eventos/${ev.id}`}
-                  style={{
-                    display: "inline-flex", alignItems: "center",
-                    padding: "3px 9px", borderRadius: 999,
-                    backgroundColor: "transparent", border: `1px dashed ${TI.idle}`,
-                    fontSize: 11, fontWeight: 600, color: TI.secondary, textDecoration: "none",
-                  }}
-                >
-                  +{hidden} no evento
-                </Link>
-              )}
+            <div style={{ overflowX: "auto", border: `1px solid ${TI.border}`, borderRadius: 8, backgroundColor: TI.card }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: isAprovacao ? 560 : 420 }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${TI.border}` }}>
+                    <th scope="col" style={DRILL_TH}>Peça</th>
+                    <th scope="col" style={{ ...DRILL_TH, textAlign: "left" }}>Descrição</th>
+                    <th scope="col" style={DRILL_TH}>Qtd</th>
+                    <th scope="col" style={DRILL_TH}>Parada há</th>
+                    {isAprovacao && <th scope="col" style={{ ...DRILL_TH, textAlign: "left" }}>Aguardando patrocinador</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {shown.map((it) => (
+                    <tr key={it.id} style={{ borderBottom: `1px solid #f0efee` }}>
+                      <td style={{ padding: "6px 10px", whiteSpace: "nowrap" }}>
+                        <Link
+                          href={`/eventos/${ev.id}?item=${it.id}`}
+                          title={`Abrir ${it.displayId} no evento`}
+                          style={{ fontSize: 12, fontWeight: 700, color: "#9a3412", textDecoration: "none" }}
+                        >
+                          {it.displayId}
+                        </Link>
+                        <span style={{ display: "block", fontSize: 10, color: TI.label }}>
+                          {getStatusLabel(it.status)}
+                        </span>
+                      </td>
+                      <td style={{ padding: "6px 10px", fontSize: 12, color: "#57534e", maxWidth: 240 }}>
+                        <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={it.description ?? it.type}>
+                          {it.type}{it.description ? ` — ${it.description}` : ""}
+                        </span>
+                      </td>
+                      <td style={{ padding: "6px 10px", fontSize: 12, color: "#57534e", textAlign: "center" }}>
+                        {it.quantity}
+                      </td>
+                      <td style={{
+                        padding: "6px 10px", textAlign: "center", whiteSpace: "nowrap",
+                        fontSize: 12, fontWeight: 700,
+                        color: it.waitingDays >= 7 ? TI.red : it.waitingDays >= 3 ? TI.amber : "#57534e",
+                      }}>
+                        {it.waitingDays === 0 ? "hoje" : `${it.waitingDays}d`}
+                      </td>
+                      {isAprovacao && (
+                        <td style={{ padding: "6px 10px", fontSize: 12, color: "#57534e" }}>
+                          {it.pendingSponsors && it.pendingSponsors.length > 0
+                            ? it.pendingSponsors.map((s, i) => (
+                                <span key={`${it.id}-${s.name}`} style={{ whiteSpace: "nowrap" }}>
+                                  {i > 0 && ", "}
+                                  <strong style={{ color: s.days >= 7 ? TI.red : TI.title }}>{s.name}</strong>
+                                  <span style={{ color: TI.label }}> ({s.days === 0 ? "hoje" : `${s.days}d`})</span>
+                                </span>
+                              ))
+                            : <span style={{ color: TI.label }}>—</span>}
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
+            {hidden > 0 && (
+              <Link
+                href={`/eventos/${ev.id}`}
+                style={{ display: "inline-block", marginTop: 6, fontSize: 11, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
+              >
+                +{hidden} peça{hidden !== 1 ? "s" : ""} nesta etapa — ver todas no evento →
+              </Link>
+            )}
           </div>
         );
       })}
     </div>
   );
 }
+
+const DRILL_TH: React.CSSProperties = {
+  padding: "6px 10px",
+  fontSize: 9, fontWeight: 700, textTransform: "uppercase",
+  letterSpacing: "0.08em", color: TI.label, textAlign: "center",
+  fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: "nowrap",
+};
 
 // ─── KPI card ───────────────────────────────────────────────────────────────
 // Informativo vira <div> (button disabled sai da ordem de tab e leitores
@@ -400,6 +458,41 @@ export default function GestaoPrazos() {
     () => Array.from(new Set(events.map((e) => e.priority).filter(Boolean))) as string[],
     [events],
   );
+
+  // Gargalo por setor (cross-evento, sobre o conjunto completo): quantas
+  // peças estão paradas na mesa de cada setor agora e há quanto tempo.
+  const sectorSummary = useMemo(() => {
+    const acc = STAGE_HEADERS.map((h) => ({
+      key: h.key,
+      sector: STAGE_SECTOR[h.key].sector,
+      stageLabel: h.full,
+      url: STAGE_SECTOR[h.key].url,
+      count: 0,
+      totalDays: 0,
+      maxDays: 0,
+      eventIds: new Set<string>(),
+    }));
+    for (const ev of events) {
+      for (const it of ev.pendingItems) {
+        const rank = STATUS_STAGE[it.status];
+        if (rank === undefined) continue;
+        const s = acc[rank];
+        s.count += 1;
+        s.totalDays += it.waitingDays;
+        s.maxDays = Math.max(s.maxDays, it.waitingDays);
+        s.eventIds.add(ev.id);
+      }
+    }
+    const worst = acc.reduce((w, s) => (s.count > w ? s.count : w), 0);
+    return acc.map((s) => ({
+      ...s,
+      avgDays: s.count > 0 ? Math.round(s.totalDays / s.count) : 0,
+      eventCount: s.eventIds.size,
+      isWorst: worst > 0 && s.count === worst,
+    }));
+  }, [events]);
+
+  const sponsorDelays = data?.sponsorDelays ?? [];
 
   const filtered = useMemo(() => {
     const q = busca.trim().toLowerCase();
@@ -800,6 +893,115 @@ export default function GestaoPrazos() {
             />
             <KpiCard label="Eventos em dia" value={kpis.emDia} tone="green" testId="kpi-em-dia" />
           </div>
+        )}
+
+        {/* Gargalo por setor */}
+        {!isError && !isLoading && events.length > 0 && (
+          <section aria-label="Gargalo por setor" style={{ marginBottom: 16 }}>
+            <h2 style={{
+              margin: "0 0 8px", fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+              letterSpacing: "0.1em", color: TI.label, fontFamily: "'Plus Jakarta Sans', sans-serif",
+            }}>
+              Onde as peças estão paradas agora
+            </h2>
+            <div style={{
+              display: "grid", gap: 10,
+              gridTemplateColumns: isMobile ? "repeat(2, minmax(0,1fr))" : "repeat(5, minmax(0,1fr))",
+            }}>
+              {sectorSummary.map((s) => (
+                <div
+                  key={s.key}
+                  data-testid={`setor-${s.key}`}
+                  style={{
+                    backgroundColor: TI.card, borderRadius: 12, padding: "12px 14px", minWidth: 0,
+                    border: s.isWorst ? "1.5px solid #fca5a5" : `1px solid ${TI.border}`,
+                  }}
+                >
+                  <span style={{ display: "block", fontSize: 12, fontWeight: 800, color: TI.title, fontFamily: "'Space Grotesk', sans-serif" }}>
+                    {s.sector}
+                  </span>
+                  <span style={{ display: "block", fontSize: 10, color: TI.label, marginBottom: 8 }}>
+                    {s.stageLabel}
+                  </span>
+                  <span style={{
+                    fontSize: 24, fontWeight: 800, lineHeight: 1,
+                    fontFamily: "'Space Grotesk', sans-serif",
+                    color: s.count === 0 ? TI.label : s.isWorst ? TI.red : TI.title,
+                  }}>
+                    {s.count}
+                  </span>
+                  <span style={{ fontSize: 11, color: TI.secondary, marginLeft: 5 }}>
+                    peça{s.count !== 1 ? "s" : ""}
+                  </span>
+                  {s.count > 0 ? (
+                    <span style={{ display: "block", fontSize: 11, color: s.maxDays >= 7 ? TI.red : TI.secondary, marginTop: 4 }}>
+                      espera média {s.avgDays}d · pior {s.maxDays}d · {s.eventCount} evento{s.eventCount !== 1 ? "s" : ""}
+                    </span>
+                  ) : (
+                    <span style={{ display: "block", fontSize: 11, color: TI.label, marginTop: 4 }}>
+                      mesa limpa
+                    </span>
+                  )}
+                  {s.count > 0 && s.url && (
+                    <Link href={s.url} style={{ display: "inline-block", marginTop: 6, fontSize: 11, fontWeight: 700, color: "#9a3412", textDecoration: "none" }}>
+                      Abrir {s.sector} →
+                    </Link>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Aprovações travadas por patrocinador */}
+        {!isError && !isLoading && sponsorDelays.length > 0 && (
+          <section aria-label="Aprovações travadas por patrocinador" style={{ marginBottom: 16 }}>
+            <h2 style={{
+              margin: "0 0 8px", fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+              letterSpacing: "0.1em", color: TI.label, fontFamily: "'Plus Jakarta Sans', sans-serif",
+            }}>
+              Aprovações travadas por patrocinador
+            </h2>
+            <div style={{ overflowX: "auto", backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: 12 }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 520 }}>
+                <thead>
+                  <tr style={{ borderBottom: `1px solid ${TI.border}` }}>
+                    <th scope="col" style={{ ...DRILL_TH, textAlign: "left", paddingLeft: 14 }}>Patrocinador</th>
+                    <th scope="col" style={DRILL_TH}>Peças aguardando</th>
+                    <th scope="col" style={DRILL_TH}>Esperando há até</th>
+                    <th scope="col" style={DRILL_TH}>Eventos</th>
+                    <th scope="col" style={DRILL_TH}><span className="sr-only">Ação</span></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sponsorDelays.map((sp) => (
+                    <tr key={sp.sponsorId} style={{ borderBottom: `1px solid #f0efee` }}>
+                      <td style={{ padding: "8px 10px 8px 14px", fontSize: 13, fontWeight: 700, color: TI.title }}>
+                        {sp.name}
+                      </td>
+                      <td style={{ padding: "8px 10px", textAlign: "center", fontSize: 13, fontWeight: 800, color: TI.red, fontFamily: "'Space Grotesk', sans-serif" }}>
+                        {sp.pendingCount}
+                      </td>
+                      <td style={{
+                        padding: "8px 10px", textAlign: "center", fontSize: 12, fontWeight: 700,
+                        color: sp.maxDays >= 7 ? TI.red : sp.maxDays >= 3 ? TI.amber : "#57534e",
+                      }}>
+                        {sp.maxDays === 0 ? "hoje" : `${sp.maxDays}d`}
+                      </td>
+                      <td style={{ padding: "8px 10px", textAlign: "center", fontSize: 12, color: TI.secondary }}>
+                        {sp.eventCount}
+                      </td>
+                      <td style={{ padding: "8px 14px 8px 10px", textAlign: "right", whiteSpace: "nowrap" }}>
+                        <Link href="/atendimento" style={{ fontSize: 11, fontWeight: 700, color: "#9a3412", textDecoration: "none" }}>
+                          Cobrar no Atendimento →
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
         )}
 
         {/* Filtros */}

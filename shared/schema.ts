@@ -209,6 +209,31 @@ export const catalogOptions = pgTable("catalog_options", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+// Gestão de Prazos: registro leve de cobranças (quem cobrou o quê, quando).
+// Fecha o loop cobrança→resultado: o drill mostra "cobrado ontem por Fulano"
+// e alerta quando a pendência segue parada dias depois da cobrança.
+export const prazoCobrancas = pgTable("prazo_cobrancas", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  targetType: text("target_type").notNull(), // "event" | "sponsor"
+  targetId: varchar("target_id").notNull(), // eventId ou sponsorId
+  userName: text("user_name").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => [
+  index("IDX_prazo_cobrancas_target").on(table.targetType, table.targetId),
+]);
+
+// Gestão de Prazos: snapshot diário dos KPIs (1 linha por dia de negócio) —
+// alimenta a tendência ▲▼ "vs ontem" nos cards. Upsert barato no próprio GET.
+export const prazoSnapshots = pgTable("prazo_snapshots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  day: text("day").notNull().unique(), // YYYY-MM-DD no fuso do negócio (America/Sao_Paulo)
+  atrasados: integer("atrasados").notNull(),
+  saidas7d: integer("saidas_7d").notNull(),
+  pecasAtrasadas: integer("pecas_atrasadas").notNull(),
+  emDia: integer("em_dia").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
 // Notifications table
 export const notifications = pgTable("notifications", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),

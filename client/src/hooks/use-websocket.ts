@@ -5,6 +5,10 @@ import { useToast } from '@/hooks/use-toast';
 const RECONNECT_BASE_DELAY_MS = 1000;
 const RECONNECT_MAX_DELAY_MS = 30000;
 
+// Timer do debounce da invalidação de /api/prazos (escopo de módulo: o hook
+// é um singleton por aba — ver AuthenticatedLayout).
+let prazosInvalidateTimer: ReturnType<typeof setTimeout> | null = null;
+
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -34,8 +38,14 @@ export function useWebSocket() {
         // Gestão de Prazos deriva de eventos+itens: qualquer mutação nesses
         // domínios invalida '/api/prazos' — com o staleTime Infinity padrão,
         // sem isto a tela do diretor congelava no primeiro carregamento.
+        // Debounce de 500ms: o GET reagrega o app inteiro; numa rajada de
+        // operação (lote de 30 peças) uma invalidação basta, não trinta.
         if (/^(event_|item|production_|deadline_alert)/.test(data.type)) {
-          queryClient.invalidateQueries({ queryKey: ['/api/prazos'] });
+          if (prazosInvalidateTimer) clearTimeout(prazosInvalidateTimer);
+          prazosInvalidateTimer = setTimeout(() => {
+            prazosInvalidateTimer = null;
+            queryClient.invalidateQueries({ queryKey: ['/api/prazos'] });
+          }, 500);
         }
 
         switch (data.type) {

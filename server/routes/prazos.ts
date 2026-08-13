@@ -10,8 +10,11 @@
 // (YYYY-MM-DD): o servidor pode rodar em qualquer fuso e o resultado
 // tem que bater com o que a UI exibe (que formata em UTC).
 import type { Express } from "express";
+import { eq, lt, desc, and } from "drizzle-orm";
+import { db } from "../db";
+import { prazoCobrancas, prazoSnapshots } from "@shared/schema";
 import { storage } from "../storage";
-import { requireRole } from "./shared";
+import { requireRole, createAuditLog } from "./shared";
 
 type StageState = "done" | "upcoming" | "warning" | "overdue";
 
@@ -76,10 +79,25 @@ STAGE_DEFS.forEach((s, i) => s.pendingStatuses.forEach((st) => { STATUS_STAGE_RA
 // Cancelada/excluída/arquivada não conta como pendência nem como total.
 const OUT_OF_FUNNEL = new Set(["canceled", "deleted", "archived"]);
 
-// Dia-calendário UTC de hoje, em ms — base única de comparação.
-function todayUTCms(): number {
-  const now = new Date();
-  return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+// "Hoje" do NEGÓCIO: dia-calendário em America/Sao_Paulo, expresso como
+// UTC-midnight para a aritmética de dias. A âncora anterior (dia UTC do
+// servidor) virava "amanhã" às 21h de Brasília e o semáforo mostrava
+// "vencida há 1d" com o dia ainda em curso — exatamente nas horas em que
+// o diretor confere pendência de véspera. As DATAS de evento continuam
+// tratadas como wall-clock em UTC (convenção de toda a UI); só o "hoje"
+// e os timestamps reais (updatedAt) usam o fuso do negócio.
+const SP_DAY_FMT = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
+});
+function spDayMs(date: Date): number {
+  const [y, m, d] = SP_DAY_FMT.format(date).split("-").map(Number);
+  return Date.UTC(y, m - 1, d);
+}
+function todayBusinessMs(): number {
+  return spDayMs(new Date());
+}
+function todayBusinessStr(): string {
+  return SP_DAY_FMT.format(new Date()); // YYYY-MM-DD (en-CA)
 }
 
 // Data-calendário (UTC, meia-noite) da saída do caminhão.
@@ -101,12 +119,10 @@ function stageDeadline(truckDay: Date, offsetDays: number, allDays: boolean): Da
   return d;
 }
 
-// Dias-calendário (UTC) desde um timestamp — "parado há Xd".
+// Dias-calendário (no fuso do negócio) desde um timestamp real.
 function daysSince(ts: Date | string | null | undefined, today: number): number {
   if (!ts) return 0;
-  const d = new Date(ts);
-  const day = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-  return Math.max(0, Math.round((today - day) / 86400000));
+  return Math.max(0, Math.round((today - spDayMs(new Date(ts))) / 86400000));
 }
 
 // Status em que a peça está esperando decisão de patrocinador.
@@ -144,9 +160,14 @@ export function registerPrazoRoutes(app: Express): void {
       const SPONSOR_TURN = new Set(["pending", "new_version_pending"]);
 
       // Agregado cross-evento: quais patrocinadores estão atrasando aprovação.
-      const sponsorAgg = new Map<string, { name: string; pendingCount: number; maxDays: number; eventIds: Set<string> }>();
+      // `items` alimenta a linha expansível do ranking — o diretor vê QUAIS
+      // peças cobrar sem sair da tela.
+      const sponsorAgg = new Map<string, {
+        name: string; pendingCount: number; maxDays: number; eventIds: Set<string>;
+        items: { itemId: string; eventId: string; eventName: string; displayId: string; days: number }[];
+      }>();
 
-      const today = todayUTCms();
+      const today = todayBusinessMs();
 
       const events = allEvents
         .map((event) => {
@@ -181,7 +202,7 @@ export function registerPrazoRoutes(app: Express): void {
           let runningPending = 0;
           const stages = STAGE_DEFS.map((def, i) => {
             runningPending += directCounts[i];
-            const offset = (event as any)[def.offsetField] ?? def.defaultOffset;
+            const offset = (event[def.offsetField as keyof typeof event] as number | null) ?? def.defaultOffset;
             const deadline = stageDeadline(truckDay, offset, def.allDays);
             const diffDays = Math.round((deadline.getTime() - today) / 86400000);
 
@@ -205,6 +226,13 @@ export function registerPrazoRoutes(app: Express): void {
           });
 
           const deliveredCount = eventItems.filter((it) => DELIVERED.has(it.status)).length;
+
+          // Risco projetado (regra fixa inicial, S6 da revisão): marco a até
+          // 2 dias de vencer com 10+ peças ainda no gate é matematicamente
+          // inviável — merece grito ANTES de virar atraso consumado.
+          const riskCritical = !invalidDate && stages.some((s) =>
+            (s.state === "warning" || s.state === "upcoming")
+            && s.diffDays >= 0 && s.diffDays <= 2 && s.pendingCount >= 10);
 
           // Peças pendentes para o drill-down — detalhadas de propósito: a
           // tela existe para o diretor COBRAR, então cada linha diz o que é,
@@ -230,10 +258,12 @@ export function registerPrazoRoutes(app: Express): void {
                   const days = daysSince(ap.updatedAt ?? ap.createdAt, today);
                   const holder: "sponsor" | "arte" = SPONSOR_TURN.has(ap.status) ? "sponsor" : "arte";
                   if (holder === "sponsor") {
-                    const agg = sponsorAgg.get(ap.sponsorId) ?? { name, pendingCount: 0, maxDays: 0, eventIds: new Set<string>() };
+                    const agg = sponsorAgg.get(ap.sponsorId)
+                      ?? { name, pendingCount: 0, maxDays: 0, eventIds: new Set<string>(), items: [] };
                     agg.pendingCount += 1;
                     agg.maxDays = Math.max(agg.maxDays, days);
                     agg.eventIds.add(event.id);
+                    agg.items.push({ itemId: it.id, eventId: event.id, eventName: event.name, displayId: it.displayId, days });
                     sponsorAgg.set(ap.sponsorId, agg);
                   }
                   return { name, days, holder };
@@ -265,6 +295,7 @@ export function registerPrazoRoutes(app: Express): void {
             deliveredItems: deliveredCount,
             stages,
             pendingItems,
+            riskCritical,
           };
         })
         .filter((e): e is NonNullable<typeof e> => e !== null)
@@ -279,13 +310,124 @@ export function registerPrazoRoutes(app: Express): void {
           pendingCount: a.pendingCount,
           maxDays: a.maxDays,
           eventCount: a.eventIds.size,
+          // Pior primeiro e com teto: a linha expansível é lista de cobrança,
+          // não inventário — acima de 20 o diretor vai à tela do Atendimento.
+          items: a.items.sort((x, y) => y.days - x.days).slice(0, 20),
         }))
         .sort((x, y) => y.pendingCount - x.pendingCount || y.maxDays - x.maxDays);
 
-      res.json({ generatedAt: new Date().toISOString(), events, sponsorDelays });
+      // KPIs calculados AQUI (fonte única): o cliente exibia contas próprias
+      // que podiam divergir do snapshot/tendência. saidas7d usa a MESMA
+      // âncora de hoje do semáforo.
+      const eventsWithOverdue = events.filter((ev) => ev.stages.some((s) => s.state === "overdue"));
+      const invalidCount = events.filter((ev) => ev.invalidDate).length;
+      const kpis = {
+        atrasados: eventsWithOverdue.length,
+        saidas7d: events.filter((ev) => {
+          if (ev.invalidDate) return false;
+          const diff = Math.round((truckDayUTC(ev.truckDepartureDate).getTime() - today) / 86400000);
+          return diff >= 0 && diff <= 7;
+        }).length,
+        // Por evento: a pendência acumulada da etapa vencida mais avançada
+        // (peça presa antes também está atrasada para aquele marco).
+        pecasAtrasadas: eventsWithOverdue.reduce((acc, ev) => {
+          const overdue = ev.stages.filter((s) => s.state === "overdue");
+          return acc + (overdue.length ? overdue[overdue.length - 1].pendingCount : 0);
+        }, 0),
+        // Data inválida NÃO é "em dia" — cadastro quebrado não vira sinal verde.
+        emDia: events.length - eventsWithOverdue.length - invalidCount,
+        invalidCount,
+      };
+
+      // Tendência ▲▼: snapshot de hoje (upsert barato no próprio GET — a rota
+      // é admin-only) comparado com o snapshot anterior mais recente.
+      const day = todayBusinessStr();
+      let trend: { atrasados: number; saidas7d: number; pecasAtrasadas: number; emDia: number } | null = null;
+      try {
+        await db.insert(prazoSnapshots)
+          .values({ day, atrasados: kpis.atrasados, saidas7d: kpis.saidas7d, pecasAtrasadas: kpis.pecasAtrasadas, emDia: kpis.emDia })
+          .onConflictDoUpdate({
+            target: prazoSnapshots.day,
+            set: { atrasados: kpis.atrasados, saidas7d: kpis.saidas7d, pecasAtrasadas: kpis.pecasAtrasadas, emDia: kpis.emDia },
+          });
+        const [prev] = await db.select().from(prazoSnapshots)
+          .where(lt(prazoSnapshots.day, day))
+          .orderBy(desc(prazoSnapshots.day))
+          .limit(1);
+        if (prev) {
+          trend = {
+            atrasados: kpis.atrasados - prev.atrasados,
+            saidas7d: kpis.saidas7d - prev.saidas7d,
+            pecasAtrasadas: kpis.pecasAtrasadas - prev.pecasAtrasadas,
+            emDia: kpis.emDia - prev.emDia,
+          };
+        }
+      } catch (e) {
+        // Tabela ainda não migrada (npm run db:push pendente) não pode derrubar
+        // a tela inteira — tendência simplesmente não aparece.
+        console.error("prazo_snapshots indisponível (rode npm run db:push):", (e as Error).message);
+      }
+
+      // Última cobrança por alvo ("event:id" / "sponsor:id") — fecha o loop
+      // cobrança→resultado no drill e no ranking.
+      const cobrancas: Record<string, { userName: string; createdAt: string; daysAgo: number }> = {};
+      try {
+        const regs = await db.select().from(prazoCobrancas).orderBy(desc(prazoCobrancas.createdAt));
+        for (const r of regs) {
+          const key = `${r.targetType}:${r.targetId}`;
+          if (!cobrancas[key]) {
+            cobrancas[key] = {
+              userName: r.userName,
+              createdAt: r.createdAt.toISOString(),
+              daysAgo: daysSince(r.createdAt, today),
+            };
+          }
+        }
+      } catch (e) {
+        console.error("prazo_cobrancas indisponível (rode npm run db:push):", (e as Error).message);
+      }
+
+      res.json({
+        generatedAt: new Date().toISOString(),
+        // Ordem/rótulos das etapas: o front deriva os cabeçalhos daqui em vez
+        // de manter uma cópia que quebraria sem erro numa reordenação.
+        stageMeta: STAGE_DEFS.map((d) => ({ key: d.key, label: d.label })),
+        events,
+        sponsorDelays,
+        kpis,
+        trend,
+        cobrancas,
+      });
     } catch (error: any) {
       console.error("GET /api/prazos:", error);
       res.status(500).json({ error: "Não foi possível carregar os prazos" });
+    }
+  });
+
+  // "Marcar como cobrado": registro leve de accountability — quem cobrou o
+  // quê, quando. Nenhum estado de peça muda; é trilha de pressão gerencial.
+  app.post("/api/prazos/cobrancas", requireRole("admin"), async (req, res) => {
+    try {
+      const { targetType, targetId } = req.body ?? {};
+      if (!["event", "sponsor"].includes(targetType) || typeof targetId !== "string" || !targetId) {
+        return res.status(400).json({ error: "targetType (event|sponsor) e targetId são obrigatórios" });
+      }
+      const [reg] = await db.insert(prazoCobrancas)
+        .values({ targetType, targetId, userName: req.userName ?? "Sistema" })
+        .returning();
+      await createAuditLog(
+        req.userName ?? "Sistema",
+        "cobranca_registrada",
+        targetType === "event" ? "event" : "sponsor",
+        targetId,
+        "Cobrança registrada na Gestão de Prazos",
+      );
+      res.json(reg);
+    } catch (error: any) {
+      console.error("POST /api/prazos/cobrancas:", error);
+      res.status(500).json({
+        error: "Não foi possível registrar a cobrança — a tabela pode não existir ainda (rode npm run db:push no Replit).",
+      });
     }
   });
 }

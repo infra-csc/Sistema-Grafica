@@ -145,7 +145,12 @@ export default function Atendimento() {
   const [eventFilter, setEventFilter] = useState<string[]>(() => { try { return JSON.parse(sessionStorage.getItem("atendimento:eventFilter") || "[]"); } catch { return []; } });
   useEffect(() => { sessionStorage.setItem("atendimento:eventFilter", JSON.stringify(eventFilter)); }, [eventFilter]);
   const [itemTypeFilter, setItemTypeFilter] = useState<string[]>([]);
-  const [sponsorFilter, setSponsorFilter] = useState<string[]>([]);
+  // ?patrocinador=<id> — deep-link da Gestão de Prazos ("Cobrar no
+  // Atendimento"): a tela abre já filtrada no patrocinador da cobrança.
+  const [sponsorFilter, setSponsorFilter] = useState<string[]>(() => {
+    const sp = new URLSearchParams(window.location.search).get("patrocinador");
+    return sp ? [sp] : [];
+  });
 
   // Filtros — aba Histórico
   const [histEventFilter, setHistEventFilter] = useState<string[]>([]);

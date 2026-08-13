@@ -381,7 +381,6 @@ export const auditLogs = pgTable("audit_logs", {
   // Nota: índice standalone em entityId foi removido pois entity_id pode ser
   // muito longo (>2704 bytes) em produção, estourando o limite btree.
   // O índice composto abaixo cobre os casos de uso relevantes.
-  index("IDX_audit_logs_entity_type_id").on(table.entityType, table.entityId),
 ]);
 
 // Inventory Assets table (Acervo)

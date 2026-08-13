@@ -17,7 +17,6 @@ import { compareDisplayId } from "@/lib/displayId";
 import { FilterSelect } from "@/components/filter-select";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import {
-  AumentarQuantidadeDialog,
   ComplementoDaFicha,
   temBlocoDeComplemento,
 } from "@/components/aumentar-quantidade-dialog";
@@ -275,7 +274,6 @@ export default function PainelGeral() {
     setExpandedEvents(prev => { const next = new Set(prev); next.add(key); return next; });
   const [selectedItem, setSelectedItem] = useState<any>(null);
   // Aumento de quantidade pós-produção (COMPLEMENTO): a peça-mãe em foco.
-  const [complementItem, setComplementItem] = useState<any>(null);
   const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null);
   // Feedback do restaurar: guarda o id em restauração para trocar o ícone
   // daquele botão por um spinner (os outros só ficam desabilitados).
@@ -1508,26 +1506,16 @@ export default function PainelGeral() {
         auditLogs={auditLogs}
         open={!!selectedItem}
         onOpenChange={(open) => !open && setSelectedItem(null)}
-        customActions={temBlocoDeComplemento(selectedItem, podeCriarPecas(selectedItem)) ? (
+        customActions={temBlocoDeComplemento(selectedItem, false, false) ? (
           <ComplementoDaFicha
             item={selectedItem}
-            canEditLists={podeCriarPecas(selectedItem)}
-            onAumentar={(alvo) => { setSelectedItem(null); setComplementItem(alvo); }}
+            canEditLists={false}
             onAbrirPeca={(id) => {
               const alvo = (items as any[]).find((i: any) => i.id === id);
               if (alvo) setSelectedItem(alvo);
             }}
           />
         ) : undefined}
-      />
-
-      {/* Aumentar quantidade — mesmo modal do Detalhe do Evento e da Revisão. */}
-      <AumentarQuantidadeDialog
-        item={complementItem}
-        event={eventoDaPeca(complementItem)}
-        open={!!complementItem}
-        onOpenChange={(o) => { if (!o) setComplementItem(null); }}
-        onCreated={(child) => { if (child?.id) setSelectedItem(child); }}
       />
 
       {/* ── Delete confirmation (Admin ou Solicitação, respeitando canDeleteItem) ── */}

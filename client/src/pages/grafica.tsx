@@ -2106,19 +2106,21 @@ export default function Grafica() {
                             onClick={e => { e.stopPropagation(); abrirComplemento(item); }}
                             aria-label={`Aumentar a quantidade de ${item.displayId} — cria uma peça complementar`}
                             data-testid={`button-aumentar-quantidade-mobile-${item.id}`}
+                            title="Aumentar quantidade"
                             style={{
-                              width: '100%', minHeight: 44, padding: '0 12px', borderRadius: 8, gap: 6,
+                              width: 44, minHeight: 44, padding: 0, borderRadius: 8,
                               background: CO.bg, border: `1.5px solid ${CO.border}`, color: CO.text,
-                              fontSize: 13, fontWeight: 800,
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              cursor: 'pointer', whiteSpace: 'nowrap',
+                              cursor: 'pointer', flexShrink: 0,
                             }}
                             onPointerDown={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = CO.hoverBg; b.style.color = CO.suffix; }}
                             onPointerUp={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = CO.bg; b.style.color = CO.text; }}
                             onPointerLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = CO.bg; b.style.color = CO.text; }}
                           >
-                            <PlusCircle aria-hidden="true" style={{ width: 14, height: 14 }} />
-                            Aumentar
+                            {/* Só o ícone (decisão do dono). O aria-label acima
+                                carrega o significado para quem usa leitor de
+                                tela, e o alvo continua com 44px de toque. */}
+                            <PlusCircle aria-hidden="true" style={{ width: 18, height: 18 }} />
                           </button>
                         )}
                         {/* Cancelar complemento criado por engano — dois toques
@@ -2417,19 +2419,19 @@ export default function Grafica() {
                               title={`Aumentar quantidade — cria uma peça complementar ligada a ${item.displayId}`}
                               data-testid={`button-aumentar-quantidade-${item.id}`}
                               style={{
-                                marginTop: 6, height: 26, padding: "0 9px", borderRadius: 6, gap: 5,
-                                display: "inline-flex", alignItems: "center", whiteSpace: "nowrap",
+                                marginTop: 6, width: 26, height: 26, padding: 0, borderRadius: 6,
+                                display: "inline-flex", alignItems: "center", justifyContent: "center",
                                 background: CO.bg, border: `1px solid ${CO.border}`, color: CO.text,
-                                fontSize: 11, fontWeight: 700, cursor: "pointer",
-                                transition: "background-color 0.15s",
+                                cursor: "pointer", transition: "background-color 0.15s",
                               }}
                               onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = CO.hoverBg)}
                               onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = CO.bg)}
                               onFocus={e => { const b = e.currentTarget as HTMLButtonElement; b.style.outline = `2px solid ${CO.stripe}`; b.style.outlineOffset = "2px"; }}
                               onBlur={e => { (e.currentTarget as HTMLButtonElement).style.outline = "none"; }}
                             >
-                              <PlusCircle aria-hidden="true" style={{ width: 12, height: 12 }} />
-                              Aumentar
+                              {/* Só o ícone (decisão do dono): o title e o
+                                  aria-label acima carregam o significado. */}
+                              <PlusCircle aria-hidden="true" style={{ width: 14, height: 14 }} />
                             </button>
                           )}
                         </div>

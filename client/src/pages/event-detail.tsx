@@ -1063,21 +1063,11 @@ export default function EventDetail() {
       const { message, code, data } = parseApiError(error);
 
       if (code === "USE_COMPLEMENT") {
-        const alvo = items.find((i: any) => i.id === (data?.itemId ?? (variables as any)?.id));
         handleCloseEditDialog();
         toast({
-          title: "Peça em produção",
-          description: 'Use "Aumentar quantidade" — o aumento vira uma peça complementar.',
+          title: "Peça já em produção",
+          description: 'A quantidade não sobe por aqui: o aumento vira uma peça complementar, e o pedido é feito na tela da Gráfica.',
         });
-        // A diferença vem do servidor quando o corpo JSON chega inteiro; quando
-        // só a frase chega (o caminho normal do apiRequest, que desembrulha o
-        // erro), ela é recalculada com o que a PRÓPRIA tela tentou salvar —
-        // o mesmo número, sem depender do formato da resposta.
-        const tentada = Number((variables as any)?.data?.quantity);
-        const atual = Number(alvo?.quantity);
-        const sugestao = Number(data?.suggestedComplement)
-          || (Number.isFinite(tentada) && Number.isFinite(atual) && tentada > atual ? tentada - atual : null);
-        if (alvo) abrirComplemento(alvo, sugestao);
         return;
       }
 
@@ -2312,17 +2302,8 @@ export default function EventDetail() {
                                 style={{ flex: 1, minHeight: 44, borderRadius: 6, border: '1px solid #e7e5e4', background: '#fafaf9', fontSize: 13, fontWeight: 700, color: '#746e69', cursor: 'pointer' }}>
                                 Editar
                               </button>
-                              {/* Peça em produção: aumentar não é editar. No celular
-                                  o botão é próprio (não cabe atrás do form) — é ele
-                                  que a Solicitação usa em campo, com o cliente ao
-                                  lado pedindo mais unidades. */}
-                              {podeAumentarQuantidade(item, podeMexerQtd) && (
-                                <button onClick={() => abrirComplemento(item)}
-                                  data-testid={`button-aumentar-quantidade-mobile-${item.id}`}
-                                  style={{ flex: 1, minHeight: 44, borderRadius: 6, border: '1px solid #fed7aa', background: '#fff7ed', fontSize: 13, fontWeight: 800, color: '#c2410c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
-                                  <Plus style={{ width: 13, height: 13 }} /> Aumentar
-                                </button>
-                              )}
+                              {/* Aumentar quantidade NÃO mora aqui: o gatilho
+                                  é exclusivo da tela da Gráfica (decisão do dono). */}
                               {/* Mesmos gates do desktop: sem eles, no celular um
                                   não-admin abria exclusão de peça já em produção. */}
                               {canDeleteAny && canDeleteItem(item.status) && (
@@ -2544,19 +2525,6 @@ export default function EventDetail() {
                                   aumento se pede na mãe). Antes deste botão, o
                                   único gesto disponível era editar o número, que o
                                   servidor agora recusa com 409. */}
-                              {podeAumentarQuantidade(item, podeMexerQtd) && (
-                                <button
-                                  onClick={e => { e.stopPropagation(); abrirComplemento(item); }}
-                                  data-testid={`button-aumentar-quantidade-${item.id}`}
-                                  title="Aumentar quantidade — cria uma peça complementar"
-                                  aria-label="Aumentar quantidade"
-                                  style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '6px', padding: '5px', cursor: 'pointer', color: '#c2410c', display: 'flex', alignItems: 'center', transition: 'background-color 0.15s' }}
-                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#ffedd5'; }}
-                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#fff7ed'; }}
-                                >
-                                  <Plus className="h-4 w-4" />
-                                </button>
-                              )}
                               {/* Toggle reaproveitamento — disponível enquanto não estiver em produção/entregue */}
                               {!isEditBlocked(item.status) && (
                                 <button
@@ -2665,11 +2633,10 @@ export default function EventDetail() {
         auditLogs={auditLogs}
         open={!!selectedItemForDetails}
         onOpenChange={(open) => !open && setSelectedItemForDetails(null)}
-        customActions={temBlocoDeComplemento(selectedItemForDetails, canEditLists) ? (
+        customActions={temBlocoDeComplemento(selectedItemForDetails, false, false) ? (
           <ComplementoDaFicha
             item={selectedItemForDetails}
-            canEditLists={canEditLists}
-            onAumentar={(alvo) => { setSelectedItemForDetails(null); abrirComplemento(alvo); }}
+            canEditLists={false}
             onAbrirPeca={(id) => {
               const alvo = items.find((i: any) => i.id === id);
               if (alvo) setSelectedItemForDetails(alvo);
@@ -2795,9 +2762,6 @@ export default function EventDetail() {
             quantityLocked={entrouEmProducao(editingItem)}
             quantityFloor={reductionFloorOf(editingItem ?? {})}
             quantityCeiling={Number(editingItem?.quantity) || 1}
-            onAumentarQuantidade={podeAumentarQuantidade(editingItem, podeMexerQtd)
-              ? () => { const alvo = editingItem; handleCloseEditDialog(); abrirComplemento(alvo); }
-              : undefined}
           />
         </DialogContent>
       </Dialog>

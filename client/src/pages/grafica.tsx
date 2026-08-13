@@ -97,6 +97,25 @@ function DeadlineChip({ event }: { event: any }) {
 
 // Seletor de fotos (câmera + galeria) com miniaturas e remoção — unifica as
 // três cópias que existiam (modais individuais, entrega e conferência em lote).
+// Normaliza texto para comparação (minúscula, sem acento, espaço colapsado) —
+// mesma regra da Arte para casar type com nome/grupo do catálogo de Modelos.
+const normKey = (s: string) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+
+// PERCURSO das placas de quilometragem. O app não tem campo para isso: a
+// distância vive no texto da peça, na forma que a operação escreve — "10k - km 8",
+// "5k - km 4", "5k/10k - km 1" (esta última pertence aos DOIS percursos).
+// Casa "5k", "10km", "21,1k" e ignora o marcador "km 8" (exige dígito ANTES do k)
+// e unidades como "kg" (lookahead).
+const PERCURSO_RE = /(\d{1,3}(?:[.,]\d{1,2})?)\s*k(?:m|ms)?(?![a-z])/gi;
+function itemPercursos(item: any): string[] {
+  const text = `${item?.description ?? ""} ${item?.type ?? ""}`;
+  const out = new Set<string>();
+  PERCURSO_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = PERCURSO_RE.exec(text)) !== null) out.add(`${m[1].replace(".", ",")}k`);
+  return Array.from(out);
+}
+
 function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos", hint, dense = false }: {
   photos: string[];
   onAdd: (url: string) => void;
@@ -358,6 +377,11 @@ export default function Grafica() {
   const [typeFilter, setTypeFilter] = useState<string[]>([]);
   const [materialFilter, setMaterialFilter] = useState<string[]>([]);
   const [finishFilter, setFinishFilter] = useState<string[]>([]);
+  // Pedido da Gráfica: separar o trabalho por GRUPO (ex.: "Placa km") e, dentro
+  // dele, por PERCURSO (5k, 10k) — com dezenas de placas quase idênticas na
+  // fila, era o único jeito de montar o lote certo sem conferir uma a uma.
+  const [groupFilter, setGroupFilter] = useState<string[]>([]);
+  const [percursoFilter, setPercursoFilter] = useState<string[]>([]);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [next10DaysFilter, setNext10DaysFilter] = useState(false);
   const [monthFilter, setMonthFilter] = useState<string[]>([]);
@@ -407,6 +431,27 @@ export default function Grafica() {
     (standardItems as any[]).forEach((s: any) => { if (s.group) map[s.name] = s.group; });
     return map;
   }, [standardItems]);
+
+  // Resolve o GRUPO da peça (catálogo de Modelos) tolerando maiúscula, acento
+  // e espaço — mesma regra da Arte: o type casa com o NOME de um modelo
+  // (name → group) ou direto com um NOME DE GRUPO, para itens vindos da
+  // planilha caírem no grupo certo. É o que a Gráfica usa para separar, por
+  // exemplo, as placas de 5km das de 10km.
+  const groupMaps = useMemo(() => {
+    const byName: Record<string, string> = {};
+    const byGroup: Record<string, string> = {};
+    (standardItems as any[]).forEach((s: any) => {
+      if (s.group) {
+        byName[normKey(s.name)] = s.group;
+        byGroup[normKey(s.group)] = s.group;
+      }
+    });
+    return { byName, byGroup };
+  }, [standardItems]);
+  const groupOf = (type: string): string => {
+    const k = normKey(type);
+    return groupMaps.byName[k] || groupMaps.byGroup[k] || "";
+  };
 
   const startProductionMutation = useMutation({
     mutationFn: async ({ itemId, data }: { itemId: string; data: any }) =>
@@ -498,8 +543,10 @@ export default function Grafica() {
 
   // Filtros facetados: cada filtro lista só o que existe no recorte atual,
   // aplicando os OUTROS filtros ativos (com contagem por opção).
-  const gFacetPool = (exclude: 'event' | 'status' | 'type' | 'material' | 'finish') =>
+  const gFacetPool = (exclude: 'event' | 'status' | 'type' | 'material' | 'finish' | 'group' | 'percurso') =>
     (items as any[]).filter((item: any) => {
+      if (exclude !== 'group' && groupFilter.length > 0 && !groupFilter.includes(groupOf(item.type))) return false;
+      if (exclude !== 'percurso' && percursoFilter.length > 0 && !itemPercursos(item).some(p => percursoFilter.includes(p))) return false;
       if (exclude !== 'status' && statusFilter.length > 0) {
         // Estrito: "pronto_para_producao" é só grafia legada do mesmo status;
         // "approved" NÃO entra aqui (o KPI Liberados seleciona os dois valores).
@@ -546,6 +593,40 @@ export default function Grafica() {
   const materialFilterOptions = countField('material', 'material');
   const finishFilterOptions = countField('finish', 'finish');
 
+  // Grupos presentes no recorte atual (ex.: 5KM, 10KM, PÓRTICO). Derivado do
+  // catálogo de Modelos, então o filtro só aparece quando há grupo cadastrado
+  // e nunca oferece uma opção que não bate em nada.
+  const groupFilterOptions = (() => {
+    const map = new Map<string, { value: string; label: string; count: number }>();
+    gFacetPool('group').forEach((i: any) => {
+      const g = groupOf(i.type);
+      if (!g) return;
+      const cur = map.get(g);
+      if (cur) cur.count++;
+      else map.set(g, { value: g, label: g, count: 1 });
+    });
+    // Ordem natural: "5KM" antes de "10KM" (alfabética inverteria os dois).
+    return Array.from(map.values())
+      .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR', { numeric: true }))
+      .map((o) => ({ ...o, pinned: true }));
+  })();
+
+  // Percursos presentes no recorte (5k, 10k...). Uma placa "5k/10k" conta nos
+  // dois — é peça compartilhada e tem de aparecer em qualquer um dos filtros.
+  const percursoFilterOptions = (() => {
+    const map = new Map<string, { value: string; label: string; count: number; sort: number }>();
+    gFacetPool('percurso').forEach((i: any) => {
+      itemPercursos(i).forEach((p) => {
+        const cur = map.get(p);
+        if (cur) cur.count++;
+        else map.set(p, { value: p, label: p, count: 1, sort: parseFloat(p.replace(',', '.')) });
+      });
+    });
+    return Array.from(map.values())
+      .sort((a, b) => a.sort - b.sort)
+      .map(({ value, label, count }) => ({ value, label, count, pinned: true }));
+  })();
+
   const months = [
     { value: "all", label: "Todos os meses" },
     { value: "1", label: "Janeiro" }, { value: "2", label: "Fevereiro" },
@@ -576,6 +657,10 @@ export default function Grafica() {
       if (!ok) return false;
     }
     if (eventFilter.length > 0 && !eventFilter.includes(item.eventId)) return false;
+    if (groupFilter.length > 0 && !groupFilter.includes(groupOf(item.type))) return false;
+    // Percurso: casa com QUALQUER um dos selecionados (placa "5k/10k" entra
+    // tanto no filtro 5k quanto no 10k).
+    if (percursoFilter.length > 0 && !itemPercursos(item).some(p => percursoFilter.includes(p))) return false;
     if (typeFilter.length > 0 && !typeFilter.includes(item.type)) return false;
     if (materialFilter.length > 0 && !materialFilter.includes(item.material)) return false;
     if (finishFilter.length > 0 && !finishFilter.includes(item.finish)) return false;
@@ -615,13 +700,13 @@ export default function Grafica() {
         return a.type.localeCompare(b.type);
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [items, searchFilter, statusFilter, eventFilter, typeFilter, materialFilter, finishFilter, next10DaysFilter, monthFilter]);
+    [items, searchFilter, statusFilter, eventFilter, groupFilter, percursoFilter, typeFilter, materialFilter, finishFilter, next10DaysFilter, monthFilter, standardItems]);
 
   // statsPool: todos os filtros ativos (exceto status) — os cards mostram contagens dentro do contexto atual
   const statsPool = useMemo(() =>
     (items as any[]).filter((item: any) => matchesFilters(item, { skipStatus: true })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [items, searchFilter, eventFilter, typeFilter, materialFilter, finishFilter, next10DaysFilter, monthFilter]);
+    [items, searchFilter, eventFilter, groupFilter, percursoFilter, typeFilter, materialFilter, finishFilter, next10DaysFilter, monthFilter, standardItems]);
   const stats = {
     liberados:  statsPool.filter((i: any) => i.status === 'approved' || i.status === 'ready_for_production' || i.status === 'pronto_para_producao').length,
     emProducao: statsPool.filter((i: any) => i.status === 'inProduction').length,
@@ -1244,6 +1329,30 @@ export default function Grafica() {
           ]}
           searchPlaceholder="Buscar status..." emptyText="Nenhum status encontrado."
           testId="select-status-filter"
+          triggerStyle={{ backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, color: TI.text }}
+        />
+
+        {/* Grupo e Percurso — pedido da Gráfica, na barra principal (e não nos
+            avançados) porque é com eles que a fila de placas é separada antes
+            de montar um lote. hideWhenEmpty padrão: só aparecem quando o
+            recorte tem grupo cadastrado / placa com percurso no texto. */}
+        <FilterSelect
+          showAllLabelWhenEmpty
+          label="Grupo" allLabel="Todos os grupos"
+          values={groupFilter} onValuesChange={setGroupFilter}
+          options={groupFilterOptions}
+          searchPlaceholder="Buscar grupo..." emptyText="Nenhum grupo encontrado."
+          testId="select-group-filter"
+          triggerStyle={{ backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, color: TI.text }}
+        />
+
+        <FilterSelect
+          showAllLabelWhenEmpty
+          label="Percurso" allLabel="Todos os percursos"
+          values={percursoFilter} onValuesChange={setPercursoFilter}
+          options={percursoFilterOptions}
+          searchPlaceholder="Buscar percurso..." emptyText="Nenhum percurso encontrado."
+          testId="select-percurso-filter"
           triggerStyle={{ backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, color: TI.text }}
         />
 

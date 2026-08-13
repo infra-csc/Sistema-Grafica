@@ -9,6 +9,20 @@ const RECONNECT_MAX_DELAY_MS = 30000;
 // é um singleton por aba — ver AuthenticatedLayout).
 let prazosInvalidateTimer: ReturnType<typeof setTimeout> | null = null;
 
+// Assinantes avisados a cada invalidação de /api/prazos vinda de MENSAGEM do
+// WebSocket. Existe para a Gestão de Prazos poder mostrar "N mudanças desde
+// que você abriu": o debounce de 500ms revalidava a tela de forma
+// completamente invisível, e o diretor lia números novos sem saber que o chão
+// tinha se movido. A revalidação da RECONEXÃO (onopen) de propósito não
+// notifica — ali não chegou notícia nenhuma, só se confirmou o que já havia.
+const prazosListeners = new Set<() => void>();
+
+/** Assina o sinal de "chegou mudança de prazos". Devolve o cancelador. */
+export function onPrazosInvalidated(fn: () => void): () => void {
+  prazosListeners.add(fn);
+  return () => { prazosListeners.delete(fn); };
+}
+
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -29,6 +43,11 @@ export function useWebSocket() {
     ws.onopen = () => {
       console.log('WebSocket connected');
       reconnectAttemptsRef.current = 0;
+      // Reconectar significa que houve um buraco: enquanto o socket esteve
+      // fora, toda mutação de outro usuário passou sem invalidar nada. Sem
+      // esta linha o painel do diretor servia o agregado de antes da queda —
+      // errado com cara de certo, que é o pior modo de falha de um painel.
+      queryClient.invalidateQueries({ queryKey: ['/api/prazos'] });
     };
 
     ws.onmessage = (event) => {
@@ -40,11 +59,17 @@ export function useWebSocket() {
         // sem isto a tela do diretor congelava no primeiro carregamento.
         // Debounce de 500ms: o GET reagrega o app inteiro; numa rajada de
         // operação (lote de 30 peças) uma invalidação basta, não trinta.
-        if (/^(event_|item|production_|deadline_alert)/.test(data.type)) {
+        //
+        // `prazo_` no regex: o broadcast da cobrança não casava com a lista
+        // antiga, então a cobrança registrada por um diretor nunca aparecia na
+        // aba do outro — e dois gestores ligavam para o mesmo responsável no
+        // mesmo dia.
+        if (/^(event_|item|production_|deadline_alert|prazo_)/.test(data.type)) {
           if (prazosInvalidateTimer) clearTimeout(prazosInvalidateTimer);
           prazosInvalidateTimer = setTimeout(() => {
             prazosInvalidateTimer = null;
             queryClient.invalidateQueries({ queryKey: ['/api/prazos'] });
+            prazosListeners.forEach((fn) => fn());
           }, 500);
         }
 
@@ -193,6 +218,12 @@ export function useWebSocket() {
           case 'notification_created':
           case 'notification_read':
             queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+            break;
+
+          case 'prazo_cobranca':
+            // A invalidação de '/api/prazos' já aconteceu no bloco acima (com
+            // debounce). O case existe para não cair no `default` e poluir o
+            // console com "Unknown WebSocket message type" a cada cobrança.
             break;
 
           default:

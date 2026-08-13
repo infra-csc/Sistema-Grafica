@@ -141,3 +141,171 @@ export function getStatusLabel(status: string | null | undefined): string {
 export function getStatusShort(status: string | null | undefined): string {
   return (status && STATUS[status]?.short) || (status ?? "—");
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// APROVAÇÃO DE PATROCINADOR — fonte única do visual (cor + rótulo + tooltip).
+//
+// PORQUÊ ISTO EXISTE. O servidor NUNCA grava 'rejected' na aprovação de
+// patrocinador. Na reprovação ele grava `awaiting_arte`
+// (server/routes/items.ts:1187 no update e :1199 no create) e, quando a Arte
+// devolve o thumb novo, `new_version_pending` (items.ts:1342). 'rejected'
+// sobrevive apenas como valor LEGADO: aparece só em guarda de leitura
+// (items.ts:779), nunca numa escrita. E `enrichItemsWithEventsAndSponsors`
+// (items.ts:110-121) repassa `approval.status` CRU para o cliente.
+//
+// O estrago do desalinhamento: componentes que só conheciam
+// approved|rejected|pending caíam em estilo nulo justamente nos DOIS estados
+// reais de reprovação e voltavam a pintar o chip com a COR DA MARCA. Ou seja,
+// o patrocinador que JÁ REPROVOU ficava visualmente idêntico — às vezes mais
+// discreto — que aquele que nem olhou a peça. A informação mais cara da
+// operação ficava invisível na tela mais vista.
+//
+// Esta tradução nasceu local em atendimento.tsx (`approvalVisual`), que já
+// conhecia os 5 valores. Promovida para cá para que Painel Geral, Vincular,
+// Detalhe do Evento, Arte e Atendimento nunca mais contem histórias
+// diferentes sobre a mesma peça.
+//
+// ACESSIBILIDADE: mesma disciplina do StatusMeta — `text` é sempre tom 700/800
+// sobre `bg` tint claro (os chips renderizam em 11px, então precisa passar AA
+// como texto normal); `dot` usa o tom saturado 500, isento de contraste de
+// texto. Nenhum #f97316/#a8a29e entra como cor de TEXTO.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Todos os valores que o servidor grava em `item_sponsor_approvals.status`. */
+export const APPROVAL_STATUSES = [
+  "pending",              // registro criado / reaberto, sem decisão do patrocinador
+  "approved",             // patrocinador aprovou
+  "awaiting_arte",        // patrocinador REPROVOU → Arte está refazendo
+  "new_version_pending",  // Arte devolveu versão nova → aguarda o Atendimento reenviar
+  "rejected",             // LEGADO: nenhuma rota grava; só guarda de leitura
+] as const;
+
+export type ApprovalStatus = (typeof APPROVAL_STATUSES)[number];
+
+/**
+ * Família semântica do estado. Existe para quem precisa AGRUPAR sem repetir a
+ * lista de status (ex.: contar "reprovadas" num KPI, ordenar por gravidade).
+ */
+export type ApprovalTone = "approved" | "rejected" | "rework" | "waiting" | "unknown";
+
+export interface ApprovalMeta {
+  /** Chave canônica; "unknown" quando o servidor mandou algo fora do vocabulário. */
+  key: ApprovalStatus | "unknown";
+  /** Valor cru recebido — o que torna o estado desconhecido diagnosticável. */
+  raw: string;
+  label: string;   // rótulo completo (tooltip, legenda, leitor de tela)
+  short: string;   // rótulo curto (badge/coluna apertada)
+  hint: string;    // frase explicando o estado — copy de tooltip
+  tone: ApprovalTone;
+  bg: string;
+  text: string;
+  border: string;
+  dot: string;
+  /** true nos estados em que houve reprovação (`rejected` e `awaiting_arte`). */
+  isRejection: boolean;
+}
+
+const APPROVAL: Record<ApprovalStatus, Omit<ApprovalMeta, "raw">> = {
+  approved: {
+    key: "approved",
+    label: "Aprovado",
+    short: "Aprovado",
+    hint: "Aprovado pelo patrocinador",
+    tone: "approved",
+    bg: P.green.bg, text: P.green.text, border: P.green.border, dot: P.green.dot,
+    isRejection: false,
+  },
+  rejected: {
+    key: "rejected",
+    label: "Reprovado",
+    short: "Reprovado",
+    hint: "Reprovado pelo patrocinador",
+    tone: "rejected",
+    bg: P.red.bg, text: P.red.text, border: P.red.border, dot: P.red.dot,
+    isRejection: true,
+  },
+  awaiting_arte: {
+    key: "awaiting_arte",
+    label: "Reprovado · Arte refazendo",
+    short: "Reprovado",
+    hint: "Reprovado pelo patrocinador — a Arte está refazendo a peça",
+    tone: "rework",
+    // Campo VERMELHO (mesma família do 'rejected' — houve reprovação de fato)
+    // com a bolinha ÂMBAR (o retrabalho já está em andamento). É a única
+    // combinação de duas famílias do conjunto, e é de propósito: de relance o
+    // chip entra no grupo do vermelho, que é a leitura que decide, e o âmbar
+    // dá a nuance sem diluir o alarme. Era exatamente este o estado que antes
+    // voltava à cor da marca.
+    bg: P.red.bg, text: P.red.text, border: P.red.border, dot: P.amber.dot,
+    isRejection: true,
+  },
+  new_version_pending: {
+    key: "new_version_pending",
+    label: "Nova versão enviada",
+    short: "Nova versão",
+    hint: "A Arte enviou uma nova versão — aguardando o Atendimento reenviar ao patrocinador",
+    tone: "waiting",
+    // Âmbar-800 no texto em vez do 700 do P.amber: em 11px peso 600 sobre tint
+    // o tom mais escuro é o que sustenta a leitura, e afasta este chip do
+    // vermelho do `awaiting_arte`, com quem já divide a bolinha âmbar.
+    bg: P.amber.bg, text: "#92400e", border: P.amber.border, dot: P.amber.dot,
+    isRejection: false,
+  },
+  pending: {
+    key: "pending",
+    label: "Aguardando patrocinador",
+    short: "Aguardando",
+    hint: "Sem ação do patrocinador até agora",
+    tone: "waiting",
+    // Laranja e não cinza: decisão registrada da tela — é o chip que EXIGE
+    // ação e era o mais apagado dos três estados que o componente conhecia.
+    // Fica abaixo do vermelho na hierarquia, que é o ponto do achado.
+    bg: P.orange.bg, text: P.orange.text, border: P.orange.border, dot: P.orange.dot,
+    isRejection: false,
+  },
+};
+
+// Fallback VISÍVEL. Foi o silêncio do fallback antigo (estilo nulo → cor da
+// marca) que criou o bug: valor novo no banco tem de aparecer como anomalia
+// cinza, com o valor cru no tooltip, e nunca se disfarçar de estado normal.
+const APPROVAL_UNKNOWN: Omit<ApprovalMeta, "raw"> = {
+  key: "unknown",
+  label: "Estado de aprovação desconhecido",
+  short: "Desconhecido",
+  hint: "Estado de aprovação não reconhecido por esta versão do sistema",
+  tone: "unknown",
+  bg: P.neutral.bg, text: P.neutral.text, border: P.neutral.border, dot: P.neutral.dot,
+  isRejection: false,
+};
+
+/**
+ * Visual canônico do status de aprovação de UM patrocinador para UMA peça.
+ *
+ * Devolve `null` SOMENTE quando não há registro de aprovação (null/undefined/
+ * string vazia) — aí o consumidor mantém a identidade da marca, que é o
+ * comportamento certo para telas onde o patrocinador nem entrou no fluxo de
+ * aprovação (lista de eventos, triagem). Qualquer string não reconhecida
+ * devolve o meta "unknown", nunca `null`: valor estranho tem de ser visível.
+ */
+export function getApprovalMeta(status: string | null | undefined): ApprovalMeta | null {
+  if (!status) return null;
+  const known = APPROVAL[status as ApprovalStatus];
+  return known ? { ...known, raw: status } : { ...APPROVAL_UNKNOWN, raw: status };
+}
+
+/** Rótulo completo do estado de aprovação (ou o texto de "sem registro"). */
+export function getApprovalLabel(status: string | null | undefined): string {
+  return getApprovalMeta(status)?.label ?? "Sem registro de aprovação";
+}
+
+/**
+ * Tooltip canônico de um chip de patrocinador: "Nome — explicação do estado".
+ * Centralizado aqui porque o caso do estado desconhecido precisa carregar o
+ * valor cru, e essa regra não pode ser reinventada em cada tela.
+ */
+export function getApprovalTitle(name: string, status?: string | null): string {
+  const m = getApprovalMeta(status);
+  if (!m) return name;
+  if (m.key === "unknown") return `${name} — ${m.hint} ("${m.raw}")`;
+  return `${name} — ${m.hint}`;
+}

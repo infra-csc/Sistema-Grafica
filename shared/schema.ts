@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, decimal, boolean, json, index } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, decimal, boolean, json, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -159,6 +159,19 @@ export const items = pgTable("items", {
   conferredAt: timestamp("conferred_at"), // Quando a Gráfica terminou de conferir tudo
   conferredQty: integer("conferred_qty").notNull().default(0), // Quantidade já conferida (conferência parcial)
   deliveredQty: integer("delivered_qty").notNull().default(0), // Quantidade já entregue (entrega parcial)
+  // ── Complemento: aumento de quantidade DEPOIS que a peça entrou em produção. ──
+  // A peça original NUNCA é alterada (nenhum UPDATE na linha da mãe): a diferença
+  // nasce como peça-filha #0062-C1, com ciclo próprio de produção, conferência,
+  // entrega e ativos de inventário. Por quê: rebaixar uma peça já entregue para
+  // "Em Produção" reescreveria relatório de fechamento e obrigaria a Gráfica a
+  // fazer conta mental (15 na coluna QTD, 10 na PROD) justamente na tela onde a
+  // leitura precisa ser instantânea. Aqui o número da linha JÁ É o saldo.
+  // NULL em parentItemId = peça normal (100% do acervo existente).
+  parentItemId: varchar("parent_item_id").references((): any => items.id, { onDelete: "set null" }),
+  complementSeq: integer("complement_seq"),               // 1, 2, 3… ordem do complemento dentro da mãe
+  complementReason: text("complement_reason"),            // justificativa (obrigatória na rota, mín. 10 caracteres)
+  complementRequestedBy: text("complement_requested_by"), // nome denormalizado (mesmo padrão de receivedBy)
+  complementRequestedAt: timestamp("complement_requested_at"),
   sponsorApprovedBy: text("sponsor_approved_by"), // Nome do aprovador do patrocinador
   sponsorApprovedAt: timestamp("sponsor_approved_at"), // Quando foi aprovado pelo patrocinador
   creatorReviewedAt: timestamp("creator_reviewed_at"), // Quando criador do evento revisou
@@ -180,6 +193,9 @@ export const items = pgTable("items", {
   // Toda listagem ordena por created_at e filtra deleted_at IS NULL (soft delete).
   index("IDX_items_created_at").on(table.createdAt),
   index("IDX_items_deleted_at").on(table.deletedAt),
+  // Enriquecimento das 3 rotas de leitura busca os complementos por lote
+  // (WHERE parent_item_id = ANY(...)) — sem índice vira seq scan por request.
+  index("IDX_items_parent_item_id").on(table.parentItemId),
 ]);
 
 // Standard items (templates)
@@ -217,13 +233,29 @@ export const prazoCobrancas = pgTable("prazo_cobrancas", {
   targetType: text("target_type").notNull(), // "event" | "sponsor"
   targetId: varchar("target_id").notNull(), // eventId ou sponsorId
   userName: text("user_name").notNull(),
+  // Data PROMETIDA pelo responsável no ato da cobrança ("YYYY-MM-DD" no fuso
+  // do negócio). É `text`, não `timestamp`, de propósito: o que se combina ao
+  // telefone é um DIA-calendário ("fica pronto sexta"), não um instante — a
+  // mesma convenção de prazoSnapshots.day. Transforma a cobrança de post-it
+  // ("liguei") em compromisso ("você me disse quinta").
+  promisedFor: text("promised_for"),
+  // Nota curta do que foi combinado. O teto de 280 é aplicado no zod da rota,
+  // não no banco: encurtar limite de coluna depois exige migração, encurtar
+  // validação não.
+  note: text("note"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 }, (table) => [
   index("IDX_prazo_cobrancas_target").on(table.targetType, table.targetId),
 ]);
 
 // Gestão de Prazos: snapshot diário dos KPIs (1 linha por dia de negócio) —
-// alimenta a tendência ▲▼ "vs ontem" nos cards. Upsert barato no próprio GET.
+// alimenta a tendência ▲▼ contra o último registro nos cards. Escrito pelo job
+// services/prazoSnapshots.ts (NÃO mais dentro do GET: leitura com efeito
+// colateral fazia a série virar "valor da última visita", e dias sem acesso
+// simplesmente não existiam).
+//
+// Decisão consciente: NÃO existe coluna `sem_pecas` aqui. "Sem peças" é faixa
+// de triagem, não cartão de KPI com tendência — coluna que ninguém lê é dívida.
 export const prazoSnapshots = pgTable("prazo_snapshots", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   day: text("day").notNull().unique(), // YYYY-MM-DD no fuso do negócio (America/Sao_Paulo)
@@ -233,6 +265,25 @@ export const prazoSnapshots = pgTable("prazo_snapshots", {
   emDia: integer("em_dia").notNull(),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
+
+// Gestão de Prazos: fecho diário POR EVENTO — base da faixa "O que mudou
+// desde ontem". O snapshot agregado acima diz que os atrasados subiram de 4
+// para 6; este diz QUAIS dois entraram, que é a primeira pergunta das 8h.
+export const prazoEventSnapshots = pgTable("prazo_event_snapshots", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  day: text("day").notNull(), // YYYY-MM-DD no fuso do negócio (America/Sao_Paulo)
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  hasOverdue: boolean("has_overdue").notNull(),
+  pecasAtrasadas: integer("pecas_atrasadas").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => [
+  // É o `target` do onConflictDoUpdate do job — sem ele o upsert horário
+  // duplica linha por evento a cada tick, e a comparação passa a somar o
+  // mesmo evento N vezes.
+  uniqueIndex("UQ_prazo_event_snapshots_day_event").on(table.day, table.eventId),
+  // Busca do dia base (MAX(day) < hoje) e leitura do dia inteiro.
+  index("IDX_prazo_event_snapshots_day").on(table.day),
+]);
 
 // Notifications table
 export const notifications = pgTable("notifications", {
@@ -505,6 +556,23 @@ export const insertItemSchema = createInsertSchema(items).omit({
   calculatedM2: z.string().or(z.number()),
 });
 
+// Schema de criação PÚBLICO (o que POST /api/items e /api/items/bulk aceitam do
+// cliente). Existe porque insertItemSchema é derivado da tabela: assim que as
+// colunas de complemento entraram, elas passaram a ser aceitas automaticamente
+// pelo body — e qualquer usuário autenticado poderia FORJAR um parentItemId,
+// pendurando uma peça qualquer como "complemento" de outra (inclusive de outro
+// evento) e contaminando contractedTotal, ordenação e a fila da Gráfica.
+// O parentesco só nasce por POST /api/items/:id/complement, que valida papel,
+// status e ancestralidade. insertItemSchema segue existindo para uso INTERNO
+// (storage, importação, clonagem) e como base do updateItemSchema.
+export const publicInsertItemSchema = insertItemSchema.omit({
+  parentItemId: true,
+  complementSeq: true,
+  complementReason: true,
+  complementRequestedBy: true,
+  complementRequestedAt: true,
+});
+
 export const insertStandardItemSchema = createInsertSchema(standardItems).omit({
   id: true,
   createdAt: true,
@@ -653,6 +721,8 @@ export type InsertEvent = z.infer<typeof insertEventSchema>;
 
 export type Item = typeof items.$inferSelect;
 export type InsertItem = z.infer<typeof insertItemSchema>;
+/** O que a API pública aceita criar — sem os campos de parentesco (ver publicInsertItemSchema). */
+export type PublicInsertItem = z.infer<typeof publicInsertItemSchema>;
 
 // Item lifecycle statuses. The `status` column is stored as free-form text
 // (see items table above), but the application only ever writes one of these
@@ -726,3 +796,16 @@ export type InsertEventInventoryAllocation = z.infer<typeof insertEventInventory
 
 export type EventQuotaRule = typeof eventQuotaRules.$inferSelect;
 export type InsertEventQuotaRule = z.infer<typeof insertEventQuotaRuleSchema>;
+
+// Gestão de Prazos — tipos das tabelas de accountability e série histórica.
+// Insert usa $inferInsert (não createInsertSchema): não há formulário nem
+// validação de usuário sobre estas tabelas — só o job e a rota admin escrevem,
+// e a validação de entrada da cobrança mora no zod da própria rota.
+export type PrazoCobranca = typeof prazoCobrancas.$inferSelect;
+export type InsertPrazoCobranca = typeof prazoCobrancas.$inferInsert;
+
+export type PrazoSnapshot = typeof prazoSnapshots.$inferSelect;
+export type InsertPrazoSnapshot = typeof prazoSnapshots.$inferInsert;
+
+export type PrazoEventSnapshot = typeof prazoEventSnapshots.$inferSelect;
+export type InsertPrazoEventSnapshot = typeof prazoEventSnapshots.$inferInsert;

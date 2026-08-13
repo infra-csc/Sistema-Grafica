@@ -38,13 +38,20 @@ const editableKeyDown = (activate: () => void) => (e: React.KeyboardEvent) => {
 };
 
 // ── Editable row for import preview table ────────────────────────────────
+// Cota → cor. MESMOS pares de eventos.tsx (QUOTA_OPTIONS), derivados da paleta
+// `P` de lib/status.ts: tint 50 no fundo, tom 700/800 no TEXTO. Duas coisas
+// estavam erradas aqui: (1) a divergência — MASTER era #dc2626 nesta tela e
+// #ef4444 na de Eventos, para o mesmo dado; (2) o contraste — o chip é 10px, e
+// MIDIA (#0891b2 sobre #ecfeff, 3,3:1) e MINISTERIO (#059669 sobre #ecfdf5,
+// 3,2:1) reprovavam AA. DÍVIDA: quando QUOTAS virar módulo em `shared`, este
+// mapa e o de eventos.tsx viram um só.
 const IMPORT_QUOTA_COLORS: Record<string, { bg: string; color: string; border: string }> = {
-  MASTER:     { bg: '#fff1f1', color: '#dc2626', border: '#fecaca' },
+  MASTER:     { bg: '#fef2f2', color: '#b91c1c', border: '#fecaca' },
   GOLD:       { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
-  SILVER:     { bg: '#f5f3ff', color: '#7c3aed', border: '#ddd6fe' },
-  APOIO:      { bg: '#f9fafb', color: '#6b7280', border: '#e5e7eb' },
-  MIDIA:      { bg: '#ecfeff', color: '#0891b2', border: '#a5f3fc' },
-  MINISTERIO: { bg: '#ecfdf5', color: '#059669', border: '#a7f3d0' },
+  SILVER:     { bg: '#faf5ff', color: '#7e22ce', border: '#e9d5ff' },
+  APOIO:      { bg: '#f5f5f4', color: '#44403c', border: '#e7e5e4' },
+  MIDIA:      { bg: '#ecfeff', color: '#0e7490', border: '#a5f3fc' },
+  MINISTERIO: { bg: '#ecfdf5', color: '#047857', border: '#a7f3d0' },
 };
 
 export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsList }: {

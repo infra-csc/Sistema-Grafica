@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { parseDateLocal, toUTCDisplayDate, runInBatches } from "@/lib/utils";
+import { compareDisplayId } from "@/lib/displayId";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { Card, CardContent } from "@/components/ui/card";
@@ -1981,9 +1982,9 @@ export default function VincularPatrocinadores() {
               const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
               if (ga !== gb) return COLLATOR_PTBR.compare(ga, gb);
               if (a.type !== b.type) return COLLATOR_PTBR.compare(a.type, b.type);
-              const idA = parseInt(String(a.displayId || '0').replace(/\D/g, '')) || 0;
-              const idB = parseInt(String(b.displayId || '0').replace(/\D/g, '')) || 0;
-              return idA - idB;
+              // compareDisplayId, não replace(/\D/g,''): o complemento
+              // "#0062-C1" virava 621 e desgrudava da peça original.
+              return compareDisplayId(a.displayId, b.displayId);
             });
 
           // Progress usa TODOS os itens do evento, não apenas os filtrados

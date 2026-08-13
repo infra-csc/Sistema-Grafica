@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn, parseDateLocal, toUTCDisplayDate, runInBatches, fileNameFromPath } from "@/lib/utils";
+import { compareDisplayId } from "@/lib/displayId";
 // Motor de PDF compartilhado (mesmo da tela de Atendimento) — a Arte não tem
 // mais motor próprio; qualquer ajuste de layout do book vale para as duas telas.
 import { exportMixedToPDF, convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
@@ -932,9 +933,9 @@ export default function Arte() {
       if (eA !== eB) return cmp.compare(eA, eB);
       const gA = groupOf(a.type) || '', gB = groupOf(b.type) || '';
       if (gA !== gB) return cmp.compare(gA, gB);
-      const idA = parseInt(String(a.displayId || '0').replace(/\D/g, '')) || 0;
-      const idB = parseInt(String(b.displayId || '0').replace(/\D/g, '')) || 0;
-      return idA - idB;
+      // compareDisplayId, não replace(/\D/g,''): o complemento "#0062-C1"
+      // virava 621 e caía a centenas de linhas da peça de que ele nasceu.
+      return compareDisplayId(a.displayId, b.displayId);
     });
   }, [itemsByTab, activeTab, groupMaps]);
 

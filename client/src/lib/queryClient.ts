@@ -33,9 +33,26 @@ async function throwIfResNotOk(res: Response, url?: string) {
   // Se a resposta for uma página HTML (ex: página 404 do Replit), não exibir
   // o HTML bruto — substituir por mensagem genérica legível.
   const isHtml = raw.trimStart().startsWith("<");
-  const text = isHtml
-    ? `Erro ${res.status} — servidor retornou resposta inesperada. Tente novamente.`
-    : raw;
+  if (isHtml) {
+    throw new Error(`Erro ${res.status} — servidor retornou resposta inesperada. Tente novamente.`);
+  }
+
+  // Corpo JSON: as rotas respondem `{ "error": "..." }` com frases escritas
+  // PARA O USUÁRIO. Jogar o corpo bruto no toast soterrava a instrução útil
+  // dentro de chaves, aspas e barras invertidas — o usuário lia um blob,
+  // concluía que "o sistema quebrou", e a tela inteira passava a parecer
+  // inacabada num único toast. Só troca quando o parse devolve objeto com
+  // `error`/`message` em texto; qualquer outra coisa segue o caminho antigo.
+  let text = raw;
+  if (raw.trimStart().startsWith("{")) {
+    try {
+      const parsed = JSON.parse(raw) as { error?: unknown; message?: unknown };
+      const msg = typeof parsed.error === "string" ? parsed.error
+        : typeof parsed.message === "string" ? parsed.message
+        : "";
+      if (msg.trim()) text = msg;
+    } catch { /* corpo não era JSON válido — mantém o texto como veio */ }
+  }
   throw new Error(text);
 }
 

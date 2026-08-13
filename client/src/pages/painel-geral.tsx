@@ -13,8 +13,14 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
+import { compareDisplayId } from "@/lib/displayId";
 import { FilterSelect } from "@/components/filter-select";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
+import {
+  AumentarQuantidadeDialog,
+  ComplementoDaFicha,
+  temBlocoDeComplemento,
+} from "@/components/aumentar-quantidade-dialog";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -22,6 +28,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { getStatusMeta, getStatusLabel, PRODUCTION_STATUSES, FINAL_STATUSES } from "@/lib/status";
 import { StatusPill } from "@/components/status-pill";
 import type { Event, Sponsor, StandardItem } from "@shared/schema";
+import { isPlausibleEventYear } from "@shared/prazo-dates";
 
 // ─── Constantes de módulo — não dependem de estado; hoisted para não serem
 // realocadas a cada render. ─────────────────────────────────────────────────
@@ -267,6 +274,8 @@ export default function PainelGeral() {
   const expandEvent = (key: string) =>
     setExpandedEvents(prev => { const next = new Set(prev); next.add(key); return next; });
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  // Aumento de quantidade pós-produção (COMPLEMENTO): a peça-mãe em foco.
+  const [complementItem, setComplementItem] = useState<any>(null);
   const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null);
   // Feedback do restaurar: guarda o id em restauração para trocar o ícone
   // daquele botão por um spinner (os outros só ficam desabilitados).
@@ -295,6 +304,19 @@ export default function PainelGeral() {
     enabled: !!selectedItem?.id,
     placeholderData: [],
   });
+
+  // Espelho do `canCreateItemsFor` do servidor (server/routes/items.ts): admin,
+  // solicitacao ou o CRIADOR do evento — por isso o predicado depende da peça,
+  // e não só do papel. A Gráfica não cria complemento: ela produz o que pedem.
+  // O gate real é o do servidor (403); aqui é só para não oferecer um botão que
+  // vai ser recusado.
+  const eventoDaPeca = (item: any) =>
+    item ? (events as any[]).find((e: any) => e.id === item.eventId) ?? null : null;
+  const podeCriarPecas = (item: any) => {
+    if (!item || !user) return false;
+    if (isAdmin || user.role === "solicitacao") return true;
+    return eventoDaPeca(item)?.createdBy === user.id;
+  };
 
   const showDeleted = statusFilter.includes("deleted");
   const {
@@ -414,9 +436,10 @@ export default function PainelGeral() {
       if (!!a.deletedAt !== !!b.deletedAt) return a.deletedAt ? 1 : -1;
       const gA = typeToGroup[a.type] || '', gB = typeToGroup[b.type] || '';
       if (gA !== gB) return gA.localeCompare(gB, 'pt-BR');
-      const idA = parseInt(String(a.displayId || '0').replace(/\D/g, '')) || 0;
-      const idB = parseInt(String(b.displayId || '0').replace(/\D/g, '')) || 0;
-      return idA - idB;
+      // compareDisplayId, não replace(/\D/g,''): com o replace, o complemento
+      // "#0062-C1" virava 621 e aparecia centenas de linhas longe da mãe —
+      // duas linhas da mesma peça, sem nada na tela explicando a relação.
+      return compareDisplayId(a.displayId, b.displayId);
     });
 
   const groupedItems = filteredItems.reduce((acc, item) => {
@@ -894,8 +917,10 @@ export default function PainelGeral() {
               // Guarda de sanidade: saída no ano 0206 (typo de 2026) produzia
               // "ATRASADO 664730D". Dado absurdo é problema de CADASTRO — o
               // chip aponta a correção em vez de fazer a conta fiel do lixo.
-              const truckYear = truckDay.getFullYear();
-              deadline = (truckYear < 2000 || truckYear > 2100)
+              // A faixa mora em @shared/prazo-dates (fonte única, a mesma que
+              // a validação de escrita em routes/events.ts e a Gestão de
+              // Prazos usam): quando ela mudar, muda nos três de uma vez.
+              deadline = !isPlausibleEventYear(truckDay.getFullYear())
                 ? { text: "Data de saída inválida — corrija o evento", color: "#b91c1c" }
                 : isHistorical ? { text: "Encerrado", color: "#746e69" }
                 : diffDays < 0 ? { text: `Atrasado ${Math.abs(diffDays)}d`, color: "#b91c1c" }
@@ -1483,6 +1508,26 @@ export default function PainelGeral() {
         auditLogs={auditLogs}
         open={!!selectedItem}
         onOpenChange={(open) => !open && setSelectedItem(null)}
+        customActions={temBlocoDeComplemento(selectedItem, podeCriarPecas(selectedItem)) ? (
+          <ComplementoDaFicha
+            item={selectedItem}
+            canEditLists={podeCriarPecas(selectedItem)}
+            onAumentar={(alvo) => { setSelectedItem(null); setComplementItem(alvo); }}
+            onAbrirPeca={(id) => {
+              const alvo = (items as any[]).find((i: any) => i.id === id);
+              if (alvo) setSelectedItem(alvo);
+            }}
+          />
+        ) : undefined}
+      />
+
+      {/* Aumentar quantidade — mesmo modal do Detalhe do Evento e da Revisão. */}
+      <AumentarQuantidadeDialog
+        item={complementItem}
+        event={eventoDaPeca(complementItem)}
+        open={!!complementItem}
+        onOpenChange={(o) => { if (!o) setComplementItem(null); }}
+        onCreated={(child) => { if (child?.id) setSelectedItem(child); }}
       />
 
       {/* ── Delete confirmation (Admin ou Solicitação, respeitando canDeleteItem) ── */}

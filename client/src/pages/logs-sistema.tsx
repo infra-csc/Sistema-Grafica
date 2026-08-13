@@ -34,6 +34,12 @@ const ACTION_CFG: Record<string, { label: string; bg: string; color: string }> =
   released:           { label: "Liberado",        bg: "#f0fdf4", color: "#047857" },
   rejected:           { label: "Reprovado",       bg: "#fef2f2", color: "#b91c1c" },
   password_changed:   { label: "Senha",           bg: "#faf5ff", color: "#7e22ce" },
+  // COMPLEMENTO: aumento de quantidade pedido depois que a peça entrou em
+  // produção. Sem estas duas entradas o badge saía com a action CRUA
+  // ("complement_created") em cinza de fallback — legível só para quem já
+  // conhece o código.
+  complement_created:  { label: "Complemento",     bg: "#fff7ed", color: "#c2410c" },
+  complement_canceled: { label: "Compl. Cancelado", bg: "#fef2f2", color: "#b91c1c" },
   // 'login' saiu de propósito: o sistema NÃO grava log de login — manter o
   // badge sugeria um rastreamento de acessos que não existe.
 };

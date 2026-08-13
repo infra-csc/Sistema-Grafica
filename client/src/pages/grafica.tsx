@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { FilterSelect } from "@/components/filter-select";
-import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, ImagePlus, FileSpreadsheet, ListChecks } from "lucide-react";
+import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, ImagePlus, FileSpreadsheet, ListChecks, PlusCircle, Trash2 } from "lucide-react";
 import { Fragment, useState, useMemo, useEffect, useRef } from "react";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { parseDateLocal } from "@/lib/utils";
@@ -20,6 +20,24 @@ import { getStatusMeta, getStatusLabel, getPriorityMeta } from "@/lib/status";
 import { StatusPill } from "@/components/status-pill";
 import { useAuth } from "@/contexts/auth-context";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
+// Aritmética de saldo: fonte única em lib/saldo.ts. Estes onze cálculos
+// (quanto falta produzir, conferir, entregar, reaproveitar; quanto de m²
+// realmente vai para a impressora) viviam duplicados como consts locais no
+// topo deste arquivo e eram refeitos "na mão" na ficha da peça e nos modais —
+// toda vez que uma regra mudou, uma das cópias ficou para trás. Aqui a lista,
+// os modais e a ficha leem os MESMOS números.
+import {
+  isDelivered, isConferred, isProduced, isInProd,
+  qtyOf, producedOf, conferredOf, deliveredOf, reusedOf, reusedTotalOf,
+  m2ToProduce, remainingProduce, remainingConfer, remainingDeliver, remainingReuse,
+  canConfer, canDeliver,
+  isComplement, complementsQtyOf, contractedTotalOf,
+} from "@/lib/saldo";
+// Leitura/ordenação do código da peça: fonte única em lib/displayId.ts, o mesmo
+// módulo que Painel Geral, Arte e Vincular usam (e espelho de server/storage.ts).
+// "#0062-C1" tem de ordenar COLADO em "#0062" — com o replace(/\D/g,'') antigo
+// virava 621 e o complemento aparecia centenas de linhas longe da mãe.
+import { compareDisplayId, splitDisplayId } from "@/lib/displayId";
 
 const TI = {
   bg: "#fafaf9",
@@ -31,42 +49,84 @@ const TI = {
   secondary: "#78716c",
 };
 
-// ── Helpers puros de estado/quantidade — não dependem de estado do componente ──
-const isDelivered = (item: any) => item.status === "delivered" || item.status === "entregue";
-const isConferred = (item: any) => item.status === "conferred";
-const isProduced = (item: any) => item.status === "produced" || item.status === "produzido";
-const isInProd = (item: any) => item.status === "inProduction" || item.status === "em_producao";
+// Número de colunas da tabela desktop. Estava escrito "10" em quatro lugares
+// (cabeçalho de grupo, de evento, de tipo e linha de observação); qualquer
+// coluna nova quebrava o alinhamento em silêncio numa delas.
+const COLS = 10;
 
-// Quantidades para reaproveitamento/conferência/entrega parciais.
-const qtyOf = (item: any) => Number(item.quantity) || 0;
-const conferredOf = (item: any) => Number(item.conferredQty) || 0;
-const deliveredOf = (item: any) => Number(item.deliveredQty) || 0;
-const reusedOf = (item: any) => Number(item.reuseQty) || 0;
-const producedOf = (item: any) => Number(item.quantityProduced) || 0;
-// Peças marcadas como reuso antes de reuseQty existir nunca conferiram — pela
-// regra antiga iam direto para a entrega. Mantidas nessa regra para não travar
-// entregas em andamento; as novas seguem pela conferência.
-const isLegacyReuse = (item: any) => item.isReuse && reusedOf(item) === 0;
-// Reuso total antigo não preencheu reuseQty, mas cobre a peça inteira.
-const reusedTotalOf = (item: any) => (item.isReuse ? qtyOf(item) : reusedOf(item));
-// Metragem que de fato vai para a impressora: o reaproveitado não é impresso.
-const m2ToProduce = (item: any) => {
-  const total = Number(item.calculatedM2) || 0;
-  const qty = qtyOf(item);
-  if (!total || !qty) return total;
-  const toPrint = qty - reusedTotalOf(item);
-  return toPrint <= 0 ? 0 : (total / qty) * toPrint;
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPLEMENTO — aumento de quantidade DEPOIS que a peça entrou em produção.
+//
+// A peça original nunca muda: a diferença nasce como peça-filha (#0062-C1),
+// com quantidade, ciclo de produção, conferência, entrega e ativos próprios.
+// Nesta tela isso precisa gritar — é trabalho NOVO numa fila que o operador já
+// tinha dado por fechada, e o número da linha já é exatamente o que falta
+// imprimir (a Gráfica não faz conta).
+//
+// Tokens da família laranja de lib/status.ts (P.orange), nada inventado.
+// Regra da casa respeitada: #f97316 entra só como faixa/bolinha (fundo), nunca
+// como cor de TEXTO; #c2410c aparece como texto sobre tint claro (4.96:1) e
+// como fundo sólido com texto branco (5.18:1 — AA em 10px/800).
+// ─────────────────────────────────────────────────────────────────────────────
+const CO = {
+  solidBg: "#c2410c", solidText: "#ffffff",
+  bg: "#fff7ed", hoverBg: "#ffedd5", border: "#fed7aa",
+  text: "#c2410c",        // 4.96:1 sobre #fff7ed — AA
+  textStrong: "#7c2d12",  // 8.97:1 sobre #fff7ed — AAA
+  stripe: "#f97316",      // SÓ fundo/faixa
+  suffix: "#9a3412",      // o "-C1" dentro do displayId
+  connector: "#fdba74",   // conector em L (traço, não texto)
 };
-const remainingConfer = (item: any) => qtyOf(item) - conferredOf(item);
-// Reaproveitado também confere, então a entrega sempre sai do que foi conferido.
-const remainingDeliver = (item: any) =>
-  (isLegacyReuse(item) ? qtyOf(item) : conferredOf(item)) - deliveredOf(item);
-// Sobra para reaproveitar: o que não foi reaproveitado nem produzido ainda.
-const remainingReuse = (item: any) => qtyOf(item) - reusedOf(item) - producedOf(item);
-// Botões parciais: dá pra conferir enquanto falta conferir (e já produziu);
-// dá pra entregar enquanto há conferido não entregue.
-const canConfer = (item: any) => !isDelivered(item) && !isLegacyReuse(item) && isProduced(item) && remainingConfer(item) > 0;
-const canDeliver = (item: any) => !isDelivered(item) && remainingDeliver(item) > 0;
+
+/** displayId da peça-mãe. Usa o enrich do servidor e, se faltar, deriva do id. */
+const parentDisplayIdOf = (item: any) =>
+  item?.parent?.displayId || splitDisplayId(item?.displayId).base;
+/**
+ * O destaque FORTE (fundo, faixa, selo sólido e linha de motivo) vale enquanto
+ * o complemento não foi entregue. Entre produzir e entregar ainda há
+ * conferência e a carga do caminhão, e o complemento é justamente o lote que
+ * corre risco de perder a janela logística. Depois de entregue sobra só a
+ * identidade permanente ("complemento de #0062") — o alarme some sozinho, sem
+ * ninguém precisar confirmar nada.
+ */
+const complementOpen = (item: any) => isComplement(item) && !isDelivered(item);
+/** Espelha o gate do servidor no DELETE /api/items/:id/complement. */
+const complementUntouched = (item: any) =>
+  producedOf(item) === 0 && reusedOf(item) === 0 && conferredOf(item) === 0 && deliveredOf(item) === 0;
+
+/** "13/08 14:22" — timestamp real (fuso local), diferente da Saída, que é UTC. */
+const fmtDataHora = (v?: string | Date | null) => {
+  if (!v) return "";
+  const d = new Date(v as any);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" })} ${d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+};
+
+/**
+ * Fundo da linha da tabela — UMA função para as três mãos (style inicial,
+ * onMouseEnter e onMouseLeave). Antes a cor era decidida em três lugares
+ * desalinhados: passar o mouse por cima apagava qualquer realce que não
+ * estivesse repetido nos três, e o realce do complemento seria a primeira
+ * vítima. Precedência: seleção em lote > complemento em aberto > reaproveitado.
+ * A seleção passou de #fff7ed para #ffedd5 justamente para não empatar com o
+ * fundo do complemento.
+ */
+const rowBg = (item: any, isSelected: boolean, hover: boolean) => {
+  if (isSelected) return hover ? CO.border : CO.hoverBg;
+  if (complementOpen(item)) return hover ? CO.hoverBg : CO.bg;
+  if (item?.isReuse) return hover ? "#dcfce7" : "#f0fdf4";
+  return hover ? "#fafaf9" : "";
+};
+
+/** Mensagem legível de um erro da API (apiRequest devolve o corpo cru). */
+const apiErrorMessage = (error: any) => {
+  const raw = String(error?.message ?? "");
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed?.error) return String(parsed.error);
+  } catch { /* não era JSON — usa o texto como veio */ }
+  return raw || "Erro inesperado";
+};
 
 // Chip de quantidade do card mobile (reaproveitado/produzido/conferido/
 // entregue). Tons 700 sobre fundo claro: 10px precisa passar AA.
@@ -314,6 +374,21 @@ function BulkActionDialog({
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                       <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: tint, flexShrink: 0 }}>{item.displayId}</span>
+                      {/* O complemento tem a MESMA arte, o mesmo tipo e quase a
+                          mesma descrição da peça original: numa conferência em
+                          lote com as duas selecionadas, sem este selo as duas
+                          linhas são indistinguíveis — e é aqui que o operador
+                          dá o último olhar antes de registrar tudo de uma vez. */}
+                      {isComplement(item) && (
+                        <span
+                          title={item.complementReason ? `Complemento — motivo: ${item.complementReason}` : "Peça complementar (aumento de quantidade)"}
+                          data-testid={`badge-complemento-lote-${item.id}`}
+                          style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, backgroundColor: CO.solidBg, color: CO.solidText, borderRadius: 5, padding: "1px 6px", fontSize: 9, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", whiteSpace: "nowrap" }}
+                        >
+                          <PlusCircle style={{ width: 9, height: 9 }} />
+                          Compl. de {parentDisplayIdOf(item)}
+                        </span>
+                      )}
                       <span style={{ fontSize: 13, fontWeight: 600, color: TI.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.type}</span>
                     </div>
                     {item.description && item.description !== item.type && (
@@ -390,6 +465,15 @@ export default function Grafica() {
   // fila, era o único jeito de montar o lote certo sem conferir uma a uma.
   const [groupFilter, setGroupFilter] = useState<string[]>([]);
   const [percursoFilter, setPercursoFilter] = useState<string[]>([]);
+  // Chip "complementos": recorta a fila para os aumentos de quantidade pedidos
+  // depois que a peça já estava em produção. Não pinamos os complementos no
+  // topo da lista (arrancá-los do bloco do evento duplicaria cabeçalhos e a
+  // Gráfica trabalha POR EVENTO, com o caminhão marcado) — o acesso rápido vem
+  // deste filtro, e o realce visual faz o resto.
+  const [complementFilter, setComplementFilter] = useState(false);
+  // Confirmação em dois toques do "cancelar complemento" — mesmo idioma dos
+  // botões de reaproveitamento desta tela, e nunca destrutivo num clique só.
+  const [cancelComplementId, setCancelComplementId] = useState<string | null>(null);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [next10DaysFilter, setNext10DaysFilter] = useState(false);
   const [monthFilter, setMonthFilter] = useState<string[]>([]);
@@ -426,7 +510,13 @@ export default function Grafica() {
   const [bulkConferPhotos, setBulkConferPhotos] = useState<string[]>([]);
   const addBulkConferPhoto = (url: string) => setBulkConferPhotos(prev => [...prev, convertGCSUrlToLocalPath(url)]);
   const isMobile = useIsMobile();
-  const { data: items = [], isLoading, isError, refetch } = useQuery<any[]>({ queryKey: ["/api/items/approved"] });
+  const { data: items = [], isLoading, isError, error, refetch } = useQuery<any[]>({ queryKey: ["/api/items/approved"] });
+  // Enquanto o `npm run db:push` das colunas de complemento não roda, o SELECT
+  // do Drizzle pede colunas que não existem e a leitura inteira falha (não só
+  // o recurso). Sem esta detecção a tela diria "verifique sua conexão" e o
+  // operador ligaria para o suporte errado.
+  const migracaoPendente = /parent_item_id|complement_|migra[çc][ãa]o pendente|42703/i
+    .test(String((error as any)?.message ?? ""));
   // Só busca os logs com o dialog de detalhes aberto — é o único consumidor, e
   // a lista completa de auditoria é pesada demais para carregar junto da tela.
   const { data: auditLogs = [] } = useQuery<any[]>({
@@ -549,6 +639,28 @@ export default function Grafica() {
     },
   });
 
+  // Cancelar complemento — a janela de arrependimento, aberta também para a
+  // Gráfica (é quem percebe o engano na hora, com a fila na frente). O servidor
+  // recusa se QUALQUER unidade já foi produzida, reaproveitada, conferida ou
+  // entregue; o botão só aparece nesse mesmo caso, para não convidar a uma ação
+  // que voltaria como erro. O número -C1 não é reciclado: o próximo será -C2.
+  const cancelComplementMutation = useMutation({
+    mutationFn: async ({ itemId }: { itemId: string; displayId: string }) =>
+      await (await apiRequest("DELETE", `/api/items/${itemId}/complement`)).json(),
+    onSuccess: (_data: any, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setCancelComplementId(null);
+      toast({ title: "Complemento cancelado", description: `${vars.displayId} removido da fila.` });
+    },
+    onError: (error: Error) => {
+      setCancelComplementId(null);
+      // O corpo do 409/503 vem como JSON cru dentro da mensagem — sem traduzir,
+      // o operador leria {"error":"…","code":"COMPLEMENT_TOUCHED"} no toast.
+      toast({ title: "Não foi possível cancelar", description: apiErrorMessage(error), variant: "destructive" });
+    },
+  });
+
   // Filtros facetados: cada filtro lista só o que existe no recorte atual,
   // aplicando os OUTROS filtros ativos (com contagem por opção).
   const gFacetPool = (exclude: 'event' | 'status' | 'type' | 'material' | 'finish' | 'group' | 'percurso') =>
@@ -664,6 +776,10 @@ export default function Grafica() {
         : item.status === sf);
       if (!ok) return false;
     }
+    // O chip de complementos é filtro de RECORTE, como o status: o pool que
+    // alimenta os cards e o próprio chip ignora os dois (`skipStatus`), senão
+    // cada um zeraria a contagem de onde nasceu.
+    if (!opts?.skipStatus && complementFilter && !isComplement(item)) return false;
     if (eventFilter.length > 0 && !eventFilter.includes(item.eventId)) return false;
     if (groupFilter.length > 0 && !groupFilter.includes(groupOf(item.type))) return false;
     // Percurso: casa com QUALQUER um dos selecionados (placa "5k/10k" entra
@@ -705,10 +821,18 @@ export default function Grafica() {
         if (da !== db) return da - db;
         const ea = a.event?.name || ""; const eb = b.event?.name || "";
         if (ea !== eb) return ea.localeCompare(eb);
-        return a.type.localeCompare(b.type);
+        if (a.type !== b.type) return a.type.localeCompare(b.type);
+        // 4º critério: o complemento COLA na peça original. #0062 → #0062-C1 →
+        // #0062-C2 → #0063. O filho herda eventId e type, então os três
+        // critérios anteriores sempre empatam e ele cai logo abaixo da mãe —
+        // sem isso "#0062-C1" ordenaria como 621 e apareceria a centenas de
+        // linhas dela, criando exatamente a duplicidade confusa que o modelo
+        // de complemento existe para evitar. Os cabeçalhos de evento/grupo/tipo
+        // (derivados por comparação com a linha anterior) seguem corretos.
+        return compareDisplayId(a.displayId, b.displayId);
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [items, searchFilter, statusFilter, eventFilter, groupFilter, percursoFilter, typeFilter, materialFilter, finishFilter, next10DaysFilter, monthFilter, standardItems]);
+    [items, searchFilter, statusFilter, eventFilter, groupFilter, percursoFilter, typeFilter, materialFilter, finishFilter, next10DaysFilter, monthFilter, complementFilter, standardItems]);
 
   // statsPool: todos os filtros ativos (exceto status) — os cards mostram contagens dentro do contexto atual
   const statsPool = useMemo(() =>
@@ -723,6 +847,40 @@ export default function Grafica() {
     entregues:  statsPool.filter((i: any) => i.status === 'delivered').length,
     total:      statsPool.length,
   };
+
+  // ── Complementos no recorte atual (alimenta o chip do cabeçalho) ──
+  // Em ABERTO = ainda não entregues: é o trabalho que apareceu depois e ainda
+  // não terminou. O chip aparece também quando o filtro está ligado e o recorte
+  // esvaziou — senão o botão sumiria com o filtro preso e sem caminho de volta.
+  const complementosAbertos = useMemo(
+    () => statsPool.filter((i: any) => isComplement(i) && !isDelivered(i)),
+    [statsPool],
+  );
+  const complementosNaLista = useMemo(
+    () => statsPool.filter((i: any) => isComplement(i)),
+    [statsPool],
+  );
+  const complementoUn = complementosAbertos.reduce((s: number, i: any) => s + qtyOf(i), 0);
+  const complementoAProduzir = complementosAbertos.reduce((s: number, i: any) => s + remainingProduce(i), 0);
+  const complementoChipLabel = complementosAbertos.length > 0
+    // "a produzir" só quando ainda há impressão pela frente; se já produziu
+    // tudo e falta conferir/entregar, o texto seria mentira.
+    ? `+${complementoUn} un. em ${complementosAbertos.length} complemento${complementosAbertos.length !== 1 ? "s" : ""} ${complementoAProduzir > 0 ? "a produzir" : "em aberto"}`
+    : `${complementosNaLista.length} complemento${complementosNaLista.length !== 1 ? "s" : ""} na lista`;
+
+  // Deep link do sino: /grafica?item=<id> cai aqui vindo da notificação de
+  // complemento. Joga o displayId no campo de busca (que já procura por ele) e
+  // limpa a URL, para um F5 não reaplicar o recorte — mesmo padrão do
+  // event-detail. Espera a lista chegar: com o cache vazio o uuid não
+  // resolveria para displayId e a busca cairia em "nenhuma peça encontrada".
+  useEffect(() => {
+    if (isLoading) return;
+    const alvoId = new URLSearchParams(window.location.search).get("item");
+    if (!alvoId) return;
+    const alvo = (items as any[]).find((i: any) => i.id === alvoId);
+    setSearchFilter(alvo?.displayId ?? alvoId);
+    window.history.replaceState({}, "", window.location.pathname);
+  }, [items, isLoading]);
 
   const handleSubmitProduction = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1141,6 +1299,33 @@ export default function Grafica() {
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          {/* Chip de complementos — clicável e visível TAMBÉM no celular (o
+              chip de "aguardando produção" ao lado é !isMobile; este é
+              importante demais para sumir justamente na tela de quem está no
+              galpão). É o atalho para a fila de aumentos sem tirar a peça do
+              bloco do evento a que ela pertence. */}
+          {(complementosAbertos.length > 0 || complementFilter) && (
+            <button
+              onClick={() => setComplementFilter(v => !v)}
+              aria-pressed={complementFilter}
+              data-testid="chip-complementos"
+              title={complementFilter
+                ? "Mostrando só complementos — toque para ver a lista inteira"
+                : "Mostrar só as peças complementares (aumentos de quantidade pedidos após a produção)"}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                backgroundColor: complementFilter ? CO.hoverBg : CO.bg,
+                color: CO.text,
+                border: `1px solid ${complementFilter ? CO.stripe : CO.border}`,
+                borderRadius: 999, padding: isMobile ? "7px 12px" : "5px 11px",
+                fontSize: 11, fontWeight: 700, cursor: "pointer",
+                whiteSpace: "nowrap", transition: "background-color 0.15s",
+              }}
+            >
+              <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: CO.stripe, display: "inline-block", flexShrink: 0 }} />
+              {complementoChipLabel}
+            </button>
+          )}
           {!isMobile && stats.liberados > 0 && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
               <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#f97316", display: "inline-block" }} />
@@ -1449,8 +1634,14 @@ export default function Grafica() {
           </div>
         ) : isError ? (
           <div style={{ textAlign: "center", padding: "48px 24px" }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: "#b91c1c", marginBottom: 4 }}>Não foi possível carregar as peças</div>
-            <div style={{ fontSize: 13, color: TI.secondary, marginBottom: 16 }}>Verifique sua conexão e tente novamente.</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#b91c1c", marginBottom: 4 }}>
+              {migracaoPendente ? "Atualização do banco pendente" : "Não foi possível carregar as peças"}
+            </div>
+            <div style={{ fontSize: 13, color: TI.secondary, marginBottom: 16 }}>
+              {migracaoPendente
+                ? "Falta rodar a atualização do banco (npm run db:push) para o recurso de aumento de quantidade. Fale com o administrador."
+                : "Verifique sua conexão e tente novamente."}
+            </div>
             <button onClick={() => refetch()} style={{ background: TI.text, color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
           </div>
         ) : filteredItems.length === 0 ? (
@@ -1460,6 +1651,7 @@ export default function Grafica() {
             // filtros" sem filtro nenhum só confundia.
             const hasActiveFilters = !!searchFilter || statusFilter.length > 0 || eventFilter.length > 0 ||
               typeFilter.length > 0 || materialFilter.length > 0 || finishFilter.length > 0 ||
+              groupFilter.length > 0 || percursoFilter.length > 0 || complementFilter ||
               next10DaysFilter || monthFilter.length > 0;
             return (
               <div style={{ textAlign: "center", padding: "48px 24px", color: TI.secondary }}>
@@ -1483,6 +1675,11 @@ export default function Grafica() {
               const canDeliverItem = canDeliver(item);
               const canConferItem = canConfer(item);
               const bulkEligible = bulkDeliveryMode ? canDeliverItem : bulkConferMode ? canConferItem : false;
+              // ── Complemento: os mesmos três números do desktop ──
+              const ehComplemento = isComplement(item);
+              const coAberto = complementOpen(item);
+              const maeDisplayId = ehComplemento ? parentDisplayIdOf(item) : "";
+              const complQty = complementsQtyOf(item); // > 0 → esta é a MÃE
 
               return (
                 <Fragment key={item.id}>
@@ -1512,8 +1709,11 @@ export default function Grafica() {
                       // desenho que se reconhece o item na lista.
                       display: 'flex', alignItems: 'stretch',
                       minHeight: item.approvalThumbUrl ? 104 : 74,
-                      background: isSelected ? '#fff7ed' : '#fff',
-                      border: `1.5px solid ${isSelected ? TI.accent : TI.border}`,
+                      // Complemento em aberto tinge o card inteiro — no celular
+                      // não há coluna nenhuma para carregar o sinal, e é no
+                      // celular que a Gráfica trabalha com a peça na mão.
+                      background: isSelected ? CO.hoverBg : coAberto ? CO.bg : '#fff',
+                      border: `1.5px solid ${isSelected ? TI.accent : coAberto ? CO.border : TI.border}`,
                       borderRadius: showEvHeader ? '0 0 12px 12px' : 12,
                       overflow: 'hidden',
                       cursor: bulkOn ? (bulkEligible ? 'pointer' : undefined) : 'pointer',
@@ -1548,10 +1748,12 @@ export default function Grafica() {
                           </div>
                         </div>
                       ) : (
-                        <div style={{ width: 4, flexShrink: 0, background: '#e7e5e4' }} />
+                        <div style={{ width: 4, flexShrink: 0, background: coAberto ? CO.stripe : '#e7e5e4' }} />
                       )
                     ) : (
-                      <div style={{ width: 4, flexShrink: 0, background: isDelivered(item) ? '#86efac' : canDeliverItem ? TI.accent : '#e7e5e4' }} />
+                      // A tarja do complemento vem ANTES do verde/laranja/cinza:
+                      // enquanto ele não é entregue, é o sinal mais forte do card.
+                      <div style={{ width: 4, flexShrink: 0, background: coAberto ? CO.stripe : isDelivered(item) ? '#86efac' : canDeliverItem ? TI.accent : '#e7e5e4' }} />
                     )}
 
                     {/* Arte aprovada — no celular é ela que identifica a peça
@@ -1599,12 +1801,45 @@ export default function Grafica() {
                     <div style={{ flex: 1, padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
                         <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: item.isReuse ? '#059669' : '#c2410c' }}>
-                          {item.displayId}
+                          {(() => { const { base, suffix } = splitDisplayId(item.displayId); return (<>{base}{suffix && <span style={{ color: CO.suffix }}>{suffix}</span>}</>); })()}
                         </span>
                         <StatusPill status={item.status} size="sm" showDot={false} />
                         {item.isReuse && <span style={{ fontSize: 10, fontWeight: 800, color: '#059669', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, padding: '2px 6px' }}>REAPROV.</span>}
+                        {/* Selo do complemento: sólido enquanto o lote está em
+                            aberto (trabalho novo), outline depois de entregue —
+                            a identidade fica, o alarme não. */}
+                        {ehComplemento && (
+                          <span
+                            data-testid={`badge-complemento-mobile-${item.id}`}
+                            title={item.complementReason ? `Motivo: ${item.complementReason}` : `Complemento de ${maeDisplayId}`}
+                            style={coAberto
+                              ? { fontSize: 9, fontWeight: 800, color: CO.solidText, background: CO.solidBg, borderRadius: 6, padding: '2px 6px', letterSpacing: '0.06em', whiteSpace: 'nowrap' }
+                              : { fontSize: 9, fontWeight: 800, color: CO.text, background: CO.bg, border: `1px solid ${CO.border}`, borderRadius: 6, padding: '1px 5px', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}
+                          >
+                            {coAberto ? `+${qtyOf(item)} COMPL.` : 'COMPL.'}
+                          </span>
+                        )}
+                        {/* Mãe: selo espelho. Sem ele ninguém entende por que
+                            uma peça entregue "ganhou parente" logo abaixo. */}
+                        {complQty > 0 && (
+                          <span
+                            title={`Contratado total: ${contractedTotalOf(item)} un. (${qtyOf(item)} + ${complQty})`}
+                            style={{ fontSize: 9, fontWeight: 800, color: CO.text, background: CO.bg, border: `1px solid ${CO.border}`, borderRadius: 6, padding: '1px 5px', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}
+                          >
+                            TEM +{complQty}
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: 15, fontWeight: 700, color: TI.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</div>
+                      {/* Identidade permanente: de quem este lote é complemento,
+                          quem pediu e quando. Não some depois da entrega. */}
+                      {ehComplemento && (
+                        <div style={{ fontSize: 11, fontWeight: 600, color: CO.textStrong, lineHeight: 1.3 }}>
+                          Complemento de {maeDisplayId}
+                          {item.complementRequestedBy ? ` · ${item.complementRequestedBy}` : ''}
+                          {item.complementRequestedAt ? `, ${fmtDataHora(item.complementRequestedAt)}` : ''}
+                        </div>
+                      )}
                       {/* A DESCRIÇÃO é o que distingue duas peças do mesmo tipo
                           ("Banner" x "Banner"): o desktop sempre mostrou, o
                           celular não — e é no celular que se confere com a
@@ -1651,6 +1886,17 @@ export default function Grafica() {
                           </span>
                         )}
                       </div>
+                      {/* MOTIVO do aumento — a informação principal deste card,
+                          por extenso (duas linhas): é o "e claro isso ficar nos
+                          logs" resolvido sem abrir ficha nenhuma. */}
+                      {coAberto && item.complementReason && (
+                        <div style={{ fontSize: 11, color: CO.textStrong, display: 'flex', alignItems: 'flex-start', gap: 4, marginTop: 2, lineHeight: 1.35 }}>
+                          <PlusCircle style={{ width: 11, height: 11, color: CO.text, flexShrink: 0, marginTop: 1 }} />
+                          <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                            {item.complementReason}
+                          </span>
+                        </div>
+                      )}
                       {item.observations && (
                         <div style={{ fontSize: 11, color: '#b45309', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
                           <AlertCircle style={{ width: 10, height: 10, flexShrink: 0 }} />{item.observations}
@@ -1663,6 +1909,48 @@ export default function Grafica() {
                         botões continuavam aparecendo e disputando o toque). */}
                     {!bulkOn && (
                       <div style={{ flexShrink: 0, padding: '10px 10px', display: 'flex', flexDirection: 'column', gap: 5, justifyContent: 'center' }}>
+                        {/* PRODUZIR — o celular só tinha Entregar e Conferir.
+                            Num complemento isso é o pior buraco possível: a
+                            Gráfica em campo vê o alerta laranja e não tem o que
+                            fazer com ele. Aparece só nos complementos (o resto
+                            da fila segue como estava) e com o mesmo gate de
+                            papel do desktop, que o servidor também valida. */}
+                        {canProduce && coAberto && !isProduced(item) && !isConferred(item) && !item.isReuse && remainingProduce(item) > 0 && (
+                          <button
+                            onClick={e => { e.stopPropagation(); openProductionModal(item); }}
+                            data-testid={`button-production-mobile-${item.id}`}
+                            style={{ padding: '11px 14px', borderRadius: 8, background: CO.solidBg, border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          >
+                            <Play style={{ width: 13, height: 13 }} />
+                            Produzir {remainingProduce(item)}
+                          </button>
+                        )}
+                        {/* Cancelar complemento criado por engano — dois toques
+                            (o segundo confirma), nunca destrutivo de primeira. */}
+                        {canProduce && ehComplemento && complementUntouched(item) && (
+                          <button
+                            onClick={e => {
+                              e.stopPropagation();
+                              if (cancelComplementId === item.id) cancelComplementMutation.mutate({ itemId: item.id, displayId: item.displayId });
+                              else setCancelComplementId(item.id);
+                            }}
+                            disabled={cancelComplementMutation.isPending}
+                            title={`Cancelar ${item.displayId} — só enquanto nada foi produzido`}
+                            data-testid={`button-cancel-complement-mobile-${item.id}`}
+                            style={{
+                              padding: '9px 12px', borderRadius: 8,
+                              background: cancelComplementId === item.id ? '#b91c1c' : 'transparent',
+                              border: `1px solid ${cancelComplementId === item.id ? '#b91c1c' : TI.border}`,
+                              color: cancelComplementId === item.id ? '#fff' : '#b91c1c',
+                              fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4,
+                              cursor: cancelComplementMutation.isPending ? 'not-allowed' : 'pointer',
+                              opacity: cancelComplementMutation.isPending ? 0.6 : 1, whiteSpace: 'nowrap',
+                            }}
+                          >
+                            <Trash2 style={{ width: 12, height: 12 }} />
+                            {cancelComplementMutation.isPending ? 'Cancelando…' : cancelComplementId === item.id ? 'Confirmar?' : 'Cancelar'}
+                          </button>
+                        )}
                         {canDeliverItem && (
                           <button
                             onClick={e => { e.stopPropagation(); openDeliveryModal(item); }}
@@ -1715,6 +2003,15 @@ export default function Grafica() {
                 // ativo — antes só a entrega em lote tinha checkbox na tabela.
                 const isSelected = bulkSelectedIds.has(item.id);
                 const bulkEligible = bulkDeliveryMode ? canDeliver(item) : bulkConferMode ? canConfer(item) : false;
+                // ── Complemento ──
+                // ehComplemento: esta linha nasceu de um aumento de quantidade.
+                // coAberto: o realce FORTE ainda vale (não foi entregue).
+                // complQty: soma dos complementos vivos → esta linha é a MÃE.
+                const ehComplemento = isComplement(item);
+                const coAberto = complementOpen(item);
+                const maeDisplayId = ehComplemento ? parentDisplayIdOf(item) : "";
+                const complQty = complementsQtyOf(item);
+                const { base: idBase, suffix: idSuffix } = splitDisplayId(item.displayId);
 
                 return (
                   <Fragment key={item.id}>
@@ -1725,7 +2022,7 @@ export default function Grafica() {
                       const showGroupHeader = !showEvHeader && groupName !== '' && groupName !== prevGroupName;
                       return showGroupHeader ? (
                         <tr style={{ backgroundColor: '#dbeafe' }}>
-                          <td colSpan={10} style={{ padding: '5px 16px' }}>
+                          <td colSpan={COLS} style={{ padding: '5px 16px' }}>
                             <span style={{ fontSize: 10, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{groupName}</span>
                           </td>
                         </tr>
@@ -1733,7 +2030,7 @@ export default function Grafica() {
                     })()}
                     {showEvHeader && (
                       <tr style={{ backgroundColor: "#292524" }}>
-                        <td colSpan={10} style={{ padding: "10px 16px" }}>
+                        <td colSpan={COLS} style={{ padding: "10px 16px" }}>
                           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                               <Package style={{ width: 16, height: 16, color: TI.accent }} />
@@ -1765,7 +2062,7 @@ export default function Grafica() {
                     {/* Cabeçalho de Tipo */}
                     {showTypeHeader && (
                       <tr style={{ backgroundColor: "#f4f3f0" }}>
-                        <td colSpan={10} style={{ padding: "6px 16px" }}>
+                        <td colSpan={COLS} style={{ padding: "6px 16px" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                             <div style={{ width: 3, height: 14, backgroundColor: TI.accent, borderRadius: 999, flexShrink: 0 }} />
                             <span style={{ fontSize: 11, fontWeight: 700, color: TI.text }}>{item.type}</span>
@@ -1776,26 +2073,40 @@ export default function Grafica() {
 
                     {/* Linha do item */}
                     <tr
-                      style={{ borderBottom: `1px solid ${item.isReuse ? "#bbf7d0" : "#f4f3f0"}`, cursor: "pointer", transition: "background-color 0.1s", backgroundColor: isSelected ? "#fff7ed" : item.isReuse ? "#f0fdf4" : undefined }}
-                      onMouseEnter={e => { if (!isSelected) (e.currentTarget as HTMLElement).style.backgroundColor = item.isReuse ? "#dcfce7" : "#fafaf9"; }}
-                      onMouseLeave={e => ((e.currentTarget as HTMLElement).style.backgroundColor = bulkSelectedIds.has(item.id) ? "#fff7ed" : item.isReuse ? "#f0fdf4" : "")}
+                      // Fundo em UMA função (rowBg) usada nas três mãos: antes
+                      // style, onMouseEnter e onMouseLeave decidiam a cor cada
+                      // um por conta própria e o hover apagava qualquer realce
+                      // que não estivesse repetido nos três.
+                      style={{ borderBottom: `1px solid ${coAberto ? CO.border : item.isReuse ? "#bbf7d0" : "#f4f3f0"}`, cursor: "pointer", transition: "background-color 0.1s", backgroundColor: rowBg(item, isSelected, false) || undefined }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = rowBg(item, isSelected, true); }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = rowBg(item, bulkSelectedIds.has(item.id), false); }}
                       onClick={bulkOn && bulkEligible ? () => toggleBulkItem(item.id) : () => setViewDetailsItem(item)}
                       data-testid={`row-item-${item.id}`}
                     >
-                      {/* ID */}
-                      {/* A linha abre o detalhe no clique, mas <tr> não recebe
-                          foco: sem mouse não havia como abrir peça nenhuma.
-                          O ID vira o alvo focável — é o rótulo natural da linha.
-                          #059669 sobre branco dá 3.77:1; o verde escuro passa e
-                          continua sinalizando reaproveitamento. */}
-                      <td style={{ padding: "13px 16px" }}>
+                      {/* ID — a linha abre o detalhe no clique, mas <tr> não
+                          recebe foco: sem mouse não havia como abrir peça
+                          nenhuma. O ID vira o alvo focável, o rótulo natural da
+                          linha (#047857 sobre branco passa AA e continua
+                          sinalizando reaproveitamento).
+                          A FAIXA LATERAL do complemento mora aqui, como
+                          boxShadow inset da primeira célula: com
+                          border-collapse a <tr> não renderiza borda esquerda de
+                          forma confiável. Ela some quando o lote é entregue; o
+                          conector em L (o traço que amarra o filho à mãe logo
+                          acima) fica para sempre. */}
+                      <td style={{ padding: "13px 16px", boxShadow: coAberto ? `inset 3px 0 0 ${CO.stripe}` : undefined }}>
+                        {ehComplemento && (
+                          <span aria-hidden="true" style={{ display: "inline-block", width: 10, height: 8, marginRight: 6, marginBottom: 2, borderLeft: `1px solid ${CO.connector}`, borderBottom: `1px solid ${CO.connector}`, borderBottomLeftRadius: 3, verticalAlign: "middle" }} />
+                        )}
                         <button
                           onClick={e => { e.stopPropagation(); setViewDetailsItem(item); }}
-                          aria-label={`Ver detalhes da peça ${item.displayId}`}
+                          aria-label={ehComplemento
+                            ? `Ver detalhes da peça ${item.displayId}, complemento de ${maeDisplayId}`
+                            : `Ver detalhes da peça ${item.displayId}`}
                           style={{ fontSize: 13, fontFamily: "'DM Mono', monospace", color: item.isReuse ? "#047857" : "#c2410c", fontWeight: 700, letterSpacing: "0.04em", background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
                           data-testid={`text-display-id-${item.id}`}
                         >
-                          {item.displayId}
+                          {idBase}{idSuffix && <span style={{ color: CO.suffix }}>{idSuffix}</span>}
                         </button>
                       </td>
                       {/* Descrição — com a arte ao lado: a Gráfica identifica a
@@ -1820,6 +2131,40 @@ export default function Grafica() {
                             </a>
                           )}
                           <div style={{ minWidth: 0, flex: 1 }}>
+                        {/* SELO DO COMPLEMENTO — o sinal mais forte da tela, no
+                            topo da pilha de badges. Sólido (não outline) porque
+                            significa TRABALHO NOVO na fila: o número que está na
+                            linha já é exatamente o que falta imprimir, sem
+                            conta nenhuma. Depois da entrega vira outline: a
+                            identidade permanece, o alarme não. */}
+                        {ehComplemento && (
+                          <div
+                            data-testid={`badge-complemento-${item.id}`}
+                            title={item.complementReason ? `Motivo: ${item.complementReason}` : `Complemento de ${maeDisplayId}`}
+                            style={coAberto
+                              ? { display: "inline-flex", alignItems: "center", gap: 5, backgroundColor: CO.solidBg, color: CO.solidText, borderRadius: 6, padding: "3px 9px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5, marginRight: 5, whiteSpace: "nowrap" }
+                              : { display: "inline-flex", alignItems: "center", gap: 5, backgroundColor: CO.bg, color: CO.text, border: `1px solid ${CO.border}`, borderRadius: 6, padding: "2px 8px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5, marginRight: 5, whiteSpace: "nowrap" }}
+                          >
+                            <PlusCircle style={{ width: 11, height: 11 }} />
+                            {coAberto
+                              ? `+${qtyOf(item)} un. — complemento de ${maeDisplayId}`
+                              : `complemento de ${maeDisplayId}`}
+                          </div>
+                        )}
+                        {/* MÃE — selo espelho, sempre outline: ela não tem
+                            trabalho pendente (nada nela mudou), mas sem isto o
+                            operador não entende por que uma peça entregue
+                            ganhou uma linha nova logo abaixo. */}
+                        {complQty > 0 && (
+                          <div
+                            data-testid={`badge-tem-complemento-${item.id}`}
+                            title={`Contratado total: ${contractedTotalOf(item)} un. (${qtyOf(item)} + ${complQty}) · ${(item.complements ?? []).map((c: any) => `${c.displayId} (+${c.quantity})`).join(", ")}`}
+                            style={{ display: "inline-flex", alignItems: "center", gap: 5, backgroundColor: CO.bg, color: CO.text, border: `1px solid ${CO.border}`, borderRadius: 6, padding: "2px 8px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5, marginRight: 5, whiteSpace: "nowrap" }}
+                          >
+                            <PlusCircle style={{ width: 11, height: 11 }} />
+                            Tem complemento (+{complQty})
+                          </div>
+                        )}
                         {/* A cor verde da linha sozinha não diz o que é: o rótulo
                             precisa aparecer sempre que houver reaproveitamento,
                             inclusive nas peças marcadas antes de reuseQty existir. */}
@@ -1857,8 +2202,23 @@ export default function Grafica() {
                           </div>
                         </div>
                       </td>
-                      {/* Qtd */}
-                      <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: TI.text }}>{item.quantity}</td>
+                      {/* Qtd — na MÃE ganha o chip "+N": era a única coluna
+                          numérica sem tratamento, e é onde a pergunta "afinal,
+                          quantas foram contratadas?" nasce. A quantidade da mãe
+                          NÃO muda (o complemento é linha própria); o chip mostra
+                          o que veio depois e o tooltip soma os dois. */}
+                      <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: TI.text }}>
+                        <div>{item.quantity}</div>
+                        {complQty > 0 && (
+                          <div
+                            data-testid={`chip-qtd-complemento-${item.id}`}
+                            title={`Contratado total: ${contractedTotalOf(item)} un. — complementos: ${(item.complements ?? []).map((c: any) => `${c.displayId} (+${c.quantity})`).join(", ")}`}
+                            style={{ marginTop: 2, display: "inline-block", padding: "0 5px", borderRadius: 4, backgroundColor: CO.hoverBg, border: `1px solid ${CO.border}`, color: CO.text, fontSize: 10, fontWeight: 800 }}
+                          >
+                            +{complQty}
+                          </div>
+                        )}
+                      </td>
                       {/* Reaproveitado */}
                       <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: reusedTotalOf(item) > 0 ? "#059669" : TI.secondary }}>
                         {reusedTotalOf(item) > 0 ? (
@@ -1931,6 +2291,51 @@ export default function Grafica() {
                           >
                             <Eye style={{ width: 15, height: 15 }} />
                           </button>
+
+                          {/* Cancelar complemento — a janela de arrependimento.
+                              A Gráfica pode cancelar (é quem percebe o engano
+                              na hora), mas só enquanto NADA foi produzido,
+                              reaproveitado, conferido ou entregue: uma única
+                              unidade já é material no galpão. Confirmação em
+                              dois passos, no mesmo idioma dos botões de
+                              reaproveitamento desta linha. O servidor valida o
+                              mesmo gate — o botão só evita o convite falso. */}
+                          {canProduce && ehComplemento && complementUntouched(item) && (
+                            cancelComplementId === item.id ? (
+                              <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>
+                                <span style={{ fontSize: 11, fontWeight: 700, color: "#b91c1c", whiteSpace: "nowrap" }}>Cancelar {item.displayId}?</span>
+                                <button
+                                  onClick={() => cancelComplementMutation.mutate({ itemId: item.id, displayId: item.displayId })}
+                                  disabled={cancelComplementMutation.isPending}
+                                  data-testid={`button-cancel-complement-confirm-${item.id}`}
+                                  style={{ backgroundColor: "#b91c1c", color: "#fff", border: "none", borderRadius: 6, height: 26, padding: "0 8px", fontSize: 10, fontWeight: 700, cursor: cancelComplementMutation.isPending ? "not-allowed" : "pointer", opacity: cancelComplementMutation.isPending ? 0.6 : 1, whiteSpace: "nowrap" }}
+                                >
+                                  {cancelComplementMutation.isPending ? "Cancelando…" : "Sim, remover"}
+                                </button>
+                                <button
+                                  onClick={() => setCancelComplementId(null)}
+                                  title="Manter o complemento"
+                                  aria-label="Manter o complemento"
+                                  style={{ background: "none", border: `1px solid ${TI.border}`, borderRadius: 6, height: 26, padding: "0 6px", fontSize: 10, fontWeight: 700, color: TI.muted, cursor: "pointer" }}
+                                >
+                                  <X style={{ width: 10, height: 10 }} />
+                                </button>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={e => { e.stopPropagation(); setCancelComplementId(item.id); }}
+                                title={`Cancelar ${item.displayId} — só enquanto nada foi produzido`}
+                                aria-label={`Cancelar o complemento ${item.displayId}`}
+                                data-testid={`button-cancel-complement-${item.id}`}
+                                style={{ background: "none", border: `1px solid ${TI.border}`, cursor: "pointer", color: "#b91c1c", height: 26, padding: "0 9px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", transition: "background-color 0.15s" }}
+                                onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#fef2f2")}
+                                onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent")}
+                              >
+                                <Trash2 style={{ width: 12, height: 12 }} />
+                                Cancelar compl.
+                              </button>
+                            )
+                          )}
 
                           {/* Iniciar / Continuar Produção — oculto para reaproveitamento
                               e para quem o servidor recusa (só grafica/admin produzem).
@@ -2142,10 +2547,33 @@ export default function Grafica() {
                       </td>
                     </tr>
 
+                    {/* MOTIVO DO AUMENTO — linha de largura total logo abaixo do
+                        complemento, no mesmo molde da de observações (as duas
+                        coexistem). SEM truncar: a observação corta com
+                        reticências porque é acessório; aqui a justificativa é a
+                        informação principal, e é o "isso fica nos logs" do
+                        pedido resolvido sem abrir ficha nenhuma. Some junto com
+                        o resto do realce quando o lote é entregue. */}
+                    {coAberto && item.complementReason && (
+                      <tr style={{ backgroundColor: CO.bg, borderBottom: `1px solid ${CO.border}` }}>
+                        <td colSpan={COLS} style={{ padding: "5px 16px 7px 34px" }}>
+                          <div style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+                            <PlusCircle style={{ width: 12, height: 12, color: CO.text, marginTop: 1, flexShrink: 0 }} />
+                            <span style={{ fontSize: 11, color: CO.textStrong, lineHeight: 1.4 }} data-testid={`text-motivo-complemento-${item.id}`}>
+                              <strong>
+                                Aumento pedido{item.complementRequestedBy ? ` por ${item.complementRequestedBy}` : ""}
+                              </strong>
+                              {item.complementRequestedAt ? ` (${fmtDataHora(item.complementRequestedAt)})` : ""}: {item.complementReason}
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+
                     {/* Linha de observação */}
                     {item.observations && (
                       <tr style={{ backgroundColor: "#fffbeb", borderBottom: "1px solid #fde68a" }}>
-                        <td colSpan={10} style={{ padding: "8px 16px" }}>
+                        <td colSpan={COLS} style={{ padding: "8px 16px" }}>
                           <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
                             <AlertCircle style={{ width: 14, height: 14, color: "#d97706", marginTop: 1, flexShrink: 0 }} />
                             <span style={{ fontSize: 13, color: "#92400e" }}>
@@ -2166,7 +2594,15 @@ export default function Grafica() {
         {/* Rodapé da tabela */}
         {filteredItems.length > 0 && (
           <div style={{ borderTop: `1px solid ${TI.border}`, padding: "10px 16px", backgroundColor: "#fafaf9", fontSize: 13, color: TI.secondary }}>
-            Exibindo <strong style={{ color: TI.text }}>{filteredItems.length}</strong> peça{filteredItems.length !== 1 ? "s" : ""} ·{" "}
+            Exibindo <strong style={{ color: TI.text }}>{filteredItems.length}</strong> peça{filteredItems.length !== 1 ? "s" : ""}
+            {/* O complemento é +1 linha na contagem (é peça de verdade, com
+                produção própria). Dizer quantas são evita a pergunta "por que
+                agora são 43 se o evento tem 42?". */}
+            {(() => {
+              const n = (filteredItems as any[]).filter((i: any) => isComplement(i)).length;
+              return n > 0 ? <span style={{ color: CO.text }}> ({n} complemento{n !== 1 ? "s" : ""})</span> : null;
+            })()}
+            {" · "}
             <strong style={{ color: TI.text }}>{Array.from(new Set(filteredItems.map((i: any) => i.eventId).filter(Boolean))).length}</strong> evento{Array.from(new Set(filteredItems.map((i: any) => i.eventId).filter(Boolean))).length !== 1 ? "s" : ""}
             {(() => {
               // O total que importa para a Gráfica é o que AINDA vai ser
@@ -2375,8 +2811,18 @@ export default function Grafica() {
                       : <Truck style={{ width: 20, height: 20, color: TI.accent }} />}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 3 }}>
-                      <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, color: selectedItem.isReuse ? '#059669' : '#c2410c' }}>{selectedItem.displayId}</span>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 3 }}>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, color: selectedItem.isReuse ? '#059669' : '#c2410c' }}>{selectedItem.displayId}</span>
+                        {/* Produzir/conferir/entregar um complemento é registrar
+                            um LOTE SEPARADO: o modal precisa dizer isso, senão
+                            o operador acha que está lançando na peça original. */}
+                        {isComplement(selectedItem) && (
+                          <span style={{ backgroundColor: CO.solidBg, color: CO.solidText, borderRadius: 5, padding: "1px 6px", fontSize: 9, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                            Compl. de {parentDisplayIdOf(selectedItem)}
+                          </span>
+                        )}
+                      </span>
                       <StatusPill status={selectedItem.status} size="sm" showDot={false} />
                     </div>
                     <div style={{ fontSize: 15, fontWeight: 700, color: TI.text }}>{selectedItem.type}</div>
@@ -2430,6 +2876,20 @@ export default function Grafica() {
                     </div>
                   )}
                 </div>
+
+                {/* Motivo do aumento — quem está com a peça na mão lê aqui por
+                    que este lote existe, antes de mandar para a impressora. */}
+                {isComplement(selectedItem) && selectedItem.complementReason && (
+                  <div style={{ background: CO.bg, border: `1px solid ${CO.border}`, borderRadius: 8, padding: '8px 10px', display: 'flex', gap: 7, alignItems: 'flex-start' }}>
+                    <PlusCircle style={{ width: 12, height: 12, color: CO.text, flexShrink: 0, marginTop: 2 }} />
+                    <span style={{ fontSize: 13, color: CO.textStrong, lineHeight: 1.4 }}>
+                      <strong>
+                        Aumento pedido{selectedItem.complementRequestedBy ? ` por ${selectedItem.complementRequestedBy}` : ""}
+                      </strong>
+                      {selectedItem.complementRequestedAt ? ` (${fmtDataHora(selectedItem.complementRequestedAt)})` : ""}: {selectedItem.complementReason}
+                    </span>
+                  </div>
+                )}
 
                 {/* Observações */}
                 {selectedItem.observations && (

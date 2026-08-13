@@ -2,6 +2,7 @@
 import type { Express } from "express";
 import { storage } from "../storage";
 import { insertEventSchema, type Item } from "@shared/schema";
+import { isPlausibleEventDate, isPlausibleEventYear } from "@shared/prazo-dates";
 import {
   requireAuth,
   broadcast,
@@ -19,17 +20,322 @@ function toDateOnlyStr(value: unknown): string {
   return String(value ?? "").slice(0, 10);
 }
 
-// Ano plausível para datas de evento. Um "0206" (typo de 2026) passou e o
-// Painel exibiu "ATRASADO 664730D" — a conta fiel de um dado que nunca
-// deveria ter entrado. Faixa larga de propósito: só barra o absurdo.
-function isPlausibleEventDate(dateOnly: string): boolean {
-  const year = Number(dateOnly.slice(0, 4));
-  return Number.isFinite(year) && year >= 2000 && year <= 2100;
+// Ano plausível para datas de evento — a regra (e o porquê dela) mora em
+// @shared/prazo-dates. Era a mesma faixa 2000-2100 datilografada aqui, na
+// Gestão de Prazos e no Painel Geral: três cópias de uma regra que decide se
+// um dado entra no banco e como ele é exibido depois.
+
+// Converte o que o cliente manda em um instante UTC EXPLÍCITO.
+//
+// O cliente envia "YYYY-MM-DDTHH:MM" SEM sufixo de fuso e a convenção de toda
+// a UI é que esse valor É a hora de parede pretendida (as telas formatam com
+// timeZone:'UTC'). `new Date("2026-03-10T08:00")` interpreta no fuso do
+// PROCESSO: hoje o Replit roda em UTC e o round-trip fecha por sorte de
+// infraestrutura — no dia em que o container subir com TZ=America/Sao_Paulo,
+// TODO evento passa a ser gravado 3h deslocado, sem lançar um único erro.
+// Carimbar o "Z" aqui torna a gravação independente do fuso do servidor.
+//
+// Devolve null quando o valor é impossível de interpretar ("2026-03-10T:" —
+// o que o campo de horário do modal produz quando se digita só ":"). Antes
+// isso virava `Invalid Date`, o insert do Drizzle estourava com
+// "RangeError: Invalid time value" e o usuário via essa frase num toast.
+function toUtcInstant(value: unknown): Date | null {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+
+  const naive = /^(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?$/.exec(raw);
+  if (naive) {
+    const [, dayPart, hh = "00", mm = "00", ss = "00"] = naive;
+    const parsed = new Date(`${dayPart}T${hh}:${mm}:${ss}.000Z`);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  // Já vem com fuso explícito (…Z / …-03:00) ou é um formato que o runtime
+  // entende sem ambiguidade — respeitamos como está.
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// "Hoje" do NEGÓCIO e aritmética de marcos
+//
+// ATENÇÃO / DÍVIDA CONHECIDA: este bloco é um GÊMEO do que existe em
+// server/routes/prazos.ts (SP_DAY_FMT/spDayMs/todayBusinessMs, STAGE_DEFS,
+// stageDeadline, DELIVERED, OUT_OF_FUNNEL). Não dava para importar de lá nesta
+// onda porque prazos.ts está sob edição concorrente. A extração para um módulo
+// compartilhado (ex.: server/lib/marcos.ts) consumido pelos DOIS — e, no
+// cliente, pela Agenda Operacional do event-detail, que é a terceira cópia da
+// mesma conta — está anotada para a segunda onda. Ao mexer aqui, mexa lá.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Dia-calendário no fuso do negócio, expresso como UTC-midnight para a
+// aritmética de dias. A âncora anterior (instante bruto contra um timestamp
+// gravado à meia-noite UTC) virava "o evento já passou" às 21h de Brasília do
+// dia ANTERIOR ao início — 3h de antecipação justamente nas horas em que
+// alguém está correndo atrás de peça faltando.
+const SP_DAY_FMT = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
+});
+// Exportada só para os testes (server/__tests__/event-status-derivado.test.ts):
+// a virada de dia no fuso do negócio já causou bug nesta base e precisa de
+// asserção própria — testá-la via HTTP exigiria banco.
+export function spDayMs(date: Date): number {
+  const [y, m, d] = SP_DAY_FMT.format(date).split("-").map(Number);
+  return Date.UTC(y, m - 1, d);
+}
+// Exportada só para os testes: é o "hoje" real que as duas rotas GET usam.
+export function todayBusinessMs(): number {
+  return spDayMs(new Date());
+}
+
+// Data-calendário (UTC, meia-noite) de um timestamp de evento. As DATAS de
+// evento continuam tratadas como wall-clock em UTC (convenção de toda a UI);
+// só o "hoje" usa o fuso do negócio.
+function dayUTC(value: Date | string): Date {
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return new Date(NaN);
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+
+// "entregue" é a grafia legada de delivered — conta como pronta, não pendente.
+const DELIVERED = new Set(["delivered", "entregue"]);
+// Cancelada/excluída/arquivada não conta como pendência nem como total.
+const OUT_OF_FUNNEL = new Set(["canceled", "deleted", "archived"]);
+
+interface MarcoDef {
+  key: string;
+  label: string;
+  offsetField:
+    | "deadlineListaImagens"
+    | "deadlineEntregaLayouts"
+    | "deadlineAprovacaoLayout"
+    | "deadlineRevisaoLista"
+    | "deadlineProducaoGrafica";
+  defaultOffset: number;
+  allDays: boolean; // true = não ajusta fim de semana
+  // Status de item que significam "ainda não passou por esta etapa".
+  pendingStatuses: string[];
+}
+
+// A ordem importa: uma etapa só está concluída quando nenhuma peça está nela
+// NEM em qualquer etapa anterior. Espelha STAGE_DEFS de prazos.ts, inclusive
+// as grafias LEGADAS em pt que circulam no banco — sem elas a peça sumia do
+// funil e a etapa virava verde falso.
+const MARCO_DEFS: MarcoDef[] = [
+  {
+    key: "listaImagens", label: "Lista de Imagens",
+    offsetField: "deadlineListaImagens", defaultOffset: -25, allDays: false,
+    pendingStatuses: ["draft", "requested", "awaiting_linking"],
+  },
+  {
+    key: "layouts", label: "Entrega de Layouts",
+    offsetField: "deadlineEntregaLayouts", defaultOffset: -20, allDays: false,
+    pendingStatuses: ["awaiting_submission"],
+  },
+  {
+    key: "aprovacao", label: "Aprovação de Layout",
+    offsetField: "deadlineAprovacaoLayout", defaultOffset: -12, allDays: false,
+    pendingStatuses: ["awaiting_approval", "awaiting_sponsor_approval"],
+  },
+  {
+    key: "revisao", label: "Revisão de Lista",
+    offsetField: "deadlineRevisaoLista", defaultOffset: -8, allDays: false,
+    pendingStatuses: [
+      "awaiting_finalization", "sponsor_approved",
+      "awaiting_final_review", "awaiting_review", "in_review", "awaiting_creator_review",
+    ],
+  },
+  {
+    key: "producao", label: "Produção Gráfica",
+    offsetField: "deadlineProducaoGrafica", defaultOffset: -1, allDays: true,
+    pendingStatuses: [
+      "ready_for_production", "approved", "inProduction", "produced", "conferred",
+      "pronto_para_producao", "liberado", "em_producao", "produzido",
+    ],
+  },
+];
+
+// status → índice do marco em que a peça está travada (0-4).
+const STATUS_MARCO_RANK: Record<string, number> = {};
+MARCO_DEFS.forEach((m, i) => m.pendingStatuses.forEach((st) => { STATUS_MARCO_RANK[st] = i; }));
+
+// Marco da etapa: saída do caminhão + offset, com ajuste de fim de semana
+// quando a etapa não roda em todos os dias (mesma regra do event-detail e de
+// /api/prazos). A âncora é a SAÍDA, nunca a data do evento.
+function marcoDeadline(truckDay: Date, offsetDays: number, allDays: boolean): Date {
+  const d = new Date(truckDay);
+  d.setUTCDate(d.getUTCDate() + offsetDays);
+  if (!allDays) {
+    const dow = d.getUTCDay();
+    if (dow === 6) d.setUTCDate(d.getUTCDate() - 1); // sábado → sexta
+    if (dow === 0) d.setUTCDate(d.getUTCDate() + 1); // domingo → segunda
+  }
+  return d;
+}
+
+export interface NextMilestone {
+  /** Chave estável do marco: listaImagens | layouts | aprovacao | revisao | producao */
+  key: string;
+  /** Rótulo pt-BR pronto para exibição ("Lista de Imagens"). */
+  label: string;
+  /** Data-calendário do vencimento, "YYYY-MM-DD" (já com ajuste de fim de semana). */
+  deadline: string;
+  /** >0 faltam N dias · 0 vence hoje · <0 atrasado há N dias. Dia-calendário SP. */
+  daysRemaining: number;
+  /** overdue = daysRemaining<0 · warning = vence em até 3 dias · upcoming = resto. */
+  state: "upcoming" | "warning" | "overdue";
+  /** Peças travadas NESTE marco ou em algum anterior. 0 = evento sem peça alguma. */
+  pendingItems: number;
+  /** Ano da saída fora de 2000-2100 (typo de cadastro): não confie no prazo. */
+  invalidDate: boolean;
+}
+
+// Primeiro marco ainda não vencido pelo trabalho — o que a pessoa precisa
+// resolver a seguir. Devolve null quando não há mais nada pendente no funil.
+function nextMilestoneFor(
+  event: Record<string, any>,
+  eventItems: { status: string }[],
+  todayMs: number,
+): NextMilestone | null {
+  const funnelItems = eventItems.filter((it) => !OUT_OF_FUNNEL.has(it.status));
+
+  const direct = new Array(MARCO_DEFS.length).fill(0);
+  for (const it of funnelItems) {
+    const rank = STATUS_MARCO_RANK[it.status];
+    if (rank !== undefined) direct[rank] += 1;
+  }
+
+  const truckDay = dayUTC(event.truckDepartureDate);
+  // Mesma fonte única da validação de escrita logo acima e da Gestão de
+  // Prazos: a faixa 2000-2100 estava datilografada de novo AQUI, dentro do
+  // mesmo arquivo que já importa o helper. Quem afrouxar a regra num lugar
+  // sem afrouxar no outro cria dado que entra no banco e depois é exibido
+  // como "cadastro quebrado" para sempre.
+  const invalidDate = !isPlausibleEventYear(truckDay.getUTCFullYear());
+
+  let running = 0;
+  for (let i = 0; i < MARCO_DEFS.length; i++) {
+    running += direct[i];
+
+    // Evento SEM nenhuma peça: o marco pendente é o primeiro (a lista de
+    // imagens). É o caso que a lista de eventos mais precisa gritar — "lista
+    // vence em 12 dias" num evento onde nada foi cadastrado ainda.
+    const isNext = funnelItems.length === 0 ? i === 0 : running > 0;
+    if (!isNext) continue;
+
+    const def = MARCO_DEFS[i];
+    const offset = (event[def.offsetField] as number | null | undefined) ?? def.defaultOffset;
+    const deadline = marcoDeadline(truckDay, offset, def.allDays);
+    const daysRemaining = Math.round((deadline.getTime() - todayMs) / 86400000);
+
+    // Sem data confiável não há atraso confiável: nunca pintamos de vermelho
+    // um prazo derivado de um ano absurdo.
+    let state: NextMilestone["state"] = "upcoming";
+    if (!invalidDate) {
+      if (daysRemaining < 0) state = "overdue";
+      else if (daysRemaining <= 3) state = "warning";
+    }
+
+    return {
+      key: def.key,
+      label: def.label,
+      deadline: Number.isNaN(deadline.getTime()) ? "" : deadline.toISOString().slice(0, 10),
+      daysRemaining: Number.isFinite(daysRemaining) ? daysRemaining : 0,
+      state,
+      pendingItems: running,
+      invalidDate,
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Enriquecimento único do evento, usado pela LISTA e pelo DETALHE.
+ *
+ * O bug que isto corrige: o servidor carimbava `status = "completed"` só
+ * porque a data de início tinha passado. Um evento com 3 de 20 peças
+ * entregues ficava verde, perdia a bandeira de prioridade, caía para o último
+ * balde da ordenação e sumia do filtro "Urgente" — exatamente no instante em
+ * que virava um problema irreversível (o caminhão já saiu). Pior: o override
+ * existia SÓ em GET /api/events, então o card dizia "Concluído" e o detalhe do
+ * MESMO evento dizia "Criado", a um clique de distância.
+ *
+ * Agora os dois conceitos viajam separados no payload:
+ *   · allDelivered    → a PRODUÇÃO terminou (todas as peças do funil entregues)
+ *   · eventHasPassed  → a DATA chegou (dia-calendário em America/Sao_Paulo)
+ * e `lifecycle` combina os dois num discriminador pronto para a UI.
+ *
+ * `status` continua no payload, com a mesma semântica de antes ("created" |
+ * "completed"), para não quebrar quem já o consome — mas agora é derivado nas
+ * DUAS direções: um "completed" velho gravado no banco (o helper
+ * updateEventStatus de routes/shared.ts ainda persiste o carimbo por data) é
+ * rebaixado para "created" quando a produção não terminou.
+ */
+// Exportada só para os testes: é a regra de negócio mais perigosa do módulo
+// (decide se um evento aparece verde) e é 100% pura — recebe hoje por parâmetro.
+export function enrichEvent(
+  event: Record<string, any>,
+  eventItems: any[],
+  eventSponsors: any[],
+  todayMs: number,
+) {
+  const itemCount = eventItems.length;
+  let deliveredCount = 0;
+  let canceledCount = 0;
+  for (const it of eventItems) {
+    if (OUT_OF_FUNNEL.has(it.status)) canceledCount += 1;
+    else if (DELIVERED.has(it.status)) deliveredCount += 1;
+  }
+  // Canceladas/arquivadas saem do denominador: não são trabalho pendente nem
+  // trabalho entregue — não devem impedir um evento de fechar.
+  const activeItemCount = itemCount - canceledCount;
+  const openCount = activeItemCount - deliveredCount;
+
+  const allDelivered = activeItemCount > 0 && openCount === 0;
+
+  // A data chegou: comparação por DIA-CALENDÁRIO no fuso do negócio. Com o
+  // instante bruto (`new Date() > new Date(startDate)`) sobre um timestamp
+  // gravado à meia-noite UTC, isto virava true às 21:00 de Brasília da véspera.
+  const startDay = dayUTC(event.startDate).getTime();
+  const eventHasPassed = Number.isFinite(startDay) ? todayMs >= startDay : false;
+
+  const lifecycle: "active" | "completed" | "closed_with_pending" =
+    allDelivered ? "completed" : eventHasPassed ? "closed_with_pending" : "active";
+
+  // Compatibilidade: status permanece "created" | "completed" e agora é
+  // totalmente derivado da produção. Qualquer outro valor que apareça na
+  // coluna é preservado (não inventamos vocabulário novo aqui).
+  const derivedStatus =
+    allDelivered ? "completed"
+    : event.status === "completed" ? "created"
+    : event.status;
+
+  return {
+    ...event,
+    status: derivedStatus,
+    eventHasPassed,
+    allDelivered,
+    lifecycle,
+    itemCount,
+    activeItemCount,
+    deliveredCount,
+    canceledCount,
+    openCount,
+    // Só faz sentido perguntar "o que vence primeiro" para evento em jogo.
+    // Encerrado/concluído, o sinal certo é o lifecycle, não um marco vencido.
+    nextMilestone: lifecycle === "active" ? nextMilestoneFor(event, eventItems, todayMs) : null,
+    items: eventItems,
+    sponsors: eventSponsors,
+  };
 }
 
 export function registerEventRoutes(app: Express): void {
   // ============ EVENTS ============
-  
+
   // Get all events with items count
   app.get("/api/events", requireAuth, async (req, res) => {
     try {
@@ -61,30 +367,17 @@ export function registerEventRoutes(app: Express): void {
         if (arr) arr.push(es); else sponsorsByEvent.set(es.eventId, [es]);
       }
 
-      const nowDate = new Date();
-      const eventsWithItems = allEvents.map((event) => {
-        const eventItems = itemsByEvent.get(event.id) ?? [];
-        const eventSponsors = sponsorsByEvent.get(event.id) ?? [];
-
-        // Calculate real-time status
-        const eventHasPassed = nowDate > new Date(event.startDate);
-        let calculatedStatus = event.status;
-        if (eventHasPassed) {
-          calculatedStatus = "completed";
-        } else if (eventItems.length > 0) {
-          const allDelivered = eventItems.every((item) => item.status === "delivered");
-          if (allDelivered) {
-            calculatedStatus = "completed";
-          }
-        }
-
-        return {
-          ...event,
-          status: calculatedStatus, // Override with calculated status
-          items: eventItems,
-          sponsors: eventSponsors,
-        };
-      });
+      // Um único "hoje" para toda a página: dois eventos nunca podem ser
+      // avaliados contra dias diferentes por causa da virada durante o loop.
+      const todayMs = todayBusinessMs();
+      const eventsWithItems = allEvents.map((event) =>
+        enrichEvent(
+          event as unknown as Record<string, any>,
+          itemsByEvent.get(event.id) ?? [],
+          sponsorsByEvent.get(event.id) ?? [],
+          todayMs,
+        ),
+      );
 
       setEventsCache(eventsWithItems);
       res.json(eventsWithItems);
@@ -93,16 +386,29 @@ export function registerEventRoutes(app: Express): void {
     }
   });
 
-  // Get single event
+  // Get single event.
+  // Mesmo enriquecimento da lista — sem isto o card dizia "Concluído" e esta
+  // rota dizia "Criado" para o mesmo evento, a um clique de distância.
   app.get("/api/events/:id", requireAuth, async (req, res) => {
     try {
       const event = await storage.getEvent(req.params.id);
       if (!event) {
         return res.status(404).json({ error: "Event not found" });
       }
-      
-      const eventItems = await storage.getItemsByEvent(event.id);
-      res.json({ ...event, items: eventItems });
+
+      const [eventItems, eventSponsors] = await Promise.all([
+        storage.getItemsByEvent(event.id),
+        storage.getEventSponsors(event.id),
+      ]);
+
+      res.json(
+        enrichEvent(
+          event as unknown as Record<string, any>,
+          eventItems,
+          eventSponsors,
+          todayBusinessMs(),
+        ),
+      );
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -116,6 +422,18 @@ export function registerEventRoutes(app: Express): void {
         return res.status(403).json({ error: "Sem permissão para criar eventos" });
       }
       const validatedData = insertEventSchema.parse(req.body);
+
+      // `status` e `createdBy` são DERIVADOS/da sessão — nenhum cliente pode
+      // escrevê-los. insertEventSchema só omite id/createdAt/updatedAt, então
+      // ambos chegam pelo body: um POST com status:"completed" criava um evento
+      // futuro nascido verde, e um createdBy forjado daria a outro usuário o
+      // direito de gerenciar a lista de peças (gate "criador do evento" de
+      // items.ts). Descartamos aqui até o .omit() do schema ser corrigido.
+      const {
+        status: _statusIgnorado,
+        createdBy: _createdByIgnorado,
+        ...safeData
+      } = validatedData;
 
       // Validação: saída do caminhão deve ser pelo menos 1 dia antes do início.
       // Comparação por STRING (YYYY-MM-DD), igual ao cliente — new Date() misturava
@@ -134,8 +452,27 @@ export function registerEventRoutes(app: Express): void {
         });
       }
 
-      const event = await storage.createEvent(validatedData);
-      
+      // Horário incompleto ("2026-03-10T:") passava por toda a validação e só
+      // estourava no insert do Drizzle, com "RangeError: Invalid time value"
+      // dentro do toast destrutivo. Aqui vira uma frase que o usuário entende.
+      const startAt = toUtcInstant(validatedData.startDate);
+      const truckAt = toUtcInstant(validatedData.truckDepartureDate);
+      if (!startAt || !truckAt) {
+        return res.status(400).json({
+          error: "Data ou horário inválido — confira o campo de hora (formato 08:00)"
+        });
+      }
+
+      const event = await storage.createEvent({
+        ...safeData,
+        startDate: startAt,
+        truckDepartureDate: truckAt,
+        // Autoria vem SEMPRE da sessão. A coluna existia e nunca era
+        // preenchida pela UI, deixando três gates de autorização inertes
+        // (items.ts canCreateItemsFor, PATCH de item, canEditLists).
+        createdBy: req.userId ?? null,
+      });
+
       // Create audit log
       await createAuditLog(
         (req as any).userName,
@@ -144,12 +481,12 @@ export function registerEventRoutes(app: Express): void {
         event.id,
         `Evento "${event.name}" criado`
       );
-      
+
       // Não notificar quando evento é criado (só quando itens forem adicionados)
-      
+
       // Broadcast update
       broadcast({ type: "event_created", event });
-      
+
       res.status(201).json(event);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -165,6 +502,15 @@ export function registerEventRoutes(app: Express): void {
     }
     try {
       const validatedData = insertEventSchema.partial().parse(req.body);
+
+      // Mesma regra do POST: status é derivado da produção e autoria não se
+      // transfere por PATCH. Sem isto, um PATCH { status:"completed" } deixava
+      // o evento verde no banco para sempre.
+      const {
+        status: _statusIgnorado,
+        createdBy: _createdByIgnorado,
+        ...safeData
+      } = validatedData;
 
       // Sanidade de ano SÓ nos campos enviados — validar o lado composto do
       // evento atual bloquearia justamente o PATCH que corrige uma data já
@@ -200,11 +546,33 @@ export function registerEventRoutes(app: Express): void {
         }
       }
 
-      const event = await storage.updateEvent(req.params.id, validatedData);
+      // Normaliza para instante UTC explícito (ver toUtcInstant) apenas o que
+      // veio no payload parcial — e barra horário impossível antes do Drizzle.
+      const patchData: Record<string, unknown> = { ...safeData };
+      if (validatedData.startDate != null) {
+        const startAt = toUtcInstant(validatedData.startDate);
+        if (!startAt) {
+          return res.status(400).json({
+            error: "Data ou horário inválido — confira o campo de hora (formato 08:00)"
+          });
+        }
+        patchData.startDate = startAt;
+      }
+      if (validatedData.truckDepartureDate != null) {
+        const truckAt = toUtcInstant(validatedData.truckDepartureDate);
+        if (!truckAt) {
+          return res.status(400).json({
+            error: "Data ou horário inválido — confira o campo de hora (formato 08:00)"
+          });
+        }
+        patchData.truckDepartureDate = truckAt;
+      }
+
+      const event = await storage.updateEvent(req.params.id, patchData as any);
       if (!event) {
         return res.status(404).json({ error: "Event not found" });
       }
-      
+
       // Create audit log
       await createAuditLog(
         (req as any).userName,
@@ -213,9 +581,9 @@ export function registerEventRoutes(app: Express): void {
         event.id,
         `Evento "${event.name}" atualizado`
       );
-      
+
       broadcast({ type: "event_updated", event });
-      
+
       res.json(event);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -243,7 +611,7 @@ export function registerEventRoutes(app: Express): void {
       if (!event) {
         return res.status(404).json({ error: "Evento não encontrado" });
       }
-      
+
       // Create audit log
       await createAuditLog(
         (req as any).userName,
@@ -254,9 +622,11 @@ export function registerEventRoutes(app: Express): void {
           ? `Prioridade do evento "${event.name}" removida`
           : `Prioridade do evento "${event.name}" definida como "${priority}"`
       );
-      
-      broadcast({ type: "event_priority_updated", event });
-      
+
+      // eventId no topo do payload: o handler do cliente invalida
+      // ['/api/events'] e ['/api/events', eventId] sem precisar cavar o objeto.
+      broadcast({ type: "event_priority_updated", eventId: event.id, event });
+
       res.json(event);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -273,31 +643,38 @@ export function registerEventRoutes(app: Express): void {
       if (!event) {
         return res.status(404).json({ error: "Event not found" });
       }
-      
-      // Delete all items associated with this event first
+
+      // Dimensão real do estrago, para o audit log e para a resposta — a
+      // confirmação da UI precisa dizer "e 128 peças (96 já entregues)", não
+      // "todas as peças associadas".
       const items = await storage.getItemsByEvent(req.params.id);
-      for (const item of items) {
-        await storage.deleteItem(item.id);
-      }
-      
-      // Delete the event
+      const deliveredCount = items.filter((it) => DELIVERED.has(it.status)).length;
+
+      // NÃO há loop de deleteItem aqui, de propósito. storage.deleteItem é SOFT
+      // delete (marca deletedAt "para preservar no histórico") e
+      // storage.deleteEvent é HARD delete — com items.event_id em
+      // ON DELETE CASCADE, o DELETE da linha do evento apagava fisicamente, um
+      // comando depois, exatamente as peças que o loop acabara de "preservar".
+      // Além de N round-trips inúteis, o loop criava um estado meio-apagado se
+      // falhasse no meio: peças com deletedAt e evento vivo exibindo 0/0
+      // Entregues. O cascade do banco faz o trabalho de uma vez só.
       const success = await storage.deleteEvent(req.params.id);
       if (!success) {
         return res.status(404).json({ error: "Event not found" });
       }
-      
+
       // Create audit log
       await createAuditLog(
         (req as any).userName,
         'deleted',
         'event',
         req.params.id,
-        `Evento "${event.name}" excluído`
+        `Evento "${event.name}" excluído — ${items.length} ${items.length === 1 ? 'peça removida' : 'peças removidas'} em cascata (${deliveredCount} já ${deliveredCount === 1 ? 'entregue' : 'entregues'}), junto com fotos de entrega, comentários e aprovações de patrocinador`
       );
-      
+
       broadcast({ type: "event_deleted", eventId: req.params.id });
-      
-      res.json({ success: true });
+
+      res.json({ success: true, deletedItems: items.length, deliveredItems: deliveredCount });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -309,13 +686,13 @@ export function registerEventRoutes(app: Express): void {
       const userRole = (req as any).userRole;
       const userId = (req as any).userId;
       const eventId = req.params.id;
-      
+
       // Buscar evento para validação
       const event = await storage.getEvent(eventId);
       if (!event) {
         return res.status(404).json({ error: "Evento não encontrado" });
       }
-      
+
       // Allow admin or any solicitacao user to submit draft items
       const isAdmin = userRole === 'admin';
       const isSolicitacao = userRole === 'solicitacao';
@@ -323,36 +700,36 @@ export function registerEventRoutes(app: Express): void {
       if (!isAdmin && !isSolicitacao) {
         return res.status(403).json({ error: "Acesso negado. Apenas perfis de Solicitação ou Admin podem enviar itens para vinculação" });
       }
-      
+
       // Buscar todos os itens em rascunho deste evento (draft = novo, requested = legado)
       const allItems = await storage.getItemsByEvent(eventId);
       const draftItems = allItems.filter(item => item.status === 'draft' || item.status === 'requested');
-      
+
       if (draftItems.length === 0) {
         return res.status(400).json({ error: "Nenhum item em rascunho para enviar" });
       }
-      
+
       // Atomic status transition: draft/requested → awaiting_linking
       // Cast is safe: draftItems was filtered to only draft/requested above.
       type ItemStatus = Parameters<typeof storage.updateItemWithStatusCheck>[1];
-      const updatePromises = draftItems.map(item => 
+      const updatePromises = draftItems.map(item =>
         storage.updateItemWithStatusCheck(item.id, item.status as ItemStatus, 'awaiting_linking')
       );
       const updatedItems = await Promise.all(updatePromises);
-      
+
       // Filter out failed updates (items that returned null)
       const successfulUpdates = updatedItems.filter((item): item is Item => item !== null);
       const failedCount = updatedItems.length - successfulUpdates.length;
-      
+
       // If any updates failed, return conflict error
       if (failedCount > 0) {
-        return res.status(409).json({ 
+        return res.status(409).json({
           error: "Alguns itens mudaram de status durante a operação. Recarregue a página e tente novamente.",
           failedCount,
           successCount: successfulUpdates.length
         });
       }
-      
+
       // All updates successful - create audit log with actual count
       await createAuditLog(
         (req as any).userName,
@@ -361,7 +738,7 @@ export function registerEventRoutes(app: Express): void {
         eventId,
         `${successfulUpdates.length} ${successfulUpdates.length === 1 ? 'item' : 'itens'}: Status alterado de Rascunho → Aguardando Vinculação (${successfulUpdates.length === 1 ? 'enviado' : 'enviados'} para vinculação)`
       );
-      
+
       // Notify Arte and Admin profiles with actual count
       await storage.createNotification({
         type: 'itemsSubmitted',
@@ -369,18 +746,18 @@ export function registerEventRoutes(app: Express): void {
         targetRoles: ['arte'], // só quem AGE: a Arte cria o thumb; admin não tem ação aqui
         eventId,
       });
-      
-      broadcast({ 
-        type: "items_submitted", 
+
+      broadcast({
+        type: "items_submitted",
         eventId,
         count: successfulUpdates.length,
-        items: successfulUpdates 
+        items: successfulUpdates
       });
-      
-      res.json({ 
-        success: true, 
+
+      res.json({
+        success: true,
         count: successfulUpdates.length,
-        items: successfulUpdates 
+        items: successfulUpdates
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });

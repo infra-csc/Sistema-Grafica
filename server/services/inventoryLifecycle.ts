@@ -3,7 +3,7 @@
 // via startInventoryLifecycle() from the routes orchestrator, and
 // runInventoryCron is exported so item routes (production start) can
 // trigger an out-of-band run.
-import { storage } from "../storage";
+import { storage, assetPrefix, assetSeqOf } from "../storage";
 import { broadcast } from "../routes/shared";
 
 export async function backfillInventoryAssets() {
@@ -28,14 +28,25 @@ export async function backfillInventoryAssets() {
         const itemSponsorLinks = await storage.getItemSponsors(item.id);
         const linkedSponsorIds = itemSponsorLinks.map(s => s.sponsorId);
         const approvalThumbUrl = item.approvalThumbUrl ?? null;
-        const itemNum = item.displayId.replace(/[^0-9]/g, '').padStart(4, '0');
+        // assetPrefix, não replace(/[^0-9]/g,''): para "#0062" devolve "0062"
+        // (byte a byte idêntico ao anterior — zero risco no acervo existente),
+        // mas para o COMPLEMENTO "#0062-C1" o replace dava "00621", um código
+        // ilegível que ainda colidia com o bloco da peça #0621. Mesmo helper
+        // usado em start-production: os dois caminhos precisam gerar o mesmo
+        // prefixo, senão a mesma peça ganha dois padrões de ativo.
+        const itemNum = assetPrefix(item.displayId);
 
         const startIdx = existing.length;
         const qty = (item.quantityProduced ?? 1) - startIdx;
         if (qty <= 0) continue;
 
+        // Numeração pelo MAIOR sufixo existente, nunca por contagem: com
+        // contagem, um ativo excluído no meio do bloco faz o próximo lote
+        // recomeçar num número que já existe e o INSERT estoura no UNIQUE.
+        const maiorSeq = existing.reduce((max, a) => Math.max(max, assetSeqOf(a.displayId)), 0);
+
         const records = Array.from({ length: qty }, (_, i) => ({
-          displayId: `#EST-${itemNum}-${startIdx + i + 1}`,
+          displayId: `#EST-${itemNum}-${maiorSeq + i + 1}`,
           name: itemName,
           quantity: 1,
           originalItemId: item.id,

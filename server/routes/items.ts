@@ -4,10 +4,11 @@ import type { Express } from "express";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { db } from "../db";
-import { storage } from "../storage";
+import { storage, assetPrefix, assetSeqOf, isDisplayIdConflictError } from "../storage";
+import type { Item } from "@shared/schema";
 import {
   insertItemSchema,
-  insertProductionUpdateSchema,
+  publicInsertItemSchema,
   items as itemsTable,
   auditLogs,
   notifications,
@@ -56,6 +57,28 @@ const updateItemSchema = insertItemSchema
   })
   .partial();
 
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPLEMENTO — aumento de quantidade depois que a peça entrou em produção.
+//
+// A REGRA, em uma frase: enquanto a peça NÃO entrou em produção, aumentar é
+// editar a quantidade. Depois que entrou, aumentar é criar um COMPLEMENTO
+// (peça-filha #0062-C1, com a diferença, ciclo próprio e a mãe intocada).
+// REDUZIR é sempre edição, com piso físico (ver PATCH /api/items/:id).
+//
+// A assimetria é deliberada: aumentar cria trabalho novo (ordem de serviço,
+// metragem, alerta para a Gráfica); reduzir só corta a meta.
+//
+// Espelho literal de COMPLEMENT_ALLOWED_STATUSES em client/src/lib/status.ts —
+// o servidor não importa código do client (mesma disciplina dos dois mapas de
+// status que já convivem). Se um mudar, o outro muda junto.
+// Inclui as grafias legadas em português porque elas circulam no banco: gate
+// que compara só com a grafia canônica simplesmente nunca dispara.
+// ─────────────────────────────────────────────────────────────────────────────
+const COMPLEMENT_ALLOWED_STATUSES: readonly string[] = [
+  "inProduction", "em_producao", "produced", "produzido",
+  "conferred", "delivered", "entregue",
+];
+
 // m² é grandeza de produção/custo e não pode ser fonte-de-verdade do cliente.
 // Quando as dimensões do arquivo estão presentes, o servidor RECALCULA
 // calculatedM2 = quantidade × largura × altura (mesma fórmula de
@@ -83,6 +106,19 @@ function deriveCalculatedM2(data: {
 // Criação de itens: Solicitação/admin, ou o CRIADOR do evento (qualquer papel)
 // — espelha o gate canEditLists do client. Sem isto, Gráfica/Arte/Atendimento
 // criavam itens em eventos alheios direto pela API.
+/**
+ * Quem pode MUDAR A QUANTIDADE de uma peça que já entrou em produção —
+ * criar complemento, cancelar complemento e reduzir até o piso físico.
+ *
+ * Regra do dono: só solicitacao e admin. Deliberadamente mais estrito que
+ * `canCreateItemsFor`: criar peça no evento que você mesmo criou é uma coisa;
+ * alterar o contrato de uma peça que já virou lona impressa no galpão é outra.
+ * A Gráfica também não entra — ela produz o que pedem.
+ */
+function podeMudarQuantidade(req: { userRole?: string }): boolean {
+  return req.userRole === "admin" || req.userRole === "solicitacao";
+}
+
 async function canCreateItemsFor(req: { userRole?: string; userId?: string }, eventId?: string): Promise<boolean> {
   if (req.userRole === "admin" || req.userRole === "solicitacao") return true;
   if (!eventId || !req.userId) return false;
@@ -123,11 +159,100 @@ async function enrichItemsWithEventsAndSponsors(list: any[]): Promise<any[]> {
     if (arr) arr.push(enrichedSponsor);
     else sponsorsByItem.set(is.itemId, [enrichedSponsor]);
   }
-  return list.map((item) => ({
+  const withEventsAndSponsors = list.map((item) => ({
     ...item,
     event: eventById.get(item.eventId) ?? undefined,
     sponsors: sponsorsByItem.get(item.id) ?? [],
   }));
+
+  return await enrichItemsWithComplements(withEventsAndSponsors);
+}
+
+// Aviso de migração pendente: uma linha por processo, não uma por request.
+let avisouMigracaoComplemento = false;
+
+/**
+ * Anexa o parentesco de complemento à lista já enriquecida:
+ *  - na MÃE: `complements: [...]` e `contractedTotal` (quantidade + Σ dos
+ *    complementos vivos). Derivado a cada leitura, nunca gravado — contador
+ *    denormalizado sempre acaba divergindo da realidade.
+ *  - no FILHO: `parent: { id, displayId, quantity, status }`, para a linha
+ *    poder dizer "COMPLEMENTO DE #0062" sem uma segunda requisição.
+ *
+ * Uma query extra por request (WHERE parent_item_id = ANY(...)), sobre índice.
+ *
+ * Degrada em silêncio se a migração ainda não rodou: as três rotas de leitura
+ * continuam respondendo o que sempre responderam, só sem o bloco de
+ * complemento. (Isso NÃO substitui o `npm run db:push` — o SELECT do Drizzle
+ * lista as colunas explicitamente, então a leitura estoura antes de chegar
+ * aqui. O try/catch é a rede para o caso de a query nova falhar sozinha.)
+ */
+async function enrichItemsWithComplements(list: any[]): Promise<any[]> {
+  try {
+    const ids = list.map((i) => i.id);
+    const complements = await storage.getComplementsByParentIds(ids);
+    if (complements.length === 0) {
+      // Ainda assim precisa resolver o `parent` dos filhos cuja mãe não está
+      // nesta lista (ex.: recorte por status que não trouxe a mãe).
+      return await attachParents(list);
+    }
+
+    const byParent = new Map<string, any[]>();
+    for (const c of complements) {
+      if (!c.parentItemId) continue;
+      const arr = byParent.get(c.parentItemId);
+      if (arr) arr.push(c);
+      else byParent.set(c.parentItemId, [c]);
+    }
+
+    const comMaes = list.map((item) => {
+      const filhos = byParent.get(item.id);
+      if (!filhos || filhos.length === 0) return item;
+      const soma = filhos.reduce((acc: number, c: any) => acc + (Number(c.quantity) || 0), 0);
+      return {
+        ...item,
+        complements: filhos,
+        contractedTotal: (Number(item.quantity) || 0) + soma,
+      };
+    });
+
+    return await attachParents(comMaes);
+  } catch (error: any) {
+    if (error?.code === "42703") {
+      if (!avisouMigracaoComplemento) {
+        avisouMigracaoComplemento = true;
+        console.error("[COMPLEMENTOS] Migração pendente — rode npm run db:push. Listagens seguem sem o bloco de complemento.");
+      }
+      return list;
+    }
+    throw error;
+  }
+}
+
+/** Resolve `parent` nos itens que são complementos, com no máximo 1 query extra. */
+async function attachParents(list: any[]): Promise<any[]> {
+  const filhos = list.filter((i) => i.parentItemId);
+  if (filhos.length === 0) return list;
+
+  const naLista = new Map(list.map((i) => [i.id, i]));
+  const faltando = Array.from(new Set(
+    filhos.map((f) => f.parentItemId).filter((pid: string) => !naLista.has(pid)),
+  ));
+  const extras = faltando.length ? await storage.getItemsByIds(faltando as string[]) : [];
+  const maePorId = new Map<string, any>([
+    ...Array.from(naLista.entries()),
+    ...extras.map((m) => [m.id, m] as [string, any]),
+  ]);
+
+  return list.map((item) => {
+    if (!item.parentItemId) return item;
+    const mae = maePorId.get(item.parentItemId);
+    if (!mae) return item;
+    return {
+      ...item,
+      parent: { id: mae.id, displayId: mae.displayId, quantity: mae.quantity, status: mae.status },
+    };
+  });
 }
 
 export function registerItemRoutes(app: Express): void {
@@ -316,7 +441,14 @@ export function registerItemRoutes(app: Express): void {
   // Create item
   app.post("/api/items", requireAuth, async (req, res) => {
     try {
-      const validatedData = insertItemSchema.parse(req.body);
+      // publicInsertItemSchema (e não insertItemSchema): o parentesco de
+      // complemento NÃO é criável pela API pública. Sem este recorte, qualquer
+      // usuário autenticado forjaria parentItemId no body e penduraria uma peça
+      // como "complemento" de outra — inclusive de outro evento —, contaminando
+      // contractedTotal, a ordenação e a fila da Gráfica. Parentesco só nasce
+      // em POST /api/items/:id/complement, que valida papel, status e
+      // ancestralidade.
+      const validatedData = publicInsertItemSchema.parse(req.body);
       if (!(await canCreateItemsFor(req, validatedData.eventId))) {
         return res.status(403).json({ error: "Sem permissão para criar itens neste evento" });
       }
@@ -393,7 +525,9 @@ export function registerItemRoutes(app: Express): void {
       // Validate all items
       const validatedItems = itemsData.map((item, index) => {
         try {
-          const parsed = insertItemSchema.parse(item);
+          // publicInsertItemSchema: mesma blindagem do POST unitário — o body
+          // do lote não cria parentesco de complemento (ver acima).
+          const parsed = publicInsertItemSchema.parse(item);
           // Recalcular m² no servidor quando derivável (não confiar no cliente).
           const derivedM2 = deriveCalculatedM2(parsed);
           if (derivedM2 !== undefined) parsed.calculatedM2 = derivedM2;
@@ -602,12 +736,79 @@ export function registerItemRoutes(app: Express): void {
       if (!currentItem) {
         return res.status(404).json({ error: "Item not found" });
       }
-      
-      const item = await storage.updateItem(req.params.id, validatedData);
+
+      const updatePayload: Record<string, any> = { ...validatedData };
+
+      // ── QUANTIDADE: a bifurcação aumentar/reduzir mora aqui ────────────────
+      // Este era o caminho silencioso do sistema: dava para digitar 15 numa
+      // peça ENTREGUE com 10 unidades e o servidor aceitava. A peça continuava
+      // "Entregue" (nenhum status muda no PATCH), ganhava 5 unidades que
+      // ninguém imprimiu e passava a convidar a Gráfica a conferir material
+      // inexistente. Sem este gate, o modelo de complemento conviveria com o
+      // modelo antigo — dois modelos concorrentes para o mesmo problema.
+      const novaQtd = validatedData.quantity;
+      const mudouQtd = novaQtd != null && Number(novaQtd) !== currentItem.quantity;
+      let promoveuParaProduzido = false;
+
+      if (mudouQtd) {
+        const nova = Number(novaQtd);
+        const emProducao = COMPLEMENT_ALLOWED_STATUSES.includes(currentItem.status);
+
+        if (emProducao && nova > currentItem.quantity) {
+          return res.status(409).json({
+            error: `A peça ${currentItem.displayId} já está em produção. Para aumentar, use "Aumentar quantidade" (cria um complemento).`,
+            code: "USE_COMPLEMENT",
+            itemId: currentItem.id,
+            displayId: currentItem.displayId,
+            currentQuantity: currentItem.quantity,
+            suggestedComplement: nova - currentItem.quantity,
+          });
+        }
+
+        // PISO FÍSICO da redução: não dá para reduzir abaixo do que já existe
+        // no mundo real. Sem ele, uma peça com 10 produzidas e quantidade 8
+        // ficaria com inventário órfão e com tetos NEGATIVOS em confer/deliver.
+        // Espelhado em client/src/lib/saldo.ts → reductionFloorOf().
+        const produzidas = (currentItem.quantityProduced ?? 0) + (currentItem.reuseQty ?? 0);
+        const piso = Math.max(produzidas, currentItem.conferredQty ?? 0, currentItem.deliveredQty ?? 0);
+        if (nova < piso) {
+          return res.status(409).json({
+            error: `Não é possível reduzir para ${nova}: já há ${piso} un. produzidas/conferidas/entregues. Mínimo: ${piso}.`,
+            code: "QUANTITY_FLOOR",
+            minimum: piso,
+          });
+        }
+
+        // Promoção SÓ PARA CIMA: se a redução zera o saldo a produzir e a peça
+        // está em produção, ela virou "Produzido" de fato. Cobre o caso real
+        // "produzi 10 das 15 e o cliente desistiu das outras 5" — sem isto a
+        // peça ficaria eternamente Em Produção com saldo fantasma. Nunca
+        // rebaixa: peça entregue continua entregue.
+        if (nova <= produzidas && (currentItem.status === "inProduction" || currentItem.status === "em_producao")) {
+          updatePayload.status = "produced";
+          promoveuParaProduzido = true;
+        }
+      }
+
+      // m² é derivado, não recebido: quando a quantidade ou as dimensões do
+      // arquivo mudam, o valor enviado pelo cliente é ignorado e recalculado
+      // com o estado MESCLADO (o que veio no PATCH + o que já estava na peça).
+      // Sem isto, editar só a quantidade deixava o m² congelado no valor antigo
+      // — e o m² é o número que vira custo e fechamento com patrocinador.
+      if ("quantity" in validatedData || "fileWidth" in validatedData || "fileHeight" in validatedData) {
+        const derivado = deriveCalculatedM2({
+          quantity: novaQtd ?? currentItem.quantity,
+          fileWidth: "fileWidth" in validatedData ? validatedData.fileWidth : currentItem.fileWidth,
+          fileHeight: "fileHeight" in validatedData ? validatedData.fileHeight : currentItem.fileHeight,
+        });
+        if (derivado !== undefined) updatePayload.calculatedM2 = derivado;
+      }
+
+      const item = await storage.updateItem(req.params.id, updatePayload);
       if (!item) {
         return res.status(404).json({ error: "Item not found" });
       }
-      
+
       // Create audit log - build descriptive diff of changed fields
       const changedParts: string[] = [];
 
@@ -618,7 +819,18 @@ export function registerItemRoutes(app: Express): void {
         changedParts.push(item.isReuse ? "Marcado para reaproveitamento" : "Reaproveitamento removido");
       }
       if ('quantity' in validatedData && item.quantity !== currentItem.quantity) {
-        changedParts.push(`Quantidade: ${currentItem.quantity ?? '—'} → ${item.quantity ?? '—'}`);
+        // Numa peça já em produção, "15 → 10" sozinho não explica nada seis
+        // meses depois. O contexto físico (o que já existe impresso) e o m²
+        // resultante vão junto — é o que responde "por que o fechamento mudou".
+        const contexto = COMPLEMENT_ALLOWED_STATUSES.includes(currentItem.status)
+          ? ` Já produzidas ${(currentItem.quantityProduced ?? 0) + (currentItem.reuseQty ?? 0)},`
+            + ` conferidas ${currentItem.conferredQty ?? 0}, entregues ${currentItem.deliveredQty ?? 0}.`
+            + (item.calculatedM2 !== currentItem.calculatedM2 ? ` m²: ${currentItem.calculatedM2} → ${item.calculatedM2}` : "")
+          : "";
+        changedParts.push(`Quantidade: ${currentItem.quantity ?? '—'} → ${item.quantity ?? '—'} un.${contexto}`);
+      }
+      if (promoveuParaProduzido) {
+        changedParts.push("Saldo zerado pela redução — peça promovida para Produzido");
       }
       if ('type' in validatedData && item.type !== currentItem.type) {
         changedParts.push(`Tipo: ${currentItem.type ?? '—'} → ${item.type ?? '—'}`);
@@ -664,9 +876,32 @@ export function registerItemRoutes(app: Express): void {
       
       // Recalculate event status if item status changed
       await updateEventStatus(item.eventId);
-      
+
       broadcast({ type: "item_updated", item });
-      
+
+      // Redução de quantidade numa peça que a Gráfica já está produzindo: ela
+      // precisa saber ANTES de imprimir a mais. (Aumento não cai aqui — em
+      // produção ele é barrado acima com USE_COMPLEMENT.)
+      //
+      // NÃO acende destaque persistente na linha: reduzir não cria trabalho,
+      // só corta meta. Um aviso no sino e a lista atualizada bastam.
+      //
+      // O broadcast extra usa "production_updated" de propósito: é o tipo que
+      // já invalida '/api/items/approved' (a fila da Gráfica), que roda com
+      // staleTime: Infinity — "item_updated" sozinho não a alcança.
+      if (mudouQtd && COMPLEMENT_ALLOWED_STATUSES.includes(currentItem.status)) {
+        const ev = await storage.getEvent(item.eventId);
+        const notif = await storage.createNotification({
+          type: "quantityReduced",
+          message: `Quantidade reduzida: ${item.displayId} (${item.type}) — ${currentItem.quantity} → ${item.quantity} un.${ev ? ` — ${ev.name}` : ""}`,
+          eventId: item.eventId,
+          itemId: item.id,
+          targetRoles: ["grafica"],
+        });
+        broadcast({ type: "production_updated", item });
+        broadcast({ type: "notification_created", notification: notif });
+      }
+
       res.json(item);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -709,7 +944,22 @@ export function registerItemRoutes(app: Express): void {
           error: "Não é possível excluir uma peça que já foi enviada para Arte ou está em produção",
         });
       }
-      
+
+      // Mãe com complemento vivo não some. O `ON DELETE SET NULL` da FK só
+      // dispara em DELETE físico — aqui a exclusão é SOFT (deletedAt), então o
+      // banco não limpa nada e o filho ficaria órfão, apontando para uma peça
+      // invisível: a linha da Gráfica diria "COMPLEMENTO DE #0062" com #0062
+      // fora de todas as listagens. Cancelar o complemento primeiro é a ordem
+      // correta e é reversível.
+      const complementosVivos = await storage.getLiveComplements(req.params.id).catch(() => []);
+      if (complementosVivos.length > 0) {
+        return res.status(409).json({
+          error: `Esta peça tem ${complementosVivos.length} complemento(s) ativo(s) (${complementosVivos.map(c => c.displayId).join(", ")}). Cancele o complemento antes de excluir.`,
+          code: "HAS_COMPLEMENTS",
+          complements: complementosVivos.map(c => ({ id: c.id, displayId: c.displayId })),
+        });
+      }
+
       const success = await storage.deleteItem(req.params.id);
       if (!success) {
         return res.status(404).json({ error: "Item not found" });
@@ -725,10 +975,326 @@ export function registerItemRoutes(app: Express): void {
       );
       
       broadcast({ type: "item_deleted", itemId: req.params.id, eventId: item.eventId });
-      
+
       res.json({ success: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // COMPLEMENTO — aumento de quantidade depois que a peça entrou em produção
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  // Cria a peça-filha #0062-C1 com a DIFERENÇA pedida. A peça original não
+  // recebe um único UPDATE — nenhum. É o ponto inteiro do modelo: um pórtico
+  // entregue continua entregue, o KPI "Entregues" não cai retroativamente e o
+  // fechamento com o patrocinador não é reescrito. O trabalho novo é uma linha
+  // nova, porque no mundo físico foi exatamente isso: nova ordem de serviço,
+  // nova impressão, novo setup.
+  //
+  // Gate INLINE (não requireRole) porque o predicado inclui "criador do evento
+  // de qualquer papel" — mesmo estilo das outras rotas de escrita de peça. A
+  // Gráfica NÃO cria complemento: ela produz o que pedem.
+  app.post("/api/items/:id/complement", requireAuth, async (req, res) => {
+    try {
+      const body = z.object({
+        quantity: z.number().int().min(1, "Informe ao menos 1 unidade").max(9999),
+        reason: z.string().trim()
+          .min(10, "Explique o motivo (mín. 10 caracteres)")
+          .max(500, "Motivo muito longo (máx. 500 caracteres)"),
+      }).parse(req.body);
+
+      const parent = await storage.getItem(req.params.id);
+      if (!parent || parent.deletedAt) {
+        return res.status(404).json({ error: "Peça não encontrada" });
+      }
+      // Gate ESTRITO, decisão do dono: mudar quantidade de peça já produzida é
+      // exclusivo de solicitacao e admin. NÃO usa canCreateItemsFor porque
+      // aquele predicado inclui "criador do evento de qualquer papel" — regra
+      // legítima para CRIAR peça, larga demais para mexer em contrato de peça
+      // que já virou material físico.
+      if (!podeMudarQuantidade(req)) {
+        return res.status(403).json({ error: "Sem permissão para aumentar a quantidade neste evento" });
+      }
+      // Complemento de complemento vira #0062-C1-C1 e torna contractedTotal
+      // recursivo. O segundo aumento se pede NA MÃE — vira #0062-C2.
+      if (parent.parentItemId) {
+        return res.status(409).json({
+          error: `${parent.displayId} já é um complemento. Peça o aumento na peça original.`,
+          code: "IS_COMPLEMENT",
+          parentItemId: parent.parentItemId,
+        });
+      }
+      if (!COMPLEMENT_ALLOWED_STATUSES.includes(parent.status)) {
+        return res.status(409).json({
+          error: `A peça ${parent.displayId} ainda não entrou em produção — edite a quantidade normalmente.`,
+          code: "NOT_IN_PRODUCTION",
+          status: parent.status,
+        });
+      }
+
+      const event = await storage.getEvent(parent.eventId);
+      if (!event) return res.status(404).json({ error: "Evento não encontrado" });
+
+      // Dedupe de 60 s (duplo clique / retry de rede): devolve 200 com o
+      // complemento que já existe, não erro. Duas linhas idênticas na fila da
+      // Gráfica valem mais confusão do que um retry silencioso.
+      const dup = await storage.findRecentComplement(parent.id, body.quantity, body.reason, 60);
+      if (dup) {
+        return res.status(200).set("X-Complement-Deduped", "1").json(dup);
+      }
+
+      // m² do filho SEMPRE derivado no servidor, nesta ordem:
+      // 1) fórmula normal (quantidade × largura × altura do arquivo);
+      // 2) rateio do m² da mãe (acervo antigo não tem dimensões de arquivo);
+      // 3) "0.00" — a coluna é NOT NULL — com a ressalva no audit log.
+      // Ganho não óbvio: o m² do EVENTO fica correto sozinho, porque as duas
+      // linhas somam. Nenhuma agregação precisa saber o que é complemento.
+      const derivado = deriveCalculatedM2({
+        quantity: body.quantity, fileWidth: parent.fileWidth, fileHeight: parent.fileHeight,
+      });
+      const rateado = Number(parent.calculatedM2) > 0 && parent.quantity > 0
+        ? ((Number(parent.calculatedM2) / parent.quantity) * body.quantity).toFixed(2)
+        : null;
+      const m2 = derivado ?? rateado ?? "0.00";
+      const m2NaoDerivavel = derivado === undefined && rateado === null;
+
+      const userName = (req as any).userName || "Sistema";
+      const posSaida = !!event.truckDepartureDate && new Date(event.truckDepartureDate) < new Date();
+      const marcaSaida = posSaida ? " [pós-saída do caminhão]" : "";
+      const marcaM2 = m2NaoDerivavel ? " (m² não derivável)" : "";
+
+      // Uma transação: peça-filha + os DOIS audit logs + a notificação. Se
+      // qualquer passo falhar, nada fica meio criado — e o pior meio-caminho
+      // possível aqui é um complemento na fila da Gráfica sem o motivo
+      // registrado em lugar nenhum.
+      //
+      // A retentativa é da transação INTEIRA (não do INSERT): no Postgres, uma
+      // transação que tomou erro está abortada e não aceita mais comandos. O
+      // 23505 acontece quando duas pessoas pedem o aumento da mesma peça no
+      // mesmo instante e ambas calculam o mesmo -C1; na segunda volta o MAX já
+      // enxerga o -C1 e sai o -C2.
+      const criar = () => db.transaction(async (tx) => {
+        const child = await storage.createComplementItemTx(tx, parent, {
+          quantity: body.quantity,
+          calculatedM2: m2,
+          status: "ready_for_production",
+          complementReason: body.reason,
+          complementRequestedBy: userName,
+          complementRequestedAt: new Date(),
+        });
+
+        // LOG NA FILHA — a história do lote novo.
+        await tx.insert(auditLogs).values({
+          userName, action: "complement_created", entityType: "item", entityId: child.id,
+          details: `Complemento de ${parent.displayId}: +${body.quantity} un. (${m2} m²)${marcaM2}. `
+                 + `Peça original permanece ${translateStatus(parent.status)} com ${parent.quantity} un. `
+                 + `Motivo: ${body.reason}${marcaSaida}`,
+        });
+        // LOG NA MÃE — OBRIGATÓRIO. A ficha da peça filtra o audit log por
+        // entityId === item.id; sem esta linha, abrir #0062 não mostraria
+        // absolutamente nada sobre o aumento, e é justamente em #0062 que quem
+        // presta contas vai procurar.
+        await tx.insert(auditLogs).values({
+          userName, action: "complement_created", entityType: "item", entityId: parent.id,
+          details: `Complemento ${child.displayId} criado: +${body.quantity} un. `
+                 + `(contratado ${parent.quantity} → ${parent.quantity + body.quantity}). `
+                 + `Motivo: ${body.reason}${marcaSaida}`,
+        });
+
+        const [notification] = await tx.insert(notifications).values({
+          type: "complementCreated",
+          message: `+${body.quantity} un. em ${parent.displayId} (${parent.type}) — ${event.name}. Motivo: ${body.reason}`,
+          eventId: parent.eventId,
+          itemId: child.id,
+          targetRoles: ["grafica"],
+        }).returning();
+
+        return { child, notification };
+      });
+
+      let child: Item;
+      let notification: any;
+      try {
+        ({ child, notification } = await criar());
+      } catch (e: any) {
+        if (!isDisplayIdConflictError(e)) throw e;
+        ({ child, notification } = await criar());
+      }
+
+      // ── Pós-commit ────────────────────────────────────────────────────────
+      // Patrocinadores e aprovações são copiados FORA da transação de
+      // propósito: são dados de apresentação e uma falha aqui não pode
+      // desfazer o complemento (que é o trabalho de verdade). Se falhar, a
+      // peça existe e os chips podem ser recolocados pela tela de vinculação.
+      try {
+        const sponsorIds = (await storage.getItemSponsors(parent.id)).map(s => s.sponsorId);
+        if (sponsorIds.length) await storage.bulkSyncItemSponsors(child.id, sponsorIds);
+        // Copia PRESERVANDO status/aprovador/data. Nunca
+        // initializeItemSponsorApprovals: ela criaria linhas 'pending' que
+        // viram cobrança falsa na Gestão de Prazos, numa peça que já está
+        // aprovada e liberada.
+        await storage.copyItemSponsorApprovals(parent.id, child.id);
+      } catch (e: any) {
+        console.error("[COMPLEMENTOS] falha ao copiar patrocinadores/aprovações:", e?.message ?? e);
+      }
+
+      // SÓ updateEventStatus. O POST /api/items normal, quando o evento está
+      // "completed", RESETA a prioridade do evento e notifica o admin — aqui
+      // isso apagaria a prioridade de um evento em andamento por causa de 4
+      // unidades. O evento voltar de "concluído" para "criado" é correto (há
+      // trabalho pendente); perder a prioridade não é.
+      await updateEventStatus(parent.eventId);
+
+      // Broadcast semântico (para quem quiser tratar o caso especificamente)…
+      broadcast({
+        type: "item_complement_created", item: child, parentId: parent.id,
+        parentDisplayId: parent.displayId, eventId: parent.eventId, quantity: body.quantity,
+      });
+      // …e um tipo JÁ TRATADO no client. Sem este segundo broadcast a Gráfica
+      // fica CEGA até um F5: '/api/items/approved' (a fila dela) roda com
+      // staleTime: Infinity e refetchOnWindowFocus: false, e nenhum tipo
+      // genérico a invalida — só 'item_approved' e 'production_*'.
+      // "item_approved" é semanticamente honesto aqui: o complemento nasce
+      // liberado para produção. Pode ser removido no dia em que
+      // use-websocket.ts ganhar o case de 'item_complement_created'.
+      broadcast({ type: "item_approved", item: child });
+      broadcast({ type: "notification_created", notification });
+
+      res.status(201).json(child);
+    } catch (error: any) {
+      if (error?.code === "42703") {
+        return res.status(503).json({
+          error: "Migração pendente: peça ao administrador rodar npm run db:push.",
+          code: "MIGRATION_PENDING",
+        });
+      }
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors?.[0]?.message ?? "Dados inválidos" });
+      }
+      console.error("[COMPLEMENTOS] falha ao criar complemento:", error);
+      res.status(error?.httpStatus ?? 500).json({ error: error?.message ?? "Não foi possível criar o complemento" });
+    }
+  });
+
+  // Cancela um complemento criado por engano — a janela de arrependimento.
+  // Sem esta rota, um complemento errado vira lixo PERMANENTE na fila da
+  // Gráfica: o DELETE genérico bloqueia 'ready_for_production' para o perfil
+  // Solicitação (LOCKED_STATUSES), e só o admin conseguiria remover.
+  //
+  // A Gráfica pode cancelar de propósito: quem percebe o engano é quem está
+  // com a peça na mão, e obrigá-la a caçar o solicitante para desfazer algo
+  // que ainda não foi impresso é como se perde a confiança na ferramenta.
+  app.delete("/api/items/:id/complement", requireAuth, async (req, res) => {
+    try {
+      const item = await storage.getItem(req.params.id);
+      if (!item || item.deletedAt) {
+        return res.status(404).json({ error: "Complemento não encontrado" });
+      }
+      if (!item.parentItemId) {
+        return res.status(409).json({
+          error: `${item.displayId} não é um complemento. Use a exclusão normal de peças.`,
+          code: "NOT_A_COMPLEMENT",
+        });
+      }
+
+      // Mesmo gate estrito da criação (decisão do dono): cancelar um
+      // complemento é desfazer um aumento de quantidade. A spec original dava
+      // este escape à Gráfica — quem vê o "40 pórticos" absurdo primeiro — mas
+      // a regra passou a ser "só solicitacao e admin mexem na quantidade".
+      // Reverter é trocar esta linha por `|| req.userRole === "grafica"`.
+      if (!podeMudarQuantidade(req)) {
+        return res.status(403).json({ error: "Sem permissão para cancelar este complemento" });
+      }
+
+      // Nada tocado = nada perdido. Uma única unidade produzida, reaproveitada,
+      // conferida ou entregue já é material físico no galpão; cancelar deixaria
+      // ativos de inventário órfãos apontando para uma peça invisível.
+      const produzidas = item.quantityProduced ?? 0;
+      const reaproveitadas = item.reuseQty ?? 0;
+      const conferidas = item.conferredQty ?? 0;
+      const entregues = item.deliveredQty ?? 0;
+      if (produzidas > 0 || reaproveitadas > 0 || conferidas > 0 || entregues > 0) {
+        const detalhe = [
+          produzidas > 0 ? `${produzidas} produzida(s)` : null,
+          reaproveitadas > 0 ? `${reaproveitadas} reaproveitada(s)` : null,
+          conferidas > 0 ? `${conferidas} conferida(s)` : null,
+          entregues > 0 ? `${entregues} entregue(s)` : null,
+        ].filter(Boolean).join(", ");
+        return res.status(409).json({
+          error: `Não é possível cancelar ${item.displayId}: já há ${detalhe}.`,
+          code: "COMPLEMENT_TOUCHED",
+          produced: produzidas, reused: reaproveitadas, conferred: conferidas, delivered: entregues,
+        });
+      }
+
+      const parent = await storage.getItem(item.parentItemId);
+      const event = await storage.getEvent(item.eventId);
+      const userName = (req as any).userName || "Sistema";
+      const parentLabel = parent?.displayId ?? "peça original";
+
+      const { notification } = await db.transaction(async (tx) => {
+        // Soft delete, igual a toda exclusão do sistema: o complemento some das
+        // listagens e continua no histórico. O número -C1 NÃO é reciclado — o
+        // próximo aumento vira -C2, e quem ler o log entende a sequência.
+        const [removido] = await tx
+          .update(itemsTable)
+          .set({ deletedAt: new Date(), updatedAt: new Date() })
+          .where(eq(itemsTable.id, item.id))
+          .returning();
+        if (!removido) throw Object.assign(new Error("Complemento não encontrado"), { httpStatus: 404 });
+
+        await tx.insert(auditLogs).values({
+          userName, action: "complement_canceled", entityType: "item", entityId: item.id,
+          details: `Complemento ${item.displayId} cancelado (nenhuma unidade produzida). `
+                 + `Contratado volta a ${parent?.quantity ?? "—"} un.`,
+        });
+        // Também na mãe: é lá que se pergunta "afinal, aumentou ou não?".
+        if (parent) {
+          await tx.insert(auditLogs).values({
+            userName, action: "complement_canceled", entityType: "item", entityId: parent.id,
+            details: `Complemento ${item.displayId} cancelado (+${item.quantity} un. desfeitas, nada produzido). `
+                   + `Contratado volta a ${parent.quantity} un.`,
+          });
+        }
+
+        const [notif] = await tx.insert(notifications).values({
+          type: "complementCanceled",
+          message: `Complemento ${item.displayId} cancelado — não produzir.${event ? ` (${event.name})` : ""}`,
+          eventId: item.eventId,
+          itemId: parent?.id ?? null,
+          targetRoles: ["grafica"],
+        }).returning();
+
+        return { notification: notif };
+      });
+
+      await updateEventStatus(item.eventId);
+
+      broadcast({
+        type: "item_complement_canceled", itemId: item.id, displayId: item.displayId,
+        parentId: item.parentItemId, eventId: item.eventId,
+      });
+      // Tipos já tratados no client (ver comentário gêmeo na rota de criação):
+      // 'item_deleted' tira a linha das listagens gerais e da lixeira;
+      // 'production_updated' é o único que invalida '/api/items/approved',
+      // a fila da Gráfica — sem ele o complemento cancelado ficaria na tela
+      // dela, convidando a imprimir algo que foi desfeito.
+      broadcast({ type: "item_deleted", itemId: item.id, eventId: item.eventId });
+      broadcast({ type: "production_updated", item: { ...item, deletedAt: new Date() } });
+      broadcast({ type: "notification_created", notification });
+
+      res.json({ success: true, itemId: item.id, displayId: item.displayId, parentDisplayId: parentLabel });
+    } catch (error: any) {
+      if (error?.code === "42703") {
+        return res.status(503).json({
+          error: "Migração pendente: peça ao administrador rodar npm run db:push.",
+          code: "MIGRATION_PENDING",
+        });
+      }
+      console.error("[COMPLEMENTOS] falha ao cancelar complemento:", error);
+      res.status(error?.httpStatus ?? 500).json({ error: error?.message ?? "Não foi possível cancelar o complemento" });
     }
   });
 
@@ -1589,6 +2155,50 @@ export function registerItemRoutes(app: Express): void {
 
       broadcast({ type: "item_updated", item });
       broadcast({ type: "notification_created", notification });
+
+      // ── Propaga a arte nova para os COMPLEMENTOS vivos ────────────────────
+      // O complemento é a MESMA peça, com a mesma arte — só a quantidade é
+      // nova. Sem propagar, #0062-C1 continuaria carregando o arquivo antigo e
+      // a Gráfica imprimiria a versão errada: refugo real, dinheiro perdido,
+      // e o pior tipo de erro (nada na tela indica que está errado).
+      // Só alcança complementos que ainda NÃO foram produzidos — reescrever a
+      // arte de um lote já impresso seria mentir sobre o que está no galpão.
+      try {
+        const complementos = await storage.getLiveComplements(item.id);
+        const aindaNaoImpressos = complementos.filter(
+          (c) => (c.quantityProduced ?? 0) === 0 && (c.reuseQty ?? 0) === 0,
+        );
+        for (const c of aindaNaoImpressos) {
+          await storage.updateItem(c.id, {
+            finalFileUrl: item.finalFileUrl,
+            finalFileName: item.finalFileName,
+            finalPreviewUrl: item.finalPreviewUrl,
+            finalFileUpdatedAt: item.finalFileUpdatedAt,
+            previousFinalFileUrl: prevUrl,
+            previousFinalFileName: prevName,
+          });
+          await createAuditLog(
+            req.userName!, 'updated', 'item', c.id,
+            `Arquivo final propagado da peça original ${item.displayId} (arte substituída pela Arte)`,
+          );
+        }
+        if (aindaNaoImpressos.length > 0) {
+          const notifCompl = await storage.createNotification({
+            type: "arteApproved",
+            message: `⚠ Arquivo final atualizado também no(s) complemento(s) ${aindaNaoImpressos.map(c => c.displayId).join(", ")} — verifique antes de produzir`,
+            eventId: item.eventId,
+            itemId: aindaNaoImpressos[0].id,
+            targetRoles: ["grafica"],
+          });
+          broadcast({ type: "production_updated", item: aindaNaoImpressos[0] });
+          broadcast({ type: "notification_created", notification: notifCompl });
+        }
+      } catch (e: any) {
+        // Migração pendente (42703) ou falha na propagação não pode derrubar a
+        // troca de arquivo da peça principal, que já foi commitada.
+        console.error("[COMPLEMENTOS] falha ao propagar arquivo final:", e?.message ?? e);
+      }
+
       res.json(item);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -2171,16 +2781,32 @@ export function registerItemRoutes(app: Express): void {
       if (req.userRole !== "grafica" && req.userRole !== "admin") {
         return res.status(403).json({ error: "Apenas usuários com perfil Gráfica podem iniciar produção" });
       }
-      const { quantityProduced } = req.body;
-      
+      const { quantityProduced, expectedProduced } = req.body;
+
       if (!quantityProduced || quantityProduced <= 0) {
         return res.status(400).json({ error: "quantityProduced is required and must be greater than 0" });
       }
-      
+
       // Read current state before the transaction (for audit log description and
       // to compute the new status — replicating startProduction logic inside tx).
       const before = await storage.getItem(req.params.id);
       if (!before) return res.status(404).json({ error: "Item not found" });
+
+      // ── Concorrência: `quantityProduced` é ABSOLUTO (total produzido até
+      // agora), não incremental. Quando o cliente informa `expectedProduced`
+      // (o total que ele leu na tela ao abrir o modal), o servidor confere que
+      // ninguém lançou produção nesse meio-tempo. Sem isto, dois operadores no
+      // galpão com a mesma peça aberta sobrescrevem um ao outro em silêncio:
+      // o último a salvar apaga o lançamento do primeiro.
+      // Campo OPCIONAL — clientes que não enviam seguem funcionando.
+      const jaProduzido = before.quantityProduced ?? 0;
+      if (expectedProduced != null && Number(expectedProduced) !== jaProduzido) {
+        return res.status(409).json({
+          error: `Outra pessoa lançou produção nesta peça: agora são ${jaProduzido} un. produzidas (você viu ${Number(expectedProduced)}). Confira o número e lance de novo.`,
+          code: "PRODUCTION_CONFLICT",
+          actualProduced: jaProduzido,
+        });
+      }
 
       // Teto: produzido + reaproveitado não pode passar da quantidade da peça —
       // sem isto qualquer número era aceito e virava esse total de ativos no
@@ -2202,6 +2828,10 @@ export function registerItemRoutes(app: Express): void {
         quantityProduced,
         updatedAt: new Date(),
         ...(!before.productionStartedAt ? { productionStartedAt: new Date() } : {}),
+        // produced_at era coluna morta desde sempre: a peça fechava como
+        // "Produzido" e a trilha temporal da ficha pulava direto de "Produção
+        // iniciada" para "Conferido". Uma linha devolve a etapa.
+        ...(newProdStatus === "produced" && !before.producedAt ? { producedAt: new Date() } : {}),
       };
 
       // Atomic: item status update + audit log in one transaction.
@@ -2218,7 +2848,12 @@ export function registerItemRoutes(app: Express): void {
           action: newProdStatus === "produced" ? "produced" : "production",
           entityType: "item",
           entityId: updated.id,
-          details: `Produção: ${quantityProduced}/${updated.quantity} un. (${translateStatus(before.status)} → ${translateStatus(newProdStatus)})`,
+          details: `Produção: ${quantityProduced}/${updated.quantity} un. (${translateStatus(before.status)} → ${translateStatus(newProdStatus)})`
+            // O campo é ABSOLUTO e por anos foi rotulado como incremental na
+            // tela: quem produzia 6 de 10, voltava e digitava "4" REGREDIA o
+            // total para 4 sem nenhum vestígio. Enquanto o número absoluto for
+            // o contrato, ao menos a regressão deixa de ser silenciosa.
+            + (quantityProduced < jaProduzido ? ` — ATENÇÃO: total produzido REDUZIDO de ${jaProduzido} para ${quantityProduced} un.` : ""),
         });
 
         return updated;
@@ -2240,49 +2875,45 @@ export function registerItemRoutes(app: Express): void {
         const linkedSponsorIds = itemSponsorLinks.map(s => s.sponsorId);
         // Get approvalThumbUrl from item
         const approvalThumbUrl = item.approvalThumbUrl ?? null;
-        // Extract numeric part from item displayId (e.g. "#0062" → "0062")
-        const itemNum = item.displayId.replace(/[^0-9]/g, '').padStart(4, '0');
+        // Prefixo do ativo a partir do displayId da peça.
+        // ANTES: displayId.replace(/[^0-9]/g,'') — que para "#0062" dava "0062"
+        // (certo) mas para o complemento "#0062-C1" dava "00621", um código
+        // ilegível que ainda por cima colide com a peça #0621. assetPrefix
+        // devolve "0062" para a mãe (byte a byte idêntico ao anterior: zero
+        // risco no acervo existente) e "0062C1" para o complemento.
+        const itemNum = assetPrefix(item.displayId);
+        // Complemento ganha rastro no próprio ativo — quem abre o Estoque seis
+        // meses depois entende por que existem dois blocos da "mesma" peça.
+        const assetNotes = item.parentItemId
+          ? `Gráfica — Evento: ${event?.name ?? '—'} · Complemento de ${(await storage.getItem(item.parentItemId))?.displayId ?? '—'}`
+          : `Gráfica — Evento: ${event?.name ?? '—'}`;
 
         const producedBy = (req as any).userName || 'Gráfica';
-        if (existingAssets.length === 0) {
-          // Create N individual records (1 per unit)
-          const records = Array.from({ length: quantityProduced }, (_, i) => ({
-            displayId: `#EST-${itemNum}-${i + 1}`,
-            name: itemName,
-            quantity: 1,
-            originalItemId: item.id,
-            condition: "PERFEITO" as const,
-            location: null,
-            franchiseTags,
-            sponsorIds: linkedSponsorIds,
-            approvalThumbUrl,
-            trackingStatus: "NO_GALPAO" as const,
-            notes: `Gráfica — Evento: ${event?.name ?? '—'}`,
-            autoAdded: true,
-          }));
+        const novoAtivo = (seq: number) => ({
+          displayId: `#EST-${itemNum}-${seq}`,
+          name: itemName,
+          quantity: 1,
+          originalItemId: item.id,
+          condition: "PERFEITO" as const,
+          location: null,
+          franchiseTags,
+          sponsorIds: linkedSponsorIds,
+          approvalThumbUrl,
+          trackingStatus: "NO_GALPAO" as const,
+          notes: assetNotes,
+          autoAdded: true,
+        });
+
+        if (existingAssets.length < quantityProduced) {
+          // Numeração pelo MAIOR sufixo existente, nunca por contagem.
+          // Com contagem, excluir o ativo #EST-0062-3 de um bloco de 5 fazia o
+          // próximo lote recomeçar em -5 (que já existe) e o INSERT estourar
+          // 23505 — um 500 lançado DEPOIS de a peça já ter sido marcada como
+          // produzida, ou seja, com o item num estado que ninguém reproduz.
+          const maiorSeq = existingAssets.reduce((max, a) => Math.max(max, assetSeqOf(a.displayId)), 0);
+          const faltam = quantityProduced - existingAssets.length;
+          const records = Array.from({ length: faltam }, (_, i) => novoAtivo(maiorSeq + i + 1));
           const created = await storage.createInventoryAssets(records);
-          for (const a of created) {
-            await createAuditLog(producedBy, 'cadastrado', 'inventory_asset', a.id,
-              JSON.stringify({ evento: event?.name ?? '—', itemId: item.id }));
-          }
-        } else if (existingAssets.length < quantityProduced) {
-          // Add missing units
-          const currentMax = existingAssets.length;
-          const additional = Array.from({ length: quantityProduced - currentMax }, (_, i) => ({
-            displayId: `#EST-${itemNum}-${currentMax + i + 1}`,
-            name: itemName,
-            quantity: 1,
-            originalItemId: item.id,
-            condition: "PERFEITO" as const,
-            location: null,
-            franchiseTags,
-            sponsorIds: linkedSponsorIds,
-            approvalThumbUrl,
-            trackingStatus: "NO_GALPAO" as const,
-            notes: `Gráfica — Evento: ${event?.name ?? '—'}`,
-            autoAdded: true,
-          }));
-          const created = await storage.createInventoryAssets(additional);
           for (const a of created) {
             await createAuditLog(producedBy, 'cadastrado', 'inventory_asset', a.id,
               JSON.stringify({ evento: event?.name ?? '—', itemId: item.id }));
@@ -2626,54 +3257,20 @@ export function registerItemRoutes(app: Express): void {
     }
   });
 
-  app.post("/api/items/:id/production", requireAuth, async (req, res) => {
-    try {
-      // Só a Gráfica (ou admin) registra produção — mesma regra de
-      // /start-production. Sem isto qualquer perfil marcava item como produzido.
-      if (req.userRole !== "grafica" && req.userRole !== "admin") {
-        return res.status(403).json({ error: "Apenas usuários com perfil Gráfica podem registrar produção" });
-      }
-      const validatedData = insertProductionUpdateSchema.parse(req.body);
-      const productionUpdate = await storage.createProductionUpdate({
-        ...validatedData,
-        itemId: req.params.id,
-      });
-      
-      const item = await storage.getItem(req.params.id);
-      if (!item) {
-        return res.status(404).json({ error: "Item not found" });
-      }
-
-      // Update item status based on quantity produced
-      let newStatus = item.status;
-      if (validatedData.quantityProduced >= parseInt(item.quantity.toString())) {
-        newStatus = "produced";
-      } else if (validatedData.quantityProduced > 0) {
-        newStatus = "inProduction";
-      }
-
-      const updatedItem = await storage.updateItem(req.params.id, { status: newStatus });
-
-      const event = await storage.getEvent(item.eventId);
-
-      // Registra QUEM produziu — sem este log o histórico não tem autor e acaba
-      // exibindo o fallback "Sistema".
-      await createAuditLog(
-        (req as any).userName,
-        newStatus === "produced" ? "produced" : "production",
-        "item",
-        item.id,
-        `Produção: ${validatedData.quantityProduced}/${item.quantity} un. (${translateStatus(item.status)} → ${translateStatus(newStatus)})`
-      );
-
-      // Não notificar sobre atualizações de produção
-
-      broadcast({ type: "production_updated", item: updatedItem, update: productionUpdate });
-      
-      res.json({ item: updatedItem, update: productionUpdate });
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
+  // ── ROTA APOSENTADA — 410 Gone ────────────────────────────────────────────
+  // Era um SEGUNDO caminho de produção, paralelo a /start-production e sem
+  // nenhuma das travas dele: marcava "produced" SEM teto (aceitava 999 numa
+  // peça de 10), sem somar reuseQty, sem gravar quantityProduced (o número
+  // ficava só na tabela production_updates, invisível para a Gráfica) e sem
+  // criar os ativos de inventário. Zero callers no client — foi verificado.
+  // Continua registrada, respondendo 410, para que qualquer script ou aba
+  // antiga receba uma explicação em vez de um 404 mudo. Não remover sem antes
+  // conferir os logs de acesso.
+  app.post("/api/items/:id/production", requireAuth, async (_req, res) => {
+    res.status(410).json({
+      error: 'Rota descontinuada. Use PATCH /api/items/:id/start-production, que valida o teto de produção, soma o reaproveitamento e cria os ativos de inventário.',
+      code: "ROUTE_GONE",
+    });
   });
 
 }

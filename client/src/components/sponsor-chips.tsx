@@ -1,12 +1,41 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
+import { getApprovalMeta, getApprovalTitle, type ApprovalMeta, type ApprovalStatus } from "@/lib/status";
 
 interface Sponsor {
   id: string;
   name: string;
   color?: string | null;
-  /** Status da aprovação deste patrocinador para a peça, quando disponível. */
-  approvalStatus?: "approved" | "rejected" | "pending" | null;
+  /**
+   * Status da aprovação deste patrocinador para a peça, quando disponível.
+   *
+   * Chega CRU do servidor (`enrichItemsWithEventsAndSponsors` repassa
+   * `approval.status` sem traduzir), então inclui os valores que só o servidor
+   * grava — `awaiting_arte` na reprovação e `new_version_pending` no reenvio.
+   * O union antigo tinha só approved|rejected|pending e mentia sobre o
+   * contrato: os dois estados de reprovação caíam em estilo nulo.
+   *
+   * `(string & {})` de propósito: um valor novo no banco não pode quebrar o
+   * build de quem passa o campo cru, mas também não pode passar despercebido —
+   * cai no visual "desconhecido" (cinza + valor cru no tooltip) de
+   * `getApprovalMeta`, nunca na cor da marca.
+   */
+  approvalStatus?: ApprovalStatus | (string & {}) | null;
 }
+
+// Rótulo só para leitor de tela. O chip mostra o NOME do patrocinador; o
+// estado vive na cor, na bolinha e no tooltip — nada disso chega a quem usa
+// leitor de tela. Fora de fluxo (position:absolute), então não desloca nada.
+const SR_ONLY: React.CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: "hidden",
+  clip: "rect(0,0,0,0)",
+  whiteSpace: "nowrap",
+  border: 0,
+};
 
 interface SponsorChipsProps {
   sponsors: Sponsor[];
@@ -79,9 +108,26 @@ export function SponsorChips({
   const ovf  = OVERFLOW_STYLES[variant];
 
   const visible  = showAll ? sponsors : sponsors.slice(0, max);
+  const hidden   = showAll ? [] : sponsors.slice(max);
   const overflow = sponsors.length - max;
 
-  const allNames = sponsors.map(s => s.name).join(", ");
+  // Tooltip do container: nome + estado de cada patrocinador. Quando ninguém
+  // tem registro de aprovação (lista de eventos, triagem), `getApprovalTitle`
+  // devolve só o nome — o texto fica idêntico ao de antes.
+  const allNames = sponsors.map(s => getApprovalTitle(s.name, s.approvalStatus)).join(" · ");
+
+  // O "+N" escondia o sinal que este componente acabou de ganhar: com max={2}
+  // no mobile do Painel, um patrocinador reprovado podia ficar atrás do
+  // contador e o vermelho sumia de novo. O botão herda o pior estado escondido
+  // — mas SÓ para reprovação e estado desconhecido. Tingir também o
+  // "aguardando" deixaria quase todo "+N" âmbar (é o estado padrão) e o sinal
+  // voltaria a virar ruído, que é o problema de origem.
+  const alertRank = (m: ApprovalMeta | null) =>
+    !m ? 0 : m.isRejection ? 3 : m.key === "unknown" ? 2 : 0;
+  const hiddenAlert = hidden.reduce<ApprovalMeta | null>((worst, s) => {
+    const m = getApprovalMeta(s.approvalStatus);
+    return alertRank(m) >= 2 && alertRank(m) > alertRank(worst) ? m : worst;
+  }, null);
 
   return (
     <div
@@ -94,30 +140,30 @@ export function SponsorChips({
         const bg     = useColor ? hexToRgba(c!, 0.10) : chip.bg;
         const color  = useColor ? c! : chip.color;
         const border = useColor ? `1px solid ${hexToRgba(c!, 0.30)}` : chip.border;
-        // O chip mantém SEMPRE a cor do patrocinador (identidade da marca).
-        // O status vai num selo à direita, com cor própria de status — assim
-        // não se confunde a cor da marca com a decisão.
-        // Quando há decisão do patrocinador, a COR do chip comunica o status
-        // (verde aprovado, vermelho reprovado, cinza sem ação) — não a cor da
-        // marca, que aqui confundiria com a decisão.
-        const st = s.approvalStatus;
-        // "pending" em âmbar (spec da tela): é o chip que EXIGE ação e era
-        // justamente o mais apagado dos três estados.
-        const stStyle = st === "approved" ? { color: "#15803d", bg: "#f0fdf4", bd: "#bbf7d0", title: "Aprovado" }
-          : st === "rejected" ? { color: "#b91c1c", bg: "#fef2f2", bd: "#fecaca", title: "Reprovado" }
-          : st === "pending" ? { color: "#c2410c", bg: "#fff7ed", bd: "#fed7aa", title: "Sem ação do patrocinador" }
-          : null;
+        // Sem registro de aprovação (`ap === null`), o chip é identidade da
+        // MARCA — certo para as telas onde o patrocinador nem entrou no fluxo.
+        // Havendo decisão, a COR do chip passa a comunicar o ESTADO: a marca
+        // aqui competiria com a decisão e sempre ganhava.
+        //
+        // A tradução mora em lib/status.ts (getApprovalMeta) porque o servidor
+        // grava `awaiting_arte` na reprovação e `new_version_pending` no
+        // reenvio — nunca 'rejected'. O mapa local que existia aqui conhecia
+        // só 3 valores e devolvia estilo nulo justamente nos dois estados de
+        // reprovação: o chip voltava à cor da marca e quem JÁ REPROVOU ficava
+        // igual — às vezes mais discreto — a quem nem tinha olhado a peça.
+        const ap = getApprovalMeta(s.approvalStatus);
         return (
           <span
             key={s.id}
-            title={stStyle ? `${s.name} — ${stStyle.title}` : s.name}
+            title={getApprovalTitle(s.name, s.approvalStatus)}
             style={{
+              position: "relative", // âncora do rótulo sr-only
               display: "inline-flex",
               alignItems: "center",
               gap: 4,
-              backgroundColor: stStyle ? stStyle.bg : bg,
-              color: stStyle ? stStyle.color : color,
-              border: stStyle ? `1px solid ${stStyle.bd}` : border,
+              backgroundColor: ap ? ap.bg : bg,
+              color: ap ? ap.text : color,
+              border: ap ? `1px solid ${ap.border}` : border,
               borderRadius: chip.borderRadius,
               whiteSpace: "nowrap",
               ...sz,
@@ -125,19 +171,35 @@ export function SponsorChips({
           >
             <span style={{
               width: 5, height: 5, borderRadius: "50%", flexShrink: 0, display: "inline-block",
-              background: stStyle ? stStyle.color : (useColor ? c! : "transparent"),
+              // A bolinha carrega o tom saturado (500) do estado; no
+              // `awaiting_arte` ela é ÂMBAR sobre campo vermelho — reprovado,
+              // porém já em retrabalho.
+              background: ap ? ap.dot : (useColor ? c! : "transparent"),
             }} />
             {s.name}
+            {ap && <span style={SR_ONLY}>{` — ${ap.label}`}</span>}
           </span>
         );
       })}
       {!showAll && overflow > 0 && (
         <button
-          onClick={e => { e.stopPropagation(); setShowAll(true); }}
+          type="button"
+          /* preventDefault além do stopPropagation: na lista de Eventos o card
+             inteiro virou uma ÂNCORA (<a href>) e este botão renderiza dentro
+             dela. stopPropagation impede o handler React de subir, mas NÃO
+             cancela a ação padrão do <a> — sem o preventDefault, abrir os
+             patrocinadores escondidos NAVEGAVA para o evento. */
+          onClick={e => { e.preventDefault(); e.stopPropagation(); setShowAll(true); }}
           title={`Ver todos: ${allNames}`}
+          aria-label={hiddenAlert
+            ? `Mostrar mais ${overflow} patrocinador(es) — inclui ${hiddenAlert.label}`
+            : `Mostrar mais ${overflow} patrocinador(es)`}
           style={{
             display: "inline-flex", alignItems: "center",
-            backgroundColor: ovf.bg, color: ovf.color,
+            // Tom 200 como fundo e 700 como texto — mesma construção do
+            // OVERFLOW_STYLES, então o contorno não muda e nada desloca.
+            backgroundColor: hiddenAlert ? hiddenAlert.border : ovf.bg,
+            color: hiddenAlert ? hiddenAlert.text : ovf.color,
             border: "none", borderRadius: chip.borderRadius,
             cursor: "pointer", whiteSpace: "nowrap",
             ...sz,
@@ -148,7 +210,10 @@ export function SponsorChips({
       )}
       {showAll && sponsors.length > max && (
         <button
-          onClick={e => { e.stopPropagation(); setShowAll(false); }}
+          type="button"
+          aria-label="Recolher a lista de patrocinadores"
+          /* Mesmo motivo do "+N": renderiza dentro da âncora do card de evento. */
+          onClick={e => { e.preventDefault(); e.stopPropagation(); setShowAll(false); }}
           style={{
             display: "inline-flex", alignItems: "center",
             backgroundColor: "transparent", color: "#746e69",

@@ -2,7 +2,7 @@ import ExcelJS from "exceljs";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Request, Response } from "express";
-import { storage } from "../storage";
+import { storage, compareDisplayId } from "../storage";
 
 // Colunas extras da exportação da Gráfica: as peças vêm de vários eventos e o
 // que interessa ali é o andamento da produção, não só a especificação.
@@ -18,6 +18,12 @@ const PRODUCTION_COLS = [
 
 const BASE_COLS = [
   { header: "#ID",             key: "displayId",    width: 10 },
+  // COMPLEMENTO: a planilha vai para o cliente e para o fechamento. Sem esta
+  // coluna, #0062 (10 un.) e #0062-C1 (4 un.) chegam como duas peças
+  // independentes e alguém soma 14 achando que são pórticos diferentes. Com
+  // ela, a linha diz de quem o lote nasceu — e a ordenação por
+  // compareDisplayId já as deixa vizinhas.
+  { header: "Complemento de",  key: "parentDisplayId", width: 14 },
   { header: "Tipo",            key: "type",         width: 18 },
   { header: "Descrição",       key: "description",  width: 28 },
   { header: "Qtd",             key: "quantity",     width: 7  },
@@ -93,10 +99,12 @@ function m2ToProduce(item: any): number {
   return toPrint <= 0 ? 0 : parseFloat(((total / qty) * toPrint).toFixed(2));
 }
 
+// Ordenação ciente de COMPLEMENTO (#0062-C1). Com o replace(/\D/g,"") de
+// antes, "#0062-C1" virava 621 e a peça complementar caía entre #0620 e #0622
+// — na planilha que vai para o cliente, longe da peça de que ela nasceu.
+// compareDisplayId (server/storage.ts) põe #0062 → #0062-C1 → #0062-C2 → #0063.
 function byDisplayId(a: any, b: any) {
-  const nA = parseInt(String(a.displayId || "0").replace(/\D/g, "")) || 0;
-  const nB = parseInt(String(b.displayId || "0").replace(/\D/g, "")) || 0;
-  return nA - nB;
+  return compareDisplayId(a?.displayId, b?.displayId);
 }
 
 /**
@@ -160,6 +168,12 @@ async function writeWorkbook(
           qtyDelivered: item.deliveredQty ?? 0,
         } : {}),
         displayId:    item.displayId ?? "",
+        // Prefere o `parent` do enrich; quando a lista vem crua do storage
+        // (é o caso da exportação por evento), deriva do próprio código —
+        // "#0062-C1" → "#0062". Vazio em 100% das peças normais.
+        parentDisplayId: item.parentItemId
+          ? (item.parent?.displayId ?? String(item.displayId ?? "").replace(/-C\d+$/i, ""))
+          : "",
         type:         item.type ?? "",
         description:  item.description ?? "",
         quantity:     item.quantity ?? 0,

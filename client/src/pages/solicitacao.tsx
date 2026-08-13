@@ -27,6 +27,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
 import { STATUS, getStatusMeta } from "@/lib/status";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
+import { AumentarQuantidadeDialog, parseApiError } from "@/components/aumentar-quantidade-dialog";
 
 // Tons de texto desta paleta valem para superfícies CLARAS (bg/surface).
 // Sobre os painéis escuros (#0c0a09/#1c1917) use #a8a29e ou mais claro —
@@ -78,6 +79,10 @@ export default function Solicitacao() {
   const [returnObservations, setReturnObservations] = useState("");
   const [editingQuantity, setEditingQuantity] = useState(false);
   const [quantityValue, setQuantityValue] = useState<number>(1);
+  // Complemento: peça-mãe e a diferença sugerida pelo servidor quando o
+  // aumento foi barrado por já estar em produção (409 USE_COMPLEMENT).
+  const [complementItem, setComplementItem] = useState<any>(null);
+  const [complementSugestao, setComplementSugestao] = useState<number | null>(null);
   const quantityInputRef = useRef<HTMLInputElement>(null);
   const [releaseConfirmOpen, setReleaseConfirmOpen] = useState(false);
   // Campo de observação do card: precisa existir por conta própria, sem
@@ -127,7 +132,49 @@ export default function Solicitacao() {
       setEditingQuantity(false);
       toast({ title: "Quantidade atualizada", description: `Nova quantidade: ${updatedItem.quantity ?? quantityValue}x` });
     },
-    onError: (error: any) => toast({ title: "Erro ao atualizar quantidade", description: error.message, variant: "destructive" }),
+    // Rede de segurança do modelo de COMPLEMENTO. Esta tela só lista peças em
+    // "Aguardando Revisão Final" — ou seja, pré-produção, onde editar a
+    // quantidade continua sendo o gesto certo. Mas a peça pode ter sido
+    // liberada e produzida em outra aba enquanto o modal estava aberto: aí o
+    // servidor recusa o aumento (409 USE_COMPLEMENT) e a resposta honesta é
+    // abrir o fluxo do complemento, já com a diferença que ELE calculou — não
+    // despejar um JSON vermelho na tela. QUANTITY_FLOOR é o mesmo raciocínio
+    // para a redução abaixo do que já existe fisicamente.
+    onError: (error: any) => {
+      const { message, code, data } = parseApiError(error);
+
+      if (code === "USE_COMPLEMENT") {
+        const alvo = (items as any[]).find((i: any) => i.id === (data?.itemId ?? selectedItem?.id)) ?? selectedItem;
+        setEditingQuantity(false);
+        toast({
+          title: "Peça em produção",
+          description: 'Use "Aumentar quantidade" — o aumento vira uma peça complementar.',
+        });
+        if (alvo) {
+          // `suggestedComplement` só existe quando o corpo JSON chega inteiro;
+          // no caminho normal (apiRequest desembrulha o erro em texto) a
+          // diferença é a que o próprio modal tentou salvar menos a atual.
+          const atual = Number(alvo?.quantity);
+          setComplementSugestao(
+            Number(data?.suggestedComplement)
+              || (Number.isFinite(atual) && quantityValue > atual ? quantityValue - atual : null),
+          );
+          setComplementItem(alvo);
+        }
+        return;
+      }
+
+      if (code === "QUANTITY_FLOOR") {
+        toast({
+          title: "Redução não permitida",
+          description: `Já há ${data?.minimum ?? "?"} un. produzidas/conferidas/entregues. Mínimo: ${data?.minimum ?? "?"}.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({ title: "Erro ao atualizar quantidade", description: message, variant: "destructive" });
+    },
   });
 
   const updateObservationsMutation = useMutation({
@@ -1640,6 +1687,17 @@ export default function Solicitacao() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Aumentar quantidade — mesmo modal das outras telas. Aqui ele é a saída
+          do 409 USE_COMPLEMENT: a peça saiu de revisão e entrou em produção
+          enquanto o modal estava aberto. */}
+      <AumentarQuantidadeDialog
+        item={complementItem}
+        event={complementItem ? (events as any[]).find((e: any) => e.id === complementItem.eventId) ?? null : null}
+        open={!!complementItem}
+        sugestao={complementSugestao}
+        onOpenChange={(o) => { if (!o) { setComplementItem(null); setComplementSugestao(null); } }}
+      />
 
     </div>
   );

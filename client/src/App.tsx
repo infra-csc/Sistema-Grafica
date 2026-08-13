@@ -383,9 +383,21 @@ function AuthenticatedLayout() {
               onViewAll={() => setLocation("/historico")}
               // Clique navega ao contexto: detalhe do evento e, se houver
               // itemId, ?item= abre o dialog da peça (deep-link do event-detail).
-              onOpen={(n) =>
-                setLocation(`/eventos/${n.eventId}${n.itemId ? `?item=${n.itemId}` : ""}`)
-              }
+              //
+              // EXCEÇÃO — complemento para quem imprime. O aviso de aumento de
+              // quantidade existe para a Gráfica AGIR: o destino útil é a fila
+              // dela, com a peça já filtrada (/grafica também lê ?item=), não a
+              // ficha da peça no detalhe do evento, que é a tela de quem pede.
+              // Levar o operador para a tela errada é o tipo de detalhe que faz
+              // o alerta ser ignorado na segunda vez.
+              onOpen={(n) => {
+                const ehComplemento = typeof n.type === "string" && n.type.startsWith("complement");
+                if (ehComplemento && user?.role === "grafica" && n.itemId) {
+                  setLocation(`/grafica?item=${n.itemId}`);
+                  return;
+                }
+                setLocation(`/eventos/${n.eventId}${n.itemId ? `?item=${n.itemId}` : ""}`);
+              }}
             />
             {/* Quem está logado agora é um menu: alterar senha e sair deixam
                 de depender da sidebar (que no mobile vive fechada). */}

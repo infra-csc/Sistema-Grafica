@@ -114,6 +114,20 @@ const TYPE_CONFIG: Record<string, {
     label: "Devolvida p/ Arte", dot: "#d97706", bg: "#fffbeb", border: "#fde68a", color: "#b45309",
     icon: Activity,
   },
+  // COMPLEMENTO — aumento de quantidade pedido DEPOIS que a peça entrou em
+  // produção (a peça original nunca muda; nasce a peça-filha #0062-C1). Sem
+  // estas duas entradas o registro do aumento SUMIA do histórico: buildTimeline
+  // termina sem push quando nada casa, e "isso fica nos logs" era metade do
+  // pedido. Texto em #c2410c (4.96:1 sobre o tint) — #f97316 só como bolinha,
+  // nunca como cor de texto.
+  item_complement_created: {
+    label: "Complemento", dot: "#f97316", bg: "#fff7ed", border: "#fed7aa", color: "#c2410c",
+    icon: Plus,
+  },
+  item_complement_canceled: {
+    label: "Compl. Cancelado", dot: "#dc2626", bg: "#fef2f2", border: "#fecaca", color: "#b91c1c",
+    icon: Activity,
+  },
 };
 
 const DEFAULT_CFG = {
@@ -264,6 +278,14 @@ function buildDescription(e: TimelineEvent) {
       return <span>{ID} <B>{e.itemType}</B> cancelada · evento <B>{e.eventName}</B></span>;
     case "item_returned":
       return <span>{ID} <B>{e.itemType}</B> devolvida para a Arte · evento <B>{e.eventName}</B></span>;
+    // O texto do próprio audit log já conta a história inteira (quantas
+    // unidades, contratado antes → depois, motivo, e em que status a peça
+    // original permaneceu). Reescrevê-lo aqui só perderia informação; o que
+    // falta é a moldura — o código da peça e o nome do evento.
+    case "item_complement_created":
+      return <span>{ID} <B>{e.itemType}</B> — {e.logDetails || "complemento criado"} · evento <B>{e.eventName}</B></span>;
+    case "item_complement_canceled":
+      return <span>{ID} <B>{e.itemType}</B> — {e.logDetails || "complemento cancelado"} · evento <B>{e.eventName}</B></span>;
     case "book_sent": {
       const removido = (e.logDetails || "").toLowerCase().includes("removido");
       return (
@@ -445,6 +467,24 @@ function buildTimeline(events: any[], items: any[], auditLogs: any[]): TimelineE
       userName,
       logDetails: details,
     };
+
+    // COMPLEMENTO — no TOPO do encadeamento, de propósito. O motivo do aumento
+    // é TEXTO LIVRE escrito por uma pessoa: um motivo que contenha
+    // "reaproveitamento" ou "conferência" cairia num dos casamentos por palavra
+    // logo abaixo e o aumento apareceria no histórico disfarçado de outra coisa.
+    // Casando por AÇÃO exata antes de todos eles, isso não tem como acontecer.
+    // São dois logs por complemento (um na mãe, um na filha) e os dois
+    // interessam: um responde "esta peça ganhou quantidade?", o outro "de onde
+    // este lote novo veio?".
+    if (action === "complement_created" || action === "complement_canceled") {
+      timeline.push({
+        id: `complement-${log.id ?? itemId + ts}`,
+        type: action === "complement_created" ? "item_complement_created" : "item_complement_canceled",
+        ...base,
+        itemType: resolvedType || "Peça",
+      });
+      return;
+    }
 
     // Produção da Gráfica. Cada lançamento vira uma entrada — produções parciais
     // aparecem uma a uma, e a que fecha a quantidade entra como "Produzido".
@@ -797,6 +837,8 @@ export default function Historico() {
               { value: "item_delivered", label: "Entregas", group: "Produção", pinned: true },
               { value: "item_returned", label: "Devolvidas p/ Arte", group: "Aprovação", pinned: true },
               { value: "item_canceled", label: "Canceladas", group: "Criação", pinned: true },
+              { value: "item_complement_created", label: "Complementos criados", group: "Produção", pinned: true },
+              { value: "item_complement_canceled", label: "Complementos cancelados", group: "Produção", pinned: true },
             ]}
             searchPlaceholder="Buscar ação..." emptyText="Nenhuma ação encontrada."
             testId="select-action-filter" triggerStyle={selectStyle}

@@ -51,7 +51,95 @@ import {
   type ItemStatus,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, sql, or, lt, ne, inArray, like } from "drizzle-orm";
+import { eq, and, desc, asc, sql, or, lt, gte, ne, inArray, like } from "drizzle-orm";
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VOCABULÁRIO DE displayId — lado SERVIDOR.
+//
+// Espelho de client/src/lib/displayId.ts (mesma disciplina dos dois mapas de
+// status que já convivem: o servidor não importa código do client). Se um dos
+// dois mudar, o outro tem de mudar junto.
+//
+// Existe porque o complemento introduziu o primeiro displayId que NÃO é
+// "#" + 4 dígitos: #0062-C1. Todo lugar que fazia .replace(/[^0-9]/g, '') ou
+// ordenava por string passou a mentir — "#0062-C1" virava 621, ordenando entre
+// #0620 e #0622, a centenas de linhas da própria mãe.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Quebra "#0062-C1" em { base: 62, seq: 1 }. "#0062" → { base: 62, seq: 0 }. */
+export function parseDisplayId(id?: string | null): { base: number; seq: number } {
+  const m = String(id ?? "").match(/^#?(\d+)(?:-C(\d+))?/i);
+  return { base: m ? parseInt(m[1], 10) : 0, seq: m?.[2] ? parseInt(m[2], 10) : 0 };
+}
+
+/** Ordena #0062 antes de #0062-C1, antes de #0062-C2, antes de #0063. */
+export function compareDisplayId(a?: string | null, b?: string | null): number {
+  const A = parseDisplayId(a);
+  const B = parseDisplayId(b);
+  return A.base !== B.base ? A.base - B.base : A.seq - B.seq;
+}
+
+/**
+ * Prefixo do ativo de inventário gerado a partir da peça.
+ * #0062 → "0062" (BYTE A BYTE idêntico ao antigo replace(/[^0-9]/g,'') — zero
+ * risco para o acervo existente); #0062-C1 → "0062C1", que continua legível e
+ * não colide com o bloco da mãe.
+ */
+export function assetPrefix(id?: string | null): string {
+  const { base, seq } = parseDisplayId(id);
+  const b = String(base).padStart(4, "0");
+  return seq ? `${b}C${seq}` : b;
+}
+
+/**
+ * Sufixo numérico de um displayId de ativo (#EST-0062-7 → 7; #EST-0062C1-3 → 3).
+ * Usado para numerar o PRÓXIMO ativo pelo MAIOR sufixo existente em vez de por
+ * contagem: com contagem, um ativo excluído libera o número e o próximo lote
+ * colide no UNIQUE de display_id — estourando 500 DEPOIS de a peça já ter sido
+ * marcada como produzida.
+ */
+export function assetSeqOf(displayId?: string | null): number {
+  const m = String(displayId ?? "").match(/-(\d+)$/);
+  return m ? parseInt(m[1], 10) : 0;
+}
+
+/** Verdadeiro para a violação de unicidade do display_id (item ou ativo). */
+export function isDisplayIdConflictError(error: any): boolean {
+  return error?.code === "23505" && String(error?.constraint ?? error?.message ?? "").includes("display_id");
+}
+
+/**
+ * Handle de transação do Drizzle. Derivado do próprio `db` para não fixar aqui
+ * o dialeto/driver — se o adapter mudar, este tipo acompanha sozinho.
+ */
+export type DbTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/** Campos que a rota de complemento decide (o resto é herdado da mãe). */
+export interface ComplementFields {
+  quantity: number;
+  calculatedM2: string;
+  status: string;
+  complementReason: string;
+  complementRequestedBy: string;
+  complementRequestedAt: Date;
+}
+
+/** Resumo de complemento devolvido no enriquecimento das listagens. */
+export interface ComplementSummary {
+  id: string;
+  displayId: string;
+  parentItemId: string | null;
+  quantity: number;
+  status: string;
+  quantityProduced: number | null;
+  reuseQty: number;
+  conferredQty: number;
+  deliveredQty: number;
+  complementSeq: number | null;
+  complementReason: string | null;
+  complementRequestedBy: string | null;
+  complementRequestedAt: Date | null;
+}
 
 export interface IStorage {
   // Events
@@ -66,6 +154,7 @@ export interface IStorage {
   getAllItems(): Promise<Item[]>;
   getDeletedItems(): Promise<Item[]>;
   getItemsByEvent(eventId: string): Promise<Item[]>;
+  getItemsByEvents(eventIds: string[]): Promise<Item[]>;
   getPendingItems(): Promise<Item[]>;
   getApprovedItems(): Promise<Item[]>;
   createItem(item: InsertItem): Promise<Item>;
@@ -79,7 +168,15 @@ export interface IStorage {
   markItemAsDelivered(id: string, receivedBy: string, photoUrl?: string): Promise<Item | undefined>;
   deleteItem(id: string): Promise<boolean>;
   restoreItem(id: string): Promise<boolean>;
-  
+
+  // Complementos (aumento de quantidade pós-produção)
+  createComplementItemTx(tx: DbTx, parent: Item, fields: ComplementFields): Promise<Item>;
+  findRecentComplement(parentItemId: string, quantity: number, reason: string, withinSeconds: number): Promise<Item | undefined>;
+  getComplementsByParentIds(parentIds: string[]): Promise<ComplementSummary[]>;
+  getLiveComplements(parentItemId: string): Promise<Item[]>;
+  getItemsByIds(ids: string[]): Promise<Item[]>;
+  copyItemSponsorApprovals(fromItemId: string, toItemId: string): Promise<number>;
+
   // Standard Items
   getStandardItem(id: string): Promise<StandardItem | undefined>;
   getAllStandardItems(): Promise<StandardItem[]>;
@@ -250,7 +347,7 @@ export class DatabaseStorage implements IStorage {
 
   /** Verdadeiro para a violação de unicidade do display_id. */
   private isDisplayIdConflict(error: any): boolean {
-    return error?.code === "23505" && String(error?.constraint ?? error?.message ?? "").includes("display_id");
+    return isDisplayIdConflictError(error);
   }
 
   // Events
@@ -316,6 +413,23 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(items)
       .where(and(eq(items.eventId, eventId), sql`${items.deletedAt} IS NULL`))
+      .orderBy(desc(items.createdAt));
+  }
+
+  // Peças de VÁRIOS eventos numa consulta só (usa IDX_items_event_id).
+  //
+  // PORQUÊ: a Gestão de Prazos puxava getAllItems() — a história completa da
+  // empresa — e recortava em JavaScript. O custo crescia com o acervo, não com
+  // o trabalho em aberto, multiplicado por cada aba vezes cada invalidação de
+  // WebSocket. Aqui o recorte acontece no banco, sobre os eventos candidatos.
+  // Lista vazia devolve [] sem tocar o banco: `inArray(col, [])` gera SQL
+  // inválido em algumas versões do Drizzle.
+  async getItemsByEvents(eventIds: string[]): Promise<Item[]> {
+    if (eventIds.length === 0) return [];
+    return await db
+      .select()
+      .from(items)
+      .where(and(inArray(items.eventId, eventIds), sql`${items.deletedAt} IS NULL`))
       .orderBy(desc(items.createdAt));
   }
 
@@ -559,6 +673,221 @@ export class DatabaseStorage implements IStorage {
       .from(items)
       .where(sql`${items.deletedAt} IS NOT NULL`)
       .orderBy(desc(items.deletedAt));
+  }
+
+  // ── Complementos (aumento de quantidade depois que a peça entrou em produção) ──
+
+  /**
+   * Cria a peça-filha DENTRO da transação da rota, herdando da mãe tudo o que
+   * define a peça fisicamente (arte, medidas, material, acabamento) e nada do
+   * que pertence ao ciclo dela (produção, conferência, entrega, observações).
+   *
+   * Numeração: #0062 → #0062-C1 → #0062-C2, sempre pelo MAIOR sufixo existente,
+   * NUNCA por contagem. Soft delete não libera o número — por isso a query
+   * ignora deleted_at de propósito: se #0062-C1 foi cancelado, o próximo é
+   * #0062-C2 e o histórico do que foi cancelado continua legível.
+   *
+   * Não usa generateNextDisplayId: a sequence daria #0187, um id sem nenhum
+   * parentesco visual — exatamente a duplicidade confusa que o complemento
+   * existe para evitar.
+   *
+   * Em caso de corrida (duas transações calculando o mesmo MAX), o INSERT
+   * estoura 23505 no unique de display_id e quem chama repete a transação
+   * inteira uma vez (ver isDisplayIdConflictError).
+   */
+  async createComplementItemTx(tx: DbTx, parent: Item, fields: ComplementFields): Promise<Item> {
+    const [row] = await tx
+      .select({
+        maxSeq: sql<number>`COALESCE(MAX(substring(${items.displayId} from '-C([0-9]+)$')::int), 0)`,
+      })
+      .from(items)
+      .where(and(
+        like(items.displayId, `${parent.displayId}-C%`),
+        sql`${items.displayId} ~ '-C[0-9]+$'`,
+      ));
+    const seq = Number(row?.maxSeq ?? 0) + 1;
+
+    const [child] = await tx
+      .insert(items)
+      .values({
+        displayId: `${parent.displayId}-C${seq}`,
+        eventId: parent.eventId,
+        // ── Herdado: define a peça fisicamente ──
+        type: parent.type,
+        description: parent.description,
+        area: parent.area,
+        visual: parent.visual,
+        visualWidth: parent.visualWidth,
+        visualHeight: parent.visualHeight,
+        fileWidth: parent.fileWidth,
+        fileHeight: parent.fileHeight,
+        material: parent.material,
+        finish: parent.finish,
+        measurement: parent.measurement,
+        finalFileUrl: parent.finalFileUrl,
+        finalFileName: parent.finalFileName,
+        finalPreviewUrl: parent.finalPreviewUrl,
+        finalFileUpdatedAt: parent.finalFileUpdatedAt,
+        approvalThumbUrl: parent.approvalThumbUrl,
+        bookUrl: parent.bookUrl,
+        referenceUrl: parent.referenceUrl,
+        skipApproval: parent.skipApproval,
+        // ── Próprio do complemento ──
+        quantity: fields.quantity,
+        calculatedM2: fields.calculatedM2,
+        status: fields.status,
+        parentItemId: parent.id,
+        complementSeq: seq,
+        complementReason: fields.complementReason,
+        complementRequestedBy: fields.complementRequestedBy,
+        complementRequestedAt: fields.complementRequestedAt,
+        // ── Zerado: o ciclo do filho começa do início. O reuso da mãe NÃO é
+        // herdado — as unidades novas nascem para a impressora. Se houver
+        // material no galpão, a Gráfica marca reuso no próprio complemento.
+        quantityProduced: null,
+        reuseQty: 0,
+        isReuse: false,
+        conferredQty: 0,
+        deliveredQty: 0,
+        hasModifiedData: false,
+        rejectedBySponsor: false,
+        rejectedByCreator: false,
+      })
+      .returning();
+    return child;
+  }
+
+  /**
+   * Dedupe de duplo clique / retry de rede: o mesmo pedido (mesma mãe, mesma
+   * quantidade, mesmo motivo) feito dentro da janela devolve o complemento que
+   * já existe em vez de criar um segundo. Janela curta de propósito — um
+   * segundo aumento legítimo com o mesmo motivo em menos de 60 s não é um
+   * cenário real; dois cliques no mesmo botão são.
+   */
+  async findRecentComplement(
+    parentItemId: string,
+    quantity: number,
+    reason: string,
+    withinSeconds: number,
+  ): Promise<Item | undefined> {
+    const [row] = await db
+      .select()
+      .from(items)
+      .where(and(
+        eq(items.parentItemId, parentItemId),
+        eq(items.quantity, quantity),
+        eq(items.complementReason, reason),
+        sql`${items.deletedAt} IS NULL`,
+        sql`${items.createdAt} > now() - (${withinSeconds}::double precision * interval '1 second')`,
+      ))
+      .orderBy(desc(items.createdAt))
+      .limit(1);
+    return row || undefined;
+  }
+
+  /**
+   * Complementos vivos de um LOTE de mães, em uma query só. Alimenta o
+   * enriquecimento das três rotas de leitura (/api/items, /api/items/:eventId,
+   * /api/items/approved) — sem isto seria 1 query por peça (N+1).
+   *
+   * Não existe coluna de contador na mãe de propósito: contador denormalizado
+   * sempre acaba divergindo. O total contratado é derivado a cada leitura.
+   */
+  async getComplementsByParentIds(parentIds: string[]): Promise<ComplementSummary[]> {
+    if (parentIds.length === 0) return [];
+    // /api/items enriquece o acervo inteiro: mandar 5.000 uuids num IN (...)
+    // custa mais em parsing do plano do que varrer a coluna indexada e filtrar
+    // em memória. Acima do corte, busca TODOS os complementos vivos e recorta
+    // aqui — a tabela de complementos é ordens de grandeza menor que a de peças.
+    if (parentIds.length > 300) {
+      const alvo = new Set(parentIds);
+      const todos = await this.selectComplementSummaries(sql`${items.parentItemId} IS NOT NULL`);
+      return todos.filter((c) => c.parentItemId && alvo.has(c.parentItemId));
+    }
+    return await this.selectComplementSummaries(inArray(items.parentItemId, parentIds));
+  }
+
+  /** Projeção comum de ComplementSummary (só complementos vivos). */
+  private async selectComplementSummaries(filtro: any): Promise<ComplementSummary[]> {
+    return await db
+      .select({
+        id: items.id,
+        displayId: items.displayId,
+        parentItemId: items.parentItemId,
+        quantity: items.quantity,
+        status: items.status,
+        quantityProduced: items.quantityProduced,
+        reuseQty: items.reuseQty,
+        conferredQty: items.conferredQty,
+        deliveredQty: items.deliveredQty,
+        complementSeq: items.complementSeq,
+        complementReason: items.complementReason,
+        complementRequestedBy: items.complementRequestedBy,
+        complementRequestedAt: items.complementRequestedAt,
+      })
+      .from(items)
+      .where(and(filtro, sql`${items.deletedAt} IS NULL`))
+      .orderBy(asc(items.complementSeq));
+  }
+
+  /**
+   * Complementos ainda vivos de UMA mãe. Usado por dois gates:
+   * (a) o soft delete da mãe (o ON DELETE SET NULL da FK não dispara em soft
+   *     delete — o filho ficaria órfão apontando para uma peça invisível);
+   * (b) a propagação do arquivo final quando a Arte troca a arte depois.
+   */
+  async getLiveComplements(parentItemId: string): Promise<Item[]> {
+    return await db
+      .select()
+      .from(items)
+      .where(and(
+        eq(items.parentItemId, parentItemId),
+        sql`${items.deletedAt} IS NULL`,
+      ))
+      .orderBy(asc(items.complementSeq));
+  }
+
+  /** Peças por id (inclusive soft-deletadas) — completa mães ausentes no enrich. */
+  async getItemsByIds(ids: string[]): Promise<Item[]> {
+    if (ids.length === 0) return [];
+    return await db.select().from(items).where(inArray(items.id, ids));
+  }
+
+  /**
+   * Copia as aprovações de patrocinador da mãe para o complemento PRESERVANDO
+   * status/aprovador/data. É deliberado: o complemento é a mesma arte, dos
+   * mesmos patrocinadores, que JÁ está aprovada.
+   *
+   * Nunca usar initializeItemSponsorApprovals aqui — ela cria linhas 'pending',
+   * que entram em getOpenItemSponsorApprovals e viram cobrança FALSA no painel
+   * de Gestão de Prazos (uma aprovação que ninguém precisa fazer, num item que
+   * já está liberado para produção).
+   */
+  async copyItemSponsorApprovals(fromItemId: string, toItemId: string): Promise<number> {
+    const source = await db
+      .select()
+      .from(itemSponsorApprovals)
+      .where(eq(itemSponsorApprovals.itemId, fromItemId));
+    if (source.length === 0) return 0;
+
+    // Idempotente: se a cópia já rodou (retry pós-commit), refaz do zero em vez
+    // de duplicar as linhas.
+    await db.delete(itemSponsorApprovals).where(eq(itemSponsorApprovals.itemId, toItemId));
+
+    const created = await db
+      .insert(itemSponsorApprovals)
+      .values(source.map((a) => ({
+        itemId: toItemId,
+        sponsorId: a.sponsorId,
+        status: a.status,
+        approvedBy: a.approvedBy,
+        approvedAt: a.approvedAt,
+        rejectedBy: a.rejectedBy,
+        rejectedAt: a.rejectedAt,
+        rejectionReason: a.rejectionReason,
+      })))
+      .returning();
+    return created.length;
   }
 
   // Standard Items
@@ -1314,8 +1643,36 @@ export class DatabaseStorage implements IStorage {
 
   async createInventoryAssets(assets: Array<Omit<InsertInventoryAsset, 'displayId'> & { displayId: string }>): Promise<InventoryAsset[]> {
     if (assets.length === 0) return [];
-    const created = await db.insert(inventoryAssets).values(assets as any[]).returning();
-    return created;
+    try {
+      return await db.insert(inventoryAssets).values(assets as any[]).returning();
+    } catch (e: any) {
+      // Insert em lote é tudo-ou-nada: um único displayId já usado derruba as N
+      // linhas — e isto acontece DEPOIS de a peça já ter sido marcada como
+      // produzida, virando um 500 com o item num estado que ninguém consegue
+      // reproduzir. Na colisão, cai para inserção unitária: cada ativo que
+      // couber entra (createInventoryAsset gera o próximo #EST-NNNN livre, com
+      // retry próprio) e só o que realmente colidir é perdido.
+      if (!isDisplayIdConflictError(e)) throw e;
+      console.warn(`[inventory] displayId em conflito no lote de ${assets.length} ativo(s) — caindo para inserção unitária`);
+      const created: InventoryAsset[] = [];
+      for (const asset of assets) {
+        try {
+          // Tenta o displayId pedido; se ELE for o conflitante, deixa o
+          // gerador do singular escolher o próximo #EST-NNNN livre.
+          created.push(await this.createInventoryAsset(asset));
+        } catch (inner: any) {
+          if (!isDisplayIdConflictError(inner)) throw inner;
+          const { displayId: _colidido, ...semId } = asset as any;
+          try {
+            created.push(await this.createInventoryAsset(semId));
+          } catch (last: any) {
+            if (!isDisplayIdConflictError(last)) throw last;
+            console.error(`[inventory] ativo ${asset.displayId} não pôde ser criado (displayId em uso) — seguindo com os demais`);
+          }
+        }
+      }
+      return created;
+    }
   }
 
   async updateInventoryAsset(id: string, data: Partial<InsertInventoryAsset>): Promise<InventoryAsset | undefined> {
@@ -1341,11 +1698,27 @@ export class DatabaseStorage implements IStorage {
     // Only dispatch assets that:
     // 1. Are currently NO_GALPAO (in warehouse, ready to go)
     // 2. Were last updated BEFORE departure (haven't been through the event cycle yet)
+    //    OU foram CRIADOS depois da saída do caminhão.
     // This prevents re-dispatching assets that were already triaged back to NO_GALPAO.
+    //
+    // O segundo ramo (createdAt >= departureDate) conserta um bug real e
+    // silencioso: um ativo nascido DEPOIS da data de saída tem updatedAt
+    // posterior a ela, então nunca casava com lt(updatedAt, departureDate),
+    // nunca virava EM_USO — e markAssetsAwaitingTriageForEvent só move quem
+    // está EM_USO. Resultado: ficava preso em NO_GALPAO para sempre, sumindo
+    // da triagem e aparecendo como "disponível no galpão" um material que
+    // estava no caminhão. O complemento (peça criada e produzida depois da
+    // saída) é justamente o caso que dispara isso de rotina, mas produção
+    // atrasada de qualquer peça já caía nele.
     //
     // Um único UPDATE por conjunto (via inArray) em vez de N updates em loop —
     // atômico e sem N+1. Envolto em transação para que peças por item e por
     // alocação manual sejam despachadas juntas ou nenhuma.
+    const jaSaiu = or(
+      lt(inventoryAssets.updatedAt as any, departureDate),
+      gte(inventoryAssets.createdAt as any, departureDate),
+    );
+
     const allocs = await db.select({ assetId: eventInventoryAllocations.assetId })
       .from(eventInventoryAllocations)
       .where(eq(eventInventoryAllocations.eventId, eventId));
@@ -1358,7 +1731,7 @@ export class DatabaseStorage implements IStorage {
         .where(and(
           inArray(inventoryAssets.originalItemId, itemIds),
           eq(inventoryAssets.trackingStatus, 'NO_GALPAO'),
-          lt(inventoryAssets.updatedAt as any, departureDate)
+          jaSaiu
         ));
       updated += r1.rowCount ?? 0;
 
@@ -1368,7 +1741,7 @@ export class DatabaseStorage implements IStorage {
           .where(and(
             inArray(inventoryAssets.id, allocIds),
             eq(inventoryAssets.trackingStatus, 'NO_GALPAO'),
-            lt(inventoryAssets.updatedAt as any, departureDate)
+            jaSaiu
           ));
         updated += r2.rowCount ?? 0;
       }

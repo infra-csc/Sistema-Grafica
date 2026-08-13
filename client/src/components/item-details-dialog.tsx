@@ -314,6 +314,22 @@ export function ItemDetailsDialog({
       new Date(a.createdAt ?? a.created_at).getTime() -
       new Date(b.createdAt ?? b.created_at).getTime());
 
+  // Ações que NÃO são etapas do fluxo: acontecem em paralelo a ele e trazem
+  // TEXTO LIVRE escrito por uma pessoa (o motivo do complemento, por exemplo).
+  //
+  // Por que isto precisa existir: `resolveStages` casa cada etapa por PALAVRA
+  // dentro da mensagem. Um motivo como "o cliente pediu mais 4 para a
+  // conferência de sábado" contém "conferência" e ROUBARIA a etapa "Conferido"
+  // de uma peça que nunca foi conferida — carimbando uma data falsa na trilha
+  // que o fechamento lê. Tirar estas ações do pool das 12 etapas resolve para
+  // sempre, e elas voltam logo abaixo, renderizadas como evento próprio.
+  const EXTRA_ACTIONS = ["complement_created", "complement_canceled"];
+  const isExtraAction = (l: any) => EXTRA_ACTIONS.includes(String(l.action ?? ""));
+  const itemLogsFlow = itemLogs.filter((l: any) => !isExtraAction(l));
+  const itemLogsInclusiveFlow = itemLogsInclusive.filter((l: any) => !isExtraAction(l));
+  /** Complemento criado/cancelado nesta peça — trilha, não etapa. */
+  const extraLogs = itemLogs.filter(isExtraAction);
+
   const fmtShort = (d: string) => {
     const dt = new Date(d);
     return `${dt.getDate().toString().padStart(2,"0")}/${(dt.getMonth()+1).toString().padStart(2,"0")} ${dt.getHours().toString().padStart(2,"0")}:${dt.getMinutes().toString().padStart(2,"0")}`;
@@ -361,29 +377,29 @@ export function ItemDetailsDialog({
   // `match` recebe a mensagem inteira e o trecho após a seta (o status de
   // destino). Use `target` para status; `d` só quando o texto livre é a pista.
   const historyStages: { label: string; keywords: string[]; pool: any[]; actionType?: string; match?: (d: string, target: string) => boolean }[] = [
-    { label: "Criado / Solicitado",            keywords: ["criado"],                    pool: itemLogs,          actionType: "created" },
-    { label: "Vinculação de patrocinador",      keywords: ["patrocinadores atualizados"], pool: itemLogs },
+    { label: "Criado / Solicitado",            keywords: ["criado"],                    pool: itemLogsFlow,          actionType: "created" },
+    { label: "Vinculação de patrocinador",      keywords: ["patrocinadores atualizados"], pool: itemLogsFlow },
     // Aqui a pista é o texto livre no início da mensagem, não o status.
-    { label: "Enviado para Arte",               keywords: [], pool: itemLogsInclusive,
+    { label: "Enviado para Arte",               keywords: [], pool: itemLogsInclusiveFlow,
       match: d => (d.includes("enviad") && d.includes("arte")) || d.includes("aguard. envio →") || d.includes("aguard envio →") },
     // Daqui em diante, o destino é o que identifica a etapa.
-    { label: "Em aprovação de patrocinador",    keywords: ["aguardando aprovação"],      pool: itemLogs },
-    { label: "Aprovado — Finalização",          keywords: ["aguardando finaliz"], pool: itemLogs,
+    { label: "Em aprovação de patrocinador",    keywords: ["aguardando aprovação"],      pool: itemLogsFlow },
+    { label: "Aprovado — Finalização",          keywords: ["aguardando finaliz"], pool: itemLogsFlow,
       match: (d, t) => t.includes("aguardando finaliz")
                     || d.includes("todos os patrocinadores aprovaram")
                     || d.includes("aprovado pelo patrocinador") },
-    { label: "Aguardando revisão final",        keywords: ["aguardando revisão final"], pool: itemLogs,
+    { label: "Aguardando revisão final",        keywords: ["aguardando revisão final"], pool: itemLogsFlow,
       match: (d, t) => t.includes("aguardando revisão final") || d.includes("arquivo final adicionado") },
-    { label: "Liberado para Produção",          keywords: ["pronto p/ produção", "pronto para produção", "liberado para produção"], pool: itemLogs,
+    { label: "Liberado para Produção",          keywords: ["pronto p/ produção", "pronto para produção", "liberado para produção"], pool: itemLogsFlow,
       match: (d, t) => t.includes("pronto p/ produção") || t.includes("pronto para produção")
                     || d.includes("liberado para produção") || d.includes("aprovado para produção") },
-    { label: "Em Produção",                     keywords: ["em produção"], pool: itemLogs, actionType: "production" },
-    { label: "Produzido",                       keywords: ["produzido"], pool: itemLogs, actionType: "produced" },
+    { label: "Em Produção",                     keywords: ["em produção"], pool: itemLogsFlow, actionType: "production" },
+    { label: "Produzido",                       keywords: ["produzido"], pool: itemLogsFlow, actionType: "produced" },
     // As etapas da Gráfica faltavam por completo: a trilha terminava em
     // "Produzido" mesmo em peças já conferidas e entregues.
-    { label: "Conferido",                       keywords: [], pool: itemLogs,
+    { label: "Conferido",                       keywords: [], pool: itemLogsFlow,
       match: d => d.includes("conferência") },
-    { label: "Entregue",                        keywords: [], pool: itemLogs, actionType: "delivered",
+    { label: "Entregue",                        keywords: [], pool: itemLogsFlow, actionType: "delivered",
       match: d => d.includes("entrega concluída") || d.includes("entrega parcial") },
   ];
 
@@ -1214,6 +1230,30 @@ export function ItemDetailsDialog({
                         </p>
                       </div>
                     )}
+                    {/* Eventos que NÃO são etapas do fluxo (complemento criado /
+                        cancelado). Entram no mesmo molde das etapas, com bolinha
+                        laranja, porque o texto do próprio audit log já conta a
+                        história inteira — quantas unidades, o motivo, quem pediu.
+                        Sem isto, o aumento de quantidade não aparecia em lugar
+                        nenhum da trilha, justamente na peça onde quem presta
+                        contas vai procurar. */}
+                    {extraLogs.map((log: any) => (
+                      <div key={log.id ?? `${log.action}-${log.createdAt ?? log.created_at}`} style={{ position: "relative" }}>
+                        <div style={{
+                          position: "absolute", left: -23, top: 4,
+                          width: 12, height: 12, borderRadius: "50%",
+                          backgroundColor: "#f97316",
+                          boxShadow: "0 0 0 4px rgba(249,115,22,0.15)",
+                        }} />
+                        <p style={{ fontSize: 12, fontWeight: 700, color: "#7c2d12", margin: "0 0 2px 0", lineHeight: 1.4 }}>
+                          {log.details || (log.action === "complement_canceled" ? "Complemento cancelado" : "Complemento criado")}
+                        </p>
+                        <p style={{ fontSize: 10, color: "#8c7164", margin: 0, fontFamily: "'DM Mono', monospace" }}>
+                          {fmtShort(log.createdAt ?? log.created_at)}
+                          {(log.userName ?? log.user_name) ? ` · @${log.userName ?? log.user_name}` : ""}
+                        </p>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>

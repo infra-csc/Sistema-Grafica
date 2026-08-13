@@ -1,145 +1,98 @@
 // Gestão de Prazos — visão do diretor: um GET agregado que responde
 // "o que está atrasado e quem está travando" sem N+1 e sem lógica no front.
 //
-// O cálculo dos marcos espelha a Agenda Operacional do event-detail:
-// cada etapa é um offset em dias sobre a SAÍDA DO CAMINHÃO (âncora oficial
-// de prazos do negócio), com ajuste de fim de semana (sáb→sex, dom→seg)
-// exceto na Produção Gráfica, que roda em qualquer dia.
+// Esta camada é I/O + montagem. A REGRA DE NEGÓCIO inteira (funil de 5 etapas,
+// pendência acumulada, âncora de fuso, categoria, KPIs) mora em
+// `../services/prazo-domain.ts`, testada em `server/__tests__/prazo-domain.test.ts`.
+// O job de fecho diário (`../services/prazoSnapshots.ts`) reusa exatamente a
+// mesma função — antes o cálculo estava preso a este handler e qualquer outro
+// consumidor teria que reimplementá-lo (e divergir).
 //
-// Toda a aritmética de datas é feita em UTC sobre a data-calendário
-// (YYYY-MM-DD): o servidor pode rodar em qualquer fuso e o resultado
-// tem que bater com o que a UI exibe (que formata em UTC).
+// O contrato do payload é `@shared/prazos-contract` e é o MESMO arquivo que o
+// cliente importa: um campo esquecido aqui vira erro de tsc, não um número
+// errado na cara do diretor.
 import type { Express } from "express";
-import { eq, lt, desc, and } from "drizzle-orm";
+import { eq, lt, desc } from "drizzle-orm";
+import { z } from "zod";
 import { db } from "../db";
-import { prazoCobrancas, prazoSnapshots } from "@shared/schema";
+import { prazoCobrancas, prazoSnapshots, prazoEventSnapshots } from "@shared/schema";
+import type { Item, ItemSponsorApproval } from "@shared/schema";
 import { storage } from "../storage";
-import { requireRole, createAuditLog } from "./shared";
+import { requireRole, createAuditLog, broadcast } from "./shared";
+import {
+  STAGE_META,
+  buildEventPrazo,
+  computeKpis,
+  daysSince,
+  isPrazoCandidate,
+  businessDayStrToMs,
+  todayBusinessMs,
+  todayBusinessStr,
+} from "../services/prazo-domain";
+import type {
+  CobrancaEntry,
+  CobrancaKey,
+  CobrancaMap,
+  DesdeOntem,
+  DesdeOntemEvento,
+  PrazoEvent,
+  PrazosPayload,
+  PrazoTrend,
+  SponsorDelay,
+} from "@shared/prazos-contract";
 
-type StageState = "done" | "upcoming" | "warning" | "overdue";
+// Teto da nota combinada na cobrança. Vive no zod da rota (não no banco):
+// afrouxar/apertar validação não pede migração, mudar o tipo da coluna pede.
+const NOTA_MAX = 280;
+// Horizonte máximo de uma promessa. Promessa para 2027 é typo de digitação,
+// não compromisso — e um typo aqui envenenaria o rótulo "promessa vencida"
+// para sempre naquele alvo.
+const PROMESSA_MAX_DIAS = 180;
 
-interface StageDef {
-  key: string;
-  label: string;
-  offsetField: "deadlineListaImagens" | "deadlineEntregaLayouts" | "deadlineAprovacaoLayout" | "deadlineRevisaoLista" | "deadlineProducaoGrafica";
-  defaultOffset: number;
-  allDays: boolean; // true = não ajusta fim de semana
-  // Status de item que significam "ainda não passou por esta etapa".
-  pendingStatuses: string[];
-}
-
-// A ordem importa: uma etapa só está concluída quando nenhuma peça está
-// nela NEM em qualquer etapa anterior (peça em rascunho também não foi
-// aprovada). Os status legados entram na etapa equivalente.
-const STAGE_DEFS: StageDef[] = [
-  {
-    key: "listaImagens", label: "Lista de Imagens",
-    offsetField: "deadlineListaImagens", defaultOffset: -25, allDays: false,
-    pendingStatuses: ["draft", "requested", "awaiting_linking"],
-  },
-  {
-    key: "layouts", label: "Entrega de Layouts",
-    offsetField: "deadlineEntregaLayouts", defaultOffset: -20, allDays: false,
-    pendingStatuses: ["awaiting_submission"],
-  },
-  {
-    key: "aprovacao", label: "Aprovação de Layout",
-    offsetField: "deadlineAprovacaoLayout", defaultOffset: -12, allDays: false,
-    pendingStatuses: ["awaiting_approval", "awaiting_sponsor_approval"],
-  },
-  {
-    key: "revisao", label: "Revisão de Lista",
-    offsetField: "deadlineRevisaoLista", defaultOffset: -8, allDays: false,
-    pendingStatuses: [
-      "awaiting_finalization", "sponsor_approved",
-      "awaiting_final_review", "awaiting_review", "in_review", "awaiting_creator_review",
-    ],
-  },
-  {
-    key: "producao", label: "Produção Gráfica",
-    offsetField: "deadlineProducaoGrafica", defaultOffset: -1, allDays: true,
-    // Os 4 últimos são grafias LEGADAS em pt que circulam no banco (a
-    // dispensa da Arte grava pronto_para_producao; ver items.ts:1599) —
-    // sem elas a peça sumia do funil e a etapa virava verde falso.
-    pendingStatuses: [
-      "ready_for_production", "approved", "inProduction", "produced", "conferred",
-      "pronto_para_producao", "liberado", "em_producao", "produzido",
-    ],
-  },
-];
-
-// "entregue" é a grafia legada de delivered — conta como pronta, não pendente.
-const DELIVERED = new Set(["delivered", "entregue"]);
-
-// status → índice da etapa em que a peça está travada (0-4).
-// Fora do mapa = já passou por tudo (delivered) ou está fora do funil.
-const STATUS_STAGE_RANK: Record<string, number> = {};
-STAGE_DEFS.forEach((s, i) => s.pendingStatuses.forEach((st) => { STATUS_STAGE_RANK[st] = i; }));
-
-// Cancelada/excluída/arquivada não conta como pendência nem como total.
-const OUT_OF_FUNNEL = new Set(["canceled", "deleted", "archived"]);
-
-// "Hoje" do NEGÓCIO: dia-calendário em America/Sao_Paulo, expresso como
-// UTC-midnight para a aritmética de dias. A âncora anterior (dia UTC do
-// servidor) virava "amanhã" às 21h de Brasília e o semáforo mostrava
-// "vencida há 1d" com o dia ainda em curso — exatamente nas horas em que
-// o diretor confere pendência de véspera. As DATAS de evento continuam
-// tratadas como wall-clock em UTC (convenção de toda a UI); só o "hoje"
-// e os timestamps reais (updatedAt) usam o fuso do negócio.
-const SP_DAY_FMT = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
+const cobrancaBodySchema = z.object({
+  targetType: z.enum(["event", "sponsor"], {
+    errorMap: () => ({ message: "O alvo da cobrança precisa ser um evento ou um patrocinador." }),
+  }),
+  targetId: z.string().min(1, "Informe qual evento ou patrocinador está sendo cobrado."),
+  promisedFor: z.string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, "A data prometida precisa estar no formato dia/mês/ano.")
+    .optional().nullable(),
+  note: z.string().trim().max(NOTA_MAX, `A nota do combinado precisa ter no máximo ${NOTA_MAX} caracteres.`)
+    .optional().nullable(),
 });
-function spDayMs(date: Date): number {
-  const [y, m, d] = SP_DAY_FMT.format(date).split("-").map(Number);
-  return Date.UTC(y, m - 1, d);
-}
-function todayBusinessMs(): number {
-  return spDayMs(new Date());
-}
-function todayBusinessStr(): string {
-  return SP_DAY_FMT.format(new Date()); // YYYY-MM-DD (en-CA)
-}
 
-// Data-calendário (UTC, meia-noite) da saída do caminhão.
-function truckDayUTC(truckDepartureDate: Date | string): Date {
-  const d = new Date(truckDepartureDate);
-  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+/** "YYYY-MM-DD" existente de verdade (barra 2026-02-31, que o regex aceita). */
+function isRealDay(day: string): boolean {
+  const [y, m, d] = day.split("-").map(Number);
+  const asDate = new Date(Date.UTC(y, m - 1, d));
+  return asDate.getUTCFullYear() === y && asDate.getUTCMonth() === m - 1 && asDate.getUTCDate() === d;
 }
-
-// Marco da etapa: saída + offset, com ajuste de fim de semana quando a
-// etapa não roda em todos os dias (mesma regra do event-detail).
-function stageDeadline(truckDay: Date, offsetDays: number, allDays: boolean): Date {
-  const d = new Date(truckDay);
-  d.setUTCDate(d.getUTCDate() + offsetDays);
-  if (!allDays) {
-    const dow = d.getUTCDay();
-    if (dow === 6) d.setUTCDate(d.getUTCDate() - 1); // sábado → sexta
-    if (dow === 0) d.setUTCDate(d.getUTCDate() + 1); // domingo → segunda
-  }
-  return d;
-}
-
-// Dias-calendário (no fuso do negócio) desde um timestamp real.
-function daysSince(ts: Date | string | null | undefined, today: number): number {
-  if (!ts) return 0;
-  return Math.max(0, Math.round((today - spDayMs(new Date(ts))) / 86400000));
-}
-
-// Status em que a peça está esperando decisão de patrocinador.
-const AWAITING_SPONSOR = new Set(["awaiting_approval", "awaiting_sponsor_approval"]);
 
 export function registerPrazoRoutes(app: Express): void {
   app.get("/api/prazos", requireRole("admin"), async (_req, res) => {
     try {
-      const [allEvents, allItems, allSponsors, openApprovals] = await Promise.all([
+      const today = todayBusinessMs();
+      const todayStr = todayBusinessStr();
+
+      // Recorte ANTES do banco: só as peças dos eventos que ainda interessam.
+      // `getAllItems()` trazia a história completa da empresa para descartar a
+      // maior parte em JavaScript — custo que crescia com o acervo, não com o
+      // trabalho em aberto, e multiplicado por cada aba vezes cada invalidação
+      // de WebSocket. O filtro por "tudo entregue" continua DEPOIS do fetch,
+      // porque depende justamente das peças.
+      // Só a busca de peças precisa esperar a lista de candidatos; as outras
+      // três continuam em paralelo, como antes.
+      const [allEvents, allSponsors, openApprovals, allUsers] = await Promise.all([
         storage.getAllEvents(),
-        storage.getAllItems(),
         storage.getAllSponsors(),
         storage.getOpenItemSponsorApprovals(),
+        storage.getAllUsers(),
       ]);
+      const candidates = allEvents.filter((ev) => isPrazoCandidate(ev, today));
+      const candidateItems = await storage.getItemsByEvents(candidates.map((ev) => ev.id));
 
-      const itemsByEvent = new Map<string, any[]>();
-      for (const it of allItems) {
+      const itemsByEvent = new Map<string, Item[]>();
+      for (const it of candidateItems) {
         const arr = itemsByEvent.get(it.eventId);
         if (arr) arr.push(it); else itemsByEvent.set(it.eventId, [it]);
       }
@@ -147,17 +100,23 @@ export function registerPrazoRoutes(app: Express): void {
       const sponsorNameById = new Map<string, string>();
       for (const s of allSponsors) sponsorNameById.set(s.id, s.name);
 
+      // Um Map montado UMA vez alimenta "Solicitante: Fulano" no modal e
+      // "conta: Ana Paula" no ranking. A tela nomeava setores e nunca pessoas —
+      // e é a uma pessoa que o diretor liga. Nunca N+1: os usuários do sistema
+      // cabem numa consulta só.
+      const userNameById = new Map<string, string>();
+      for (const u of allUsers) userNameById.set(u.id, u.name);
+
       // Aprovações em aberto, agrupadas por peça. Guardamos TODOS os estados
       // não-aprovados: pending/new_version_pending = bola com o PATROCINADOR;
       // awaiting_arte/rejected = bola com a ARTE. O drill mostra os dois — um
       // "—" sem explicação parecia dado quebrado quando a peça aguardava a
       // Arte refazer, não o patrocinador decidir.
-      const openApprovalsByItem = new Map<string, any[]>();
+      const openApprovalsByItem = new Map<string, ItemSponsorApproval[]>();
       for (const ap of openApprovals) {
         const arr = openApprovalsByItem.get(ap.itemId);
         if (arr) arr.push(ap); else openApprovalsByItem.set(ap.itemId, [ap]);
       }
-      const SPONSOR_TURN = new Set(["pending", "new_version_pending"]);
 
       // Agregado cross-evento: quais patrocinadores estão atrasando aprovação.
       // `items` alimenta a linha expansível do ranking — o diretor vê QUAIS
@@ -167,143 +126,36 @@ export function registerPrazoRoutes(app: Express): void {
         items: { itemId: string; eventId: string; eventName: string; displayId: string; days: number }[];
       }>();
 
-      const today = todayBusinessMs();
-
-      const events = allEvents
-        .map((event) => {
-          const eventItems = (itemsByEvent.get(event.id) ?? [])
-            .filter((it) => !OUT_OF_FUNNEL.has(it.status));
-
-          // Evento concluído, com tudo entregue ou já começado é história —
-          // sai da gestão de prazos. startPassed compara DIA-calendário UTC
-          // (não o instante): com timestamp à meia-noite UTC, o evento sumia
-          // da tela às 21h da VÉSPERA em UTC-3 — as horas de crise.
-          const allDelivered = eventItems.length > 0 && eventItems.every((it) => DELIVERED.has(it.status));
-          const startPassed = today > truckDayUTC(event.startDate).getTime();
-          if (event.status === "completed" || allDelivered || startPassed) return null;
-
-          const truckDay = truckDayUTC(event.truckDepartureDate);
-          const truckYear = truckDay.getUTCFullYear();
-          // Mesmo guard do Painel: ano absurdo (ex.: 0206) é problema de
-          // cadastro — sinalizamos em vez de calcular atraso de 600 mil dias.
-          const invalidDate = truckYear < 2000 || truckYear > 2100;
-
-          // Contagem por etapa: direta (travadas AQUI) e acumulada (aqui ou antes).
-          const directCounts = new Array(STAGE_DEFS.length).fill(0);
-          for (const it of eventItems) {
-            const rank = STATUS_STAGE_RANK[it.status];
-            if (rank !== undefined) directCounts[rank] += 1;
-          }
-          // Evento sem NENHUMA peça: runningPending 0 deixaria as 5 etapas
-          // "done" — verde falso para um evento em que nada começou. Etapas
-          // ficam neutras e o front sinaliza "sem peças cadastradas".
-          const noItems = eventItems.length === 0;
-
-          let runningPending = 0;
-          const stages = STAGE_DEFS.map((def, i) => {
-            runningPending += directCounts[i];
-            const offset = (event[def.offsetField as keyof typeof event] as number | null) ?? def.defaultOffset;
-            const deadline = stageDeadline(truckDay, offset, def.allDays);
-            const diffDays = Math.round((deadline.getTime() - today) / 86400000);
-
-            let state: StageState;
-            if (noItems) state = "upcoming";
-            else if (runningPending === 0) state = "done";
-            else if (invalidDate) state = "upcoming"; // sem data confiável não há atraso confiável
-            else if (diffDays < 0) state = "overdue";
-            else if (diffDays <= 3) state = "warning";
-            else state = "upcoming";
-
-            return {
-              key: def.key,
-              label: def.label,
-              deadline: deadline.toISOString().slice(0, 10),
-              diffDays,
-              pendingCount: runningPending,   // travadas aqui OU antes (o gate real)
-              directCount: directCounts[i],   // travadas exatamente nesta etapa
-              state,
-            };
-          });
-
-          const deliveredCount = eventItems.filter((it) => DELIVERED.has(it.status)).length;
-
-          // Risco projetado (regra fixa inicial, S6 da revisão): marco a até
-          // 2 dias de vencer com 10+ peças ainda no gate é matematicamente
-          // inviável — merece grito ANTES de virar atraso consumado.
-          const riskCritical = !invalidDate && stages.some((s) =>
-            (s.state === "warning" || s.state === "upcoming")
-            && s.diffDays >= 0 && s.diffDays <= 2 && s.pendingCount >= 10);
-
-          // Peças pendentes para o drill-down — detalhadas de propósito: a
-          // tela existe para o diretor COBRAR, então cada linha diz o que é,
-          // há quantos dias está parada e (na aprovação) quem está segurando.
-          const pendingItems = eventItems
-            .filter((it) => STATUS_STAGE_RANK[it.status] !== undefined)
-            .map((it) => {
-              // APROXIMAÇÃO documentada: updatedAt é tocado por QUALQUER
-              // edição (inclusive atribuir book, que varre o evento inteiro),
-              // não só por transição de status. Por isso a UI rotula "sem
-              // movimento há Xd" — não "parada no status há Xd". O relógio
-              // exato pede uma coluna statusChangedAt (dívida registrada).
-              const waitingDays = daysSince(it.updatedAt ?? it.createdAt, today);
-              let sponsors: { name: string; days: number; holder: "sponsor" | "arte" }[] | undefined;
-              if (AWAITING_SPONSOR.has(it.status)) {
-                const open = openApprovalsByItem.get(it.id) ?? [];
-                sponsors = open.map((ap) => {
-                  const name = sponsorNameById.get(ap.sponsorId) ?? "Patrocinador removido";
-                  // updatedAt ?? createdAt: o registro sobrevive ao ciclo
-                  // reprovar→reenviar (o reset só bumpa updatedAt) — contar de
-                  // createdAt cobraria o patrocinador por dias em que a bola
-                  // estava com a Arte. Recém-criado, os dois são iguais.
-                  const days = daysSince(ap.updatedAt ?? ap.createdAt, today);
-                  const holder: "sponsor" | "arte" = SPONSOR_TURN.has(ap.status) ? "sponsor" : "arte";
-                  if (holder === "sponsor") {
-                    const agg = sponsorAgg.get(ap.sponsorId)
-                      ?? { name, pendingCount: 0, maxDays: 0, eventIds: new Set<string>(), items: [] };
-                    agg.pendingCount += 1;
-                    agg.maxDays = Math.max(agg.maxDays, days);
-                    agg.eventIds.add(event.id);
-                    agg.items.push({ itemId: it.id, eventId: event.id, eventName: event.name, displayId: it.displayId, days });
-                    sponsorAgg.set(ap.sponsorId, agg);
-                  }
-                  return { name, days, holder };
-                });
-              }
-              return {
-                id: it.id,
-                displayId: it.displayId,
-                status: it.status,
-                // Etapa calculada AQUI (fonte única): o front não mantém mais
-                // um espelho do mapa status→etapa que podia divergir.
-                stageIndex: STATUS_STAGE_RANK[it.status],
-                type: it.type,
-                description: it.description ?? null,
-                quantity: it.quantity,
-                waitingDays,
-                sponsors,
-              };
+      const events: PrazoEvent[] = candidates
+        .map((event) => buildEventPrazo(event, itemsByEvent.get(event.id) ?? [], {
+          today,
+          sponsorNameById,
+          openApprovalsByItem,
+          userNameById,
+          onSponsorHolding: (info) => {
+            const agg = sponsorAgg.get(info.sponsorId)
+              ?? { name: info.sponsorName, pendingCount: 0, maxDays: 0, eventIds: new Set<string>(), items: [] };
+            agg.pendingCount += 1;
+            agg.maxDays = Math.max(agg.maxDays, info.days);
+            agg.eventIds.add(info.eventId);
+            agg.items.push({
+              itemId: info.itemId, eventId: info.eventId, eventName: info.eventName,
+              displayId: info.displayId, days: info.days,
             });
-
-          return {
-            id: event.id,
-            name: event.name,
-            priority: event.priority ?? null,
-            startDate: event.startDate,
-            truckDepartureDate: event.truckDepartureDate,
-            invalidDate,
-            totalItems: eventItems.length,
-            deliveredItems: deliveredCount,
-            stages,
-            pendingItems,
-            riskCritical,
-          };
-        })
-        .filter((e): e is NonNullable<typeof e> => e !== null)
+            sponsorAgg.set(info.sponsorId, agg);
+          },
+        }))
+        .filter((e): e is PrazoEvent => e !== null)
         .sort((a, b) => new Date(a.truckDepartureDate).getTime() - new Date(b.truckDepartureDate).getTime());
+
+      const execBySponsorId = new Map<string, string | null>();
+      for (const s of allSponsors) {
+        execBySponsorId.set(s.id, (s.accountExecutiveId && userNameById.get(s.accountExecutiveId)) || null);
+      }
 
       // Ranking de patrocinadores segurando aprovação (pior primeiro):
       // mais peças pendentes desempata por espera máxima.
-      const sponsorDelays = Array.from(sponsorAgg.entries())
+      const sponsorDelays: SponsorDelay[] = Array.from(sponsorAgg.entries())
         .map(([sponsorId, a]) => ({
           sponsorId,
           name: a.name,
@@ -313,45 +165,23 @@ export function registerPrazoRoutes(app: Express): void {
           // Pior primeiro e com teto: a linha expansível é lista de cobrança,
           // não inventário — acima de 20 o diretor vai à tela do Atendimento.
           items: a.items.sort((x, y) => y.days - x.days).slice(0, 20),
+          executivoConta: execBySponsorId.get(sponsorId) ?? null,
         }))
         .sort((x, y) => y.pendingCount - x.pendingCount || y.maxDays - x.maxDays);
 
-      // KPIs calculados AQUI (fonte única): o cliente exibia contas próprias
-      // que podiam divergir do snapshot/tendência. saidas7d usa a MESMA
-      // âncora de hoje do semáforo.
-      const eventsWithOverdue = events.filter((ev) => ev.stages.some((s) => s.state === "overdue"));
-      const invalidCount = events.filter((ev) => ev.invalidDate).length;
-      const kpis = {
-        atrasados: eventsWithOverdue.length,
-        saidas7d: events.filter((ev) => {
-          if (ev.invalidDate) return false;
-          const diff = Math.round((truckDayUTC(ev.truckDepartureDate).getTime() - today) / 86400000);
-          return diff >= 0 && diff <= 7;
-        }).length,
-        // Por evento: a pendência acumulada da etapa vencida mais avançada
-        // (peça presa antes também está atrasada para aquele marco).
-        pecasAtrasadas: eventsWithOverdue.reduce((acc, ev) => {
-          const overdue = ev.stages.filter((s) => s.state === "overdue");
-          return acc + (overdue.length ? overdue[overdue.length - 1].pendingCount : 0);
-        }, 0),
-        // Data inválida NÃO é "em dia" — cadastro quebrado não vira sinal verde.
-        emDia: events.length - eventsWithOverdue.length - invalidCount,
-        invalidCount,
-      };
+      // KPIs derivados da CATEGORIA (fonte única) — ver `computeKpis`.
+      const kpis = computeKpis(events);
 
-      // Tendência ▲▼: snapshot de hoje (upsert barato no próprio GET — a rota
-      // é admin-only) comparado com o snapshot anterior mais recente.
-      const day = todayBusinessStr();
-      let trend: { atrasados: number; saidas7d: number; pecasAtrasadas: number; emDia: number } | null = null;
+      // Tendência ▲▼: comparação com o snapshot ANTERIOR mais recente (numa
+      // segunda-feira, o de sexta — por isso o rótulo da UI diz "último
+      // registro", não "ontem"). Este GET agora SÓ LÊ: a escrita mudou para o
+      // job de `services/prazoSnapshots.ts`, porque leitura com efeito
+      // colateral fazia a série virar "valor da última visita" e dias sem
+      // acesso simplesmente não existiam na série.
+      let trend: PrazoTrend = null;
       try {
-        await db.insert(prazoSnapshots)
-          .values({ day, atrasados: kpis.atrasados, saidas7d: kpis.saidas7d, pecasAtrasadas: kpis.pecasAtrasadas, emDia: kpis.emDia })
-          .onConflictDoUpdate({
-            target: prazoSnapshots.day,
-            set: { atrasados: kpis.atrasados, saidas7d: kpis.saidas7d, pecasAtrasadas: kpis.pecasAtrasadas, emDia: kpis.emDia },
-          });
         const [prev] = await db.select().from(prazoSnapshots)
-          .where(lt(prazoSnapshots.day, day))
+          .where(lt(prazoSnapshots.day, todayStr))
           .orderBy(desc(prazoSnapshots.day))
           .limit(1);
         if (prev) {
@@ -368,60 +198,206 @@ export function registerPrazoRoutes(app: Express): void {
         console.error("prazo_snapshots indisponível (rode npm run db:push):", (e as Error).message);
       }
 
-      // Última cobrança por alvo ("event:id" / "sponsor:id") — fecha o loop
-      // cobrança→resultado no drill e no ranking.
-      const cobrancas: Record<string, { userName: string; createdAt: string; daysAgo: number }> = {};
+      // Registro de cobrança por alvo ("event:id" / "sponsor:id") — fecha o
+      // loop cobrança→resultado no drill e no ranking. Antes este bloco lia
+      // TODAS as linhas e jogava fora tudo menos a última; agora a mesma
+      // varredura entrega contagem, histórico, promessa e nota.
+      const cobrancas: CobrancaMap = {};
       try {
         const regs = await db.select().from(prazoCobrancas).orderBy(desc(prazoCobrancas.createdAt));
         for (const r of regs) {
-          const key = `${r.targetType}:${r.targetId}`;
-          if (!cobrancas[key]) {
+          // targetType vem do banco como texto livre: normalizamos aqui em vez
+          // de confiar, senão uma linha legada com lixo cria uma chave que o
+          // cliente nunca consulta (e some do placar sem aviso).
+          if (r.targetType !== "event" && r.targetType !== "sponsor") continue;
+          const key: CobrancaKey = r.targetType === "event"
+            ? `event:${r.targetId}` : `sponsor:${r.targetId}`;
+
+          const existing = cobrancas[key];
+          if (!existing) {
+            // Primeira linha vista = a MAIS RECENTE (order by createdAt desc).
+            const daysAgo = daysSince(r.createdAt, today);
+            const promessaData = r.promisedFor ?? null;
             cobrancas[key] = {
               userName: r.userName,
               createdAt: r.createdAt.toISOString(),
-              daysAgo: daysSince(r.createdAt, today),
-            };
+              daysAgo,
+              total: 1,
+              historico: [{ userName: r.userName, createdAt: r.createdAt.toISOString(), daysAgo }],
+              promessaData,
+              // Conta feita AQUI, com a âncora do negócio: o cliente não deve
+              // decidir "promessa vencida" com o relógio do navegador.
+              promessaDiasRestantes: promessaData
+                ? Math.round((businessDayStrToMs(promessaData) - today) / 86400000)
+                : null,
+              nota: r.note ?? null,
+              // Preenchido depois, quando os eventos já estiverem montados.
+              houveMovimento: null,
+            } satisfies CobrancaEntry;
+          } else {
+            existing.total += 1;
+            // Teto de 5: o modal mostra a régua da pressão ("3 cobranças em 12
+            // dias"), não o log completo — que é o que o audit log já é.
+            if (existing.historico.length < 5) {
+              existing.historico.push({
+                userName: r.userName,
+                createdAt: r.createdAt.toISOString(),
+                daysAgo: daysSince(r.createdAt, today),
+              });
+            }
           }
+        }
+
+        // "cobrado há 5d — segue parado" era afirmado sem olhar o andamento
+        // real. É uma afirmação factual sobre a equipe, exibida com nome e
+        // sobrenome de quem cobrou: quando é falsa, ou gera cobrança injusta
+        // ou ensina o diretor a ignorar o campo. Uma peça que se moveu DEPOIS
+        // da cobrança tem waitingDays menor que daysAgo.
+        for (const ev of events) {
+          const entry = cobrancas[`event:${ev.id}`];
+          if (!entry) continue;
+          entry.houveMovimento = ev.pendingItems.some((it) => it.waitingDays < entry.daysAgo);
         }
       } catch (e) {
         console.error("prazo_cobrancas indisponível (rode npm run db:push):", (e as Error).message);
       }
 
-      res.json({
+      // "O que mudou desde ontem": o placar diz que os atrasados subiram de 4
+      // para 6; esta faixa diz QUAIS dois entraram — a primeira pergunta das
+      // 8h da manhã. Try/catch próprio: sem a tabela migrada, o bloco some e o
+      // resto da tela continua inteiro.
+      let desdeOntem: DesdeOntem | null = null;
+      try {
+        const [base] = await db.select({ day: prazoEventSnapshots.day })
+          .from(prazoEventSnapshots)
+          .where(lt(prazoEventSnapshots.day, todayStr))
+          .orderBy(desc(prazoEventSnapshots.day))
+          .limit(1);
+
+        if (base) {
+          const baseRows = await db.select().from(prazoEventSnapshots)
+            .where(eq(prazoEventSnapshots.day, base.day));
+          const baseById = new Map(baseRows.map((r) => [r.eventId, r]));
+
+          const entraramEmAtraso: DesdeOntemEvento[] = [];
+          const sairamDoAtraso: DesdeOntemEvento[] = [];
+          for (const ev of events) {
+            const before = baseById.get(ev.id);
+            // Evento sem linha no dia base não estava na foto — não dá para
+            // afirmar TRANSIÇÃO sobre ele. Preferimos silêncio a inventar uma
+            // mudança que talvez seja só um cadastro novo.
+            if (!before) continue;
+            const nowOverdue = ev.categoria === "atrasado";
+            if (!before.hasOverdue && nowOverdue) entraramEmAtraso.push({ id: ev.id, name: ev.name });
+            if (before.hasOverdue && !nowOverdue) sairamDoAtraso.push({ id: ev.id, name: ev.name });
+          }
+
+          const pecasBase = baseRows.reduce((acc, r) => acc + r.pecasAtrasadas, 0);
+          const pecasHoje = events.reduce((acc, ev) => acc + ev.pecasEmAtraso, 0);
+          desdeOntem = {
+            baseDay: base.day,
+            entraramEmAtraso,
+            sairamDoAtraso,
+            // Piso 0: "destravou -8 peças" não é frase de gestão. Quando o
+            // saldo piora, quem conta a história é `entraramEmAtraso`.
+            pecasDestravadas: Math.max(0, pecasBase - pecasHoje),
+          };
+        }
+      } catch (e) {
+        console.error("prazo_event_snapshots indisponível (rode npm run db:push):", (e as Error).message);
+      }
+
+      const payload: PrazosPayload = {
         generatedAt: new Date().toISOString(),
+        // Âncora oficial do dia de NEGÓCIO. É o que permite ao cliente parar de
+        // chamar `new Date()` para decidir regra: num navegador fora de
+        // Brasília, entre 21h e 00h, os dois relógios discordam em um dia e o
+        // KPI passava a se contradizer com o resultado do próprio clique.
+        today: todayStr,
         // Ordem/rótulos das etapas: o front deriva os cabeçalhos daqui em vez
         // de manter uma cópia que quebraria sem erro numa reordenação.
-        stageMeta: STAGE_DEFS.map((d) => ({ key: d.key, label: d.label })),
+        stageMeta: STAGE_META,
         events,
         sponsorDelays,
         kpis,
         trend,
         cobrancas,
-      });
+        desdeOntem,
+      };
+      res.json(payload);
     } catch (error: any) {
       console.error("GET /api/prazos:", error);
-      res.status(500).json({ error: "Não foi possível carregar os prazos" });
+      res.status(500).json({
+        error: "Não foi possível carregar os prazos agora. Tente novamente em alguns instantes — se continuar, avise o suporte técnico.",
+      });
     }
   });
 
   // "Marcar como cobrado": registro leve de accountability — quem cobrou o
-  // quê, quando. Nenhum estado de peça muda; é trilha de pressão gerencial.
+  // quê, quando, para quando ficou prometido e o que foi combinado. Nenhum
+  // estado de peça muda; é trilha de pressão gerencial.
   app.post("/api/prazos/cobrancas", requireRole("admin"), async (req, res) => {
     try {
-      const { targetType, targetId } = req.body ?? {};
-      if (!["event", "sponsor"].includes(targetType) || typeof targetId !== "string" || !targetId) {
-        return res.status(400).json({ error: "targetType (event|sponsor) e targetId são obrigatórios" });
+      const parsed = cobrancaBodySchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        return res.status(400).json({
+          error: parsed.error.issues[0]?.message ?? "Dados da cobrança inválidos.",
+        });
       }
+      const { targetType, targetId } = parsed.data;
+      const note = parsed.data.note?.trim() || null;
+      const promisedFor = parsed.data.promisedFor || null;
+
+      if (promisedFor) {
+        const todayStr = todayBusinessStr();
+        const today = todayBusinessMs();
+        if (!isRealDay(promisedFor)) {
+          return res.status(400).json({ error: "Essa data não existe no calendário — confira o dia prometido." });
+        }
+        const diff = Math.round((businessDayStrToMs(promisedFor) - today) / 86400000);
+        if (diff < 0) {
+          return res.status(400).json({ error: `A promessa não pode ser para uma data passada (hoje é ${todayStr}).` });
+        }
+        if (diff > PROMESSA_MAX_DIAS) {
+          return res.status(400).json({ error: `A promessa está a mais de ${PROMESSA_MAX_DIAS} dias — confira se o ano está certo.` });
+        }
+      }
+
+      // O alvo tem que EXISTIR. Antes só o formato era validado: um clique num
+      // card no instante em que o evento é excluído gravava linha órfã e um
+      // audit log apontando para nada — num recurso cujo valor inteiro é ser
+      // verdadeiro.
+      if (targetType === "event") {
+        const alvo = await storage.getEvent(targetId);
+        if (!alvo) return res.status(404).json({ error: "Este evento não existe mais — atualize a tela." });
+      } else {
+        const alvo = await storage.getSponsor(targetId);
+        if (!alvo) return res.status(404).json({ error: "Este patrocinador não existe mais — atualize a tela." });
+      }
+
       const [reg] = await db.insert(prazoCobrancas)
-        .values({ targetType, targetId, userName: req.userName ?? "Sistema" })
+        .values({ targetType, targetId, userName: req.userName ?? "Sistema", promisedFor, note })
         .returning();
+
+      const promessaTexto = promisedFor
+        ? ` — prometido para ${promisedFor.slice(8, 10)}/${promisedFor.slice(5, 7)}`
+        : "";
+      const notaTexto = note ? ` — combinado: ${note}` : "";
       await createAuditLog(
         req.userName ?? "Sistema",
         "cobranca_registrada",
-        targetType === "event" ? "event" : "sponsor",
+        // targetType já é "event" | "sponsor" pelo zod — o ternário antigo
+        // sobre um valor validado não fazia nada.
+        targetType,
         targetId,
-        "Cobrança registrada na Gestão de Prazos",
+        `Cobrança registrada na Gestão de Prazos${promessaTexto}${notaTexto}`,
       );
+
+      // Regra da casa: toda escrita grava audit log E faz broadcast. Sem isto,
+      // a cobrança de um diretor não aparecia na aba do outro — dois gestores
+      // ligavam para o mesmo responsável no mesmo dia.
+      broadcast({ type: "prazo_cobranca", targetType, targetId });
+
       res.json(reg);
     } catch (error: any) {
       console.error("POST /api/prazos/cobrancas:", error);

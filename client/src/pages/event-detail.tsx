@@ -45,6 +45,18 @@ import { useEventReference } from "@/hooks/use-event-reference";
 import { useEventItemFlags } from "@/hooks/use-event-item-flags";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
+import { reductionFloorOf } from "@/lib/saldo";
+import {
+  AumentarQuantidadeDialog,
+  AumentarQuantidadeButton,
+  ComplementoDaFicha,
+  temBlocoDeComplemento,
+  podeAumentarQuantidade,
+  podeMexerNaQuantidade,
+  entrouEmProducao,
+  parseApiError,
+} from "@/components/aumentar-quantidade-dialog";
+import { compareDisplayId } from "@/lib/displayId";
 
 const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
 const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];
@@ -96,6 +108,14 @@ interface ItemFormProps {
   localRefPreview: string;
   setLocalRefPreview: (v: string) => void;
   getUploadUrl: () => Promise<{ method: "PUT"; url: string }>;
+  /** Peça já em produção: sobe por complemento, desce até o piso físico. */
+  quantityLocked?: boolean;
+  /** Piso físico: já produzido+reuso / conferido / entregue — o que for maior. */
+  quantityFloor?: number;
+  /** Teto da edição direta: a quantidade contratada hoje. Acima disso, complemento. */
+  quantityCeiling?: number;
+  /** Fecha o form e abre o modal de complemento (só existe com quantityLocked). */
+  onAumentarQuantidade?: () => void;
 }
 
 // Formulário de peça unificado. Antes eram DUAS implementações independentes
@@ -110,6 +130,8 @@ function ItemForm({
   finishOptions, customMaterial, setCustomMaterial, customFinish,
   setCustomFinish, isMobile, isAdmin, isPending, onSubmit, onCancel,
   localRefPreview, setLocalRefPreview, getUploadUrl,
+  quantityLocked = false, quantityFloor = 0, quantityCeiling = Number.MAX_SAFE_INTEGER,
+  onAumentarQuantidade,
 }: ItemFormProps) {
   const isEdit = mode === "edit";
   // "Digitar novo tipo" só existe no criar — no editar o tipo já é texto livre.
@@ -210,20 +232,58 @@ function ItemForm({
               </select>
             )}
           </div>
+          {/* Qtd. depois que a peça entra em produção: SOBE pelo complemento,
+              DESCE por edição normal até o piso físico. Travar o campo por
+              completo (como esta tela chegou a fazer) tornava o piso do
+              servidor inalcançável e quebrava a promessa "reduzir continua
+              sendo editar o número" — o cliente que corta o pedido de 15 para
+              12 não tinha caminho nenhum. Digitar acima do contratado não é
+              erro: leva ao fluxo certo, o do complemento. */}
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <label htmlFor="item-quantity" style={FIELD_LABEL}>Qtd.</label>
             <input
               id="item-quantity"
               type="number"
-              min="1"
+              min={quantityLocked ? quantityFloor : 1}
+              max={quantityLocked ? quantityCeiling : undefined}
               required={!isEdit}
+              aria-describedby={quantityLocked ? "item-quantity-hint" : undefined}
               value={formData.quantity}
-              onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
+              onChange={(e) => {
+                const digitado = parseInt(e.target.value) || 1;
+                if (!quantityLocked) {
+                  setFormData({ ...formData, quantity: digitado });
+                  return;
+                }
+                // Acima do contratado: o aumento não acontece aqui. Mantém o
+                // número atual e abre o complemento — o mesmo gesto de antes,
+                // desembocando no fluxo certo em vez de num 409 depois de
+                // preencher o form inteiro.
+                if (digitado > quantityCeiling) {
+                  onAumentarQuantidade?.();
+                  return;
+                }
+                setFormData({ ...formData, quantity: Math.max(digitado, quantityFloor) });
+              }}
+              title={quantityLocked
+                ? `Em produção: dá para reduzir até ${quantityFloor} (já produzidas/conferidas/entregues). Para aumentar, use o complemento.`
+                : undefined}
               data-testid={isEdit ? "input-edit-quantity" : "input-quantity"}
               style={FIELD_INPUT}
               onFocus={focusRing}
               onBlur={blurRing}
             />
+            {quantityLocked && (
+              <>
+                <p id="item-quantity-hint" style={{ margin: 0, fontSize: 10, lineHeight: 1.4, color: "#746e69" }}>
+                  Em produção: dá para <strong>reduzir</strong> até {quantityFloor}
+                  {quantityFloor > 0 ? " (já produzidas/conferidas/entregues)" : ""}. Para <strong>aumentar</strong>, o pedido vira uma peça complementar.
+                </p>
+                {onAumentarQuantidade && (
+                  <AumentarQuantidadeButton variant="link" onClick={onAumentarQuantidade} testId="button-aumentar-quantidade-form" />
+                )}
+              </>
+            )}
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
             <label htmlFor="item-m2-total" style={FIELD_LABEL}>M2 Total</label>
@@ -537,6 +597,15 @@ export default function EventDetail() {
   // vai ser excluída — com só o id, a mensagem era genérica.
   const [deletingItem, setDeletingItem] = useState<any | null>(null);
   const [selectedItemForDetails, setSelectedItemForDetails] = useState<any | null>(null);
+  // Complemento (aumento de quantidade pós-produção): a peça-mãe em foco e,
+  // quando o pedido veio de uma edição barrada pelo servidor, a diferença já
+  // calculada por ele (409 USE_COMPLEMENT → suggestedComplement).
+  const [complementItem, setComplementItem] = useState<any | null>(null);
+  const [complementSugestao, setComplementSugestao] = useState<number | null>(null);
+  const abrirComplemento = (item: any, sugestao?: number | null) => {
+    setComplementSugestao(sugestao ?? null);
+    setComplementItem(item);
+  };
   const [itemSearch, setItemSearch] = useState("");
   const [showAllItems, setShowAllItems] = useState(false);
   const [showAllDrafts, setShowAllDrafts] = useState(false);
@@ -591,11 +660,17 @@ export default function EventDetail() {
     if (target) setSelectedItemForDetails(target);
   }, [rawItems, loadingItems]);
 
-  const items = useMemo(() => [...rawItems].sort((a, b) => {
-    const idA = parseInt(String(a.displayId || '0').replace(/\D/g, '')) || 0;
-    const idB = parseInt(String(b.displayId || '0').replace(/\D/g, '')) || 0;
-    return idA - idB;
-  }), [rawItems]);
+  // Ordenação por displayId ciente de COMPLEMENTO: "#0062-C1" com o
+  // replace(/\D/g,'') de antes virava 621 e a peça-filha aparecia centenas de
+  // linhas longe da mãe — exatamente a duplicidade confusa que o modelo de
+  // complemento existe para evitar. Base primeiro, sufixo -C depois:
+  // #0062 < #0062-C1 < #0062-C2 < #0063.
+  // Fonte única em lib/displayId.ts — o mesmo comparador da Gráfica, do Painel
+  // Geral, da Arte e do Vincular (e espelho de server/storage.ts).
+  const items = useMemo(
+    () => [...rawItems].sort((a, b) => compareDisplayId(a.displayId, b.displayId)),
+    [rawItems],
+  );
 
   // Rascunhos vivem SÓ no card "Peças em Rascunho"; a listagem principal fica
   // com o restante. Antes o mesmo item aparecia nos dois lugares ao mesmo tempo.
@@ -619,6 +694,12 @@ export default function EventDetail() {
   }, [mainItems]);
   const totalM2 = useMemo(
     () => items.reduce((acc, i) => acc + (parseFloat(String(i.calculatedM2 ?? '0')) || 0), 0),
+    [items],
+  );
+  // Quantas das peças listadas são complemento (aumento pós-produção). O m²
+  // total não precisa de tratamento: as duas linhas somam sozinhas.
+  const complementCount = useMemo(
+    () => items.filter((i: any) => !!i.parentItemId).length,
     [items],
   );
 
@@ -741,6 +822,12 @@ export default function EventDetail() {
   // Quem cria a lista (solicitação, admin ou criador do evento) sempre pode
   // editar uma peça, mesmo depois que ela entra em produção/entrega.
   const canEditLists = hasPermission("admin") || user?.role === "solicitacao" || !!(event && user && event.createdBy === user.id);
+  // Mexer na QUANTIDADE de peça já produzida (complemento e redução até o piso)
+  // é mais restrito que editar a lista: só solicitacao e admin, espelhando
+  // podeMudarQuantidade em server/routes/items.ts. Quem criou o evento com
+  // outro papel continua editando a lista, mas não mexe em contrato de peça
+  // que já virou material físico.
+  const podeMexerQtd = podeMexerNaQuantidade(user?.role);
 
   const getUploadUrl = async () => {
     const response = await apiRequest("POST", "/api/objects/upload", {});
@@ -968,10 +1055,44 @@ export default function EventDetail() {
           : "A peça foi atualizada com sucesso",
       });
     },
-    onError: (error: Error) => {
+    onError: (error: Error, variables) => {
+      // Rede de segurança do modelo de complemento. O servidor recusa aumentar
+      // a quantidade de peça em produção (409 USE_COMPLEMENT) e recusa reduzir
+      // abaixo do que já existe fisicamente (409 QUANTITY_FLOOR). Sem tradução,
+      // os dois chegavam ao usuário como JSON cru num toast vermelho.
+      const { message, code, data } = parseApiError(error);
+
+      if (code === "USE_COMPLEMENT") {
+        const alvo = items.find((i: any) => i.id === (data?.itemId ?? (variables as any)?.id));
+        handleCloseEditDialog();
+        toast({
+          title: "Peça em produção",
+          description: 'Use "Aumentar quantidade" — o aumento vira uma peça complementar.',
+        });
+        // A diferença vem do servidor quando o corpo JSON chega inteiro; quando
+        // só a frase chega (o caminho normal do apiRequest, que desembrulha o
+        // erro), ela é recalculada com o que a PRÓPRIA tela tentou salvar —
+        // o mesmo número, sem depender do formato da resposta.
+        const tentada = Number((variables as any)?.data?.quantity);
+        const atual = Number(alvo?.quantity);
+        const sugestao = Number(data?.suggestedComplement)
+          || (Number.isFinite(tentada) && Number.isFinite(atual) && tentada > atual ? tentada - atual : null);
+        if (alvo) abrirComplemento(alvo, sugestao);
+        return;
+      }
+
+      if (code === "QUANTITY_FLOOR") {
+        toast({
+          title: "Redução não permitida",
+          description: `Já há ${data?.minimum ?? "?"} un. produzidas/conferidas/entregues. Mínimo: ${data?.minimum ?? "?"}.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
       toast({
         title: "Erro ao atualizar peça",
-        description: error.message,
+        description: message,
         variant: "destructive",
       });
     },
@@ -1287,8 +1408,14 @@ export default function EventDetail() {
                 m² e um chip clicável por status presente (filtra a listagem). */}
             {items.length > 0 && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 14 }}>
+                {/* "(N complemento)" é o custo declarado do modelo: cada aumento
+                    pós-produção é uma peça a mais na contagem. Dizer quantas
+                    são complemento evita a pergunta "por que 43 se a lista tinha
+                    42?" — o número está certo, e agora explica a si mesmo. */}
                 <span style={{ fontSize: 12, fontWeight: 700, color: '#6F6A63', backgroundColor: '#ffffff', border: '1px solid #E7E3DC', borderRadius: 999, padding: '4px 12px', whiteSpace: 'nowrap' }}>
-                  {items.length} {items.length === 1 ? 'peça' : 'peças'} · {totalM2.toFixed(2)} m²
+                  {items.length} {items.length === 1 ? 'peça' : 'peças'}
+                  {complementCount > 0 && ` (${complementCount} ${complementCount === 1 ? 'complemento' : 'complementos'})`}
+                  {' · '}{totalM2.toFixed(2)} m²
                 </span>
                 {statusChips.map(([status, count]) => {
                   const m = getStatusMeta(status);
@@ -2160,8 +2287,18 @@ export default function EventDetail() {
                             </button>
                             <StatusBadge status={item.status} />
                           </div>
+                          {item.parentItemId && (
+                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', color: '#c2410c', borderRadius: 6, padding: '2px 7px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
+                              <Plus style={{ width: 9, height: 9 }} /> Compl. de {item.parent?.displayId ?? 'peça original'}
+                            </div>
+                          )}
                           <div style={{ fontWeight: 700, fontSize: 13, color: '#1c1917', marginBottom: 2 }}>{item.type}</div>
                           {item.description && <div style={{ fontSize: 13, color: '#746e69', marginBottom: 4 }}>{item.description}</div>}
+                          {item.parentItemId && item.complementReason && (
+                            <div style={{ fontSize: 11, color: '#7c2d12', marginBottom: 4, lineHeight: 1.4 }}>
+                              {item.complementRequestedBy ? <strong>{item.complementRequestedBy}: </strong> : null}{item.complementReason}
+                            </div>
+                          )}
                           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: '#746e69' }}>
                             {item.quantity && <span>{item.quantity}×</span>}
                             {item.visualWidth && item.visualHeight && <span>{item.visualWidth}×{item.visualHeight}m</span>}
@@ -2175,6 +2312,17 @@ export default function EventDetail() {
                                 style={{ flex: 1, minHeight: 44, borderRadius: 6, border: '1px solid #e7e5e4', background: '#fafaf9', fontSize: 13, fontWeight: 700, color: '#746e69', cursor: 'pointer' }}>
                                 Editar
                               </button>
+                              {/* Peça em produção: aumentar não é editar. No celular
+                                  o botão é próprio (não cabe atrás do form) — é ele
+                                  que a Solicitação usa em campo, com o cliente ao
+                                  lado pedindo mais unidades. */}
+                              {podeAumentarQuantidade(item, podeMexerQtd) && (
+                                <button onClick={() => abrirComplemento(item)}
+                                  data-testid={`button-aumentar-quantidade-mobile-${item.id}`}
+                                  style={{ flex: 1, minHeight: 44, borderRadius: 6, border: '1px solid #fed7aa', background: '#fff7ed', fontSize: 13, fontWeight: 800, color: '#c2410c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
+                                  <Plus style={{ width: 13, height: 13 }} /> Aumentar
+                                </button>
+                              )}
                               {/* Mesmos gates do desktop: sem eles, no celular um
                                   não-admin abria exclusão de peça já em produção. */}
                               {canDeleteAny && canDeleteItem(item.status) && (
@@ -2244,7 +2392,13 @@ export default function EventDetail() {
                               nenhuma. O ID é o alvo focável.
                               displayId já vem com a cerquilha do backend
                               ("#2341"); prefixar de novo mostrava "##2341". */}
-                          <td style={{ padding: '14px 14px' }}>
+                          {/* Complemento recua 12px e ganha um conector em L: como
+                              a ordenação já o cola na mãe, o recuo é o que faz a
+                              relação ser lida sem legenda. */}
+                          <td style={{ padding: '14px 14px', paddingLeft: item.parentItemId ? 26 : undefined }}>
+                            {item.parentItemId && (
+                              <span aria-hidden style={{ display: 'inline-block', width: 9, height: 7, marginRight: 5, marginBottom: 2, borderLeft: '1px solid #fdba74', borderBottom: '1px solid #fdba74', borderBottomLeftRadius: 3, verticalAlign: 'middle' }} />
+                            )}
                             <button
                               onClick={e => { e.stopPropagation(); setSelectedItemForDetails(item); }}
                               aria-label={`Ver detalhes da peça ${item.displayId}`}
@@ -2307,6 +2461,30 @@ export default function EventDetail() {
                               do badge usa PRODUCTION_STATUSES canônico (os
                               nomes antigos não existem e nunca escondiam nada). */}
                           <td style={{ padding: '14px 14px' }}>
+                            {/* Parentesco do complemento. Aqui é badge OUTLINE e
+                                sem tingir a linha: nesta tela ninguém precisa de
+                                alarme (o alarme é da fila da Gráfica), só de
+                                entender por que #0062-C1 existe. O motivo vai no
+                                title — a linha da tabela não tem espaço para ele
+                                e a ficha mostra por extenso. */}
+                            {item.parentItemId && (
+                              <div
+                                title={item.complementReason ? `Motivo: ${item.complementReason}` : undefined}
+                                data-testid={`badge-complemento-${item.id}`}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: "#fff7ed", border: "1px solid #fed7aa", color: "#c2410c", borderRadius: 6, padding: "2px 7px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}
+                              >
+                                <Plus style={{ width: 9, height: 9 }} /> Compl. de {item.parent?.displayId ?? "peça original"}
+                              </div>
+                            )}
+                            {!item.parentItemId && item.complements?.length > 0 && (
+                              <div
+                                title={`Complementos: ${item.complements.map((c: any) => `${c.displayId} (+${c.quantity})`).join(", ")}`}
+                                data-testid={`badge-tem-complemento-${item.id}`}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: "#ffffff", border: "1px solid #fed7aa", color: "#c2410c", borderRadius: 6, padding: "2px 7px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}
+                              >
+                                Tem complemento (+{item.complements.reduce((a: number, c: any) => a + (Number(c.quantity) || 0), 0)})
+                              </div>
+                            )}
                             {item.isReuse && !(PRODUCTION_STATUSES as readonly string[]).includes(item.status) && (
                               <div style={{ display: "inline-flex", alignItems: "center", gap: 4, backgroundColor: "#047857", color: "#ffffff", borderRadius: 6, padding: "2px 7px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 4 }}>
                                 <Recycle style={{ width: 9, height: 9 }} /> Reaproveit.
@@ -2361,6 +2539,24 @@ export default function EventDetail() {
                           <td style={{ padding: '14px 14px', width: 110 }}>
                             {canEditLists && (
                             <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                              {/* Aumentar quantidade — só depois que a peça entrou
+                                  em produção, e nunca num complemento (o segundo
+                                  aumento se pede na mãe). Antes deste botão, o
+                                  único gesto disponível era editar o número, que o
+                                  servidor agora recusa com 409. */}
+                              {podeAumentarQuantidade(item, podeMexerQtd) && (
+                                <button
+                                  onClick={e => { e.stopPropagation(); abrirComplemento(item); }}
+                                  data-testid={`button-aumentar-quantidade-${item.id}`}
+                                  title="Aumentar quantidade — cria uma peça complementar"
+                                  aria-label="Aumentar quantidade"
+                                  style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '6px', padding: '5px', cursor: 'pointer', color: '#c2410c', display: 'flex', alignItems: 'center', transition: 'background-color 0.15s' }}
+                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#ffedd5'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#fff7ed'; }}
+                                >
+                                  <Plus className="h-4 w-4" />
+                                </button>
+                              )}
                               {/* Toggle reaproveitamento — disponível enquanto não estiver em produção/entregue */}
                               {!isEditBlocked(item.status) && (
                                 <button
@@ -2469,6 +2665,17 @@ export default function EventDetail() {
         auditLogs={auditLogs}
         open={!!selectedItemForDetails}
         onOpenChange={(open) => !open && setSelectedItemForDetails(null)}
+        customActions={temBlocoDeComplemento(selectedItemForDetails, canEditLists) ? (
+          <ComplementoDaFicha
+            item={selectedItemForDetails}
+            canEditLists={canEditLists}
+            onAumentar={(alvo) => { setSelectedItemForDetails(null); abrirComplemento(alvo); }}
+            onAbrirPeca={(id) => {
+              const alvo = items.find((i: any) => i.id === id);
+              if (alvo) setSelectedItemForDetails(alvo);
+            }}
+          />
+        ) : undefined}
         onEditSave={canEditLists ? (edited: any) => updateItemMutation.mutate({
           id: edited.id,
           data: {
@@ -2485,6 +2692,23 @@ export default function EventDetail() {
             observations: edited.observations,
           },
         }) : undefined}
+      />
+
+      {/* Aumento de quantidade pós-produção. Monta o modal uma vez para toda a
+          tela: ele é aberto pela ficha da peça, pela linha da tabela, pelo card
+          do celular, pelo campo Qtd. travado do form de edição e pelo 409
+          USE_COMPLEMENT — cinco gestos, um único fluxo. */}
+      <AumentarQuantidadeDialog
+        item={complementItem}
+        event={event}
+        open={!!complementItem}
+        sugestao={complementSugestao}
+        onOpenChange={(o) => { if (!o) { setComplementItem(null); setComplementSugestao(null); } }}
+        onCreated={(child) => {
+          // Abre a ficha da peça-filha recém-criada: sem isto o usuário fica
+          // olhando para a lista tentando adivinhar o que mudou.
+          if (child?.id) setSelectedItemForDetails(child);
+        }}
       />
 
       <AlertDialog open={!!deletingItem} onOpenChange={(o) => { if (!o) setDeletingItem(null); }}>
@@ -2568,6 +2792,12 @@ export default function EventDetail() {
             localRefPreview={localRefPreview}
             setLocalRefPreview={setLocalRefPreview}
             getUploadUrl={getUploadUrl}
+            quantityLocked={entrouEmProducao(editingItem)}
+            quantityFloor={reductionFloorOf(editingItem ?? {})}
+            quantityCeiling={Number(editingItem?.quantity) || 1}
+            onAumentarQuantidade={podeAumentarQuantidade(editingItem, podeMexerQtd)
+              ? () => { const alvo = editingItem; handleCloseEditDialog(); abrirComplemento(alvo); }
+              : undefined}
           />
         </DialogContent>
       </Dialog>

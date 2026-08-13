@@ -1,10 +1,19 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, CheckCircle2, Package, Truck, Clock, User, MapPin } from "lucide-react";
+import { Calendar, CheckCircle2, Package, Truck, Clock, User, MapPin, PlusCircle } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import type { Item } from "@shared/schema";
 import { getStatusLabel } from "@/lib/status";
+
+// Complemento: aumento de quantidade pedido DEPOIS que a peça entrou em
+// produção. A peça original nunca muda — a diferença vira uma peça-filha
+// (#0062-C1) com ciclo próprio. Aqui a trilha precisa contar os dois lados:
+// na filha, de quem ela é complemento e por quê; na mãe, que ela ganhou um.
+const COMPLEMENT_ACTIONS = ["complement_created", "complement_canceled"];
+// Tokens da família laranja de lib/status.ts. #f97316 só como fundo/bolinha —
+// nunca como cor de texto (regra da casa).
+const CO = { bg: "#fff7ed", border: "#fed7aa", text: "#c2410c", textStrong: "#7c2d12", dot: "#f97316" };
 
 interface ItemTimelineDialogProps {
   item: Item | null;
@@ -32,6 +41,18 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
   const approvedLog = itemLogs.find(log => log.action === 'approve_item');
   const producedLog = itemLogs.find(log => log.action === 'produce_item');
   const deliveredLog = itemLogs.find(log => log.action === 'deliver_item');
+  // Eventos avulsos (não são etapas do fluxo, mas fazem parte da história da
+  // peça): criação e cancelamento de complemento, gravados tanto na mãe quanto
+  // na filha. Sem isto, a trilha de #0062 não diria NADA sobre o aumento.
+  const complementLogs = itemLogs.filter(log => COMPLEMENT_ACTIONS.includes(log.action));
+
+  // O enrich das rotas de leitura anexa `parent` na filha e `complements` na
+  // mãe; nenhum dos dois está no tipo Item (são derivados a cada leitura, nunca
+  // colunas). O fallback tira o sufixo do próprio displayId.
+  const parentDisplayId = (item as any).parent?.displayId
+    ?? String(item.displayId ?? "").replace(/-C\d+$/i, "");
+  const complements: any[] = (item as any).complements ?? [];
+  const complementsQty = complements.reduce((s, c) => s + (Number(c?.quantity) || 0), 0);
 
   const formatDateTime = (dateString: string) => {
     return format(new Date(dateString), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR });
@@ -62,10 +83,20 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
           <div className="bg-muted/50 p-4 rounded-lg space-y-3">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <div className="text-xs font-mono font-medium text-primary" data-testid="text-display-id">
                     {item.displayId}
                   </div>
+                  {/* Identidade permanente do complemento — fica mesmo depois de
+                      entregue, ao contrário do realce laranja da fila. */}
+                  {item.parentItemId && (
+                    <span
+                      data-testid="badge-complemento"
+                      style={{ backgroundColor: CO.bg, color: CO.text, border: `1px solid ${CO.border}`, borderRadius: 6, padding: "1px 7px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap" }}
+                    >
+                      Complemento de {parentDisplayId}
+                    </span>
+                  )}
                 </div>
                 <h3 className="font-semibold text-lg">{item.type}</h3>
                 {item.description && (
@@ -106,6 +137,43 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
                 </div>
               )}
             </div>
+
+            {/* FILHA — por que este lote existe, quem pediu e quando. */}
+            {item.parentItemId && item.complementReason && (
+              <div className="pt-2 border-t border-border/50">
+                <div style={{ backgroundColor: CO.bg, border: `1px solid ${CO.border}`, borderRadius: 8, padding: "8px 10px", display: "flex", gap: 7, alignItems: "flex-start" }}>
+                  <PlusCircle style={{ width: 13, height: 13, color: CO.text, flexShrink: 0, marginTop: 2 }} />
+                  <span style={{ fontSize: 13, color: CO.textStrong, lineHeight: 1.4 }}>
+                    <strong>
+                      Aumento pedido{item.complementRequestedBy ? ` por ${item.complementRequestedBy}` : ""}
+                    </strong>
+                    {item.complementRequestedAt ? ` (${formatDateTime(new Date(item.complementRequestedAt).toISOString())})` : ""}: {item.complementReason}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* MÃE — os complementos que nasceram dela. A quantidade da mãe NÃO
+                muda nunca; o total contratado só existe derivado, somando as
+                linhas (contador denormalizado sempre acaba divergindo). */}
+            {complements.length > 0 && (
+              <div className="pt-2 border-t border-border/50">
+                <p className="text-xs text-muted-foreground mb-1">Complementos desta peça:</p>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  {complements.map((c: any) => (
+                    <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: 13, color: CO.textStrong }}>
+                      <span style={{ fontFamily: "monospace", fontWeight: 700, color: CO.text }}>{c.displayId}</span>
+                      <span style={{ fontWeight: 700 }}>+{c.quantity} un.</span>
+                      <span className="text-muted-foreground">{getStatusLabel(c.status)}</span>
+                      {c.complementReason && <span className="text-muted-foreground">· {c.complementReason}</span>}
+                    </div>
+                  ))}
+                </div>
+                <p style={{ marginTop: 6, fontSize: 13, fontWeight: 700, color: CO.textStrong }}>
+                  Contratado total: {(Number(item.quantity) || 0) + complementsQty} un. ({item.quantity} + {complementsQty})
+                </p>
+              </div>
+            )}
 
             {item.observations && (
               <div className="pt-2 border-t border-border/50">
@@ -311,6 +379,40 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
                   </div>
                 </div>
               )}
+
+              {/* Complemento criado / cancelado. As etapas acima são fixas e
+                  casam por ação exata; estes eventos não são etapas do fluxo —
+                  entram como registros avulsos, no mesmo molde, com o texto do
+                  próprio log (que já traz quantidade, total contratado e
+                  motivo). Serve a qualquer ação futura fora das etapas. */}
+              {complementLogs.map(log => (
+                <div className="relative" key={log.id}>
+                  <div className="absolute -left-[1.6rem] top-1 h-6 w-6 rounded-full flex items-center justify-center" style={{ backgroundColor: CO.dot }}>
+                    <PlusCircle className="h-3 w-3 text-white" />
+                  </div>
+                  <div className="bg-card border border-border rounded-lg p-3 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline" style={{ backgroundColor: CO.bg, color: CO.text, borderColor: CO.border }}>
+                          {log.action === "complement_canceled" ? "Complemento cancelado" : "Complemento"}
+                        </Badge>
+                        <span className="text-xs text-muted-foreground">•</span>
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <User className="h-3 w-3" />
+                          <span>{log.userName}</span>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Calendar className="h-3 w-3" />
+                        <span>{formatDateTime(log.createdAt)}</span>
+                      </div>
+                    </div>
+                    {log.details && (
+                      <p className="text-sm" style={{ color: CO.textStrong }}>{log.details}</p>
+                    )}
+                  </div>
+                </div>
+              ))}
 
               {itemLogs.length === 0 && (
                 <div className="text-sm text-muted-foreground text-center py-4">

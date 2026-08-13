@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Bell, Package, CheckCircle, AlertTriangle, Truck, FileText, ClipboardCheck, CalendarClock } from "lucide-react";
+import { Bell, Package, CheckCircle, AlertTriangle, Truck, FileText, ClipboardCheck, CalendarClock, PlusCircle, MinusCircle } from "lucide-react";
 
 export interface Notification {
   id: string;
@@ -79,6 +79,31 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
     border: "#f59e0b",
     bgIcon: "#fef3c7", iconColor: "#d97706",
     label: "Prazo",
+  },
+  // COMPLEMENTO — aumento de quantidade depois que a peça entrou em produção.
+  // É trabalho NOVO para quem imprime, então precisa da identidade laranja da
+  // fila da Gráfica e não do cinza genérico de "Sistema": este é o aviso que
+  // faz alguém ligar a máquina de novo. #c2410c no ícone (não #f97316, que
+  // reprova contraste); #f97316 fica só na borda, que é fundo.
+  complementCreated: {
+    Icon: PlusCircle,
+    border: "#f97316",
+    bgIcon: "#fff7ed", iconColor: "#c2410c",
+    label: "Complemento",
+  },
+  complementCanceled: {
+    Icon: MinusCircle,
+    border: "#ef4444",
+    bgIcon: "#fef2f2", iconColor: "#b91c1c",
+    label: "Compl. cancelado",
+  },
+  // Redução de quantidade numa peça já em produção: não cria trabalho, mas a
+  // Gráfica precisa saber ANTES de imprimir a mais.
+  quantityReduced: {
+    Icon: MinusCircle,
+    border: "#f59e0b",
+    bgIcon: "#fef3c7", iconColor: "#92400e",
+    label: "Quantidade",
   },
 };
 

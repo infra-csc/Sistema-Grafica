@@ -270,12 +270,34 @@ export function registerSponsorRoutes(app: Express): void {
     }
   });
 
-  // Update sponsor quota on event
+  // Update sponsor quota on event.
+  // Era o ÚNICO write de vínculo de patrocinador sem rastro: sem audit log
+  // (ninguém respondia "quem mudou a cota do X nesse evento e quando"), sem
+  // broadcast — e, por consequência, sem flush do cache de processo de 30s de
+  // /api/events, então a cota antiga sobrevivia para os outros usuários MESMO
+  // com F5. O POST e o DELETE irmãos já faziam as três coisas.
   app.patch("/api/events/:eventId/sponsors/:sponsorId", requireLinkingWrite, async (req, res) => {
     try {
       const { eventId, sponsorId } = req.params;
       const quota = req.body.quota || null;
       await storage.updateEventSponsorQuota(eventId, sponsorId, quota);
+
+      const [event, sponsor] = await Promise.all([
+        storage.getEvent(eventId),
+        storage.getSponsor(sponsorId),
+      ]);
+
+      await createAuditLog(
+        req.userName!,
+        'updated',
+        'event_sponsor',
+        `${eventId}_${sponsorId}`,
+        quota
+          ? `Cota do patrocinador "${sponsor?.name ?? sponsorId}" no evento "${event?.name ?? eventId}" definida como "${quota}"`
+          : `Cota do patrocinador "${sponsor?.name ?? sponsorId}" no evento "${event?.name ?? eventId}" removida`
+      );
+
+      broadcast({ type: "event_sponsor_updated", eventId, sponsorId, quota });
       res.json({ success: true });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -304,7 +326,15 @@ export function registerSponsorRoutes(app: Express): void {
         `Patrocinador "${sponsor?.name}" vinculado ao evento "${event?.name}"`
       );
       
-      broadcast({ type: "event_sponsor_added", eventSponsor });
+      // eventId/sponsorId no topo: os três broadcasts de vínculo passam a ter
+      // a MESMA forma, e o handler do cliente invalida ['/api/events', eventId]
+      // sem precisar cavar dentro do objeto.
+      broadcast({
+        type: "event_sponsor_added",
+        eventId: req.params.id,
+        sponsorId: validatedData.sponsorId,
+        eventSponsor,
+      });
       res.status(201).json(eventSponsor);
     } catch (error: any) {
       res.status(400).json({ error: error.message });

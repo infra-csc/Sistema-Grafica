@@ -106,31 +106,48 @@ export function sendSensitiveError(res: any, error: any, context: string, status
   return res.status(status).json({ error: "Não foi possível completar a operação" });
 }
 
-// Helper to calculate event status based on items
+// "entregue" é a grafia LEGADA de delivered — conta como pronta, não pendente.
+// Cancelada/excluída/arquivada sai da conta dos dois lados: não é trabalho
+// pendente nem trabalho entregue, e não pode impedir um evento de fechar.
+// Espelham DELIVERED/OUT_OF_FUNNEL de routes/events.ts (enrichEvent) — as duas
+// regras TÊM de andar juntas, senão o valor gravado na coluna volta a divergir
+// do valor que a API devolve. (Dívida conhecida: extrair para server/lib.)
+const DELIVERED_STATUSES = new Set(["delivered", "entregue"]);
+const OUT_OF_FUNNEL_STATUSES = new Set(["canceled", "deleted", "archived"]);
+
+/**
+ * Status PERSISTIDO do evento — deriva SÓ da produção, nunca da data.
+ *
+ * A versão anterior devolvia "completed" assim que `now > startDate`, isto é,
+ * carimbava de concluído um evento que tinha apenas COMEÇADO. Como isto é
+ * chamado de items.ts (8×), sponsors.ts e xlsxImport.ts, a mentira era gravada
+ * no banco a cada mexida numa peça: o card ficava verde, perdia a bandeira de
+ * prioridade e caía para o fim da lista exatamente quando virava um problema
+ * irreversível (o caminhão já saiu). A listagem passou a DERIVAR o status na
+ * leitura (enrichEvent), o que neutralizava o efeito visual — mas a escrita
+ * errada continuava acontecendo, e qualquer consumidor que lesse a coluna crua
+ * (export, relatório, consulta ao banco) seguia recebendo o carimbo falso.
+ *
+ * "A data chegou" continua existindo no payload da API como `eventHasPassed` —
+ * separado de `allDelivered`, porque são duas perguntas diferentes.
+ */
 export async function calculateEventStatus(eventId: string): Promise<"created" | "completed"> {
   const event = await storage.getEvent(eventId);
   if (!event) return "created";
 
   const items = await storage.getItemsByEvent(eventId);
 
-  // Se já passou a data do evento, considera como concluído
-  const now = new Date();
-  const eventStartDate = new Date(event.startDate);
-  const eventHasPassed = now > eventStartDate;
-
-  if (eventHasPassed) {
-    return "completed";
+  let delivered = 0;
+  let active = 0;
+  for (const item of items) {
+    if (OUT_OF_FUNNEL_STATUSES.has(item.status)) continue;
+    active += 1;
+    if (DELIVERED_STATUSES.has(item.status)) delivered += 1;
   }
 
-  // Se não há itens, evento permanece "created"
-  if (items.length === 0) {
-    return "created";
-  }
-
-  // Verifica se TODOS os itens foram entregues
-  const allDelivered = items.every(item => item.status === "delivered");
-
-  return allDelivered ? "completed" : "created";
+  // Evento sem peça alguma (ou só com peças canceladas) NÃO está concluído:
+  // não há produção terminada, há produção que nunca começou.
+  return active > 0 && delivered === active ? "completed" : "created";
 }
 
 // Helper to update event status automatically

@@ -38,6 +38,18 @@ import {
 // "#0062-C1" tem de ordenar COLADO em "#0062" — com o replace(/\D/g,'') antigo
 // virava 621 e o complemento aparecia centenas de linhas longe da mãe.
 import { compareDisplayId, splitDisplayId } from "@/lib/displayId";
+// AUMENTAR QUANTIDADE nasce AQUI. Esta é a tela onde as peças em produção
+// vivem e onde o aumento precisa ser visto — o Detalhe do Evento ficou só com
+// a REDUÇÃO (campo Qtd. com piso físico) e aponta para cá. O gate é
+// `podeMexerNaQuantidade` (admin | solicitacao), NUNCA `canProduce`: o operador
+// da Gráfica vê a peça, o selo, o motivo e o botão Produzir — e não vê Aumentar.
+import {
+  AumentarQuantidadeDialog,
+  ComplementoDaFicha,
+  temBlocoDeComplemento,
+  podeAumentarQuantidade,
+  podeMexerNaQuantidade,
+} from "@/components/aumentar-quantidade-dialog";
 
 const TI = {
   bg: "#fafaf9",
@@ -107,11 +119,15 @@ const fmtDataHora = (v?: string | Date | null) => {
  * onMouseEnter e onMouseLeave). Antes a cor era decidida em três lugares
  * desalinhados: passar o mouse por cima apagava qualquer realce que não
  * estivesse repetido nos três, e o realce do complemento seria a primeira
- * vítima. Precedência: seleção em lote > complemento em aberto > reaproveitado.
- * A seleção passou de #fff7ed para #ffedd5 justamente para não empatar com o
- * fundo do complemento.
+ * vítima. Precedência: RECÉM-CRIADO > seleção em lote > complemento em aberto >
+ * reaproveitado. A seleção passou de #fff7ed para #ffedd5 justamente para não
+ * empatar com o fundo do complemento.
+ *
+ * `isNovo` é o realce de 5 s da peça que acabou de nascer nesta sessão: ele
+ * vem primeiro porque é o único que responde a "cadê o que eu acabei de criar?".
  */
-const rowBg = (item: any, isSelected: boolean, hover: boolean) => {
+const rowBg = (item: any, isSelected: boolean, hover: boolean, isNovo = false) => {
+  if (isNovo) return hover ? CO.border : CO.hoverBg;
   if (isSelected) return hover ? CO.border : CO.hoverBg;
   if (complementOpen(item)) return hover ? CO.hoverBg : CO.bg;
   if (item?.isReuse) return hover ? "#dcfce7" : "#f0fdf4";
@@ -451,6 +467,11 @@ export default function Grafica() {
   // Sem isto a Solicitação via botões de Produzir/Conferir que o servidor
   // recusava com 403 depois do clique.
   const canProduce = ["grafica", "admin"].includes(user?.role ?? "");
+  // MEXER NA QUANTIDADE (criar complemento e cancelar complemento) é outro
+  // papel: admin | solicitacao, espelho de `podeMudarQuantidade` no servidor.
+  // `canProduce` (grafica|admin) NÃO participa deste gate em ponto nenhum — a
+  // Gráfica produz o que pedem, não muda o pedido.
+  const podeMexerQtd = podeMexerNaQuantidade(user?.role);
   const { toast } = useToast();
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [modalType, setModalType] = useState<"production" | "delivery" | "conference" | null>(null);
@@ -474,6 +495,15 @@ export default function Grafica() {
   // Confirmação em dois toques do "cancelar complemento" — mesmo idioma dos
   // botões de reaproveitamento desta tela, e nunca destrutivo num clique só.
   const [cancelComplementId, setCancelComplementId] = useState<string | null>(null);
+  // ── Aumentar quantidade (o gatilho mora nesta tela) ──
+  // complementoItem: a peça-MÃE em foco no modal.
+  // novoComplementoId: a peça-filha recém-criada — realce de 5 s + rolagem.
+  // bannerComplemento: rede de segurança para quando a filha nasce FORA do
+  //   recorte de filtros do operador (a rolagem falharia em silêncio).
+  const [complementoItem, setComplementoItem] = useState<any>(null);
+  const [novoComplementoId, setNovoComplementoId] = useState<string | null>(null);
+  const [bannerComplemento, setBannerComplemento] = useState<{ id: string; displayId: string } | null>(null);
+  const abrirComplemento = (item: any) => setComplementoItem(item);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [next10DaysFilter, setNext10DaysFilter] = useState(false);
   const [monthFilter, setMonthFilter] = useState<string[]>([]);
@@ -881,6 +911,71 @@ export default function Grafica() {
     setSearchFilter(alvo?.displayId ?? alvoId);
     window.history.replaceState({}, "", window.location.pathname);
   }, [items, isLoading]);
+
+  // ── Depois de confirmar o aumento ──────────────────────────────────────────
+  // A peça-filha nasce COLADA na mãe (compareDisplayId já garante a ordem), mas
+  // "nasceu em algum lugar da lista" não é resposta para quem acabou de clicar.
+  // A sequência: o modal fecha e invalida as queries → a linha aparece → esta
+  // tela rola até ela, realça por 5 s e devolve o foco. A ficha NÃO abre: as
+  // portas continuam sendo o olho da linha e o "Mostrar" do banner.
+  const handleComplementoCriado = (child: any) => {
+    if (!child?.id) return;
+    setNovoComplementoId(child.id);
+    setBannerComplemento(null);
+  };
+
+  // O realce dura 5 s. Criar outra peça reinicia a contagem.
+  useEffect(() => {
+    if (!novoComplementoId) return;
+    const t = setTimeout(() => setNovoComplementoId(null), 5000);
+    return () => clearTimeout(t);
+  }, [novoComplementoId]);
+
+  // Pousar na linha. Enquanto a invalidação não trouxe a peça, nada acontece
+  // (nem banner): só depois que ela EXISTE na lista completa e mesmo assim não
+  // está no recorte é que o silêncio vira o pior desfecho — e aí abre o banner.
+  useEffect(() => {
+    if (!novoComplementoId) return;
+    const noRecorte = (filteredItems as any[]).some((i: any) => i.id === novoComplementoId);
+    if (!noRecorte) {
+      const naLista = (items as any[]).find((i: any) => i.id === novoComplementoId);
+      if (naLista) setBannerComplemento({ id: naLista.id, displayId: naLista.displayId });
+      return;
+    }
+    document.querySelector(`[data-item-row="${novoComplementoId}"]`)
+      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Quem veio pelo teclado não pode ser despejado no <body>, e o leitor de
+    // tela precisa anunciar a peça que acabou de nascer.
+    (document.querySelector(`[data-testid="text-display-id-${novoComplementoId}"]`) as HTMLElement | null)
+      ?.focus({ preventScroll: true });
+  }, [items, filteredItems, novoComplementoId]);
+
+  // O banner some sozinho assim que a peça entra no recorte — inclusive quando
+  // é o operador que afrouxa um filtro por conta própria.
+  useEffect(() => {
+    if (!bannerComplemento) return;
+    if ((filteredItems as any[]).some((i: any) => i.id === bannerComplemento.id)) setBannerComplemento(null);
+  }, [filteredItems, bannerComplemento]);
+
+  // "Mostrar": limpa o recorte e busca a peça. Mesmo mecanismo já provado do
+  // deep link do sino. Nunca é automático — mexer no recorte do operador sem
+  // ele pedir é justamente o que este banner existe para evitar.
+  const mostrarComplementoCriado = () => {
+    if (!bannerComplemento) return;
+    setStatusFilter([]);
+    setEventFilter([]);
+    setTypeFilter([]);
+    setMaterialFilter([]);
+    setFinishFilter([]);
+    setGroupFilter([]);
+    setPercursoFilter([]);
+    setComplementFilter(false);
+    setNext10DaysFilter(false);
+    setMonthFilter([]);
+    setSearchFilter(bannerComplemento.displayId);
+    setNovoComplementoId(bannerComplemento.id);
+    setBannerComplemento(null);
+  };
 
   const handleSubmitProduction = (e: React.FormEvent) => {
     e.preventDefault();
@@ -1628,6 +1723,39 @@ export default function Grafica() {
 
       {/* ── Tabela Principal ── */}
       <div style={{ backgroundColor: TI.surface, border: `1px solid ${TI.border}`, borderRadius: 12 }}>
+        {/* Rede de segurança do recorte. A peça-filha pode nascer FORA dos
+            filtros do operador (status, busca, grupo, percurso, evento, chip de
+            complementos): aí a rolagem falharia em silêncio, o pior desfecho
+            possível logo depois de um clique. O recorte NUNCA é limpo sozinho —
+            só por este botão, quando a pessoa pedir. */}
+        {bannerComplemento && (
+          <div
+            role="status"
+            data-testid="banner-complemento-fora-do-recorte"
+            style={{ background: CO.bg, border: `1px solid ${CO.border}`, borderRadius: 10, padding: "10px 12px", margin: "12px 12px 0", fontSize: 12, color: CO.textStrong, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}
+          >
+            <span style={{ flex: 1, minWidth: 0, lineHeight: 1.45 }}>
+              <strong>{bannerComplemento.displayId} criado</strong> — está fora dos filtros atuais.
+            </span>
+            <button
+              type="button"
+              onClick={mostrarComplementoCriado}
+              data-testid="button-mostrar-complemento"
+              style={{ background: "none", border: "none", padding: "0 4px", minHeight: isMobile ? 44 : 24, fontSize: 11, fontWeight: 800, color: CO.text, textDecoration: "underline", cursor: "pointer", flexShrink: 0 }}
+            >
+              Mostrar
+            </button>
+            <button
+              type="button"
+              onClick={() => setBannerComplemento(null)}
+              aria-label="Dispensar"
+              data-testid="button-dispensar-banner-complemento"
+              style={{ background: "none", border: "none", padding: 0, width: isMobile ? 44 : 24, height: isMobile ? 44 : 24, display: "flex", alignItems: "center", justifyContent: "center", color: CO.text, cursor: "pointer", flexShrink: 0 }}
+            >
+              <X aria-hidden="true" style={{ width: 14, height: 14 }} />
+            </button>
+          </div>
+        )}
         {isLoading ? (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 48 }}>
             <div style={{ width: 32, height: 32, border: `3px solid ${TI.border}`, borderTopColor: TI.accent, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
@@ -1680,6 +1808,15 @@ export default function Grafica() {
               const coAberto = complementOpen(item);
               const maeDisplayId = ehComplemento ? parentDisplayIdOf(item) : "";
               const complQty = complementsQtyOf(item); // > 0 → esta é a MÃE
+              const isNovo = item.id === novoComplementoId;
+              // Trilho de ações: dois grupos separados por um divisor. FLUXO
+              // (sólidos, o que a Gráfica faz com a peça) e CONTRATO (tintados,
+              // o que muda o pedido — papel admin|solicitacao).
+              const mostraAumentar = !bulkOn && podeAumentarQuantidade(item, podeMexerQtd);
+              const podeProduzirAqui = canProduce && coAberto && !isProduced(item) && !isConferred(item) && !item.isReuse && remainingProduce(item) > 0;
+              const podeCancelarCompl = podeMexerQtd && ehComplemento && complementUntouched(item);
+              const temGrupoFluxo = podeProduzirAqui || canDeliverItem || (canProduce && canConferItem) || isDelivered(item);
+              const temGrupoContrato = mostraAumentar || podeCancelarCompl;
 
               return (
                 <Fragment key={item.id}>
@@ -1712,13 +1849,17 @@ export default function Grafica() {
                       // Complemento em aberto tinge o card inteiro — no celular
                       // não há coluna nenhuma para carregar o sinal, e é no
                       // celular que a Gráfica trabalha com a peça na mão.
-                      background: isSelected ? CO.hoverBg : coAberto ? CO.bg : '#fff',
-                      border: `1.5px solid ${isSelected ? TI.accent : coAberto ? CO.border : TI.border}`,
+                      background: isNovo ? CO.hoverBg : isSelected ? CO.hoverBg : coAberto ? CO.bg : '#fff',
+                      border: `1.5px solid ${isSelected ? TI.accent : (isNovo || coAberto) ? CO.border : TI.border}`,
+                      // Realce de 5 s da peça recém-criada: no card o anel é
+                      // caminho livre (a tabela é que não pinta boxShadow).
+                      boxShadow: isNovo ? '0 0 0 3px rgba(249,115,22,0.45)' : undefined,
                       borderRadius: showEvHeader ? '0 0 12px 12px' : 12,
                       overflow: 'hidden',
                       cursor: bulkOn ? (bulkEligible ? 'pointer' : undefined) : 'pointer',
                       transition: 'border-color 0.12s, background 0.12s',
                     }}
+                    data-item-row={item.id}
                     /* O "checkbox" da esquerda é um <div> desenhado, não um
                        campo: em modo de entrega em lote não havia como marcar
                        peça alguma sem mouse. role/aria-checked dão ao card o
@@ -1908,26 +2049,83 @@ export default function Grafica() {
                         (antes só !bulkDeliveryMode: na conferência em lote os
                         botões continuavam aparecendo e disputando o toque). */}
                     {!bulkOn && (
-                      <div style={{ flexShrink: 0, padding: '10px 10px', display: 'flex', flexDirection: 'column', gap: 5, justifyContent: 'center' }}>
+                      <div style={{ flexShrink: 0, minWidth: 116, padding: '10px 10px', display: 'flex', flexDirection: 'column', gap: 5, justifyContent: 'center' }}>
                         {/* PRODUZIR — o celular só tinha Entregar e Conferir.
                             Num complemento isso é o pior buraco possível: a
                             Gráfica em campo vê o alerta laranja e não tem o que
                             fazer com ele. Aparece só nos complementos (o resto
                             da fila segue como estava) e com o mesmo gate de
                             papel do desktop, que o servidor também valida. */}
-                        {canProduce && coAberto && !isProduced(item) && !isConferred(item) && !item.isReuse && remainingProduce(item) > 0 && (
+                        {podeProduzirAqui && (
                           <button
                             onClick={e => { e.stopPropagation(); openProductionModal(item); }}
                             data-testid={`button-production-mobile-${item.id}`}
-                            style={{ padding: '11px 14px', borderRadius: 8, background: CO.solidBg, border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            style={{ width: '100%', minHeight: 44, padding: '0 12px', borderRadius: 8, background: CO.solidBg, border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
                           >
-                            <Play style={{ width: 13, height: 13 }} />
+                            <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
                             Produzir {remainingProduce(item)}
                           </button>
                         )}
+                        {canProduce && canConferItem && (
+                          <button
+                            onClick={e => { e.stopPropagation(); openConferenceModal(item); }}
+                            style={{ width: '100%', minHeight: 44, padding: '0 12px', borderRadius: 8, background: '#0891b2', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          >
+                            <CheckCircle aria-hidden="true" style={{ width: 13, height: 13 }} />
+                            Conferir
+                          </button>
+                        )}
+                        {canDeliverItem && (
+                          <button
+                            onClick={e => { e.stopPropagation(); openDeliveryModal(item); }}
+                            style={{ width: '100%', minHeight: 44, padding: '0 12px', borderRadius: 8, background: '#c2410c', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                          >
+                            <Truck aria-hidden="true" style={{ width: 13, height: 13 }} />
+                            {deliveredOf(item) > 0 ? `Entregar ${remainingDeliver(item)}` : 'Entregar'}
+                          </button>
+                        )}
+                        {isDelivered(item) && (
+                          <span style={{ width: '100%', fontSize: 13, color: '#15803d', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontWeight: 700, padding: '4px 8px' }}>
+                            <Check aria-hidden="true" style={{ width: 13, height: 13 }} /> Entregue
+                          </span>
+                        )}
+
+                        {/* Divisor entre FLUXO e CONTRATO. Só existe quando há
+                            botão dos dois lados — para a Solicitação o grupo de
+                            fluxo costuma estar vazio e "Aumentar" fica sozinho
+                            no trilho inteiro, com salência máxima e sem truque. */}
+                        {temGrupoFluxo && temGrupoContrato && (
+                          <div aria-hidden="true" style={{ height: 1, background: '#e7e5e4', margin: '4px 0', width: '100%' }} />
+                        )}
+
+                        {/* AUMENTAR — o gatilho primário do celular. Tintado (não
+                            sólido): não é etapa do fluxo de produção, é mudança
+                            de contrato. Papel admin|solicitacao. */}
+                        {mostraAumentar && (
+                          <button
+                            onClick={e => { e.stopPropagation(); abrirComplemento(item); }}
+                            aria-label={`Aumentar a quantidade de ${item.displayId} — cria uma peça complementar`}
+                            data-testid={`button-aumentar-quantidade-mobile-${item.id}`}
+                            style={{
+                              width: '100%', minHeight: 44, padding: '0 12px', borderRadius: 8, gap: 6,
+                              background: CO.bg, border: `1.5px solid ${CO.border}`, color: CO.text,
+                              fontSize: 13, fontWeight: 800,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              cursor: 'pointer', whiteSpace: 'nowrap',
+                            }}
+                            onPointerDown={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = CO.hoverBg; b.style.color = CO.suffix; }}
+                            onPointerUp={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = CO.bg; b.style.color = CO.text; }}
+                            onPointerLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = CO.bg; b.style.color = CO.text; }}
+                          >
+                            <PlusCircle aria-hidden="true" style={{ width: 14, height: 14 }} />
+                            Aumentar
+                          </button>
+                        )}
                         {/* Cancelar complemento criado por engano — dois toques
-                            (o segundo confirma), nunca destrutivo de primeira. */}
-                        {canProduce && ehComplemento && complementUntouched(item) && (
+                            (o segundo confirma), nunca destrutivo de primeira.
+                            Alvo de 44px: os 36 de antes reprovavam a régua da
+                            casa justo num botão destrutivo. */}
+                        {podeCancelarCompl && (
                           <button
                             onClick={e => {
                               e.stopPropagation();
@@ -1938,41 +2136,19 @@ export default function Grafica() {
                             title={`Cancelar ${item.displayId} — só enquanto nada foi produzido`}
                             data-testid={`button-cancel-complement-mobile-${item.id}`}
                             style={{
-                              padding: '9px 12px', borderRadius: 8,
+                              width: '100%', minHeight: 44, padding: '0 12px', borderRadius: 8,
                               background: cancelComplementId === item.id ? '#b91c1c' : 'transparent',
                               border: `1px solid ${cancelComplementId === item.id ? '#b91c1c' : TI.border}`,
                               color: cancelComplementId === item.id ? '#fff' : '#b91c1c',
-                              fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4,
+                              fontSize: 11, fontWeight: 700,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                               cursor: cancelComplementMutation.isPending ? 'not-allowed' : 'pointer',
                               opacity: cancelComplementMutation.isPending ? 0.6 : 1, whiteSpace: 'nowrap',
                             }}
                           >
-                            <Trash2 style={{ width: 12, height: 12 }} />
+                            <Trash2 aria-hidden="true" style={{ width: 12, height: 12 }} />
                             {cancelComplementMutation.isPending ? 'Cancelando…' : cancelComplementId === item.id ? 'Confirmar?' : 'Cancelar'}
                           </button>
-                        )}
-                        {canDeliverItem && (
-                          <button
-                            onClick={e => { e.stopPropagation(); openDeliveryModal(item); }}
-                            style={{ padding: '11px 14px', borderRadius: 8, background: '#c2410c', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                          >
-                            <Truck style={{ width: 13, height: 13 }} />
-                            {deliveredOf(item) > 0 ? `Entregar ${remainingDeliver(item)}` : 'Entregar'}
-                          </button>
-                        )}
-                        {canProduce && canConferItem && (
-                          <button
-                            onClick={e => { e.stopPropagation(); openConferenceModal(item); }}
-                            style={{ padding: '11px 14px', borderRadius: 8, background: '#0891b2', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
-                          >
-                            <CheckCircle style={{ width: 13, height: 13 }} />
-                            Conferir
-                          </button>
-                        )}
-                        {isDelivered(item) && (
-                          <span style={{ fontSize: 13, color: '#15803d', display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700, padding: '4px 8px' }}>
-                            <Check style={{ width: 13, height: 13 }} /> Entregue
-                          </span>
                         )}
                       </div>
                     )}
@@ -2012,6 +2188,11 @@ export default function Grafica() {
                 const maeDisplayId = ehComplemento ? parentDisplayIdOf(item) : "";
                 const complQty = complementsQtyOf(item);
                 const { base: idBase, suffix: idSuffix } = splitDisplayId(item.displayId);
+                // Recém-criada nesta sessão: realce de 5 s (fundo + faixa 4px).
+                const isNovo = item.id === novoComplementoId;
+                // O gatilho de AUMENTAR. Some em qualquer modo de lote: o
+                // complemento exige quantidade e justificativa POR PEÇA.
+                const mostraAumentar = !bulkOn && podeAumentarQuantidade(item, podeMexerQtd);
 
                 return (
                   <Fragment key={item.id}>
@@ -2077,10 +2258,11 @@ export default function Grafica() {
                       // style, onMouseEnter e onMouseLeave decidiam a cor cada
                       // um por conta própria e o hover apagava qualquer realce
                       // que não estivesse repetido nos três.
-                      style={{ borderBottom: `1px solid ${coAberto ? CO.border : item.isReuse ? "#bbf7d0" : "#f4f3f0"}`, cursor: "pointer", transition: "background-color 0.1s", backgroundColor: rowBg(item, isSelected, false) || undefined }}
-                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = rowBg(item, isSelected, true); }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = rowBg(item, bulkSelectedIds.has(item.id), false); }}
+                      style={{ borderBottom: `1px solid ${coAberto ? CO.border : item.isReuse ? "#bbf7d0" : "#f4f3f0"}`, cursor: "pointer", transition: "background-color 0.1s", backgroundColor: rowBg(item, isSelected, false, isNovo) || undefined }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = rowBg(item, isSelected, true, isNovo); }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = rowBg(item, bulkSelectedIds.has(item.id), false, isNovo); }}
                       onClick={bulkOn && bulkEligible ? () => toggleBulkItem(item.id) : () => setViewDetailsItem(item)}
+                      data-item-row={item.id}
                       data-testid={`row-item-${item.id}`}
                     >
                       {/* ID — a linha abre o detalhe no clique, mas <tr> não
@@ -2094,7 +2276,7 @@ export default function Grafica() {
                           forma confiável. Ela some quando o lote é entregue; o
                           conector em L (o traço que amarra o filho à mãe logo
                           acima) fica para sempre. */}
-                      <td style={{ padding: "13px 16px", boxShadow: coAberto ? `inset 3px 0 0 ${CO.stripe}` : undefined }}>
+                      <td style={{ padding: "13px 16px", boxShadow: isNovo ? `inset 4px 0 0 ${CO.stripe}` : coAberto ? `inset 3px 0 0 ${CO.stripe}` : undefined }}>
                         {ehComplemento && (
                           <span aria-hidden="true" style={{ display: "inline-block", width: 10, height: 8, marginRight: 6, marginBottom: 2, borderLeft: `1px solid ${CO.connector}`, borderBottom: `1px solid ${CO.connector}`, borderBottomLeftRadius: 3, verticalAlign: "middle" }} />
                         )}
@@ -2206,18 +2388,51 @@ export default function Grafica() {
                           numérica sem tratamento, e é onde a pergunta "afinal,
                           quantas foram contratadas?" nasce. A quantidade da mãe
                           NÃO muda (o complemento é linha própria); o chip mostra
-                          o que veio depois e o tooltip soma os dois. */}
-                      <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: TI.text }}>
-                        <div>{item.quantity}</div>
-                        {complQty > 0 && (
-                          <div
-                            data-testid={`chip-qtd-complemento-${item.id}`}
-                            title={`Contratado total: ${contractedTotalOf(item)} un. — complementos: ${(item.complements ?? []).map((c: any) => `${c.displayId} (+${c.quantity})`).join(", ")}`}
-                            style={{ marginTop: 2, display: "inline-block", padding: "0 5px", borderRadius: 4, backgroundColor: CO.hoverBg, border: `1px solid ${CO.border}`, color: CO.text, fontSize: 10, fontWeight: 800 }}
-                          >
-                            +{complQty}
-                          </div>
-                        )}
+                          o que veio depois e o tooltip soma os dois.
+
+                          É TAMBÉM onde nasce o gatilho de AUMENTAR: a ação é
+                          sobre este número, e foi exatamente na coluna de Ações
+                          (espremida entre três ícones) que ela se perdeu no
+                          Detalhe do Evento. A célula vira uma pilha:
+                          número → chip +N → botão. Nada de hover-reveal: o
+                          botão é persistente em 100% das linhas elegíveis.
+                          Padding 10px em vez de 16 para o botão caber. */}
+                      <td style={{ padding: "13px 10px", textAlign: "center", whiteSpace: "nowrap", fontSize: 13, fontWeight: 700, color: TI.text }}>
+                        <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
+                          <div>{item.quantity}</div>
+                          {complQty > 0 && (
+                            <div
+                              data-testid={`chip-qtd-complemento-${item.id}`}
+                              title={`Contratado total: ${contractedTotalOf(item)} un. — complementos: ${(item.complements ?? []).map((c: any) => `${c.displayId} (+${c.quantity})`).join(", ")}`}
+                              style={{ marginTop: 2, display: "inline-block", padding: "0 5px", borderRadius: 4, backgroundColor: CO.hoverBg, border: `1px solid ${CO.border}`, color: CO.text, fontSize: 10, fontWeight: 800 }}
+                            >
+                              +{complQty}
+                            </div>
+                          )}
+                          {mostraAumentar && (
+                            <button
+                              type="button"
+                              onClick={e => { e.stopPropagation(); abrirComplemento(item); }}
+                              aria-label={`Aumentar a quantidade de ${item.displayId} — cria uma peça complementar`}
+                              title={`Aumentar quantidade — cria uma peça complementar ligada a ${item.displayId}`}
+                              data-testid={`button-aumentar-quantidade-${item.id}`}
+                              style={{
+                                marginTop: 6, height: 26, padding: "0 9px", borderRadius: 6, gap: 5,
+                                display: "inline-flex", alignItems: "center", whiteSpace: "nowrap",
+                                background: CO.bg, border: `1px solid ${CO.border}`, color: CO.text,
+                                fontSize: 11, fontWeight: 700, cursor: "pointer",
+                                transition: "background-color 0.15s",
+                              }}
+                              onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = CO.hoverBg)}
+                              onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = CO.bg)}
+                              onFocus={e => { const b = e.currentTarget as HTMLButtonElement; b.style.outline = `2px solid ${CO.stripe}`; b.style.outlineOffset = "2px"; }}
+                              onBlur={e => { (e.currentTarget as HTMLButtonElement).style.outline = "none"; }}
+                            >
+                              <PlusCircle aria-hidden="true" style={{ width: 12, height: 12 }} />
+                              Aumentar
+                            </button>
+                          )}
+                        </div>
                       </td>
                       {/* Reaproveitado */}
                       <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: reusedTotalOf(item) > 0 ? "#059669" : TI.secondary }}>
@@ -2293,14 +2508,17 @@ export default function Grafica() {
                           </button>
 
                           {/* Cancelar complemento — a janela de arrependimento.
-                              A Gráfica pode cancelar (é quem percebe o engano
-                              na hora), mas só enquanto NADA foi produzido,
-                              reaproveitado, conferido ou entregue: uma única
-                              unidade já é material no galpão. Confirmação em
-                              dois passos, no mesmo idioma dos botões de
-                              reaproveitamento desta linha. O servidor valida o
-                              mesmo gate — o botão só evita o convite falso. */}
-                          {canProduce && ehComplemento && complementUntouched(item) && (
+                              Mesmo papel de quem CRIA o complemento (admin |
+                              solicitacao), espelho de `podeMudarQuantidade` no
+                              DELETE /api/items/:id/complement. Estava com
+                              `canProduce`: a Gráfica via um convite falso que
+                              virava 403, e quem realmente pode cancelar (a
+                              Solicitação) não via botão nenhum.
+                              Só enquanto NADA foi produzido, reaproveitado,
+                              conferido ou entregue: uma única unidade já é
+                              material no galpão. Confirmação em dois passos, no
+                              mesmo idioma dos botões de reaproveitamento. */}
+                          {podeMexerQtd && ehComplemento && complementUntouched(item) && (
                             cancelComplementId === item.id ? (
                               <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>
                                 <span style={{ fontSize: 11, fontWeight: 700, color: "#b91c1c", whiteSpace: "nowrap" }}>Cancelar {item.displayId}?</span>
@@ -2724,11 +2942,38 @@ export default function Grafica() {
       />
 
       {/* ── Dialog de Detalhes ── */}
+      {/* O bloco de complemento da ficha é o MESMO componente das outras telas —
+          zero desenho novo. Na mãe: a lista de complementos com status e o total
+          realmente contratado; no filho: "complemento de #0062" com motivo,
+          autor e data. `onAbrirPeca` resolve o beco sem saída — do complemento
+          (que nunca tem o gatilho) chega-se à mãe em um clique.
+          `temBlocoDeComplemento` é obrigatório: o slot é testado por verdade do
+          nó, e um elemento que renderiza null deixa 36px de buraco em toda peça
+          normal. */}
       <ItemDetailsDialog
         item={viewDetailsItem}
         auditLogs={auditLogs}
         open={!!viewDetailsItem}
         onOpenChange={(open) => !open && setViewDetailsItem(null)}
+        customActions={temBlocoDeComplemento(viewDetailsItem, podeMexerQtd)
+          ? (
+            <ComplementoDaFicha
+              item={viewDetailsItem}
+              canEditLists={podeMexerQtd}
+              onAumentar={abrirComplemento}
+              onAbrirPeca={(id) => setViewDetailsItem((items as any[]).find((i: any) => i.id === id) ?? viewDetailsItem)}
+            />
+          )
+          : undefined}
+      />
+
+      {/* ── Aumentar quantidade: o modal, montado uma vez para a tela ── */}
+      <AumentarQuantidadeDialog
+        item={complementoItem}
+        event={complementoItem?.event ?? null}
+        open={!!complementoItem}
+        onOpenChange={(o) => { if (!o) setComplementoItem(null); }}
+        onCreated={handleComplementoCriado}
       />
 
       {/* ── Modal de Produção / Entrega ── */}

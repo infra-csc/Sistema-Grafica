@@ -10,17 +10,22 @@
 // A assimetria é deliberada: aumentar cria trabalho novo (ordem de serviço,
 // metragem, alerta para a Gráfica); reduzir só corta a meta e não gera lote.
 //
-// "3 telas, 1 código": este mesmo modal é montado pelo Detalhe do Evento, pelo
-// Painel Geral e pela Revisão (Solicitação). Ele não sabe de qual tela veio —
-// recebe a peça-mãe e (opcionalmente) o evento, e resolve tudo sozinho:
-// permissão já foi checada por quem abriu, mas o SERVIDOR revalida (403) e a
-// mensagem real dele é o que aparece na tela.
+// ONDE O GESTO NASCE: na tela da GRÁFICA (client/src/pages/grafica.tsx) — é lá
+// que as peças em produção vivem e é lá que o aumento precisa ser visto. O
+// Detalhe do Evento mantém só a REDUÇÃO (campo Qtd. com piso físico) e aponta
+// para a Gráfica. Este componente não sabe de qual tela veio: recebe a peça-mãe
+// e (opcionalmente) o evento, e resolve tudo sozinho — a permissão já foi
+// checada por quem abriu, mas o SERVIDOR revalida (403) e a mensagem real dele
+// é o que aparece na tela.
 //
 // Espelho de POST /api/items/:id/complement (server/routes/items.ts).
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { PlusCircle, AlertTriangle, Recycle, Truck, FileWarning, RotateCw, Database } from "lucide-react";
+import {
+  PlusCircle, AlertTriangle, Recycle, Truck, RotateCw, Database,
+  Minus, Plus, Lock, Package, Calendar, Check, Loader2,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -29,11 +34,14 @@ import {
 } from "@/components/ui/dialog";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { StatusPill } from "@/components/status-pill";
-import { PRODUCTION_STATUSES } from "@/lib/status";
+import { PRODUCTION_STATUSES, getStatusLabel } from "@/lib/status";
 import { getSaldo } from "@/lib/saldo";
+import { splitDisplayId } from "@/lib/displayId";
 import { calculateM2 } from "@/lib/calculateM2";
+import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Vocabulário e gates
@@ -61,16 +69,17 @@ export function entrouEmProducao(item: any): boolean {
 }
 
 /**
- * O botão "Aumentar quantidade" aparece? Mesmo predicado do servidor, na ordem
- * dele: papel que cria peças no evento + peça viva + peça que NÃO é ela mesma
- * um complemento (complemento de complemento é 409 IS_COMPLEMENT: o segundo
+ * O botão "Aumentar" aparece? Mesmo predicado do servidor, na ordem dele: papel
+ * que pode mexer na quantidade + peça viva + peça que NÃO é ela mesma um
+ * complemento (complemento de complemento é 409 IS_COMPLEMENT: o segundo
  * aumento se pede na mãe) + peça em produção.
  *
  * `podeMexerNaQuantidade` espelha o gate do servidor (`podeMudarQuantidade` em
  * server/routes/items.ts): SÓ admin e solicitacao. É deliberadamente mais
- * estrito que o `canEditLists` da tela — criar peça no evento que você mesmo
- * criou é uma coisa; alterar o contrato de uma peça que já virou lona impressa
- * no galpão é outra. A Gráfica não entra: ela produz o que pedem.
+ * estrito que o `canEditLists` de uma tela de evento — criar peça no evento que
+ * você mesmo criou é uma coisa; alterar o contrato de uma peça que já virou
+ * lona impressa no galpão é outra. A GRÁFICA NÃO ENTRA: ela vê a peça, o selo,
+ * o motivo e o botão Produzir — ela produz o que pedem, não muda o pedido.
  */
 export function podeMexerNaQuantidade(role?: string | null): boolean {
   return role === "admin" || role === "solicitacao";
@@ -109,11 +118,11 @@ export interface ApiError {
  * é um bug de lá: aquela camada existe justamente para o usuário nunca ler
  * `{"error":"…"}` num toast, e ela é compartilhada pelo app inteiro.
  *
- * Como o roteamento do complemento depende do `code` (USE_COMPLEMENT abre o
- * modal, MIGRATION_PENDING troca o formulário pelo aviso do db:push,
- * QUANTITY_FLOOR explica o piso), ele é reconstruído aqui pela frase canônica
- * que o servidor escreve. Cada padrão casa com um trecho ESTÁVEL da mensagem —
- * a parte que não muda com displayId nem com números.
+ * Como o roteamento do complemento depende do `code` (USE_COMPLEMENT vira o
+ * aviso que aponta para a Gráfica, MIGRATION_PENDING troca o formulário pelo
+ * aviso do db:push, QUANTITY_FLOOR explica o piso), ele é reconstruído aqui
+ * pela frase canônica que o servidor escreve. Cada padrão casa com um trecho
+ * ESTÁVEL da mensagem — a parte que não muda com displayId nem com números.
  *
  * Regra de manutenção: mudou a frase em server/routes/items.ts, muda o padrão
  * aqui. É o mesmo acoplamento dos dois mapas de status que já convivem.
@@ -131,15 +140,21 @@ const CODIGO_POR_MENSAGEM: Array<{ re: RegExp; code: string; extra?: (m: RegExpM
 ];
 
 /**
+ * Falha de REDE (o `fetch` nem chegou ao servidor). O navegador escreve isso em
+ * inglês e em três dialetos diferentes — e "Failed to fetch" num bloco vermelho
+ * de modal em pt-BR não diz nada a quem está com o cliente ao lado. O `code`
+ * continua indefinido de propósito: é o caso mais retentável que existe.
+ */
+const ERRO_DE_REDE = /failed to fetch|networkerror|load failed/i;
+const MSG_SEM_REDE = "Sem conexão com o servidor. O complemento não foi criado.";
+
+/**
  * Normaliza o erro de qualquer rota em `{ message, code, data }`.
  *
  * Aceita as DUAS formas: o corpo JSON cru (caso algum chamador use `fetch`
  * direto) e a mensagem já desembrulhada pelo `apiRequest` — nesta, o `code` é
  * reconstruído por CODIGO_POR_MENSAGEM. Sem isso, `code` era sempre
- * `undefined` e todo o roteamento por código virava código morto: o 409 que
- * deveria ABRIR o modal de complemento saía como um toast vermelho comum, e o
- * 503 de migração pendente ganhava um botão "Tentar de novo" que jamais
- * funcionaria.
+ * `undefined` e todo o roteamento por código virava código morto.
  */
 export function parseApiError(err: unknown): ApiError {
   const raw = err instanceof Error ? err.message : String(err ?? "");
@@ -157,6 +172,10 @@ export function parseApiError(err: unknown): ApiError {
   } catch {
     // Corpo não-JSON — o caso NORMAL: o apiRequest já entregou só a frase.
   }
+
+  // Antes da leitura por frase: nenhum padrão de CODIGO_POR_MENSAGEM casa com
+  // uma falha de rede, então trocar aqui mantém `code` indefinido (retentável).
+  if (!code && ERRO_DE_REDE.test(message)) message = MSG_SEM_REDE;
 
   if (!code) {
     for (const alvo of CODIGO_POR_MENSAGEM) {
@@ -200,7 +219,7 @@ function m2DoComplemento(item: any, quantidade: number): number | null {
 /**
  * Próximo sufixo do filho (#0062-C1, -C2…). O servidor numera pelo MAIOR
  * sufixo já existente e NUNCA recicla número cancelado; aqui é só previsão de
- * rodapé, então o pior caso é o rodapé dizer -C2 e sair -C3 — nunca um número
+ * tela, então o pior caso é a tira dizer -C2 e sair -C3 — nunca um número
  * menor, que é o que confundiria.
  */
 function proximoSufixo(item: any): number {
@@ -219,10 +238,58 @@ function proximoSufixo(item: any): number {
  */
 const ERRO_SEM_RETRY = /^(Sem permissão|Peça não encontrada|Evento não encontrado)/i;
 
+/** Título do bloco de erro por código — a mensagem embaixo é sempre a do servidor. */
+const TITULO_ERRO: Record<string, string> = {
+  IS_COMPLEMENT: "Este já é um complemento",
+  NOT_IN_PRODUCTION: "Ainda não entrou em produção",
+};
+
 const AVISO_BASE: React.CSSProperties = {
   display: "flex", gap: 8, alignItems: "flex-start",
   padding: "10px 12px", borderRadius: 8, fontSize: 12, lineHeight: 1.5,
 };
+
+/** Chips de salto da quantidade. O stepper já cobre o +1 — um chip para ele seria redundante. */
+const SALTOS = [2, 5, 10, 20];
+
+/** Atalhos do motivo: preenchem como PREFIXO, com o cursor no fim. */
+const ATALHOS_MOTIVO: Array<{ rotulo: string; texto: string }> = [
+  { rotulo: "Pedido do cliente",  texto: "Pedido do cliente: " },
+  { rotulo: "Erro na quantidade", texto: "Erro na quantidade original: " },
+  { rotulo: "Peça danificada",    texto: "Peça danificada ou perdida no local: " },
+];
+
+/** Telas muito estreitas (< 360px): a fileira do rodapé vira coluna. */
+function useLarguraAbaixoDe(px: number): boolean {
+  const [abaixo, setAbaixo] = useState(false);
+  useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${px - 1}px)`);
+    const on = () => setAbaixo(mql.matches);
+    on();
+    mql.addEventListener("change", on);
+    return () => mql.removeEventListener("change", on);
+  }, [px]);
+  return abaixo;
+}
+
+/** Azulejo de número do cartão de identidade (contratado/produzido/…). */
+function Azulejo({ rotulo, valor, sub, subCor }: {
+  rotulo: string; valor: number; sub?: string | null; subCor?: string;
+}) {
+  return (
+    <div style={{ background: "#fff", borderRadius: 8, padding: "8px 10px", minWidth: 0 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#746e69" }}>
+        {rotulo}
+      </div>
+      <div style={{ fontSize: 18, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif", color: "#1c1917", lineHeight: 1, marginTop: 3 }}>
+        {valor}
+      </div>
+      {sub && (
+        <div style={{ fontSize: 10, color: subCor ?? "#746e69", marginTop: 3, lineHeight: 1.3 }}>{sub}</div>
+      )}
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -246,11 +313,20 @@ export function AumentarQuantidadeDialog({
   item, event, open, onOpenChange, sugestao, onCreated,
 }: AumentarQuantidadeDialogProps) {
   const { toast } = useToast();
+  const isMobile = useIsMobile();
+  const estreito = useLarguraAbaixoDe(360);
   const [qtdRaw, setQtdRaw] = useState("1");
   const [motivo, setMotivo] = useState("");
   const [erro, setErro] = useState<ApiError | null>(null);
   const [tocouMotivo, setTocouMotivo] = useState(false);
+  const [tentouEnviar, setTentouEnviar] = useState(false);
   const qtdRef = useRef<HTMLInputElement>(null);
+  const motivoRef = useRef<HTMLTextAreaElement>(null);
+  const tituloRef = useRef<HTMLHeadingElement>(null);
+  const erroRef = useRef<HTMLDivElement>(null);
+  // Último valor válido do campo: o campo pode ficar vazio ENQUANTO se digita
+  // (autocorrigir no meio da digitação rouba o teclado), e o blur restaura.
+  const ultimoValido = useRef("1");
 
   // Cada abertura começa limpa: reaproveitar o motivo da peça anterior é o
   // caminho mais curto para uma justificativa errada virar histórico.
@@ -258,11 +334,11 @@ export function AumentarQuantidadeDialog({
     if (!open) return;
     const inicial = sugestao && sugestao > 0 ? Math.min(9999, Math.floor(sugestao)) : 1;
     setQtdRaw(String(inicial));
+    ultimoValido.current = String(inicial);
     setMotivo("");
     setErro(null);
     setTocouMotivo(false);
-    const t = setTimeout(() => qtdRef.current?.select(), 60);
-    return () => clearTimeout(t);
+    setTentouEnviar(false);
   }, [open, sugestao, item?.id]);
 
   const s = useMemo(() => getSaldo(item ?? {}), [item]);
@@ -270,26 +346,41 @@ export function AumentarQuantidadeDialog({
   const qtdValida = qtd >= 1 && qtd <= 9999;
   const motivoLimpo = motivo.trim();
   const motivoValido = motivoLimpo.length >= 10 && motivoLimpo.length <= 500;
+  const faltamCaracteres = Math.max(0, 10 - motivoLimpo.length);
   const m2 = qtdValida ? m2DoComplemento(item, qtd) : null;
   const totalDepois = s.contractedTotal + (qtdValida ? qtd : 0);
   const sufixo = proximoSufixo(item);
   const displayFilho = `${item?.displayId ?? ""}-C${sufixo}`;
+  const { base: idBase, suffix: idSuffix } = splitDisplayId(item?.displayId ?? "");
+  const complementos: any[] = item?.complements ?? [];
+  const nomeEvento = (item as any)?.event?.name ?? event?.name ?? null;
+
+  // Faixa de sanidade: não bloqueia nada, só pede uma segunda olhada quando o
+  // número digitado é grande demais para o tamanho da peça (o dedo escorregou
+  // no teclado numérico e virou 250 em vez de 25).
+  const foraDaFaixa = qtdValida && qtd >= 10 && qtd > Math.max(s.qty * 3, s.qty + 50);
 
   // Caminhão já saiu: o lote nasce atrasado e a logística precisa ser combinada
   // ANTES de a Gráfica imprimir. Formatado em UTC como no restante da tela de
   // evento (o valor gravado É o horário que a pessoa digitou).
   const saidaCaminhao = useMemo(() => {
-    const raw = event?.truckDepartureDate;
+    const raw = event?.truckDepartureDate ?? (item as any)?.event?.truckDepartureDate;
     if (!raw) return null;
     const d = new Date(raw as any);
     if (isNaN(d.getTime())) return null;
     return d.getTime() < Date.now()
       ? d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "UTC" })
       : null;
-  }, [event?.truckDepartureDate]);
+  }, [event?.truckDepartureDate, item]);
 
   const migracaoPendente = erro?.code === "MIGRATION_PENDING";
   const erroRetentavel = !!erro && !erro.code && !ERRO_SEM_RETRY.test(erro.message);
+
+  // O bloco de erro nasce no fim do corpo rolável: sem isto ele podia aparecer
+  // fora da área visível e o clique no primário parecia não fazer nada.
+  useEffect(() => {
+    if (erro) erroRef.current?.scrollIntoView({ block: "nearest" });
+  }, [erro]);
 
   const criarMutation = useMutation({
     mutationFn: async () => {
@@ -333,7 +424,7 @@ export function AumentarQuantidadeDialog({
           }
         : {
             title: "Complemento criado",
-            description: `${child?.displayId ?? displayFilho} — +${qtd} un. Ele aparece na lista logo abaixo de ${item?.displayId}. A Gráfica foi avisada.`,
+            description: `${child?.displayId ?? displayFilho} · +${qtd} un. — já está na fila, logo abaixo de ${item?.displayId}.`,
           });
     },
     onError: (e: unknown) => {
@@ -345,7 +436,7 @@ export function AumentarQuantidadeDialog({
       if (!parsed.code && /^Sem permissão/i.test(parsed.message)) {
         toast({
           title: "Sem permissão",
-          description: "Apenas Solicitação, admin ou o criador do evento podem aumentar a quantidade.",
+          description: "Apenas Solicitação e admin podem aumentar a quantidade de uma peça em produção.",
           variant: "destructive",
         });
       }
@@ -353,177 +444,580 @@ export function AumentarQuantidadeDialog({
   });
 
   const pendente = criarMutation.isPending;
-  const podeEnviar = qtdValida && motivoValido && !pendente && !migracaoPendente;
+  const formValido = qtdValida && motivoValido;
 
   const submeter = (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!podeEnviar || !item) return;
+    if (!item || pendente || migracaoPendente) return;
+    // O primário fica SEMPRE ativo (menos enviando): botão apagado sem motivo
+    // dito na tela é um beco sem saída no toque, onde não existe `title`.
+    if (!formValido) {
+      setTentouEnviar(true);
+      setTocouMotivo(true);
+      if (!qtdValida) qtdRef.current?.focus();
+      else motivoRef.current?.focus();
+      return;
+    }
     setErro(null);
     criarMutation.mutate();
   };
 
+  /** Sanitiza o campo: só dígitos, teto por construção em 4 casas (9999). */
+  const escreverQtd = (v: string) => {
+    const limpo = v.replace(/\D/g, "").slice(0, 4);
+    setQtdRaw(limpo);
+    if (limpo && Number(limpo) >= 1) ultimoValido.current = limpo;
+  };
+  const passo = (delta: number) => {
+    const alvo = Math.max(1, Math.min(9999, (qtd || 0) + delta));
+    escreverQtd(String(alvo));
+  };
+
+  const aplicarAtalho = (texto: string) => {
+    setMotivo(texto);
+    requestAnimationFrame(() => {
+      const el = motivoRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(texto.length, texto.length);
+    });
+  };
+
   if (!item) return null;
+
+  const controlesTravados = pendente;
+  const larguraMiniatura = isMobile ? 64 : 56;
+
+  const dicaRodape = pendente
+    ? "Criando o complemento…"
+    : !qtdValida
+    ? "Informe as unidades a mais."
+    : !motivoValido
+    ? `Escreva o motivo (faltam ${faltamCaracteres} caracteres).`
+    : null;
+
+  const rotuloPrimario = pendente
+    ? "Criando…"
+    : !qtdValida
+    ? "Criar complemento"
+    : isMobile
+    ? `Criar +${qtd} un.`
+    : `Criar complemento (+${qtd} un.)`;
+
+  const tituloErro = !erro
+    ? ""
+    : TITULO_ERRO[erro.code ?? ""]
+      ?? (!erro.code && /^Sem permissão/i.test(erro.message) ? "Sem permissão" : "Não foi possível criar");
+
+  const botaoSalto: React.CSSProperties = {
+    height: isMobile ? 36 : 30, padding: "0 12px", borderRadius: 999,
+    border: "1px solid #e7e5e4", background: "#fff",
+    fontSize: 11, fontWeight: 700, color: "#57534e", cursor: "pointer",
+    display: "inline-flex", alignItems: "center", justifyContent: "center", whiteSpace: "nowrap",
+  };
+  const botaoSaltoAtivo: React.CSSProperties = {
+    ...botaoSalto, background: "#fff7ed", border: "1px solid #fed7aa", color: "#c2410c",
+  };
+  const botaoStepper: React.CSSProperties = {
+    width: isMobile ? 56 : 52, height: 56, flexShrink: 0, borderRadius: 8,
+    background: "#fff", border: "1px solid #e7e5e4",
+    display: "flex", alignItems: "center", justifyContent: "center",
+    transition: "background-color 0.15s",
+  };
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v && !pendente) onOpenChange(false); }}>
-      <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(520)}>
-        <DialogTitle className="sr-only">Aumentar quantidade</DialogTitle>
+      <DialogContent
+        className={HIDE_NATIVE_CLOSE}
+        style={modalSurface(560)}
+        onOpenAutoFocus={(e) => {
+          e.preventDefault();
+          // No desktop o campo já entra selecionado (digitar substitui). No
+          // celular o foco vai para o título: focar o campo sobe o teclado e
+          // enterra justamente a identidade da peça que se veio conferir.
+          if (!isMobile) qtdRef.current?.select();
+          else tituloRef.current?.focus();
+        }}
+        onEscapeKeyDown={(e) => { if (pendente) e.preventDefault(); }}
+        onPointerDownOutside={(e) => { if (pendente) e.preventDefault(); }}
+      >
+        <DialogTitle ref={tituloRef} tabIndex={-1} className="sr-only">Aumentar quantidade</DialogTitle>
         <DialogDescription className="sr-only">
           Cria uma peça complementar com as unidades a mais. A peça original não é alterada.
         </DialogDescription>
 
         <ModalHeader
-          variant="confirm"
+          variant="work"
           icon={PlusCircle}
           tint="#c2410c"
           title="Aumentar quantidade"
-          subtitle={`${item.displayId} · ${item.type}${item.description ? ` — ${item.description}` : ""}`}
+          subtitle={`${item.displayId} · ${item.type}`}
           onClose={() => { if (!pendente) onOpenChange(false); }}
         />
 
         {migracaoPendente ? (
-          <div style={{ padding: "24px" }}>
-            <div style={{ ...AVISO_BASE, backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c" }}>
-              <Database style={{ width: 15, height: 15, flexShrink: 0, marginTop: 1 }} />
-              <span>
-                <strong style={{ display: "block", marginBottom: 2 }}>Recurso indisponível</strong>
-                Falta rodar a atualização do banco (<code style={{ fontFamily: "'DM Mono', monospace" }}>npm run db:push</code>).
-                Fale com o administrador — até lá, o aumento precisa ser combinado por fora do sistema.
-              </span>
+          <>
+            <div style={{ padding: isMobile ? 16 : 24 }}>
+              <div style={{ ...AVISO_BASE, backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c" }}>
+                <Database aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0, marginTop: 1 }} />
+                <span>
+                  <strong style={{ display: "block", marginBottom: 2 }}>Recurso indisponível</strong>
+                  Falta rodar a atualização do banco (<code style={{ fontFamily: "'DM Mono', monospace" }}>npm run db:push</code>).
+                  Fale com o administrador — até lá, o aumento precisa ser combinado por fora do sistema.
+                </span>
+              </div>
             </div>
-          </div>
+            <ModalFooter>
+              <button
+                type="button"
+                onClick={() => onOpenChange(false)}
+                data-testid="button-entendi-migracao"
+                style={{ width: "100%", height: 44, borderRadius: 8, border: "none", background: "none", fontSize: 13, fontWeight: 700, color: "#746e69", cursor: "pointer" }}
+              >
+                Entendi
+              </button>
+            </ModalFooter>
+          </>
         ) : (
           <form onSubmit={submeter}>
-            <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18, maxHeight: "60vh", overflowY: "auto" }}>
+            <div
+              style={{
+                padding: isMobile ? "16px" : "18px 24px",
+                display: "flex", flexDirection: "column", gap: isMobile ? 14 : 16,
+                maxHeight: isMobile ? "calc(88vh - 168px)" : "min(62vh, calc(100vh - 300px))",
+                overflowY: "auto",
+              }}
+            >
 
-              <div style={{ backgroundColor: "#fafaf9", border: "1px solid #ebe8e4", borderRadius: 10, padding: "12px 14px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 8 }}>
-                  <StatusPill status={item.status} />
-                  {s.complementsQty > 0 && (
-                    <span style={{ backgroundColor: "#ffedd5", border: "1px solid #fed7aa", color: "#c2410c", borderRadius: 999, padding: "2px 9px", fontSize: 10, fontWeight: 800 }}>
-                      JÁ TEM +{s.complementsQty}
+              <div style={{ background: "#f4f3f0", borderRadius: 12, padding: 14, display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ display: "flex", gap: 12 }}>
+                  <div
+                    style={{
+                      width: larguraMiniatura, height: larguraMiniatura, flexShrink: 0,
+                      borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff",
+                      display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden",
+                    }}
+                  >
+                    {item.approvalThumbUrl ? (
+                      <img
+                        src={convertGCSUrlToLocalPath(item.approvalThumbUrl)}
+                        alt=""
+                        loading="lazy" decoding="async"
+                        style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block" }}
+                        onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                      />
+                    ) : (
+                      <Package aria-hidden="true" style={{ width: 16, height: 16, color: "#a8a29e" }} />
+                    )}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: "#c2410c" }}>
+                        {idBase}{idSuffix && <span style={{ color: "#9a3412" }}>{idSuffix}</span>}
+                      </span>
+                      <StatusPill status={item.status} size="sm" />
+                    </div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: "#1c1917", marginTop: 2 }}>{item.type}</div>
+                    {item.description && item.description !== item.type && (
+                      <div style={{ fontSize: 13, color: "#746e69", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {item.description}
+                      </div>
+                    )}
+                    {nomeEvento && (
+                      <div style={{ fontSize: 13, color: "#746e69", marginTop: 4, display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
+                        <Calendar aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{nomeEvento}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2,minmax(0,1fr))" : "repeat(4,minmax(0,1fr))", gap: 8 }}>
+                  <Azulejo
+                    rotulo="Contratado"
+                    valor={s.qty}
+                    sub={s.complementsQty > 0 ? `+${s.complementsQty} em complementos` : null}
+                    subCor="#c2410c"
+                  />
+                  <Azulejo
+                    rotulo="Produzido"
+                    valor={s.produced}
+                    sub={s.toProduce > 0 ? `faltam ${s.toProduce}` : null}
+                  />
+                  <Azulejo rotulo="Conferido" valor={s.conferred} />
+                  <Azulejo
+                    rotulo="Entregue"
+                    valor={s.delivered}
+                    sub={s.isDelivered ? "peça fechada" : null}
+                    subCor="#15803d"
+                  />
+                </div>
+
+                {complementos.length > 0 && (
+                  <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 8, padding: "7px 10px", fontSize: 11, lineHeight: 1.45, color: "#7c2d12" }}>
+                    <strong>Já existem:</strong>{" "}
+                    {complementos
+                      .slice(0, 3)
+                      .map((c: any) => `${c.displayId} (+${c.quantity}, ${getStatusLabel(c.status).toLowerCase()})`)
+                      .join(" · ")}
+                    {complementos.length > 3 && ` · +${complementos.length - 3} mais`}
+                  </div>
+                )}
+
+                {(item.isReuse || s.reused > 0) && (
+                  <div style={{ display: "flex", gap: 6, alignItems: "flex-start" }}>
+                    <Recycle aria-hidden="true" style={{ width: 12, height: 12, color: "#57534e", flexShrink: 0, marginTop: 2 }} />
+                    <span style={{ fontSize: 11, color: "#746e69", lineHeight: 1.45 }}>
+                      A original foi reaproveitada — as novas nascem para impressão.
                     </span>
-                  )}
-                </div>
-                <div style={{ display: "flex", gap: 14, flexWrap: "wrap", fontSize: 12, color: "#57534e" }}>
-                  {([
-                    ["Contratado", s.qty],
-                    ["Produzido", s.produced],
-                    ["Conferido", s.conferred],
-                    ["Entregue", s.delivered],
-                  ] as const).map(([rotulo, valor]) => (
-                    <span key={rotulo}>
-                      {rotulo}{" "}
-                      <strong style={{ color: "#1c1917", fontFamily: "'DM Mono', monospace" }}>{valor}</strong>
-                    </span>
-                  ))}
-                </div>
-                <p style={{ margin: "8px 0 0", fontSize: 12, color: "#746e69", lineHeight: 1.5 }}>
-                  Esta peça <strong style={{ color: "#1c1917" }}>não será alterada</strong>. O aumento vira uma peça nova, ligada a ela.
-                </p>
-              </div>
+                  </div>
+                )}
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label htmlFor="complemento-qtd" style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>
-                  Quantas unidades a mais?
-                </label>
-                <input
-                  id="complemento-qtd"
-                  ref={qtdRef}
-                  type="number"
-                  min={1}
-                  max={9999}
-                  step={1}
-                  inputMode="numeric"
-                  value={qtdRaw}
-                  onChange={(e) => setQtdRaw(e.target.value)}
-                  disabled={pendente}
-                  data-testid="input-complemento-quantidade"
-                  style={{
-                    width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: 8,
-                    padding: "12px 16px", fontSize: 20, fontWeight: 800, color: "#1a1c1c",
-                    fontFamily: "'DM Mono', monospace", textAlign: "center",
-                  }}
-                  onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(194,65,12,0.25)")}
-                  onBlur={(e) => (e.currentTarget.style.boxShadow = "none")}
-                />
-                <p style={{ margin: 0, fontSize: 12, color: qtdValida ? "#57534e" : "#b91c1c", lineHeight: 1.5 }}>
-                  {qtdValida
-                    ? `${qtd} un.${m2 !== null ? ` · ${fmtM2(m2)} m²` : " · m² a definir (a peça original não tem medida de arquivo)"} · o total contratado passa a ${totalDepois} un.`
-                    : "Informe de 1 a 9999 unidades."}
-                </p>
-              </div>
-
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                <label htmlFor="complemento-motivo" style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>
-                  Por que o aumento? <span style={{ color: "#c2410c" }}>(obrigatório)</span>
-                </label>
-                <textarea
-                  id="complemento-motivo"
-                  value={motivo}
-                  maxLength={500}
-                  rows={3}
-                  onChange={(e) => setMotivo(e.target.value)}
-                  onBlur={() => setTocouMotivo(true)}
-                  disabled={pendente}
-                  placeholder="Ex.: cliente confirmou dois pórticos extras para a ativação de sábado"
-                  data-testid="input-complemento-motivo"
-                  style={{
-                    width: "100%", backgroundColor: "#f3f4f3", border: "none", borderRadius: 8,
-                    padding: "12px 16px", fontSize: 14, color: "#1a1c1c", fontFamily: "inherit",
-                    resize: "vertical", lineHeight: 1.5,
-                  }}
-                  onFocus={(e) => (e.currentTarget.style.boxShadow = "0 0 0 2px rgba(194,65,12,0.25)")}
-                />
-                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 11 }}>
-                  <span style={{ color: tocouMotivo && !motivoValido ? "#b91c1c" : "#746e69", lineHeight: 1.4 }}>
-                    {tocouMotivo && !motivoValido
-                      ? "Explique o motivo (mín. 10 caracteres)"
-                      : "Vai para a fila da Gráfica, para o sino e para o histórico da peça."}
-                  </span>
-                  <span style={{ color: "#746e69", fontFamily: "'DM Mono', monospace", flexShrink: 0 }}>
-                    {motivoLimpo.length}/500
+                <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 8, padding: "8px 10px", display: "flex", gap: 7, alignItems: "flex-start" }}>
+                  <Lock aria-hidden="true" style={{ width: 12, height: 12, color: "#c2410c", flexShrink: 0, marginTop: 2 }} />
+                  <span style={{ fontSize: 12, lineHeight: 1.45, color: "#7c2d12" }}>
+                    <strong>{item.displayId} continua com {s.qty} un.</strong> — nada muda nela. O aumento nasce como uma peça nova, com produção própria.
                   </span>
                 </div>
               </div>
-
-              {s.isInProd && s.toProduce > 0 && (
-                <div style={{ ...AVISO_BASE, backgroundColor: "#fffbeb", border: "1px solid #fde68a", color: "#92400e" }}>
-                  <AlertTriangle style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
-                  <span>Ainda faltam {s.toProduce} un. na peça original. O complemento é um lote separado.</span>
-                </div>
-              )}
-
-              {(item.isReuse || s.reused > 0) && (
-                <div style={{ ...AVISO_BASE, backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#15803d" }}>
-                  <Recycle style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
-                  <span>A original foi reaproveitada. As novas nascem para impressão; a Gráfica pode marcar reaproveitamento depois.</span>
-                </div>
-              )}
-
-              {!item.finalFileUrl && (
-                <div style={{ ...AVISO_BASE, backgroundColor: "#fffbeb", border: "1px solid #fde68a", color: "#92400e" }}>
-                  <FileWarning style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
-                  <span>A peça original não tem arquivo final registrado. A Gráfica vai receber o complemento sem arquivo.</span>
-                </div>
-              )}
 
               {saidaCaminhao && (
                 <div style={{ ...AVISO_BASE, backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c" }}>
-                  <Truck style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
+                  <Truck aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
                   <span>O caminhão deste evento saiu em {saidaCaminhao}. Combine a logística antes de confirmar.</span>
                 </div>
               )}
 
+              {((s.isInProd && s.toProduce > 0) || !item.finalFileUrl) && (
+                <div style={{ ...AVISO_BASE, backgroundColor: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", flexDirection: "column", gap: 6 }}>
+                  <span style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                    <AlertTriangle aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0 }} />
+                    <strong style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                      Antes de confirmar
+                    </strong>
+                  </span>
+                  <ul style={{ margin: 0, paddingLeft: 22, display: "flex", flexDirection: "column", gap: 4, listStyle: "none" }}>
+                    {s.isInProd && s.toProduce > 0 && (
+                      <li style={{ fontSize: 12, lineHeight: 1.5, position: "relative" }}>
+                        <span aria-hidden="true" style={{ position: "absolute", left: -14, color: "#d97706", fontWeight: 800 }}>•</span>
+                        Ainda faltam {s.toProduce} un. na peça original. O complemento é um lote separado.
+                      </li>
+                    )}
+                    {!item.finalFileUrl && (
+                      <li style={{ fontSize: 12, lineHeight: 1.5, position: "relative" }}>
+                        <span aria-hidden="true" style={{ position: "absolute", left: -14, color: "#d97706", fontWeight: 800 }}>•</span>
+                        A peça original não tem arquivo final registrado. A Gráfica vai receber o complemento sem arquivo.
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
+
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, marginBottom: 8 }}>
+                  <label htmlFor="complemento-qtd" style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>
+                    Quantas unidades a mais
+                  </label>
+                  <span style={{ fontSize: 10, fontWeight: 600, color: "#746e69", whiteSpace: "nowrap" }}>
+                    {item.displayId} tem {s.qty} un.
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", gap: 8, alignItems: "stretch" }}>
+                  <button
+                    type="button"
+                    onClick={() => passo(-1)}
+                    disabled={controlesTravados || qtd <= 1}
+                    aria-label="Diminuir uma unidade"
+                    data-testid="button-complemento-menos"
+                    style={{
+                      ...botaoStepper,
+                      opacity: qtd <= 1 ? 0.45 : 1,
+                      cursor: controlesTravados ? "wait" : qtd <= 1 ? "not-allowed" : "pointer",
+                    }}
+                    onMouseEnter={(e) => { if (!controlesTravados && qtd > 1) e.currentTarget.style.backgroundColor = "#f5f5f4"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#fff"; }}
+                  >
+                    <Minus aria-hidden="true" style={{ width: 18, height: 18, color: "#57534e" }} />
+                  </button>
+
+                  <div style={{ flex: 1, position: "relative", minWidth: 0 }}>
+                    <input
+                      id="complemento-qtd"
+                      ref={qtdRef}
+                      type="text"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
+                      autoComplete="off"
+                      value={qtdRaw}
+                      aria-describedby="complemento-resultado"
+                      onChange={(e) => escreverQtd(e.target.value)}
+                      onFocus={(e) => {
+                        e.currentTarget.select();
+                        e.currentTarget.style.borderColor = "#c2410c";
+                        e.currentTarget.style.boxShadow = "0 0 0 3px rgba(194,65,12,0.18)";
+                      }}
+                      onBlur={(e) => {
+                        e.currentTarget.style.borderColor = "transparent";
+                        e.currentTarget.style.boxShadow = "none";
+                        if (!qtdRaw || Number(qtdRaw) < 1) setQtdRaw(ultimoValido.current || "1");
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "ArrowUp") { e.preventDefault(); passo(1); }
+                        if (e.key === "ArrowDown") { e.preventDefault(); passo(-1); }
+                      }}
+                      disabled={controlesTravados}
+                      data-testid="input-complemento-quantidade"
+                      style={{
+                        width: "100%", height: 56, boxSizing: "border-box",
+                        background: "#f3f4f3", border: "1.5px solid transparent", borderRadius: 8,
+                        textAlign: "center", fontFamily: "'Space Grotesk', sans-serif",
+                        fontSize: 30, fontWeight: 800, color: "#1a1c1c",
+                        paddingRight: 48, paddingLeft: 14,
+                        transition: "border-color 0.15s, box-shadow 0.15s",
+                      }}
+                    />
+                    <span
+                      aria-hidden="true"
+                      style={{ position: "absolute", right: 14, top: "50%", transform: "translateY(-50%)", fontSize: 13, fontWeight: 600, color: "#746e69", pointerEvents: "none" }}
+                    >
+                      un.
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => passo(1)}
+                    disabled={controlesTravados || qtd >= 9999}
+                    aria-label="Aumentar uma unidade"
+                    data-testid="button-complemento-mais"
+                    style={{
+                      ...botaoStepper,
+                      opacity: qtd >= 9999 ? 0.45 : 1,
+                      cursor: controlesTravados ? "wait" : qtd >= 9999 ? "not-allowed" : "pointer",
+                    }}
+                    onMouseEnter={(e) => { if (!controlesTravados && qtd < 9999) e.currentTarget.style.backgroundColor = "#f5f5f4"; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#fff"; }}
+                  >
+                    <Plus aria-hidden="true" style={{ width: 18, height: 18, color: "#57534e" }} />
+                  </button>
+                </div>
+
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+                  {SALTOS.map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => escreverQtd(String(v))}
+                      disabled={controlesTravados}
+                      aria-pressed={qtd === v}
+                      data-testid={`chip-salto-${v}`}
+                      style={qtd === v ? botaoSaltoAtivo : botaoSalto}
+                    >
+                      +{v}
+                    </button>
+                  ))}
+                </div>
+
+                {foraDaFaixa && (
+                  <div style={{ ...AVISO_BASE, backgroundColor: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", marginTop: 8 }}>
+                    <AlertTriangle aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
+                    <span>
+                      Confira: <strong>+{qtd} un.</strong> é mais de 3× a quantidade de {item.displayId} ({s.qty} un.). Se for isso mesmo, pode seguir.
+                    </span>
+                  </div>
+                )}
+
+                <div
+                  id="complemento-resultado"
+                  role="status"
+                  aria-live="polite"
+                  data-testid="tira-resultado-complemento"
+                  style={{
+                    display: "flex", gap: 10, marginTop: 10,
+                    alignItems: qtdValida && isMobile ? "stretch" : "center",
+                    background: qtdValida ? "#fff7ed" : "#fafaf9",
+                    border: `1px solid ${qtdValida ? "#fed7aa" : "#ebe8e4"}`,
+                    borderRadius: 10, padding: "10px 12px",
+                  }}
+                >
+                  <span className="sr-only">
+                    {qtdValida
+                      ? `+${qtd} unidades.${m2 !== null ? ` ${fmtM2(m2)} metros quadrados.` : ""} Nova peça ${displayFilho}. Total contratado passa a ${totalDepois} unidades.`
+                      : "Informe as unidades para ver o resultado."}
+                  </span>
+
+                  {qtdValida ? (
+                    (() => {
+                      // As três células da equação, escritas uma vez. O desktop
+                      // as põe lado a lado com os operadores entre elas; o
+                      // celular empilha em 3 linhas com + e = numa calha de
+                      // 16px à esquerda, para os números continuarem alinhados.
+                      const celulaEsq = (
+                        <span style={{ minWidth: 0 }}>
+                          <span style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 800, color: "#c2410c" }}>
+                            {item.displayId}
+                          </span>
+                          <span style={{ display: "block", fontSize: 11, color: "#7c2d12" }}>{s.qty} un. — não muda</span>
+                        </span>
+                      );
+                      const celulaMeio = (
+                        <span style={{ minWidth: 0 }}>
+                          <span style={{ display: "block", fontSize: 13, fontWeight: 800, color: "#7c2d12" }}>+{qtd} un.</span>
+                          <span
+                            style={{ display: "block", fontSize: 11, color: "#7c2d12" }}
+                            title={m2 === null ? "A peça original não tem medida de arquivo — a Gráfica calcula na produção." : undefined}
+                          >
+                            {m2 !== null ? `${fmtM2(m2)} m²` : "m² a definir"}
+                          </span>
+                        </span>
+                      );
+                      const celulaDir = (
+                        <span style={{ minWidth: 0 }}>
+                          <span style={{ display: "block" }}>
+                            <span style={{ background: "#c2410c", color: "#fff", fontSize: 9, fontWeight: 800, borderRadius: 5, padding: "1px 6px", marginRight: 5, letterSpacing: "0.06em" }}>
+                              NOVA
+                            </span>
+                            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 800, color: "#c2410c" }}>
+                              {item.displayId}<span style={{ color: "#9a3412" }}>-C{sufixo}</span>
+                            </span>
+                          </span>
+                          <span style={{ display: "block", fontSize: 11, fontWeight: 700, color: "#7c2d12" }}>{totalDepois} un. no total</span>
+                        </span>
+                      );
+                      const glifo: React.CSSProperties = { fontSize: 13, fontWeight: 800, color: "#7c2d12", flexShrink: 0 };
+                      const calha: React.CSSProperties = { ...glifo, width: 16, textAlign: "center" };
+
+                      return isMobile ? (
+                        <div aria-hidden="true" style={{ display: "flex", flexDirection: "column", gap: 8, width: "100%", minWidth: 0 }}>
+                          <div style={{ display: "flex", gap: 8, minWidth: 0 }}>
+                            <span style={{ width: 16, flexShrink: 0 }} />
+                            {celulaEsq}
+                          </div>
+                          <div style={{ display: "flex", gap: 8, minWidth: 0 }}>
+                            <span style={calha}>+</span>
+                            {celulaMeio}
+                          </div>
+                          <div style={{ display: "flex", gap: 8, minWidth: 0 }}>
+                            <span style={calha}>=</span>
+                            {celulaDir}
+                          </div>
+                        </div>
+                      ) : (
+                        <div aria-hidden="true" style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", minWidth: 0 }}>
+                          <span style={{ flex: 1, minWidth: 0 }}>{celulaEsq}</span>
+                          <span style={glifo}>+</span>
+                          <span style={{ minWidth: 0 }}>{celulaMeio}</span>
+                          <span style={glifo}>=</span>
+                          <span style={{ minWidth: 0, textAlign: "right" }}>{celulaDir}</span>
+                        </div>
+                      );
+                    })()
+                  ) : (
+                    <span aria-hidden="true" style={{ fontSize: 12, color: "#746e69" }}>
+                      Informe as unidades para ver o resultado.
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, marginBottom: 8 }}>
+                  <label htmlFor="complemento-motivo" style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69" }}>
+                    Por que o aumento
+                  </label>
+                  {motivoValido ? (
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 11, fontWeight: 700, color: "#15803d", whiteSpace: "nowrap" }}>
+                      <Check aria-hidden="true" style={{ width: 12, height: 12 }} />
+                      ok
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 11, fontWeight: 700, color: tocouMotivo ? "#b91c1c" : "#746e69", whiteSpace: "nowrap" }}>
+                      faltam {faltamCaracteres} caracteres
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+                  {ATALHOS_MOTIVO.map((a) => {
+                    const bloqueado = motivo.length > 0 || controlesTravados;
+                    return (
+                      <button
+                        key={a.rotulo}
+                        type="button"
+                        onClick={() => aplicarAtalho(a.texto)}
+                        disabled={bloqueado}
+                        title={motivo.length > 0 ? "Apague o texto para usar um atalho" : undefined}
+                        data-testid={`chip-motivo-${a.rotulo.toLowerCase().replace(/\s+/g, "-")}`}
+                        style={{
+                          height: isMobile ? 36 : 28, padding: "0 12px", borderRadius: 999,
+                          border: "1px solid #e7e5e4", background: "#fff",
+                          fontSize: 11, fontWeight: 700, color: "#57534e",
+                          cursor: bloqueado ? "not-allowed" : "pointer",
+                          opacity: bloqueado ? 0.5 : 1, whiteSpace: "nowrap",
+                        }}
+                      >
+                        {a.rotulo}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <textarea
+                  id="complemento-motivo"
+                  ref={motivoRef}
+                  value={motivo}
+                  maxLength={500}
+                  rows={3}
+                  onChange={(e) => setMotivo(e.target.value)}
+                  onBlur={(e) => {
+                    setTocouMotivo(true);
+                    e.currentTarget.style.borderColor = motivoValido ? "#e7e5e4" : "#fecaca";
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
+                  onFocus={(e) => {
+                    e.currentTarget.style.borderColor = "#c2410c";
+                    e.currentTarget.style.boxShadow = "0 0 0 3px rgba(194,65,12,0.18)";
+                  }}
+                  disabled={controlesTravados}
+                  placeholder="Ex.: cliente confirmou mais 2 pórticos para a ativação de sábado"
+                  data-testid="input-complemento-motivo"
+                  style={{
+                    width: "100%", boxSizing: "border-box", minHeight: 76,
+                    background: "#fff",
+                    border: `1.5px solid ${tocouMotivo && !motivoValido ? "#fecaca" : "#e7e5e4"}`,
+                    borderRadius: 8, padding: "12px 14px",
+                    fontSize: isMobile ? 16 : 14, fontFamily: "inherit", lineHeight: 1.5,
+                    color: "#1a1c1c", resize: "vertical",
+                    transition: "border-color 0.15s, box-shadow 0.15s",
+                  }}
+                />
+
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 8, marginTop: 6 }}>
+                  <span style={{ fontSize: 11, color: "#746e69", lineHeight: 1.4 }}>
+                    Vai para a fila da Gráfica, para o sino e para o histórico da peça.
+                  </span>
+                  {motivo.length > 400 && (
+                    <span style={{ fontSize: 11, fontWeight: 600, fontFamily: "'DM Mono', monospace", color: "#746e69", flexShrink: 0 }}>
+                      {motivo.length}/500
+                    </span>
+                  )}
+                </div>
+              </div>
+
               {erro && (
                 <div
+                  ref={erroRef}
                   role="alert"
                   data-testid="erro-complemento"
                   style={{ ...AVISO_BASE, backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c", flexDirection: "column", gap: 8 }}
                 >
                   <span style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
-                    <AlertTriangle style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
-                    <span>{erro.message}</span>
+                    <AlertTriangle aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
+                    <span>
+                      <strong style={{ display: "block", fontSize: 13, fontWeight: 800, marginBottom: 2 }}>{tituloErro}</strong>
+                      <span style={{ fontSize: 12, lineHeight: 1.5 }}>{erro.message}</span>
+                    </span>
                   </span>
                   {erroRetentavel && (
                     <button
@@ -533,7 +1027,7 @@ export function AumentarQuantidadeDialog({
                       data-testid="button-retry-complemento"
                       style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, background: "#fff", border: "1px solid #fecaca", borderRadius: 6, padding: "5px 10px", fontSize: 11, fontWeight: 800, color: "#b91c1c", cursor: pendente ? "wait" : "pointer" }}
                     >
-                      <RotateCw style={{ width: 12, height: 12 }} />
+                      <RotateCw aria-hidden="true" style={{ width: 12, height: 12 }} />
                       Tentar de novo
                     </button>
                   )}
@@ -542,37 +1036,51 @@ export function AumentarQuantidadeDialog({
             </div>
 
             <ModalFooter>
-              <p style={{ margin: "0 0 2px", fontSize: 11, color: "#746e69", textAlign: "center", lineHeight: 1.5 }}>
-                Será criada a peça <strong style={{ color: "#1c1917", fontFamily: "'DM Mono', monospace" }}>{displayFilho}</strong> e a Gráfica é avisada na hora.
-              </p>
-              <button
-                type="submit"
-                disabled={!podeEnviar}
-                data-testid="button-criar-complemento"
-                title={!motivoValido ? "Explique o motivo (mín. 10 caracteres)" : undefined}
-                style={{
-                  width: "100%", height: 44, borderRadius: 8, border: "none",
-                  backgroundColor: podeEnviar ? "#c2410c" : "#e7e5e4",
-                  color: podeEnviar ? "#fff" : "#746e69",
-                  fontSize: 13, fontWeight: 800, cursor: podeEnviar ? "pointer" : "not-allowed",
-                  display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                  transition: "background-color 0.15s",
-                }}
-                onMouseEnter={(e) => { if (podeEnviar) e.currentTarget.style.backgroundColor = "#9a3412"; }}
-                onMouseLeave={(e) => { if (podeEnviar) e.currentTarget.style.backgroundColor = "#c2410c"; }}
-              >
-                <PlusCircle style={{ width: 15, height: 15 }} />
-                {pendente ? "Criando…" : "Criar complemento"}
-              </button>
-              <button
-                type="button"
-                onClick={() => onOpenChange(false)}
-                disabled={pendente}
-                data-testid="button-cancelar-complemento"
-                style={{ width: "100%", height: 36, borderRadius: 8, border: "none", background: "none", fontSize: 13, fontWeight: 600, color: "#746e69", cursor: pendente ? "wait" : "pointer" }}
-              >
-                Cancelar
-              </button>
+              {dicaRodape && (
+                <p style={{ margin: 0, fontSize: 11, fontWeight: 600, textAlign: "center", lineHeight: 1.5, color: tentouEnviar && !pendente ? "#b91c1c" : "#746e69" }}>
+                  {dicaRodape}
+                </p>
+              )}
+              <div style={{ display: "flex", gap: 10, flexDirection: estreito ? "column-reverse" : "row" }}>
+                <button
+                  type="button"
+                  onClick={() => onOpenChange(false)}
+                  disabled={pendente}
+                  data-testid="button-cancelar-complemento"
+                  style={{
+                    flex: estreito ? undefined : 1, width: estreito ? "100%" : undefined,
+                    height: 48, borderRadius: 8, background: "transparent",
+                    border: "1.5px solid #e7e5e4", fontSize: 13, fontWeight: 700, color: "#746e69",
+                    cursor: pendente ? "wait" : "pointer", transition: "background-color 0.15s",
+                  }}
+                  onMouseEnter={(e) => { if (!pendente) e.currentTarget.style.backgroundColor = "#f5f5f4"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "transparent"; }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={pendente || migracaoPendente}
+                  data-testid="button-criar-complemento"
+                  style={{
+                    flex: estreito ? undefined : 2, width: estreito ? "100%" : undefined,
+                    height: 48, borderRadius: 8, border: "none",
+                    background: "#c2410c", color: "#fff",
+                    fontSize: 13, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif",
+                    cursor: pendente ? "wait" : "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                    boxShadow: "0 4px 14px rgba(194,65,12,0.30)",
+                    transition: "background-color 0.15s",
+                  }}
+                  onMouseEnter={(e) => { if (!pendente) e.currentTarget.style.backgroundColor = "#9a3412"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#c2410c"; }}
+                >
+                  {pendente
+                    ? <Loader2 aria-hidden="true" className="animate-spin" style={{ width: 15, height: 15 }} />
+                    : <PlusCircle aria-hidden="true" style={{ width: 15, height: 15 }} />}
+                  {rotuloPrimario}
+                </button>
+              </div>
             </ModalFooter>
           </form>
         )}
@@ -588,33 +1096,40 @@ export function AumentarQuantidadeDialog({
  * verdade do NÓ (`{customActions && <div>…}`): passar um elemento que renderiza
  * `null` deixa uma `<div>` vazia num container com `gap: 36` — 36px de buraco
  * em 100% das peças normais. Os consumidores decidem com este predicado.
+ *
+ * `comBotao = false` para as telas que mostram o BLOCO mas não o gatilho (o
+ * Detalhe do Evento, onde aumentar deixou de morar): ali o bloco só existe se
+ * houver complemento de verdade para contar.
  */
-export function temBlocoDeComplemento(item: any, canEditLists: boolean): boolean {
+export function temBlocoDeComplemento(item: any, podeMexer: boolean, comBotao = true): boolean {
   if (!item) return false;
   return (
     (item.complements?.length ?? 0) > 0 ||
     !!item.parentItemId ||
-    podeAumentarQuantidade(item, canEditLists)
+    (comBotao && podeAumentarQuantidade(item, podeMexer))
   );
 }
 
 /**
  * Bloco de COMPLEMENTO da ficha da peça (slot `customActions` do
- * ItemDetailsDialog) — o mesmo nas 3 telas. Conta a história inteira sem abrir
- * mais nada:
+ * ItemDetailsDialog) — o mesmo nas telas que o montam. Conta a história inteira
+ * sem abrir mais nada:
  *  - na MÃE: quais complementos existem, em que pé estão e o total realmente
  *    contratado (a peça-mãe nunca muda, então esse número só existe derivado);
  *  - no FILHO: de quem ele é complemento, por que nasceu, quem pediu e quando;
- *  - e o botão que cria o próximo, quando o papel permite.
- * Devolve `null` quando não há nada a dizer — 100% do acervo atual.
+ *  - e o botão que cria o próximo, quando o papel permite E o chamador passa
+ *    `onAumentar` (sem ele o bloco é só leitura — é o caso do Detalhe do
+ *    Evento, onde o gatilho passou a morar na Gráfica).
+ * Devolve `null` quando não há nada a dizer.
  */
 export function ComplementoDaFicha({
   item, canEditLists, onAumentar, onAbrirPeca,
 }: {
   item: any | null;
-  /** `canCreateItemsFor` da tela: admin, solicitacao ou criador do evento. */
+  /** Papel que pode mexer na quantidade (admin/solicitacao). */
   canEditLists: boolean;
-  onAumentar: (item: any) => void;
+  /** Ausente = bloco sem gatilho (só leitura). */
+  onAumentar?: (item: any) => void;
   /** Troca a peça exibida na ficha (mãe ↔ filho). Opcional. */
   onAbrirPeca?: (itemId: string) => void;
 }) {
@@ -622,7 +1137,7 @@ export function ComplementoDaFicha({
 
   const complementos: any[] = item.complements ?? [];
   const ehFilho = !!item.parentItemId;
-  const podeAumentar = podeAumentarQuantidade(item, canEditLists);
+  const podeAumentar = !!onAumentar && podeAumentarQuantidade(item, canEditLists);
   if (!complementos.length && !ehFilho && !podeAumentar) return null;
 
   const total = Number(item.contractedTotal)
@@ -635,7 +1150,7 @@ export function ComplementoDaFicha({
   return (
     <section style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: 0, display: "flex", alignItems: "center", gap: 6, color: "#746e69" }}>
-        <PlusCircle style={{ width: 13, height: 13, color: "#c2410c" }} />
+        <PlusCircle aria-hidden="true" style={{ width: 13, height: 13, color: "#c2410c" }} />
         {ehFilho ? "Esta peça é um complemento" : "Complementos"}
       </h3>
 
@@ -704,7 +1219,7 @@ export function ComplementoDaFicha({
         </div>
       )}
 
-      {podeAumentar && (
+      {podeAumentar && onAumentar && (
         <div>
           <AumentarQuantidadeButton onClick={() => onAumentar(item)} />
           <p style={{ margin: "6px 0 0", fontSize: 11, color: "#746e69", lineHeight: 1.5 }}>
@@ -717,11 +1232,11 @@ export function ComplementoDaFicha({
 }
 
 /**
- * Botão de disparo padrão das 3 telas — existe para que o gesto tenha a MESMA
- * cara e o mesmo rótulo em toda parte (foi assim que "Editar quantidade"
- * acabou com três aparências diferentes). `variant`:
- *  - "outline": botão de ficha/menu (Detalhe do Evento, Painel Geral);
- *  - "link":    o `+ Aumentar quantidade` que fica colado no campo Qtd. travado.
+ * Botão de disparo da FICHA da peça — existe para que o gesto tenha a MESMA
+ * cara e o mesmo rótulo onde quer que a ficha seja montada (foi assim que
+ * "Editar quantidade" acabou com três aparências diferentes). Na LISTA o
+ * rótulo é só "Aumentar" (a coluna já diz o substantivo); aqui, sem coluna
+ * para apoiar, ele diz a ação inteira.
  */
 export function AumentarQuantidadeButton({
   onClick, variant = "outline", disabled, testId = "button-aumentar-quantidade",
@@ -748,7 +1263,7 @@ export function AumentarQuantidadeButton({
             cursor: disabled ? "not-allowed" : "pointer", opacity: disabled ? 0.6 : 1,
           }}
     >
-      <PlusCircle style={{ width: link ? 11 : 14, height: link ? 11 : 14 }} />
+      <PlusCircle aria-hidden="true" style={{ width: link ? 11 : 14, height: link ? 11 : 14 }} />
       Aumentar quantidade
     </button>
   );

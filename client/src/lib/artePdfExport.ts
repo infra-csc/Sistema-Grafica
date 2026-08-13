@@ -69,7 +69,11 @@ function buildItemPage(item: any, thumbDataUris: Record<string, string>): string
   const art = isImg
     ? `<img src="${thumbDataUri}" alt="Arte" class="ap-img" />`
     : thumbUrl
-      ? `<div class="ap-noimg"><div class="ap-noimg-ic">PDF</div><div class="ap-noimg-sub">Arquivo PDF vinculado</div></div>`
+      ? /\.pdf$/i.test(thumbUrl)
+        ? `<div class="ap-noimg"><div class="ap-noimg-ic">PDF</div><div class="ap-noimg-sub">Arquivo PDF vinculado</div></div>`
+        // A URL é de imagem, mas o prefetch falhou (403/404/offline) — dizer
+        // "PDF vinculado" aqui mentia sobre o que aconteceu.
+        : `<div class="ap-noimg"><div class="ap-noimg-ic">!</div><div class="ap-noimg-sub">Falha ao carregar imagem</div></div>`
       : `<div class="ap-noimg"><div class="ap-noimg-ic">—</div><div class="ap-noimg-sub">Sem arte enviada</div></div>`;
   return `
         <div class="page ap-page">
@@ -184,9 +188,12 @@ export async function exportMixedToPDF(
 
   const thumbCount = items.filter(i => i.approvalThumbUrl && !/\.pdf$/i.test(i.approvalThumbUrl)).length;
   if (thumbCount > 0) {
-    toast({ title: `Preparando ${thumbCount} imagem${thumbCount !== 1 ? "ns" : ""}…`, description: "Aguarde um momento" });
+    toast({ title: `Preparando ${thumbCount} image${thumbCount !== 1 ? "ns" : "m"}…`, description: "Aguarde um momento" });
   }
   const thumbDataUris = await prefetchThumbsAsDataUris(items);
+  // O usuário pode ter fechado a janela durante o prefetch — escrever num
+  // documento de janela fechada lança exceção.
+  if (win.closed) return;
   win.document.open();
 
   // Separa por evento primeiro para não misturar peças de eventos diferentes

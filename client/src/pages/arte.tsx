@@ -3,15 +3,13 @@ import { StatusBadge } from "@/components/status-badge";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, File, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, LayoutList, Layers, CheckSquare, Filter, SlidersHorizontal, Palette, ExternalLink, RefreshCw } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, CheckSquare, Palette, ExternalLink, RefreshCw } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { cn, parseDateLocal, runInBatches, fileNameFromPath } from "@/lib/utils";
+import { cn, parseDateLocal, toUTCDisplayDate, runInBatches, fileNameFromPath } from "@/lib/utils";
 // Motor de PDF compartilhado (mesmo da tela de Atendimento) — a Arte não tem
 // mais motor próprio; qualquer ajuste de layout do book vale para as duas telas.
 import { exportMixedToPDF, convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
@@ -21,12 +19,9 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Fragment, useState, useMemo, useEffect, useRef, useCallback, useDeferredValue } from "react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FileUploader } from "@/components/FileUploader";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
@@ -47,7 +42,8 @@ const EVENT_CHIPS_VISIBLE = 8;
  * não de estimativa: a coluna de ID, por exemplo, chega a 208 px quando traz o
  * selo de status abaixo do número. Ficam aqui fora para que o colgroup e o
  * cabeçalho usem exatamente os mesmos valores — é isso que mantém as colunas
- * alinhadas entre grupos, inclusive nos que não repetem o cabeçalho.
+ * alinhadas entre os blocos (cada bloco é uma tabela própria e todos repetem
+ * o cabeçalho com estas mesmas larguras).
  */
 const ARTE_COLS: { label: string; w: number | string; right?: boolean }[] = [
   { label: 'ID',                w: 150 },
@@ -117,6 +113,18 @@ const ARTE_POOL_STATUSES: string[] = [
   'ready_for_production',
   'pronto_para_producao',
   'liberado',
+];
+
+// Lista estática — fora do componente para não ser recriada a cada render
+// (ela entrava nas deps do activeChips e o invalidava sempre).
+const months = [
+  { value: "all", label: "Todos os meses" },
+  { value: "1", label: "Janeiro" }, { value: "2", label: "Fevereiro" },
+  { value: "3", label: "Março" }, { value: "4", label: "Abril" },
+  { value: "5", label: "Maio" }, { value: "6", label: "Junho" },
+  { value: "7", label: "Julho" }, { value: "8", label: "Agosto" },
+  { value: "9", label: "Setembro" }, { value: "10", label: "Outubro" },
+  { value: "11", label: "Novembro" }, { value: "12", label: "Dezembro" },
 ];
 
 export default function Arte() {
@@ -291,6 +299,11 @@ export default function Arte() {
       });
     },
     onError: (error: Error) => {
+      // O lote roda em batches: um erro no meio deixa parte dos itens já
+      // enviada. Sem invalidar aqui, a tabela ficava stale até o WebSocket.
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items/resubmission-needed"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
       toast({
         title: "Erro ao enviar peças",
         description: error.message,
@@ -312,7 +325,7 @@ export default function Arte() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItem(null);
-      setFinalFileUrl("");
+      resetFinalFileState(); // limpa url, nome e a flag de "sujo" de uma vez
       toast({
         title: "Arquivo final enviado",
         description: "O arquivo final foi enviado para revisão da solicitação",
@@ -542,10 +555,20 @@ export default function Arte() {
   };
 
   // Ao abrir ou trocar o evento, pré-marca todas as peças daquele evento.
+  // O ref distingue "abriu/trocou de evento" (pré-marca tudo) de "a lista
+  // mudou por baixo" (ex.: WebSocket): neste caso a seleção do usuário é
+  // preservada — só sai o que deixou de existir no evento.
+  const bookPremarkedEventRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!showBookModal) return;
-    setBookSelectedIds(new Set(arteItemsPool.filter((i: any) => i.eventId === bookEventId).map((i: any) => i.id)));
-  }, [bookEventId, showBookModal]);
+    if (!showBookModal) { bookPremarkedEventRef.current = null; return; }
+    const eventPieceIds = new Set<string>(arteItemsPool.filter((i: any) => i.eventId === bookEventId).map((i: any) => i.id));
+    if (bookPremarkedEventRef.current !== bookEventId) {
+      bookPremarkedEventRef.current = bookEventId;
+      setBookSelectedIds(eventPieceIds);
+    } else {
+      setBookSelectedIds(prev => new Set(Array.from(prev).filter(id => eventPieceIds.has(id))));
+    }
+  }, [bookEventId, showBookModal, arteItemsPool]);
 
   const handleBookFile = async (file?: File | null) => {
     if (!file) return;
@@ -647,7 +670,7 @@ export default function Arte() {
     const toProcess = bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending');
     if (!toProcess.length) return;
     setBulkThumbRunning(true);
-    let enviados = 0, salvos = 0;
+    let enviados = 0, salvos = 0, reenviados = 0;
     for (const entry of toProcess) {
       setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'uploading' } : e));
       try {
@@ -657,9 +680,19 @@ export default function Arte() {
         // enviar mesmo assim e o servidor recusava com erro de status.
         const alvo = [...allItems, ...correcaoItems].find((i: any) => i.id === entry.matchedItemId);
         const podeEnviar = send && alvo?.status === 'awaiting_submission';
+        // Peça em correção usa o fluxo formal de reenvio: o PATCH genérico
+        // trocava a arte em avaliação sem resetar as aprovações recusadas
+        // nem notificar o Atendimento.
+        const emCorrecao = (correcaoItems as any[]).find((c: any) => c.id === entry.matchedItemId);
         if (podeEnviar) {
           await apiRequest("PATCH", `/api/items/${entry.matchedItemId}/submit-for-approval`, { approvalThumbUrl: localPath });
           enviados++;
+        } else if (emCorrecao) {
+          await apiRequest("POST", `/api/items/${entry.matchedItemId}/sponsor-approvals/resubmit`, {
+            newThumbUrl: localPath,
+            sponsorIds: (emCorrecao.awaitingArteApprovals || []).map((a: any) => a.sponsorId),
+          });
+          reenviados++;
         } else {
           await apiRequest("PATCH", `/api/items/${entry.matchedItemId}`, { approvalThumbUrl: localPath });
           salvos++;
@@ -675,6 +708,7 @@ export default function Arte() {
     queryClient.invalidateQueries({ queryKey: ["/api/items/resubmission-needed"] });
     const partes = [
       enviados ? `${enviados} enviado(s) para aprovação` : "",
+      reenviados ? `${reenviados} reenviado(s) para nova aprovação (correção)` : "",
       salvos ? `${salvos} thumb(s) salvo(s)` : "",
     ].filter(Boolean).join(" · ");
     toast({ title: "Upload em lote concluído", description: partes || "Nada a processar" });
@@ -686,14 +720,19 @@ export default function Arte() {
   // Fecha o multi-upload liberando os object URLs dos previews — cada
   // URL.createObjectURL segura o blob na memória até o revoke.
   const closeBulkThumbModal = useCallback(() => {
-    if (bulkThumbRunning) return;
+    if (bulkThumbRunning) {
+      // Fechar no meio do lote deixaria uploads órfãos — avisa em vez de
+      // ignorar o clique em silêncio.
+      toast({ title: "Aguarde o envio terminar", description: "O upload em lote ainda está em andamento." });
+      return;
+    }
     setBulkThumbEntries(prev => {
       prev.forEach(e => URL.revokeObjectURL(e.preview));
       return [];
     });
     setShowBulkThumbModal(false);
     setBulkThumbEventFilter("all");
-  }, [bulkThumbRunning]);
+  }, [bulkThumbRunning, toast]);
 
   const uniqueSponsors = useMemo(() => {
     const map = new Map<string, any>();
@@ -795,16 +834,6 @@ export default function Arte() {
     setPeriodFilter("Todos");
   };
 
-  const months = [
-    { value: "all", label: "Todos os meses" },
-    { value: "1", label: "Janeiro" }, { value: "2", label: "Fevereiro" },
-    { value: "3", label: "Março" }, { value: "4", label: "Abril" },
-    { value: "5", label: "Maio" }, { value: "6", label: "Junho" },
-    { value: "7", label: "Julho" }, { value: "8", label: "Agosto" },
-    { value: "9", label: "Setembro" }, { value: "10", label: "Outubro" },
-    { value: "11", label: "Novembro" }, { value: "12", label: "Dezembro" },
-  ];
-
   // Aplica os filtros uma única vez e separa por aba. As contagens saem do
   // .length de cada balde; só a aba aberta paga o custo da ordenação.
   const itemsByTab = useMemo(() => {
@@ -829,13 +858,20 @@ export default function Arte() {
       if (typeFilter.length && !typeFilter.includes(item.type)) continue;
       if (materialFilter.length && !materialFilter.includes(item.material)) continue;
 
+      // Filtros de data: item sem data de saída fica DE FORA quando o filtro
+      // está ativo — antes ele passava e "Saída 10 dias" listava eventos sem
+      // saída nenhuma. toUTCDisplayDate: mesma base do rótulo "Saída" no
+      // cabeçalho (que exibe em UTC); calcular em local divergia perto da
+      // meia-noite.
       const depRaw = item.event?.truckDepartureDate;
-      if (next10DaysFilter && depRaw) {
-        const dep = new Date(depRaw);
+      if (next10DaysFilter) {
+        if (!depRaw) continue;
+        const dep = toUTCDisplayDate(depRaw);
         if (!(dep >= today && dep <= tenDays)) continue;
       }
-      if (monthFilter.length > 0 && depRaw) {
-        if (!monthFilter.includes((new Date(depRaw).getMonth() + 1).toString())) continue;
+      if (monthFilter.length > 0) {
+        if (!depRaw) continue;
+        if (!monthFilter.includes((toUTCDisplayDate(depRaw).getMonth() + 1).toString())) continue;
       }
       if (search) {
         const hit = [item.displayId, item.type, item.description, item.event?.name]
@@ -849,8 +885,9 @@ export default function Arte() {
       if (comFinal && !item.finalFileUrl) continue;
       if (urgenteFilter && item.event?.priority !== 'urgent') continue;
 
-      if (periodFilter !== "Todos" && depRaw) {
-        const dep = new Date(depRaw);
+      if (periodFilter !== "Todos") {
+        if (!depRaw) continue; // sem data de saída, o item não pertence a nenhum período
+        const dep = toUTCDisplayDate(depRaw);
         if (periodFilter === "Hoje") { if (!(dep >= today && dep < tomorrow)) continue; }
         else if (periodFilter === "7 dias")  { if (!(dep <= in7))  continue; }
         else if (periodFilter === "15 dias") { if (!(dep <= in15)) continue; }
@@ -882,7 +919,9 @@ export default function Arte() {
     if (selectedItem?.approvalThumbUrl && !savedApprovalThumbUrl) {
       setSavedApprovalThumbUrl(selectedItem.approvalThumbUrl);
     }
-  }, [selectedItem?.approvalThumbUrl, savedApprovalThumbUrl]);
+    // approvalThumbPreview nas deps: o efeito lê o valor; o guard acima já
+    // impede loop (só grava quando o preview está vazio).
+  }, [selectedItem?.approvalThumbUrl, savedApprovalThumbUrl, approvalThumbPreview]);
 
   const filteredItems = useMemo(() => {
     const list = itemsByTab[activeTab] ?? [];
@@ -972,7 +1011,19 @@ export default function Arte() {
       toast({ title: "Erro", description: "É necessário fazer upload do PDF compartilhado", variant: "destructive" });
       return;
     }
-    submitBulkForApprovalMutation.mutate({ itemIds: Array.from(selectedItemIds), pdfUrl: sharedPdfUrl });
+    // A seleção persiste entre abas: só peças aguardando envio aceitam
+    // submit-for-approval — as demais devolveriam 409 no meio do lote.
+    const ids = Array.from(selectedItemIds);
+    const elegiveis = ids.filter(id => allItems.find((i: any) => i.id === id)?.status === 'awaiting_submission');
+    const foraDoLote = ids.length - elegiveis.length;
+    if (elegiveis.length === 0) {
+      toast({ title: "Nenhuma peça elegível", description: "Só peças aguardando envio podem receber o PDF compartilhado.", variant: "destructive" });
+      return;
+    }
+    if (foraDoLote > 0) {
+      toast({ title: `${foraDoLote} peça(s) fora do lote`, description: "Apenas as peças aguardando envio serão enviadas para aprovação." });
+    }
+    submitBulkForApprovalMutation.mutate({ itemIds: elegiveis, pdfUrl: sharedPdfUrl });
   };
 
   // ─── ACTIVE CHIPS ──────────────────────────────────────────────────────────
@@ -1005,7 +1056,7 @@ export default function Arte() {
     if (comFinal) chips.push({ kind: 'comFinal', label: "Com arq. final" });
     if (searchFilter) chips.push({ kind: 'search', label: `Busca: "${searchFilter}"` });
     return chips;
-  }, [eventFilter, sponsorFilter, typeFilter, materialFilter, monthFilter, next10DaysFilter, periodFilter, urgenteFilter, semThumb, comThumb, semFinal, comFinal, searchFilter, events, uniqueSponsors, months]);
+  }, [eventFilter, sponsorFilter, typeFilter, materialFilter, monthFilter, next10DaysFilter, periodFilter, urgenteFilter, semThumb, comThumb, semFinal, comFinal, searchFilter, events, uniqueSponsors]);
 
   const removeChipFilter = (chip: ActiveChip) => {
     switch (chip.kind) {
@@ -1039,9 +1090,7 @@ export default function Arte() {
       label: "Pendentes",
       value: pendingCount,
       sub: "para envio",
-      subColor: "#f97316",
       iconBg: "#fff7ed",
-      iconColor: "#f97316",
       accentColor: "#f97316",
       Icon: Clock,
       testId: "stat-pending",
@@ -1050,9 +1099,7 @@ export default function Arte() {
       label: "Aguard. Patrocin.",
       value: itemsForEvent.filter(i => TAB_STATUSES["aguardando-patrocinador"].includes(i.status)).length,
       sub: "em análise",
-      subColor: "#d97706",
       iconBg: "#fffbeb",
-      iconColor: "#d97706",
       accentColor: "#d97706",
       Icon: Clock,
       testId: "stat-awaiting-sponsor",
@@ -1064,9 +1111,7 @@ export default function Arte() {
       label: "Em Correção",
       value: correcaoCount,
       sub: "aguardando nova arte",
-      subColor: "#dc2626",
       iconBg: "#fef2f2",
-      iconColor: "#dc2626",
       accentColor: "#dc2626",
       Icon: AlertTriangle,
       testId: "stat-correcao",
@@ -1075,9 +1120,7 @@ export default function Arte() {
       label: "Prontos p/ Prod.",
       value: itemsForEvent.filter(i => FINALIZADOS_STATUSES.includes(i.status)).length,
       sub: "liberado",
-      subColor: "#16a34a",
       iconBg: "#f0fdf4",
-      iconColor: "#16a34a",
       accentColor: "#16a34a",
       Icon: Package,
       testId: "stat-ready-production",
@@ -1095,7 +1138,14 @@ export default function Arte() {
             {tabId === "criar-aprovacoes" ? "Tudo liberado!" : tabId === "aguardando-patrocinador" ? "Nenhuma peça aguardando patrocinador" : tabId === "finalizar-layouts" ? "Nenhum item aguardando arquivo final" : "Nenhum item finalizado"}
           </p>
           <p style={{ fontSize: 13, color: '#57534e' }}>
-            {tabId === "criar-aprovacoes" ? "Não há itens pendentes no momento" : tabId === "aguardando-patrocinador" ? "Nenhuma peça em aprovação pelo patrocinador" : "Histórico vazio"}
+            {/* Com filtros ativos, "vazio" pode ser só o recorte — dizer isso
+                evita o usuário achar que a fila está zerada. */}
+            {activeFilterCount > 0
+              ? `Nenhuma peça neste recorte com ${activeFilterCount} ${activeFilterCount === 1 ? 'filtro ativo' : 'filtros ativos'} — limpe os filtros para ver tudo`
+              : tabId === "criar-aprovacoes" ? "Não há itens pendentes no momento"
+              : tabId === "aguardando-patrocinador" ? "Nenhuma peça em aprovação pelo patrocinador"
+              : tabId === "finalizar-layouts" ? "Nenhuma peça aprovada aguardando arquivo final"
+              : "Nenhuma peça finalizada ainda"}
           </p>
         </div>
       );
@@ -1202,17 +1252,21 @@ export default function Arte() {
                       {group.event}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                    {group.eventObj?.startDate && (
+                  {/* flexWrap: sem quebra, tudo era nowrap num flex rígido e os
+                      chips de prazo (o dado mais urgente) eram os primeiros a
+                      ser clipados no mobile. As datas somem no mobile — os
+                      chips e o total têm prioridade no espaço curto. */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                    {!isMobile && group.eventObj?.startDate && (
                       <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: 600 }}>
                         <Calendar style={{ width: 12, height: 12 }} />
                         {parseDateLocal(group.eventObj.startDate).toLocaleDateString('pt-BR')}
                       </span>
                     )}
-                    {group.eventObj?.truckDepartureDate && (
+                    {!isMobile && group.eventObj?.truckDepartureDate && (
                       <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: 600 }}>
                         <Truck style={{ width: 12, height: 12 }} />
-                        Saída: {new Date(group.eventObj.truckDepartureDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' })} às {new Date(group.eventObj.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'UTC' })}
+                        Saída: {toUTCDisplayDate(group.eventObj.truckDepartureDate).toLocaleDateString('pt-BR')} às {toUTCDisplayDate(group.eventObj.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                       </span>
                     )}
                     {group.eventObj?.truckDepartureDate && (() => {
@@ -1222,7 +1276,10 @@ export default function Arte() {
                       ];
                       const tod = new Date(); tod.setHours(0,0,0,0);
                       return dls.map(({ label, days }) => {
-                        const d = new Date(new Date(group.eventObj.truckDepartureDate).getTime() + days * 86400000);
+                        // toUTCDisplayDate: mesma base do rótulo "Saída" — o
+                        // chip calculado em local mostrava outro dia perto da
+                        // meia-noite.
+                        const d = new Date(toUTCDisplayDate(group.eventObj.truckDepartureDate).getTime() + days * 86400000);
                         d.setHours(0,0,0,0);
                         const diff = Math.ceil((d.getTime() - tod.getTime()) / 86400000);
                         const ds = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
@@ -1264,15 +1321,21 @@ export default function Arte() {
                 <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                   {group.items.map((item: any) => (
                     <div key={item.id}
+                      role="button"
+                      tabIndex={0}
                       style={{ backgroundColor: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, padding: '12px', marginBottom: 8, cursor: 'pointer' }}
-                      onClick={() => handleViewDetails(item)}>
+                      onClick={() => handleViewDetails(item)}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleViewDetails(item); } }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#f97316', fontSize: 13 }}>{item.displayId}</span>
+                        {/* #c2410c: o laranja da marca (#f97316) reprova AA como texto de 13px. */}
+                        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#c2410c', fontSize: 13 }}>{item.displayId}</span>
                         <StatusBadge status={item.status} />
                       </div>
                       <div style={{ fontWeight: 700, fontSize: 13, color: '#1c1917' }}>{item.type}</div>
                       {item.description && <div style={{ fontSize: 12, color: '#57534e', marginTop: 2 }}>{item.description}</div>}
-                      {item.approvalThumbUrl && <div style={{ marginTop: 6 }}>
+                      {/* Mesmo teste isImage do card de correção: thumb em PDF
+                          virava um <img> quebrado aqui. */}
+                      {item.approvalThumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(item.approvalThumbUrl) || item.approvalThumbUrl.startsWith('/objects/')) && <div style={{ marginTop: 6 }}>
                         <img src={item.approvalThumbUrl} alt="thumb" style={{ maxWidth: 80, maxHeight: 60, borderRadius: 6, objectFit: 'cover' }} />
                       </div>}
                       <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={3} />
@@ -1474,7 +1537,7 @@ export default function Arte() {
                                   <FileImage style={{ width: 13, height: 13 }} />
                                 </a>
                               ) : (
-                                <span title="Sem thumb" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f4', color: '#a8a29e' }}>
+                                <span title="Sem thumb" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f4', color: '#78716c' }}>
                                   <FileImage style={{ width: 13, height: 13 }} />
                                 </span>
                               )}
@@ -1483,7 +1546,7 @@ export default function Arte() {
                                   <FileText style={{ width: 13, height: 13 }} />
                                 </a>
                               ) : (
-                                <span title="Sem arquivo final" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f4', color: '#a8a29e' }}>
+                                <span title="Sem arquivo final" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f4', color: '#78716c' }}>
                                   <FileText style={{ width: 13, height: 13 }} />
                                 </span>
                               )}
@@ -1510,7 +1573,7 @@ export default function Arte() {
                                   color: '#57534e', transition: 'all 0.15s',
                                 }}
                                 onMouseEnter={e => { e.currentTarget.style.color = '#7c3aed'; e.currentTarget.style.borderColor = '#7c3aed'; }}
-                                onMouseLeave={e => { e.currentTarget.style.color = '#746e69'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
+                                onMouseLeave={e => { e.currentTarget.style.color = '#57534e'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
                               >
                                 <Printer style={{ width: 14, height: 14 }} />
                               </button>
@@ -1525,7 +1588,7 @@ export default function Arte() {
                                   color: '#57534e', transition: 'all 0.15s',
                                 }}
                                 onMouseEnter={e => { e.currentTarget.style.color = '#f97316'; e.currentTarget.style.borderColor = '#f97316'; }}
-                                onMouseLeave={e => { e.currentTarget.style.color = '#746e69'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
+                                onMouseLeave={e => { e.currentTarget.style.color = '#57534e'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
                               >
                                 <Eye style={{ width: 14, height: 14 }} />
                               </button>
@@ -1582,7 +1645,7 @@ export default function Arte() {
                                     color: '#57534e', transition: 'all 0.15s',
                                   }}
                                   onMouseEnter={e => { e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#dc2626'; }}
-                                  onMouseLeave={e => { e.currentTarget.style.color = '#746e69'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
+                                  onMouseLeave={e => { e.currentTarget.style.color = '#57534e'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
                                 >
                                   <Ban style={{ width: 14, height: 14 }} />
                                 </button>
@@ -1754,7 +1817,7 @@ export default function Arte() {
                       {groupLabel && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', flexShrink: 0 }}>›</span>}
                       <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: '"Space Grotesk", sans-serif' }}>{item.type}</span>
                       {item.description && item.description !== item.type && (
-                        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.35)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>— {item.description}</span>
+                        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>— {item.description}</span>
                       )}
                     </div>
                   </div>
@@ -1859,7 +1922,7 @@ export default function Arte() {
                         whiteSpace: 'nowrap',
                       }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#44403c'; (e.currentTarget as HTMLElement).style.borderColor = '#c7c3be'; }}
-                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#746e69'; (e.currentTarget as HTMLElement).style.borderColor = '#ebe8e3'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = '#57534e'; (e.currentTarget as HTMLElement).style.borderColor = '#ebe8e3'; }}
                     >
                       <Eye style={{ width: 12, height: 12 }} />
                       Ver versão
@@ -1983,7 +2046,12 @@ export default function Arte() {
               return (
                 <div
                   key={stat.testId}
+                  // Navegação primária da tela: precisa existir para o teclado
+                  // (mesmo padrão dos checkboxes do export-pdf-dialog).
+                  role="button"
+                  tabIndex={0}
                   onClick={() => targetTab && changeTab(targetTab)}
+                  onKeyDown={e => { if (targetTab && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); changeTab(targetTab); } }}
                   data-testid={stat.testId}
                   onMouseEnter={e => { if (targetTab && !isActiveCard) { (e.currentTarget as HTMLElement).style.background = `${stat.accentColor}0d`; (e.currentTarget as HTMLElement).style.borderColor = `${stat.accentColor}40`; } }}
                   onMouseLeave={e => { if (targetTab && !isActiveCard) { (e.currentTarget as HTMLElement).style.background = '#fafaf9'; (e.currentTarget as HTMLElement).style.borderColor = '#e7e5e4'; } }}
@@ -2006,10 +2074,11 @@ export default function Arte() {
                       <Icon style={{ width: 13, height: 13, color: stat.value > 0 ? stat.accentColor : '#c4bfbb' }} />
                     </span>
                   </div>
-                  <span style={{ fontSize: 34, fontWeight: 800, color: isActiveCard ? stat.accentColor : stat.value > 0 ? '#1c1917' : '#b8b4b0', letterSpacing: '-0.05em', lineHeight: 1, fontFamily: '"Space Grotesk",sans-serif' }}>
+                  {/* Zerado usa #78716c: o cinza #b8b4b0 reprovava AA e "0" também é informação. */}
+                  <span style={{ fontSize: 34, fontWeight: 800, color: isActiveCard ? stat.accentColor : stat.value > 0 ? '#1c1917' : '#78716c', letterSpacing: '-0.05em', lineHeight: 1, fontFamily: '"Space Grotesk",sans-serif' }}>
                     {stat.value}
                   </span>
-                  <div style={{ fontSize: 11, color: stat.value > 0 ? '#746e69' : '#b8b4b0' }}>{stat.sub}</div>
+                  <div style={{ fontSize: 11, color: stat.value > 0 ? '#746e69' : '#78716c' }}>{stat.sub}</div>
                   <div style={{ height: 3, borderRadius: 6, backgroundColor: '#e7e5e4', overflow: 'hidden' }}>
                     <div style={{ height: '100%', width: `${pct}%`, backgroundColor: stat.accentColor, borderRadius: 6 }} />
                   </div>
@@ -2027,6 +2096,7 @@ export default function Arte() {
                 value={searchFilter}
                 onChange={e => setSearchFilter(e.target.value)}
                 placeholder="Buscar arte, ID ou projeto..."
+                aria-label="Buscar arte, ID ou projeto"
                 data-testid="input-search-filter"
                 style={{ width: '100%', height: 36, paddingLeft: 30, paddingRight: 10, borderRadius: 8, border: searchFilter ? '1px solid #f97316' : '1px solid #e7e5e4', backgroundColor: '#ffffff', color: '#1c1917', fontSize: 13, boxSizing: 'border-box' }}
               />
@@ -2064,7 +2134,7 @@ export default function Arte() {
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
               {['Hoje', '7 dias', '15 dias', '30 dias', 'Todos'].map(p => (
-                <button key={p} onClick={() => setPeriodFilter(p)}
+                <button key={p} onClick={() => setPeriodFilter(p)} aria-pressed={periodFilter === p}
                   style={{ height: 30, padding: '0 11px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: periodFilter === p ? 700 : 500, background: periodFilter === p ? '#ffffff' : 'transparent', color: periodFilter === p ? '#1c1917' : '#746e69', boxShadow: periodFilter === p ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.12s' }}>
                   {p}
                 </button>
@@ -2073,6 +2143,7 @@ export default function Arte() {
 
             <button
               onClick={() => setNext10DaysFilter(!next10DaysFilter)}
+              aria-pressed={next10DaysFilter}
               data-testid="button-next-10-days-filter"
               style={{ display: 'flex', alignItems: 'center', gap: 5, height: 36, padding: '0 12px', borderRadius: 999, border: next10DaysFilter ? 'none' : '1px solid #d6d3d1', background: next10DaysFilter ? '#1c1917' : 'transparent', color: next10DaysFilter ? '#ffffff' : '#57534e', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s' }}
             >
@@ -2090,7 +2161,7 @@ export default function Arte() {
               { key: 'semFinal', label: 'Sem arq. final', value: semFinal, set: setSemFinal, color: '#0369a1', bg: '#f0f9ff', border: '#7dd3fc' },
               { key: 'comFinal', label: 'Com arq. final', value: comFinal, set: setComFinal, color: '#15803d', bg: '#f0fdf4', border: '#86efac' },
             ] as { key: string; label: string; value: boolean; set: (v: boolean) => void; color: string; bg: string; border: string }[]).map(({ key, label, value, set, color, bg, border }) => (
-              <button key={key} onClick={() => set(!value)}
+              <button key={key} onClick={() => set(!value)} aria-pressed={value}
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 26, padding: '0 10px', borderRadius: 999, cursor: 'pointer', fontSize: 11, fontWeight: 600, transition: 'all 0.14s', border: value ? `1px solid ${border}` : '1px solid transparent', background: value ? bg : '#ede9e4', color: value ? color : '#78716c' }}
               >
                 <span style={{ width: 6, height: 6, borderRadius: '50%', background: value ? color : '#d6d3d1', flexShrink: 0 }} />
@@ -2119,7 +2190,7 @@ export default function Arte() {
 
           {/* ── Tabs + select all ── */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+            <div role="tablist" aria-label="Fases da Arte" style={{ display: 'flex', alignItems: 'flex-end' }}>
               {tabs.map(tab => {
                 const isActive = activeTab === tab.id;
                 const tabColors: Record<string, string> = {
@@ -2139,11 +2210,13 @@ export default function Arte() {
                 return (
                   <button
                     key={tab.id}
+                    role="tab"
+                    aria-selected={isActive}
                     onClick={() => changeTab(tab.id)}
                     data-testid={tab.testId}
                     style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 18px', border: 'none', cursor: 'pointer', borderBottom: isActive ? `2px solid ${accent}` : '2px solid transparent', marginBottom: -1, background: isActive ? `${accent}0d` : 'transparent', color: isActive ? accent : '#78716c', fontWeight: isActive ? 700 : 500, fontSize: 13, whiteSpace: 'nowrap', borderRadius: '6px 6px 0 0', transition: 'all 0.14s' }}
                     onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = '#1c1917'; }}
-                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = '#746e69'; }}
+                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = '#78716c'; }}
                   >
                     {TabIcon && <TabIcon style={{ width: 13, height: 13, flexShrink: 0 }} />}
                     {tab.label}
@@ -2207,7 +2280,7 @@ export default function Arte() {
                 <span style={{ display: 'inline-block', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, color: '#dc2626', backgroundColor: 'rgba(255,218,214,0.5)', padding: '2px 9px', borderRadius: 6, marginBottom: 6 }}>Ação Irreversível</span>
                 <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.04em', fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: 0 }}>Dispensar Peça</h2>
               </div>
-              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#57534e', padding: 2, borderRadius: 6 }}>
+              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} aria-label="Fechar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#57534e', padding: 2, borderRadius: 6 }}>
                 <X style={{ width: 20, height: 20 }} />
               </button>
             </div>
@@ -2287,10 +2360,10 @@ export default function Arte() {
                     <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                       {correcaoItem.displayId && <span style={{ fontFamily: '"Space Grotesk", monospace', fontWeight: 700, color: 'rgba(252,165,165,0.75)', marginRight: 6 }}>{correcaoItem.displayId}</span>}
                       <span style={{ fontWeight: 600 }}>{correcaoItem.type}</span>
-                      {correcaoItem.description && correcaoItem.description !== correcaoItem.type && <span style={{ color: 'rgba(255,255,255,0.3)' }}> · {correcaoItem.description}</span>}
+                      {correcaoItem.description && correcaoItem.description !== correcaoItem.type && <span style={{ color: 'rgba(255,255,255,0.72)' }}> · {correcaoItem.description}</span>}
                     </div>
                     {correcaoItem.event?.name && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'rgba(255,255,255,0.38)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'rgba(255,255,255,0.72)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.7 }}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                         <span>{correcaoItem.event.name}</span>
                       </div>
@@ -2568,7 +2641,7 @@ export default function Arte() {
                       <p style={{ fontSize: 12, fontWeight: 700, color: '#14532d', margin: '0 0 2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'uppercase' }}>
                         {selectedItem.approvalThumbUrl.split('/').pop() || 'THUMB_APROVADO'}
                       </p>
-                      <a href={selectedItem.approvalThumbUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#16a34a', textDecoration: 'underline' }}>
+                      <a href={selectedItem.approvalThumbUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#15803d', textDecoration: 'underline' }}>
                         Clique para visualizar
                       </a>
                     </div>
@@ -2701,7 +2774,7 @@ export default function Arte() {
                           <span style={{ backgroundColor: '#dcfce7', color: '#15803d', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', padding: '2px 8px', borderRadius: 6, lineHeight: 1 }}>
                             Carregado
                           </span>
-                          <span style={{ fontSize: 11, color: 'rgba(59,7,100,0.4)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
+                          <span style={{ fontSize: 11, color: 'rgba(59,7,100,0.6)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
                             {approvalThumbPreview.split('/').pop() || 'thumb_upload'}
                           </span>
                         </div>
@@ -2859,7 +2932,7 @@ export default function Arte() {
                       </FileUploader>
                     )}
                     {!isPasteUploading && (
-                      <p style={{ fontSize: 11, color: '#8b5cf6', margin: '-2px 0 0', fontWeight: 600 }}>
+                      <p style={{ fontSize: 11, color: '#6d28d9', margin: '-2px 0 0', fontWeight: 600 }}>
                         ou Ctrl+V para colar direto
                       </p>
                     )}
@@ -2890,9 +2963,10 @@ export default function Arte() {
               </div>
               <button
                 onClick={() => { setShowBulkDialog(false); setSharedPdfUrl(""); }}
+                aria-label="Fechar"
                 style={{ padding: '6px', backgroundColor: '#f3f4f3', border: 'none', borderRadius: '50%', cursor: 'pointer', color: '#57534e', lineHeight: 1, flexShrink: 0 }}
                 onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
-                onMouseLeave={e => { e.currentTarget.style.color = '#746e69'; }}
+                onMouseLeave={e => { e.currentTarget.style.color = '#57534e'; }}
               >
                 <X style={{ width: 18, height: 18 }} />
               </button>
@@ -3069,6 +3143,7 @@ export default function Arte() {
             </div>
             <button
               onClick={() => setShowBookModal(false)}
+              aria-label="Fechar"
               style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '50%', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', flexShrink: 0, transition: 'background 0.15s' }}
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
@@ -3107,7 +3182,7 @@ export default function Arte() {
                   <a
                     href={existingBookUrl} target="_blank" rel="noopener noreferrer"
                     onClick={e => e.stopPropagation()}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#f97316', textDecoration: 'none', background: '#fff', border: '1px solid #fed7aa', borderRadius: 6, padding: '5px 10px', flexShrink: 0, whiteSpace: 'nowrap' }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#c2410c', textDecoration: 'none', background: '#fff', border: '1px solid #fed7aa', borderRadius: 6, padding: '5px 10px', flexShrink: 0, whiteSpace: 'nowrap' }}
                   >
                     <ExternalLink style={{ width: 11, height: 11 }} /> Ver book
                   </a>
@@ -3158,10 +3233,10 @@ export default function Arte() {
                     <p style={{ fontSize: 11, color: '#57534e', margin: '2px 0 0' }}>Somente arquivos .PDF · Qualquer tamanho</p>
                   )}
                   {bookFileUrl && (
-                    <p style={{ fontSize: 11, color: '#f97316', margin: '2px 0 0', fontWeight: 600 }}>✓ Arquivo carregado — pronto para salvar</p>
+                    <p style={{ fontSize: 11, color: '#c2410c', margin: '2px 0 0', fontWeight: 600 }}>✓ Arquivo carregado — pronto para salvar</p>
                   )}
                 </div>
-                {bookFileUrl && <span style={{ fontSize: 11, fontWeight: 700, color: '#f97316', flexShrink: 0, padding: '4px 10px', border: '1px solid #fed7aa', borderRadius: 6, background: '#fff' }}>Trocar</span>}
+                {bookFileUrl && <span style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', flexShrink: 0, padding: '4px 10px', border: '1px solid #fed7aa', borderRadius: 6, background: '#fff' }}>Trocar</span>}
                 <input type="file" accept="application/pdf,.pdf" style={{ display: 'none' }}
                   onChange={e => { handleBookFile(e.target.files?.[0]); e.target.value = ''; }} />
               </label>
@@ -3181,8 +3256,8 @@ export default function Arte() {
                 {bookEventPieces.length > 0 && (
                   <div style={{ display: 'flex', gap: 2, alignItems: 'center' }}>
                     <button onClick={() => setBookSelectedIds(new Set(bookEventPieces.map((i: any) => i.id)))}
-                      style={{ background: 'none', border: 'none', padding: '3px 8px', fontSize: 11, fontWeight: 700, color: '#f97316', cursor: 'pointer', borderRadius: 6, transition: 'color 0.1s', textDecoration: 'underline', textDecorationColor: 'transparent', textUnderlineOffset: '2px' }}
-                      onMouseEnter={e => { e.currentTarget.style.textDecorationColor = '#f97316'; }}
+                      style={{ background: 'none', border: 'none', padding: '3px 8px', fontSize: 11, fontWeight: 700, color: '#c2410c', cursor: 'pointer', borderRadius: 6, transition: 'color 0.1s', textDecoration: 'underline', textDecorationColor: 'transparent', textUnderlineOffset: '2px' }}
+                      onMouseEnter={e => { e.currentTarget.style.textDecorationColor = '#c2410c'; }}
                       onMouseLeave={e => { e.currentTarget.style.textDecorationColor = 'transparent'; }}
                     >Todas</button>
                     <span style={{ color: '#d4d4d0', userSelect: 'none' }}>·</span>
@@ -3203,9 +3278,16 @@ export default function Arte() {
                 ) : bookEventPieces.map((item: any, idx: number) => {
                   const on = bookSelectedIds.has(item.id);
                   const isLast = idx === bookEventPieces.length - 1;
+                  const toggleBookPiece = () => setBookSelectedIds(prev => { const n = new Set(prev); if (n.has(item.id)) n.delete(item.id); else n.add(item.id); return n; });
                   return (
                     <div key={item.id}
-                      onClick={() => setBookSelectedIds(prev => { const n = new Set(prev); if (n.has(item.id)) n.delete(item.id); else n.add(item.id); return n; })}
+                      // Mesmo padrão de checkbox acessível do export-pdf-dialog.
+                      role="checkbox"
+                      aria-checked={on}
+                      aria-label={`${item.displayId} — ${item.type}`}
+                      tabIndex={0}
+                      onClick={toggleBookPiece}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleBookPiece(); } }}
                       style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', borderBottom: isLast ? 'none' : '1px solid #f5f4f2', cursor: 'pointer', background: on ? '#fff7ed' : '#ffffff', transition: 'background 0.1s' }}
                       onMouseEnter={e => { if (!on) e.currentTarget.style.background = '#fafaf9'; }}
                       onMouseLeave={e => { e.currentTarget.style.background = on ? '#fff7ed' : '#ffffff'; }}
@@ -3217,7 +3299,7 @@ export default function Arte() {
                       <span style={{ minWidth: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 5, overflow: 'hidden' }}>
                           {groupOf(item.type) && (
-                            <span style={{ fontSize: 11, fontWeight: 600, color: on ? '#f97316' : '#b8b3ad', background: on ? '#fff7ed' : '#f5f4f2', border: `1px solid ${on ? '#fed7aa' : '#ebe8e3'}`, borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.02em', transition: 'all 0.12s' }}>{groupOf(item.type)}</span>
+                            <span style={{ fontSize: 11, fontWeight: 600, color: on ? '#c2410c' : '#78716c', background: on ? '#fff7ed' : '#f5f4f2', border: `1px solid ${on ? '#fed7aa' : '#ebe8e3'}`, borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.02em', transition: 'all 0.12s' }}>{groupOf(item.type)}</span>
                           )}
                           <span style={{ fontSize: 12, fontWeight: 600, color: on ? '#1c1917' : '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', transition: 'color 0.1s' }}>{item.type}</span>
                         </div>
@@ -3241,7 +3323,7 @@ export default function Arte() {
             <button onClick={() => setShowBookModal(false)}
               style={{ height: 40, padding: '0 16px', borderRadius: 8, background: 'transparent', border: 'none', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'color 0.12s' }}
               onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
-              onMouseLeave={e => { e.currentTarget.style.color = '#746e69'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = '#57534e'; }}
             >Cancelar</button>
             {/* Filled — Salvar book */}
             <button
@@ -3295,7 +3377,9 @@ export default function Arte() {
             </div>
             <button
               onClick={closeBulkThumbModal}
-              style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '50%', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', flexShrink: 0, transition: 'background 0.15s' }}
+              aria-label="Fechar"
+              aria-disabled={bulkThumbRunning}
+              style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '50%', cursor: bulkThumbRunning ? 'not-allowed' : 'pointer', color: 'rgba(255,255,255,0.7)', flexShrink: 0, transition: 'background 0.15s', opacity: bulkThumbRunning ? 0.4 : 1 }}
               onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'; }}
               onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
             >
@@ -3559,7 +3643,7 @@ export default function Arte() {
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                                 <div style={{ flex: 1, padding: '5px 8px', borderRadius: 6, backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', minWidth: 0 }}>
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                                    <span style={{ fontSize: 11, fontWeight: 800, color: '#3b82f6', textTransform: 'uppercase', letterSpacing: '0.04em', flexShrink: 0 }}>{matchedItem.displayId}</span>
+                                    <span style={{ fontSize: 11, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.04em', flexShrink: 0 }}>{matchedItem.displayId}</span>
                                     <span style={{ fontSize: 11, fontWeight: 700, color: '#1e3a5f', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{matchedItem.type}</span>
                                   </div>
                                   {matchedItem.event?.name && (
@@ -3569,7 +3653,7 @@ export default function Arte() {
                                 <button
                                   onClick={() => setBulkThumbEntries(prev => prev.map(en => en.id === entry.id ? { ...en, matchedItemId: null } : en))}
                                   title="Trocar vínculo"
-                                  style={{ flexShrink: 0, background: '#ffffff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', color: '#3b82f6', fontSize: 11, fontWeight: 700, transition: 'all 0.12s' }}
+                                  style={{ flexShrink: 0, background: '#ffffff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', color: '#1d4ed8', fontSize: 11, fontWeight: 700, transition: 'all 0.12s' }}
                                   onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#eff6ff'; }}
                                   onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
                                 >Trocar</button>
@@ -3720,9 +3804,10 @@ export default function Arte() {
                   {/* Ghost — Cancelar */}
                   <button
                     onClick={closeBulkThumbModal}
-                    style={{ height: 38, padding: '0 16px', borderRadius: 6, background: 'transparent', border: 'none', color: '#57534e', cursor: 'pointer', fontSize: 13, fontWeight: 600, transition: 'color 0.12s' }}
+                    aria-disabled={bulkThumbRunning}
+                    style={{ height: 38, padding: '0 16px', borderRadius: 6, background: 'transparent', border: 'none', color: '#57534e', cursor: bulkThumbRunning ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600, transition: 'color 0.12s', opacity: bulkThumbRunning ? 0.4 : 1 }}
                     onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
-                    onMouseLeave={e => { e.currentTarget.style.color = '#746e69'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = '#57534e'; }}
                   >Cancelar</button>
 
                   {/* Outline — Salvar como rascunho (secundário) */}

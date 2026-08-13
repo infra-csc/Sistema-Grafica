@@ -75,6 +75,14 @@ export const STATUS: Record<string, StatusMeta> = {
   produced:              meta("Produzido",              "Produzido",      P.pink,    CheckCircle),
   conferred:             meta("Conferido",              "Conferido",      P.cyan,    CheckCircle),
   delivered:             meta("Entregue",               "Entregue",       P.emerald, Truck),
+  // ── Aliases LEGADOS em português (dados antigos ainda gravados assim) ──
+  // Apontam para os mesmos metas dos status canônicos correspondentes
+  // (liberado→approved, em_producao→inProduction, produzido→produced,
+  // entregue→delivered). Sem eles, o badge caía no fallback "—".
+  liberado:              meta("Liberado",               "Liberado",       P.green,   CheckCircle),
+  em_producao:           meta("Em Produção",            "Em Produção",    P.orange,  Package),
+  produzido:             meta("Produzido",              "Produzido",      P.pink,    CheckCircle),
+  entregue:              meta("Entregue",               "Entregue",       P.emerald, Truck),
   // ── Encerrados ──
   canceled:              meta("Cancelado",              "Cancelado",      P.red, XCircle),
   deleted:               meta("Excluído",               "Excluído",       P.red, XCircle),

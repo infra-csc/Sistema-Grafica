@@ -9,7 +9,6 @@ import { FilterSelect } from "@/components/filter-select";
 import { BookPagePicker } from "@/components/book-page-picker";
 import { exportMixedToPDF, groupKeyOf, MAX_ITEMS_PER_COMBINED_PAGE, convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { toast } from "@/hooks/use-toast";
 
 interface ExportPdfDialogProps {
   open: boolean;
@@ -196,6 +195,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
           </div>
           <button
             onClick={() => onOpenChange(false)}
+            aria-label="Fechar"
             style={{ width: 40, height: 40, borderRadius: "50%", backgroundColor: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", cursor: "pointer", color: "rgba(255,255,255,0.7)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             <X style={{ width: 16, height: 16 }} />
           </button>
@@ -438,19 +438,20 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                   </button>
                   <button
                     onClick={() => {
-                      // O retorno do primeiro window.open denuncia o bloqueador
-                      // de pop-up — sem o teste, o clique "não fazia nada" e o
-                      // modal ainda fechava por cima.
-                      const first = window.open(booksInSelection[0]?.url, "_blank", "noopener,noreferrer");
-                      if (!first) {
-                        toast({
-                          title: "Pop-up bloqueado",
-                          description: "Permita pop-ups para abrir os books.",
-                          variant: "destructive",
-                        });
-                        return;
-                      }
-                      booksInSelection.slice(1).forEach(b => window.open(b.url, "_blank", "noopener,noreferrer"));
+                      // window.open com "noopener" retorna SEMPRE null por
+                      // especificação — o teste de pop-up dava falso positivo,
+                      // os books seguintes não abriam e o modal não fechava.
+                      // Âncora dinâmica abre cada book sem depender do retorno
+                      // (cliques de usuário não disparam o bloqueador).
+                      booksInSelection.forEach(b => {
+                        const a = document.createElement("a");
+                        a.href = b.url;
+                        a.target = "_blank";
+                        a.rel = "noopener";
+                        document.body.appendChild(a);
+                        a.click();
+                        a.remove();
+                      });
                       onOpenChange(false);
                     }}
                     data-testid="button-export-book"

@@ -941,19 +941,22 @@ export default function GestaoPrazos() {
   } else if (visao === "quadro") {
     // ── Quadro (visão principal): uma coluna por etapa, o evento é um card
     // na coluna onde o funil dele está travado. Clique abre o drill em modal.
+    // Grid fluido: as 5 colunas SEMPRE cabem na largura — quadro é visão de
+    // relance, scroll horizontal quebrava exatamente isso.
     body = (
-      <div style={{ display: "flex", gap: 12, overflowX: "auto", alignItems: "flex-start", paddingBottom: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(0, 1fr))", gap: 10, alignItems: "start" }}>
         {stageMeta.map((m, i) => {
           const colEvents = filtered.filter((ev) => currentStageIdx(ev) === i);
           const colOverdue = colEvents.filter((ev) => ev.stages[i]?.state === "overdue").length;
           return (
-            <div key={m.key} style={{ flex: "0 0 272px", minWidth: 272 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "0 4px 8px" }}>
-                <span style={{
-                  fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em",
+            <div key={m.key} style={{ minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "0 4px 8px", minWidth: 0 }}>
+                <span title={m.label} style={{
+                  fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
                   color: TI.label, fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0,
                 }}>
-                  {m.label}
+                  {STAGE_SHORT[m.key] ?? m.label}
                 </span>
                 <span style={{ fontSize: 11, fontWeight: 700, color: TI.secondary }}>{colEvents.length}</span>
                 {colOverdue > 0 && (

@@ -2,7 +2,7 @@
 // atrasado, o quanto, e quem está travando. Todo o cálculo de marcos vive no
 // servidor (GET /api/prazos); aqui só se filtra e se pinta.
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useState, useMemo, useEffect, Fragment } from "react";
+import { useState, useMemo, useEffect, useRef, Fragment } from "react";
 import { Link } from "wouter";
 import {
   Truck, ChevronDown, RotateCcw, Search, CalendarRange,
@@ -539,7 +539,9 @@ export default function GestaoPrazos() {
       soSaidas7d: p.get("saidas7") === "1",
       busca: p.get("q") ?? "",
       prioridade: p.get("prioridade") ?? "all",
-      ordem: p.get("ordem") === "atraso" ? "atraso" : "saida",
+      // "Mais atrasado" é o padrão: a tela existe para cobrar atraso — o
+      // pior evento tem que ser a primeira linha, não estar no meio da lista.
+      ordem: p.get("ordem") === "saida" ? "saida" : "atraso",
     };
   }, []);
   const [soAtrasados, setSoAtrasados] = useState(initial.soAtrasados);
@@ -550,6 +552,9 @@ export default function GestaoPrazos() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedSponsorId, setExpandedSponsorId] = useState<string | null>(null);
   const [showAllSponsors, setShowAllSponsors] = useState(false);
+  // Diagnóstico (setores/patrocinadores) recolhido por padrão: a primeira
+  // dobra é placar + eventos — análise é segundo passo, não boas-vindas.
+  const [showDiag, setShowDiag] = useState(false);
 
   // Espelha filtros na URL sem empilhar histórico (preserva o hash).
   // Debounce: replaceState a cada tecla estoura o rate-limit do Safari
@@ -561,7 +566,7 @@ export default function GestaoPrazos() {
       if (soSaidas7d) p.set("saidas7", "1");
       if (busca) p.set("q", busca);
       if (prioridade !== "all") p.set("prioridade", prioridade);
-      if (ordem !== "saida") p.set("ordem", ordem);
+      if (ordem !== "atraso") p.set("ordem", ordem);
       const qs = p.toString();
       window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash}`);
     }, 300);
@@ -571,8 +576,23 @@ export default function GestaoPrazos() {
   const events = data?.events ?? [];
 
   // KPIs vêm do SERVIDOR (fonte única, mesma âncora de "hoje" do semáforo e
-  // do snapshot de tendência) — o cliente parou de fazer conta própria.
-  const kpis = data?.kpis ?? { atrasados: 0, saidas7d: 0, pecasAtrasadas: 0, emDia: 0, invalidCount: 0 };
+  // do snapshot de tendência). Fallback calculado NO CLIENTE para o cenário
+  // git-pull-sem-Stop/Run: o Express velho responde sem `kpis` e mostrar
+  // zeros com eventos na tela seria o pior dos mundos.
+  const kpis = useMemo(() => {
+    if (data?.kpis) return data.kpis;
+    const atrasados = events.filter(eventHasOverdue).length;
+    return {
+      atrasados,
+      saidas7d: 0,
+      pecasAtrasadas: events.reduce((acc, ev) => {
+        const overdue = ev.stages.filter((s) => s.state === "overdue");
+        return acc + (overdue.length ? overdue[overdue.length - 1].pendingCount : 0);
+      }, 0),
+      emDia: events.length - atrasados,
+      invalidCount: events.filter((ev) => ev.invalidDate).length,
+    };
+  }, [data, events]);
   const trend = data?.trend ?? null;
   const cobrancas = data?.cobrancas ?? {};
 
@@ -662,6 +682,17 @@ export default function GestaoPrazos() {
     }
     return list;
   }, [events, soAtrasados, soSaidas7d, prioridade, busca, ordem]);
+
+  // "Primeiro focar no evento com peças em atraso": na primeira carga, o
+  // pior evento atrasado já chega expandido — o caminho evento→peça começa
+  // aberto, sem clique. Só uma vez; depois o controle é do usuário.
+  const autoExpandedRef = useRef(false);
+  useEffect(() => {
+    if (autoExpandedRef.current || !data) return;
+    autoExpandedRef.current = true;
+    const worst = filtered.find(eventHasOverdue);
+    if (worst) setExpandedId(worst.id);
+  }, [data, filtered]);
 
   const hasActiveFilters = soAtrasados || soSaidas7d || busca.trim() !== "" || prioridade !== "all";
   const clearFilters = () => { setSoAtrasados(false); setSoSaidas7d(false); setBusca(""); setPrioridade("all"); };
@@ -1033,6 +1064,272 @@ export default function GestaoPrazos() {
     );
   }
 
+  // ── Diagnóstico (setores + patrocinadores): abaixo da tabela e RECOLHIDO
+  // por padrão. O caminho principal da tela é evento → peça; a análise
+  // agregada é segundo passo — quando aberta, aparece em 2 colunas.
+  const worstSector = sectorSummary.find((s) => s.isWorst);
+  const diagBand = data && events.length > 0 ? (
+    <section aria-label="Análise por setor e patrocinador" style={{ marginTop: 22 }}>
+      <button
+        type="button"
+        onClick={() => setShowDiag((v) => !v)}
+        aria-expanded={showDiag}
+        data-testid="toggle-diagnostico"
+        className="gp-no-print"
+        style={{
+          display: "flex", alignItems: "center", gap: 8, width: "100%",
+          padding: "12px 16px", borderRadius: 12,
+          border: `1px solid ${TI.border}`, backgroundColor: TI.card,
+          fontSize: 13, fontWeight: 700, color: TI.title, cursor: "pointer",
+          textAlign: "left",
+        }}
+      >
+        <ChevronDown aria-hidden="true" style={{
+          width: 15, height: 15, color: TI.label, flexShrink: 0,
+          transform: showDiag ? "rotate(180deg)" : "none",
+          transition: "transform 0.15s ease",
+        }} />
+        Análise por setor e patrocinador
+        {!showDiag && (
+          <span style={{ fontSize: 12, fontWeight: 500, color: TI.secondary, marginLeft: 4, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {worstSector
+              ? `· gargalo: ${worstSector.sector} (${worstSector.count} peça${worstSector.count !== 1 ? "s" : ""})`
+              : "· sem gargalo definido"}
+            {sponsorDelays.length > 0 && ` · ${sponsorDelays.length} patrocinador${sponsorDelays.length !== 1 ? "es" : ""} segurando aprovação`}
+          </span>
+        )}
+      </button>
+      {showDiag && (
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: isMobile ? "1fr" : "3fr 2fr",
+          gap: 14, marginTop: 12, alignItems: "start",
+        }}>
+          <section aria-label="Gargalo por setor">
+            <h2 style={{
+              margin: "0 0 8px", fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+              letterSpacing: "0.1em", color: TI.label, fontFamily: "'Plus Jakarta Sans', sans-serif",
+            }}>
+              Onde as peças estão paradas agora
+            </h2>
+            <div style={{
+              display: "grid", gap: 10,
+              gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+            }}>
+              {sectorSummary.map((s) => (
+                <div
+                  key={s.key}
+                  data-testid={`setor-${s.key}`}
+                  style={{
+                    backgroundColor: TI.card, borderRadius: 12, padding: "12px 14px", minWidth: 0,
+                    border: s.isWorst ? "1.5px solid #fca5a5" : `1px solid ${TI.border}`,
+                  }}
+                >
+                  <span style={{ display: "block", fontSize: 12, fontWeight: 800, color: TI.title, fontFamily: "'Space Grotesk', sans-serif" }}>
+                    {s.sector}
+                  </span>
+                  <span style={{ display: "block", fontSize: 10, color: TI.label, marginBottom: 8 }}>
+                    {s.stageLabel}
+                  </span>
+                  <span style={{
+                    fontSize: 24, fontWeight: 800, lineHeight: 1,
+                    fontFamily: "'Space Grotesk', sans-serif",
+                    color: s.count === 0 ? TI.label : s.isWorst ? TI.red : TI.title,
+                  }}>
+                    {s.count}
+                  </span>
+                  <span style={{ fontSize: 11, color: TI.secondary, marginLeft: 5 }}>
+                    peça{s.count !== 1 ? "s" : ""}
+                  </span>
+                  {s.count > 0 ? (
+                    <span
+                      title="Dias desde a última alteração de cada peça"
+                      // Neutro de propósito: vermelho aqui competia com os
+                      // alarmes reais — o alarme deste bloco é o selo de gargalo.
+                      style={{ display: "block", fontSize: 11, color: TI.secondary, marginTop: 4 }}
+                    >
+                      sem movimento: média {s.avgDays}d · pior {s.maxDays}d · {s.eventCount} evento{s.eventCount !== 1 ? "s" : ""}
+                    </span>
+                  ) : (
+                    <span style={{ display: "block", fontSize: 11, color: TI.label, marginTop: 4 }}>
+                      mesa limpa
+                    </span>
+                  )}
+                  {s.isWorst && (
+                    <span style={{
+                      display: "inline-block", marginTop: 6, padding: "1px 8px", borderRadius: 999,
+                      backgroundColor: TI.redBg, color: TI.red, fontSize: 10, fontWeight: 700,
+                      textTransform: "uppercase", letterSpacing: "0.06em",
+                    }}>
+                      maior gargalo
+                    </span>
+                  )}
+                  {s.producedCount > 0 && (
+                    <span style={{ display: "block", fontSize: 11, color: TI.secondary, marginTop: 4 }}>
+                      {s.producedCount} já produzida{s.producedCount !== 1 ? "s" : ""} — aguardando conferência/entrega
+                    </span>
+                  )}
+                  {s.count > 0 && (
+                    <Link href={s.url ?? "/eventos"} style={{ display: "inline-block", marginTop: 6, fontSize: 11, fontWeight: 700, color: "#9a3412", textDecoration: "none" }}>
+                      Abrir {s.url ? s.sector : "Eventos"} →
+                    </Link>
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section aria-label="Aprovações travadas por patrocinador">
+            <h2 style={{
+              margin: "0 0 8px", fontSize: 11, fontWeight: 700, textTransform: "uppercase",
+              letterSpacing: "0.1em", color: TI.label, fontFamily: "'Plus Jakarta Sans', sans-serif",
+            }}>
+              Aprovações travadas por patrocinador
+            </h2>
+            {sponsorDelays.length === 0 ? (
+              <div style={{
+                backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: 12,
+                padding: "16px 14px", display: "flex", alignItems: "center", gap: 8,
+              }}>
+                <CheckCircle2 aria-hidden="true" style={{ width: 16, height: 16, color: TI.green, flexShrink: 0 }} />
+                <span style={{ fontSize: 13, fontWeight: 600, color: TI.secondary }}>
+                  Nenhum patrocinador segurando aprovação.
+                </span>
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto", backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: 12 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 440 }}>
+                  <caption className="sr-only">Patrocinadores com aprovações pendentes, pior primeiro</caption>
+                  <thead>
+                    <tr style={{ borderBottom: `1px solid ${TI.border}` }}>
+                      <th scope="col" style={{ ...DRILL_TH, textAlign: "left", paddingLeft: 14 }}>Patrocinador</th>
+                      <th scope="col" style={DRILL_TH}>Peças</th>
+                      <th scope="col" style={DRILL_TH}>Pior espera</th>
+                      <th scope="col" style={DRILL_TH}><span className="sr-only">Ações</span></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(showAllSponsors ? sponsorDelays : sponsorDelays.slice(0, 5)).map((sp) => {
+                      const spExpanded = expandedSponsorId === sp.sponsorId;
+                      const spCobranca = cobrancas[`sponsor:${sp.sponsorId}`];
+                      return (
+                        <Fragment key={sp.sponsorId}>
+                          <tr style={{ borderBottom: spExpanded ? "none" : `1px solid #f0efee` }}>
+                            <td style={{ padding: "8px 6px 8px 14px", fontSize: 13, fontWeight: 700, color: TI.title }}>
+                              <button
+                                type="button"
+                                onClick={() => setExpandedSponsorId(spExpanded ? null : sp.sponsorId)}
+                                aria-expanded={spExpanded}
+                                aria-controls={spExpanded ? `sp-drill-${sp.sponsorId}` : undefined}
+                                style={{
+                                  display: "inline-flex", alignItems: "center", gap: 6,
+                                  background: "none", border: "none", padding: 0,
+                                  fontSize: 13, fontWeight: 700, color: TI.title, cursor: "pointer",
+                                  textAlign: "left",
+                                }}
+                              >
+                                <ChevronDown aria-hidden="true" style={{
+                                  width: 13, height: 13, color: TI.label, flexShrink: 0,
+                                  transform: spExpanded ? "rotate(180deg)" : "none",
+                                  transition: "transform 0.15s ease",
+                                }} />
+                                {sp.name}
+                              </button>
+                              <span style={{ display: "block", fontSize: 10, color: TI.label, marginLeft: 19 }}>
+                                {sp.eventCount} evento{sp.eventCount !== 1 ? "s" : ""}
+                                {spCobranca && (
+                                  <span style={{ color: spCobranca.daysAgo >= 3 ? TI.red : TI.label, fontWeight: 600 }}>
+                                    {" · "}cobrado {spCobranca.daysAgo === 0 ? "hoje" : `há ${spCobranca.daysAgo}d`}
+                                  </span>
+                                )}
+                              </span>
+                            </td>
+                            <td style={{
+                              padding: "8px 6px", textAlign: "center", fontSize: 13, fontWeight: 800,
+                              fontFamily: "'Space Grotesk', sans-serif",
+                              color: sp.maxDays >= 7 ? TI.red : TI.title,
+                            }}>
+                              {sp.pendingCount}
+                            </td>
+                            <td style={{
+                              padding: "8px 6px", textAlign: "center", fontSize: 12, fontWeight: 700,
+                              color: dayColor(sp.maxDays),
+                            }}>
+                              {sp.maxDays === 0 ? "hoje" : `${sp.maxDays}d`}
+                            </td>
+                            <td style={{ padding: "8px 14px 8px 6px", textAlign: "right", whiteSpace: "nowrap" }}>
+                              <Link
+                                href={`/atendimento?patrocinador=${sp.sponsorId}`}
+                                aria-label={`Cobrar ${sp.name} no Atendimento`}
+                                style={{ fontSize: 11, fontWeight: 700, color: "#9a3412", textDecoration: "none" }}
+                              >
+                                Cobrar →
+                              </Link>
+                            </td>
+                          </tr>
+                          {spExpanded && (
+                            <tr style={{ borderBottom: `1px solid #f0efee`, backgroundColor: "#fcfcfb" }}>
+                              <td id={`sp-drill-${sp.sponsorId}`} colSpan={4} style={{ padding: "6px 14px 12px" }}>
+                                <div className="gp-no-print" style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
+                                  <CobradoControl targetType="sponsor" targetId={sp.sponsorId} cobranca={spCobranca} />
+                                </div>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                  {(sp.items ?? []).map((it) => (
+                                    <Link
+                                      key={it.itemId}
+                                      href={`/eventos/${it.eventId}?item=${it.itemId}`}
+                                      title={`${it.eventName} — abrir a peça`}
+                                      style={{
+                                        display: "inline-flex", alignItems: "center", gap: 5,
+                                        padding: "3px 9px", borderRadius: 999,
+                                        backgroundColor: "#f5f5f4", border: `1px solid ${TI.border}`,
+                                        fontSize: 11, fontWeight: 600, color: "#57534e",
+                                        textDecoration: "none", lineHeight: 1.5,
+                                      }}
+                                    >
+                                      {it.displayId}
+                                      <span style={{ color: TI.label }}>{it.eventName}</span>
+                                      <span style={{ fontWeight: 700, color: dayColor(it.days) }}>
+                                        {it.days === 0 ? "hoje" : `${it.days}d`}
+                                      </span>
+                                    </Link>
+                                  ))}
+                                  {sp.pendingCount > (sp.items ?? []).length && (
+                                    <span style={{ fontSize: 11, color: TI.label, alignSelf: "center" }}>
+                                      +{sp.pendingCount - (sp.items ?? []).length} no Atendimento
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+                {sponsorDelays.length > 5 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllSponsors((v) => !v)}
+                    className="gp-no-print"
+                    style={{
+                      display: "block", width: "100%", padding: "8px 0",
+                      background: "none", border: "none", borderTop: `1px solid #f0efee`,
+                      fontSize: 12, fontWeight: 700, color: "#9a3412", cursor: "pointer",
+                    }}
+                  >
+                    {showAllSponsors ? "Mostrar só os 5 piores" : `Ver todos (${sponsorDelays.length})`}
+                  </button>
+                )}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+    </section>
+  ) : null;
+
   return (
     <div style={{ backgroundColor: TI.bg, minHeight: "100%", padding: isMobile ? "16px 12px 32px" : "24px 24px 48px" }}>
       {/* Relatório de cobrança vai para reunião: a impressão esconde os
@@ -1137,239 +1434,6 @@ export default function GestaoPrazos() {
           </div>
         )}
 
-        {/* Faixa de diagnóstico: setores e patrocinadores lado a lado no
-            desktop — empilhados, empurravam a tabela-mãe para fora da dobra
-            do notebook. */}
-        {data && events.length > 0 && (
-          <div style={{
-            display: "grid",
-            gridTemplateColumns: isMobile ? "1fr" : "3fr 2fr",
-            gap: 14, marginBottom: 16, alignItems: "start",
-          }}>
-          <section aria-label="Gargalo por setor">
-            <h2 style={{
-              margin: "0 0 8px", fontSize: 11, fontWeight: 700, textTransform: "uppercase",
-              letterSpacing: "0.1em", color: TI.label, fontFamily: "'Plus Jakarta Sans', sans-serif",
-            }}>
-              Onde as peças estão paradas agora
-            </h2>
-            <div style={{
-              display: "grid", gap: 10,
-              // auto-fit: sem card órfão ocupando meia linha em nenhuma largura.
-              gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-            }}>
-              {sectorSummary.map((s) => (
-                <div
-                  key={s.key}
-                  data-testid={`setor-${s.key}`}
-                  style={{
-                    backgroundColor: TI.card, borderRadius: 12, padding: "12px 14px", minWidth: 0,
-                    border: s.isWorst ? "1.5px solid #fca5a5" : `1px solid ${TI.border}`,
-                  }}
-                >
-                  <span style={{ display: "block", fontSize: 12, fontWeight: 800, color: TI.title, fontFamily: "'Space Grotesk', sans-serif" }}>
-                    {s.sector}
-                  </span>
-                  <span style={{ display: "block", fontSize: 10, color: TI.label, marginBottom: 8 }}>
-                    {s.stageLabel}
-                  </span>
-                  <span style={{
-                    fontSize: 24, fontWeight: 800, lineHeight: 1,
-                    fontFamily: "'Space Grotesk', sans-serif",
-                    color: s.count === 0 ? TI.label : s.isWorst ? TI.red : TI.title,
-                  }}>
-                    {s.count}
-                  </span>
-                  <span style={{ fontSize: 11, color: TI.secondary, marginLeft: 5 }}>
-                    peça{s.count !== 1 ? "s" : ""}
-                  </span>
-                  {s.count > 0 ? (
-                    <span
-                      title="Dias desde a última alteração de cada peça"
-                      style={{ display: "block", fontSize: 11, color: s.maxDays >= 3 ? dayColor(s.maxDays) : TI.secondary, marginTop: 4 }}
-                    >
-                      sem movimento: média {s.avgDays}d · pior {s.maxDays}d · {s.eventCount} evento{s.eventCount !== 1 ? "s" : ""}
-                    </span>
-                  ) : (
-                    <span style={{ display: "block", fontSize: 11, color: TI.label, marginTop: 4 }}>
-                      mesa limpa
-                    </span>
-                  )}
-                  {s.isWorst && (
-                    <span style={{
-                      display: "inline-block", marginTop: 6, padding: "1px 8px", borderRadius: 999,
-                      backgroundColor: TI.redBg, color: TI.red, fontSize: 10, fontWeight: 700,
-                      textTransform: "uppercase", letterSpacing: "0.06em",
-                    }}>
-                      maior gargalo
-                    </span>
-                  )}
-                  {s.producedCount > 0 && (
-                    <span style={{ display: "block", fontSize: 11, color: TI.secondary, marginTop: 4 }}>
-                      {s.producedCount} já produzida{s.producedCount !== 1 ? "s" : ""} — aguardando conferência/entrega
-                    </span>
-                  )}
-                  {s.count > 0 && (
-                    <Link href={s.url ?? "/eventos"} style={{ display: "inline-block", marginTop: 6, fontSize: 11, fontWeight: 700, color: "#9a3412", textDecoration: "none" }}>
-                      Abrir {s.url ? s.sector : "Eventos"} →
-                    </Link>
-                  )}
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section aria-label="Aprovações travadas por patrocinador">
-            <h2 style={{
-              margin: "0 0 8px", fontSize: 11, fontWeight: 700, textTransform: "uppercase",
-              letterSpacing: "0.1em", color: TI.label, fontFamily: "'Plus Jakarta Sans', sans-serif",
-            }}>
-              Aprovações travadas por patrocinador
-            </h2>
-            {sponsorDelays.length === 0 ? (
-              <div style={{
-                backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: 12,
-                padding: "16px 14px", display: "flex", alignItems: "center", gap: 8,
-              }}>
-                <CheckCircle2 aria-hidden="true" style={{ width: 16, height: 16, color: TI.green, flexShrink: 0 }} />
-                <span style={{ fontSize: 13, fontWeight: 600, color: TI.secondary }}>
-                  Nenhum patrocinador segurando aprovação.
-                </span>
-              </div>
-            ) : (
-              <div style={{ overflowX: "auto", backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: 12 }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 440 }}>
-                  <caption className="sr-only">Patrocinadores com aprovações pendentes, pior primeiro</caption>
-                  <thead>
-                    <tr style={{ borderBottom: `1px solid ${TI.border}` }}>
-                      <th scope="col" style={{ ...DRILL_TH, textAlign: "left", paddingLeft: 14 }}>Patrocinador</th>
-                      <th scope="col" style={DRILL_TH}>Peças</th>
-                      <th scope="col" style={DRILL_TH}>Pior espera</th>
-                      <th scope="col" style={DRILL_TH}><span className="sr-only">Ações</span></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(showAllSponsors ? sponsorDelays : sponsorDelays.slice(0, 5)).map((sp) => {
-                      const spExpanded = expandedSponsorId === sp.sponsorId;
-                      const spCobranca = cobrancas[`sponsor:${sp.sponsorId}`];
-                      return (
-                        <Fragment key={sp.sponsorId}>
-                          <tr style={{ borderBottom: spExpanded ? "none" : `1px solid #f0efee` }}>
-                            <td style={{ padding: "8px 6px 8px 14px", fontSize: 13, fontWeight: 700, color: TI.title }}>
-                              <button
-                                type="button"
-                                onClick={() => setExpandedSponsorId(spExpanded ? null : sp.sponsorId)}
-                                aria-expanded={spExpanded}
-                                aria-controls={spExpanded ? `sp-drill-${sp.sponsorId}` : undefined}
-                                style={{
-                                  display: "inline-flex", alignItems: "center", gap: 6,
-                                  background: "none", border: "none", padding: 0,
-                                  fontSize: 13, fontWeight: 700, color: TI.title, cursor: "pointer",
-                                  textAlign: "left",
-                                }}
-                              >
-                                <ChevronDown aria-hidden="true" style={{
-                                  width: 13, height: 13, color: TI.label, flexShrink: 0,
-                                  transform: spExpanded ? "rotate(180deg)" : "none",
-                                  transition: "transform 0.15s ease",
-                                }} />
-                                {sp.name}
-                              </button>
-                              <span style={{ display: "block", fontSize: 10, color: TI.label, marginLeft: 19 }}>
-                                {sp.eventCount} evento{sp.eventCount !== 1 ? "s" : ""}
-                                {spCobranca && (
-                                  <span style={{ color: spCobranca.daysAgo >= 3 ? TI.red : TI.label, fontWeight: 600 }}>
-                                    {" · "}cobrado {spCobranca.daysAgo === 0 ? "hoje" : `há ${spCobranca.daysAgo}d`}
-                                  </span>
-                                )}
-                              </span>
-                            </td>
-                            <td style={{
-                              padding: "8px 6px", textAlign: "center", fontSize: 13, fontWeight: 800,
-                              fontFamily: "'Space Grotesk', sans-serif",
-                              // Vermelho é GANHO por atraso real (≥7d), não pela
-                              // mera existência de pendência.
-                              color: sp.maxDays >= 7 ? TI.red : TI.title,
-                            }}>
-                              {sp.pendingCount}
-                            </td>
-                            <td style={{
-                              padding: "8px 6px", textAlign: "center", fontSize: 12, fontWeight: 700,
-                              color: dayColor(sp.maxDays),
-                            }}>
-                              {sp.maxDays === 0 ? "hoje" : `${sp.maxDays}d`}
-                            </td>
-                            <td style={{ padding: "8px 14px 8px 6px", textAlign: "right", whiteSpace: "nowrap" }}>
-                              <Link
-                                href={`/atendimento?patrocinador=${sp.sponsorId}`}
-                                aria-label={`Cobrar ${sp.name} no Atendimento`}
-                                style={{ fontSize: 11, fontWeight: 700, color: "#9a3412", textDecoration: "none" }}
-                              >
-                                Cobrar →
-                              </Link>
-                            </td>
-                          </tr>
-                          {spExpanded && (
-                            <tr style={{ borderBottom: `1px solid #f0efee`, backgroundColor: "#fcfcfb" }}>
-                              <td id={`sp-drill-${sp.sponsorId}`} colSpan={4} style={{ padding: "6px 14px 12px" }}>
-                                <div className="gp-no-print" style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
-                                  <CobradoControl targetType="sponsor" targetId={sp.sponsorId} cobranca={spCobranca} />
-                                </div>
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                                  {sp.items.map((it) => (
-                                    <Link
-                                      key={it.itemId}
-                                      href={`/eventos/${it.eventId}?item=${it.itemId}`}
-                                      title={`${it.eventName} — abrir a peça`}
-                                      style={{
-                                        display: "inline-flex", alignItems: "center", gap: 5,
-                                        padding: "3px 9px", borderRadius: 999,
-                                        backgroundColor: "#f5f5f4", border: `1px solid ${TI.border}`,
-                                        fontSize: 11, fontWeight: 600, color: "#57534e",
-                                        textDecoration: "none", lineHeight: 1.5,
-                                      }}
-                                    >
-                                      {it.displayId}
-                                      <span style={{ color: TI.label }}>{it.eventName}</span>
-                                      <span style={{ fontWeight: 700, color: dayColor(it.days) }}>
-                                        {it.days === 0 ? "hoje" : `${it.days}d`}
-                                      </span>
-                                    </Link>
-                                  ))}
-                                  {sp.pendingCount > sp.items.length && (
-                                    <span style={{ fontSize: 11, color: TI.label, alignSelf: "center" }}>
-                                      +{sp.pendingCount - sp.items.length} no Atendimento
-                                    </span>
-                                  )}
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
-                      );
-                    })}
-                  </tbody>
-                </table>
-                {sponsorDelays.length > 5 && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAllSponsors((v) => !v)}
-                    className="gp-no-print"
-                    style={{
-                      display: "block", width: "100%", padding: "8px 0",
-                      background: "none", border: "none", borderTop: `1px solid #f0efee`,
-                      fontSize: 12, fontWeight: 700, color: "#9a3412", cursor: "pointer",
-                    }}
-                  >
-                    {showAllSponsors ? "Mostrar só os 5 piores" : `Ver todos (${sponsorDelays.length})`}
-                  </button>
-                )}
-              </div>
-            )}
-          </section>
-          </div>
-        )}
-
         {/* Filtros + legenda do semáforo */}
         {data && events.length > 0 && (
           <div className="gp-no-print" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
@@ -1469,6 +1533,8 @@ export default function GestaoPrazos() {
         )}
 
         {body}
+
+        {diagBand}
       </div>
     </div>
   );

@@ -256,15 +256,49 @@ function BulkActionDialog({
             />
           </div>
 
-          {/* Peças selecionadas */}
-          <div style={{ background: "#fff", border: "1px solid #e7e5e4", borderRadius: 12, maxHeight: 150, overflowY: "auto" }}>
-            {items.map((item: any, idx: number) => (
-              <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 12px", borderBottom: idx < count - 1 ? "1px solid #f5f5f4" : "none" }}>
-                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: tint, flexShrink: 0 }}>{item.displayId}</span>
-                <span style={{ fontSize: 13, color: TI.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{item.type}</span>
-                <span style={{ fontSize: 11, color: TI.secondary, flexShrink: 0 }}>{qtyFor(item)} un.</span>
-              </div>
-            ))}
+          {/* Peças selecionadas — com a ARTE e a DESCRIÇÃO de cada uma: é a
+              última conferência antes de registrar em lote, e "Banner · 3 un."
+              repetido cinco vezes não diz ao operador o que ele está
+              confirmando. maxHeight maior porque a linha agora tem miniatura. */}
+          <div>
+            <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 8 }}>
+              Peças selecionadas <span style={{ textTransform: "none", fontWeight: 400, letterSpacing: 0 }}>({count})</span>
+            </label>
+            <div style={{ background: "#fff", border: "1px solid #e7e5e4", borderRadius: 12, maxHeight: 232, overflowY: "auto" }}>
+              {items.map((item: any, idx: number) => (
+                <div key={item.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderBottom: idx < count - 1 ? "1px solid #f5f5f4" : "none" }}>
+                  <div style={{
+                    width: 44, height: 44, flexShrink: 0, borderRadius: 8, overflow: "hidden",
+                    border: `1px solid ${TI.border}`, backgroundColor: "#faf9f7",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {item.approvalThumbUrl ? (
+                      <img
+                        src={convertGCSUrlToLocalPath(item.approvalThumbUrl)}
+                        alt=""
+                        loading="lazy" decoding="async"
+                        style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block" }}
+                        onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                      />
+                    ) : (
+                      <Package aria-hidden="true" style={{ width: 16, height: 16, color: "#a8a29e" }} />
+                    )}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: tint, flexShrink: 0 }}>{item.displayId}</span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: TI.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.type}</span>
+                    </div>
+                    {item.description && item.description !== item.type && (
+                      <div style={{ fontSize: 12, color: TI.secondary, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {item.description}
+                      </div>
+                    )}
+                  </div>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: TI.secondary, flexShrink: 0 }}>{qtyFor(item)} un.</span>
+                </div>
+              ))}
+            </div>
           </div>
 
           {/* Footer */}
@@ -1360,7 +1394,7 @@ export default function Grafica() {
                       // Altura acompanha a arte: com a peça na mão, é pelo
                       // desenho que se reconhece o item na lista.
                       display: 'flex', alignItems: 'stretch',
-                      minHeight: item.approvalThumbUrl && !bulkOn ? 104 : 74,
+                      minHeight: item.approvalThumbUrl ? 104 : 74,
                       background: isSelected ? '#fff7ed' : '#fff',
                       border: `1.5px solid ${isSelected ? TI.accent : TI.border}`,
                       borderRadius: showEvHeader ? '0 0 12px 12px' : 12,
@@ -1404,23 +1438,45 @@ export default function Grafica() {
                     )}
 
                     {/* Arte aprovada — no celular é ela que identifica a peça
-                        de relance, na hora de conferir com o material na mão. */}
-                    {item.approvalThumbUrl && !bulkOn && (
-                      <a
-                        href={convertGCSUrlToLocalPath(item.approvalThumbUrl)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={e => e.stopPropagation()}
-                        title="Abrir a arte aprovada"
-                        data-testid={`thumb-art-mobile-${item.id}`}
-                        style={{ width: 88, flexShrink: 0, alignSelf: 'stretch', backgroundColor: '#faf9f7', borderRight: `1px solid ${TI.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 5 }}
-                      >
+                        de relance, na hora de conferir com o material na mão.
+                        Some no modo lote era o pior momento possível para
+                        escondê-la: é exatamente aí que o operador está com a
+                        peça na mão marcando o que já conferiu. No lote ela
+                        fica mais estreita para conviver com a caixa de seleção,
+                        e vira <div> (não link) para o toque continuar
+                        selecionando o card em vez de abrir outra aba. */}
+                    {item.approvalThumbUrl && (() => {
+                      const thumbW = bulkOn ? 64 : 88;
+                      const thumbImg = (
                         <img src={convertGCSUrlToLocalPath(item.approvalThumbUrl)} alt="Arte"
                           loading="lazy" decoding="async"
                           style={{ maxWidth: '100%', maxHeight: 104, objectFit: 'contain', display: 'block' }}
                           onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-                      </a>
-                    )}
+                      );
+                      const boxStyle: React.CSSProperties = {
+                        width: thumbW, flexShrink: 0, alignSelf: 'stretch', backgroundColor: '#faf9f7',
+                        borderRight: `1px solid ${TI.border}`, display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', padding: 5,
+                      };
+                      if (bulkOn) {
+                        return (
+                          <div style={boxStyle} data-testid={`thumb-art-mobile-${item.id}`}>{thumbImg}</div>
+                        );
+                      }
+                      return (
+                        <a
+                          href={convertGCSUrlToLocalPath(item.approvalThumbUrl)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          title="Abrir a arte aprovada"
+                          data-testid={`thumb-art-mobile-${item.id}`}
+                          style={boxStyle}
+                        >
+                          {thumbImg}
+                        </a>
+                      );
+                    })()}
 
                     {/* Content */}
                     <div style={{ flex: 1, padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
@@ -1432,6 +1488,21 @@ export default function Grafica() {
                         {item.isReuse && <span style={{ fontSize: 10, fontWeight: 800, color: '#059669', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, padding: '2px 6px' }}>REAPROV.</span>}
                       </div>
                       <div style={{ fontSize: 15, fontWeight: 700, color: TI.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</div>
+                      {/* A DESCRIÇÃO é o que distingue duas peças do mesmo tipo
+                          ("Banner" x "Banner"): o desktop sempre mostrou, o
+                          celular não — e é no celular que se confere com a
+                          peça na mão. Duas linhas: nome de peça costuma ser
+                          longo e uma linha só virava reticência inútil. */}
+                      {item.description && item.description !== item.type && (
+                        <div style={{
+                          fontSize: 13, color: item.isReuse ? '#065f46' : TI.secondary,
+                          fontWeight: item.isReuse ? 600 : 400, lineHeight: 1.35,
+                          display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                        }}>
+                          {item.description}
+                        </div>
+                      )}
                       {item.observations && (
                         <div style={{ fontSize: 11, color: '#d97706', display: 'flex', alignItems: 'center', gap: 4, marginTop: 1 }}>
                           <AlertCircle style={{ width: 10, height: 10 }} />{item.observations}

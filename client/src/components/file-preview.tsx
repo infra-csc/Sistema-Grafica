@@ -18,6 +18,17 @@ export function isPdf(url: string): boolean {
   return /\.pdf(\?|#|$)/i.test(url) || url.includes("pdf%2F");
 }
 
+/**
+ * O "arquivo" é um endereço que o NAVEGADOR consegue abrir? Caminho de rede
+ * (\\10.100.1.7\...) e caminho de disco (C:\...) NÃO são: a Arte registra o
+ * caminho do TIF no servidor local, e oferecer "Abrir arquivo"/"Abrir em nova
+ * aba" para isso é promessa que nunca funciona — o único gesto útil é copiar
+ * o caminho e colar no Explorer.
+ */
+export function isWebUrl(url: string): boolean {
+  return /^https?:\/\//i.test(url) || url.startsWith("/");
+}
+
 export function isImageUrl(url: string): boolean {
   return (
     /\.(png|jpe?g|gif|webp|svg|bmp)$/i.test(url) ||
@@ -93,6 +104,20 @@ export function FilePreview({ url, linkUrl, style, objectFit = "contain", noLink
 
   if (isImageUrl(url)) {
     return <ImageWithFallback url={url} linkUrl={linkUrl} objectFit={objectFit} noLink={noLink} />;
+  }
+
+  // Caminho de rede/disco: não há o que abrir daqui. Quem renderiza o
+  // FilePreview deve tratar esse caso antes (ver isWebUrl); este fallback
+  // existe para o caminho não virar um botão morto.
+  if (!isWebUrl(url)) {
+    return (
+      <div style={{ ...containerStyle, flexDirection: "column", gap: 8, padding: 16, textAlign: "center" }}>
+        <p style={{ fontSize: 12, fontWeight: 600, color: "#746e69", margin: 0 }}>
+          Arquivo na rede local — o navegador não abre este caminho.
+        </p>
+        <p style={{ fontFamily: "monospace", fontSize: 10, color: "#57534e", margin: 0, wordBreak: "break-all" }}>{url}</p>
+      </div>
+    );
   }
 
   return (

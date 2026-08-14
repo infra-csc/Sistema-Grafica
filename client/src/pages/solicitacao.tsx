@@ -1,8 +1,8 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { CheckCircle, AlertCircle, Eye, Search, X, FileImage, Maximize2, Trash2, Paperclip, Recycle } from "lucide-react";
+import { CheckCircle, AlertCircle, Copy, Eye, Search, X, FileImage, Maximize2, Trash2, Paperclip, Recycle } from "lucide-react";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
-import { FilePreview } from "@/components/file-preview";
+import { FilePreview, isWebUrl } from "@/components/file-preview";
 import { parseDateLocal } from "@/lib/utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -1095,7 +1095,7 @@ export default function Solicitacao() {
               {/* Left header */}
               <div style={{ padding: "14px 18px", backgroundColor: "#1c1917", borderBottom: "2px solid #f97316", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#fff" }}>Comparação de Arquivos</span>
-                {selectedItem?.finalFileUrl && (
+                {selectedItem?.finalFileUrl && isWebUrl(selectedItem.finalFileUrl) && (
                   <a
                     href={selectedItem.finalFileUrl}
                     target="_blank"
@@ -1116,9 +1116,22 @@ export default function Solicitacao() {
                 {[
                   { label: "Aprovado pelo patrocinador", url: selectedItem?.approvalThumbUrl, empty: "Sem thumb aprovado" },
                   { label: "Arquivo final da Arte", url: selectedItem?.finalFileUrl, empty: "A Arte ainda não subiu o arquivo final" },
-                ].map(({ label, url, empty }) => (
+                ].map(({ label, url, empty }) => {
+                  // Caminho de rede/disco (\\10.100.1.7\...): o navegador não
+                  // abre nem pré-visualiza — sem caixa de preview e sem "Abrir",
+                  // só o aviso apontando para o caminho copiável logo abaixo.
+                  const caminhoDeRede = !!url && !isWebUrl(url);
+                  return (
                   <div key={label} style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
                     <p style={{ fontSize: 10, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>{label}</p>
+                    {caminhoDeRede ? (
+                      <div style={{ backgroundColor: "#fff", borderRadius: 8, border: "1px solid #e7e5e4", padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
+                        <FileImage style={{ width: 20, height: 20, color: "#a8a29e", flexShrink: 0 }} />
+                        <p style={{ fontSize: 11, fontWeight: 600, color: TI.secondary, margin: 0 }}>
+                          Arquivo salvo na rede local — sem pré-visualização. Copie o caminho em "Caminho do Arquivo Final".
+                        </p>
+                      </div>
+                    ) : (
                     <div style={{ height: isMobile ? 220 : "32vh", minHeight: 180, width: "100%", backgroundColor: "#fff", borderRadius: 8, overflow: "hidden", border: "1px solid #e7e5e4", boxShadow: "inset 0 1px 4px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       {url ? (
                         <FilePreview url={url} noLink objectFit="contain" />
@@ -1129,7 +1142,8 @@ export default function Solicitacao() {
                         </div>
                       )}
                     </div>
-                    {url && (
+                    )}
+                    {url && !caminhoDeRede && (
                       <a
                         href={url}
                         target="_blank"
@@ -1140,14 +1154,30 @@ export default function Solicitacao() {
                       </a>
                     )}
                   </div>
-                ))}
+                  );
+                })}
 
                 {/* File path */}
                 <div>
                   <p style={{ fontSize: 10, fontWeight: 900, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Caminho do Arquivo Final</p>
                   {selectedItem?.finalFileUrl ? (
-                    <div style={{ backgroundColor: "#e2e2e2", padding: "8px 10px", borderRadius: 6, fontFamily: "monospace", fontSize: 10, color: "#57534e", wordBreak: "break-all" }}>
-                      {selectedItem.finalFileUrl}
+                    <div style={{ display: "flex", alignItems: "stretch", gap: 6 }}>
+                      <div style={{ flex: 1, backgroundColor: "#e2e2e2", padding: "8px 10px", borderRadius: 6, fontFamily: "monospace", fontSize: 10, color: "#57534e", wordBreak: "break-all" }}>
+                        {selectedItem.finalFileUrl}
+                      </div>
+                      <button
+                        type="button"
+                        title="Copiar caminho"
+                        aria-label="Copiar caminho do arquivo final"
+                        onClick={() => {
+                          navigator.clipboard.writeText(selectedItem.finalFileUrl!)
+                            .then(() => toast({ title: "Caminho copiado", description: "Cole no Explorer para abrir o arquivo." }))
+                            .catch(() => toast({ title: "Não foi possível copiar", description: "Selecione o caminho e copie manualmente.", variant: "destructive" }));
+                        }}
+                        style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", width: 34, borderRadius: 6, border: "1px solid #d6d3d1", backgroundColor: "#fff", color: "#57534e", cursor: "pointer" }}
+                      >
+                        <Copy style={{ width: 14, height: 14 }} />
+                      </button>
                     </div>
                   ) : (
                     <div style={{ backgroundColor: "#fff0ee", border: "1px solid #fecaca", borderRadius: 6, padding: "8px 10px", fontSize: 11, color: "#b91c1c", fontWeight: 600 }}>

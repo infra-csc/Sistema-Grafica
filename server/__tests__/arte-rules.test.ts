@@ -246,8 +246,8 @@ describe("formatQuantity", () => {
       expect(formatQuantity(q)).toBe("—");
     }
   });
-  it("preenche com zero à esquerda até dois dígitos", () => {
-    expect(formatQuantity(2)).toBe("02");
+  it("quantidade é número, sem zero à esquerda", () => {
+    expect(formatQuantity(2)).toBe("2");
     expect(formatQuantity(12)).toBe("12");
     expect(formatQuantity(140)).toBe("140");
   });

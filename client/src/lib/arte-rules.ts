@@ -289,11 +289,15 @@ export function parseArteFilters(search: string): { filters: ArteFilters; tab: A
 /**
  * `String(q || '—').padStart(2,'0')` transformava peça sem quantidade em
  * "0—", em negrito, numa coluna numérica de produção.
+ *
+ * E o zero à esquerda também caiu: quantidade é NÚMERO, não código de peça.
+ * "01 banner" é como se lê um identificador, não como se lê uma contagem — e
+ * na mesma linha o displayId ("#1725") já é o campo com cara de código.
  */
 export function formatQuantity(quantity: unknown): string {
   const n = typeof quantity === "number" ? quantity : Number(quantity);
   if (!Number.isFinite(n) || n <= 0) return "—";
-  return String(n).padStart(2, "0");
+  return String(n);
 }
 
 // ── Vínculo automático do multi-upload ──────────────────────────────────────

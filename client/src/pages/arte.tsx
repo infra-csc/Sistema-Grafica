@@ -3,7 +3,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, CheckSquare, Palette, ExternalLink, RefreshCw, MoreHorizontal, Lock, WifiOff } from "lucide-react";
+import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, CheckSquare, Palette, ExternalLink, RefreshCw, MoreHorizontal, Lock, WifiOff, Zap, ArrowUpDown } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -30,6 +30,7 @@ import {
   filtersKey,
   compareEventUrgency,
   formatQuantity,
+  isUrgente,
   makeDateBounds,
   matchFileToItem,
   matchesArteFilters,
@@ -75,18 +76,39 @@ const EVENT_CHIPS_VISIBLE = 8;
  * dispensar foram para um menu "⋯" e a linha inteira ficou clicável) e
  * "Dimensões"/"Thumb-Final" voltaram ao tamanho do conteúdo real.
  * A coluna "Prazo" é nova — ver phaseDeadline em lib/arte-rules.
+ *
+ * SEGUNDA RODADA (o corte reportado pelo dono). Aquele aperto foi longe demais
+ * e passou a cortar CABEÇALHO, que é o que nunca pode truncar: `thStyle` tem
+ * overflow hidden + ellipsis, e o rótulo em 11px maiúsculo com letter-spacing
+ * 0,06em mais os 24px de padding da célula pedia mais do que a coluna tinha.
+ * Medido: "QTD" pede ~50px e a coluna dava 48 → virava "Q…"; "MATERIAL" pede
+ * ~91 e a coluna dava 88 → truncava o cabeçalho E o material real ("Adesivo
+ * transparente"); "DIMENSÕES" pede ~100 e a coluna dava exatos 100 (e o texto
+ * "1000 × 2000 (sangria)" vazava, porque a célula é whiteSpace:nowrap).
+ * Todas as colunas fixas agora têm folga sobre o próprio cabeçalho.
+ *
+ * A largura que sobrava estava toda em "Peça", a única coluna elástica: com
+ * uma descrição curta ela virava um vazio de ~300px. A coluna não ficou menor
+ * (ela é o lugar certo para sobra); passou a USAR o espaço, mostrando o TIPO
+ * da peça além da descrição — antes `description || type` escondia o tipo
+ * sempre que havia descrição, justamente na coluna chamada "Peça".
+ *
+ * A conta subiu de 1034/1078 para 1106/1150 (sem/com a coluna de seleção).
+ * Em 1536 continua cabendo inteira; em 1366 com a sidebar aberta faltam ~60 a
+ * 105px, que o scroller horizontal único da aba resolve. É a troca certa: um
+ * cabeçalho truncado é um erro em toda largura, rolar 100px é um gesto.
  */
 const ARTE_COLS: { label: string; w: number | string; right?: boolean }[] = [
-  { label: 'ID',            w: 124 },
-  { label: 'Qtd',           w: 48 },
+  { label: 'ID',            w: 116 },
+  { label: 'Qtd',           w: 58 },
   { label: 'Peça',          w: 'auto' },
-  { label: 'Dimensões',     w: 100 },
-  { label: 'M²',            w: 48 },
-  { label: 'Material',      w: 88 },
-  { label: 'Arte',          w: 80 },
-  { label: 'Prazo',         w: 104 },
-  { label: 'Patroc.',       w: 96 },
-  { label: 'Ações',         w: 170, right: true },
+  { label: 'Dimensões',     w: 108 },
+  { label: 'M²',            w: 56 },
+  { label: 'Material',      w: 132 },
+  { label: 'Arte',          w: 76 },
+  { label: 'Prazo',         w: 112 },
+  { label: 'Patroc.',       w: 92 },
+  { label: 'Ações',         w: 180, right: true },
 ];
 
 // Colunas fixas + um mínimo para "Peça" (largura 'auto'). Derivado, não
@@ -151,7 +173,31 @@ function menuItemStyle(color: string): React.CSSProperties {
  * de um clique, que é mandar o thumb errado.
  */
 function ThumbPreview({ url, label }: { url?: string | null; label: string }) {
-  const [aberto, setAberto] = useState(false);
+  // `position: fixed` calculado a partir do retângulo da âncora, e não
+  // `position: absolute` dentro da linha.
+  //
+  // PORQUÊ. A prévia é filha da <td>, e a aba inteira vive dentro de UM
+  // contêiner de rolagem horizontal. Um contêiner com overflow-x diferente de
+  // `visible` RECORTA também na vertical (a regra do CSS é que o eixo restante
+  // computa para `auto`), então a prévia, que abre para cima, era cortada pela
+  // borda de cima do scroller em toda linha do começo do bloco — aparecia só a
+  // metade de baixo. Coordenada de viewport não é recortada por ancestral
+  // nenhum, e ainda vira para baixo quando não há espaço em cima.
+  const [caixa, setCaixa] = useState<{ left: number; top: number; acima: boolean } | null>(null);
+  const ancoraRef = useRef<HTMLAnchorElement>(null);
+  const abrir = () => {
+    const r = ancoraRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const LARGURA = 248;
+    const ALTURA = 208;
+    const acima = r.top > ALTURA + 12;
+    setCaixa({
+      left: Math.min(Math.max(8, r.left + r.width / 2 - LARGURA / 2), window.innerWidth - LARGURA - 8),
+      top: acima ? r.top - ALTURA - 6 : r.bottom + 6,
+      acima,
+    });
+  };
+  const aberto = caixa !== null;
   if (!url) {
     return (
       <span title="Sem thumb" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f4', color: '#78716c', flexShrink: 0 }}>
@@ -164,21 +210,22 @@ function ThumbPreview({ url, label }: { url?: string | null; label: string }) {
   return (
     <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
       <a
+        ref={ancoraRef}
         href={url} target="_blank" rel="noopener noreferrer"
         title={`Ver ${label}`}
-        onMouseEnter={() => setAberto(true)}
-        onMouseLeave={() => setAberto(false)}
-        onFocus={() => setAberto(true)}
-        onBlur={() => setAberto(false)}
+        onMouseEnter={abrir}
+        onMouseLeave={() => setCaixa(null)}
+        onFocus={abrir}
+        onBlur={() => setCaixa(null)}
         style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }}
       >
         <FileImage style={{ width: 13, height: 13 }} />
       </a>
-      {aberto && isImage && (
+      {aberto && isImage && caixa && (
         <span
           role="presentation"
           style={{
-            position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)',
+            position: 'fixed', left: caixa.left, top: caixa.top,
             zIndex: 60, padding: 4, borderRadius: 8, background: '#ffffff',
             border: '1px solid #e7e5e4', boxShadow: '0 12px 32px rgba(0,0,0,0.18)',
             pointerEvents: 'none',
@@ -1335,37 +1382,30 @@ export default function Arte() {
     { id: "finalizados", label: "Finalizados", count: finalizadosCount, Icon: CheckCircle, testId: "tab-finalizados" },
   ];
 
-  /**
-   * Os cards derivam do MESMO `itemsByTab` que alimenta os badges das abas.
-   * Antes dois deles usavam `itemsForEvent` (só o filtro de evento): com busca,
-   * tipo, material ou período ativos o card e o badge da aba correspondente
-   * mostravam números diferentes a 200px de distância. E `totalAll` somava
-   * quatro fases esquecendo `aguardandoCount` inteiro, o que deixava o
-   * numerador de um card maior que o denominador — barra de mais de 100%, que
-   * só não estourava porque o pai tem overflow:hidden.
-   *
-   * Cinco cards para cinco fases: "Finalizar arte" não tinha card nenhum e era
-   * a única fase sem segunda porta de entrada (no celular, com as abas
-   * cortadas, ficava inalcançável).
-   */
-  const statCards = tabs.map(t => ({
-    label: t.label,
-    value: t.count,
-    sub: {
-      "criar-aprovacoes": "thumb a enviar",
-      "aguardando-patrocinador": "em análise",
-      "correcao": "aguardando nova arte",
-      "finalizar-layouts": "arquivo final",
-      "finalizados": "liberadas",
-    }[t.id] ?? "",
-    accentColor: TAB_THEME[t.id].dot,
-    textColor: TAB_THEME[t.id].text,
-    iconBg: TAB_THEME[t.id].tint,
-    Icon: t.Icon,
-    tabId: t.id,
-    testId: `stat-${t.id}`,
-  }));
-  const totalAll = tabs.reduce((s, t) => s + t.count, 0);
+  // OS CINCO STAT CARDS SAÍRAM DAQUI — e este é o conserto do "conteúdo
+  // cortado" reportado pelo dono.
+  //
+  // Eles eram uma cópia palavra por palavra e número por número das cinco abas
+  // desenhadas 40px abaixo ("Aguardando envio 1" no card, "Aguardando envio 1"
+  // na aba), com o mesmo clique e o mesmo destino. Cobravam ~113px de cards
+  // mais ~28px da legenda "Contagens de toda a fila da Arte" — 141px de altura
+  // FIXA, porque o cabeçalho é flexShrink:0 e a listagem é o `flex:1` que sobra.
+  //
+  // Num notebook de 1536×674, `main` tem 610px: o cabeçalho ficava com ~358 e a
+  // área rolável com ~252, menos 48 de padding = ~204px úteis. Cabiam três
+  // linhas de tabela, e TUDO — o aviso da janela de 90 dias, os chips de
+  // evento, a faixa do evento — vivia permanentemente pela metade nas duas
+  // bordas daquela fresta. Não havia um `overflow:hidden` culpado: o recorte
+  // era a própria altura que o cabeçalho não devolvia.
+  //
+  // Sem os cards a listagem passa de ~252 para ~393px (+56%). A contagem por
+  // fase continua inteira nas abas, e o que os cards NÃO diziam (atrasadas
+  // contra o marco da fase, peças de evento urgente) virou a faixa de
+  // diagnóstico dentro da área rolável — ver renderGroupedTable.
+  //
+  // No celular a perda seria a "segunda porta de entrada" para as fases, mas
+  // ela já não depende dos cards: a fileira de abas virou um <select> de fase
+  // que lista as cinco.
 
   // ─── LINHA DA TABELA E CARD DO MOBILE ──────────────────────────────────────
 
@@ -1380,7 +1420,12 @@ export default function Arte() {
     return {
       // O laranja da marca dá 2,80:1 com texto branco e reprova AA; este dá 5,18.
       bg: tabId === "finalizar-layouts" ? '#2563eb' : isSkip ? '#7c3aed' : '#c2410c',
-      label: tabId === "finalizar-layouts" ? "Finalizar arte" : isSkip ? "Enviar finalização" : "Enviar aprovação",
+      // Rótulos curtos, porque a fase já está escrita na aba ativa logo acima.
+      // "Enviar aprovação" pedia ~176px numa coluna de 170: com o flexWrap da
+      // célula, o botão QUEBRAVA para a linha de cima do menu "⋯" e a linha da
+      // tabela crescia ~40px por causa disso. O que a etiqueta perdeu está no
+      // `title` de cada botão, que já existia.
+      label: tabId === "finalizar-layouts" ? "Finalizar" : isSkip ? "Enviar direto" : "Enviar",
       // Um clique para enviar: se a peça já tem thumb salvo (rascunho), o botão
       // dispara o envio direto, sem abrir o modal e SEM confirmação — a ação é
       // reversível pela aba Correção e o toast dá o feedback; window.confirm só
@@ -1400,7 +1445,7 @@ export default function Arte() {
             onClick={e => e.stopPropagation()}
             aria-label={`Mais ações para ${item.displayId}`}
             data-testid={`button-row-menu-${item.id}`}
-            style={{ minWidth: 36, minHeight: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid #e7e5e4', cursor: 'pointer', color: '#57534e' }}
+            style={{ width: 36, minWidth: 36, height: 36, flexShrink: 0, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid #e7e5e4', cursor: 'pointer', color: '#57534e' }}
           >
             <MoreHorizontal style={{ width: 15, height: 15 }} />
           </button>
@@ -1475,7 +1520,10 @@ export default function Arte() {
             ? "Envia o thumb salvo direto para aprovação do patrocinador"
             : undefined}
         style={{
-          width: largura, height: 36, padding: '0 12px', borderRadius: 8,
+          // minWidth 0 + flexShrink: numa coluna estreita o botão encolhe com
+          // reticências em vez de empurrar o menu "⋯" para outra linha.
+          width: largura, minWidth: 0, flexShrink: 1,
+          height: 36, padding: '0 11px', borderRadius: 8,
           backgroundColor: travado ? '#d6d3d1' : acao.bg,
           color: '#ffffff', border: 'none',
           cursor: travado ? 'not-allowed' : 'pointer',
@@ -1585,7 +1633,7 @@ export default function Arte() {
         </div>
       </td>
       {/* Qtd — formatQuantity: `String(q || '—').padStart(2,'0')` transformava
-          peça sem quantidade em "0—". */}
+          peça sem quantidade em "0—", e uma peça só em "01". */}
       <td style={{ padding: '9px 12px', fontWeight: 700, color: item.quantity ? '#1c1917' : '#57534e', fontSize: 14 }}>
         {formatQuantity(item.quantity)}
       </td>
@@ -1594,7 +1642,14 @@ export default function Arte() {
         {/* alignItems flex-start: num flex column o padrão é stretch, e as tags
             eram esticadas na largura inteira da célula, parecendo campo vazio. */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start', minWidth: 0 }}>
-          <span style={{ fontWeight: 600, color: '#1c1917', fontSize: 13, wordBreak: 'break-word' }}>{item.description || item.type}</span>
+          {/* Tipo E descrição. `description || type` escondia o tipo da peça
+              sempre que havia descrição — na coluna chamada "Peça" — e deixava
+              a única coluna elástica com um vazio de ~300px quando a descrição
+              era curta. O tipo é o nome da peça; a descrição é o detalhe. */}
+          <span style={{ fontWeight: 700, color: '#1c1917', fontSize: 13, wordBreak: 'break-word' }}>{item.type || item.description}</span>
+          {item.type && item.description && (
+            <span style={{ fontSize: 12, color: '#57534e', wordBreak: 'break-word' }}>{item.description}</span>
+          )}
           {item.observations && (
             <span style={{ fontSize: 11, color: '#b45309', display: 'flex', alignItems: 'center', gap: 3 }}>
               <AlertCircle style={{ width: 10, height: 10, flexShrink: 0 }} />{item.observations}
@@ -1663,8 +1718,13 @@ export default function Arte() {
         <SponsorChips sponsors={item.sponsors ?? []} variant="orange" size="sm" />
       </td>
       {/* Ações */}
+      {/* flexWrap: 'nowrap' — com 'wrap', a ação primária que não coubesse na
+          largura da coluna ia para a linha DE CIMA do menu "⋯", desalinhada do
+          resto da linha e somando ~40px de altura em cada peça da fila. Agora o
+          botão encolhe (minWidth 0 + reticências) e os dois ficam sempre lado a
+          lado, na altura da linha. */}
       <td style={{ padding: '9px 12px', textAlign: 'right' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center', gap: 6, rowGap: 6 }}>
+        <div style={{ display: 'flex', flexWrap: 'nowrap', justifyContent: 'flex-end', alignItems: 'center', gap: 6 }}>
           {renderBotaoPrimario(item, tabId)}
           {renderMenuAcoes(item)}
         </div>
@@ -1779,6 +1839,25 @@ export default function Arte() {
     });
     eventSummary.sort((a, b) => b.count - a.count);
 
+    // Diagnóstico da fase — o que as abas NÃO dizem.
+    //
+    // PORQUÊ ESTA FAIXA EXISTE (e onde ela mora). Os cinco stat cards do
+    // cabeçalho repetiam rótulo por rótulo e número por número as cinco abas
+    // 40px abaixo, e cobravam ~140px de altura fixa por isso. O que faltava era
+    // o oposto: dentro da fase escolhida, o que está ATRASADO contra o marco da
+    // fase e o que é de evento urgente. Fica na área rolável, junto da tabela
+    // que descreve, e não no cabeçalho fixo — assim custa zero de primeira
+    // dobra quando não há nada a dizer.
+    //
+    // Em "Finalizados" não há atraso a apontar: o marco daquela fase é a
+    // própria saída do caminhão, que para uma peça pronta já passou por
+    // definição — dizer "atrasada" ali seria alarme falso em toda a lista.
+    const atrasadas = tabId === "finalizados" ? 0 : items.filter(i => {
+      const p = phaseDeadline(i.event, tabId, hoje);
+      return !!p && p.diff < 0;
+    }).length;
+    const urgentes = items.filter(i => isUrgente(i.event?.priority)).length;
+
     // Só as primeiras linhas entram no DOM. Com quase mil peças numa aba, montar
     // a tabela inteira era o que travava a troca de aba e a digitação na busca.
     const shownItems = items.slice(0, visibleCount);
@@ -1816,6 +1895,23 @@ export default function Arte() {
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {(atrasadas > 0 || urgentes > 0) && (
+          <div data-testid="faixa-diagnostico" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {atrasadas > 0 && (
+              <span data-testid="chip-atrasadas" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 11px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', fontSize: 12, fontWeight: 700, color: '#991b1b' }}>
+                <AlertTriangle style={{ width: 12, height: 12, flexShrink: 0 }} />
+                {atrasadas} de {items.length} {atrasadas === 1 ? 'peça já passou' : 'peças já passaram'} do marco desta fase
+              </span>
+            )}
+            {urgentes > 0 && (
+              <span data-testid="chip-urgentes" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 11px', borderRadius: 8, background: '#fffbeb', border: '1px solid #fde68a', fontSize: 12, fontWeight: 700, color: '#92400e' }}>
+                <Zap style={{ width: 12, height: 12, flexShrink: 0 }} />
+                {urgentes} {urgentes === 1 ? 'peça de evento urgente' : 'peças de eventos urgentes'}
+              </span>
+            )}
+          </div>
+        )}
+
         {/* Recorte padrão da aba Finalizados — ver dentroDaJanelaFinalizados. */}
         {tabId === "finalizados" && (finalizadosForaDaJanela > 0 || finalizadosTudo) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '9px 14px', borderRadius: 10, background: '#fafaf9', border: '1px solid #e7e5e4' }}>
@@ -1879,12 +1975,34 @@ export default function Arte() {
             (Sticky no <thead> continua fora: quem rolaria seria este contêiner,
             e position:sticky não atravessa o contexto de rolagem do pai — o
             cabeçalho por evento, e não mais por tipo, já resolve a repetição.) */}
-        <div style={{ overflowX: isMobile ? 'visible' : 'auto' }} className="scrollbar-visible">
+        {/* SEM className="scrollbar-visible" aqui. Aquela utilitária declara
+            `overflow: auto` (o atalho dos DOIS eixos, index.css), e o style
+            inline só sobrescrevia overflow-x — sobrava um `overflow-y: auto`
+            que ninguém pediu. Duas consequências, e a segunda é o corte que o
+            dono viu: (1) no celular o `overflowX: 'visible'` era letra morta,
+            porque com um dos eixos em `auto` o outro nunca fica `visible`;
+            (2) contêiner de rolagem RECORTA, então a prévia do thumb — que
+            abre para cima — era cortada pela borda superior deste bloco em
+            toda linha do começo da tabela. A prévia virou position:fixed (ver
+            ThumbPreview) e aqui ficou só o eixo que precisa rolar. */}
+        <div style={{
+          overflowX: isMobile ? 'visible' : 'auto',
+          scrollbarWidth: 'thin', scrollbarColor: '#d6d3d1 #f5f5f4',
+        }}>
           <div style={{ minWidth: isMobile ? undefined : minW, display: 'flex', flexDirection: 'column', gap: 16 }}>
             {blocos.map(bloco => {
               const prazo = phaseDeadline(bloco.eventObj, tabId, hoje);
               const prog = evProgresso.get(bloco.eventKey);
               const evTotal = evSumMap.get(bloco.eventKey)?.count ?? 0;
+              // Só o que FALTA. "1 sem thumb · 0 com thumb" gastava metade da
+              // frase afirmando que zero peças estão prontas; e quando tudo já
+              // está resolvido a frase virava "0 sem thumb · 5 com thumb", que
+              // é ruído puro numa faixa de evento. Nada a fazer, nada escrito.
+              const faltamArquivo = tabId === "finalizar-layouts" || tabId === "finalizados";
+              const quantosFaltam = faltamArquivo ? (prog?.semFinal ?? 0) : (prog?.semThumb ?? 0);
+              const faltando = quantosFaltam > 0
+                ? `${quantosFaltam} de ${evTotal} ${faltamArquivo ? 'sem arquivo final' : 'sem thumb'}`
+                : null;
               return (
                 <div key={bloco.key} style={{ borderRadius: 12, overflow: 'hidden', backgroundColor: '#ffffff', border: '1px solid #e7e5e4' }}>
                   {/* ── Faixa do evento ──
@@ -1904,11 +2022,9 @@ export default function Arte() {
                         {bloco.eventName}
                       </span>
                       {/* Quanto daquele evento já está resolvido NESTA fase. */}
-                      {prog && (
+                      {faltando && (
                         <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.72)', whiteSpace: 'nowrap' }}>
-                          {tabId === "finalizar-layouts" || tabId === "finalizados"
-                            ? `${prog.semFinal} sem arquivo · ${evTotal - prog.semFinal} com arquivo`
-                            : `${prog.semThumb} sem thumb · ${evTotal - prog.semThumb} com thumb`}
+                          {faltando}
                         </span>
                       )}
                     </div>
@@ -2004,7 +2120,13 @@ export default function Arte() {
                                 </td>
                               </tr>
                             )}
-                            {comSelecao && selecionaveis.length > 0 && (
+                            {/* Com UMA peça selecionável o controle de grupo não
+                                se justifica: gastava uma linha inteira da
+                                tabela para oferecer o mesmo que o checkbox da
+                                própria linha, e ainda escrevia "Selecionar as 1
+                                peças deste grupo". A partir de duas ele volta,
+                                e aí o plural está sempre correto. */}
+                            {comSelecao && selecionaveis.length > 1 && (
                               <tr>
                                 <td style={{ padding: '4px 12px', borderBottom: '1px solid #f5f5f4' }}>
                                   <Checkbox
@@ -2463,70 +2585,6 @@ export default function Arte() {
             </div>
           )}
 
-          {/* ── Stat cards ── */}
-          {/* Cinco cards para cinco fases, todos derivados de itemsByTab (as
-              mesmas contagens dos badges das abas) e com a barra medindo a
-              fração real sobre o total das CINCO fases. flexWrap + base de
-              140px: no mobile viram grade em vez de cinco colunas espremidas. */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 8 }}>
-            {statCards.map(stat => {
-              const Icon = stat.Icon;
-              const isActiveCard = activeTab === stat.tabId;
-              const pct = totalAll > 0 ? (stat.value / totalAll) * 100 : 0;
-              return (
-                <div
-                  key={stat.testId}
-                  // Navegação primária da tela: precisa existir para o teclado
-                  // (mesmo padrão dos checkboxes do export-pdf-dialog).
-                  role="button"
-                  tabIndex={0}
-                  aria-label={`${stat.label}: ${stat.value} peças`}
-                  onClick={() => changeTab(stat.tabId)}
-                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); changeTab(stat.tabId); } }}
-                  data-testid={stat.testId}
-                  onMouseEnter={e => { if (!isActiveCard) { (e.currentTarget as HTMLElement).style.background = `${stat.accentColor}0d`; (e.currentTarget as HTMLElement).style.borderColor = `${stat.accentColor}40`; } }}
-                  onMouseLeave={e => { if (!isActiveCard) { (e.currentTarget as HTMLElement).style.background = '#fafaf9'; (e.currentTarget as HTMLElement).style.borderColor = '#e7e5e4'; } }}
-                  style={{
-                    flex: isMobile ? '1 1 140px' : 1, padding: '14px 16px 12px', borderRadius: 12,
-                    background: isActiveCard ? `${stat.accentColor}08` : '#fafaf9',
-                    border: `1px solid ${isActiveCard ? `${stat.accentColor}30` : '#e7e5e4'}`,
-                    cursor: 'pointer',
-                    display: 'flex', flexDirection: 'column', gap: 6,
-                    boxShadow: 'none',
-                    transition: 'background 0.12s, border-color 0.12s',
-                    position: 'relative', overflow: 'hidden',
-                  }}
-                >
-                  {/* Faixa de acento — sempre visível, mais forte na aba ativa */}
-                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: stat.accentColor, opacity: isActiveCard ? 1 : stat.value > 0 ? 0.45 : 0.18, borderRadius: '12px 12px 0 0' }} />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
-                    {/* textColor (tom 700) e não a cor saturada: o rótulo do card
-                        ativo tem de passar AA em 11px. */}
-                    <span style={{ fontSize: 11, fontWeight: 700, color: isActiveCard ? stat.textColor : stat.value > 0 ? '#44403c' : '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{stat.label}</span>
-                    <span style={{ width: 26, height: 26, borderRadius: 6, backgroundColor: stat.value > 0 ? `${stat.accentColor}18` : stat.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Icon style={{ width: 13, height: 13, color: stat.value > 0 ? stat.textColor : '#78716c' }} />
-                    </span>
-                  </div>
-                  {/* Zerado usa #78716c: o cinza #b8b4b0 reprovava AA e "0" também é informação. */}
-                  <span style={{ fontSize: 30, fontWeight: 800, color: isActiveCard ? stat.textColor : stat.value > 0 ? '#1c1917' : '#78716c', letterSpacing: '-0.05em', lineHeight: 1, fontFamily: '"Space Grotesk",sans-serif' }}>
-                    {stat.value}
-                  </span>
-                  <div style={{ fontSize: 11, color: '#57534e' }}>{stat.sub}</div>
-                  <div style={{ height: 3, borderRadius: 6, backgroundColor: '#e7e5e4', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${Math.min(100, pct)}%`, backgroundColor: stat.accentColor, borderRadius: 6 }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          {/* Os cards respeitam os filtros. Dizer isso evita a leitura de que
-              são o total da fila. */}
-          <div style={{ fontSize: 11, color: '#57534e', marginBottom: 14 }}>
-            {activeFilterCount > 0
-              ? `Contagens no recorte atual (${activeFilterCount} ${activeFilterCount === 1 ? 'filtro ativo' : 'filtros ativos'})`
-              : 'Contagens de toda a fila da Arte'}
-          </div>
-
           {/* ── Filter Row 1: search + dropdowns + period ── */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
             <div style={{ position: 'relative', flex: '1 1 180px', minWidth: 160 }}>
@@ -2592,27 +2650,37 @@ export default function Arte() {
           </div>
 
           {/* ── Filter Row 2 ── */}
-          {/* "Sem thumb" e "Com thumb" eram dois booleanos independentes: ligados
-              juntos descartavam TUDO por construção e a lista ficava vazia com o
-              texto genérico de "2 filtros ativos". Viraram um segmentado de três
-              estados cada, no mesmo estilo do controle de período — dois
-              controles em vez de quatro chips, sem estado impossível. */}
+          {/* UM idioma para filtro, OUTRO para ordenação.
+              A faixa falava três: chip arredondado ligado/desligado (Urgente),
+              segmentado de três estados (Thumb, Arquivo final) e um terceiro
+              segmentado que NÃO filtra nada (Ordenar) mas tinha exatamente a
+              mesma cara dos que filtram — três formas para duas funções, e a
+              única diferença real (filtrar × ordenar) era a que não aparecia.
+              Agora todo filtro é segmentado com rótulo à esquerda, inclusive
+              "Prioridade" (todas | urgentes), e a ordenação saiu do vocabulário
+              de filtro: é um <select> rotulado, encostado à direita e separado
+              por um divisor. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap', borderTop: '1px solid #f0efee', paddingTop: 8 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Mostrar:</span>
 
-            <button
-              onClick={() => setUrgenteFilter(!urgenteFilter)}
-              aria-pressed={urgenteFilter}
-              data-testid="button-urgente-filter"
-              // Em repouso o cinza #78716c sobre #ede9e4 dava 3,97:1 — abaixo de
-              // AA, e é o estado em que o chip passa a maior parte do tempo.
-              // #57534e sobre o mesmo fundo dá 6,2:1.
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 28, padding: '0 11px', borderRadius: 999, cursor: 'pointer', fontSize: 11, fontWeight: 600, transition: 'all 0.14s', border: urgenteFilter ? '1px solid #fca5a5' : '1px solid transparent', background: urgenteFilter ? '#fef2f2' : '#ede9e4', color: urgenteFilter ? '#b91c1c' : '#57534e' }}
-            >
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: urgenteFilter ? '#dc2626' : '#a8a29e', flexShrink: 0 }} />
-              Urgente
-            </button>
+            <div role="group" aria-label="Prioridade" data-testid="segment-urgente"
+              style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 999, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', padding: '0 6px 0 8px' }}>Prioridade</span>
+              {([
+                { on: false, label: 'todas' },
+                { on: true, label: 'urgentes' },
+              ] as { on: boolean; label: string }[]).map(({ on, label }) => (
+                <button key={label} onClick={() => setUrgenteFilter(on)} aria-pressed={urgenteFilter === on}
+                  data-testid={`button-urgente-${on ? 'sim' : 'nao'}`}
+                  style={{ height: 22, padding: '0 10px', borderRadius: 999, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: urgenteFilter === on ? 700 : 500, background: urgenteFilter === on ? '#ffffff' : 'transparent', color: urgenteFilter === on ? '#1c1917' : '#57534e', boxShadow: urgenteFilter === on ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.12s' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
 
+            {/* "Sem thumb" e "Com thumb" eram dois booleanos independentes:
+                ligados juntos descartavam TUDO por construção e a lista ficava
+                vazia com o texto genérico de "2 filtros ativos". */}
             {([
               { rotulo: 'Thumb', value: thumbFilter, set: setThumbFilter, testId: 'segment-thumb' },
               { rotulo: 'Arquivo final', value: finalFilter, set: setFinalFilter, testId: 'segment-final' },
@@ -2635,18 +2703,24 @@ export default function Arte() {
 
             {/* Ordenação — a regra de negócio inteira é ancorada na saída do
                 caminhão e a lista só sabia ordenar por nome de evento. */}
-            <div role="group" aria-label="Ordenar por" style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 999, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', padding: '0 6px 0 8px' }}>Ordenar</span>
-              {([
-                { v: 'evento', label: 'por evento' },
-                { v: 'prazo', label: 'por prazo' },
-              ] as { v: 'evento' | 'prazo'; label: string }[]).map(({ v, label }) => (
-                <button key={v} onClick={() => setSortMode(v)} aria-pressed={sortMode === v}
-                  data-testid={`button-sort-${v}`}
-                  style={{ height: 22, padding: '0 10px', borderRadius: 999, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: sortMode === v ? 700 : 500, background: sortMode === v ? '#ffffff' : 'transparent', color: sortMode === v ? '#1c1917' : '#57534e', boxShadow: sortMode === v ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.12s' }}>
-                  {label}
-                </button>
-              ))}
+            {/* No celular a faixa já quebra em várias linhas: o divisor
+                vertical ficaria sozinho no começo de uma delas, separando
+                nada de nada. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: isMobile ? undefined : 'auto' }}>
+              {!isMobile && <span aria-hidden="true" style={{ width: 1, height: 20, background: '#e7e5e4' }} />}
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <ArrowUpDown style={{ width: 12, height: 12, color: '#57534e', flexShrink: 0 }} />
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Ordenar por</span>
+                <select
+                  value={sortMode}
+                  onChange={e => setSortMode(e.target.value as 'evento' | 'prazo')}
+                  data-testid="select-ordenar"
+                  style={{ height: 28, padding: '0 8px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#1c1917', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  <option value="evento">Evento</option>
+                  <option value="prazo">Prazo da fase</option>
+                </select>
+              </label>
             </div>
           </div>
 
@@ -2665,6 +2739,12 @@ export default function Arte() {
               <button onClick={clearAllFilters} data-testid="button-clear-filters" style={{ fontSize: 11, fontWeight: 600, color: '#57534e', background: 'none', border: '1px solid #e7e5e4', borderRadius: 999, cursor: 'pointer', padding: '3px 10px' }}>
                 Limpar tudo
               </button>
+              {/* A legenda solta "Contagens de toda a fila da Arte" morreu com
+                  os stat cards. O aviso só importa quando há recorte ativo — e
+                  aí ele mora aqui, na linha que mostra o recorte. */}
+              <span style={{ fontSize: 11, color: '#57534e' }}>
+                as contagens das abas seguem este recorte
+              </span>
             </div>
           )}
 

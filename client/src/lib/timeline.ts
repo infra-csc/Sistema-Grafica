@@ -17,6 +17,32 @@
 // buraco silencioso numa auditoria.
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * DE ONDE VEM O AUTOR DA LINHA — e por que a distinção não é cosmética.
+ *
+ * A trilha tem duas naturezas de linha misturadas na mesma lista:
+ *
+ *   • linha de REGISTRO — nasceu de audit_logs, tem autor gravado no ato;
+ *   • linha RECONSTRUÍDA — o cliente a sintetizou de um carimbo da própria
+ *     peça (`productionStartedAt`, `deliveredAt`, `creatorReviewedAt`…).
+ *     Carimbo é data, não é gente: NUNCA houve autor para consultar aqui.
+ *
+ * Antes as duas terminavam iguais na tela — um traço na coluna "Realizado por"
+ * — e o filtro juntava as duas debaixo de "Sem autor registrado". Com ~90% da
+ * lista sendo reconstrução, a leitura que sobrava era "o sistema não sabe quem
+ * fez quase nada", quando a frase honesta é "esta linha nunca foi um registro".
+ *
+ * `system` é a terceira: ação AUTOMÁTICA (derivação de status, cron, importação
+ * sem sessão) gravada explicitamente como "Sistema". É uma afirmação, e não
+ * pode ser lida como ausência.
+ *
+ * `unrecorded` é a quarta e a única de fato ruim: existe registro e ele está
+ * sem nome. Não deveria mais acontecer (o servidor grava "Sistema" no pior
+ * caso), e o valor existe justamente para que o dia em que voltar a acontecer
+ * seja contável na tela em vez de se esconder no meio das reconstruções.
+ */
+export type AuthorSource = "log" | "system" | "derived" | "unrecorded";
+
 export interface TimelineEvent {
   id: string;
   type: string;
@@ -31,6 +57,13 @@ export interface TimelineEvent {
   quantityProduced?: number;
   receivedBy?: string;
   userName?: string;
+  /**
+   * Identidade que RESISTE. Nome muda e repete; o id não. Vem de audit_logs
+   * (coluna que existia e era sempre nula) — ausente nas linhas antigas e em
+   * toda linha reconstruída.
+   */
+  userId?: string;
+  authorSource: AuthorSource;
   sponsorCount?: number;
   logDetails?: string;
   /** A peça não está mais em /api/items (excluída) — a linha marca "(peça excluída)". */
@@ -61,6 +94,29 @@ const BATCH_RE = /^(\d+)\s+(itens|item|peças|peça)\b/i;
 
 /** displayId real é `ITEM-001` (schema.ts) — o `#123` do parser antigo não existe. */
 const DISPLAY_ID_RE = /\b(ITEM-\d+)\b/i;
+
+/** Autor explícito das ações automáticas — o mesmo literal de server/routes/shared.ts. */
+const SYSTEM_ACTOR = "Sistema";
+
+/**
+ * Autoria de uma linha a partir do log que a originou (ou da falta dele).
+ *
+ * Um único lugar decide: sem log é reconstrução, log sem nome é registro
+ * incompleto, "Sistema" é máquina, o resto é gente. Antes cada `push` copiava
+ * `userName` na mão e três deles simplesmente não copiavam nada.
+ */
+function autoria(log: AnyLog | undefined | null): {
+  userName?: string;
+  userId?: string;
+  authorSource: AuthorSource;
+} {
+  if (!log) return { authorSource: "derived" };
+  const nome = String(pick(log, "userName", "user_name") ?? "").trim();
+  const userId = pick(log, "userId", "user_id") || undefined;
+  if (!nome) return { userId, authorSource: "unrecorded" };
+  if (nome === SYSTEM_ACTOR) return { userName: nome, userId, authorSource: "system" };
+  return { userName: nome, userId, authorSource: "log" };
+}
 
 export function buildTimeline(
   events: any[],
@@ -108,9 +164,22 @@ export function buildTimeline(
   auditLogs.forEach((log: AnyLog) => {
     const action = (log.action || "").toLowerCase();
     const details = log.details || "";
+    const detailsLower = details.toLowerCase();
     const entityId = pick(log, "entityId", "entity_id");
     if (!entityId) return;
-    if (action === "approved" && details.toLowerCase().includes("liberado para produção")) {
+    // Casar SÓ a frase "liberado para produção" deixava de fora três redações
+    // que também são liberação: a de /api/items/:id/approve ("aprovado para
+    // produção", ainda gravada em milhares de linhas antigas) e as duas de
+    // reaproveitamento do /creator-review. Nesses casos o log existia, a peça
+    // seguia parecendo "sem liberação registrada", e o cliente emitia POR CIMA
+    // a linha sintética SEM AUTOR — a mesma ação contada duas vezes, uma delas
+    // anônima. O critério agora é por AÇÃO, excluindo o que é aprovação de
+    // patrocinador (que também grava 'approved' e sempre cita o patrocinador).
+    if (
+      action === "approved" &&
+      !detailsLower.includes("patrocinador") &&
+      !detailsLower.includes("aprovou")
+    ) {
       itemsWithRelease.add(entityId);
     }
     if (action === "production" || action === "produced") {
@@ -127,7 +196,7 @@ export function buildTimeline(
       timestamp: new Date(event.createdAt),
       eventName: event.name,
       eventId: event.id,
-      userName: log?.userName ?? log?.user_name,
+      ...autoria(log),
     });
   });
 
@@ -150,7 +219,7 @@ export function buildTimeline(
       itemId: item.id,
       itemDisplayId: item.displayId,
       quantity: item.quantity,
-      userName: createdLog?.userName ?? createdLog?.user_name,
+      ...autoria(createdLog),
     });
 
     // "Peça Liberada" sintética — só para peças SEM log de liberação.
@@ -162,9 +231,10 @@ export function buildTimeline(
     // `approvedAt` só existe no fluxo antigo. Sem nenhum dos dois, a linha não
     // é emitida — melhor não afirmar do que afirmar data errada.
     //
-    // E sem autor de propósito: 'approved' é gravado por cinco rotas na mesma
-    // peça, então herdar o "log de approved" creditava a liberação a quem
-    // apenas registrou a aprovação de um patrocinador. "—" é o padrão honesto.
+    // E sem autor: esta linha só é emitida quando NÃO existe log de liberação
+    // nesta consulta, ou seja, não há de quem herdar autoria. Não é "não
+    // sabemos quem fez" — é uma linha reconstruída do carimbo da peça, e é
+    // assim (authorSource: "derived") que ela se declara para a tela.
     const releasedAt = item.approvedAt ?? item.creatorReviewedAt;
     if (
       ["approved", "inProduction", "produced", "delivered"].includes(item.status) &&
@@ -181,6 +251,7 @@ export function buildTimeline(
         itemId: item.id,
         itemDisplayId: item.displayId,
         quantity: item.quantity,
+        authorSource: "derived",
       });
     }
 
@@ -202,6 +273,7 @@ export function buildTimeline(
         itemDisplayId: item.displayId,
         quantity: item.quantity,
         quantityProduced: item.quantityProduced,
+        authorSource: "derived",
       });
     }
 
@@ -217,7 +289,7 @@ export function buildTimeline(
         itemId: item.id,
         itemDisplayId: item.displayId,
         receivedBy: item.receivedBy,
-        userName: log?.userName ?? log?.user_name,
+        ...autoria(log),
       });
     }
   });
@@ -230,7 +302,7 @@ export function buildTimeline(
     const entityId = pick(log, "entityId", "entity_id");
     const entityType = String(pick(log, "entityType", "entity_type") ?? "").toLowerCase();
     const ts = pick(log, "createdAt", "created_at");
-    const userName = pick(log, "userName", "user_name");
+    const autor = autoria(log);
     const uid = log.id ?? `${entityId}${ts}`;
 
     /* ── Logs de EVENTO ── */
@@ -243,7 +315,7 @@ export function buildTimeline(
         timestamp: new Date(ts),
         eventName: ev?.name || nameFromDetails || "Evento desconhecido",
         eventId: ev ? entityId : "",
-        userName,
+        ...autor,
         logDetails: details,
       };
 
@@ -321,7 +393,7 @@ export function buildTimeline(
       itemId: entityId,
       itemDisplayId: resolvedId,
       quantity: item?.quantity,
-      userName,
+      ...autor,
       logDetails: details,
       itemMissing: !item,
     };
@@ -551,7 +623,7 @@ export function buildTimeline(
           timestamp: new Date(ts),
           eventName: ev?.name || eventName,
           eventId: entityId,
-          userName,
+          ...autor,
           logDetails: details,
           batchCount: batch ? parseInt(batch[1], 10) : undefined,
         };

@@ -68,7 +68,7 @@ export function registerSponsorRoutes(app: Express): void {
       const sponsor = await storage.createSponsor(validatedData);
       
       await createAuditLog(
-        req.userName!,
+        req,
         'created',
         'sponsor',
         sponsor.id,
@@ -97,7 +97,7 @@ export function registerSponsorRoutes(app: Express): void {
       }
       
       await createAuditLog(
-        req.userName!,
+        req,
         'updated',
         'sponsor',
         sponsor.id,
@@ -122,7 +122,7 @@ export function registerSponsorRoutes(app: Express): void {
       await storage.deleteSponsor(req.params.id);
       
       await createAuditLog(
-        req.userName!,
+        req,
         'deleted',
         'sponsor',
         sponsor.id,
@@ -156,6 +156,15 @@ export function registerSponsorRoutes(app: Express): void {
       const { quota, itemTypes } = req.body as { quota: string; itemTypes: string[] };
       if (!quota) return res.status(400).json({ error: "quota é obrigatório" });
       const rule = await storage.upsertEventQuotaRule(req.params.id, quota, itemTypes ?? []);
+      // A cota decide quais peças cada patrocinador recebe na vinculação
+      // automática. Mudá-la remaneja arte de cliente e não deixava rastro.
+      await createAuditLog(
+        req,
+        'updated',
+        'event',
+        req.params.id,
+        `Cota "${quota}" definida com ${(itemTypes ?? []).length} tipo(s) de peça`
+      );
       res.json(rule);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -168,6 +177,13 @@ export function registerSponsorRoutes(app: Express): void {
     }
     try {
       await storage.deleteEventQuotaRule(req.params.id, req.params.quota);
+      await createAuditLog(
+        req,
+        'updated',
+        'event',
+        req.params.id,
+        `Cota "${req.params.quota}" removida do evento`
+      );
       res.json({ ok: true });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -194,7 +210,7 @@ export function registerSponsorRoutes(app: Express): void {
     res.json(readGlobalQuotaRules());
   });
 
-  app.put("/api/quota-rules/global", requireAuth, (req, res) => {
+  app.put("/api/quota-rules/global", requireAuth, async (req, res) => {
     if (req.userRole !== "admin" && req.userRole !== "atendimento") {
       return res.status(403).json({ error: "Acesso negado" });
     }
@@ -204,6 +220,16 @@ export function registerSponsorRoutes(app: Express): void {
       const rules = readGlobalQuotaRules().filter(r => r.quota !== quota);
       rules.push({ quota, itemTypes: itemTypes ?? [] });
       writeGlobalQuotaRules(rules);
+      // Regra GLOBAL: vale para todos os eventos futuros e mora num arquivo
+      // fora do banco. Sem esta linha, a única escrita do sistema que muda o
+      // comportamento de todos os eventos de uma vez não tinha dono.
+      await createAuditLog(
+        req,
+        'updated',
+        'quota_rules',
+        'global',
+        `Cota global "${quota}" definida com ${(itemTypes ?? []).length} tipo(s) de peça`
+      );
       res.json({ quota, itemTypes: itemTypes ?? [] });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -245,7 +271,7 @@ export function registerSponsorRoutes(app: Express): void {
       // sem broadcast — outros clientes ficavam com /api/items stale.
       const event = await storage.getEvent(req.params.id);
       await createAuditLog(
-        (req as any).userName,
+        req,
         'updated',
         'event',
         req.params.id,
@@ -288,7 +314,7 @@ export function registerSponsorRoutes(app: Express): void {
       ]);
 
       await createAuditLog(
-        req.userName!,
+        req,
         'updated',
         'event_sponsor',
         `${eventId}_${sponsorId}`,
@@ -319,7 +345,7 @@ export function registerSponsorRoutes(app: Express): void {
       const sponsor = await storage.getSponsor(validatedData.sponsorId);
       
       await createAuditLog(
-        req.userName!,
+        req,
         'added',
         'event_sponsor',
         eventSponsor.id,
@@ -355,7 +381,7 @@ export function registerSponsorRoutes(app: Express): void {
       const sponsor = await storage.getSponsor(sponsorId);
       
       await createAuditLog(
-        req.userName!,
+        req,
         'removed',
         'event_sponsor',
         `${eventId}_${sponsorId}`,
@@ -432,7 +458,7 @@ export function registerSponsorRoutes(app: Express): void {
       }
       
       await createAuditLog(
-        (req as any).userName,
+        req,
         'updated',
         'item',
         itemId,
@@ -471,7 +497,7 @@ export function registerSponsorRoutes(app: Express): void {
       await storage.bulkSyncItemSponsors(id, []);
 
       await createAuditLog(
-        (req as any).userName,
+        req,
         'updated',
         'item',
         id,
@@ -538,7 +564,7 @@ export function registerSponsorRoutes(app: Express): void {
       
       if (results.length > 0) {
         await createAuditLog(
-          (req as any).userName,
+          req,
           'updated',
           'item',
           results.map(i => i.id).join(','),
@@ -583,7 +609,7 @@ export function registerSponsorRoutes(app: Express): void {
       const sponsor = await storage.getSponsor(validatedData.sponsorId);
       
       await createAuditLog(
-        (req as any).userName,
+        req,
         'added',
         'item_sponsor',
         itemSponsor.id,
@@ -611,7 +637,7 @@ export function registerSponsorRoutes(app: Express): void {
       const sponsor = await storage.getSponsor(sponsorId);
       
       await createAuditLog(
-        (req as any).userName,
+        req,
         'removed',
         'item_sponsor',
         `${itemId}_${sponsorId}`,

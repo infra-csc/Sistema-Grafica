@@ -114,6 +114,16 @@ async function chamar(
 const CRIADOR = "user-criador";
 const MOTIVO = "cliente confirmou dois pórticos extras para a ativação de sábado";
 
+/**
+ * O 1º argumento de createAuditLog é o ATOR (o próprio `req`), não mais um nome
+ * solto: a linha grava userName E userId — o id é o que resiste a nome trocado
+ * ou repetido. Espelha resolveActor() de server/routes/shared.ts.
+ */
+const atorDe = (a: any): { userName: string; userId: string | null } =>
+  typeof a === "string"
+    ? { userName: a.trim() || "Sistema", userId: null }
+    : { userName: String(a?.userName ?? "").trim() || "Sistema", userId: a?.userId ?? null };
+
 let mundo: { itens: Record<string, any>; eventos: Record<string, any> };
 let txOps: { inserts: Array<{ table: any; vals: any }>; updates: Array<{ table: any; vals: any }> };
 let broadcasts: any[];
@@ -971,7 +981,7 @@ describe("DELETE /api/items/:id — alcance da solicitação (decisão do dono)"
     expect(H.storage.deleteItem).toHaveBeenCalledWith("mae-1");
     expect(H.createAuditLog).toHaveBeenCalled();
     const [autor, acao, entidade, id, detalhe] = (H.createAuditLog as any).mock.calls[0];
-    expect(autor).toBe("Maria Silva");
+    expect(atorDe(autor)).toEqual({ userName: "Maria Silva", userId: "user-solicitacao" });
     expect(acao).toBe("deleted");
     expect(entidade).toBe("item");
     expect(id).toBe("mae-1");

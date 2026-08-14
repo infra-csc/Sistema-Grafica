@@ -440,3 +440,142 @@ describe("buildTimeline — busca e ordenação", () => {
     expect(e.itemDisplayId).toBe("ITEM-023");
   });
 });
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   AUTORIA DA LINHA — "não sabemos quem fez" e "isto nunca foi um registro"
+   são frases diferentes, e a tela dizia a primeira nos dois casos.
+
+   O sintoma medido em produção: 4.287 de 4.755 linhas caíam no filtro "Sem
+   autor registrado". A quase totalidade delas era RECONSTRUÍDA pelo cliente a
+   partir de carimbos da própria peça (productionStartedAt, deliveredAt…), onde
+   nunca existiu autor a perder. `authorSource` separa as quatro naturezas para
+   que a tela possa contá-las e nomeá-las em vez de empilhar tudo num traço.
+   ───────────────────────────────────────────────────────────────────────────── */
+describe("buildTimeline — de onde vem (ou não vem) o autor de cada linha", () => {
+  it("linha vinda de log traz nome, id e origem 'log'", () => {
+    const tl = buildTimeline([evento], [peca], [
+      log({ userId: "u-7", details: "Item editado: Quantidade: 10 → 20" }),
+    ]);
+    const e = find(tl, "item_edited")!;
+    expect(e.userName).toBe("Ana Souza");
+    expect(e.userId).toBe("u-7");
+    expect(e.authorSource).toBe("log");
+  });
+
+  it("ação automática registrada como 'Sistema' é afirmação, não ausência", () => {
+    const tl = buildTimeline([evento], [], [
+      log({
+        entityType: "event", entityId: EV_ID, action: "updated", userName: "Sistema",
+        details: "Status do evento recalculado: Concluído (todas as peças ativas foram entregues)",
+      }),
+    ]);
+    const e = find(tl, "event_updated")!;
+    expect(e.authorSource).toBe("system");
+    expect(e.userName).toBe("Sistema");
+  });
+
+  it("registro gravado sem nome é 'unrecorded' — contável, não escondido", () => {
+    const tl = buildTimeline([evento], [peca], [
+      log({ userName: "   ", details: "Item editado: Quantidade: 10 → 20" }),
+    ]);
+    const e = find(tl, "item_edited")!;
+    expect(e.authorSource).toBe("unrecorded");
+    expect(e.userName).toBeUndefined();
+  });
+
+  it("linha sintetizada de carimbo da peça se declara 'derived'", () => {
+    // Sem NENHUM log: é exatamente o estado em que o Histórico se encontrava
+    // para ~90% da lista (a consulta traz só os 500 registros mais recentes).
+    const emProducao = {
+      ...peca,
+      status: "inProduction",
+      quantityProduced: 4,
+      productionStartedAt: "2026-08-09T13:29:44.000Z",
+      creatorReviewedAt: "2026-08-08T10:00:00.000Z",
+    };
+    const tl = buildTimeline([evento], [emProducao], []);
+    const producao = find(tl, "production_started")!;
+    expect(producao.authorSource).toBe("derived");
+    expect(producao.userName).toBeUndefined();
+
+    // E as três outras sintéticas da mesma peça pela mesma régua.
+    expect(find(tl, "item_created")!.authorSource).toBe("derived");
+    expect(find(tl, "item_released")!.authorSource).toBe("derived");
+    expect(find(tl, "event_created")!.authorSource).toBe("derived");
+  });
+
+  it("toda entrada declara uma origem — nenhuma linha sai sem authorSource", () => {
+    const entregue = {
+      ...peca,
+      status: "delivered",
+      quantityProduced: 10,
+      productionStartedAt: "2026-08-09T13:00:00.000Z",
+      deliveredAt: "2026-08-11T15:00:00.000Z",
+      creatorReviewedAt: "2026-08-08T10:00:00.000Z",
+      receivedBy: "Portaria",
+    };
+    const tl = buildTimeline([evento, evento2], [entregue], [
+      log({ details: "Item editado: Quantidade: 10 → 20" }),
+      log({ entityType: "event", entityId: EV2_ID, action: "updated", details: "Data de saída alterada" }),
+    ]);
+    expect(tl.length).toBeGreaterThan(0);
+    for (const e of tl) {
+      expect(["log", "system", "derived", "unrecorded"]).toContain(e.authorSource);
+    }
+  });
+
+  it("liberação já registrada não ganha uma segunda linha anônima por cima", () => {
+    // O log de /api/items/:id/approve dizia "aprovado para produção" e a
+    // pré-varredura só reconhecia "liberado para produção": a peça parecia sem
+    // registro de liberação e o cliente emitia POR CIMA a linha sintética, sem
+    // autor. A MESMA ação aparecia duas vezes, uma delas anônima.
+    const liberada = {
+      ...peca,
+      status: "approved",
+      approvedAt: "2026-08-08T10:00:00.000Z",
+    };
+    for (const details of [
+      'Item "Banner 2x1" liberado para produção',
+      'Item "Banner 2x1" aprovado para produção',
+    ]) {
+      const tl = buildTimeline([evento], [liberada], [log({ action: "approved", details })]);
+      const liberacoes = tl.filter(e => e.type === "item_released");
+      expect(liberacoes, details).toHaveLength(1);
+      expect(liberacoes[0].authorSource).toBe("log");
+      expect(liberacoes[0].userName).toBe("Ana Souza");
+    }
+  });
+
+  it("liberação por reaproveitamento também suprime a linha anônima", () => {
+    // /creator-review grava 'approved' com um texto que a tela classifica como
+    // REAPROVEITAMENTO (é o que a ação foi). A linha certa é a de reuso, com
+    // autor — e nenhuma "Lib. p/ Produção" reconstruída ao lado dela.
+    const reaproveitada = {
+      ...peca,
+      status: "produced",
+      creatorReviewedAt: "2026-08-08T10:00:00.000Z",
+    };
+    const tl = buildTimeline([evento], [reaproveitada], [
+      log({
+        action: "approved",
+        details: "Status alterado: Aguardando Revisão Final → Produzido (reaproveitamento — não precisa produzir)",
+      }),
+    ]);
+    expect(tl.filter(e => e.type === "item_released")).toHaveLength(0);
+    const reuso = find(tl, "item_reused")!;
+    expect(reuso.authorSource).toBe("log");
+    expect(reuso.userName).toBe("Ana Souza");
+  });
+
+  it("aprovação de PATROCINADOR não é liberação — a linha de liberação continua reconstruída", () => {
+    // O contraponto do teste acima: 'approved' também é a ação das aprovações
+    // de patrocinador. Tratá-las como liberação apagaria a linha de liberação.
+    const liberada = { ...peca, status: "approved", approvedAt: "2026-08-08T10:00:00.000Z" };
+    const tl = buildTimeline([evento], [liberada], [
+      log({ action: "approved", details: 'Patrocinador "Ambev" aprovou o item' }),
+    ]);
+    expect(typesOf(tl)).toContain("sponsor_approved");
+    const liberacao = find(tl, "item_released")!;
+    expect(liberacao.authorSource).toBe("derived");
+  });
+});

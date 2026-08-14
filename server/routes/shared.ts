@@ -71,9 +71,44 @@ export function translateStatus(status: string): string {
   return statusMap[status] || status;
 }
 
+// ─── AUTORIA DA TRILHA ───────────────────────────────────────────────────────
+//
+// Toda linha de audit_logs precisa responder "quem fez" com DUAS coisas:
+//
+//   userName — legível, sobrevive à exclusão do usuário (denormalizado);
+//   userId   — a identidade que RESISTE. Nome muda (casamento, correção de
+//              cadastro) e repete (dois "Ana Silva"); o id não. Sem ele, a
+//              trilha de meses atrás vira um nome que talvez não aponte mais
+//              para ninguém — e a coluna já existia no schema, sempre nula.
+//
+// O ator pode chegar de três formas, e as três resolvem para o mesmo par:
+//   • o próprio `req` (o caminho normal — Express.Request tem userName/userId);
+//   • um objeto { userName, userId } (quando o nome é ajustado, ex.: 'Gráfica');
+//   • uma string solta (assinatura legada, ainda usada pelos módulos de rota
+//     que este agente não é dono — grava sem userId, mas nunca sem nome).
+//
+// NUNCA vazio: caminho sem sessão (job, cron, importação automática) grava
+// "Sistema" de forma EXPLÍCITA. "Sistema" é uma afirmação ("foi a máquina");
+// autor em branco seria uma omissão ("não sabemos"). A tela distingue as duas.
+export const SYSTEM_ACTOR = "Sistema";
+
+export type AuditActor =
+  | { userName?: string | null; userId?: string | null }
+  | string
+  | null
+  | undefined;
+
+export function resolveActor(actor: AuditActor): { userName: string; userId: string | null } {
+  if (typeof actor === "string") {
+    return { userName: actor.trim() || SYSTEM_ACTOR, userId: null };
+  }
+  const nome = (actor?.userName ?? "").trim();
+  return { userName: nome || SYSTEM_ACTOR, userId: actor?.userId ?? null };
+}
+
 // Helper to create audit logs
 export async function createAuditLog(
-  userName: string,
+  actor: AuditActor,
   action: string,
   entityType: string,
   entityId: string,
@@ -81,14 +116,20 @@ export async function createAuditLog(
 ) {
   try {
     await storage.createAuditLog({
-      userName,
+      ...resolveActor(actor),
       action,
       entityType,
       entityId,
       details,
     });
   } catch (error) {
-    console.error("Failed to create audit log:", error);
+    // O catch existe para que uma falha de auditoria não derrube a operação do
+    // usuário — mas ele é o jeito de uma ação sumir da trilha em silêncio.
+    // Por isso o log carrega O QUE se perdeu: dá para reconstruir a linha à mão.
+    console.error(
+      `Failed to create audit log [${action} ${entityType}:${entityId} por ${resolveActor(actor).userName}]:`,
+      error
+    );
   }
 }
 
@@ -177,6 +218,21 @@ export async function updateEventStatus(eventId: string): Promise<void> {
 
   if (event.status !== newStatus) {
     await storage.updateEvent(eventId, { status: newStatus });
+    // Esta era a única escrita de estado de EVENTO sem trilha nenhuma: a coluna
+    // ia e voltava entre "created" e "completed" a cada mexida em peça (10
+    // chamadores) e nada registrava a virada. Não há pessoa a creditar — a
+    // mudança é DERIVADA da produção —, então o autor é "Sistema" por
+    // afirmação, com o motivo escrito por extenso. É o caminho automático que
+    // a regra da casa pede: honesto, não vazio.
+    await createAuditLog(
+      SYSTEM_ACTOR,
+      "updated",
+      "event",
+      eventId,
+      newStatus === "completed"
+        ? "Status do evento recalculado: Concluído (todas as peças ativas foram entregues)"
+        : "Status do evento recalculado: Em andamento (voltou a existir peça ativa não entregue)"
+    );
     broadcast({ type: "event_updated", event: { ...event, status: newStatus } });
   }
 }

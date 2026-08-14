@@ -166,7 +166,46 @@ function cutoff(p: string): Date | null {
 }
 
 const PAGE_SIZES = [25, 50, 100];
+/* ── Autoria: três buckets, não um ──────────────────────────────────────────
+   O filtro tinha UM balde chamado "Sem autor registrado" e nele caíam 4.287 de
+   4.755 linhas — a leitura inevitável era "o sistema não sabe quem fez 90% das
+   coisas". Mas as linhas ali dentro tinham três naturezas diferentes:
+
+     RECONSTRUÍDO — a linha nunca foi um registro. O cliente a sintetizou de um
+                    carimbo da própria peça (productionStartedAt, deliveredAt).
+                    Carimbo é data, não é gente: não há autor a perder.
+     SISTEMA      — registro de ação automática, autor gravado como "Sistema".
+                    É uma AFIRMAÇÃO, e aparecia como traço, igual a "não sei".
+     SEM REGISTRO — existe log e ele está sem nome. O único caso de fato ruim,
+                    e o que ficava invisível no meio dos outros dois.
+
+   Cada um vira uma opção própria, com contagem própria. */
+const RECONSTRUIDO = "__reconstruido__";
 const SEM_AUTOR = "__sem_autor__";
+
+/** Bucket de autoria de uma entrada — a chave do filtro e do agrupamento. */
+function autorKey(e: { userName?: string; authorSource?: string }): string {
+  if (e.authorSource === "derived") return RECONSTRUIDO;
+  if (e.authorSource === "unrecorded") return SEM_AUTOR;
+  return e.userName || SEM_AUTOR;
+}
+
+const AUTOR_LABEL: Record<string, string> = {
+  [RECONSTRUIDO]: "Reconstruído (sem registro)",
+  [SEM_AUTOR]: "Sem autor registrado",
+};
+
+/** Frase por extenso da autoria — usada no modal da linha e na coluna do CSV. */
+function autoriaTexto(e: { userName?: string; authorSource?: string }): string {
+  if (e.authorSource === "derived") {
+    return "Reconstruído do carimbo da peça — não há registro de autoria";
+  }
+  if (e.authorSource === "unrecorded") return "Registro gravado sem autor";
+  if (e.authorSource === "system" || e.userName === "Sistema") {
+    return "Sistema (ação automática)";
+  }
+  return e.userName || "Registro gravado sem autor";
+}
 const VAZIO: any[] = [];
 
 /* ── Atalho de filtro ───────────────────────────────────────────────────────
@@ -232,32 +271,45 @@ function getInitials(name: string) {
     .map(n => n[0].toUpperCase()).join("");
 }
 
-/* ── User avatar ── */
-function UserAvatar({ name }: { name?: string }) {
-  // Sem autor registrado não dá para afirmar que foi o "Sistema": são ações
-  // feitas antes de o app passar a gravar quem executou. Mostrar "—" é honesto.
-  const unknown = !name || name === "Sistema";
-  const display = unknown ? "—" : name!;
-  const initials = unknown ? "—" : getInitials(display);
+/* ── User avatar ──
+   A versão anterior colapsava "Sistema" em "—" com a justificativa de que não
+   dava para afirmar que a máquina fez. Hoje dá: o servidor grava "Sistema" de
+   forma EXPLÍCITA nos caminhos sem pessoa (derivação de status, cron,
+   importação sem sessão) e nunca grava autor em branco. Continuar mostrando
+   traço apagaria a única resposta honesta que essas linhas têm. */
+function UserAvatar({ name, source }: { name?: string; source?: string }) {
+  const derived = source === "derived";
+  const system = source === "system" || name === "Sistema";
+  const unknown = !derived && !system && !name;
+
+  const display = derived ? "—" : system ? "Sistema" : unknown ? "—" : name!;
+  const initials = derived ? "·" : system ? "SIS" : unknown ? "—" : getInitials(display);
+  const apagado = derived || system || unknown;
+  const title = derived
+    ? "Linha reconstruída do carimbo da peça — não existe registro de autoria para esta ação"
+    : system
+      ? "Ação automática do sistema (sem pessoa por trás), registrada como tal"
+      : unknown
+        ? "Registro existe, mas foi gravado sem autor"
+        : display;
+
   return (
-    <div
-      style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}
-      title={unknown ? "Autor não registrado (ação anterior ao registro de autoria)" : display}
-    >
+    <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }} title={title}>
       <div style={{
         width: 28, height: 28, borderRadius: "50%",
         backgroundColor: "#e8e8e7",
         display: "flex", alignItems: "center", justifyContent: "center",
-        fontSize: 10, fontWeight: 800, color: unknown ? P.label : P.text,
+        fontSize: system ? 9 : 10, fontWeight: 800, color: apagado ? P.label : P.text,
         flexShrink: 0, letterSpacing: "0.02em",
       }}>
         {initials}
       </div>
       <span style={{
-        fontSize: 13, fontWeight: 700, color: unknown ? P.label : P.text,
+        fontSize: 13, fontWeight: 700, color: apagado ? P.label : P.text,
+        fontStyle: derived ? "italic" : undefined,
         whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
       }}>
-        {display}
+        {derived ? "reconstruído" : display}
       </span>
     </div>
   );
@@ -656,7 +708,7 @@ export default function Historico() {
     if (eventFilter.length > 0) list = list.filter(e => eventFilter.includes(e.eventId));
     if (actionFilter.length > 0) list = list.filter(e => actionFilter.includes(e.type));
     if (authorFilter.length > 0) {
-      list = list.filter(e => authorFilter.includes(e.userName || SEM_AUTOR));
+      list = list.filter(e => authorFilter.includes(autorKey(e)));
     }
     if (searchFilter.trim()) {
       const q = searchFilter.toLowerCase();
@@ -715,16 +767,25 @@ export default function Historico() {
   const authorOptions = useMemo(() => {
     const counts = new Map<string, number>();
     displayed.forEach(e => {
-      const k = e.userName || SEM_AUTOR;
+      const k = autorKey(e);
       counts.set(k, (counts.get(k) ?? 0) + 1);
     });
     return Array.from(counts.entries())
       .map(([value, count]) => ({
         value, count,
-        label: value === SEM_AUTOR ? "Sem autor registrado" : value,
+        label: AUTOR_LABEL[value] ?? value,
       }))
       .sort((a, b) => b.count - a.count);
   }, [displayed]);
+
+  /* ── Quantas linhas a tela INVENTOU a partir de carimbos ──
+     O número vai para a faixa de confiança porque é ele que explica a coluna
+     "Realizado por" vazia. Sem ele, a única conclusão possível ao olhar a tela
+     era "o sistema não registra quem faz as coisas". */
+  const reconstruidas = useMemo(
+    () => displayed.filter(e => e.authorSource === "derived").length,
+    [displayed],
+  );
 
   /* ── Métricas-atalho ── */
   const metrics = useMemo(() => {
@@ -846,14 +907,18 @@ export default function Historico() {
     const aviso = isTruncated
       ? [[`AVISO: trilha parcial — esta consulta carregou os ${auditLogs.length} registros mais recentes de ${logsTotal} no sistema${oldestLoaded ? ` (a partir de ${format(oldestLoaded, "dd/MM/yyyy HH:mm", { locale: ptBR })})` : ""}`]]
       : [];
-    const header = ["Data/Hora", "Tipo", "Descrição", "Peça", "Evento", "Realizado por"];
+    // "Realizado por" sozinho mentia por omissão no arquivo: um traço podia ser
+    // reconstrução, ação automática ou registro sem autor, e quem abre o CSV
+    // seis meses depois não tem a tela para desempatar. A coluna ao lado diz.
+    const header = ["Data/Hora", "Tipo", "Descrição", "Peça", "Evento", "Realizado por", "Origem da autoria"];
     const rows = filtered.map(e => [
       format(e.timestamp, "dd/MM/yyyy HH:mm:ss", { locale: ptBR }),
       cfgFor(e.type).label,
       e.logDetails ?? cfgFor(e.type).label,
       e.itemDisplayId ?? "",
       e.eventName,
-      e.userName ?? "—",
+      e.authorSource === "log" ? (e.userName ?? "") : "",
+      autoriaTexto(e),
     ]);
     const csv = [...aviso, header, ...rows]
       .map(r => r.map(c => esc(String(c))).join(";"))
@@ -1205,7 +1270,7 @@ export default function Historico() {
           O teto de 500 do servidor era invisível e o rodapé chamava tudo de
           "registros": paginando para trás sobravam só criações e entregas, sem
           que nada na tela dissesse que o resto simplesmente não foi consultado. */}
-      {isTruncated && (
+      {(isTruncated || reconstruidas > 0) && (
         <div style={{
           display: "flex", alignItems: "flex-start", gap: 8,
           padding: "10px 14px", marginBottom: 16,
@@ -1214,9 +1279,20 @@ export default function Historico() {
         }}>
           <Clock aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
           <span>
-            Trilha completa a partir de{" "}
-            {oldestLoaded ? format(oldestLoaded, "d 'de' MMMM 'de' yyyy", { locale: ptBR }) : "—"}.
-            {" "}Registros anteriores não estão nesta consulta ({logsTotal.toLocaleString("pt-BR")} no total).
+            {isTruncated && (
+              <>
+                Trilha completa a partir de{" "}
+                {oldestLoaded ? format(oldestLoaded, "d 'de' MMMM 'de' yyyy", { locale: ptBR }) : "—"}.
+                {" "}Registros anteriores não estão nesta consulta ({logsTotal.toLocaleString("pt-BR")} no total).{" "}
+              </>
+            )}
+            {reconstruidas > 0 && (
+              <>
+                {reconstruidas.toLocaleString("pt-BR")} de {displayed.length.toLocaleString("pt-BR")} linhas
+                {" "}são RECONSTRUÍDAS a partir de carimbos da própria peça — elas não têm autor porque
+                {" "}nunca foram um registro, não porque o autor se perdeu.
+              </>
+            )}
           </span>
         </div>
       )}
@@ -1632,7 +1708,7 @@ function Row({ entry, idx, isCompact, nav, onOpen, onCopy, copied }: {
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           <TimeCell ts={entry.timestamp} inline />
-          <UserAvatar name={entry.userName} />
+          <UserAvatar name={entry.userName} source={entry.authorSource} />
         </div>
       </div>
     );
@@ -1657,7 +1733,7 @@ function Row({ entry, idx, isCompact, nav, onOpen, onCopy, copied }: {
         {buildDescription(entry, nav)}{copiarBtn}
       </div>
       <TimeCell ts={entry.timestamp} />
-      <div style={{ minWidth: 0 }}><UserAvatar name={entry.userName} /></div>
+      <div style={{ minWidth: 0 }}><UserAvatar name={entry.userName} source={entry.authorSource} /></div>
       <div>{detalhesBtn}</div>
     </div>
   );
@@ -1757,8 +1833,11 @@ function DetailDialog({ entry, onClose, nav, onCopy, copied }: {
 
               <div style={linha}>
                 <span style={rotulo}>Realizado por</span>
-                <span style={{ color: entry.userName ? P.text : P.label, fontWeight: 700 }}>
-                  {entry.userName || "— (autor não registrado)"}
+                <span style={{
+                  color: entry.authorSource === "log" ? P.text : P.label,
+                  fontWeight: 700,
+                }}>
+                  {autoriaTexto(entry)}
                 </span>
               </div>
 

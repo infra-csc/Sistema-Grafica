@@ -402,7 +402,7 @@ import { broadcast, createAuditLog, updateEventStatus } from "../routes/shared";
       // 'item' fazia o histórico procurar uma peça inexistente e renderizar
       // "Peça ( un.) — Evento desconhecido".
       await createAuditLog(
-        (req as any).userName, 'created', 'event', event.id,
+        req, 'created', 'event', event.id,
         `${created.length} itens importados via Excel${fileName ? ` ("${fileName}")` : ""}`
       );
       // Log por peça: sem ele o histórico não encontra o autor da peça
@@ -411,7 +411,7 @@ import { broadcast, createAuditLog, updateEventStatus } from "../routes/shared";
       for (let i = 0; i < created.length; i += 10) {
         await Promise.all(created.slice(i, i + 10).map(it =>
           createAuditLog(
-            (req as any).userName, 'created', 'item', it.id,
+            req, 'created', 'item', it.id,
             `Item "${it.type}" importado via Excel - Qtd: ${it.quantity}`
           )
         ));

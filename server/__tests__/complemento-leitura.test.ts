@@ -195,7 +195,16 @@ const MIGRACAO_PENDENTE = () => erroPg("42703", 'column "parent_item_id" does no
 let mundo: { itens: Record<string, any>; eventos: Record<string, any> };
 let txOps: { inserts: Array<{ table: any; vals: any }>; updates: Array<{ table: any; vals: any }> };
 let broadcasts: any[];
-let logs: Array<{ userName: string; action: string; entityType: string; entityId: string; details: string }>;
+let logs: Array<{ userName: string; userId: string | null; action: string; entityType: string; entityId: string; details: string }>;
+/**
+ * O 1º argumento de createAuditLog é o ATOR, não mais um nome solto: chega o
+ * próprio `req` (ou { userName, userId }) para que a linha grave também o id,
+ * que é o que resiste a troca e repetição de nome. Espelha resolveActor().
+ */
+const atorDe = (a: any): { userName: string; userId: string | null } =>
+  typeof a === "string"
+    ? { userName: a.trim() || "Sistema", userId: null }
+    : { userName: String(a?.userName ?? "").trim() || "Sistema", userId: a?.userId ?? null };
 /** Linha que o UPDATE dentro da transação deve devolver (a rota lê o retorno). */
 let itemEmFoco: any = null;
 
@@ -233,8 +242,8 @@ beforeEach(() => {
 
   H.db.transaction = vi.fn(async (cb: any) => await cb(novoTx()));
   H.broadcast = vi.fn((msg: any) => { broadcasts.push(msg); });
-  H.createAuditLog = vi.fn(async (userName: string, action: string, entityType: string, entityId: string, details: string) => {
-    logs.push({ userName, action, entityType, entityId, details });
+  H.createAuditLog = vi.fn(async (ator: any, action: string, entityType: string, entityId: string, details: string) => {
+    logs.push({ ...atorDe(ator), action, entityType, entityId, details });
   });
   H.updateEventStatus = vi.fn(async () => {});
 
@@ -449,7 +458,7 @@ describe("migração pendente — a listagem degrada, o app NÃO cai", () => {
 describe("Arte troca o arquivo final — a arte nova alcança o complemento", () => {
   const NOVA = { finalFileUrl: "/objects/arte-v2.pdf", finalFileName: "portico-v2.pdf", finalPreviewUrl: "/objects/arte-v2.png" };
   const trocar = (over: any = {}) => chamar(PATCH_ARQUIVO_FINAL, {
-    params: { id: "mae-1" }, body: NOVA, userRole: over.userRole ?? "arte", userName: "João da Arte",
+    params: { id: "mae-1" }, body: NOVA, userRole: over.userRole ?? "arte", userName: "João da Arte", userId: "u-arte",
   });
 
   beforeEach(() => {
@@ -501,6 +510,9 @@ describe("Arte troca o arquivo final — a arte nova alcança o complemento", ()
     const log = logs.find((l) => l.entityId === "filho-1");
     expect(log?.details).toContain("Arquivo final propagado da peça original #0062");
     expect(log?.userName).toBe("João da Arte");
+    // O id vai junto do nome: nome muda e repete, id não. A coluna existia no
+    // schema e era gravada nula em 100% das linhas.
+    expect(log?.userId).toBe("u-arte");
   });
 
   it("avisa a Gráfica citando os complementos afetados, com broadcast que invalida a fila", async () => {

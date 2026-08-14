@@ -58,7 +58,7 @@ async function chamar(chave: string, ctx: { params?: any; body?: any; userRole?:
   if (!handlers) throw new Error(`Rota não registrada: ${chave}`);
   const req: any = {
     params: ctx.params ?? {}, body: ctx.body ?? {}, query: {}, headers: {},
-    userRole: ctx.userRole, userName: ctx.userName ?? "Ana da Arte",
+    userRole: ctx.userRole, userName: ctx.userName ?? "Ana da Arte", userId: "u-ana",
     session: { userRole: ctx.userRole },
   };
   const res: any = { _status: 200, _body: undefined, _done: false };
@@ -106,6 +106,17 @@ beforeEach(() => {
     return linha;
   });
 });
+
+
+/**
+ * O 1º argumento de createAuditLog é o ATOR (o próprio `req`), não mais um nome
+ * solto: a linha grava userName E userId — o id é o que resiste a nome trocado
+ * ou repetido. Espelha resolveActor() de server/routes/shared.ts.
+ */
+const atorDe = (a: any): { userName: string; userId: string | null } =>
+  typeof a === "string"
+    ? { userName: a.trim() || "Sistema", userId: null }
+    : { userName: String(a?.userName ?? "").trim() || "Sistema", userId: a?.userId ?? null };
 
 const dispensar = (over: any = {}) =>
   chamar(DISPENSE, { params: { id: "i-1" }, userRole: "arte", ...over });
@@ -170,7 +181,7 @@ describe("o contrato alinhado com as rotas irmãs", () => {
     await dispensar({ body: { reason: "cliente aprovou por WhatsApp" } });
     expect(H.createAuditLog).toHaveBeenCalled();
     const [autor, acao, entidade, id, detalhe] = (H.createAuditLog as any).mock.calls[0];
-    expect(autor).toBe("Ana da Arte");
+    expect(atorDe(autor)).toEqual({ userName: "Ana da Arte", userId: "u-ana" });
     expect(acao).toBe("dispensed");
     expect(entidade).toBe("item");
     expect(id).toBe("i-1");

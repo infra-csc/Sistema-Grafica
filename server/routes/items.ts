@@ -18,6 +18,7 @@ import {
   broadcast,
   translateStatus,
   createAuditLog,
+  resolveActor,
   updateEventStatus,
   EVENT_CLOSED_STATUS,
 } from "./shared";
@@ -323,7 +324,7 @@ export function registerItemRoutes(app: Express): void {
       }
       const item = await storage.getItem(req.params.id);
       await createAuditLog(
-        req.userName!,
+        req,
         "restored",
         "item",
         req.params.id,
@@ -508,7 +509,7 @@ export function registerItemRoutes(app: Express): void {
       
       // Create audit log
       await createAuditLog(
-        (req as any).userName,
+        req,
         'created',
         'item',
         item.id,
@@ -574,7 +575,7 @@ export function registerItemRoutes(app: Express): void {
       // Create audit log for each item created
       for (const item of createdItems) {
         await createAuditLog(
-          (req as any).userName,
+          req,
           'created',
           'item',
           item.id,
@@ -690,7 +691,7 @@ export function registerItemRoutes(app: Express): void {
       const created = await storage.createBulkItems(validated);
 
       await createAuditLog(
-        (req as any).userName,
+        req,
         'created',
         'item',
         targetEvent.id,
@@ -907,7 +908,7 @@ export function registerItemRoutes(app: Express): void {
         : `Item "${item.type}" atualizado`;
       
       await createAuditLog(
-        (req as any).userName,
+        req,
         'updated',
         'item',
         item.id,
@@ -1005,7 +1006,7 @@ export function registerItemRoutes(app: Express): void {
       // renderizava "Evento desconhecido", sem ID e sem link.
       const eventoDaPeca = await storage.getEvent(item.eventId).catch(() => undefined);
       await createAuditLog(
-        (req as any).userName,
+        req,
         'deleted',
         'item',
         req.params.id,
@@ -1103,7 +1104,8 @@ export function registerItemRoutes(app: Express): void {
       const m2 = derivado ?? rateado ?? "0.00";
       const m2NaoDerivavel = derivado === undefined && rateado === null;
 
-      const userName = (req as any).userName || "Sistema";
+      const autor = resolveActor(req);
+      const userName = autor.userName;
       const posSaida = !!event.truckDepartureDate && new Date(event.truckDepartureDate) < new Date();
       const marcaSaida = posSaida ? " [pós-saída do caminhão]" : "";
       const marcaM2 = m2NaoDerivavel ? " (m² não derivável)" : "";
@@ -1130,7 +1132,7 @@ export function registerItemRoutes(app: Express): void {
 
         // LOG NA FILHA — a história do lote novo.
         await tx.insert(auditLogs).values({
-          userName, action: "complement_created", entityType: "item", entityId: child.id,
+          ...autor, action: "complement_created", entityType: "item", entityId: child.id,
           details: `Complemento de ${parent.displayId}: +${body.quantity} un. (${m2} m²)${marcaM2}. `
                  + `Peça original permanece ${translateStatus(parent.status)} com ${parent.quantity} un. `
                  + `Motivo: ${body.reason}${marcaSaida}`,
@@ -1140,7 +1142,7 @@ export function registerItemRoutes(app: Express): void {
         // absolutamente nada sobre o aumento, e é justamente em #0062 que quem
         // presta contas vai procurar.
         await tx.insert(auditLogs).values({
-          userName, action: "complement_created", entityType: "item", entityId: parent.id,
+          ...autor, action: "complement_created", entityType: "item", entityId: parent.id,
           details: `Complemento ${child.displayId} criado: +${body.quantity} un. `
                  + `(contratado ${parent.quantity} → ${parent.quantity + body.quantity}). `
                  + `Motivo: ${body.reason}${marcaSaida}`,
@@ -1274,7 +1276,8 @@ export function registerItemRoutes(app: Express): void {
 
       const parent = await storage.getItem(item.parentItemId);
       const event = await storage.getEvent(item.eventId);
-      const userName = (req as any).userName || "Sistema";
+      const autor = resolveActor(req);
+      const userName = autor.userName;
       const parentLabel = parent?.displayId ?? "peça original";
 
       const { notification } = await db.transaction(async (tx) => {
@@ -1289,14 +1292,14 @@ export function registerItemRoutes(app: Express): void {
         if (!removido) throw Object.assign(new Error("Complemento não encontrado"), { httpStatus: 404 });
 
         await tx.insert(auditLogs).values({
-          userName, action: "complement_canceled", entityType: "item", entityId: item.id,
+          ...autor, action: "complement_canceled", entityType: "item", entityId: item.id,
           details: `Complemento ${item.displayId} cancelado (nenhuma unidade produzida). `
                  + `Contratado volta a ${parent?.quantity ?? "—"} un.`,
         });
         // Também na mãe: é lá que se pergunta "afinal, aumentou ou não?".
         if (parent) {
           await tx.insert(auditLogs).values({
-            userName, action: "complement_canceled", entityType: "item", entityId: parent.id,
+            ...autor, action: "complement_canceled", entityType: "item", entityId: parent.id,
             details: `Complemento ${item.displayId} cancelado (+${item.quantity} un. desfeitas, nada produzido). `
                    + `Contratado volta a ${parent.quantity} un.`,
           });
@@ -1419,7 +1422,7 @@ export function registerItemRoutes(app: Express): void {
       if (shouldSkipApproval) {
         // Pula aprovação do patrocinador e vai direto para revisão da Solicitação
         await createAuditLog(
-          req.userName!,
+          req,
           'updated',
           'item',
           item.id,
@@ -1447,7 +1450,7 @@ export function registerItemRoutes(app: Express): void {
         );
         
         await createAuditLog(
-          req.userName!,
+          req,
           'updated',
           'item',
           item.id,
@@ -1508,7 +1511,7 @@ export function registerItemRoutes(app: Express): void {
       const event = await storage.getEvent(item.eventId);
       
       await createAuditLog(
-        req.userName!,
+        req,
         'approved',
         'item',
         item.id,
@@ -1548,7 +1551,7 @@ export function registerItemRoutes(app: Express): void {
       const { reason } = req.body;
       await storage.updateItem(req.params.id, { status: "ready_for_production" });
       await createAuditLog(
-        req.userName || "Sistema",
+        req,
         "dispensed",
         "item",
         req.params.id,
@@ -1618,7 +1621,7 @@ export function registerItemRoutes(app: Express): void {
       const event = await storage.getEvent(item.eventId);
       
       await createAuditLog(
-        req.userName!,
+        req,
         'rejected',
         'item',
         item.id,
@@ -1726,7 +1729,7 @@ export function registerItemRoutes(app: Express): void {
       const sponsor = await storage.getSponsor(sponsorId);
       
       await createAuditLog(
-        req.userName!,
+        req,
         'approved',
         'item',
         itemId,
@@ -1752,7 +1755,7 @@ export function registerItemRoutes(app: Express): void {
         const event = await storage.getEvent(currentItem.eventId);
         
         await createAuditLog(
-          req.userName!,
+          req,
           'approved',
           'item',
           itemId,
@@ -1846,7 +1849,7 @@ export function registerItemRoutes(app: Express): void {
       }))!;
       
       await createAuditLog(
-        req.userName!,
+        req,
         'rejected',
         'item',
         itemId,
@@ -1924,7 +1927,7 @@ export function registerItemRoutes(app: Express): void {
       const sponsor = await storage.getSponsor(sponsorId);
 
       await createAuditLog(
-        req.userName!,
+        req,
         'updated',
         'item',
         itemId,
@@ -1986,7 +1989,7 @@ export function registerItemRoutes(app: Express): void {
       const event = await storage.getEvent(currentItem.eventId);
 
       await createAuditLog(
-        req.userName!,
+        req,
         'updated',
         'item',
         itemId,
@@ -2034,7 +2037,18 @@ export function registerItemRoutes(app: Express): void {
       );
       
       const approvals = await storage.getItemSponsorApprovals(itemId);
-      
+
+      // Zera as aprovações de patrocinador da peça e não deixava rastro nenhum:
+      // quem consultasse a ficha via um "Pat. Aprovou" desaparecer sem que nada
+      // dissesse quem reabriu a rodada.
+      await createAuditLog(
+        req,
+        'updated',
+        'item',
+        itemId,
+        `Aprovações de patrocinador (re)inicializadas para ${itemSponsors.length} patrocinador(es)`
+      );
+
       res.json(approvals);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -2089,7 +2103,7 @@ export function registerItemRoutes(app: Express): void {
       const event = await storage.getEvent(item.eventId);
       
       await createAuditLog(
-        req.userName!,
+        req,
         'updated',
         'item',
         item.id,
@@ -2151,7 +2165,7 @@ export function registerItemRoutes(app: Express): void {
       }
 
       await createAuditLog(
-        req.userName!,
+        req,
         'updated',
         'item',
         item.id,
@@ -2204,7 +2218,7 @@ export function registerItemRoutes(app: Express): void {
       const event = await storage.getEvent(item.eventId);
 
       await createAuditLog(
-        req.userName!,
+        req,
         'updated',
         'item',
         item.id,
@@ -2245,7 +2259,8 @@ export function registerItemRoutes(app: Express): void {
             previousFinalFileName: prevName,
           });
           await createAuditLog(
-            req.userName!, 'updated', 'item', c.id,
+            req,
+            'updated', 'item', c.id,
             `Arquivo final propagado da peça original ${item.displayId} (arte substituída pela Arte)`,
           );
         }
@@ -2352,7 +2367,7 @@ export function registerItemRoutes(app: Express): void {
         if (!updated) throw Object.assign(new Error("Item not found"), { httpStatus: 404 });
 
         await tx.insert(auditLogs).values({
-          userName: req.userName || "Sistema",
+          ...resolveActor(req),
           action: "approved",
           entityType: "item",
           entityId: updated.id,
@@ -2415,7 +2430,7 @@ export function registerItemRoutes(app: Express): void {
       const event = await storage.getEvent(item.eventId);
       
       await createAuditLog(
-        req.userName!,
+        req,
         'rejected',
         'item',
         item.id,
@@ -2478,7 +2493,7 @@ export function registerItemRoutes(app: Express): void {
       const modifiedDataMsg = currentItem.hasModifiedData ? " ⚠️ DADOS MODIFICADOS: Verifique Quantidade, m² Total e Medida!" : "";
       
       await createAuditLog(
-        req.userName!,
+        req,
         'rejected',
         'item',
         item.id,
@@ -2542,7 +2557,7 @@ export function registerItemRoutes(app: Express): void {
         if (item) {
           results.push(item);
           await createAuditLog(
-            req.userName!,
+            req,
             'rejected',
             'item',
             item.id,
@@ -2594,7 +2609,7 @@ export function registerItemRoutes(app: Express): void {
       
       const detailMsg = notes ? ` Motivo: ${notes}` : "";
       await createAuditLog(
-        req.userName!,
+        req,
         'canceled',
         'item',
         item.id,
@@ -2633,7 +2648,9 @@ export function registerItemRoutes(app: Express): void {
         if (item) {
           results.push(item);
           const detailMsg = notes ? ` Motivo: ${notes}` : "";
-          await createAuditLog(req.userName!, 'canceled', 'item', item.id, `Item cancelado (em lote)${detailMsg}`);
+          await createAuditLog(
+            req,
+            'canceled', 'item', item.id, `Item cancelado (em lote)${detailMsg}`);
           broadcast({ type: "item_updated", item });
         }
       }
@@ -2696,7 +2713,7 @@ export function registerItemRoutes(app: Express): void {
       if (measurement !== undefined && measurement !== currentItem.measurement) editDetails.push(`Medida: ${currentItem.measurement} → ${measurement}`);
       
       await createAuditLog(
-        req.userName!,
+        req,
         'updated',
         'item',
         item.id,
@@ -2753,7 +2770,7 @@ export function registerItemRoutes(app: Express): void {
           const event = await storage.getEvent(item.eventId);
           
           await createAuditLog(
-            req.userName!,
+            req,
             'rejected',
             'item',
             item.id,
@@ -2814,11 +2831,16 @@ export function registerItemRoutes(app: Express): void {
         if (!updated) throw Object.assign(new Error("Item not found"), { httpStatus: 404 });
 
         await tx.insert(auditLogs).values({
-          userName: (req as any).userName || "Sistema",
+          ...resolveActor(req),
           action: "approved",
           entityType: "item",
           entityId: updated.id,
-          details: `Item "${updated.type}" aprovado para produção`,
+          // "liberado para produção" e não "aprovado": é a MESMA frase que
+          // /creator-review grava, e é por ela que o Histórico reconhece que a
+          // liberação já tem registro próprio. Com a redação antiga o cliente
+          // não achava o log e emitia POR CIMA uma linha "Lib. p/ Produção"
+          // sintetizada do carimbo da peça — sem autor, duplicando o evento.
+          details: `Item "${updated.type}" liberado para produção`,
         });
 
         const [notif] = await tx.insert(notifications).values({
@@ -2911,7 +2933,7 @@ export function registerItemRoutes(app: Express): void {
         if (!updated) throw Object.assign(new Error("Item not found"), { httpStatus: 404 });
 
         await tx.insert(auditLogs).values({
-          userName: (req as any).userName || "Sistema",
+          ...resolveActor(req),
           action: newProdStatus === "produced" ? "produced" : "production",
           entityType: "item",
           entityId: updated.id,
@@ -2982,7 +3004,7 @@ export function registerItemRoutes(app: Express): void {
           const records = Array.from({ length: faltam }, (_, i) => novoAtivo(maiorSeq + i + 1));
           const created = await storage.createInventoryAssets(records);
           for (const a of created) {
-            await createAuditLog(producedBy, 'cadastrado', 'inventory_asset', a.id,
+            await createAuditLog({ userName: producedBy, userId: req.userId }, 'cadastrado', 'inventory_asset', a.id,
               JSON.stringify({ evento: event?.name ?? '—', itemId: item.id }));
           }
         }
@@ -3046,7 +3068,7 @@ export function registerItemRoutes(app: Express): void {
       if (!item) return res.status(404).json({ error: "Item not found" });
 
       await createAuditLog(
-        (req as any).userName!,
+        req,
         'updated',
         'item',
         item.id,
@@ -3128,7 +3150,7 @@ export function registerItemRoutes(app: Express): void {
       if (!item) return res.status(404).json({ error: "Item not found" });
 
       await createAuditLog(
-        (req as any).userName!,
+        req,
         "updated",
         "item",
         item.id,
@@ -3178,7 +3200,9 @@ export function registerItemRoutes(app: Express): void {
         // Status só vira "conferred" quando conferiu tudo; parcial continua "produced".
         ...(isFull ? { status: "conferred" as const } : {}),
       });
-      await createAuditLog((req as any).userName, 'updated', 'item', req.params.id,
+      await createAuditLog(
+        req,
+        'updated', 'item', req.params.id,
         (isFull ? `Conferência concluída (${newConferred}/${current.quantity})` : `Conferência parcial: ${n} un. (${newConferred}/${current.quantity})`)
         + (trimmedNotes ? ` — Obs.: ${trimmedNotes}` : ""));
       broadcast({ type: "item_updated", item });
@@ -3245,7 +3269,7 @@ export function registerItemRoutes(app: Express): void {
         if (!updated) throw Object.assign(new Error("Item not found"), { httpStatus: 404 });
 
         await tx.insert(auditLogs).values({
-          userName: (req as any).userName || "Sistema",
+          ...resolveActor(req),
           action: "delivered",
           entityType: "item",
           entityId: updated.id,
@@ -3311,7 +3335,7 @@ export function registerItemRoutes(app: Express): void {
       await storage.clearEventBookUrl(req.params.eventId);
       const count = await storage.setItemsBookUrl(itemIds, bookUrl || null);
       await createAuditLog(
-        (req as any).userName,
+        req,
         'updated',
         'event',
         req.params.eventId,

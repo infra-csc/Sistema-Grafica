@@ -3,7 +3,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, CheckSquare, Palette, ExternalLink, RefreshCw } from "lucide-react";
+import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, CheckSquare, Palette, ExternalLink, RefreshCw, MoreHorizontal, Lock, WifiOff } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -14,8 +14,33 @@ import { compareDisplayId } from "@/lib/displayId";
 // Motor de PDF compartilhado (mesmo da tela de Atendimento) — a Arte não tem
 // mais motor próprio; qualquer ajuste de layout do book vale para as duas telas.
 import { exportMixedToPDF, convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
-import { HIDE_NATIVE_CLOSE, modalSurface } from "@/components/modal-shell";
-import { PRODUCTION_STATUSES } from "@/lib/status";
+import { HIDE_NATIVE_CLOSE, modalSurface, ModalHeader, ModalFooter } from "@/components/modal-shell";
+import { getStatusLabel } from "@/lib/status";
+import { useAuth } from "@/contexts/auth-context";
+// Regras puras (recortes de status, predicado de filtro, prazo por fase,
+// vínculo do multi-upload) — testadas em server/__tests__/arte-rules.test.ts.
+import {
+  FINALIZADOS_STATUSES,
+  TAB_STATUSES,
+  ARTE_POOL_STATUSES,
+  DISPENSAVEIS_STATUSES,
+  EMPTY_ARTE_FILTERS,
+  countActiveFilters,
+  dentroDaJanelaFinalizados,
+  filtersKey,
+  compareEventUrgency,
+  formatQuantity,
+  makeDateBounds,
+  matchFileToItem,
+  matchesArteFilters,
+  parseArteFilters,
+  phaseDeadline,
+  serializeArteFilters,
+  PERIOD_FILTERS,
+  type ArteFilters,
+  type TriState,
+  type PeriodFilter,
+} from "@/lib/arte-rules";
 import {
   Dialog,
   DialogContent,
@@ -40,81 +65,131 @@ const EVENT_CHIPS_VISIBLE = 8;
 
 /**
  * Colunas da lista. As larguras saíram de medir o conteúdo real renderizado, e
- * não de estimativa: a coluna de ID, por exemplo, chega a 208 px quando traz o
- * selo de status abaixo do número. Ficam aqui fora para que o colgroup e o
- * cabeçalho usem exatamente os mesmos valores — é isso que mantém as colunas
- * alinhadas entre os blocos (cada bloco é uma tabela própria e todos repetem
- * o cabeçalho com estas mesmas larguras).
+ * não de estimativa. Ficam aqui fora para que o colgroup e o cabeçalho usem
+ * exatamente os mesmos valores — é isso que mantém as colunas alinhadas.
+ *
+ * As larguras foram reduzidas de propósito: a soma antiga pedia 1408px e o
+ * notebook mais comum do escritório (1366, menos a sidebar de 16rem e 32px de
+ * padding de cada lado) oferece ~1046. Duas mudanças pagaram a conta sem
+ * apertar nenhuma célula: "Ações" saiu de 340 para 170 (exportar, ver e
+ * dispensar foram para um menu "⋯" e a linha inteira ficou clicável) e
+ * "Dimensões"/"Thumb-Final" voltaram ao tamanho do conteúdo real.
+ * A coluna "Prazo" é nova — ver phaseDeadline em lib/arte-rules.
  */
 const ARTE_COLS: { label: string; w: number | string; right?: boolean }[] = [
-  { label: 'ID',                w: 150 },
-  // Medido no navegador: o rótulo "QTD" maiúsculo, com o letter-spacing do
-  // cabeçalho, precisa de 58px — 56 cortava em "Q...". 68 dá folga real.
-  { label: 'Qtd',               w: 68 },
-  { label: 'Peça',              w: 'auto' },
-  { label: 'Dimensões (V / A)', w: 150 },
-  { label: 'M²',                w: 68 },
-  { label: 'Material',          w: 104 },
-  // Mesma causa: "THUMB / FINAL" precisa de 126px e tinha 96, cortando em
-  // "Thumb ...". 140 dá folga.
-  { label: 'Thumb / Final',     w: 140 },
-  { label: 'Patroc.',           w: 124 },
-  // Até 4 botões podem aparecer juntos nesta coluna (exportar + ver + o botão
-  // de texto "Enviar Aprovação"/"Enviar Finalização"/"Finalizar Arte" +
-  // dispensar). 200px ainda forçava a quebra em 3 linhas empilhadas (feio e
-  // com espaçamento estranho); 340px cabe tudo numa linha só, sem quebrar.
-  { label: 'Ações',             w: 340, right: true },
+  { label: 'ID',            w: 124 },
+  { label: 'Qtd',           w: 48 },
+  { label: 'Peça',          w: 'auto' },
+  { label: 'Dimensões',     w: 100 },
+  { label: 'M²',            w: 48 },
+  { label: 'Material',      w: 88 },
+  { label: 'Arte',          w: 80 },
+  { label: 'Prazo',         w: 104 },
+  { label: 'Patroc.',       w: 96 },
+  { label: 'Ações',         w: 170, right: true },
 ];
 
-// checkbox (44) + colunas fixas + um mínimo para "Peça" (largura 'auto').
-// Derivado, não hardcoded: a largura de "Ações" mudou duas vezes (112→200→340)
-// enquanto este número ficou parado em 1100 — bem abaixo da soma das colunas
-// fixas (1132px sozinhas, sem sobrar nada para "Peça"), e foi isso que causou
-// a sobreposição. Calculando a partir de ARTE_COLS, os dois nunca mais podem
-// dessincronizar.
-const ARTE_PECA_MIN_WIDTH = 220;
-const ARTE_TABLE_MIN_WIDTH = 44 + ARTE_PECA_MIN_WIDTH
+// Colunas fixas + um mínimo para "Peça" (largura 'auto'). Derivado, não
+// hardcoded: a largura de "Ações" já mudou três vezes enquanto o número ficava
+// parado, e foi isso que causou a sobreposição de colunas.
+const ARTE_PECA_MIN_WIDTH = 176;
+const ARTE_COLS_WIDTH = ARTE_PECA_MIN_WIDTH
   + ARTE_COLS.reduce((sum, c) => sum + (typeof c.w === 'number' ? c.w : 0), 0);
+// A coluna de seleção só existe em duas das quatro abas de tabela; somá-la
+// sempre deixava as outras duas 44px mais largas que o necessário.
+const ARTE_CHECKBOX_WIDTH = 44;
+const tableMinWidth = (withCheckbox: boolean) =>
+  ARTE_COLS_WIDTH + (withCheckbox ? ARTE_CHECKBOX_WIDTH : 0);
 
-// ── Fonte única dos recortes de status da tela ──────────────────────────────
-// Abas, contadores, stat cards e o pool de exportação derivam TODOS daqui.
-// Antes havia quatro listas paralelas (TAB_STATUSES, o byTab do tabPoolItems,
-// arteStatuses e a lista embutida no statCards) e elas divergiam: só o
-// statCards incluía 'approved'. A lista de finalizados abaixo segue o statCards
-// (o recorte mais completo) e usa PRODUCTION_STATUSES de lib/status para os
-// nomes canônicos; os aliases em pt (em_producao, produzido, entregue) seguem
-// aceitos até a migração dos dados antigos.
-const FINALIZADOS_STATUSES: string[] = [
-  'awaiting_final_review',
-  'ready_for_production',
-  'pronto_para_producao',
-  'liberado',
-  'approved',
-  ...PRODUCTION_STATUSES, // inProduction, produced, conferred, delivered
-  'em_producao',
-  'produzido',
-  'entregue',
-];
-
-// Status que alimentam cada aba.
-const TAB_STATUSES: Record<string, string[]> = {
-  "criar-aprovacoes": ['awaiting_submission'],
-  "aguardando-patrocinador": ['awaiting_sponsor_approval'],
-  "finalizar-layouts": ['sponsor_approved', 'awaiting_creator_review'],
-  "finalizados": FINALIZADOS_STATUSES,
+/**
+ * Cor de cada fase. Um par por aba: `dot` (tom 500, saturado) só entra em
+ * fundo/borda/selo, `text` é sempre o tom 700 — o mesmo critério do
+ * StatusBadge em lib/status.ts.
+ *
+ * Antes o mapa tinha QUATRO chaves para CINCO abas: "Aguardando Patrocinador"
+ * caía no fallback e ficava com a cor idêntica à primeira aba e sem ícone
+ * nenhum. E a cor saturada era usada COMO texto — as cinco abas reprovavam AA
+ * (a primeira usava #f97316, proibido como texto pela regra da casa).
+ * Contrastes recalculados sobre branco: #c2410c 5,1:1 · #b45309 5,0:1 ·
+ * #b91c1c 6,5:1 · #0e7490 5,4:1 · #15803d 5,0:1 — todos passam em 13px.
+ */
+const TAB_THEME: Record<string, { dot: string; text: string; tint: string }> = {
+  "criar-aprovacoes":        { dot: '#f97316', text: '#c2410c', tint: '#fff7ed' },
+  "aguardando-patrocinador": { dot: '#f59e0b', text: '#b45309', tint: '#fffbeb' },
+  "correcao":                { dot: '#ef4444', text: '#b91c1c', tint: '#fef2f2' },
+  "finalizar-layouts":       { dot: '#06b6d4', text: '#0e7490', tint: '#ecfeff' },
+  "finalizados":             { dot: '#22c55e', text: '#15803d', tint: '#f0fdf4' },
 };
 
-// Peças "da Arte" para exportação/book: tudo que está no fluxo da tela mais as
-// já liberadas para produção (mas não as produzidas/entregues, que não fazem
-// sentido num book de aprovação).
-const ARTE_POOL_STATUSES: string[] = [
-  ...TAB_STATUSES["criar-aprovacoes"],
-  ...TAB_STATUSES["aguardando-patrocinador"],
-  ...TAB_STATUSES["finalizar-layouts"],
-  'ready_for_production',
-  'pronto_para_producao',
-  'liberado',
-];
+/**
+ * Semáforo de prazo. Fundo sólido claro com texto escuro — o dado mais urgente
+ * é o que mais precisa ser lido, e em tom claro sobre translúcido ele ficava em
+ * 1,34:1 (medido no navegador). Todos os pares abaixo passam AA em 11px.
+ */
+function semaforoPrazo(diff: number): { bg: string; border: string; text: string } {
+  if (diff < 0) return { bg: '#fee2e2', border: '#fca5a5', text: '#991b1b' };
+  if (diff === 0) return { bg: '#fef3c7', border: '#fcd34d', text: '#92400e' };
+  if (diff <= 3) return { bg: '#ffedd5', border: '#fdba74', text: '#9a3412' };
+  return { bg: '#f5f5f4', border: '#e7e5e4', text: '#57534e' };
+}
+
+/** Item do menu "⋯" — mesma altura de alvo de toque dos botões da linha. */
+function menuItemStyle(color: string): React.CSSProperties {
+  return {
+    width: '100%', display: 'flex', alignItems: 'center', gap: 9,
+    minHeight: 38, padding: '0 10px', borderRadius: 6,
+    background: 'none', border: 'none', cursor: 'pointer',
+    fontSize: 13, fontWeight: 600, color, textAlign: 'left',
+    transition: 'background 0.12s',
+  };
+}
+
+/**
+ * Ícone de thumb com prévia ao passar o mouse OU ao focar por teclado.
+ * A coluna mostrava só um ícone verde ou cinza: conferir se a arte anexada é a
+ * certa exigia abrir o modal peça por peça — justamente o único risco do envio
+ * de um clique, que é mandar o thumb errado.
+ */
+function ThumbPreview({ url, label }: { url?: string | null; label: string }) {
+  const [aberto, setAberto] = useState(false);
+  if (!url) {
+    return (
+      <span title="Sem thumb" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f4', color: '#78716c', flexShrink: 0 }}>
+        <FileImage style={{ width: 13, height: 13 }} />
+      </span>
+    );
+  }
+  // PDF não vira <img>: o mesmo teste que o card de correção já usava.
+  const isImage = /\.(png|jpg|jpeg|gif|webp)/i.test(url) || url.startsWith('/objects/');
+  return (
+    <span style={{ position: 'relative', display: 'inline-flex', flexShrink: 0 }}>
+      <a
+        href={url} target="_blank" rel="noopener noreferrer"
+        title={`Ver ${label}`}
+        onMouseEnter={() => setAberto(true)}
+        onMouseLeave={() => setAberto(false)}
+        onFocus={() => setAberto(true)}
+        onBlur={() => setAberto(false)}
+        style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }}
+      >
+        <FileImage style={{ width: 13, height: 13 }} />
+      </a>
+      {aberto && isImage && (
+        <span
+          role="presentation"
+          style={{
+            position: 'absolute', bottom: 'calc(100% + 6px)', left: '50%', transform: 'translateX(-50%)',
+            zIndex: 60, padding: 4, borderRadius: 8, background: '#ffffff',
+            border: '1px solid #e7e5e4', boxShadow: '0 12px 32px rgba(0,0,0,0.18)',
+            pointerEvents: 'none',
+          }}
+        >
+          <img src={url} alt="" style={{ display: 'block', width: 240, maxHeight: 200, objectFit: 'contain', borderRadius: 6 }} />
+        </span>
+      )}
+    </span>
+  );
+}
 
 // Lista estática — fora do componente para não ser recriada a cada render
 // (ela entrava nas deps do activeChips e o invalidava sempre).
@@ -130,25 +205,56 @@ const months = [
 
 export default function Arte() {
   const { toast } = useToast();
-  const [selectedItem, setSelectedItem] = useState<any>(null);
-  const [eventFilter, setEventFilter] = useState<string[]>([]);
+  const { user } = useAuth();
+  // Gate de papel. A rota admite `atendimento` (App.tsx: ROLES_ARTE), mas as
+  // sete rotas de escrita da Arte no servidor só aceitam `arte`/`admin`. Sem
+  // este espelho, o papel descobria o que não pode fazer ação por ação — e o
+  // multi-upload chegava a subir 40 imagens para o bucket antes de tomar 40
+  // respostas 403. Mesmo padrão de atendimento.tsx (canDecide) e grafica.tsx
+  // (canProduce), as duas telas irmãs que já admitem um segundo papel.
+  const podeEditar = ["arte", "admin"].includes(user?.role ?? "");
+
+  // ── Estado inicial vindo da URL ──────────────────────────────────────────
+  // O recorte "evento X + sem thumb + saída 10 dias" era remontado do zero todo
+  // dia e não dava para mandar para um colega. Dez telas do app já sincronizam
+  // com URLSearchParams; esta passa a ser a décima primeira.
+  const urlInicial = useMemo(() => parseArteFilters(window.location.search), []);
+
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [eventFilter, setEventFilter] = useState<string[]>(urlInicial.filters.eventIds);
   // Persiste a aba ativa para não voltar ao padrão ao abrir uma peça e retornar.
-  const [activeTab, setActiveTab] = useState<string>(() => sessionStorage.getItem("arte:activeTab") || "criar-aprovacoes");
+  // A URL vence o sessionStorage: link compartilhado tem de abrir na fase certa.
+  const [activeTab, setActiveTab] = useState<string>(
+    () => urlInicial.tab || sessionStorage.getItem("arte:activeTab") || "criar-aprovacoes",
+  );
   useEffect(() => { sessionStorage.setItem("arte:activeTab", activeTab); }, [activeTab]);
+
+  // A aba ativa é persistida: quem voltar numa janela estreita precisa
+  // ENXERGAR onde está, e não só poder rolar até lá.
+  useEffect(() => {
+    const alvo = tablistRef.current?.querySelector('[aria-selected="true"]');
+    alvo?.scrollIntoView({ inline: "center", block: "nearest" });
+  }, [activeTab]);
 
   // Quem rola nesta tela é a área de conteúdo (o <main> do app é overflow:hidden),
   // por isso o scroll precisa ser feito nela e não na window.
   const contentRef = useRef<HTMLDivElement>(null);
+  const tablistRef = useRef<HTMLDivElement>(null);
 
   // Paginação da tabela — ver comentário em renderGroupedTable.
   const [visibleCount, setVisibleCount] = useState(ARTE_PAGE_SIZE);
   const [showAllEvents, setShowAllEvents] = useState(false);
+  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
 
   // Trocar de aba troca a lista inteira; manter o scroll onde estava deixava o
   // usuário no meio da tabela nova. Sempre volta ao topo da listagem.
   const changeTab = useCallback((tabId: string) => {
     setActiveTab(tabId);
     setVisibleCount(ARTE_PAGE_SIZE);
+    // A seleção sobrevivia à troca de aba e alimentava a exportação sem
+    // aparecer em lugar nenhum: em "Correção" o botão de seleção nem é
+    // renderizado, mas o cabeçalho continuava dizendo "Exportar N sel.".
+    setSelectedItemIds(new Set());
     requestAnimationFrame(() => {
       contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     });
@@ -157,20 +263,25 @@ export default function Arte() {
   const [finalFileName, setFinalFileName] = useState<string>("");
   // true quando a Arte trocou o caminho nesta sessão (evita "atualizar" sem mudar).
   const [finalDirty, setFinalDirty] = useState(false);
-  const [typeFilter, setTypeFilter] = useState<string[]>([]);
-  const [materialFilter, setMaterialFilter] = useState<string[]>([]);
-  const [next10DaysFilter, setNext10DaysFilter] = useState(false);
-  const [monthFilter, setMonthFilter] = useState<string[]>([]);
+  const [typeFilter, setTypeFilter] = useState<string[]>(urlInicial.filters.types);
+  const [materialFilter, setMaterialFilter] = useState<string[]>(urlInicial.filters.materials);
+  const [next10DaysFilter, setNext10DaysFilter] = useState(urlInicial.filters.next10Days);
+  const [monthFilter, setMonthFilter] = useState<string[]>(urlInicial.filters.months);
   const [approvalThumbUrl, setApprovalThumbUrl] = useState<string>("");
   const [approvalThumbPreview, setApprovalThumbPreview] = useState<string>("");
   const [savedApprovalThumbUrl, setSavedApprovalThumbUrl] = useState<string>("");
   const [thumbJustSaved, setThumbJustSaved] = useState(false);
-  const [searchFilter, setSearchFilter] = useState<string>("");
+  const [searchFilter, setSearchFilter] = useState<string>(urlInicial.filters.search);
   // Adia o valor usado na filtragem: o input segue responsivo, mas a tabela
   // (grande) não re-renderiza a cada tecla — evita engasgo com muitas peças.
   const deferredSearch = useDeferredValue(searchFilter);
+  // Ordenação dos blocos: por evento (A→Z) ou pela urgência do marco da fase.
+  // A regra de negócio inteira gira em torno da saída do caminhão e a lista só
+  // sabia ordenar por nome de evento.
+  const [sortMode, setSortMode] = useState<"evento" | "prazo">("evento");
+  // A aba Finalizados acumula todo o histórico e nunca para de crescer.
+  const [finalizadosTudo, setFinalizadosTudo] = useState(false);
 
-  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [showBulkDialog, setShowBulkDialog] = useState(false);
   const [sharedPdfUrl, setSharedPdfUrl] = useState<string>("");
 
@@ -179,28 +290,63 @@ export default function Arte() {
   const [correcaoFileName, setCorrecaoFileName] = useState<string>("");
   const [correcaoSelectedSponsorIds, setCorrecaoSelectedSponsorIds] = useState<Set<string>>(new Set());
   const [correcaoSponsorFilter, setCorrecaoSponsorFilter] = useState<string>("all");
-  const [sponsorFilter, setSponsorFilter] = useState<string[]>([]);
-  const [semThumb, setSemThumb] = useState(false);
-  const [comThumb, setComThumb] = useState(false);
-  const [semFinal, setSemFinal] = useState(false);
-  const [comFinal, setComFinal] = useState(false);
-  const [urgenteFilter, setUrgenteFilter] = useState(false);
-  const [periodFilter, setPeriodFilter] = useState("Todos");
+  const [sponsorFilter, setSponsorFilter] = useState<string[]>(urlInicial.filters.sponsorIds);
+  // Tri-estado no lugar dos pares "sem/com": ligados juntos, os dois booleanos
+  // descartavam TUDO por construção e a lista esvaziava com o vazio genérico
+  // de "2 filtros ativos". Um controle, três valores, nenhum estado impossível.
+  const [thumbFilter, setThumbFilter] = useState<TriState>(urlInicial.filters.thumb);
+  const [finalFilter, setFinalFilter] = useState<TriState>(urlInicial.filters.final);
+  const [urgenteFilter, setUrgenteFilter] = useState(urlInicial.filters.urgente);
+  const [periodFilter, setPeriodFilter] = useState<PeriodFilter>(urlInicial.filters.period);
   const isMobile = useIsMobile();
   const [dispenseItem, setDispenseItem] = useState<any>(null);
   const [dispenseReason, setDispenseReason] = useState<string>("");
+  // Trava só a linha em curso: o estado da mutação é compartilhado, então
+  // enquanto um envio direto corria TODAS as linhas ficavam desabilitadas.
+  const [sendingId, setSendingId] = useState<string | null>(null);
 
-  const { data: allItems = [], isLoading } = useQuery<any[]>({
+  const { data: allItems = [], isLoading, isError, error, refetch } = useQuery<any[]>({
     queryKey: ["/api/items"],
   });
 
-  const { data: correcaoItems = [], isLoading: correcaoLoading } = useQuery<any[]>({
+  const {
+    data: correcaoItems = [],
+    isLoading: correcaoLoading,
+    isError: correcaoIsError,
+    error: correcaoError,
+    refetch: refetchCorrecao,
+  } = useQuery<any[]>({
     queryKey: ["/api/items/resubmission-needed"],
   });
 
   const { data: events = [] } = useQuery<any[]>({
     queryKey: ["/api/events"],
   });
+
+  /**
+   * A peça aberta no modal é DERIVADA da lista viva, não uma cópia congelada
+   * guardada no clique. Com a cópia, trocar o thumb não repintava a miniatura,
+   * o bloco "versão anterior guardada" nunca aparecia, e se outra pessoa
+   * movesse a peça os blocos de ação continuavam desenhados pelo status velho
+   * (o envio devolvia 409 com a chave em inglês no toast).
+   */
+  const selectedItem = useMemo(() => {
+    if (!selectedItemId) return null;
+    return [...allItems, ...correcaoItems].find((i: any) => i.id === selectedItemId) ?? null;
+  }, [selectedItemId, allItems, correcaoItems]);
+
+  /**
+   * O 409 de submit-for-approval traz a chave crua do status ("Status atual:
+   * awaiting_sponsor_approval"). Traduz pelo mesmo dicionário dos selos antes
+   * de mostrar — o designer não fala o vocabulário do banco.
+   */
+  const mensagemDeErro = useCallback((e: unknown): string => {
+    const msg = e instanceof Error ? e.message : String(e ?? "");
+    return msg.replace(/[a-z]+(?:_[a-z]+)+/g, (chave) => {
+      const label = getStatusLabel(chave);
+      return label === chave ? chave : label;
+    });
+  }, []);
 
   // Histórico DA PEÇA aberta, com escopo no servidor. A versão anterior
   // baixava a listagem GLOBAL, que tem teto de 500 registros — com o volume
@@ -251,7 +397,7 @@ export default function Arte() {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/resubmission-needed"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
-      setSelectedItem(null);
+      setSelectedItemId(null);
       setApprovalThumbUrl("");
       setApprovalThumbPreview("");
       toast({
@@ -262,31 +408,32 @@ export default function Arte() {
     onError: (error: Error) => {
       toast({
         title: "Erro ao enviar peça",
-        description: error.message,
+        description: mensagemDeErro(error),
         variant: "destructive",
       });
     },
+    onSettled: () => setSendingId(null),
   });
 
   // Salva o thumb no item SEM mudar o status (rascunho). O item continua na aba
   // "Mandar para Aprovação" (filtrada por status awaiting_submission) — só grava
   // o approvalThumbUrl para enviar depois.
   const saveThumbDraftMutation = useMutation({
+    // apiRequest devolve a Response crua — sem o .json() o callback recebia um
+    // objeto sem `id` e a atualização otimista nunca rodava.
     mutationFn: async ({ itemId, approvalThumbUrl }: { itemId: string; approvalThumbUrl: string }) => {
-      return await apiRequest("PATCH", `/api/items/${itemId}`, { approvalThumbUrl });
+      const res = await apiRequest("PATCH", `/api/items/${itemId}`, { approvalThumbUrl });
+      return await res.json();
     },
-    onSuccess: (updated: any, variables) => {
+    onSuccess: (_updated: any, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSavedApprovalThumbUrl(variables.approvalThumbUrl);
       setThumbJustSaved(true);
       setTimeout(() => setThumbJustSaved(false), 2500);
-      if (updated?.id) {
-        setSelectedItem((prev: any) => prev?.id === updated.id ? { ...prev, ...updated } : prev);
-      }
     },
     onError: (error: Error) => {
-      toast({ title: "Erro ao salvar thumb", description: error.message, variant: "destructive" });
+      toast({ title: "Erro ao salvar thumb", description: mensagemDeErro(error), variant: "destructive" });
     },
   });
 
@@ -319,7 +466,7 @@ export default function Arte() {
       queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
       toast({
         title: "Erro ao enviar peças",
-        description: error.message,
+        description: mensagemDeErro(error),
         variant: "destructive",
       });
     },
@@ -337,7 +484,7 @@ export default function Arte() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      setSelectedItem(null);
+      setSelectedItemId(null);
       resetFinalFileState(); // limpa url, nome e a flag de "sujo" de uma vez
       toast({
         title: "Arquivo final enviado",
@@ -347,7 +494,7 @@ export default function Arte() {
     onError: (error: Error) => {
       toast({
         title: "Erro ao enviar arquivo final",
-        description: error.message,
+        description: mensagemDeErro(error),
         variant: "destructive",
       });
     },
@@ -356,17 +503,23 @@ export default function Arte() {
   // Troca do thumb já aprovado (Finalizar Arte / Finalizados). Não reabre a
   // aprovação — o thumb anterior fica guardado no item e no histórico.
   const updateThumbMutation = useMutation({
-    mutationFn: async ({ itemId, approvalThumbUrl }: { itemId: string; approvalThumbUrl: string }) =>
-      await apiRequest("PATCH", `/api/items/${itemId}/update-thumb`, { approvalThumbUrl }),
-    onSuccess: (updated: any) => {
+    // Mesmo defeito do rascunho: apiRequest devolve Response crua, então
+    // `updated.id` era sempre undefined e a miniatura, o nome do arquivo e o
+    // bloco "versão anterior guardada" continuavam mostrando o thumb velho.
+    // Com selectedItem derivado da lista, a invalidação abaixo já repinta o
+    // modal — o .json() fica porque a mutação devolve a peça atualizada.
+    mutationFn: async ({ itemId, approvalThumbUrl }: { itemId: string; approvalThumbUrl: string }) => {
+      const res = await apiRequest("PATCH", `/api/items/${itemId}/update-thumb`, { approvalThumbUrl });
+      return await res.json();
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"], refetchType: "none" });
-      if (updated?.id) setSelectedItem((prev: any) => (prev?.id === updated.id ? { ...prev, ...updated } : prev));
       toast({ title: "Thumb atualizado", description: "O thumb anterior ficou guardado no histórico da peça." });
     },
     onError: (error: Error) =>
-      toast({ title: "Erro ao atualizar thumb", description: error.message, variant: "destructive" }),
+      toast({ title: "Erro ao atualizar thumb", description: mensagemDeErro(error), variant: "destructive" }),
   });
 
   const resubmitMutation = useMutation({
@@ -386,7 +539,7 @@ export default function Arte() {
       });
     },
     onError: (error: Error) => {
-      toast({ title: "Erro ao enviar", description: error.message, variant: "destructive" });
+      toast({ title: "Erro ao enviar", description: mensagemDeErro(error), variant: "destructive" });
     },
   });
 
@@ -395,13 +548,19 @@ export default function Arte() {
       return await apiRequest("PATCH", `/api/items/${itemId}/dispense`, { reason });
     },
     onSuccess: () => {
+      // A rota de dispensa NÃO emite broadcast nem notificação (ver o relatório
+      // de revisão, A4): a Gráfica só enxerga a peça no próximo carregamento.
+      // Enquanto o servidor não alinhar com as rotas irmãs, invalidamos também
+      // as chaves que a fila de produção lê, para pelo menos esta sessão ficar
+      // consistente.
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       setDispenseItem(null);
       setDispenseReason("");
       toast({ title: "Peça dispensada", description: "A peça foi liberada para produção diretamente." });
     },
     onError: (error: Error) => {
-      toast({ title: "Erro ao dispensar", description: error.message, variant: "destructive" });
+      toast({ title: "Erro ao dispensar", description: mensagemDeErro(error), variant: "destructive" });
     },
   });
 
@@ -489,9 +648,15 @@ export default function Arte() {
   const [isDragOverCorrecao, setIsDragOverCorrecao] = useState(false);
   const [isDragOverBook, setIsDragOverBook] = useState(false);
   const [showBulkThumbModal, setShowBulkThumbModal] = useState(false);
-  type BulkThumbEntry = { id: string; file: File; preview: string; matchedItemId: string | null; status: 'pending' | 'uploading' | 'done' | 'error'; errorMsg?: string };
+  // `ambiguous`: o nome do arquivo tinha mais de um número candidato (ou um que
+  // parece ano). O vínculo foi feito, mas pede conferência — ver
+  // matchFileToItem em lib/arte-rules.
+  type BulkThumbEntry = { id: string; file: File; preview: string; matchedItemId: string | null; ambiguous?: boolean; status: 'pending' | 'uploading' | 'done' | 'error'; errorMsg?: string };
   const [bulkThumbEntries, setBulkThumbEntries] = useState<BulkThumbEntry[]>([]);
   const [bulkThumbRunning, setBulkThumbRunning] = useState(false);
+  // Progresso global do lote: 60 imagens uma a uma levam minutos e o único
+  // sinal era o estado de cada card, que some da vista ao rolar a lista.
+  const [bulkThumbProgress, setBulkThumbProgress] = useState({ feitos: 0, total: 0 });
   const [bulkThumbEventFilter, setBulkThumbEventFilter] = useState<string>("all");
   const [bulkThumbLinkOpenMap, setBulkThumbLinkOpenMap] = useState<Record<string, boolean>>({});
   const [showExportModal, setShowExportModal] = useState(false);
@@ -629,21 +794,41 @@ export default function Arte() {
   // correção, deduplicadas e respeitando o filtro de evento do modal.
   // Calculado uma vez — antes era refeito dentro do .map de cada card E o
   // auto-match usava um pool diferente (sem correção e ignorando o filtro).
-  const bulkPendingPool = useMemo(() => {
+  // Pool SEM o filtro de evento — alimenta o seletor de evento do modal com
+  // contagem real (o seletor listava todos os eventos do sistema, e o usuário
+  // só descobria que o evento não tinha peça depois de escolhê-lo).
+  const bulkThumbBasePool = useMemo(() => {
     const seen = new Set<string>();
     return [...allItems, ...correcaoItems].filter((i: any) => {
       if (seen.has(i.id)) return false;
       seen.add(i.id);
-      const podeReceberThumb = i.status === 'awaiting_submission'
+      return i.status === 'awaiting_submission'
         || (correcaoItems as any[]).some((c: any) => c.id === i.id);
-      if (!podeReceberThumb) return false;
-      if (bulkThumbEventFilter !== "all" && i.eventId !== bulkThumbEventFilter) return false;
-      return true;
     });
-  }, [allItems, correcaoItems, bulkThumbEventFilter]);
+  }, [allItems, correcaoItems]);
+
+  const bulkPendingPool = useMemo(
+    () => bulkThumbEventFilter === "all"
+      ? bulkThumbBasePool
+      : bulkThumbBasePool.filter((i: any) => i.eventId === bulkThumbEventFilter),
+    [bulkThumbBasePool, bulkThumbEventFilter],
+  );
+
+  // Mesma disciplina do bookEventOptions: só eventos que têm peça pronta para
+  // receber thumb, com a contagem ao lado do nome.
+  const bulkThumbEventOptions = useMemo(() => {
+    const map = new Map<string, { value: string; label: string; count: number }>();
+    bulkThumbBasePool.forEach((i: any) => {
+      if (!i.eventId) return;
+      const cur = map.get(i.eventId);
+      if (cur) cur.count++;
+      else map.set(i.eventId, { value: i.eventId, label: i.event?.name || "Sem evento", count: 1 });
+    });
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
+  }, [bulkThumbBasePool]);
 
   const handleBulkThumbFilesAdded = useCallback((files: FileList | File[]) => {
-    // Accept by MIME type OR by extension (some browsers return empty type)
+    // Aceita por MIME OU por extensão (alguns navegadores devolvem type vazio).
     const isImage = (f: File) =>
       f.type.startsWith("image/") || /\.(jpe?g|png|gif|webp|svg|bmp|tiff?)$/i.test(f.name);
     const arr = Array.from(files).filter(isImage);
@@ -654,21 +839,14 @@ export default function Arte() {
       bulkThumbEntries.filter(e => e.matchedItemId).map(e => e.matchedItemId as string)
     );
     const newEntries: BulkThumbEntry[] = arr.map(file => {
-      // Extract numbers with ≥3 digits from filename to avoid false matches from "3×3", "01" etc.
-      // e.g. "0277_aplique.jpg" → ["0277"], "tenda_3x3_0122.png" → ["0122"]
-      const nums = (file.name.replace(/\.[^.]+$/, '').replace(/\D/g, ' '))
-        .trim().split(/\s+/).filter(n => n.length >= 3);
-      const matched = bulkPendingPool.find(item => {
-        if (taken.has(item.id)) return false;
-        const rawId = (item.displayId || '').replace(/\D/g, '').padStart(4, '0');
-        return nums.some(n => n.padStart(4, '0') === rawId);
-      });
+      const { item: matched, ambiguous } = matchFileToItem(file.name, bulkPendingPool as any[], taken);
       if (matched) taken.add(matched.id);
       return {
         id: `${file.name}-${Date.now()}-${Math.random()}`,
         file,
         preview: URL.createObjectURL(file),
         matchedItemId: matched?.id ?? null,
+        ambiguous: !!matched && ambiguous,
         status: 'pending' as const,
       };
     });
@@ -680,11 +858,14 @@ export default function Arte() {
   // (/submit-for-approval, muda status). Se send=false, só salva o thumb no
   // item (PATCH /api/items/:id, mantém status awaiting_submission = rascunho).
   const runBulkThumb = useCallback(async (send: boolean) => {
+    if (!podeEditar) return; // gate de papel: nem sobe arquivo para tomar 403 depois
     const toProcess = bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending');
     if (!toProcess.length) return;
     setBulkThumbRunning(true);
+    setBulkThumbProgress({ feitos: 0, total: toProcess.length });
     let enviados = 0, salvos = 0, reenviados = 0;
-    for (const entry of toProcess) {
+
+    const processar = async (entry: BulkThumbEntry) => {
       setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'uploading' } : e));
       try {
         const localPath = await uploadFileRaw(entry.file);
@@ -712,9 +893,18 @@ export default function Arte() {
         }
         setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'done' } : e));
       } catch (err: any) {
-        setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'error', errorMsg: err.message } : e));
+        setBulkThumbEntries(prev => prev.map(e => e.id === entry.id ? { ...e, status: 'error', errorMsg: mensagemDeErro(err) } : e));
+      } finally {
+        setBulkThumbProgress(p => ({ ...p, feitos: p.feitos + 1 }));
       }
-    }
+    };
+
+    // Concorrência 3 (e não os 5 do envio de PDF): cada imagem sobe pelo proxy
+    // do servidor, que tem limite de 50MB por requisição — subir demais em
+    // paralelo troca minutos de espera por falhas de memória. O try/catch mora
+    // DENTRO da tarefa, então nenhum erro derruba o lote inteiro.
+    await runInBatches(toProcess, processar, 3);
+
     setBulkThumbRunning(false);
     queryClient.invalidateQueries({ queryKey: ["/api/items"] });
     queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
@@ -724,19 +914,29 @@ export default function Arte() {
       reenviados ? `${reenviados} reenviado(s) para nova aprovação (correção)` : "",
       salvos ? `${salvos} thumb(s) salvo(s)` : "",
     ].filter(Boolean).join(" · ");
-    toast({ title: "Upload em lote concluído", description: partes || "Nada a processar" });
-  }, [bulkThumbEntries, uploadFileRaw, allItems, correcaoItems]);
+    toast({ title: "Envio em lote concluído", description: partes || "Nada a processar" });
+  }, [bulkThumbEntries, uploadFileRaw, allItems, correcaoItems, podeEditar, mensagemDeErro, toast]);
 
   const handleBulkThumbUpload = useCallback(() => runBulkThumb(true), [runBulkThumb]);
   const handleBulkThumbSaveDraft = useCallback(() => runBulkThumb(false), [runBulkThumb]);
 
+  // Trabalho que se perde ao fechar: arquivos ainda não processados.
+  const bulkThumbPendentes = bulkThumbEntries.filter(e => e.status === 'pending').length;
+
   // Fecha o multi-upload liberando os object URLs dos previews — cada
   // URL.createObjectURL segura o blob na memória até o revoke.
-  const closeBulkThumbModal = useCallback(() => {
+  const closeBulkThumbModal = useCallback((forcar = false) => {
     if (bulkThumbRunning) {
       // Fechar no meio do lote deixaria uploads órfãos — avisa em vez de
       // ignorar o clique em silêncio.
-      toast({ title: "Aguarde o envio terminar", description: "O upload em lote ainda está em andamento." });
+      toast({ title: "Aguarde o envio terminar", description: "O envio em lote ainda está em andamento." });
+      return;
+    }
+    // 40 imagens vinculadas e conferidas sumiam com um clique no overlay. A
+    // proteção já existia para o envio em andamento e tinha ficado pela metade.
+    const pendentes = bulkThumbEntries.filter(e => e.status === 'pending').length;
+    if (!forcar && pendentes > 0
+      && !window.confirm(`${pendentes} ${pendentes === 1 ? 'imagem ainda não foi enviada' : 'imagens ainda não foram enviadas'}. Fechar e descartar?`)) {
       return;
     }
     setBulkThumbEntries(prev => {
@@ -745,13 +945,44 @@ export default function Arte() {
     });
     setShowBulkThumbModal(false);
     setBulkThumbEventFilter("all");
-  }, [bulkThumbRunning, toast]);
+    // O mapa de popovers abertos crescia uma chave por card e nunca era zerado.
+    setBulkThumbLinkOpenMap({});
+    setBulkThumbProgress({ feitos: 0, total: 0 });
+  }, [bulkThumbRunning, bulkThumbEntries, toast]);
+
+  // Sair da tela por navegação com o modal aberto segurava os blobs dos
+  // previews até o refresh — os revokes existiam no fechar, no remover e no
+  // limpar concluídos, mas não no desmonte.
+  const bulkThumbEntriesRef = useRef(bulkThumbEntries);
+  bulkThumbEntriesRef.current = bulkThumbEntries;
+  useEffect(() => () => {
+    bulkThumbEntriesRef.current.forEach(e => URL.revokeObjectURL(e.preview));
+  }, []);
+
+  // Fechar a Correção descartava um arquivo JÁ ENVIADO ao storage sem avisar.
+  const fecharCorrecaoModal = useCallback((forcar = false) => {
+    if (!forcar && correcaoThumbUrl
+      && !window.confirm("A nova arte enviada ainda não foi confirmada. Fechar e descartar?")) {
+      return;
+    }
+    setCorrecaoItem(null);
+    setCorrecaoThumbUrl("");
+    setCorrecaoFileName("");
+    setCorrecaoSelectedSponsorIds(new Set());
+  }, [correcaoThumbUrl]);
 
   const uniqueSponsors = useMemo(() => {
     const map = new Map<string, any>();
     allItems.forEach((item: any) => (item.sponsors ?? []).forEach((s: any) => { if (!map.has(s.id)) map.set(s.id, s); }));
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, 'pt-BR'));
   }, [allItems]);
+
+  // Eventos que JÁ têm book publicado. Quem está nesta lista e não tem bookUrl
+  // ficou de fora do book — ver o selo "Fora do book" na coluna Peça.
+  const eventosComBook = useMemo(
+    () => new Set<string>(allItems.filter((i: any) => i.bookUrl && i.eventId).map((i: any) => i.eventId)),
+    [allItems],
+  );
 
   // Itens da fase/aba atual, sem aplicar os filtros de dropdown. É a base das
   // opções de filtro: assim cada filtro lista só o que existe naquela fase, e
@@ -813,25 +1044,36 @@ export default function Arte() {
   const typeFilterOptions = useMemo(() => countBy('type'), facetDeps);
   const materialFilterOptions = useMemo(() => countBy('material'), facetDeps);
 
-  const activeFilterCount = useMemo(() => {
-    let count = 0;
-    if (searchFilter) count++;
-    if (eventFilter.length > 0) count += eventFilter.length;
-    if (sponsorFilter.length > 0) count += sponsorFilter.length;
-    if (monthFilter.length > 0) count++;
-    if (next10DaysFilter) count++;
-    if (typeFilter.length > 0) count += typeFilter.length;
-    if (materialFilter.length > 0) count += materialFilter.length;
-    if (semThumb) count++;
-    if (comThumb) count++;
-    if (semFinal) count++;
-    if (comFinal) count++;
-    if (urgenteFilter) count++;
-    if (periodFilter !== "Todos") count++;
-    return count;
-  }, [searchFilter, eventFilter, sponsorFilter, monthFilter, next10DaysFilter, typeFilter, materialFilter, semThumb, comThumb, semFinal, comFinal, urgenteFilter, periodFilter]);
+  /**
+   * Objeto ÚNICO de filtros. As três listas da tela (abas de status, contagem
+   * da Correção e a própria lista da Correção) leem daqui e passam pelo mesmo
+   * `matchesArteFilters` — antes eram três implementações e duas ignoravam
+   * metade dos filtros que os chips diziam estar ligados.
+   */
+  const filters = useMemo<ArteFilters>(() => ({
+    search: deferredSearch.toLowerCase(),
+    eventIds: eventFilter,
+    sponsorIds: sponsorFilter,
+    types: typeFilter,
+    materials: materialFilter,
+    months: monthFilter,
+    next10Days: next10DaysFilter,
+    urgente: urgenteFilter,
+    thumb: thumbFilter,
+    final: finalFilter,
+    period: periodFilter,
+  }), [deferredSearch, eventFilter, sponsorFilter, typeFilter, materialFilter, monthFilter,
+    next10DaysFilter, urgenteFilter, thumbFilter, finalFilter, periodFilter]);
 
-  const clearAllFilters = () => {
+  const activeFilterCount = useMemo(
+    // O filtro local de patrocinador da aba Correção não aparecia nem nos chips
+    // nem nesta conta, e combinado com o global produzia interseções que
+    // nenhum dos dois controles refletia.
+    () => countActiveFilters(filters) + (correcaoSponsorFilter !== "all" ? 1 : 0),
+    [filters, correcaoSponsorFilter],
+  );
+
+  const clearAllFilters = useCallback(() => {
     setSearchFilter("");
     setEventFilter([]);
     setSponsorFilter([]);
@@ -839,88 +1081,67 @@ export default function Arte() {
     setNext10DaysFilter(false);
     setTypeFilter([]);
     setMaterialFilter([]);
-    setSemThumb(false);
-    setComThumb(false);
-    setSemFinal(false);
-    setComFinal(false);
+    setThumbFilter("todos");
+    setFinalFilter("todos");
     setUrgenteFilter(false);
     setPeriodFilter("Todos");
-  };
+    setCorrecaoSponsorFilter("all");
+  }, []);
+
+  // Filtros na URL, com debounce de 300ms (a regra da casa pede ≥200): sem ele,
+  // cada tecla da busca escrevia um replaceState — o padrão que já derrubou a
+  // árvore React no Safari em outra tela.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const qs = serializeArteFilters(filters, activeTab);
+      window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [filters, activeTab]);
 
   // Aplica os filtros uma única vez e separa por aba. As contagens saem do
   // .length de cada balde; só a aba aberta paga o custo da ordenação.
   const itemsByTab = useMemo(() => {
-    const search = deferredSearch.toLowerCase();
-
-    // Limites de data calculados uma vez, não por item.
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const tenDays = new Date(today); tenDays.setDate(tenDays.getDate() + 10);
-    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
-    const in7 = new Date(today); in7.setDate(in7.getDate() + 7);
-    const in15 = new Date(today); in15.setDate(in15.getDate() + 15);
-    const in30 = new Date(today); in30.setDate(in30.getDate() + 30);
-
+    const bounds = makeDateBounds();
     const buckets: Record<string, any[]> = {
       "criar-aprovacoes": [], "aguardando-patrocinador": [],
       "finalizar-layouts": [], "finalizados": [],
     };
-
     for (const item of allItems) {
-      const matchesEvent = eventFilter.length === 0 || eventFilter.includes(item.eventId);
-      if (!matchesEvent) continue;
-      if (typeFilter.length && !typeFilter.includes(item.type)) continue;
-      if (materialFilter.length && !materialFilter.includes(item.material)) continue;
-
-      // Filtros de data: item sem data de saída fica DE FORA quando o filtro
-      // está ativo — antes ele passava e "Saída 10 dias" listava eventos sem
-      // saída nenhuma. toUTCDisplayDate: mesma base do rótulo "Saída" no
-      // cabeçalho (que exibe em UTC); calcular em local divergia perto da
-      // meia-noite.
-      const depRaw = item.event?.truckDepartureDate;
-      if (next10DaysFilter) {
-        if (!depRaw) continue;
-        const dep = toUTCDisplayDate(depRaw);
-        if (!(dep >= today && dep <= tenDays)) continue;
-      }
-      if (monthFilter.length > 0) {
-        if (!depRaw) continue;
-        if (!monthFilter.includes((toUTCDisplayDate(depRaw).getMonth() + 1).toString())) continue;
-      }
-      if (search) {
-        const hit = [item.displayId, item.type, item.description, item.event?.name]
-          .some(f => f && f.toLowerCase().includes(search));
-        if (!hit) continue;
-      }
-      if (sponsorFilter.length && !(item.sponsors ?? []).some((s: any) => sponsorFilter.includes(s.id))) continue;
-      if (semThumb && item.approvalThumbUrl) continue;
-      if (comThumb && !item.approvalThumbUrl) continue;
-      if (semFinal && item.finalFileUrl) continue;
-      if (comFinal && !item.finalFileUrl) continue;
-      if (urgenteFilter && item.event?.priority !== 'urgent') continue;
-
-      if (periodFilter !== "Todos") {
-        if (!depRaw) continue; // sem data de saída, o item não pertence a nenhum período
-        const dep = toUTCDisplayDate(depRaw);
-        if (periodFilter === "Hoje") { if (!(dep >= today && dep < tomorrow)) continue; }
-        else if (periodFilter === "7 dias")  { if (!(dep <= in7))  continue; }
-        else if (periodFilter === "15 dias") { if (!(dep <= in15)) continue; }
-        else if (periodFilter === "30 dias") { if (!(dep <= in30)) continue; }
-      }
-
+      if (!matchesArteFilters(item, filters, bounds)) continue;
       for (const tab in buckets) {
         if (TAB_STATUSES[tab].includes(item.status)) { buckets[tab].push(item); break; }
       }
     }
+    // Recorte temporal padrão da aba Finalizados: ela acumula produzido,
+    // conferido e entregue e nunca para de crescer. 90 dias por saída do
+    // caminhão mantém a aba útil como conferência recente; "ver tudo" está a
+    // um clique no cabeçalho da aba.
+    if (!finalizadosTudo) {
+      buckets["finalizados"] = buckets["finalizados"].filter(i => dentroDaJanelaFinalizados(i, bounds.today));
+    }
     return buckets;
-  }, [
-    allItems, eventFilter, typeFilter, materialFilter,
-    next10DaysFilter, monthFilter, deferredSearch, sponsorFilter,
-    semThumb, comThumb, semFinal, comFinal, urgenteFilter, periodFilter,
-  ]);
+  }, [allItems, filters, finalizadosTudo]);
 
-  // Qualquer mudança de recorte recomeça a paginação — senão o usuário filtra e
-  // continua vendo "carregar mais" de uma lista que já cabe inteira.
-  useEffect(() => { setVisibleCount(ARTE_PAGE_SIZE); }, [itemsByTab]);
+  // Quantas peças a janela de 90 dias está escondendo (para o rótulo do "ver tudo").
+  const finalizadosForaDaJanela = useMemo(() => {
+    if (finalizadosTudo) return 0;
+    const bounds = makeDateBounds();
+    let n = 0;
+    for (const item of allItems) {
+      if (!TAB_STATUSES["finalizados"].includes(item.status)) continue;
+      if (!matchesArteFilters(item, filters, bounds)) continue;
+      if (!dentroDaJanelaFinalizados(item, bounds.today)) n++;
+    }
+    return n;
+  }, [allItems, filters, finalizadosTudo]);
+
+  // Qualquer mudança de recorte recomeça a paginação. A dependência é uma CHAVE
+  // do recorte, não a identidade do objeto de baldes: `itemsByTab` é um objeto
+  // novo a cada `item_updated` do WebSocket, e quem tinha clicado "Carregar
+  // mais" três vezes perdia a posição sem ter feito nada.
+  const recorteKey = filtersKey(filters, activeTab) + (finalizadosTudo ? "~tudo" : "");
+  useEffect(() => { setVisibleCount(ARTE_PAGE_SIZE); }, [recorteKey]);
 
   // Re-sincroniza o preview do thumb caso a query de items refaça o estado
   // após salvar rascunho (dupla invalidação: onSuccess + WebSocket item_updated).
@@ -940,7 +1161,15 @@ export default function Arte() {
     const list = itemsByTab[activeTab] ?? [];
     // Um Collator reutilizado é bem mais rápido que localeCompare por comparação.
     const cmp = new Intl.Collator('pt-BR');
+    const hoje = makeDateBounds().today;
     return [...list].sort((a, b) => {
+      // Ordenar por PRAZO reordena os blocos inteiros (a lista é agrupada por
+      // evento): o evento com o marco da fase mais próximo sobe para o topo.
+      // É o que transforma "lista organizada por evento" em "fila de trabalho".
+      if (sortMode === "prazo") {
+        const u = compareEventUrgency(a.event, b.event, activeTab, hoje);
+        if (u !== 0) return u;
+      }
       const eA = a.event?.name || '', eB = b.event?.name || '';
       if (eA !== eB) return cmp.compare(eA, eB);
       const gA = groupOf(a.type) || '', gB = groupOf(b.type) || '';
@@ -949,34 +1178,23 @@ export default function Arte() {
       // virava 621 e caía a centenas de linhas da peça de que ele nasceu.
       return compareDisplayId(a.displayId, b.displayId);
     });
-  }, [itemsByTab, activeTab, groupMaps]);
+  }, [itemsByTab, activeTab, groupMaps, sortMode]);
 
-  const itemsForEvent = eventFilter.length === 0 ? allItems : allItems.filter(item => eventFilter.includes(item.eventId));
   const pendingCount = itemsByTab["criar-aprovacoes"].length;
   const aguardandoCount = itemsByTab["aguardando-patrocinador"].length;
   const needsFinalFileCount = itemsByTab["finalizar-layouts"].length;
   const finalizadosCount = itemsByTab["finalizados"].length;
-  const correcaoCount = useMemo(() => {
-    if (eventFilter.length === 0 && typeFilter.length === 0 && materialFilter.length === 0 && sponsorFilter.length === 0 && !deferredSearch) {
-      return correcaoItems.length;
-    }
-    const s = deferredSearch.toLowerCase();
-    return correcaoItems.filter((item: any) => {
-      if (eventFilter.length > 0 && !eventFilter.includes(item.eventId)) return false;
-      if (typeFilter.length > 0 && !typeFilter.includes(item.type)) return false;
-      if (materialFilter.length > 0 && !materialFilter.includes(item.material)) return false;
-      if (sponsorFilter.length > 0 && !(item.sponsors ?? []).some((sp: any) => sponsorFilter.includes(sp.id))) return false;
-      if (s) {
-        const hit = [item.displayId, item.type, item.description, item.event?.name]
-          .some((f: any) => f && f.toLowerCase().includes(s));
-        if (!hit) return false;
-      }
-      return true;
-    }).length;
-  }, [correcaoItems, eventFilter, typeFilter, materialFilter, sponsorFilter, deferredSearch]);
+  // Mesmo predicado das outras abas: antes esta contagem só conhecia evento,
+  // tipo, material, patrocinador e busca — ligar "Saída 10 dias" acendia o chip
+  // e devolvia a lista inteira.
+  const correcaoFiltrados = useMemo(() => {
+    const bounds = makeDateBounds();
+    return (correcaoItems as any[]).filter(item => matchesArteFilters(item, filters, bounds));
+  }, [correcaoItems, filters]);
+  const correcaoCount = correcaoFiltrados.length;
 
   const handleViewDetails = (item: any) => {
-    setSelectedItem(item);
+    setSelectedItemId(item.id);
     setApprovalThumbUrl(item.approvalThumbUrl || "");
     setApprovalThumbPreview(item.approvalThumbUrl || "");
     setSavedApprovalThumbUrl(item.approvalThumbUrl || "");
@@ -986,7 +1204,16 @@ export default function Arte() {
     setFinalDirty(false);
   };
 
+  // Última barreira do gate de papel: a UI já esconde as ações, mas um handler
+  // exposto não pode contar só com isso.
+  const bloqueadoPorPapel = () => {
+    if (podeEditar) return false;
+    toast({ title: "Modo consulta", description: "Só a equipe de Arte pode alterar peças nesta tela.", variant: "destructive" });
+    return true;
+  };
+
   const handleSubmitForApproval = () => {
+    if (bloqueadoPorPapel()) return;
     if (!selectedItem || !approvalThumbUrl) {
       toast({ title: "Erro", description: "É necessário fazer upload do thumb de aprovação", variant: "destructive" });
       return;
@@ -996,6 +1223,7 @@ export default function Arte() {
 
   // Salva o thumb sem enviar para aprovação (rascunho).
   const handleSaveThumbDraft = () => {
+    if (bloqueadoPorPapel()) return;
     if (!selectedItem || !approvalThumbUrl) {
       toast({ title: "Erro", description: "Faça o upload do thumb antes de salvar", variant: "destructive" });
       return;
@@ -1005,6 +1233,7 @@ export default function Arte() {
 
   // Envia (ou atualiza) o caminho do arquivo final.
   const handleSubmitFinalFile = () => {
+    if (bloqueadoPorPapel()) return;
     if (!selectedItem || !finalFileUrl) {
       toast({ title: "Erro", description: "É necessário informar o caminho do arquivo final", variant: "destructive" });
       return;
@@ -1020,6 +1249,7 @@ export default function Arte() {
   };
 
   const handleBulkSubmit = () => {
+    if (bloqueadoPorPapel()) return;
     if (!sharedPdfUrl) {
       toast({ title: "Erro", description: "É necessário fazer upload do PDF compartilhado", variant: "destructive" });
       return;
@@ -1063,13 +1293,18 @@ export default function Arte() {
     if (next10DaysFilter) chips.push({ kind: 'next10', label: "Próximos 10 dias" });
     if (periodFilter !== "Todos") chips.push({ kind: 'period', label: `Período: ${periodFilter}` });
     if (urgenteFilter) chips.push({ kind: 'urgente', label: "Urgente" });
-    if (semThumb) chips.push({ kind: 'semThumb', label: "Sem thumb" });
-    if (comThumb) chips.push({ kind: 'comThumb', label: "Com thumb" });
-    if (semFinal) chips.push({ kind: 'semFinal', label: "Sem arq. final" });
-    if (comFinal) chips.push({ kind: 'comFinal', label: "Com arq. final" });
+    if (thumbFilter !== "todos") chips.push({ kind: 'thumb', label: thumbFilter === "sem" ? "Sem thumb" : "Com thumb" });
+    if (finalFilter !== "todos") chips.push({ kind: 'final', label: finalFilter === "sem" ? "Sem arquivo final" : "Com arquivo final" });
     if (searchFilter) chips.push({ kind: 'search', label: `Busca: "${searchFilter}"` });
+    // O filtro local da aba Correção existia sem aparecer em lugar nenhum.
+    if (correcaoSponsorFilter !== "all") {
+      const nome = (correcaoItems as any[])
+        .flatMap((i: any) => i.awaitingArteApprovals || [])
+        .find((a: any) => a.sponsorId === correcaoSponsorFilter)?.sponsor?.name;
+      chips.push({ kind: 'correcaoSponsor', label: `Correção · ${nome || 'patrocinador'}` });
+    }
     return chips;
-  }, [eventFilter, sponsorFilter, typeFilter, materialFilter, monthFilter, next10DaysFilter, periodFilter, urgenteFilter, semThumb, comThumb, semFinal, comFinal, searchFilter, events, uniqueSponsors]);
+  }, [eventFilter, sponsorFilter, typeFilter, materialFilter, monthFilter, next10DaysFilter, periodFilter, urgenteFilter, thumbFilter, finalFilter, searchFilter, correcaoSponsorFilter, correcaoItems, events, uniqueSponsors]);
 
   const removeChipFilter = (chip: ActiveChip) => {
     switch (chip.kind) {
@@ -1081,85 +1316,444 @@ export default function Arte() {
       case 'next10': setNext10DaysFilter(false); break;
       case 'period': setPeriodFilter("Todos"); break;
       case 'urgente': setUrgenteFilter(false); break;
-      case 'semThumb': setSemThumb(false); break;
-      case 'comThumb': setComThumb(false); break;
-      case 'semFinal': setSemFinal(false); break;
-      case 'comFinal': setComFinal(false); break;
+      case 'thumb': setThumbFilter("todos"); break;
+      case 'final': setFinalFilter("todos"); break;
       case 'search': setSearchFilter(""); break;
+      case 'correcaoSponsor': setCorrecaoSponsorFilter("all"); break;
     }
   };
 
   // ─── RENDER ────────────────────────────────────────────────────────────────
+  // "Aguardando envio" e não "Mandar para Aprovação"/"Pendentes": a mesma fase
+  // tinha quatro nomes na tela (aba, stat card, selo e empty state), e um deles
+  // ("Liberado") é o rótulo de OUTRO status.
   const tabs = [
-    { id: "criar-aprovacoes", label: "Mandar para Aprovação", count: pendingCount, testId: "tab-criar-aprovacoes" },
-    { id: "aguardando-patrocinador", label: "Aguardando Patrocinador", count: aguardandoCount, testId: "tab-aguardando-patrocinador" },
-    { id: "correcao", label: "Correção", count: correcaoCount, testId: "tab-correcao" },
-    { id: "finalizar-layouts", label: "Finalizar Arte", count: needsFinalFileCount, testId: "tab-finalizar-layouts" },
-    { id: "finalizados", label: "Finalizados", count: finalizadosCount, testId: "tab-finalizados" },
+    { id: "criar-aprovacoes", label: "Aguardando envio", count: pendingCount, Icon: Send, testId: "tab-criar-aprovacoes" },
+    { id: "aguardando-patrocinador", label: "Aguardando patrocinador", count: aguardandoCount, Icon: Clock, testId: "tab-aguardando-patrocinador" },
+    { id: "correcao", label: "Correção", count: correcaoCount, Icon: RotateCcw, testId: "tab-correcao" },
+    { id: "finalizar-layouts", label: "Finalizar arte", count: needsFinalFileCount, Icon: FileCheck, testId: "tab-finalizar-layouts" },
+    { id: "finalizados", label: "Finalizados", count: finalizadosCount, Icon: CheckCircle, testId: "tab-finalizados" },
   ];
 
-  const statCards = [
-    {
-      label: "Pendentes",
-      value: pendingCount,
-      sub: "para envio",
-      iconBg: "#fff7ed",
-      accentColor: "#f97316",
-      Icon: Clock,
-      testId: "stat-pending",
-    },
-    {
-      label: "Aguard. Patrocin.",
-      value: itemsForEvent.filter(i => TAB_STATUSES["aguardando-patrocinador"].includes(i.status)).length,
-      sub: "em análise",
-      iconBg: "#fffbeb",
-      accentColor: "#d97706",
-      Icon: Clock,
-      testId: "stat-awaiting-sponsor",
-    },
-    // "Em Correção" substituiu "Patrocin. Aprovou": a fila urgente (arte
-    // recusada aguardando nova versão) não tinha nenhum card, enquanto o
-    // estado aprovado já aparece na aba Finalizar Arte.
-    {
-      label: "Em Correção",
-      value: correcaoCount,
-      sub: "aguardando nova arte",
-      iconBg: "#fef2f2",
-      accentColor: "#dc2626",
-      Icon: AlertTriangle,
-      testId: "stat-correcao",
-    },
-    {
-      label: "Prontos p/ Prod.",
-      value: itemsForEvent.filter(i => FINALIZADOS_STATUSES.includes(i.status)).length,
-      sub: "liberado",
-      iconBg: "#f0fdf4",
-      accentColor: "#16a34a",
-      Icon: Package,
-      testId: "stat-ready-production",
-    },
-  ];
+  /**
+   * Os cards derivam do MESMO `itemsByTab` que alimenta os badges das abas.
+   * Antes dois deles usavam `itemsForEvent` (só o filtro de evento): com busca,
+   * tipo, material ou período ativos o card e o badge da aba correspondente
+   * mostravam números diferentes a 200px de distância. E `totalAll` somava
+   * quatro fases esquecendo `aguardandoCount` inteiro, o que deixava o
+   * numerador de um card maior que o denominador — barra de mais de 100%, que
+   * só não estourava porque o pai tem overflow:hidden.
+   *
+   * Cinco cards para cinco fases: "Finalizar arte" não tinha card nenhum e era
+   * a única fase sem segunda porta de entrada (no celular, com as abas
+   * cortadas, ficava inalcançável).
+   */
+  const statCards = tabs.map(t => ({
+    label: t.label,
+    value: t.count,
+    sub: {
+      "criar-aprovacoes": "thumb a enviar",
+      "aguardando-patrocinador": "em análise",
+      "correcao": "aguardando nova arte",
+      "finalizar-layouts": "arquivo final",
+      "finalizados": "liberadas",
+    }[t.id] ?? "",
+    accentColor: TAB_THEME[t.id].dot,
+    textColor: TAB_THEME[t.id].text,
+    iconBg: TAB_THEME[t.id].tint,
+    Icon: t.Icon,
+    tabId: t.id,
+    testId: `stat-${t.id}`,
+  }));
+  const totalAll = tabs.reduce((s, t) => s + t.count, 0);
+
+  // ─── LINHA DA TABELA E CARD DO MOBILE ──────────────────────────────────────
+
+  /**
+   * Ação primária da linha, por fase. `null` quando a fase não tem ação (ou
+   * quando o papel está em modo consulta).
+   */
+  const acaoPrimaria = (item: any, tabId: string) => {
+    if (!podeEditar) return null;
+    if (tabId !== "criar-aprovacoes" && tabId !== "finalizar-layouts") return null;
+    const isSkip = tabId === "criar-aprovacoes" && item.skipApproval;
+    return {
+      // O laranja da marca dá 2,80:1 com texto branco e reprova AA; este dá 5,18.
+      bg: tabId === "finalizar-layouts" ? '#2563eb' : isSkip ? '#7c3aed' : '#c2410c',
+      label: tabId === "finalizar-layouts" ? "Finalizar arte" : isSkip ? "Enviar finalização" : "Enviar aprovação",
+      // Um clique para enviar: se a peça já tem thumb salvo (rascunho), o botão
+      // dispara o envio direto, sem abrir o modal e SEM confirmação — a ação é
+      // reversível pela aba Correção e o toast dá o feedback; window.confirm só
+      // acrescentaria atrito. O olho no menu "⋯" continua abrindo os detalhes.
+      canSendDirect: tabId === "criar-aprovacoes" && !isSkip && !!item.approvalThumbUrl,
+      isSkip,
+    };
+  };
+
+  /** Menu "⋯": ver detalhes, exportar prova e dispensar. */
+  const renderMenuAcoes = (item: any) => {
+    const podeDispensar = podeEditar && DISPENSAVEIS_STATUSES.includes(item.status);
+    return (
+      <Popover>
+        <PopoverTrigger asChild>
+          <button
+            onClick={e => e.stopPropagation()}
+            aria-label={`Mais ações para ${item.displayId}`}
+            data-testid={`button-row-menu-${item.id}`}
+            style={{ minWidth: 36, minHeight: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid #e7e5e4', cursor: 'pointer', color: '#57534e' }}
+          >
+            <MoreHorizontal style={{ width: 15, height: 15 }} />
+          </button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="p-1" style={{ width: 224 }} onClick={e => e.stopPropagation()}>
+          <button
+            onClick={() => handleViewDetails(item)}
+            data-testid={`button-view-${item.id}`}
+            style={menuItemStyle('#44403c')}
+            onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+          >
+            <Eye style={{ width: 14, height: 14, flexShrink: 0 }} /> Ver detalhes
+          </button>
+          <button
+            onClick={() => handleExportItemPDF(item)}
+            data-testid={`button-export-item-pdf-${item.id}`}
+            style={menuItemStyle('#44403c')}
+            onMouseEnter={e => { e.currentTarget.style.background = '#f5f5f4'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+          >
+            <Printer style={{ width: 14, height: 14, flexShrink: 0 }} /> Exportar prova em PDF
+          </button>
+          {podeDispensar && (
+            <>
+              <div style={{ height: 1, background: '#f0efee', margin: '4px 0' }} />
+              {/* Dispensar tinha o mesmo peso visual de "exportar prova", e a
+                  ação leva a peça direto para produção pulando patrocinador E
+                  revisão final. Sai da fileira e vem para cá, marcada. */}
+              <button
+                onClick={() => { setDispenseItem(item); setDispenseReason(""); }}
+                data-testid={`button-dispense-${item.id}`}
+                style={menuItemStyle('#b91c1c')}
+                onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+              >
+                <Ban style={{ width: 14, height: 14, flexShrink: 0 }} /> Dispensar peça
+              </button>
+            </>
+          )}
+        </PopoverContent>
+      </Popover>
+    );
+  };
+
+  /** Botão primário da linha, com trava e spinner APENAS na peça em curso. */
+  const renderBotaoPrimario = (item: any, tabId: string, largura?: string) => {
+    const acao = acaoPrimaria(item, tabId);
+    if (!acao) return null;
+    // O estado da mutação é único e compartilhado: enquanto um envio corria,
+    // TODAS as linhas com envio direto ficavam travadas. E o objeto de estilo
+    // era fixo — mesma cor, mesmo cursor, sem opacidade e sem spinner, com o
+    // estilo inline vencendo o `:disabled` nativo.
+    const enviando = sendingId === item.id;
+    const travado = enviando || (acao.canSendDirect && !!sendingId);
+    return (
+      <button
+        onClick={e => {
+          e.stopPropagation();
+          if (acao.canSendDirect) {
+            setSendingId(item.id);
+            submitForApprovalMutation.mutate({ itemId: item.id, approvalThumbUrl: item.approvalThumbUrl });
+            return;
+          }
+          handleViewDetails(item);
+        }}
+        disabled={travado}
+        data-testid={`button-action-${item.id}`}
+        title={acao.isSkip
+          ? "Sem aprovação de patrocinador — vai direto para revisão final"
+          : acao.canSendDirect
+            ? "Envia o thumb salvo direto para aprovação do patrocinador"
+            : undefined}
+        style={{
+          width: largura, height: 36, padding: '0 12px', borderRadius: 8,
+          backgroundColor: travado ? '#d6d3d1' : acao.bg,
+          color: '#ffffff', border: 'none',
+          cursor: travado ? 'not-allowed' : 'pointer',
+          opacity: travado ? 0.85 : 1,
+          fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          overflow: 'hidden', textOverflow: 'ellipsis',
+          transition: 'filter 0.15s',
+        }}
+        onMouseEnter={e => { if (!travado) e.currentTarget.style.filter = 'brightness(1.08)'; }}
+        onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
+      >
+        {enviando
+          ? <><span style={{ width: 12, height: 12, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />Enviando…</>
+          : acao.label}
+      </button>
+    );
+  };
+
+  /** Célula de prazo — o marco da fase, com semáforo. */
+  const renderPrazo = (item: any, tabId: string, hoje: Date) => {
+    const p = phaseDeadline(item.event, tabId, hoje);
+    if (!p) return <span style={{ fontSize: 12, color: '#57534e' }}>—</span>;
+    const s = semaforoPrazo(p.diff);
+    return (
+      <span
+        title={`${p.label}: ${p.date.toLocaleDateString('pt-BR')}`}
+        style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 6, padding: '3px 7px', maxWidth: '100%' }}
+      >
+        <span style={{ fontSize: 11, fontWeight: 700, color: s.text, letterSpacing: '0.02em' }}>
+          {p.date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+        </span>
+        <span style={{ fontSize: 11, fontWeight: 600, color: s.text, opacity: 0.85, whiteSpace: 'nowrap' }}>
+          {p.diff < 0 ? `${Math.abs(p.diff)}d atrasado` : p.diff === 0 ? 'hoje' : `em ${p.diff}d`}
+        </span>
+      </span>
+    );
+  };
+
+  /** Tags de arquivo da coluna "Peça" (referência, book, fora do book). */
+  const renderTagsDaPeca = (item: any) => (
+    <>
+      {item.referenceUrl && (
+        <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600, color: '#2563eb', textDecoration: 'none', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '2px 7px' }} data-testid={`link-reference-arte-${item.id}`}>
+          <Paperclip style={{ width: 9, height: 9 }} />
+          Ref. visual
+        </a>
+      )}
+      {item.bookUrl ? (
+        <a href={item.bookUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Abrir book de aprovação (PDF) para enviar ao patrocinador" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600, color: '#6d28d9', textDecoration: 'none', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 6, padding: '2px 7px' }} data-testid={`link-book-arte-${item.id}`}>
+          <FileText style={{ width: 9, height: 9 }} />
+          Book
+        </a>
+      ) : eventosComBook.has(item.eventId) && (
+        // Salvar o book limpa o bookUrl de TODAS as peças do evento e regrava só
+        // as marcadas — é fácil deixar peça de fora sem perceber, e isso só
+        // aparecia dentro do modal de exportação.
+        <span title="O evento já tem book publicado, mas esta peça ficou de fora dele" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600, color: '#92400e', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, padding: '2px 7px' }} data-testid={`tag-fora-do-book-${item.id}`}>
+          <AlertTriangle style={{ width: 9, height: 9 }} />
+          Fora do book
+        </span>
+      )}
+    </>
+  );
+
+  const renderRow = (item: any, tabId: string, comSelecao: boolean, hoje: Date) => (
+    <tr
+      key={item.id}
+      data-testid={`row-pending-item-${item.id}`}
+      // A linha inteira abre os detalhes no desktop, como o card equivalente já
+      // fazia no mobile — o mesmo conteúdo tinha dois modelos de interação.
+      onClick={() => handleViewDetails(item)}
+      style={{ borderBottom: '1px solid #f5f5f4', transition: 'background 0.15s', cursor: 'pointer' }}
+      onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9'}
+      onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = '#ffffff'}
+    >
+      {comSelecao && (
+        <td style={{ padding: '9px 12px' }} onClick={e => e.stopPropagation()}>
+          <Checkbox
+            checked={selectedItemIds.has(item.id)}
+            aria-label={`Selecionar a peça ${item.displayId}${item.type ? ` — ${item.type}` : ''}`}
+            onCheckedChange={() => toggleItemSelection(item.id)}
+            data-testid={`checkbox-item-${item.id}`}
+          />
+        </td>
+      )}
+      {/* ID — whiteSpace normal e alignItems flex-start: com tableLayout fixed
+          o selo de status precisa poder quebrar dentro da coluna em vez de
+          vazar sobre a vizinha. */}
+      <td style={{ padding: '9px 12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
+          <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 12, color: '#57534e', fontWeight: 600 }} data-testid={`text-display-id-${item.id}`}>
+            {item.displayId}
+          </span>
+          {tabId === "finalizados" && <StatusBadge status={item.status} />}
+          {tabId === "criar-aprovacoes" && item.rejectedBySponsor && (
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#b91c1c', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '2px 7px' }} data-testid={`badge-rejected-sponsor-${item.id}`}>
+              REPROV.
+            </span>
+          )}
+          {/* Thumb salvo mas ainda NÃO enviado para aprovação (rascunho) */}
+          {tabId === "criar-aprovacoes" && item.approvalThumbUrl && !item.rejectedBySponsor && (
+            <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 6, padding: '2px 7px' }} data-testid={`badge-thumb-draft-${item.id}`}>
+              RASCUNHO
+            </span>
+          )}
+        </div>
+      </td>
+      {/* Qtd — formatQuantity: `String(q || '—').padStart(2,'0')` transformava
+          peça sem quantidade em "0—". */}
+      <td style={{ padding: '9px 12px', fontWeight: 700, color: item.quantity ? '#1c1917' : '#57534e', fontSize: 14 }}>
+        {formatQuantity(item.quantity)}
+      </td>
+      {/* Peça */}
+      <td style={{ padding: '9px 12px' }}>
+        {/* alignItems flex-start: num flex column o padrão é stretch, e as tags
+            eram esticadas na largura inteira da célula, parecendo campo vazio. */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start', minWidth: 0 }}>
+          <span style={{ fontWeight: 600, color: '#1c1917', fontSize: 13, wordBreak: 'break-word' }}>{item.description || item.type}</span>
+          {item.observations && (
+            <span style={{ fontSize: 11, color: '#b45309', display: 'flex', alignItems: 'center', gap: 3 }}>
+              <AlertCircle style={{ width: 10, height: 10, flexShrink: 0 }} />{item.observations}
+            </span>
+          )}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>{renderTagsDaPeca(item)}</div>
+        </div>
+      </td>
+      {/* Dimensões */}
+      <td style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
+        {item.visualWidth && item.visualHeight ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#1c1917' }}>{item.visualWidth} × {item.visualHeight}</span>
+            {item.fileWidth && item.fileHeight && (
+              <span style={{ fontSize: 11, color: '#57534e' }}>{item.fileWidth} × {item.fileHeight} (sangria)</span>
+            )}
+          </div>
+        ) : (
+          <span style={{ color: '#57534e', fontSize: 12 }}>—</span>
+        )}
+      </td>
+      {/* m² */}
+      <td style={{ padding: '9px 12px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 600, fontSize: 13, color: '#1c1917' }}>
+        {item.calculatedM2 || '—'}
+      </td>
+      {/* Material */}
+      <td style={{ padding: '9px 12px' }}>
+        {item.material ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
+            {/* Materiais do catálogo são curtos ("SANETT", "LONA"), mas o campo
+                aceita texto livre — "Adesivo transparente" já vazava para a
+                coluna vizinha. Trunca; o nome completo fica no hover. */}
+            <span title={item.material} style={{
+              display: 'block', maxWidth: '100%', padding: '2px 8px',
+              backgroundColor: '#f5f5f4', color: '#57534e', borderRadius: 6,
+              fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em',
+              whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', boxSizing: 'border-box',
+            }}>
+              {item.material}
+            </span>
+            {item.finish && (
+              <span title={item.finish} style={{ fontSize: 11, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{item.finish}</span>
+            )}
+          </div>
+        ) : <span style={{ color: '#57534e', fontSize: 12 }}>—</span>}
+      </td>
+      {/* Arte — thumb / arquivo final */}
+      <td style={{ padding: '9px 12px' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <ThumbPreview url={item.approvalThumbUrl} label={`thumb de ${item.displayId}`} />
+          {item.finalFileUrl ? (
+            <a href={item.finalFileUrl} target="_blank" rel="noopener noreferrer" title="Ver arquivo final" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0', flexShrink: 0 }}>
+              <FileText style={{ width: 13, height: 13 }} />
+            </a>
+          ) : (
+            <span title="Sem arquivo final" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f4', color: '#78716c', flexShrink: 0 }}>
+              <FileText style={{ width: 13, height: 13 }} />
+            </span>
+          )}
+        </div>
+      </td>
+      {/* Prazo */}
+      <td style={{ padding: '9px 12px' }}>{renderPrazo(item, tabId, hoje)}</td>
+      {/* Patrocinadores */}
+      <td style={{ padding: '9px 12px' }}>
+        <SponsorChips sponsors={item.sponsors ?? []} variant="orange" size="sm" />
+      </td>
+      {/* Ações */}
+      <td style={{ padding: '9px 12px', textAlign: 'right' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center', gap: 6, rowGap: 6 }}>
+          {renderBotaoPrimario(item, tabId)}
+          {renderMenuAcoes(item)}
+        </div>
+      </td>
+    </tr>
+  );
+
+  const renderMobileCard = (item: any, tabId: string, hoje: Date) => (
+    <div key={item.id}
+      role="button"
+      tabIndex={0}
+      data-testid={`card-arte-${item.id}`}
+      style={{ backgroundColor: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, padding: 12, cursor: 'pointer' }}
+      onClick={() => handleViewDetails(item)}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleViewDetails(item); } }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+        {/* #c2410c: o laranja da marca (#f97316) reprova AA como texto de 13px. */}
+        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#c2410c', fontSize: 13 }}>{item.displayId}</span>
+        <StatusBadge status={item.status} />
+      </div>
+      <div style={{ fontWeight: 700, fontSize: 13, color: '#1c1917' }}>{item.type}</div>
+      {item.description && <div style={{ fontSize: 12, color: '#57534e', marginTop: 2 }}>{item.description}</div>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+        {renderPrazo(item, tabId, hoje)}
+        <span style={{ fontSize: 11, fontWeight: 600, color: '#57534e' }}>Qtd {formatQuantity(item.quantity)}</span>
+        {renderTagsDaPeca(item)}
+      </div>
+      {/* Mesmo teste isImage do card de correção: thumb em PDF virava um <img>
+          quebrado aqui. */}
+      {item.approvalThumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(item.approvalThumbUrl) || item.approvalThumbUrl.startsWith('/objects/')) && (
+        <div style={{ marginTop: 6 }}>
+          <img src={item.approvalThumbUrl} alt="" style={{ maxWidth: 80, maxHeight: 60, borderRadius: 6, objectFit: 'cover' }} />
+        </div>
+      )}
+      <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={3} />
+      {/* O card não oferecia NENHUMA ação: enviar e finalizar ainda davam pelo
+          modal, mas dispensar e exportar prova simplesmente não existiam no
+          celular. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }} onClick={e => e.stopPropagation()}>
+        {renderBotaoPrimario(item, tabId, '100%')}
+        {renderMenuAcoes(item)}
+      </div>
+    </div>
+  );
 
   const renderGroupedTable = (items: any[], tabId: string) => {
+    // A coluna de seleção só existe nestas duas abas — nas outras a tabela não
+    // deve pagar os 44px dela.
+    const comSelecao = tabId === "criar-aprovacoes" || tabId === "finalizados";
+    const minW = tableMinWidth(comSelecao);
+    const totalColunas = ARTE_COLS.length + (comSelecao ? 1 : 0);
+    const hoje = makeDateBounds().today;
+
     if (items.length === 0) {
+      const porFiltro = activeFilterCount > 0;
       return (
-        <div style={{ textAlign: 'center', padding: '48px 0' }}>
-          {tabId === "criar-aprovacoes" ? <CheckCircle style={{ width: 48, height: 48, color: '#16a34a', margin: '0 auto 16px' }} /> :
-           tabId === "finalizar-layouts" ? <Upload style={{ width: 48, height: 48, color: '#2563eb', margin: '0 auto 16px' }} /> :
-           <Eye style={{ width: 48, height: 48, color: '#57534e', margin: '0 auto 16px' }} />}
+        <div style={{ textAlign: 'center', padding: '48px 0' }} data-testid="empty-arte">
+          {porFiltro
+            ? <Search style={{ width: 40, height: 40, color: '#a8a29e', margin: '0 auto 16px' }} />
+            : tabId === "criar-aprovacoes" ? <CheckCircle style={{ width: 48, height: 48, color: '#16a34a', margin: '0 auto 16px' }} />
+            : tabId === "finalizar-layouts" ? <Upload style={{ width: 48, height: 48, color: '#2563eb', margin: '0 auto 16px' }} />
+            : <Eye style={{ width: 48, height: 48, color: '#57534e', margin: '0 auto 16px' }} />}
           <p style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 4 }}>
-            {tabId === "criar-aprovacoes" ? "Tudo liberado!" : tabId === "aguardando-patrocinador" ? "Nenhuma peça aguardando patrocinador" : tabId === "finalizar-layouts" ? "Nenhum item aguardando arquivo final" : "Nenhum item finalizado"}
+            {porFiltro
+              ? "Nenhuma peça neste recorte"
+              : tabId === "criar-aprovacoes" ? "Nenhuma peça aguardando envio"
+              : tabId === "aguardando-patrocinador" ? "Nenhuma peça aguardando patrocinador"
+              : tabId === "finalizar-layouts" ? "Nenhuma peça aguardando arquivo final"
+              : "Nenhuma peça finalizada"}
           </p>
           <p style={{ fontSize: 13, color: '#57534e' }}>
-            {/* Com filtros ativos, "vazio" pode ser só o recorte — dizer isso
-                evita o usuário achar que a fila está zerada. */}
-            {activeFilterCount > 0
-              ? `Nenhuma peça neste recorte com ${activeFilterCount} ${activeFilterCount === 1 ? 'filtro ativo' : 'filtros ativos'} — limpe os filtros para ver tudo`
-              : tabId === "criar-aprovacoes" ? "Não há itens pendentes no momento"
+            {porFiltro
+              ? `${activeFilterCount} ${activeFilterCount === 1 ? 'filtro ativo' : 'filtros ativos'} estão escondendo o resto da fila`
+              : tabId === "criar-aprovacoes" ? "Todo thumb desta fase já foi enviado"
               : tabId === "aguardando-patrocinador" ? "Nenhuma peça em aprovação pelo patrocinador"
               : tabId === "finalizar-layouts" ? "Nenhuma peça aprovada aguardando arquivo final"
               : "Nenhuma peça finalizada ainda"}
           </p>
+          {/* O texto mandava limpar os filtros mas o botão só existia lá em cima,
+              na linha de chips do cabeçalho fixo. */}
+          {porFiltro && (
+            <button
+              onClick={clearAllFilters}
+              data-testid="button-clear-filters-empty"
+              style={{ marginTop: 14, height: 36, padding: '0 16px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#1c1917', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+            >
+              Limpar {activeFilterCount === 1 ? 'o filtro' : `os ${activeFilterCount} filtros`}
+            </button>
+          )}
         </div>
       );
     }
@@ -1168,6 +1762,9 @@ export default function Arte() {
     // rapidamente onde estão sem precisar rolar a lista toda.
     const eventSummary: { id: string | null; name: string; count: number }[] = [];
     const evSumMap = new Map<string, { id: string | null; name: string; count: number }>();
+    // Contadores de "o que falta" por evento — os dados já estavam aqui, só não
+    // eram compostos. Aparecem na faixa do evento, onde o olho já está.
+    const evProgresso = new Map<string, { semThumb: number; semFinal: number }>();
     items.forEach(item => {
       const name = item.event?.name || 'Sem Evento';
       const id = item.eventId || null;
@@ -1175,6 +1772,10 @@ export default function Arte() {
       const cur = evSumMap.get(key);
       if (cur) cur.count++;
       else { const rec = { id, name, count: 1 }; evSumMap.set(key, rec); eventSummary.push(rec); }
+      const p = evProgresso.get(key) ?? { semThumb: 0, semFinal: 0 };
+      if (!item.approvalThumbUrl) p.semThumb++;
+      if (!item.finalFileUrl) p.semFinal++;
+      evProgresso.set(key, p);
     });
     eventSummary.sort((a, b) => b.count - a.count);
 
@@ -1182,23 +1783,58 @@ export default function Arte() {
     // a tabela inteira era o que travava a troca de aba e a digitação na busca.
     const shownItems = items.slice(0, visibleCount);
 
-    const groups: { event: string; type: string; group: string; eventObj: any; items: any[] }[] = [];
+    // Um bloco por EVENTO (não mais por evento × tipo), com um <tbody> por grupo
+    // do catálogo. Antes cada par (evento, tipo) montava uma <table> própria com
+    // o cabeçalho de 9 colunas inteiro: um evento com 6 tipos reimprimia
+    // "ID · QTD · PEÇA · …" seis vezes, e para leitor de tela cada uma era
+    // anunciada como uma tabela nova.
+    type Bloco = { key: string; eventName: string; eventKey: string; eventObj: any; grupos: { nome: string; items: any[] }[] };
+    const blocos: Bloco[] = [];
     shownItems.forEach(item => {
       const eventName = item.event?.name || 'Sem Evento';
-      const typeName = item.type;
-      const groupName = groupOf(typeName) || '';
-      const last = groups[groups.length - 1];
-      if (last && last.event === eventName && last.type === typeName) {
-        last.items.push(item);
-      } else {
-        groups.push({ event: eventName, type: typeName, group: groupName, eventObj: item.event, items: [item] });
+      const eventKey = item.eventId || eventName;
+      const grupoNome = groupOf(item.type) || '';
+      let bloco = blocos[blocos.length - 1];
+      if (!bloco || bloco.eventKey !== eventKey) {
+        bloco = { key: `${eventKey}-${blocos.length}`, eventName, eventKey, eventObj: item.event, grupos: [] };
+        blocos.push(bloco);
       }
+      let grupo = bloco.grupos[bloco.grupos.length - 1];
+      if (!grupo || grupo.nome !== grupoNome) {
+        grupo = { nome: grupoNome, items: [] };
+        bloco.grupos.push(grupo);
+      }
+      grupo.items.push(item);
     });
 
-    let lastEventName = '';
-    let lastGroupName = '';
+    const thStyle = (right?: boolean): React.CSSProperties => ({
+      padding: '10px 12px', fontSize: 11, fontWeight: 700, color: '#57534e',
+      textTransform: 'uppercase', letterSpacing: '0.06em',
+      textAlign: right ? 'right' : 'left',
+      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+    });
+
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* Recorte padrão da aba Finalizados — ver dentroDaJanelaFinalizados. */}
+        {tabId === "finalizados" && (finalizadosForaDaJanela > 0 || finalizadosTudo) && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '9px 14px', borderRadius: 10, background: '#fafaf9', border: '1px solid #e7e5e4' }}>
+            <Clock style={{ width: 13, height: 13, color: '#57534e', flexShrink: 0 }} />
+            <span style={{ fontSize: 12, color: '#44403c' }}>
+              {finalizadosTudo
+                ? 'Mostrando todo o histórico de peças finalizadas.'
+                : `Mostrando os últimos 90 dias por saída do caminhão — ${finalizadosForaDaJanela} peça(s) mais antiga(s) estão fora deste recorte.`}
+            </span>
+            <button
+              onClick={() => setFinalizadosTudo(v => !v)}
+              data-testid="button-finalizados-janela"
+              style={{ marginLeft: 'auto', height: 30, padding: '0 12px', borderRadius: 999, border: '1px solid #e7e5e4', background: '#ffffff', color: '#1c1917', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
+              {finalizadosTudo ? 'Voltar aos 90 dias' : 'Ver tudo'}
+            </button>
+          </div>
+        )}
+
         {/* Resumo por evento — chips clicáveis para filtrar/pular */}
         {eventFilter.length === 0 && eventSummary.length > 1 && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', padding: '12px 14px', backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 12 }}>
@@ -1236,446 +1872,169 @@ export default function Arte() {
             )}
           </div>
         )}
-        {groups.map((group, gIdx) => {
-          const showEventHeader = group.event !== lastEventName;
-          if (showEventHeader) lastGroupName = '';
-          const showGroupHeader = !showEventHeader && group.group !== '' && group.group !== lastGroupName;
-          lastEventName = group.event;
-          lastGroupName = group.group;
-          const allPendingInGroup = tabId === "finalizados"
-            ? group.items
-            : group.items.filter(i => i.status === 'awaiting_submission');
-          return (
-            <Fragment key={`${group.event}-${group.type}-${gIdx}`}>
-              {showGroupHeader && (
-                <div style={{ backgroundColor: '#dbeafe', borderRadius: 8, padding: '5px 14px', display: 'flex', alignItems: 'center', gap: 8, marginTop: -8 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{group.group}</span>
-                </div>
-              )}
-            <div style={{ borderRadius: 12, overflow: 'hidden', backgroundColor: '#ffffff', border: '1px solid #e7e5e4' }}>
-              {showEventHeader && (
-                <div style={{
-                  padding: '14px 20px',
-                  background: 'linear-gradient(to right, #ea580c, #f97316)',
-                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <Star style={{ width: 18, height: 18, color: '#ffffff', fill: '#ffffff' }} />
-                    <span style={{ color: '#ffffff', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 16, letterSpacing: '-0.03em', textTransform: 'uppercase' }}>
-                      {group.event}
-                    </span>
-                  </div>
-                  {/* flexWrap: sem quebra, tudo era nowrap num flex rígido e os
-                      chips de prazo (o dado mais urgente) eram os primeiros a
-                      ser clipados no mobile. As datas somem no mobile — os
-                      chips e o total têm prioridade no espaço curto. */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 16, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    {!isMobile && group.eventObj?.startDate && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: 600 }}>
-                        <Calendar style={{ width: 12, height: 12 }} />
-                        {parseDateLocal(group.eventObj.startDate).toLocaleDateString('pt-BR')}
+
+        {/* UM contêiner de rolagem horizontal para a aba inteira. Antes cada
+            bloco tinha o próprio overflowX: rolar o primeiro não movia o
+            segundo, e todo o alinhamento do colgroup se perdia na horizontal.
+            (Sticky no <thead> continua fora: quem rolaria seria este contêiner,
+            e position:sticky não atravessa o contexto de rolagem do pai — o
+            cabeçalho por evento, e não mais por tipo, já resolve a repetição.) */}
+        <div style={{ overflowX: isMobile ? 'visible' : 'auto' }} className="scrollbar-visible">
+          <div style={{ minWidth: isMobile ? undefined : minW, display: 'flex', flexDirection: 'column', gap: 16 }}>
+            {blocos.map(bloco => {
+              const prazo = phaseDeadline(bloco.eventObj, tabId, hoje);
+              const prog = evProgresso.get(bloco.eventKey);
+              const evTotal = evSumMap.get(bloco.eventKey)?.count ?? 0;
+              return (
+                <div key={bloco.key} style={{ borderRadius: 12, overflow: 'hidden', backgroundColor: '#ffffff', border: '1px solid #e7e5e4' }}>
+                  {/* ── Faixa do evento ──
+                      Escura, e não mais no gradiente laranja: sobre o laranja
+                      claro, a data e a saída em branco 0,85 davam ~2,5:1 e o
+                      chip de total ~3,7:1 — nenhuma opacidade de branco resolve
+                      num fundo claro. Sobre #1c1917 o mesmo branco passa folgado,
+                      e o laranja volta a ser exclusivo de ação. */}
+                  <div style={{
+                    padding: '12px 18px',
+                    background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)',
+                    display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                      <Star style={{ width: 16, height: 16, color: '#fb923c', fill: '#fb923c', flexShrink: 0 }} />
+                      <span style={{ color: '#ffffff', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 15, letterSpacing: '-0.03em', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {bloco.eventName}
                       </span>
-                    )}
-                    {!isMobile && group.eventObj?.truckDepartureDate && (
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: 600 }}>
-                        <Truck style={{ width: 12, height: 12 }} />
-                        Saída: {toUTCDisplayDate(group.eventObj.truckDepartureDate).toLocaleDateString('pt-BR')} às {toUTCDisplayDate(group.eventObj.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    )}
-                    {group.eventObj?.truckDepartureDate && (() => {
-                      const dls = [
-                        { label: 'Entrega de Layouts',  days: group.eventObj.deadlineEntregaLayouts  ?? -20 },
-                        { label: 'Aprovação de Layout', days: group.eventObj.deadlineAprovacaoLayout ?? -12 },
-                      ];
-                      const tod = new Date(); tod.setHours(0,0,0,0);
-                      return dls.map(({ label, days }) => {
-                        // toUTCDisplayDate: mesma base do rótulo "Saída" — o
-                        // chip calculado em local mostrava outro dia perto da
-                        // meia-noite.
-                        const d = new Date(toUTCDisplayDate(group.eventObj.truckDepartureDate).getTime() + days * 86400000);
-                        d.setHours(0,0,0,0);
-                        const diff = Math.ceil((d.getTime() - tod.getTime()) / 86400000);
+                      {/* Quanto daquele evento já está resolvido NESTA fase. */}
+                      {prog && (
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.72)', whiteSpace: 'nowrap' }}>
+                          {tabId === "finalizar-layouts" || tabId === "finalizados"
+                            ? `${prog.semFinal} sem arquivo · ${evTotal - prog.semFinal} com arquivo`
+                            : `${prog.semThumb} sem thumb · ${evTotal - prog.semThumb} com thumb`}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                      {!isMobile && bloco.eventObj?.startDate && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: 600 }}>
+                          <Calendar style={{ width: 12, height: 12 }} />
+                          {parseDateLocal(bloco.eventObj.startDate).toLocaleDateString('pt-BR')}
+                        </span>
+                      )}
+                      {!isMobile && bloco.eventObj?.truckDepartureDate && (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: 600 }}>
+                          <Truck style={{ width: 12, height: 12 }} />
+                          Saída: {toUTCDisplayDate(bloco.eventObj.truckDepartureDate).toLocaleDateString('pt-BR')} às {toUTCDisplayDate(bloco.eventObj.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+                        </span>
+                      )}
+                      {/* Chips de prazo: fundo sólido claro com texto escuro —
+                          o dado mais urgente é o mais legível, e o atrasado
+                          salta da faixa. */}
+                      {bloco.eventObj?.truckDepartureDate && [
+                        { label: 'Entrega de Layouts', days: bloco.eventObj.deadlineEntregaLayouts ?? -20 },
+                        { label: 'Aprovação de Layout', days: bloco.eventObj.deadlineAprovacaoLayout ?? -12 },
+                      ].map(({ label, days }) => {
+                        const d = new Date(toUTCDisplayDate(bloco.eventObj.truckDepartureDate).getTime() + days * 86400000);
+                        d.setHours(0, 0, 0, 0);
+                        const diff = Math.ceil((d.getTime() - hoje.getTime()) / 86400000);
                         const ds = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-                        // Estes chips são o aviso de prazo — o que mais precisa ser
-                        // lido no cabeçalho. Em tom claro sobre translúcido sobre o
-                        // laranja, ficavam em 1.34:1 (medido no navegador): o dado
-                        // mais urgente era o menos legível. Fundo sólido claro com
-                        // texto escuro resolve o contraste e ainda faz o atrasado
-                        // saltar do cabeçalho.
-                        const s = diff < 0
-                          ? { bg: '#fee2e2', border: '#fca5a5', text: '#991b1b' }
-                          : diff === 0
-                          ? { bg: '#fef3c7', border: '#fcd34d', text: '#92400e' }
-                          : diff <= 3
-                          ? { bg: '#ffedd5', border: '#fdba74', text: '#9a3412' }
-                          : { bg: 'rgba(255,255,255,0.92)', border: 'rgba(255,255,255,0.6)', text: '#7c2d12' };
+                        const s = semaforoPrazo(diff);
+                        const daFase = prazo?.label === label;
                         return (
-                          <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 999, padding: '3px 9px', fontSize: 11, fontWeight: 700, color: s.text, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
-                            {label} · {ds}{diff >= 0 && diff <= 14 && <span style={{ opacity: 0.65, fontWeight: 500 }}> ({diff}d)</span>}
+                          <span key={label} title={daFase ? 'Marco desta fase' : undefined}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: s.bg, border: `1px solid ${daFase ? s.text : s.border}`, borderRadius: 999, padding: '3px 9px', fontSize: 11, fontWeight: 700, color: s.text, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
+                            {label} · {ds}{diff >= 0 && diff <= 14 && <span style={{ opacity: 0.72, fontWeight: 500 }}> ({diff}d)</span>}
                           </span>
                         );
-                      });
-                    })()}
-                    {/* Total do EVENTO (do eventSummary), não só do primeiro
-                        bloco de tipo — o header aparece uma vez por evento, mas
-                        cada "group" é um recorte (evento, tipo). */}
-                    {(() => {
-                      const evTotal = evSumMap.get(group.items[0]?.eventId || group.event)?.count ?? group.items.length;
-                      return (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,0.18)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 999, padding: '2px 9px', fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.92)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
-                          {evTotal} {evTotal === 1 ? 'Item' : 'Itens'}
-                        </span>
-                      );
-                    })()}
-                  </div>
-                </div>
-              )}
-              {isMobile ? (
-                <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {group.items.map((item: any) => (
-                    <div key={item.id}
-                      role="button"
-                      tabIndex={0}
-                      style={{ backgroundColor: '#fff', border: '1px solid #e7e5e4', borderRadius: 8, padding: '12px', marginBottom: 8, cursor: 'pointer' }}
-                      onClick={() => handleViewDetails(item)}
-                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleViewDetails(item); } }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                        {/* #c2410c: o laranja da marca (#f97316) reprova AA como texto de 13px. */}
-                        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: '#c2410c', fontSize: 13 }}>{item.displayId}</span>
-                        <StatusBadge status={item.status} />
-                      </div>
-                      <div style={{ fontWeight: 700, fontSize: 13, color: '#1c1917' }}>{item.type}</div>
-                      {item.description && <div style={{ fontSize: 12, color: '#57534e', marginTop: 2 }}>{item.description}</div>}
-                      {/* Mesmo teste isImage do card de correção: thumb em PDF
-                          virava um <img> quebrado aqui. */}
-                      {item.approvalThumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(item.approvalThumbUrl) || item.approvalThumbUrl.startsWith('/objects/')) && <div style={{ marginTop: 6 }}>
-                        <img src={item.approvalThumbUrl} alt="thumb" style={{ maxWidth: 80, maxHeight: 60, borderRadius: 6, objectFit: 'cover' }} />
-                      </div>}
-                      <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={3} />
+                      })}
+                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 999, padding: '2px 9px', fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.92)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+                        {evTotal} {evTotal === 1 ? 'Item' : 'Itens'}
+                      </span>
                     </div>
-                  ))}
-                </div>
-              ) : (
-              <div style={{ overflowX: 'auto' }} className="scrollbar-visible">
-                {/* Cada grupo é uma tabela independente. No layout automático cada
-                    uma se dimensionava pelo próprio conteúdo, então as colunas não
-                    batiam entre um bloco e outro (a de ID ia de 124 a 173 px) e o
-                    olho perdia o alinhamento vertical ao rolar.
-                    A primeira tentativa de usar 'fixed' quebrou porque as larguras
-                    declaradas eram menores que o conteúdo real — medindo na tela,
-                    a coluna de ID precisa de 208 px e tinha 68 declarados. As
-                    larguras de ARTE_COLS vieram dessa medição, e o colgroup as
-                    aplica mesmo nas tabelas que não repetem o cabeçalho. */}
-                <table style={{ width: '100%', minWidth: ARTE_TABLE_MIN_WIDTH, tableLayout: 'fixed', borderCollapse: 'collapse', textAlign: 'left' }}>
-                  <colgroup>
-                    {(tabId === "criar-aprovacoes" || tabId === "finalizados") && <col style={{ width: 44 }} />}
-                    {ARTE_COLS.map((c, i) => <col key={i} style={{ width: c.w }} />)}
-                  </colgroup>
-                  {/* Sem sticky: quem rola é o contêiner com overflowX:auto, e
-                      position:sticky não atravessa esse contexto — o cabeçalho
-                      nunca "grudava" de verdade. Mesma decisão do event-detail:
-                      cabeçalho normal, sem criar scroll interno. */}
-                  <thead>
-                    <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4', boxShadow: '0 1px 0 #e7e5e4' }}>
-                      {(tabId === "criar-aprovacoes" || tabId === "finalizados") && (
-                        <th style={{ padding: '10px 16px', width: 40 }}>
-                          <Checkbox
-                            checked={allPendingInGroup.length > 0 && allPendingInGroup.every(i => selectedItemIds.has(i.id))}
-                            onCheckedChange={() => {
-                              const s = new Set(selectedItemIds);
-                              if (allPendingInGroup.every(i => s.has(i.id))) {
-                                allPendingInGroup.forEach(i => s.delete(i.id));
-                              } else {
-                                allPendingInGroup.forEach(i => s.add(i.id));
-                              }
-                              setSelectedItemIds(s);
-                            }}
-                            data-testid={`checkbox-group-${gIdx}`}
-                          />
-                        </th>
-                      )}
-                      {/* Mesma lista usada pelo colgroup — ver ARTE_COLS. */}
-                      {ARTE_COLS.map((col, ci) => (
-                        <th
-                          key={ci}
-                          style={{
-                            padding: '10px 16px',
-                            fontSize: 11,
-                            fontWeight: 700,
-                            color: '#57534e',
-                            textTransform: 'uppercase',
-                            letterSpacing: '0.08em',
-                            textAlign: col.right ? 'right' : 'left',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                          }}
-                        >
-                          {col.label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {group.items.map(item => (
-                      <Fragment key={item.id}>
-                        <tr
-                          data-testid={`row-pending-item-${item.id}`}
-                          style={{ borderBottom: '1px solid #f5f5f4', transition: 'background 0.15s' }}
-                          onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9'}
-                          onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = '#ffffff'}
-                        >
-                          {(tabId === "criar-aprovacoes" || tabId === "finalizados") && (
-                            <td style={{ padding: '9px 16px', width: 40 }}>
-                              <Checkbox
-                                checked={selectedItemIds.has(item.id)}
-                                onCheckedChange={() => toggleItemSelection(item.id)}
-                                data-testid={`checkbox-item-${item.id}`}
-                              />
-                            </td>
+                  </div>
+
+                  {isMobile ? (
+                    <div style={{ padding: '8px 10px', display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      {bloco.grupos.map((grupo, gi) => (
+                        <Fragment key={gi}>
+                          {grupo.nome && (
+                            <div style={{ backgroundColor: '#dbeafe', borderRadius: 8, padding: '4px 12px' }}>
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{grupo.nome}</span>
+                            </div>
                           )}
-                          {/* ID — whiteSpace normal e alignItems flex-start: com
-                              tableLayout fixed o selo de status precisa poder
-                              quebrar dentro da coluna em vez de vazar sobre a
-                              vizinha. */}
-                          <td style={{ padding: '9px 16px' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
-                              <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 12, color: '#57534e', fontWeight: 600 }} data-testid={`text-display-id-${item.id}`}>
-                                {item.displayId}
-                              </span>
-                              {tabId === "finalizados" && <StatusBadge status={item.status} />}
-                              {tabId === "criar-aprovacoes" && item.rejectedBySponsor && (
-                                <span style={{ fontSize: 11, fontWeight: 700, color: '#b91c1c', backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, padding: '2px 7px' }} data-testid={`badge-rejected-sponsor-${item.id}`}>
-                                  REPROV.
-                                </span>
-                              )}
-                              {/* Thumb salvo mas ainda NÃO enviado para aprovação (rascunho) */}
-                              {tabId === "criar-aprovacoes" && item.approvalThumbUrl && !item.rejectedBySponsor && (
-                                <span style={{ fontSize: 11, fontWeight: 700, color: '#7c3aed', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 6, padding: '2px 7px' }} data-testid={`badge-thumb-draft-${item.id}`}>
-                                  RASCUNHO
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          {/* Qtd */}
-                          <td style={{ padding: '9px 16px', fontWeight: 700, color: '#1c1917', fontSize: 14 }}>
-                            {String(item.quantity || '—').padStart(2, '0')}
-                          </td>
-                          {/* Descrição */}
-                          <td style={{ padding: '9px 16px' }}>
-                            {/* alignItems flex-start: num flex column o padrão é
-                                stretch, e as tags "Book" e "Ref. visual" eram
-                                esticadas na largura inteira da célula, parecendo
-                                um campo vazio em vez de uma etiqueta. */}
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start', minWidth: 0 }}>
-                              {/* Com tableLayout fixed a célula não cresce com o
-                                  texto: descrição longa precisa quebrar em vez de
-                                  vazar por cima da coluna vizinha. */}
-                              <span style={{ fontWeight: 600, color: '#1c1917', fontSize: 13, wordBreak: 'break-word' }}>{item.description || item.type}</span>
-                              {item.observations && (
-                                <span style={{ fontSize: 11, color: '#d97706', display: 'flex', alignItems: 'center', gap: 3 }}>
-                                  <AlertCircle style={{ width: 10, height: 10 }} />{item.observations}
-                                </span>
-                              )}
-                              {item.referenceUrl && (
-                                <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Ver referência visual do solicitante" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600, color: '#2563eb', textDecoration: 'none', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '2px 7px' }} data-testid={`link-reference-arte-${item.id}`}>
-                                  <Paperclip style={{ width: 9, height: 9 }} />
-                                  Ref. visual
-                                </a>
-                              )}
-                              {item.bookUrl && (
-                                <a href={item.bookUrl} target="_blank" rel="noopener noreferrer" title="Abrir book de aprovação (PDF) para enviar ao patrocinador" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600, color: '#6d28d9', textDecoration: 'none', backgroundColor: '#f5f3ff', border: '1px solid #ddd6fe', borderRadius: 6, padding: '2px 7px' }} data-testid={`link-book-arte-${item.id}`}>
-                                  <FileText style={{ width: 9, height: 9 }} />
-                                  Book
-                                </a>
-                              )}
-                            </div>
-                          </td>
-                          {/* Dimensões */}
-                          <td style={{ padding: '9px 16px', whiteSpace: 'nowrap' }}>
-                            {item.visualWidth && item.visualHeight ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                <span style={{ fontSize: 12, fontWeight: 600, color: '#1c1917' }}>{item.visualWidth} × {item.visualHeight}</span>
-                                {item.fileWidth && item.fileHeight && (
-                                  <span style={{ fontSize: 11, color: '#57534e' }}>{item.fileWidth} × {item.fileHeight} <span style={{ fontSize: 11, color: '#57534e' }}>(sangria)</span></span>
-                                )}
-                              </div>
-                            ) : (
-                              <span style={{ color: '#57534e', fontSize: 12 }}>—</span>
-                            )}
-                          </td>
-                          {/* m² */}
-                          <td style={{ padding: '9px 16px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 600, fontSize: 13, color: '#1c1917' }}>
-                            {item.calculatedM2 || '—'}
-                          </td>
-                          {/* Material */}
-                          <td style={{ padding: '9px 16px' }}>
-                            {item.material ? (
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
-                                {/* Materiais do catálogo são curtos ("SANETT",
-                                    "LONA"), mas o campo aceita texto livre —
-                                    "Adesivo transparente" já vazava para dentro
-                                    da coluna de Thumb/Final. Trunca com
-                                    reticências em vez de vazar; o nome completo
-                                    fica disponível no hover. */}
-                                <span title={item.material} style={{
-                                  display: 'block',
-                                  maxWidth: '100%',
-                                  padding: '2px 8px',
-                                  backgroundColor: '#f5f5f4',
-                                  color: '#57534e',
-                                  borderRadius: 6,
-                                  fontSize: 11,
-                                  fontWeight: 700,
-                                  textTransform: 'uppercase',
-                                  letterSpacing: '0.04em',
-                                  whiteSpace: 'nowrap',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  boxSizing: 'border-box',
-                                }}>
-                                  {item.material}
-                                </span>
-                                {item.finish && (
-                                  <span title={item.finish} style={{ fontSize: 11, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' }}>{item.finish}</span>
-                                )}
-                              </div>
-                            ) : <span style={{ color: '#57534e', fontSize: 12 }}>—</span>}
-                          </td>
-                          {/* ARTE — indicadores thumb / arquivo final (todas as abas) */}
-                          <td style={{ padding: '9px 16px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              {item.approvalThumbUrl ? (
-                                <a href={item.approvalThumbUrl} target="_blank" rel="noopener noreferrer" title="Ver thumb" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }}>
-                                  <FileImage style={{ width: 13, height: 13 }} />
-                                </a>
-                              ) : (
-                                <span title="Sem thumb" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f4', color: '#78716c' }}>
-                                  <FileImage style={{ width: 13, height: 13 }} />
-                                </span>
-                              )}
-                              {item.finalFileUrl ? (
-                                <a href={item.finalFileUrl} target="_blank" rel="noopener noreferrer" title="Ver arquivo final" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f0fdf4', color: '#16a34a', border: '1px solid #bbf7d0' }}>
-                                  <FileText style={{ width: 13, height: 13 }} />
-                                </a>
-                              ) : (
-                                <span title="Sem arquivo final" style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f5f5f4', color: '#78716c' }}>
-                                  <FileText style={{ width: 13, height: 13 }} />
-                                </span>
-                              )}
-                            </div>
-                          </td>
-                          {/* Patrocinadores (todas as abas) */}
-                          <td style={{ padding: '9px 16px' }}>
-                            <SponsorChips sponsors={item.sponsors ?? []} variant="orange" size="sm" />
-                          </td>
-                          {/* Ações */}
-                          <td style={{ padding: '9px 16px', textAlign: 'right' }}>
-                            {/* flexWrap: se algum dia a coluna ficar estreita de
-                                novo, os botões quebram linha em vez de vazar por
-                                cima do Patroc. — ver ARTE_COLS['Ações']. */}
-                            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center', gap: 6, rowGap: 6 }}>
-                              <button
-                                onClick={() => handleExportItemPDF(item)}
-                                data-testid={`button-export-item-pdf-${item.id}`}
-                                title="Exportar prova em PDF"
-                                style={{
-                                  minWidth: 40, minHeight: 40, borderRadius: 8,
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  background: 'none', border: '1px solid #e7e5e4', cursor: 'pointer',
-                                  color: '#57534e', transition: 'all 0.15s',
-                                }}
-                                onMouseEnter={e => { e.currentTarget.style.color = '#7c3aed'; e.currentTarget.style.borderColor = '#7c3aed'; }}
-                                onMouseLeave={e => { e.currentTarget.style.color = '#57534e'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
-                              >
-                                <Printer style={{ width: 14, height: 14 }} />
-                              </button>
-                              <button
-                                onClick={() => handleViewDetails(item)}
-                                data-testid={`button-view-${item.id}`}
-                                title="Ver detalhes"
-                                style={{
-                                  minWidth: 40, minHeight: 40, borderRadius: 8,
-                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                  background: 'none', border: '1px solid #e7e5e4', cursor: 'pointer',
-                                  color: '#57534e', transition: 'all 0.15s',
-                                }}
-                                onMouseEnter={e => { e.currentTarget.style.color = '#f97316'; e.currentTarget.style.borderColor = '#f97316'; }}
-                                onMouseLeave={e => { e.currentTarget.style.color = '#57534e'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
-                              >
-                                <Eye style={{ width: 14, height: 14 }} />
-                              </button>
-                              {(tabId === "criar-aprovacoes" || tabId === "finalizar-layouts") && (() => {
-                                const isSkip = tabId === "criar-aprovacoes" && item.skipApproval;
-                                const bgColor = tabId === "finalizar-layouts" ? '#2563eb' : isSkip ? '#7c3aed' : '#c2410c'; // laranja da marca da 2.80:1 com texto branco e reprova AA; este da 5.18
-                                const label = tabId === "finalizar-layouts" ? "Finalizar Arte" : isSkip ? "Enviar Finalização" : "Enviar Aprovação";
-                                // Um clique para enviar: se a peça já tem thumb salvo
-                                // (rascunho), "Enviar Aprovação" dispara o envio direto,
-                                // sem abrir o modal e SEM confirmação — a ação é
-                                // reversível pela aba Correção e o toast dá o feedback;
-                                // window.confirm só acrescentaria atrito. O olho ao lado
-                                // continua abrindo os detalhes para quem quer revisar.
-                                const canSendDirect = tabId === "criar-aprovacoes" && !isSkip && !!item.approvalThumbUrl;
-                                return (
-                                  <button
-                                    onClick={() => {
-                                      if (canSendDirect) {
-                                        submitForApprovalMutation.mutate({ itemId: item.id, approvalThumbUrl: item.approvalThumbUrl });
-                                        return;
-                                      }
-                                      handleViewDetails(item);
-                                    }}
-                                    disabled={canSendDirect && submitForApprovalMutation.isPending}
-                                    data-testid={`button-action-${item.id}`}
-                                    title={isSkip
-                                      ? "Sem aprovação de patrocinador — vai direto para revisão final"
-                                      : canSendDirect
-                                        ? "Envia o thumb salvo direto para aprovação do patrocinador"
-                                        : undefined}
-                                    style={{
-                                      height: 36, padding: '0 14px', borderRadius: 8,
-                                      backgroundColor: bgColor,
-                                      color: '#ffffff', border: 'none', cursor: 'pointer',
-                                      fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
-                                      transition: 'filter 0.15s',
-                                    }}
-                                    onMouseEnter={e => (e.currentTarget.style.filter = 'brightness(1.08)')}
-                                    onMouseLeave={e => (e.currentTarget.style.filter = 'brightness(1)')}
-                                  >
-                                    {label}
-                                  </button>
-                                );
-                              })()}
-                              {["awaiting_submission", "sponsor_approved", "awaiting_creator_review"].includes(item.status) && (
-                                <button
-                                  onClick={() => { setDispenseItem(item); setDispenseReason(""); }}
-                                  data-testid={`button-dispense-${item.id}`}
-                                  title="Dispensar peça (liberar para produção sem aprovação)"
-                                  style={{
-                                    minWidth: 40, minHeight: 40, borderRadius: 8,
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    background: 'none', border: '1px solid #e7e5e4', cursor: 'pointer',
-                                    color: '#57534e', transition: 'all 0.15s',
-                                  }}
-                                  onMouseEnter={e => { e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.borderColor = '#dc2626'; }}
-                                  onMouseLeave={e => { e.currentTarget.style.color = '#57534e'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
-                                >
-                                  <Ban style={{ width: 14, height: 14 }} />
-                                </button>
-                              )}
-                            </div>
-                          </td>
+                          {grupo.items.map((item: any) => renderMobileCard(item, tabId, hoje))}
+                        </Fragment>
+                      ))}
+                    </div>
+                  ) : (
+                    <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', textAlign: 'left' }}>
+                      <colgroup>
+                        {comSelecao && <col style={{ width: ARTE_CHECKBOX_WIDTH }} />}
+                        {ARTE_COLS.map((c, i) => <col key={i} style={{ width: c.w }} />)}
+                      </colgroup>
+                      <thead>
+                        <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4', boxShadow: '0 1px 0 #e7e5e4' }}>
+                          {comSelecao && <th style={{ padding: '10px 12px' }}><span className="sr-only">Selecionar</span></th>}
+                          {ARTE_COLS.map((col, ci) => <th key={ci} style={thStyle(col.right)}>{col.label}</th>)}
                         </tr>
-                      </Fragment>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-              )}
-            </div>
-            </Fragment>
-          );
-        })}
+                      </thead>
+                      {bloco.grupos.map((grupo, gi) => {
+                        // Peças do grupo que podem entrar na seleção em lote.
+                        const selecionaveis = tabId === "finalizados"
+                          ? grupo.items
+                          : grupo.items.filter((i: any) => i.status === 'awaiting_submission');
+                        const marcadas = selecionaveis.filter((i: any) => selectedItemIds.has(i.id)).length;
+                        // 3 de 5 marcadas devolvia o checkbox DESMARCADO, dizendo
+                        // "nada selecionado aqui" num controle que alimenta ações
+                        // em lote. O Radix suporta o estado indeterminado.
+                        const estadoGrupo: boolean | "indeterminate" =
+                          selecionaveis.length > 0 && marcadas === selecionaveis.length ? true
+                          : marcadas > 0 ? "indeterminate" : false;
+                        return (
+                          <tbody key={gi}>
+                            {/* O chip do grupo era suprimido no PRIMEIRO bloco de
+                                cada evento (`!showEventHeader`), justamente o
+                                maior: o usuário via o conjunto principal sem
+                                saber a que grupo pertencia. Agora aparece sempre
+                                que o grupo existir. */}
+                            {grupo.nome && (
+                              <tr>
+                                <td colSpan={totalColunas} style={{ padding: '6px 12px', background: '#f8fafc', borderBottom: '1px solid #e7e5e4' }}>
+                                  <span style={{ display: 'inline-block', backgroundColor: '#dbeafe', borderRadius: 6, padding: '2px 10px', fontSize: 11, fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                    {grupo.nome}
+                                  </span>
+                                </td>
+                              </tr>
+                            )}
+                            {comSelecao && selecionaveis.length > 0 && (
+                              <tr>
+                                <td style={{ padding: '4px 12px', borderBottom: '1px solid #f5f5f4' }}>
+                                  <Checkbox
+                                    checked={estadoGrupo}
+                                    aria-label={`Selecionar as ${selecionaveis.length} peças de ${grupo.nome || bloco.eventName}`}
+                                    onCheckedChange={() => {
+                                      const s = new Set(selectedItemIds);
+                                      if (marcadas === selecionaveis.length) selecionaveis.forEach((i: any) => s.delete(i.id));
+                                      else selecionaveis.forEach((i: any) => s.add(i.id));
+                                      setSelectedItemIds(s);
+                                    }}
+                                    data-testid={`checkbox-group-${bloco.key}-${gi}`}
+                                  />
+                                </td>
+                                <td colSpan={totalColunas - 1} style={{ padding: '4px 12px', borderBottom: '1px solid #f5f5f4', fontSize: 11, color: '#57534e' }}>
+                                  {marcadas > 0 ? `${marcadas} de ${selecionaveis.length} selecionadas` : `Selecionar as ${selecionaveis.length} peças deste grupo`}
+                                </td>
+                              </tr>
+                            )}
+                            {grupo.items.map((item: any) => renderRow(item, tabId, comSelecao, hoje))}
+                          </tbody>
+                        );
+                      })}
+                    </table>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
 
         {items.length > shownItems.length && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, padding: '8px 0 4px' }}>
@@ -1695,6 +2054,37 @@ export default function Arte() {
     );
   };
 
+  /**
+   * Estado de ERRO das listas.
+   *
+   * PORQUÊ ISTO EXISTE. Nenhuma das cinco queries lia `isError`: todas caíam
+   * para [] em qualquer falha, e a renderização só distinguia `isLoading`. Com
+   * /api/items em 500, a tela desenhava um ✓ verde de 48px e afirmava "Tudo
+   * liberado!" — não é ausência de informação, é a afirmação do contrário, com
+   * a cor e o ícone do sucesso. E não havia saída: o queryClient usa
+   * retry:false, refetchOnWindowFocus:false e staleTime:Infinity, então o erro
+   * é permanente até um F5 manual. Numa fila cujo prazo é a saída do caminhão,
+   * acreditar que a fila zerou é a pior mentira possível.
+   */
+  const renderErroDeCarga = (titulo: string, erro: unknown, tentarDeNovo: () => void, testId: string) => (
+    <div style={{ textAlign: 'center', padding: '56px 24px' }} data-testid={testId}>
+      <div style={{ width: 56, height: 56, borderRadius: 16, background: '#fffbeb', border: '1px solid #fde68a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+        <WifiOff style={{ width: 24, height: 24, color: '#b45309' }} />
+      </div>
+      <p style={{ fontSize: 15, fontWeight: 700, color: '#1c1917', margin: '0 0 6px', fontFamily: '"Space Grotesk", sans-serif' }}>{titulo}</p>
+      <p style={{ fontSize: 12, color: '#57534e', margin: '0 0 16px' }}>
+        {erro instanceof Error && erro.message ? mensagemDeErro(erro) : 'Verifique sua conexão e tente novamente.'}
+      </p>
+      <button
+        onClick={tentarDeNovo}
+        data-testid={`${testId}-retry`}
+        style={{ height: 38, padding: '0 18px', borderRadius: 8, background: '#1c1917', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}
+      >
+        <RefreshCw style={{ width: 14, height: 14 }} /> Tentar novamente
+      </button>
+    </div>
+  );
+
   const renderCorrecaoTab = () => {
     if (correcaoLoading) {
       return (
@@ -1703,37 +2093,46 @@ export default function Arte() {
         </div>
       );
     }
+    // Falha da rota de correção também não pode virar "sem correção pendente".
+    if (correcaoIsError) {
+      return renderErroDeCarga(
+        "Não foi possível carregar a fila de correção",
+        correcaoError,
+        () => { void refetchCorrecao(); },
+        "erro-correcao",
+      );
+    }
     if (correcaoItems.length === 0) {
       return (
         <div style={{ textAlign: 'center', padding: '48px 0' }}>
           <CheckCircle style={{ width: 48, height: 48, color: '#16a34a', margin: '0 auto 16px' }} />
           <p style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 4 }}>Sem correção pendente</p>
-          <p style={{ fontSize: 13, color: '#57534e' }}>Nenhum item aguarda nova versão de arte</p>
+          <p style={{ fontSize: 13, color: '#57534e' }}>Nenhuma peça aguarda nova versão de arte</p>
         </div>
       );
     }
 
-    // Aplica os mesmos filtros globais que as outras abas usam
-    const search = deferredSearch.toLowerCase();
-    const baseItems = correcaoItems.filter((item: any) => {
-      if (eventFilter.length > 0 && !eventFilter.includes(item.eventId)) return false;
-      if (typeFilter.length > 0 && !typeFilter.includes(item.type)) return false;
-      if (materialFilter.length > 0 && !materialFilter.includes(item.material)) return false;
-      if (sponsorFilter.length > 0 && !(item.sponsors ?? []).some((s: any) => sponsorFilter.includes(s.id))) return false;
-      if (search) {
-        const hit = [item.displayId, item.type, item.description, item.event?.name]
-          .some((f: any) => f && f.toLowerCase().includes(search));
-        if (!hit) return false;
-      }
-      return true;
-    });
+    // MESMO predicado das outras abas (correcaoFiltrados): esta lista só
+    // conhecia evento, tipo, material, patrocinador e busca, então ligar
+    // "Saída 10 dias" acendia o chip e devolvia a lista inteira — pior que não
+    // ter o filtro, porque o chip afirmava que ele estava ativo.
+    const baseItems = correcaoFiltrados;
 
     if (baseItems.length === 0) {
       return (
         <div style={{ textAlign: 'center', padding: '48px 0' }}>
-          <Search style={{ width: 40, height: 40, color: '#d6d3d1', margin: '0 auto 16px' }} />
-          <p style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 4 }}>Nenhuma correção neste filtro</p>
-          <p style={{ fontSize: 13, color: '#57534e' }}>Há {correcaoItems.length} {correcaoItems.length === 1 ? 'item aguardando correção' : 'itens aguardando correção'} em outros eventos ou tipos</p>
+          <Search style={{ width: 40, height: 40, color: '#a8a29e', margin: '0 auto 16px' }} />
+          <p style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 4 }}>Nenhuma correção neste recorte</p>
+          <p style={{ fontSize: 13, color: '#57534e' }}>Há {correcaoItems.length} {correcaoItems.length === 1 ? 'peça aguardando correção' : 'peças aguardando correção'} fora dos filtros atuais</p>
+          {activeFilterCount > 0 && (
+            <button
+              onClick={clearAllFilters}
+              data-testid="button-clear-filters-correcao"
+              style={{ marginTop: 14, height: 36, padding: '0 16px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#1c1917', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+            >
+              Limpar {activeFilterCount === 1 ? 'o filtro' : `os ${activeFilterCount} filtros`}
+            </button>
+          )}
         </div>
       );
     }
@@ -1866,7 +2265,7 @@ export default function Arte() {
                           {(approval.rejectedBy || approval.rejectedAt) && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
                               {approval.rejectedBy && (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 11, fontWeight: 600, color: '#6b7280', maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={approval.rejectedBy}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 11, fontWeight: 600, color: '#57534e', maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={approval.rejectedBy}>
                                   <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                                   {approval.rejectedBy.split(' ')[0]}
                                 </span>
@@ -1894,7 +2293,7 @@ export default function Arte() {
 
                 {/* ── Footer ── */}
                 <div style={{ padding: '12px 18px', borderTop: '1px solid #fef2f2', display: 'flex', alignItems: 'center', gap: 10, background: '#fffafa', flexWrap: 'wrap' }}>
-                  <button
+                  {podeEditar && <button
                     onClick={() => {
                       setCorrecaoItem(item);
                       setCorrecaoThumbUrl("");
@@ -1919,8 +2318,8 @@ export default function Arte() {
                     onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
                   >
                     <Send style={{ width: 13, height: 13 }} />
-                    Enviar Nova Arte
-                  </button>
+                    Enviar nova arte
+                  </button>}
                   {item.approvalThumbUrl && (
                     <a
                       href={item.approvalThumbUrl}
@@ -1950,12 +2349,9 @@ export default function Arte() {
     );
   };
 
-  const statCardTabMap: Record<string, string> = {
-    "stat-pending": "criar-aprovacoes",
-    "stat-awaiting-sponsor": "aguardando-patrocinador",
-    "stat-correcao": "correcao",
-    "stat-ready-production": "finalizados",
-  };
+  // (O antigo statCardTabMap saiu: cada stat card já carrega o próprio `tabId`,
+  // e era exatamente a chave que faltava nele — "finalizar-layouts" — que
+  // deixava a fase sem nenhuma porta de entrada.)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
@@ -2000,34 +2396,40 @@ export default function Arte() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               {/* divider */}
               <div style={{ width: 1, height: 20, background: '#e7e5e4', margin: '0 2px' }} />
+              {/* Exportar é LEITURA — continua disponível em modo consulta. */}
               <button
                 onClick={handleClickExportButton}
                 data-testid="button-export-pdf"
                 style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'border-color 0.12s' }}
               >
                 <Printer style={{ width: 12, height: 12, color: '#57534e' }} />
-                {selectedItemIds.size > 0 ? `Exportar ${selectedItemIds.size} sel.` : 'Exportar PDF'}
+                {selectedItemIds.size > 0 ? `Exportar ${selectedItemIds.size} selecionadas` : 'Exportar PDF'}
               </button>
-              <button
-                onClick={openBookModal}
-                data-testid="button-upload-book"
-                title="Subir o PDF do book (layout pronto) e escolher as peças"
-                style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'border-color 0.12s' }}
-              >
-                <FileText style={{ width: 12, height: 12, color: '#7c3aed' }} />
-                Subir book
-              </button>
-              {activeTab === "criar-aprovacoes" && (
+              {podeEditar && (
+                <button
+                  onClick={openBookModal}
+                  data-testid="button-upload-book"
+                  title="Subir o PDF do book (layout pronto) e escolher as peças"
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'border-color 0.12s' }}
+                >
+                  <FileText style={{ width: 12, height: 12, color: '#7c3aed' }} />
+                  Subir book
+                </button>
+              )}
+              {podeEditar && activeTab === "criar-aprovacoes" && (
                 <label
                   data-testid="button-open-bulk-thumb"
                   style={{ height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap', transition: 'border-color 0.12s' }}
                 >
                   <FileImage style={{ width: 12, height: 12, color: '#16a34a' }} />
-                  Multi-Upload Thumbs
-                  <input type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => { if (e.target.files) handleBulkThumbFilesAdded(e.target.files); e.target.value = ''; }} />
+                  Envio de thumbs em lote
+                  {/* sr-only e não display:none — um input display:none não entra
+                      na ordem de foco, e nem <label> nem <div> são focáveis por
+                      si: o Tab pulava direto por cima desta ação. */}
+                  <input type="file" accept="image/*" multiple className="sr-only" onChange={e => { if (e.target.files) handleBulkThumbFilesAdded(e.target.files); e.target.value = ''; }} />
                 </label>
               )}
-              {activeTab === "criar-aprovacoes" && (
+              {podeEditar && activeTab === "criar-aprovacoes" && (
                 <button
                   onClick={() => setShowBulkDialog(true)}
                   disabled={selectedItemIds.size === 0}
@@ -2037,24 +2439,39 @@ export default function Arte() {
                   title={selectedItemIds.size > 0
                     ? `Vincular um PDF a ${selectedItemIds.size} peça(s) selecionada(s)`
                     : 'Selecione ao menos uma peça para vincular um PDF compartilhado'}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: selectedItemIds.size > 0 ? '#44403c' : '#c4bfbb', fontSize: 13, fontWeight: 600, cursor: selectedItemIds.size > 0 ? 'pointer' : 'not-allowed', transition: 'border-color 0.12s', opacity: selectedItemIds.size > 0 ? 1 : 0.6 }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 36, padding: '0 14px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: selectedItemIds.size > 0 ? '#44403c' : '#78716c', fontSize: 13, fontWeight: 600, cursor: selectedItemIds.size > 0 ? 'pointer' : 'not-allowed', transition: 'border-color 0.12s', opacity: selectedItemIds.size > 0 ? 1 : 0.75 }}
                 >
-                  <Upload style={{ width: 12, height: 12, color: selectedItemIds.size > 0 ? '#2563eb' : '#c4bfbb' }} />
-                  {selectedItemIds.size > 0 ? `PDF Compartilhado (${selectedItemIds.size})` : 'PDF Compartilhado'}
+                  <Upload style={{ width: 12, height: 12, color: selectedItemIds.size > 0 ? '#2563eb' : '#78716c' }} />
+                  {selectedItemIds.size > 0 ? `PDF compartilhado (${selectedItemIds.size})` : 'PDF compartilhado'}
                 </button>
               )}
             </div>
           </div>
 
-          {/* ── Stat cards — light ── */}
-          {/* flexWrap + base de 140px: no mobile os cards viram grade 2×2 em
-              vez de quatro colunas espremidas. */}
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 18 }}>
+          {/* ── Modo consulta ──
+              O papel `atendimento` entra nesta rota (App.tsx) mas as sete rotas
+              de escrita da Arte só aceitam `arte`/`admin`. Dizer isso de uma vez
+              é melhor que deixar descobrir ação por ação — e o comportamento
+              parcialmente permitido (salvar rascunho funciona, enviar devolve
+              403) era o pior dos dois mundos. */}
+          {!podeEditar && (
+            <div data-testid="banner-modo-consulta" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 14px', marginBottom: 14, borderRadius: 10, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
+              <Lock style={{ width: 14, height: 14, color: '#57534e', flexShrink: 0 }} />
+              <span style={{ fontSize: 12, color: '#44403c' }}>
+                <b style={{ fontWeight: 700 }}>Modo consulta.</b> Você vê a fila da Arte e pode exportar PDFs, mas enviar, corrigir, finalizar e dispensar peças é da equipe de Arte.
+              </span>
+            </div>
+          )}
+
+          {/* ── Stat cards ── */}
+          {/* Cinco cards para cinco fases, todos derivados de itemsByTab (as
+              mesmas contagens dos badges das abas) e com a barra medindo a
+              fração real sobre o total das CINCO fases. flexWrap + base de
+              140px: no mobile viram grade em vez de cinco colunas espremidas. */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 8 }}>
             {statCards.map(stat => {
               const Icon = stat.Icon;
-              const targetTab = statCardTabMap[stat.testId];
-              const isActiveCard = !!(targetTab && activeTab === targetTab);
-              const totalAll = pendingCount + correcaoCount + needsFinalFileCount + finalizadosCount;
+              const isActiveCard = activeTab === stat.tabId;
               const pct = totalAll > 0 ? (stat.value / totalAll) * 100 : 0;
               return (
                 <div
@@ -2063,41 +2480,51 @@ export default function Arte() {
                   // (mesmo padrão dos checkboxes do export-pdf-dialog).
                   role="button"
                   tabIndex={0}
-                  onClick={() => targetTab && changeTab(targetTab)}
-                  onKeyDown={e => { if (targetTab && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); changeTab(targetTab); } }}
+                  aria-label={`${stat.label}: ${stat.value} peças`}
+                  onClick={() => changeTab(stat.tabId)}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); changeTab(stat.tabId); } }}
                   data-testid={stat.testId}
-                  onMouseEnter={e => { if (targetTab && !isActiveCard) { (e.currentTarget as HTMLElement).style.background = `${stat.accentColor}0d`; (e.currentTarget as HTMLElement).style.borderColor = `${stat.accentColor}40`; } }}
-                  onMouseLeave={e => { if (targetTab && !isActiveCard) { (e.currentTarget as HTMLElement).style.background = '#fafaf9'; (e.currentTarget as HTMLElement).style.borderColor = '#e7e5e4'; } }}
+                  onMouseEnter={e => { if (!isActiveCard) { (e.currentTarget as HTMLElement).style.background = `${stat.accentColor}0d`; (e.currentTarget as HTMLElement).style.borderColor = `${stat.accentColor}40`; } }}
+                  onMouseLeave={e => { if (!isActiveCard) { (e.currentTarget as HTMLElement).style.background = '#fafaf9'; (e.currentTarget as HTMLElement).style.borderColor = '#e7e5e4'; } }}
                   style={{
                     flex: isMobile ? '1 1 140px' : 1, padding: '14px 16px 12px', borderRadius: 12,
                     background: isActiveCard ? `${stat.accentColor}08` : '#fafaf9',
                     border: `1px solid ${isActiveCard ? `${stat.accentColor}30` : '#e7e5e4'}`,
-                    cursor: targetTab ? 'pointer' : 'default',
+                    cursor: 'pointer',
                     display: 'flex', flexDirection: 'column', gap: 6,
                     boxShadow: 'none',
                     transition: 'background 0.12s, border-color 0.12s',
                     position: 'relative', overflow: 'hidden',
                   }}
                 >
-                  {/* top accent — always visible, brighter when tab is active */}
+                  {/* Faixa de acento — sempre visível, mais forte na aba ativa */}
                   <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: stat.accentColor, opacity: isActiveCard ? 1 : stat.value > 0 ? 0.45 : 0.18, borderRadius: '12px 12px 0 0' }} />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <span style={{ fontSize: 11, fontWeight: 700, color: isActiveCard ? stat.accentColor : stat.value > 0 ? '#44403c' : '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{stat.label}</span>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 6 }}>
+                    {/* textColor (tom 700) e não a cor saturada: o rótulo do card
+                        ativo tem de passar AA em 11px. */}
+                    <span style={{ fontSize: 11, fontWeight: 700, color: isActiveCard ? stat.textColor : stat.value > 0 ? '#44403c' : '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{stat.label}</span>
                     <span style={{ width: 26, height: 26, borderRadius: 6, backgroundColor: stat.value > 0 ? `${stat.accentColor}18` : stat.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Icon style={{ width: 13, height: 13, color: stat.value > 0 ? stat.accentColor : '#c4bfbb' }} />
+                      <Icon style={{ width: 13, height: 13, color: stat.value > 0 ? stat.textColor : '#78716c' }} />
                     </span>
                   </div>
                   {/* Zerado usa #78716c: o cinza #b8b4b0 reprovava AA e "0" também é informação. */}
-                  <span style={{ fontSize: 34, fontWeight: 800, color: isActiveCard ? stat.accentColor : stat.value > 0 ? '#1c1917' : '#78716c', letterSpacing: '-0.05em', lineHeight: 1, fontFamily: '"Space Grotesk",sans-serif' }}>
+                  <span style={{ fontSize: 30, fontWeight: 800, color: isActiveCard ? stat.textColor : stat.value > 0 ? '#1c1917' : '#78716c', letterSpacing: '-0.05em', lineHeight: 1, fontFamily: '"Space Grotesk",sans-serif' }}>
                     {stat.value}
                   </span>
-                  <div style={{ fontSize: 11, color: stat.value > 0 ? '#746e69' : '#78716c' }}>{stat.sub}</div>
+                  <div style={{ fontSize: 11, color: '#57534e' }}>{stat.sub}</div>
                   <div style={{ height: 3, borderRadius: 6, backgroundColor: '#e7e5e4', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${pct}%`, backgroundColor: stat.accentColor, borderRadius: 6 }} />
+                    <div style={{ height: '100%', width: `${Math.min(100, pct)}%`, backgroundColor: stat.accentColor, borderRadius: 6 }} />
                   </div>
                 </div>
               );
             })}
+          </div>
+          {/* Os cards respeitam os filtros. Dizer isso evita a leitura de que
+              são o total da fila. */}
+          <div style={{ fontSize: 11, color: '#57534e', marginBottom: 14 }}>
+            {activeFilterCount > 0
+              ? `Contagens no recorte atual (${activeFilterCount} ${activeFilterCount === 1 ? 'filtro ativo' : 'filtros ativos'})`
+              : 'Contagens de toda a fila da Arte'}
           </div>
 
           {/* ── Filter Row 1: search + dropdowns + period ── */}
@@ -2108,8 +2535,8 @@ export default function Arte() {
                 type="text"
                 value={searchFilter}
                 onChange={e => setSearchFilter(e.target.value)}
-                placeholder="Buscar arte, ID ou projeto..."
-                aria-label="Buscar arte, ID ou projeto"
+                placeholder="Buscar por ID, peça, descrição ou evento..."
+                aria-label="Buscar por ID, peça, descrição ou evento"
                 data-testid="input-search-filter"
                 style={{ width: '100%', height: 36, paddingLeft: 30, paddingRight: 10, borderRadius: 8, border: searchFilter ? '1px solid #f97316' : '1px solid #e7e5e4', backgroundColor: '#ffffff', color: '#1c1917', fontSize: 13, boxSizing: 'border-box' }}
               />
@@ -2145,10 +2572,10 @@ export default function Arte() {
               testId="select-material-filter"
             />
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
-              {['Hoje', '7 dias', '15 dias', '30 dias', 'Todos'].map(p => (
+            <div role="group" aria-label="Período de saída" style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
+              {PERIOD_FILTERS.map(p => (
                 <button key={p} onClick={() => setPeriodFilter(p)} aria-pressed={periodFilter === p}
-                  style={{ height: 30, padding: '0 11px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: periodFilter === p ? 700 : 500, background: periodFilter === p ? '#ffffff' : 'transparent', color: periodFilter === p ? '#1c1917' : '#746e69', boxShadow: periodFilter === p ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.12s' }}>
+                  style={{ height: 30, padding: '0 11px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: periodFilter === p ? 700 : 500, background: periodFilter === p ? '#ffffff' : 'transparent', color: periodFilter === p ? '#1c1917' : '#57534e', boxShadow: periodFilter === p ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.12s' }}>
                   {p}
                 </button>
               ))}
@@ -2164,23 +2591,63 @@ export default function Arte() {
             </button>
           </div>
 
-          {/* ── Filter Row 2: boolean toggles ── */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 8, flexWrap: 'wrap', borderTop: '1px solid #f0efee', paddingTop: 8 }}>
+          {/* ── Filter Row 2 ── */}
+          {/* "Sem thumb" e "Com thumb" eram dois booleanos independentes: ligados
+              juntos descartavam TUDO por construção e a lista ficava vazia com o
+              texto genérico de "2 filtros ativos". Viraram um segmentado de três
+              estados cada, no mesmo estilo do controle de período — dois
+              controles em vez de quatro chips, sem estado impossível. */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap', borderTop: '1px solid #f0efee', paddingTop: 8 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Mostrar:</span>
+
+            <button
+              onClick={() => setUrgenteFilter(!urgenteFilter)}
+              aria-pressed={urgenteFilter}
+              data-testid="button-urgente-filter"
+              // Em repouso o cinza #78716c sobre #ede9e4 dava 3,97:1 — abaixo de
+              // AA, e é o estado em que o chip passa a maior parte do tempo.
+              // #57534e sobre o mesmo fundo dá 6,2:1.
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 28, padding: '0 11px', borderRadius: 999, cursor: 'pointer', fontSize: 11, fontWeight: 600, transition: 'all 0.14s', border: urgenteFilter ? '1px solid #fca5a5' : '1px solid transparent', background: urgenteFilter ? '#fef2f2' : '#ede9e4', color: urgenteFilter ? '#b91c1c' : '#57534e' }}
+            >
+              <span style={{ width: 6, height: 6, borderRadius: '50%', background: urgenteFilter ? '#dc2626' : '#a8a29e', flexShrink: 0 }} />
+              Urgente
+            </button>
+
             {([
-              { key: 'urgente', label: 'Urgente', value: urgenteFilter, set: setUrgenteFilter, color: '#dc2626', bg: '#fef2f2', border: '#fca5a5' },
-              { key: 'semThumb', label: 'Sem thumb', value: semThumb, set: setSemThumb, color: '#b45309', bg: '#fffbeb', border: '#fcd34d' },
-              { key: 'comThumb', label: 'Com thumb', value: comThumb, set: setComThumb, color: '#15803d', bg: '#f0fdf4', border: '#86efac' },
-              { key: 'semFinal', label: 'Sem arq. final', value: semFinal, set: setSemFinal, color: '#0369a1', bg: '#f0f9ff', border: '#7dd3fc' },
-              { key: 'comFinal', label: 'Com arq. final', value: comFinal, set: setComFinal, color: '#15803d', bg: '#f0fdf4', border: '#86efac' },
-            ] as { key: string; label: string; value: boolean; set: (v: boolean) => void; color: string; bg: string; border: string }[]).map(({ key, label, value, set, color, bg, border }) => (
-              <button key={key} onClick={() => set(!value)} aria-pressed={value}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 26, padding: '0 10px', borderRadius: 999, cursor: 'pointer', fontSize: 11, fontWeight: 600, transition: 'all 0.14s', border: value ? `1px solid ${border}` : '1px solid transparent', background: value ? bg : '#ede9e4', color: value ? color : '#78716c' }}
-              >
-                <span style={{ width: 6, height: 6, borderRadius: '50%', background: value ? color : '#d6d3d1', flexShrink: 0 }} />
-                {label}
-              </button>
+              { rotulo: 'Thumb', value: thumbFilter, set: setThumbFilter, testId: 'segment-thumb' },
+              { rotulo: 'Arquivo final', value: finalFilter, set: setFinalFilter, testId: 'segment-final' },
+            ] as { rotulo: string; value: TriState; set: (v: TriState) => void; testId: string }[]).map(({ rotulo, value, set, testId }) => (
+              <div key={testId} role="group" aria-label={rotulo} data-testid={testId}
+                style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 999, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', padding: '0 6px 0 8px' }}>{rotulo}</span>
+                {([
+                  { v: 'todos', label: 'todos' },
+                  { v: 'com', label: 'com' },
+                  { v: 'sem', label: 'sem' },
+                ] as { v: TriState; label: string }[]).map(({ v, label }) => (
+                  <button key={v} onClick={() => set(v)} aria-pressed={value === v}
+                    style={{ height: 22, padding: '0 10px', borderRadius: 999, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: value === v ? 700 : 500, background: value === v ? '#ffffff' : 'transparent', color: value === v ? '#1c1917' : '#57534e', boxShadow: value === v ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.12s' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
             ))}
+
+            {/* Ordenação — a regra de negócio inteira é ancorada na saída do
+                caminhão e a lista só sabia ordenar por nome de evento. */}
+            <div role="group" aria-label="Ordenar por" style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 999, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', padding: '0 6px 0 8px' }}>Ordenar</span>
+              {([
+                { v: 'evento', label: 'por evento' },
+                { v: 'prazo', label: 'por prazo' },
+              ] as { v: 'evento' | 'prazo'; label: string }[]).map(({ v, label }) => (
+                <button key={v} onClick={() => setSortMode(v)} aria-pressed={sortMode === v}
+                  data-testid={`button-sort-${v}`}
+                  style={{ height: 22, padding: '0 10px', borderRadius: 999, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: sortMode === v ? 700 : 500, background: sortMode === v ? '#ffffff' : 'transparent', color: sortMode === v ? '#1c1917' : '#57534e', boxShadow: sortMode === v ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.12s' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* ── Active chips ── */}
@@ -2201,78 +2668,144 @@ export default function Arte() {
             </div>
           )}
 
-          {/* ── Tabs + select all ── */}
+          {/* ── Fases + seleção ── */}
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <div role="tablist" aria-label="Fases da Arte" style={{ display: 'flex', alignItems: 'flex-end' }}>
-              {tabs.map(tab => {
-                const isActive = activeTab === tab.id;
-                const tabColors: Record<string, string> = {
-                  "criar-aprovacoes": "#f97316",
-                  "correcao": "#ef4444",
-                  "finalizar-layouts": "#06b6d4",
-                  "finalizados": "#22c55e",
-                };
-                const accent = tabColors[tab.id] || '#f97316';
-                const tabIcons: Record<string, any> = {
-                  "criar-aprovacoes": Send,
-                  "correcao": RotateCcw,
-                  "finalizar-layouts": FileCheck,
-                  "finalizados": CheckCircle,
-                };
-                const TabIcon = tabIcons[tab.id];
-                return (
-                  <button
-                    key={tab.id}
-                    role="tab"
-                    aria-selected={isActive}
-                    onClick={() => changeTab(tab.id)}
-                    data-testid={tab.testId}
-                    style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 18px', border: 'none', cursor: 'pointer', borderBottom: isActive ? `2px solid ${accent}` : '2px solid transparent', marginBottom: -1, background: isActive ? `${accent}0d` : 'transparent', color: isActive ? accent : '#78716c', fontWeight: isActive ? 700 : 500, fontSize: 13, whiteSpace: 'nowrap', borderRadius: '6px 6px 0 0', transition: 'all 0.14s' }}
-                    onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = '#1c1917'; }}
-                    onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = '#78716c'; }}
-                  >
-                    {TabIcon && <TabIcon style={{ width: 13, height: 13, flexShrink: 0 }} />}
-                    {tab.label}
-                    {tab.count > 0 && (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 18, height: 18, borderRadius: 999, fontSize: 11, fontWeight: 700, padding: '0 5px', backgroundColor: isActive ? accent : '#e7e5e4', color: isActive ? '#fff' : '#78716c' }}>
-                        {tab.count}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {(activeTab === "criar-aprovacoes" || activeTab === "finalizados") && filteredItems.length > 0 && (
-              <button
-                onClick={() => {
-                  if (selectedItemIds.size === filteredItems.length) setSelectedItemIds(new Set());
-                  else setSelectedItemIds(new Set(filteredItems.map((i: any) => i.id)));
+            {isMobile ? (
+              // No celular as cinco abas somam ~900px e o contêiner raiz da tela
+              // é overflow:hidden — o excesso era CLIPADO, não rolável, e três
+              // fases (entre elas "Finalizar arte", que nem stat card tinha)
+              // simplesmente deixavam de existir. Cinco abas com contador nunca
+              // vão caber em 375px; um seletor cabe sempre e é alcançável por
+              // teclado e leitor de tela sem truque nenhum.
+              <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Fase</span>
+                <select
+                  value={activeTab}
+                  onChange={e => changeTab(e.target.value)}
+                  data-testid="select-fase-mobile"
+                  style={{ width: '100%', height: 40, padding: '0 10px', borderRadius: 8, border: '1px solid #d6d3d1', background: '#ffffff', color: '#1c1917', fontSize: 14, fontWeight: 600 }}
+                >
+                  {tabs.map(tab => (
+                    <option key={tab.id} value={tab.id}>{tab.label} ({tab.count})</option>
+                  ))}
+                </select>
+              </label>
+            ) : (
+              <div
+                ref={tablistRef}
+                role="tablist"
+                aria-label="Fases da Arte"
+                // overflowX + scrollbarWidth: em telas estreitas de desktop a
+                // barra rola em vez de ser cortada.
+                onKeyDown={e => {
+                  // Navegação por setas com roving tabindex — contrato ARIA de
+                  // tablist que faltava por inteiro.
+                  if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+                  e.preventDefault();
+                  const i = tabs.findIndex(t => t.id === activeTab);
+                  const prox = e.key === 'ArrowRight'
+                    ? (i + 1) % tabs.length
+                    : (i - 1 + tabs.length) % tabs.length;
+                  changeTab(tabs[prox].id);
+                  (tablistRef.current?.querySelectorAll('[role="tab"]')[prox] as HTMLElement | undefined)?.focus();
                 }}
-                data-testid="button-select-all"
-                style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 13px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', fontSize: 13, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                style={{ display: 'flex', alignItems: 'flex-end', overflowX: 'auto', scrollbarWidth: 'none', maxWidth: '100%' }}
               >
-                {selectedItemIds.size === filteredItems.length && filteredItems.length > 0
-                  ? <><X style={{ width: 11, height: 11 }} /> Limpar seleção</>
-                  : <><CheckSquare style={{ width: 11, height: 11 }} /> Selecionar tudo</>
-                }
-                {selectedItemIds.size > 0 && (
-                  <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 18, height: 18, borderRadius: 999, fontSize: 10, fontWeight: 700, backgroundColor: '#1c1917', color: '#ffffff', padding: '0 5px' }}>
-                    {selectedItemIds.size}
-                  </span>
-                )}
-              </button>
+                {tabs.map(tab => {
+                  const isActive = activeTab === tab.id;
+                  // Cor saturada só na borda e no selo; o texto usa o tom 700.
+                  const { dot, text } = TAB_THEME[tab.id];
+                  const TabIcon = tab.Icon;
+                  return (
+                    <button
+                      key={tab.id}
+                      id={`aba-${tab.id}`}
+                      role="tab"
+                      aria-selected={isActive}
+                      aria-controls="painel-arte"
+                      tabIndex={isActive ? 0 : -1}
+                      onClick={() => changeTab(tab.id)}
+                      data-testid={tab.testId}
+                      style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', border: 'none', cursor: 'pointer', borderBottom: isActive ? `2px solid ${dot}` : '2px solid transparent', marginBottom: -1, background: isActive ? `${dot}0d` : 'transparent', color: isActive ? text : '#57534e', fontWeight: isActive ? 700 : 500, fontSize: 13, whiteSpace: 'nowrap', borderRadius: '6px 6px 0 0', transition: 'all 0.14s', flexShrink: 0 }}
+                      onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = '#1c1917'; }}
+                      onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = '#57534e'; }}
+                    >
+                      <TabIcon style={{ width: 13, height: 13, flexShrink: 0 }} />
+                      {tab.label}
+                      {tab.count > 0 && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 18, height: 18, borderRadius: 999, fontSize: 11, fontWeight: 700, padding: '0 5px', backgroundColor: isActive ? dot : '#e7e5e4', color: isActive ? '#fff' : '#44403c' }}>
+                          {tab.count}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             )}
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              {/* A seleção sobrevivia a filtro e a aba, e o único jeito de zerar
+                  5 peças marcadas em outra aba era selecionar as 300 da aba
+                  atual e clicar de novo. Agora é um chip próprio, sempre
+                  visível e sempre limpável em um clique — inclusive nas abas
+                  onde não existe checkbox. */}
+              {selectedItemIds.size > 0 && (
+                <span
+                  data-testid="chip-selecao"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 34, padding: '0 6px 0 12px', borderRadius: 999, background: '#1c1917', color: '#ffffff', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}
+                >
+                  {selectedItemIds.size} {selectedItemIds.size === 1 ? 'selecionada' : 'selecionadas'}
+                  <button
+                    onClick={() => setSelectedItemIds(new Set())}
+                    aria-label="Limpar seleção"
+                    data-testid="button-clear-selection"
+                    style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(255,255,255,0.16)', border: 'none', cursor: 'pointer', color: '#ffffff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <X style={{ width: 11, height: 11 }} />
+                  </button>
+                </span>
+              )}
+              {podeEditar && (activeTab === "criar-aprovacoes" || activeTab === "finalizados") && filteredItems.length > 0 && (
+                <button
+                  onClick={() => {
+                    if (selectedItemIds.size === filteredItems.length) setSelectedItemIds(new Set());
+                    else setSelectedItemIds(new Set(filteredItems.map((i: any) => i.id)));
+                  }}
+                  data-testid="button-select-all"
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 13px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', fontSize: 13, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                >
+                  {selectedItemIds.size === filteredItems.length
+                    ? <><X style={{ width: 11, height: 11 }} /> Desmarcar tudo</>
+                    : <><CheckSquare style={{ width: 11, height: 11 }} /> Selecionar tudo</>
+                  }
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
       {/* ── 4. SCROLLABLE CONTENT AREA ────────────────────────────────────── */}
-      <div ref={contentRef} style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px 12px' : '24px 32px', maxWidth: 1600, margin: '0 auto', width: '100%' }}>
+      <div
+        ref={contentRef}
+        id="painel-arte"
+        role="tabpanel"
+        aria-labelledby={isMobile ? undefined : `aba-${activeTab}`}
+        style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px 12px' : '24px 32px', maxWidth: 1600, margin: '0 auto', width: '100%' }}
+      >
       {isLoading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
           <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid #e7e5e4', borderTopColor: '#f97316', animation: 'spin 0.8s linear infinite' }} />
         </div>
+      ) : isError ? (
+        // Terceiro ramo ANTES do conteúdo: enquanto houver erro, o empty state
+        // de sucesso nunca é renderizado.
+        renderErroDeCarga(
+          "Não foi possível carregar a fila da Arte",
+          error,
+          () => { void refetch(); },
+          "erro-arte",
+        )
       ) : activeTab === "correcao" ? (
         renderCorrecaoTab()
       ) : (
@@ -2285,18 +2818,20 @@ export default function Arte() {
       <Dialog open={!!dispenseItem} onOpenChange={(open) => { if (!open) { setDispenseItem(null); setDispenseReason(""); } }}>
         {/* HIDE_NATIVE_CLOSE: este modal tem X próprio; sem a classe ficavam dois. */}
         <DialogContent className={cn("p-0 gap-0", HIDE_NATIVE_CLOSE)} style={modalSurface(420)}>
-          <DialogTitle className="sr-only">Dispensar Peça</DialogTitle>
+          <DialogTitle className="sr-only">Dispensar peça</DialogTitle>
           <DialogDescription className="sr-only">Dispensar peça da fila de arte</DialogDescription>
-          <div style={{ padding: 24 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
-              <div>
-                <span style={{ display: 'inline-block', fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, color: '#dc2626', backgroundColor: 'rgba(255,218,214,0.5)', padding: '2px 9px', borderRadius: 6, marginBottom: 6 }}>Ação Irreversível</span>
-                <h2 style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.04em', fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: 0 }}>Dispensar Peça</h2>
-              </div>
-              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} aria-label="Fechar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#57534e', padding: 2, borderRadius: 6 }}>
-                <X style={{ width: 20, height: 20 }} />
-              </button>
-            </div>
+          {/* ModalHeader compartilhado: o X feito à mão aqui tinha 20px, abaixo
+              do alvo mínimo de toque, num diálogo que libera peça para produção.
+              A casca dá 34px, o mesmo tamanho dos outros modais da tela. */}
+          <ModalHeader
+            icon={Ban}
+            variant="confirm"
+            tint="#dc2626"
+            title="Dispensar peça"
+            subtitle="Ação irreversível — a peça vai direto para produção"
+            onClose={() => { setDispenseItem(null); setDispenseReason(""); }}
+          />
+          <div style={{ padding: '18px 24px 24px' }}>
             {dispenseItem && (
               <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 14px', marginBottom: 16, display: 'flex', gap: 10 }}>
                 <Ban style={{ width: 16, height: 16, color: '#dc2626', flexShrink: 0, marginTop: 2 }} />
@@ -2316,31 +2851,39 @@ export default function Arte() {
                 style={{ width: '100%', backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 8, padding: '10px 12px', fontSize: 12, resize: 'none', height: 72, fontFamily: 'inherit', color: '#1c1917', boxSizing: 'border-box' }}
               />
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} style={{ flex: 1, height: 40, borderRadius: 8, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          </div>
+          {/* Rodapé da casca: Cancelar à esquerda, primário à direita — a mesma
+              ordem dos outros quatro modais desta tela. */}
+          <ModalFooter>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
+              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} style={{ height: 40, padding: '0 16px', borderRadius: 8, backgroundColor: 'transparent', border: 'none', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 Cancelar
               </button>
               <button
                 onClick={() => dispenseItem && dispenseMutation.mutate({ itemId: dispenseItem.id, reason: dispenseReason })}
                 disabled={dispenseMutation.isPending}
                 data-testid="button-confirm-dispense"
-                style={{ flex: 1, height: 40, borderRadius: 8, backgroundColor: '#dc2626', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: dispenseMutation.isPending ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: dispenseMutation.isPending ? 0.7 : 1 }}
+                style={{ height: 40, padding: '0 18px', borderRadius: 8, backgroundColor: '#b91c1c', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: dispenseMutation.isPending ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: dispenseMutation.isPending ? 0.7 : 1 }}
               >
-                {dispenseMutation.isPending ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Dispensando...</> : <><Ban style={{ width: 14, height: 14 }} />Dispensar Peça</>}
+                {dispenseMutation.isPending ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Dispensando…</> : <><Ban style={{ width: 14, height: 14 }} />Dispensar peça</>}
               </button>
             </div>
-          </div>
+          </ModalFooter>
         </DialogContent>
       </Dialog>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
       {/* MODAL 1 — CORREÇÃO: Enviar Nova Arte                               */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      <Dialog open={!!correcaoItem} onOpenChange={(open) => {
-        if (!open) { setCorrecaoItem(null); setCorrecaoThumbUrl(""); setCorrecaoFileName(""); setCorrecaoSelectedSponsorIds(new Set()); }
-      }}>
+      <Dialog open={!!correcaoItem} onOpenChange={(open) => { if (!open) fecharCorrecaoModal(); }}>
         {/* overflowY vence o overflow:hidden do modalSurface — este modal rola. */}
-        <DialogContent className={cn("p-0 gap-0 max-h-[90vh]", HIDE_NATIVE_CLOSE)} style={{ ...modalSurface(472), overflowY: 'auto' }}>
+        <DialogContent
+          className={cn("p-0 gap-0 max-h-[90vh]", HIDE_NATIVE_CLOSE)}
+          style={{ ...modalSurface(472), overflowY: 'auto' }}
+          // Com uma nova arte JÁ ENVIADA ao storage, um clique no overlay
+          // (o Radix fecha por padrão) descartava o arquivo sem perguntar.
+          onInteractOutside={e => { if (correcaoThumbUrl) e.preventDefault(); }}
+        >
           <DialogTitle className="sr-only">Enviar Nova Arte</DialogTitle>
           <DialogDescription className="sr-only">Reenvio de arte para patrocinadores</DialogDescription>
 
@@ -2350,8 +2893,8 @@ export default function Arte() {
             <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 80% 20%, rgba(220,38,38,0.12) 0%, transparent 60%)', pointerEvents: 'none' }} />
             {/* Close button */}
             <button
-              onClick={() => { setCorrecaoItem(null); setCorrecaoThumbUrl(""); setCorrecaoFileName(""); setCorrecaoSelectedSponsorIds(new Set()); }}
-              style={{ position: 'absolute', top: 14, right: 14, width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background 0.15s', zIndex: 2 }}
+              onClick={() => fecharCorrecaoModal()}
+              style={{ position: 'absolute', top: 14, right: 14, width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background 0.15s', zIndex: 2 }}
               onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.2)')}
               onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
               aria-label="Fechar"
@@ -2618,8 +3161,8 @@ export default function Arte() {
         item={selectedItem}
         auditLogs={selectedItem ? auditLogs.filter((log: any) => log.entityType === 'item' && log.entityId === selectedItem.id) : []}
         open={!!selectedItem}
-        onOpenChange={(open) => !open && setSelectedItem(null)}
-        topActions={selectedItem && (['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) || (selectedItem.finalFileUrl && ['awaiting_final_review', 'ready_for_production', 'inProduction', 'produced', 'conferred', 'delivered'].includes(selectedItem.status))) ? (
+        onOpenChange={(open) => !open && setSelectedItemId(null)}
+        topActions={selectedItem && podeEditar && (['sponsor_approved', 'awaiting_creator_review'].includes(selectedItem.status) || (selectedItem.finalFileUrl && FINALIZADOS_STATUSES.includes(selectedItem.status))) ? (
           <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Section header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -2755,7 +3298,7 @@ export default function Arte() {
             </div>
           </section>
         ) : null}
-        customActions={selectedItem && (
+        customActions={selectedItem && podeEditar && (
           <div>
             {selectedItem.status === 'awaiting_submission' && (
               <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -2962,28 +3505,17 @@ export default function Arte() {
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <Dialog open={showBulkDialog} onOpenChange={(open) => { if (!open) { setShowBulkDialog(false); setSharedPdfUrl(""); } }}>
         <DialogContent className={cn("p-0 gap-0", HIDE_NATIVE_CLOSE)} style={modalSurface(600)}>
-          <DialogTitle className="sr-only">Upload PDF Compartilhado</DialogTitle>
-          <DialogDescription className="sr-only">Vincular um PDF a múltiplos itens</DialogDescription>
+          <DialogTitle className="sr-only">PDF compartilhado</DialogTitle>
+          <DialogDescription className="sr-only">Vincular um PDF a múltiplas peças</DialogDescription>
 
-          <div style={{ padding: 32 }}>
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 32 }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <h2 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.04em', fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: 0, lineHeight: 1.2 }}>
-                  Upload PDF Compartilhado
-                </h2>
-                <p style={{ fontSize: 13, color: '#57534e', margin: 0 }}>Vincular um único documento a múltiplos itens selecionados.</p>
-              </div>
-              <button
-                onClick={() => { setShowBulkDialog(false); setSharedPdfUrl(""); }}
-                aria-label="Fechar"
-                style={{ padding: '6px', backgroundColor: '#f3f4f3', border: 'none', borderRadius: '50%', cursor: 'pointer', color: '#57534e', lineHeight: 1, flexShrink: 0 }}
-                onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
-                onMouseLeave={e => { e.currentTarget.style.color = '#57534e'; }}
-              >
-                <X style={{ width: 18, height: 18 }} />
-              </button>
-            </div>
+          <ModalHeader
+            icon={Upload}
+            tint="#2563eb"
+            title="PDF compartilhado"
+            subtitle="Vincula um único documento a todas as peças selecionadas"
+            onClose={() => { setShowBulkDialog(false); setSharedPdfUrl(""); }}
+          />
+          <div style={{ padding: '24px 32px' }}>
 
             {/* 2 colunas no desktop; 1 no mobile para não espremer as listas */}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 20 : 32 }}>
@@ -3080,17 +3612,12 @@ export default function Arte() {
               </div>
             </div>
 
-            {/* Footer */}
-            <div style={{ display: 'flex', gap: 12, marginTop: 32 }}>
+          </div>
+          <ModalFooter>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' }}>
               <button
                 onClick={() => { setShowBulkDialog(false); setSharedPdfUrl(""); }}
-                style={{
-                  flex: 1, padding: '14px 0', borderRadius: 8, border: 'none',
-                  backgroundColor: '#e8e8e7', color: '#1c1917', fontWeight: 700,
-                  fontFamily: '"Space Grotesk", sans-serif', fontSize: 15, cursor: 'pointer', transition: 'background-color 0.15s'
-                }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e2e2e2'; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#e8e8e7'; }}
+                style={{ height: 40, padding: '0 16px', borderRadius: 8, border: 'none', background: 'transparent', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
               >
                 Cancelar
               </button>
@@ -3099,27 +3626,24 @@ export default function Arte() {
                 onClick={handleBulkSubmit}
                 data-testid="button-submit-bulk-pdf"
                 style={{
-                  flex: 2, padding: '14px 0', borderRadius: 8, border: 'none',
+                  height: 40, padding: '0 20px', borderRadius: 8, border: 'none',
                   // #c2410c no lugar do #f97316 (2,8:1 com texto branco); AA.
-                  backgroundColor: (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) ? '#fcd9b7' : '#c2410c',
-                  color: '#ffffff', fontWeight: 700, fontFamily: '"Space Grotesk", sans-serif', fontSize: 16,
+                  backgroundColor: (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) ? '#e7e5e4' : '#c2410c',
+                  color: (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) ? '#57534e' : '#ffffff',
+                  fontWeight: 700, fontSize: 13,
                   cursor: (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) ? 'not-allowed' : 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                  boxShadow: '0 4px 16px rgba(194,65,12,0.2)', transition: 'background-color 0.15s, transform 0.1s'
+                  transition: 'background-color 0.15s',
                 }}
-                onMouseEnter={e => { if (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) return; e.currentTarget.style.backgroundColor = '#9a3412'; }}
-                onMouseLeave={e => { if (submitBulkForApprovalMutation.isPending || !sharedPdfUrl) return; e.currentTarget.style.backgroundColor = '#c2410c'; }}
-                onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)'; }}
-                onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
               >
                 {submitBulkForApprovalMutation.isPending ? (
-                  <><div style={{ width: 16, height: 16, borderRadius: '50%', border: '2px solid #fff', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite' }} />Enviando...</>
+                  <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Enviando…</>
                 ) : (
-                  <>Processar Bulk Upload <Send style={{ width: 16, height: 16 }} /></>
+                  <>Enviar lote <Send style={{ width: 14, height: 14 }} /></>
                 )}
               </button>
             </div>
-          </div>
+          </ModalFooter>
         </DialogContent>
       </Dialog>
 
@@ -3137,33 +3661,17 @@ export default function Arte() {
           <DialogTitle className="sr-only">Subir book de aprovação</DialogTitle>
           <DialogDescription className="sr-only">Envie o PDF do book e selecione as peças que ele cobre</DialogDescription>
 
-          {/* ── Header escuro ── */}
-          <div style={{ padding: '22px 28px 20px', background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderRadius: '16px 16px 0 0' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg,#f97316,#ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 10px rgba(249,115,22,0.35)' }}>
-                  <FileText style={{ width: 15, height: 15, color: '#fff' }} />
-                </div>
-                <h2 style={{ fontSize: 20, fontWeight: 800, color: '#ffffff', margin: 0, fontFamily: '"Space Grotesk", sans-serif', letterSpacing: '-0.03em' }}>
-                  {existingBookUrl ? 'Atualizar book (PDF)' : 'Subir book (PDF)'}
-                </h2>
-              </div>
-              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', margin: '0 0 0 42px', lineHeight: 1.4 }}>
-                {existingBookUrl
-                  ? 'Substitua o PDF atual e confirme as peças cobertas.'
-                  : 'Envie o layout pronto e marque as peças cobertas — serão enviadas aos patrocinadores.'}
-              </p>
-            </div>
-            <button
-              onClick={() => setShowBookModal(false)}
-              aria-label="Fechar"
-              style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '50%', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', flexShrink: 0, transition: 'background 0.15s' }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
-            >
-              <X style={{ width: 16, height: 16 }} />
-            </button>
-          </div>
+          {/* Cabeçalho da casca compartilhada — mesma altura, mesmo tamanho de
+              título e mesmo botão de fechar dos outros modais da tela. */}
+          <ModalHeader
+            icon={FileText}
+            tint="#ea580c"
+            title={existingBookUrl ? 'Atualizar book (PDF)' : 'Subir book (PDF)'}
+            subtitle={existingBookUrl
+              ? 'Substitua o PDF atual e confirme as peças cobertas.'
+              : 'Envie o layout pronto e marque as peças cobertas — serão enviadas aos patrocinadores.'}
+            onClose={() => setShowBookModal(false)}
+          />
 
           {/* ── Body ── */}
           <div style={{ padding: '22px 28px', display: 'flex', flexDirection: 'column', gap: 22, maxHeight: '62vh', overflowY: 'auto', backgroundColor: '#fafaf9' }}>
@@ -3250,7 +3758,7 @@ export default function Arte() {
                   )}
                 </div>
                 {bookFileUrl && <span style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', flexShrink: 0, padding: '4px 10px', border: '1px solid #fed7aa', borderRadius: 6, background: '#fff' }}>Trocar</span>}
-                <input type="file" accept="application/pdf,.pdf" style={{ display: 'none' }}
+                <input type="file" accept="application/pdf,.pdf" className="sr-only"
                   onChange={e => { handleBookFile(e.target.files?.[0]); e.target.value = ''; }} />
               </label>
             </div>
@@ -3330,9 +3838,8 @@ export default function Arte() {
             </div>
           </div>
 
-          {/* ── Footer ── */}
-          <div style={{ padding: '14px 28px', borderTop: '1px solid #ebe8e3', display: 'flex', gap: 10, justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#ffffff' }}>
-            {/* Ghost — Cancelar fica à esquerda, longe do CTA primário */}
+          <ModalFooter>
+            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', alignItems: 'center' }}>
             <button onClick={() => setShowBookModal(false)}
               style={{ height: 40, padding: '0 16px', borderRadius: 8, background: 'transparent', border: 'none', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer', transition: 'color 0.12s' }}
               onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}
@@ -3346,7 +3853,7 @@ export default function Arte() {
               style={{
                 height: 38, padding: '0 20px', borderRadius: 8, border: 'none',
                 background: (!bookFileUrl || bookSelectedIds.size === 0 || saveBookMutation.isPending) ? '#e7e5e4' : 'linear-gradient(135deg,#1c1917,#292524)',
-                color: (!bookFileUrl || bookSelectedIds.size === 0 || saveBookMutation.isPending) ? '#a8a29e' : '#fff',
+                color: (!bookFileUrl || bookSelectedIds.size === 0 || saveBookMutation.isPending) ? '#57534e' : '#fff',
                 fontSize: 13, fontWeight: 700, cursor: (!bookFileUrl || bookSelectedIds.size === 0) ? 'not-allowed' : 'pointer',
                 display: 'flex', alignItems: 'center', gap: 7, transition: 'filter 0.12s',
                 boxShadow: (!bookFileUrl || bookSelectedIds.size === 0) ? 'none' : '0 2px 8px rgba(28,25,23,0.2)',
@@ -3361,44 +3868,31 @@ export default function Arte() {
                   : <><FileText style={{ width: 13, height: 13 }} />{`Salvar book — ${bookSelectedIds.size} peça${bookSelectedIds.size !== 1 ? 's' : ''}`}</>
               }
             </button>
-          </div>
+            </div>
+          </ModalFooter>
         </DialogContent>
       </Dialog>
 
       {/* ═══════════════════════════════════════════════════════════════════ */}
-      {/* MODAL 5 — MULTI-UPLOAD THUMBS (redesenhado)                        */}
+      {/* MODAL 5 — ENVIO DE THUMBS EM LOTE                                  */}
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <Dialog open={showBulkThumbModal} onOpenChange={(open) => { if (!open) closeBulkThumbModal(); }}>
-        <DialogContent className={cn("p-0 gap-0", HIDE_NATIVE_CLOSE)} style={modalSurface(980)}>
-          <DialogTitle className="sr-only">Multi-Upload de Thumbs</DialogTitle>
-          <DialogDescription className="sr-only">Upload em lote de miniaturas de aprovação</DialogDescription>
+        <DialogContent
+          className={cn("p-0 gap-0", HIDE_NATIVE_CLOSE)}
+          style={modalSurface(980)}
+          // 40 imagens vinculadas e conferidas sumiam com um clique no overlay.
+          onInteractOutside={e => { if (bulkThumbRunning || bulkThumbPendentes > 0) e.preventDefault(); }}
+        >
+          <DialogTitle className="sr-only">Envio de thumbs em lote</DialogTitle>
+          <DialogDescription className="sr-only">Envio em lote de miniaturas de aprovação</DialogDescription>
 
-          {/* ── Header ── */}
-          <div style={{ padding: '22px 28px 20px', borderBottom: '1px solid #f0ede8', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', borderRadius: '16px 16px 0 0' }}>
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
-                <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Upload style={{ width: 16, height: 16, color: '#fff' }} />
-                </div>
-                <h2 style={{ fontSize: 22, fontWeight: 800, letterSpacing: '-0.04em', color: '#ffffff', margin: 0, fontFamily: '"Space Grotesk", sans-serif' }}>
-                  Multi-Upload de Thumbs
-                </h2>
-              </div>
-              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', margin: 0, paddingLeft: 42 }}>
-                O sistema vincula automaticamente pelo número no nome do arquivo · ex: <strong style={{ color: 'rgba(255,255,255,0.75)' }}>0277_aplique.jpg</strong>
-              </p>
-            </div>
-            <button
-              onClick={closeBulkThumbModal}
-              aria-label="Fechar"
-              aria-disabled={bulkThumbRunning}
-              style={{ width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '50%', cursor: bulkThumbRunning ? 'not-allowed' : 'pointer', color: 'rgba(255,255,255,0.7)', flexShrink: 0, transition: 'background 0.15s', opacity: bulkThumbRunning ? 0.4 : 1 }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}
-            >
-              <X style={{ width: 18, height: 18 }} />
-            </button>
-          </div>
+          <ModalHeader
+            icon={Upload}
+            tint="#ea580c"
+            title="Envio de thumbs em lote"
+            subtitle="O vínculo é automático pelo número no nome do arquivo — ex.: 0277_aplique.jpg"
+            onClose={() => closeBulkThumbModal()}
+          />
 
           {/* ── Body — 2 colunas no desktop; empilhado e rolável no mobile ── */}
           <div style={{
@@ -3416,9 +3910,17 @@ export default function Arte() {
 
               {/* ── Drop zone ── */}
               <div style={{ padding: '18px 18px 14px' }}>
-                <input id="bulk-thumb-input" type="file" accept="image/*" multiple style={{ display: 'none' }}
+                <input id="bulk-thumb-input" type="file" accept="image/*" multiple className="sr-only"
                   onChange={e => { if (e.target.files) handleBulkThumbFilesAdded(e.target.files); e.target.value = ''; }} />
+                {/* role/tabIndex/onKeyDown: um <div onClick> não é focável e o
+                    input que ele dispara estava em display:none — a zona de
+                    maior alavancagem do modal era exclusiva de mouse. O padrão
+                    acessível já existia nos cards do book e nos stat cards. */}
                 <div
+                  role="button"
+                  tabIndex={0}
+                  aria-label="Adicionar imagens para envio em lote"
+                  data-testid="dropzone-bulk-thumb"
                   style={{
                     padding: '20px 12px 18px', borderRadius: 12,
                     background: isDragOverBulk ? 'linear-gradient(135deg,#f0fdf4,#dcfce7)' : '#ffffff',
@@ -3432,6 +3934,11 @@ export default function Arte() {
                   onDragLeave={() => setIsDragOverBulk(false)}
                   onDrop={e => { e.preventDefault(); setIsDragOverBulk(false); if (e.dataTransfer.files.length) handleBulkThumbFilesAdded(e.dataTransfer.files); }}
                   onClick={() => { const inp = document.getElementById('bulk-thumb-input') as HTMLInputElement; inp?.click(); }}
+                  onKeyDown={e => {
+                    if (e.key !== 'Enter' && e.key !== ' ') return;
+                    e.preventDefault();
+                    (document.getElementById('bulk-thumb-input') as HTMLInputElement | null)?.click();
+                  }}
                 >
                   <div style={{
                     width: 44, height: 44, borderRadius: 8,
@@ -3462,7 +3969,7 @@ export default function Arte() {
                     value={bulkThumbEventFilter}
                     onChange={setBulkThumbEventFilter}
                     allLabel="Todos os eventos"
-                    options={(events as any[]).map((ev: any) => ({ value: ev.id, label: ev.name }))}
+                    options={bulkThumbEventOptions}
                   />
                 </div>
               </div>
@@ -3562,11 +4069,11 @@ export default function Arte() {
                       const cardBorderColor = entry.status === 'done' ? '#bbf7d0'
                         : entry.status === 'error' ? '#fecaca'
                         : entry.status === 'uploading' ? '#ddd6fe'
-                        : isLinked ? '#bfdbfe' : '#fcd34d';
+                        : isLinked ? (entry.ambiguous ? '#fcd34d' : '#bfdbfe') : '#fcd34d';
                       const cardAccentBg = entry.status === 'done' ? '#f0fdf4'
                         : entry.status === 'error' ? '#fef2f2'
                         : entry.status === 'uploading' ? '#faf5ff'
-                        : isLinked ? '#eff6ff' : '#fffbeb';
+                        : isLinked ? (entry.ambiguous ? '#fffbeb' : '#eff6ff') : '#fffbeb';
 
                       return (
                         <div key={entry.id} style={{
@@ -3662,9 +4169,19 @@ export default function Arte() {
                                   {matchedItem.event?.name && (
                                     <p style={{ fontSize: 11, color: '#1d4ed8', margin: '2px 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{matchedItem.event.name}</p>
                                   )}
+                                  {/* O nome do arquivo tinha mais de um número
+                                      candidato (ou um que parece ano): o vínculo
+                                      foi feito pelo último, que é a convenção,
+                                      mas concentra a atenção onde ela vale. */}
+                                  {entry.ambiguous && (
+                                    <p data-testid={`aviso-vinculo-duvidoso-${entry.id}`} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, color: '#92400e', margin: '3px 0 0' }}>
+                                      <AlertTriangle style={{ width: 10, height: 10, flexShrink: 0 }} />
+                                      Confira este vínculo
+                                    </p>
+                                  )}
                                 </div>
                                 <button
-                                  onClick={() => setBulkThumbEntries(prev => prev.map(en => en.id === entry.id ? { ...en, matchedItemId: null } : en))}
+                                  onClick={() => setBulkThumbEntries(prev => prev.map(en => en.id === entry.id ? { ...en, matchedItemId: null, ambiguous: false } : en))}
                                   title="Trocar vínculo"
                                   style={{ flexShrink: 0, background: '#ffffff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '4px 8px', cursor: 'pointer', color: '#1d4ed8', fontSize: 11, fontWeight: 700, transition: 'all 0.12s' }}
                                   onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#eff6ff'; }}
@@ -3727,7 +4244,7 @@ export default function Arte() {
                                                 <CommandItem
                                                   value="clear"
                                                   onSelect={() => {
-                                                    setBulkThumbEntries(prev => prev.map(en => en.id === entry.id ? { ...en, matchedItemId: null } : en));
+                                                    setBulkThumbEntries(prev => prev.map(en => en.id === entry.id ? { ...en, matchedItemId: null, ambiguous: false } : en));
                                                     setBulkThumbLinkOpenMap(prev => ({ ...prev, [entry.id]: false }));
                                                   }}
                                                 >
@@ -3747,7 +4264,7 @@ export default function Arte() {
                                                       value={searchVal}
                                                       className="data-[selected=true]:bg-stone-100 data-[selected=true]:text-stone-900"
                                                       onSelect={() => {
-                                                        setBulkThumbEntries(prev => prev.map(en => en.id === entry.id ? { ...en, matchedItemId: item.id } : en));
+                                                        setBulkThumbEntries(prev => prev.map(en => en.id === entry.id ? { ...en, matchedItemId: item.id, ambiguous: false } : en));
                                                         setBulkThumbLinkOpenMap(prev => ({ ...prev, [entry.id]: false }));
                                                       }}
                                                     >
@@ -3790,14 +4307,41 @@ export default function Arte() {
             const readyCount = bulkThumbEntries.filter(e => e.matchedItemId && e.status === 'pending').length;
             const doneCount  = bulkThumbEntries.filter(e => e.status === 'done').length;
             const isDisabled = bulkThumbRunning || readyCount === 0;
+            const pctLote = bulkThumbProgress.total > 0
+              ? Math.round((bulkThumbProgress.feitos / bulkThumbProgress.total) * 100)
+              : 0;
             return (
               <div style={{
                 borderTop: '1px solid #ebe8e3', padding: '12px 24px',
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
                 backgroundColor: '#ffffff', borderRadius: '0 0 16px 16px', flexShrink: 0,
+                position: 'relative',
               }}>
-                {/* Esquerda: limpar concluídos */}
+                {/* Progresso GLOBAL do lote. 60 imagens de alguns MB levam
+                    minutos e o único sinal era o estado de cada card, que sai da
+                    vista assim que a lista rola. */}
+                {bulkThumbRunning && bulkThumbProgress.total > 0 && (
+                  <div
+                    role="progressbar"
+                    aria-valuenow={bulkThumbProgress.feitos}
+                    aria-valuemin={0}
+                    aria-valuemax={bulkThumbProgress.total}
+                    aria-label="Progresso do envio em lote"
+                    data-testid="progress-bulk-thumb"
+                    style={{ position: 'absolute', top: 0, left: 0, right: 0, display: 'flex', flexDirection: 'column' }}
+                  >
+                    <div style={{ height: 4, background: '#e7e5e4' }}>
+                      <div style={{ height: '100%', width: `${pctLote}%`, background: '#15803d', transition: 'width 0.2s' }} />
+                    </div>
+                  </div>
+                )}
+                {/* Esquerda: progresso ou limpar concluídos */}
                 <div>
+                  {bulkThumbRunning && bulkThumbProgress.total > 0 && (
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#15803d' }}>
+                      Enviando {bulkThumbProgress.feitos} de {bulkThumbProgress.total} ({pctLote}%)
+                    </span>
+                  )}
                   {doneCount > 0 && (
                     <button
                       onClick={() => setBulkThumbEntries(prev => prev.filter(e => {
@@ -3816,7 +4360,7 @@ export default function Arte() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {/* Ghost — Cancelar */}
                   <button
-                    onClick={closeBulkThumbModal}
+                    onClick={() => closeBulkThumbModal()}
                     aria-disabled={bulkThumbRunning}
                     style={{ height: 38, padding: '0 16px', borderRadius: 6, background: 'transparent', border: 'none', color: '#57534e', cursor: bulkThumbRunning ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600, transition: 'color 0.12s', opacity: bulkThumbRunning ? 0.4 : 1 }}
                     onMouseEnter={e => { e.currentTarget.style.color = '#1c1917'; }}

@@ -22,6 +22,8 @@ import {
   updateEventStatus,
   EVENT_CLOSED_STATUS,
 } from "./shared";
+import { motivoEventoFinalizado, todayBusinessMs } from "@shared/prazo-dates";
+import type { EventoFinalizadoMotivo } from "@shared/prazo-dates";
 import { runInventoryCron } from "../services/inventoryLifecycle";
 import { handlePreviewXlsx, handleConfirmImport } from "../services/xlsxImport";
 import { handleExportItemsXlsx, handleExportSelectedItemsXlsx } from "../services/xlsxExport";
@@ -128,8 +130,15 @@ async function canCreateItemsFor(req: { userRole?: string; userId?: string }, ev
   return !!ev && ev.createdBy === req.userId;
 }
 
-/** Mensagem única do bloqueio — a mesma frase nas cinco portas de entrada. */
+/** Bloqueio por encerramento À MÃO — esse tem volta, então a frase oferece. */
 export const EVENTO_ENCERRADO_ERRO = "Evento encerrado — reabra o evento para adicionar peças.";
+
+/**
+ * Bloqueio por o evento JÁ TER ACONTECIDO. Aqui não existe "reabrir": a data
+ * passou. Oferecer uma ação que não existe é pior do que negar.
+ */
+export const EVENTO_REALIZADO_ERRO =
+  "Este evento já aconteceu — não é possível adicionar peças a ele.";
 
 /**
  * Evento ENCERRADO à mão não recebe peça nova.
@@ -144,8 +153,20 @@ export const EVENTO_ENCERRADO_ERRO = "Evento encerrado — reabra o evento para 
  * Prazos e fora das filas de Arte/Gráfica/Atendimento (que agora filtram o
  * evento encerrado), isto é, invisível para quem teria de fazê-la.
  */
-function eventoEncerrado(event: { status?: string | null } | null | undefined): boolean {
-  return event?.status === EVENT_CLOSED_STATUS;
+function motivoEventoFechado(
+  event: { status?: string | null; startDate?: string | Date | null; manuallyClosed?: boolean | null } | null | undefined,
+): EventoFinalizadoMotivo | null {
+  // Fonte ÚNICA: o mesmo predicado que a Gestão de Prazos e as cinco filas
+  // usam. Antes daqui só o encerramento manual barrava, então dava para
+  // cadastrar peça num evento do mês passado — e ela nascia invisível
+  // exatamente como a de um evento encerrado à mão, porque as filas também
+  // escondem evento já realizado.
+  return motivoEventoFinalizado(event, todayBusinessMs());
+}
+
+/** Cada motivo tem a sua frase: encerrado tem volta, realizado não tem. */
+function erroEventoFechado(motivo: EventoFinalizadoMotivo): string {
+  return motivo === "encerrado" ? EVENTO_ENCERRADO_ERRO : EVENTO_REALIZADO_ERRO;
 }
 
 // Enriquece uma lista de itens com { event, sponsors } fazendo apenas 4 queries
@@ -483,9 +504,11 @@ export function registerItemRoutes(app: Express): void {
         return res.status(404).json({ error: "Evento não encontrado" });
       }
       
-      // Encerramento manual vem ANTES do ramo de "completed": ver eventoEncerrado.
-      if (eventoEncerrado(event)) {
-        return res.status(409).json({ error: EVENTO_ENCERRADO_ERRO });
+      // Evento fechado (à mão OU já realizado) vem ANTES do ramo de
+      // "completed": ver motivoEventoFechado.
+      const fechadoAvulsa = motivoEventoFechado(event);
+      if (fechadoAvulsa) {
+        return res.status(409).json({ error: erroEventoFechado(fechadoAvulsa) });
       }
 
       // Check if event was completed - if so, reset priority and require re-definition
@@ -550,8 +573,9 @@ export function registerItemRoutes(app: Express): void {
       }
       // Mesma trava do POST unitário — sem ela o lote era o caminho aberto para
       // pendurar peça num evento encerrado.
-      if (eventoEncerrado(await storage.getEvent(itemsData[0]?.eventId))) {
-        return res.status(409).json({ error: EVENTO_ENCERRADO_ERRO });
+      const fechadoLote = motivoEventoFechado(await storage.getEvent(itemsData[0]?.eventId));
+      if (fechadoLote) {
+        return res.status(409).json({ error: erroEventoFechado(fechadoLote) });
       }
 
       // Validate all items
@@ -629,8 +653,9 @@ export function registerItemRoutes(app: Express): void {
     }
     // A planilha é a porta que entra mais peça de uma vez — bloquear aqui, no
     // wrapper que já faz o gate de papel, evita 200 peças invisíveis.
-    if (eventoEncerrado(await storage.getEvent(req.params.id))) {
-      return res.status(409).json({ error: EVENTO_ENCERRADO_ERRO });
+    const fechadoImport = motivoEventoFechado(await storage.getEvent(req.params.id));
+    if (fechadoImport) {
+      return res.status(409).json({ error: erroEventoFechado(fechadoImport) });
     }
     return handleConfirmImport(req, res);
   });
@@ -645,8 +670,9 @@ export function registerItemRoutes(app: Express): void {
       const targetEvent = await storage.getEvent(req.params.id);
       if (!targetEvent) return res.status(404).json({ error: "Evento destino não encontrado" });
       // Clonar é criar peça — a quarta porta, e a que traz a lista inteira.
-      if (eventoEncerrado(targetEvent)) {
-        return res.status(409).json({ error: EVENTO_ENCERRADO_ERRO });
+      const fechadoClone = motivoEventoFechado(targetEvent);
+      if (fechadoClone) {
+        return res.status(409).json({ error: erroEventoFechado(fechadoClone) });
       }
 
       const { sourceEventId } = req.body as { sourceEventId: string };
@@ -1077,8 +1103,9 @@ export function registerItemRoutes(app: Express): void {
       if (!event) return res.status(404).json({ error: "Evento não encontrado" });
       // Complemento é peça NOVA na fila da Gráfica. Num evento encerrado ela
       // nasceria invisível — a fila não a mostraria e ninguém a produziria.
-      if (eventoEncerrado(event)) {
-        return res.status(409).json({ error: EVENTO_ENCERRADO_ERRO });
+      const fechadoComplemento = motivoEventoFechado(event);
+      if (fechadoComplemento) {
+        return res.status(409).json({ error: erroEventoFechado(fechadoComplemento) });
       }
 
       // Dedupe de 60 s (duplo clique / retry de rede): devolve 200 com o

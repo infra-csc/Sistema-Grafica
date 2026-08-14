@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FilterSelect } from "@/components/filter-select";
 import {
   Calendar, Package, FileCheck, Plus, Activity, Search, Truck, Clock,
@@ -166,6 +166,49 @@ function cutoff(p: string): Date | null {
 }
 
 const PAGE_SIZES = [25, 50, 100];
+
+/* ── Completar a trilha ─────────────────────────────────────────────────────
+   A tela recebia os 500 registros mais recentes do sistema INTEIRO e montava o
+   resto da lista reconstruindo linhas a partir de carimbos de data das tabelas
+   de eventos e peças. Carimbo é data, não é gente: 4.287 das 4.755 linhas
+   apareciam sem autor não porque o autor se perdeu, mas porque aquela linha
+   nunca foi um registro. O teto era a causa.
+
+   O conserto NÃO é aumentar o teto (isso só empurra a primeira carga para
+   cima). A primeira página continua sendo exatamente a de hoje — mesmos 500,
+   mesma URL, mesmo cache, mesma latência até a tela pintar. A partir daí, em
+   segundo plano, a tela caminha para trás por CURSOR e vai completando a
+   trilha. Cada página que chega converte linhas reconstruídas em registros com
+   autor, e a faixa de confiança mostra o número descendo.
+
+   Por que 1.000 por página: com 500 seriam o dobro de idas ao servidor para o
+   mesmo volume, e com o teto de 2.000 da rota cada resposta passa de meio mega
+   — tempo demais parada antes de a lista incorporar qualquer coisa.
+
+   Por que existe TETO: a tabela só cresce e nunca é limpa. Sem um limite, em
+   dois anos esta tela tentaria trazer o banco inteiro para a memória do
+   navegador. Ao bater no teto a tela para e volta a dizer, com número, de que
+   data em diante a trilha é confiável — que é o que a faixa amarela já fazia. */
+const PAGINA_TRILHA = 1000;
+const TETO_TRILHA = 20000;
+
+/* As páginas já caminhadas sobrevivem a sair da tela e voltar (até a coleta do
+   react-query levá-las, por não terem observador — aí o caminhamento recomeça,
+   que é o comportamento certo depois de minutos fora).
+   A chave NÃO começa com "/api/audit-logs" de propósito: as invalidações do app
+   e do WebSocket casam por elemento do array, e um cache com aquele prefixo
+   seria invalidado e o react-query tentaria buscá-lo pela URL montada com as
+   partes da chave — que não existe. Aqui é um depósito inerte: ninguém o
+   consulta com useQuery, e `queryClient.clear()` (logout) o apaga junto. */
+const CACHE_TRILHA = ["historico", "paginas-anteriores"] as const;
+
+interface TrilhaCaminhada {
+  logs: any[];
+  /** De onde continuar. `null` = a trilha acabou. */
+  cursor: string | null;
+  esgotado: boolean;
+}
+
 /* ── Autoria: três buckets, não um ──────────────────────────────────────────
    O filtro tinha UM balde chamado "Sem autor registrado" e nele caíam 4.287 de
    4.755 linhas — a leitura inevitável era "o sistema não sabe quem fez 90% das
@@ -603,12 +646,15 @@ export default function Historico() {
 
   const eventsQ = useQuery<any[]>({ queryKey: ["/api/events"] });
   const itemsQ  = useQuery<any[]>({ queryKey: ["/api/items"] });
-  // Chave em DUAS partes (mesmo padrão de solicitacao.tsx): o payload precisa
-  // do ?withTotal=1 para a tela saber que a trilha está truncada nos 500 mais
-  // recentes, mas `invalidateQueries(["/api/audit-logs"])` casa por ELEMENTO do
-  // array — com a querystring colada na primeira posição, nenhuma das
-  // invalidações do app (nem a do WebSocket) alcançaria este cache.
-  const logsQ = useQuery<{ logs: any[]; total: number }>({
+  // PRIMEIRA página da trilha — os 500 mais recentes, exatamente como antes. O
+  // ?withTotal=1 traz junto o count real da tabela (quantas páginas ainda
+  // faltam) e o cursor da próxima; as anteriores são caminhadas depois.
+  // Chave em DUAS partes (mesmo padrão de solicitacao.tsx): a querystring
+  // precisa ficar fora do primeiro elemento porque
+  // `invalidateQueries(["/api/audit-logs"])` casa por ELEMENTO do array — com
+  // ela colada na primeira posição, nenhuma das invalidações do app (nem a do
+  // WebSocket) alcançaria este cache.
+  const logsQ = useQuery<{ logs: any[]; total: number; nextCursor: string | null }>({
     queryKey: ["/api/audit-logs", "?withTotal=1"],
   });
 
@@ -618,7 +664,32 @@ export default function Historico() {
   // laço infinito ("Too many re-renders").
   const events = eventsQ.data ?? VAZIO;
   const items = itemsQ.data ?? VAZIO;
-  const auditLogs = logsQ.data?.logs ?? VAZIO;
+
+  // As páginas anteriores NÃO entram na chave ["/api/audit-logs", "?withTotal=1"]:
+  // ela é compartilhada com a tela de Logs do Sistema, e escrever a trilha
+  // inteira ali faria aquela tela (que pagina sobre os 500 e diz "500 de N")
+  // passar a mostrar outra coisa. Ficam num depósito próprio, que sobrevive a
+  // sair do Histórico e voltar — sem ele, cada visita recomeçaria o
+  // caminhamento do zero e rebaixaria dezenas de milhares de registros.
+  const queryClient = useQueryClient();
+  const caminhado = queryClient.getQueryData<TrilhaCaminhada>(CACHE_TRILHA);
+  const [paginasSeguintes, setPaginasSeguintes] = useState<any[]>(() => caminhado?.logs ?? []);
+  const [completando, setCompletando] = useState(false);
+  const [tetoAtingido, setTetoAtingido] = useState(false);
+
+  const primeiraPagina = logsQ.data?.logs ?? VAZIO;
+  // Concatenar preserva a ordem decrescente (as páginas seguintes são sempre
+  // ANTERIORES à primeira) — de que o motor da timeline depende para decidir
+  // qual é o primeiro log de cada entidade. A deduplicação por id existe porque
+  // gravações novas empurram a janela dos 500 para frente: uma linha que estava
+  // na primeira página quando o caminhamento começou pode reaparecer na página
+  // seguinte depois de um refetch.
+  const auditLogs = useMemo(() => {
+    if (paginasSeguintes.length === 0) return primeiraPagina;
+    const naPrimeira = new Set(primeiraPagina.map((l: any) => l.id));
+    return primeiraPagina.concat(paginasSeguintes.filter((l: any) => !naPrimeira.has(l.id)));
+  }, [primeiraPagina, paginasSeguintes]);
+
   const logsTotal = logsQ.data?.total ?? auditLogs.length;
   const isTruncated = logsTotal > auditLogs.length;
 
@@ -691,6 +762,89 @@ export default function Historico() {
     setDisplayed(sorted);
     eventsQ.refetch(); itemsQ.refetch(); logsQ.refetch();
   }, [sorted, eventsQ, itemsQ, logsQ]);
+
+  /* ── Caminhamento para trás, em segundo plano ────────────────────────────
+     Começa só depois de a primeira página ter chegado — é o que garante que a
+     tela pinta no mesmo tempo de antes. Daí em diante pede as anteriores, uma
+     de cada vez, até esgotar a trilha ou bater no teto.
+
+     O estado do caminhamento fica em refs e não em estado de render por dois
+     motivos: (1) o laço roda dentro de um efeito e precisa ler o valor ATUAL,
+     não o congelado na criação da closure; (2) um refetch da primeira página
+     (WebSocket, botão Atualizar) reexecuta este efeito, e as refs são o que
+     faz o caminhamento CONTINUAR de onde parou em vez de recomeçar do topo e
+     baixar tudo de novo.
+
+     Só existe caminho de ida: `audit_logs` é append-only (não há rota que
+     apague log), então página velha não muda e o que já veio continua válido
+     depois de qualquer atualização. */
+  // `acumuladoRef` é a fonte única do que já foi caminhado: o estado de render,
+  // o depósito e a contagem para o teto saem todos dele. Guardar o acumulado
+  // dentro do atualizador de estado obrigaria a gravar o depósito lá dentro —
+  // e atualizador de estado com efeito colateral roda duas vezes em modo
+  // estrito e gravaria a página em dobro.
+  const acumuladoRef = useRef<any[]>(caminhado?.logs ?? []);
+  const cursorRef = useRef<string | null>(caminhado?.cursor ?? null);
+  const esgotadoRef = useRef(caminhado?.esgotado ?? false);
+  const andandoRef = useRef(false);
+  const proximoCursor = logsQ.data?.nextCursor ?? null;
+
+  useEffect(() => {
+    // `isLoading` e não só a chegada da primeira página: /api/items é a consulta
+    // mais pesada da tela e costuma terminar por último. Começar a caminhar
+    // enquanto ela ainda está no ar poria as páginas anteriores disputando banda
+    // com o que falta para a tela PINTAR — trocaria a trilha completa por uma
+    // primeira carga mais lenta, que é justamente o que não pode acontecer.
+    if (isLoading) return;
+    if (!proximoCursor || esgotadoRef.current || andandoRef.current) return;
+    let vivo = true;
+    const ctrl = new AbortController();
+    andandoRef.current = true;
+    setCompletando(true);
+
+    (async () => {
+      let cursor: string | null = cursorRef.current ?? proximoCursor;
+      try {
+        while (vivo && cursor) {
+          if (acumuladoRef.current.length >= TETO_TRILHA) {
+            setTetoAtingido(true);
+            break;
+          }
+          const res = await fetch(
+            `/api/audit-logs?paged=1&limit=${PAGINA_TRILHA}&cursor=${encodeURIComponent(cursor)}`,
+            { credentials: "include", signal: ctrl.signal },
+          );
+          if (!res.ok) break;
+          const corpo: { logs: any[]; nextCursor: string | null } = await res.json();
+          if (!vivo) break;
+          cursor = corpo.nextCursor;
+          cursorRef.current = cursor;
+          acumuladoRef.current = acumuladoRef.current.concat(corpo.logs);
+          queryClient.setQueryData<TrilhaCaminhada>(CACHE_TRILHA, {
+            logs: acumuladoRef.current, cursor, esgotado: !cursor,
+          });
+          // Completar a trilha NÃO é novidade: sem isto, cada página anterior
+          // que chega dispara a pílula "N novas atividades" e pede ao usuário
+          // que atualize para ver um passado que ele não pediu para congelar.
+          adoptNextRef.current = true;
+          setPaginasSeguintes(acumuladoRef.current);
+        }
+        if (vivo && !cursor) esgotadoRef.current = true;
+      } catch {
+        // Rede caiu ou a tela saiu no meio: a trilha fica no que já chegou e a
+        // faixa de confiança continua dizendo, com data, até onde ela vai.
+      } finally {
+        andandoRef.current = false;
+        if (vivo) setCompletando(false);
+      }
+    })();
+
+    // `andandoRef` volta a false JÁ no desmonte, e não só quando o laço abortado
+    // percebe: em modo estrito o efeito é recriado no mesmo tique, e esperar
+    // pelo `finally` do laço antigo faria o novo desistir por achar que já há um
+    // caminhamento em curso — o recurso ficaria desligado sem nenhum sintoma.
+    return () => { vivo = false; andandoRef.current = false; ctrl.abort(); };
+  }, [proximoCursor, isLoading, queryClient]);
 
   // "Atualizado há X" precisa reescrever sozinho; sem o tick ele congelava em
   // "há menos de um minuto" pelo resto da sessão.
@@ -904,8 +1058,12 @@ export default function Historico() {
      CSV parcial passa por completo em qualquer análise posterior. */
   const exportarCsv = () => {
     const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    // O aviso vale tanto para a trilha que bateu no teto quanto para a que
+    // ainda está se completando: exportar no meio do caminhamento produz um
+    // arquivo tão parcial quanto o antigo, e sem a linha ele passaria por
+    // completo em qualquer análise posterior.
     const aviso = isTruncated
-      ? [[`AVISO: trilha parcial — esta consulta carregou os ${auditLogs.length} registros mais recentes de ${logsTotal} no sistema${oldestLoaded ? ` (a partir de ${format(oldestLoaded, "dd/MM/yyyy HH:mm", { locale: ptBR })})` : ""}`]]
+      ? [[`AVISO: trilha parcial — esta consulta carregou os ${auditLogs.length} registros mais recentes de ${logsTotal} no sistema${completando ? " e ainda estava carregando as páginas anteriores" : ""}${oldestLoaded ? ` (a partir de ${format(oldestLoaded, "dd/MM/yyyy HH:mm", { locale: ptBR })})` : ""}`]]
       : [];
     // "Realizado por" sozinho mentia por omissão no arquivo: um traço podia ser
     // reconstrução, ação automática ou registro sem autor, e quem abre o CSV
@@ -1269,21 +1427,37 @@ export default function Historico() {
       {/* ── Faixa de confiança da trilha ──
           O teto de 500 do servidor era invisível e o rodapé chamava tudo de
           "registros": paginando para trás sobravam só criações e entregas, sem
-          que nada na tela dissesse que o resto simplesmente não foi consultado. */}
-      {(isTruncated || reconstruidas > 0) && (
-        <div style={{
-          display: "flex", alignItems: "flex-start", gap: 8,
-          padding: "10px 14px", marginBottom: 16,
-          backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8,
-          fontSize: 12, color: "#b45309", fontWeight: 600, lineHeight: 1.5,
-        }}>
-          <Clock aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
+          que nada na tela dissesse que o resto simplesmente não foi consultado.
+          Agora a trilha se completa sozinha, e a faixa deixou de ser só um
+          aviso: enquanto as páginas anteriores chegam, ela é o progresso. */}
+      {(isTruncated || completando || reconstruidas > 0) && (
+        <div
+          data-testid="faixa-confianca-historico"
+          style={{
+            display: "flex", alignItems: "flex-start", gap: 8,
+            padding: "10px 14px", marginBottom: 16,
+            backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8,
+            fontSize: 12, color: "#b45309", fontWeight: 600, lineHeight: 1.5,
+          }}
+        >
+          {completando ? (
+            <RefreshCw aria-hidden="true" className="animate-spin" style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
+          ) : (
+            <Clock aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
+          )}
           <span>
-            {isTruncated && (
+            {completando && (
+              <>
+                Completando a trilha — {auditLogs.length.toLocaleString("pt-BR")} de{" "}
+                {logsTotal.toLocaleString("pt-BR")} registros já carregados.{" "}
+              </>
+            )}
+            {!completando && isTruncated && (
               <>
                 Trilha completa a partir de{" "}
                 {oldestLoaded ? format(oldestLoaded, "d 'de' MMMM 'de' yyyy", { locale: ptBR }) : "—"}.
-                {" "}Registros anteriores não estão nesta consulta ({logsTotal.toLocaleString("pt-BR")} no total).{" "}
+                {" "}Registros anteriores não estão nesta consulta ({logsTotal.toLocaleString("pt-BR")} no total
+                {tetoAtingido ? `, teto de ${TETO_TRILHA.toLocaleString("pt-BR")} registros anteriores por consulta` : ""}).{" "}
               </>
             )}
             {reconstruidas > 0 && (

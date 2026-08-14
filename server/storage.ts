@@ -141,6 +141,93 @@ export interface ComplementSummary {
   complementRequestedAt: Date | null;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PAGINAÇÃO DA TRILHA DE AUDITORIA — por CURSOR, não por offset.
+//
+// `audit_logs` só cresce e é sempre lida da ponta mais nova para trás. Com
+// OFFSET, o Postgres percorre e descarta as N linhas puladas antes de devolver
+// a página (custo cresce com a profundidade) e, pior, uma gravação nova no topo
+// desloca a janela inteira: quem estava na página 3 ganha uma linha repetida e
+// perde outra. Com keyset — "os próximos N ANTERIORES a (created_at, id)" — o
+// custo por página é constante e a janela não escorrega, porque o ponto de
+// corte é o próprio registro, não uma posição.
+//
+// O par (created_at, id) e não só created_at: dois logs gravados no mesmo
+// instante (a mesma transação grava dois — ver complemento em items.ts) empatam
+// no timestamp, e com empate a ordenação não é total: a paginação pularia ou
+// repetiria exatamente as linhas empatadas. O id desempata.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Ponto de corte de uma página: o ÚLTIMO registro já entregue. */
+export interface AuditLogCursor {
+  createdAt: Date;
+  id: string;
+}
+
+export interface AuditLogQuery {
+  /** Tamanho da página. Ausente = AUDIT_LOGS_DEFAULT_LIMIT. */
+  limit?: number;
+  /** Continuação: devolve só o que é ANTERIOR a este registro. */
+  cursor?: AuditLogCursor | null;
+}
+
+/**
+ * Teto padrão de uma consulta sem paginação explícita.
+ *
+ * Continua 500 de propósito: é o tamanho que as telas que baixam a listagem
+ * inteira sempre receberam, e mudá-lo aqui tornaria toda primeira carga mais
+ * cara de uma vez. Quem quer a trilha completa agora pede as próximas páginas
+ * pelo cursor, depois de a tela já ter pintado.
+ */
+export const AUDIT_LOGS_DEFAULT_LIMIT = 500;
+
+/** Maior página que a rota aceita — evita que `?limit=999999` vire um dump. */
+export const AUDIT_LOGS_MAX_LIMIT = 2000;
+
+/** Normaliza o `limit` recebido de fora: só inteiro positivo dentro do teto. */
+export function clampAuditLogLimit(limit?: number | null): number {
+  if (limit == null || !Number.isFinite(limit)) return AUDIT_LOGS_DEFAULT_LIMIT;
+  const n = Math.floor(limit);
+  if (n <= 0) return AUDIT_LOGS_DEFAULT_LIMIT;
+  return Math.min(n, AUDIT_LOGS_MAX_LIMIT);
+}
+
+/**
+ * Recorte por entidade — o mesmo para a listagem e para a contagem.
+ *
+ * Logs de operações em LOTE gravam entity_id como lista ("id1,id2,id3"). O
+ * match por entityId precisa cobrir também esses registros — senão o histórico
+ * da peça no modal perde as ações em massa. IDs são UUIDs (comprimento fixo,
+ * aleatórios), então LIKE '%id%' não gera falso positivo.
+ */
+function auditLogsFilter(entityType?: string, entityId?: string) {
+  const entityIdMatch = (id: string) =>
+    or(eq(auditLogs.entityId, id), like(auditLogs.entityId, `%${id}%`));
+
+  return entityType && entityId
+      ? and(eq(auditLogs.entityType, entityType), entityIdMatch(entityId))
+    : entityType ? eq(auditLogs.entityType, entityType)
+    : entityId ? entityIdMatch(entityId)
+    : undefined;
+}
+
+/**
+ * "Estritamente anterior a (createdAt, id)" na ordem decrescente da trilha.
+ *
+ * Escrito como `created_at < c OR (created_at = c AND id < i)` e não como
+ * comparação de tupla `(created_at, id) < (c, i)`: a forma expandida deixa o
+ * planejador extrair a faixa `created_at <= c` do IDX_audit_logs_created_at,
+ * que é o índice que existe hoje. A tupla só vira busca indexada com um índice
+ * composto nas duas colunas — que ainda não existe (índice novo é migração).
+ */
+function auditLogsBefore(cursor?: AuditLogCursor | null) {
+  if (!cursor) return undefined;
+  return or(
+    lt(auditLogs.createdAt, cursor.createdAt),
+    and(eq(auditLogs.createdAt, cursor.createdAt), lt(auditLogs.id, cursor.id)),
+  );
+}
+
 export interface IStorage {
   // Events
   getEvent(id: string): Promise<Event | undefined>;
@@ -211,7 +298,7 @@ export interface IStorage {
   deleteDeliveryPhoto(id: string): Promise<boolean>;
   
   // Audit Logs
-  getAuditLogs(entityType?: string, entityId?: string): Promise<AuditLog[]>;
+  getAuditLogs(entityType?: string, entityId?: string, opts?: AuditLogQuery): Promise<AuditLog[]>;
   getAuditLogsCount(entityType?: string, entityId?: string): Promise<number>;
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
   
@@ -1220,68 +1307,35 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Audit Logs
-  async getAuditLogs(entityType?: string, entityId?: string): Promise<AuditLog[]> {
-    // Logs de operações em LOTE gravam entity_id como lista ("id1,id2,id3").
-    // O match por entityId precisa cobrir também esses registros — senão o
-    // histórico da peça no modal perde as ações em massa. IDs são UUIDs
-    // (comprimento fixo, aleatórios), então LIKE '%id%' não gera falso positivo.
-    const entityIdMatch = (id: string) =>
-      or(eq(auditLogs.entityId, id), like(auditLogs.entityId, `%${id}%`));
+  async getAuditLogs(
+    entityType?: string,
+    entityId?: string,
+    opts: AuditLogQuery = {},
+  ): Promise<AuditLog[]> {
+    const limit = clampAuditLogLimit(opts.limit);
+    // `and(...)` com um único filtro devolve o próprio filtro e com nenhum
+    // devolve undefined — é o que dispensa os quatro ramos que este método
+    // tinha (um por combinação de entityType/entityId/cursor).
+    const conditions = and(
+      ...[auditLogsFilter(entityType, entityId), auditLogsBefore(opts.cursor)]
+        .filter((c): c is NonNullable<typeof c> => c !== undefined),
+    );
 
-    // Teto de 500 registros (mais recentes primeiro): a tabela só cresce e a
-    // listagem sem filtro devolvia o histórico INTEIRO em toda carga de tela.
-    // Paginação real (offset/cursor + parâmetro limit na rota) fica para
-    // depois — este teto é o curativo até lá.
-    const MAX_LOGS = 500;
-
-    if (entityType && entityId) {
-      return await db
-        .select()
-        .from(auditLogs)
-        .where(
-          and(
-            eq(auditLogs.entityType, entityType),
-            entityIdMatch(entityId)
-          )
-        )
-        .orderBy(desc(auditLogs.createdAt))
-        .limit(MAX_LOGS);
-    } else if (entityType) {
-      return await db
-        .select()
-        .from(auditLogs)
-        .where(eq(auditLogs.entityType, entityType))
-        .orderBy(desc(auditLogs.createdAt))
-        .limit(MAX_LOGS);
-    } else if (entityId) {
-      return await db
-        .select()
-        .from(auditLogs)
-        .where(entityIdMatch(entityId))
-        .orderBy(desc(auditLogs.createdAt))
-        .limit(MAX_LOGS);
-    }
-
-    return await db
-      .select()
-      .from(auditLogs)
-      .orderBy(desc(auditLogs.createdAt))
-      .limit(MAX_LOGS);
+    const base = db.select().from(auditLogs);
+    return await (conditions ? base.where(conditions) : base)
+      .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
+      .limit(limit);
   }
 
-  // Contagem real da tabela, sem o teto de 500 do getAuditLogs: é o que
-  // permite à tela de logs dizer "últimos 500 de N" em vez de apresentar o
-  // teto como se fosse o total do sistema.
+  // Contagem real da tabela, sem o teto do getAuditLogs: é o que permite à tela
+  // de logs dizer "últimos 500 de N" em vez de apresentar o teto como se fosse
+  // o total do sistema, e ao Histórico saber quando parar de pedir páginas.
+  //
+  // NÃO é chamada a cada página de propósito: `count(*)` sem filtro varre a
+  // tabela inteira, e cobrar essa varredura por página transformaria a leitura
+  // da trilha num custo quadrático. A rota só a executa com ?withTotal=1.
   async getAuditLogsCount(entityType?: string, entityId?: string): Promise<number> {
-    const entityIdMatch = (id: string) =>
-      or(eq(auditLogs.entityId, id), like(auditLogs.entityId, `%${id}%`));
-
-    const conditions =
-      entityType && entityId ? and(eq(auditLogs.entityType, entityType), entityIdMatch(entityId))
-      : entityType ? eq(auditLogs.entityType, entityType)
-      : entityId ? entityIdMatch(entityId)
-      : undefined;
-
+    const conditions = auditLogsFilter(entityType, entityId);
     const base = db.select({ total: sql<number>`count(*)::int` }).from(auditLogs);
     const [row] = conditions ? await base.where(conditions) : await base;
     return row?.total ?? 0;

@@ -92,9 +92,12 @@ export default function LogsSistema() {
   const [page, setPage]               = useState(1);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // ?withTotal=1: além da lista (truncada nos 500 mais recentes pelo teto do
-  // storage), a rota devolve o count REAL da tabela — sem ele o KPI "Total de
-  // registros" apresentava o teto como se fosse o total do sistema.
+  // ?withTotal=1: além da lista (a PRIMEIRA página da trilha — 500 registros,
+  // o tamanho padrão da rota), devolve o count REAL da tabela — sem ele o KPI
+  // "Total de registros" apresentava o tamanho da página como se fosse o total
+  // do sistema. Esta tela fica de propósito na primeira página: quem precisa da
+  // trilha inteira usa o Histórico, que caminha para trás por cursor. A
+  // resposta também traz `nextCursor`, ignorado aqui.
   // Chave em DUAS partes (mesmo padrão de solicitacao.tsx e historico.tsx): o
   // queryFn padrão junta as partes com "/" para montar a URL, mas
   // `invalidateQueries(["/api/audit-logs"])` (mutations + WebSocket) casa por

@@ -542,14 +542,24 @@ export default function Historico() {
   const [displayed, setDisplayed] = useState<TimelineEvent[]>(sorted);
   const [lastSorted, setLastSorted] = useState(sorted);
   const adoptNextRef = useRef(false);
+  // As três fontes chegam em tempos diferentes, e a mais pesada (/api/items,
+  // que traz os logs) costuma ser a última. Sem esta trava o congelamento
+  // valia JÁ NA ABERTURA: a tela adotava as poucas linhas sintéticas dos
+  // eventos, os 445 registros de verdade chegavam depois e viravam "novidade"
+  // — o usuário abria o Histórico com a trilha quase vazia e uma pílula
+  // pedindo para atualizar o que ele nem tinha visto ainda. Congelar só faz
+  // sentido depois que existe uma leitura em curso para proteger.
+  const primeiraCargaCompletaRef = useRef(false);
   if (sorted !== lastSorted) {
     setLastSorted(sorted);
     const shown = new Set(displayed.map(e => e.id));
-    if (adoptNextRef.current || displayed.length === 0 || !sorted.some(e => !shown.has(e.id))) {
+    const aindaMontando = !primeiraCargaCompletaRef.current;
+    if (adoptNextRef.current || aindaMontando || displayed.length === 0 || !sorted.some(e => !shown.has(e.id))) {
       adoptNextRef.current = false;
       setDisplayed(sorted);
     }
   }
+  if (!isLoading) primeiraCargaCompletaRef.current = true;
 
   const pendingCount = useMemo(() => {
     if (displayed === sorted) return 0;
@@ -1000,6 +1010,9 @@ export default function Historico() {
               options={authorOptions}
               searchPlaceholder="Buscar pessoa…" emptyText="Nenhuma pessoa encontrada."
               testId="select-author-filter" triggerStyle={{ minWidth: 168 }}
+              // Último filtro da faixa: ancorado à esquerda, o menu (240px)
+              // nascia além da borda direita da janela e ficava cortado.
+              dropdownAlign="right"
             />
 
             {/* "Limpar" vivia só dentro do vazio por filtro — ou seja, aparecia

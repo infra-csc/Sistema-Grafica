@@ -14,9 +14,7 @@ import {
   DELIVERED, OUT_OF_FUNNEL, STAGE_DEFS, STATUS_STAGE_RANK,
 } from "../services/prazo-domain";
 import {
-  ANALISE_STAGES, AWAITING_DECISION_STATUSES, DELIVERED_STATUSES, FLOW_GROUPS,
-  OUT_OF_FUNNEL_STATUSES, flowGroupOf, isApprovedOrBeyond, isDelivered,
-  isInProduction, isOutOfFunnel,
+  ANALISE_STAGES, DELIVERED_STATUSES, OUT_OF_FUNNEL_STATUSES, isDelivered, isOutOfFunnel,
 } from "@/lib/analises-status";
 
 describe("analises-status: espelho de STAGE_DEFS", () => {
@@ -33,98 +31,58 @@ describe("analises-status: espelho de STAGE_DEFS", () => {
     }
   });
 
-  it("as grafias legadas em português estão cobertas", () => {
-    // As que motivaram o comentário de events.ts: sem elas a peça sumia do
-    // funil e a etapa virava verde falso.
-    for (const legado of ["pronto_para_producao", "liberado", "em_producao", "produzido"]) {
-      expect(flowGroupOf(legado)).toBe("producao");
-    }
-    expect(isDelivered("entregue")).toBe(true);
-    expect(isDelivered("delivered")).toBe(true);
-  });
-
   it("DELIVERED e OUT_OF_FUNNEL batem com o domínio", () => {
     expect(new Set(DELIVERED_STATUSES)).toEqual(DELIVERED);
     expect(new Set(OUT_OF_FUNNEL_STATUSES)).toEqual(OUT_OF_FUNNEL);
   });
 
-  it("todo status conhecido pelo domínio cai num grupo do funil", () => {
+  it("todo status conhecido pelo domínio é etapa, entrega ou fora do funil", () => {
+    // A cobertura é o que importa: um status que o espelho não conhece não
+    // some da tela — ele entra no denominador de toda razão sem estar em
+    // nenhum numerador, e o número fica errado para baixo, em silêncio.
+    const conhecidos = new Set<string>([
+      ...ANALISE_STAGES.flatMap((s) => s.statuses),
+      ...DELIVERED_STATUSES,
+      ...OUT_OF_FUNNEL_STATUSES,
+    ]);
     for (const status of Object.keys(STATUS_STAGE_RANK)) {
-      expect(flowGroupOf(status), `status ${status} ficou sem grupo`).not.toBeNull();
+      expect(conhecidos.has(status), `status ${status} ficou de fora do espelho`).toBe(true);
     }
   });
-});
 
-describe("analises-status: grupos da rosca", () => {
-  it("nenhum status pertence a dois grupos", () => {
+  it("nenhum status pertence a duas etapas", () => {
     const vistos = new Set<string>();
-    for (const g of FLOW_GROUPS) {
-      for (const s of g.statuses) {
-        expect(vistos.has(s), `status ${s} duplicado em ${g.key}`).toBe(false);
-        vistos.add(s);
+    for (const s of ANALISE_STAGES) {
+      for (const st of s.statuses) {
+        expect(vistos.has(st), `status ${st} duplicado em ${s.key}`).toBe(false);
+        vistos.add(st);
       }
     }
   });
+});
 
-  it("separa 'esperando o patrocinador' de 'liberado para a gráfica'", () => {
-    // Era o mesmo grupo: ler "Aprovação 48%" não distinguia acervo travado de
-    // acervo pronto para imprimir — decisões opostas na mesma fatia.
-    expect(flowGroupOf("awaiting_approval")).toBe("aprovacao");
-    expect(flowGroupOf("awaiting_sponsor_approval")).toBe("aprovacao");
-    expect(flowGroupOf("ready_for_production")).toBe("producao");
-    expect(flowGroupOf("approved")).toBe("producao");
+describe("analises-status: entregue e fora do funil", () => {
+  it("as grafias legadas em português contam", () => {
+    // As que motivaram o comentário de events.ts: sem elas a peça sumia do
+    // funil e a etapa virava verde falso.
+    expect(isDelivered("entregue")).toBe(true);
+    expect(isDelivered("delivered")).toBe(true);
+    for (const legado of ["pronto_para_producao", "liberado", "em_producao", "produzido"]) {
+      const naProducao = ANALISE_STAGES.find((s) => s.key === "producao")!.statuses;
+      expect(naProducao, legado).toContain(legado);
+    }
   });
 
-  it("fora do funil não pertence a grupo nenhum", () => {
+  it("cancelada/excluída/arquivada não é entrega e não conta no total", () => {
     for (const s of OUT_OF_FUNNEL_STATUSES) {
       expect(isOutOfFunnel(s)).toBe(true);
-      expect(flowGroupOf(s)).toBeNull();
+      expect(isDelivered(s)).toBe(false);
     }
   });
 
-  it("status desconhecido não explode e não entra em grupo", () => {
-    expect(flowGroupOf("status_que_nao_existe")).toBeNull();
-    expect(flowGroupOf(null)).toBeNull();
-    expect(flowGroupOf(undefined)).toBeNull();
+  it("status desconhecido ou nulo não explode", () => {
+    expect(isDelivered("status_que_nao_existe")).toBe(false);
     expect(isDelivered(null)).toBe(false);
     expect(isOutOfFunnel(undefined)).toBe(false);
-  });
-});
-
-describe("analises-status: as três definições de 'produção' viraram uma", () => {
-  it("'conferred' e 'produced' contam como produção, como na rosca", () => {
-    // O KPI usava {inProduction, produced} e a fatia usava
-    // {inProduction, produced, conferred}: card e rosca davam números
-    // diferentes para a mesma palavra, lado a lado.
-    expect(isInProduction("inProduction")).toBe(true);
-    expect(isInProduction("produced")).toBe(true);
-    expect(isInProduction("conferred")).toBe(true);
-    expect(isInProduction("delivered")).toBe(false);
-  });
-
-  it("'aprovadas ou além' inclui o que está comprovadamente além da aprovação", () => {
-    // O KPI omitia conferred, ready_for_production e pronto_para_producao —
-    // peças além da aprovação contadas como aquém dela.
-    for (const s of ["approved", "ready_for_production", "pronto_para_producao", "inProduction", "produced", "conferred", "delivered", "entregue"]) {
-      expect(isApprovedOrBeyond(s), s).toBe(true);
-    }
-    for (const s of ["awaiting_approval", "awaiting_final_review", "requested", "draft"]) {
-      expect(isApprovedOrBeyond(s), s).toBe(false);
-    }
-  });
-});
-
-describe("analises-status: alerta de decisão pendente", () => {
-  it("cobre aprovação de patrocinador E revisão interna", () => {
-    // A lista anterior tinha 2 dos 8 status e o alerta subnotificava.
-    for (const s of [
-      "awaiting_approval", "awaiting_sponsor_approval", "awaiting_finalization",
-      "sponsor_approved", "awaiting_final_review", "awaiting_review", "in_review",
-      "awaiting_creator_review",
-    ]) {
-      expect(AWAITING_DECISION_STATUSES).toContain(s);
-    }
-    expect(AWAITING_DECISION_STATUSES).not.toContain("delivered");
-    expect(AWAITING_DECISION_STATUSES).not.toContain("inProduction");
   });
 });

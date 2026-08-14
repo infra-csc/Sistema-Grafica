@@ -30,7 +30,6 @@ import {
   Package, Flag, Building2, CheckCircle, ChevronDown, ChevronUp, Clock,
   HelpCircle, Copy, RotateCcw, CalendarPlus, X,
 } from "lucide-react";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Link, useLocation } from "wouter";
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
@@ -2157,55 +2156,75 @@ export default function Eventos() {
                                     </div>
 
                                     {isSelected && (
-                                      <div style={{ flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                                        <Select
+                                      // <select> NATIVO, não o Select do Radix.
+                                      //
+                                      // O Radix aqui travava a tela inteira: ao
+                                      // fechar o modal (Cancelar, X, Esc ou
+                                      // depois de salvar), o trigger soltava a
+                                      // ref, o Select voltava a se declarar
+                                      // controle de formulário e remontava o
+                                      // <select> escondido enquanto o Dialog
+                                      // ainda estava saindo — os dois ficavam
+                                      // montando e desmontando um ao outro até
+                                      // React #185 ("Maximum update depth") e
+                                      // "Erro de renderização" na tela toda.
+                                      // Reproduzido no dev: com o patrocinador
+                                      // desmarcado (sem este campo) o modal
+                                      // fecha limpo; com ele, quebra sempre.
+                                      //
+                                      // Escolher cota é uma lista curta de
+                                      // opção única — o nativo faz isso, é o
+                                      // melhor no celular e não tem ciclo de
+                                      // vida para conflitar com o modal.
+                                      <div style={{ flexShrink: 0, position: 'relative', display: 'inline-flex', alignItems: 'center' }} onClick={e => e.stopPropagation()}>
+                                        <select
                                           value={currentQuota || '_none_'}
-                                          onValueChange={v => {
-                                            const val = v === '_none_' ? '' : v;
+                                          onChange={e => {
+                                            const val = e.target.value === '_none_' ? '' : e.target.value;
                                             setSponsorQuotaMap(prev => {
                                               const n = { ...prev };
                                               if (val) n[sponsor.id] = val; else delete n[sponsor.id];
                                               return n;
                                             });
                                           }}
+                                          data-testid={`quota-select-${sponsor.id}`}
+                                          aria-label={`Cota de ${sponsor.name}`}
+                                          style={{
+                                            appearance: 'none',
+                                            WebkitAppearance: 'none',
+                                            MozAppearance: 'none',
+                                            fontSize: FS.small,
+                                            fontWeight: 700,
+                                            letterSpacing: '0.05em',
+                                            textTransform: 'uppercase',
+                                            borderRadius: R.pill,
+                                            // Borda saturada + fundo tint 50 +
+                                            // texto tom 700: o par auditado da
+                                            // paleta. Antes o texto usava o hex
+                                            // saturado sobre 9% dele mesmo — 4
+                                            // das 6 cotas reprovavam AA em 11px.
+                                            border: `1.5px solid ${quotaOpt ? quotaOpt.dot : '#d8d5d2'}`,
+                                            backgroundColor: quotaOpt ? quotaOpt.bg : '#f0efee',
+                                            color: quotaOpt ? quotaOpt.text : '#44403c',
+                                            height: '28px',
+                                            // Direita maior: a seta desenhada
+                                            // ao lado ocupa esse espaço.
+                                            padding: '0 26px 0 10px',
+                                            minWidth: '96px',
+                                            fontFamily: "'Plus Jakarta Sans', sans-serif",
+                                            boxShadow: 'none',
+                                            cursor: 'pointer',
+                                          }}
                                         >
-                                          <SelectTrigger
-                                            data-testid={`quota-select-${sponsor.id}`}
-                                            aria-label={`Cota de ${sponsor.name}`}
-                                            className="w-auto"
-                                            style={{
-                                              fontSize: FS.small,
-                                              fontWeight: 700,
-                                              letterSpacing: '0.05em',
-                                              textTransform: 'uppercase',
-                                              borderRadius: R.pill,
-                                              // Borda saturada + fundo tint 50 +
-                                              // texto tom 700: o par auditado da
-                                              // paleta. Antes o texto usava o
-                                              // hex saturado sobre 9% dele
-                                              // mesmo — 4 das 6 cotas
-                                              // reprovavam AA em 11px.
-                                              border: `1.5px solid ${quotaOpt ? quotaOpt.dot : '#d8d5d2'}`,
-                                              backgroundColor: quotaOpt ? quotaOpt.bg : '#f0efee',
-                                              color: quotaOpt ? quotaOpt.text : '#44403c',
-                                              height: '28px',
-                                              padding: '0 8px 0 10px',
-                                              minWidth: '96px',
-                                              fontFamily: "'Plus Jakarta Sans', sans-serif",
-                                              boxShadow: 'none',
-                                            }}
-                                          >
-                                            <SelectValue />
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            <SelectItem value="_none_">Sem cota</SelectItem>
-                                            {QUOTA_OPTIONS.map(q => (
-                                              <SelectItem key={q.value} value={q.value} data-testid={`quota-${sponsor.id}-${q.value}`}>
-                                                {q.label}
-                                              </SelectItem>
-                                            ))}
-                                          </SelectContent>
-                                        </Select>
+                                          <option value="_none_">Sem cota</option>
+                                          {QUOTA_OPTIONS.map(q => (
+                                            <option key={q.value} value={q.value}>{q.label}</option>
+                                          ))}
+                                        </select>
+                                        <ChevronDown
+                                          aria-hidden="true"
+                                          style={{ position: 'absolute', right: 8, width: 12, height: 12, pointerEvents: 'none', color: quotaOpt ? quotaOpt.text : '#44403c' }}
+                                        />
                                       </div>
                                     )}
 

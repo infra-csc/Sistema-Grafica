@@ -184,6 +184,7 @@ function evento(over: Partial<any> = {}): any {
     deadlineListaImagens: null,
     deadlineEntregaLayouts: null,
     deadlineAprovacaoLayout: null,
+    deadlineFinalizacao: null,
     deadlineRevisaoLista: null,
     deadlineProducaoGrafica: null,
     ...over,
@@ -348,7 +349,7 @@ describe("gate admin-only", () => {
 // T3/T6/T7/T11/T15 — payload e placar montados de ponta a ponta
 // ═════════════════════════════════════════════════════════════════════════════
 describe("GET /api/prazos — payload e placar", () => {
-  it("T3 — 1 peça esquecida no rascunho trava as 5 etapas, com 39 já na produção", async () => {
+  it("T3 — 1 peça esquecida no rascunho trava TODAS as etapas, com 39 já na produção", async () => {
     cadastrar(evento({ id: "E1" }), ["draft", ...Array(39).fill("ready_for_production")]);
     const p = await pegarPayload();
 
@@ -357,12 +358,12 @@ describe("GET /api/prazos — payload e placar", () => {
     // NENHUMA etapa concluída: a pendência é ACUMULADA, não direta.
     expect(ev.stages.every((s) => s.state !== "done")).toBe(true);
     expect(ev.stages.every((s) => s.pendingCount > 0)).toBe(true);
-    // Direta: 1 na etapa 0, 39 na etapa 4. Simplificar para contagem direta
-    // deixaria as etapas 1..3 verdes com uma peça ainda no rascunho.
+    // Direta: 1 na primeira etapa, 39 na última. Simplificar para contagem
+    // direta deixaria as etapas do meio verdes com uma peça ainda no rascunho.
     expect(ev.stages[0].directCount).toBe(1);
-    expect(ev.stages[4].directCount).toBe(39);
+    expect(ev.stages.at(-1)!.directCount).toBe(39);
     expect(ev.stages[0].pendingCount).toBe(1);
-    expect(ev.stages[4].pendingCount).toBe(40);
+    expect(ev.stages.at(-1)!.pendingCount).toBe(40);
     expect(ev.categoria).toBe("atrasado");
   });
 
@@ -373,7 +374,7 @@ describe("GET /api/prazos — payload e placar", () => {
     const ev = p.events.find((e) => e.id === "VAZIO")!;
     expect(ev.categoria).toBe("semPecas");
     expect(ev.totalItems).toBe(0);
-    expect(ev.stages.map((s) => s.state)).toEqual(Array(5).fill("upcoming"));
+    expect(ev.stages.map((s) => s.state)).toEqual(Array(ev.stages.length).fill("upcoming"));
     expect(ev.pecasEmAtraso).toBe(0);
     expect(ev.piorAtrasoDias).toBe(0);
 
@@ -470,8 +471,37 @@ describe("GET /api/prazos — payload e placar", () => {
     const p = await pegarPayload();
     expect(p.today).toBe(HOJE);
     expect(p.stageMeta.map((m) => m.key))
-      .toEqual(["listaImagens", "layouts", "aprovacao", "revisao", "producao"]);
+      .toEqual(["listaImagens", "layouts", "aprovacao", "finalizacao", "revisao", "producao"]);
     expect(typeof p.generatedAt).toBe("string");
+  });
+
+  it("a Finalização chega ao cliente como etapa própria, com marco de −10", async () => {
+    cadastrar(evento({ id: "FIN" }), ["sponsor_approved"]);
+    const p = await pegarPayload();
+
+    const ev = p.events.find((e) => e.id === "FIN")!;
+    const finalizacao = ev.stages.find((s) => s.key === "finalizacao")!;
+    expect(finalizacao.label).toBe("Finalização");
+    expect(finalizacao.deadline).toBe("2026-08-20"); // saída 30/08 − 10
+    expect(finalizacao.directCount).toBe(1);
+    // A tela deriva os cabeçalhos de stageMeta — a etapa precisa estar nos
+    // DOIS lugares e na mesma posição, senão as colunas saem trocadas.
+    expect(p.stageMeta.map((m) => m.key)).toEqual(ev.stages.map((s) => s.key));
+  });
+
+  it("peça isenta de aprovação viaja com marcoIndex no marco de Aprovação", async () => {
+    // Marco de layouts (−20 → 10/08) já vencido hoje (13/08); o de aprovação
+    // (−12 → 18/08) não. A isenta é cobrada pelo segundo — o evento não entra
+    // no placar de atrasados por causa dela.
+    cadastrar(evento({ id: "ISENTA" }), [{ status: "awaiting_submission", skipApproval: true }]);
+    const p = await pegarPayload();
+
+    const ev = p.events.find((e) => e.id === "ISENTA")!;
+    const idx = (k: string) => ev.stages.findIndex((s) => s.key === k);
+    expect(ev.pendingItems[0].stageIndex).toBe(idx("layouts"));
+    expect(ev.pendingItems[0].marcoIndex).toBe(idx("aprovacao"));
+    expect(ev.stages[idx("layouts")].state).toBe("done");
+    expect(ev.categoria).toBe("emDia");
   });
 
   it("T12 — o servidor devolve os eventos ordenados pela saída mais próxima", async () => {
@@ -981,7 +1011,7 @@ describe("T19 — as três tabelas ausentes", () => {
       atrasados: 1, saidas7d: 0, pecasAtrasadas: 2, emDia: 0, invalidCount: 0, semPecas: 1,
     });
     expect(p.today).toBe(HOJE);
-    expect(p.stageMeta).toHaveLength(5);
+    expect(p.stageMeta).toHaveLength(6);
 
     // Opcionais degradados — e `{}`/`null`, nunca `undefined` (o contrato
     // promete a chave, e o cliente checa presença).

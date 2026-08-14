@@ -158,17 +158,17 @@ describe("cobertura do funil por status", () => {
 });
 
 describe("pendência ACUMULADA — o gate que impede o falso verde", () => {
-  it("uma peça travada na etapa 0 mantém as 5 etapas pendentes", () => {
+  it("uma peça travada na etapa 0 mantém TODAS as etapas pendentes", () => {
     const ev = montar(evento(), [peca({ status: "draft" })]);
-    expect(ev.stages.map((s) => s.pendingCount)).toEqual([1, 1, 1, 1, 1]);
-    expect(ev.stages.map((s) => s.directCount)).toEqual([1, 0, 0, 0, 0]);
+    expect(ev.stages.map((s) => s.pendingCount)).toEqual([1, 1, 1, 1, 1, 1]);
+    expect(ev.stages.map((s) => s.directCount)).toEqual([1, 0, 0, 0, 0, 0]);
     expect(ev.stages.every((s) => s.state !== "done")).toBe(true);
   });
 
   it("etapa anterior limpa fica 'done'; a da peça e as seguintes, não", () => {
     // Peça em "awaiting_approval" = etapa 2. As etapas 0 e 1 estão limpas.
     const ev = montar(evento(), [peca({ status: "awaiting_approval" })]);
-    expect(ev.stages.map((s) => s.pendingCount)).toEqual([0, 0, 1, 1, 1]);
+    expect(ev.stages.map((s) => s.pendingCount)).toEqual([0, 0, 1, 1, 1, 1]);
     expect(ev.stages[0].state).toBe("done");
     expect(ev.stages[1].state).toBe("done");
     expect(ev.stages[2].state).not.toBe("done");
@@ -180,7 +180,7 @@ describe("pendência ACUMULADA — o gate que impede o falso verde", () => {
     const ev = montar(evento(), itens);
     expect(ev.stages[0].pendingCount).toBe(1);
     expect(ev.stages[0].directCount).toBe(1);
-    expect(ev.stages[4].pendingCount).toBe(40);
+    expect(ev.stages.at(-1)!.pendingCount).toBe(40);
   });
 });
 
@@ -404,14 +404,14 @@ describe("computeKpis", () => {
 describe("regressões de fronteira", () => {
   it("marco que vence HOJE não é atraso (diffDays 0 = warning)", () => {
     // Marco de produção (-1, allDays) em 2026-08-13 → saída 2026-08-14.
-    // A peça já está na produção, então as 4 etapas anteriores estão "done"
+    // A peça já está na produção, então as etapas anteriores estão "done"
     // mesmo com marco no passado — é a pendência ACUMULADA decidindo, não a
     // data. O evento é "emDia" com a última etapa vencendo hoje.
     const ev = montar(evento({ truckDepartureDate: "2026-08-14T00:00:00.000Z" }), [peca({ status: "approved" })]);
-    const producao = ev.stages[4];
+    const producao = ev.stages.at(-1)!;
     expect(producao.diffDays).toBe(0);
     expect(producao.state).toBe("warning");
-    expect(ev.stages.slice(0, 4).every((s) => s.state === "done")).toBe(true);
+    expect(ev.stages.slice(0, -1).every((s) => s.state === "done")).toBe(true);
     expect(ev.categoria).toBe("emDia");
   });
 

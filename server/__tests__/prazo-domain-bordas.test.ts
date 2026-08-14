@@ -23,6 +23,7 @@ import {
   spDayMs,
   todayBusinessMs,
   todayBusinessStr,
+  STAGE_DEFS,
   STATUS_STAGE_RANK,
   DELIVERED,
   OUT_OF_FUNNEL,
@@ -193,13 +194,13 @@ describe("T5 — grafias legadas em pt não produzem verde falso", () => {
     const legados = ["pronto_para_producao", "liberado", "em_producao", "produzido"];
     for (const status of legados) {
       const ev = montar(evento(), [peca({ status })]);
-      const producao = ev.stages[4];
+      const producao = ev.stages.at(-1)!;
       expect(producao.directCount, `status ${status}`).toBe(1);
       expect(producao.pendingCount, `status ${status}`).toBe(1);
       expect(producao.state, `status ${status}`).not.toBe("done");
       // E a peça aparece no drill — sem isso o diretor não teria o que cobrar.
       expect(ev.pendingItems.map((it) => it.status)).toEqual([status]);
-      expect(ev.pendingItems[0].stageIndex).toBe(4);
+      expect(ev.pendingItems[0].stageIndex).toBe(STAGE_DEFS.length - 1);
     }
   });
 
@@ -220,10 +221,10 @@ describe("T5 — grafias legadas em pt não produzem verde falso", () => {
     const ev = montar(evento(), [peca({ status: "entregue" }), peca({ status: "draft" })]);
     expect(ev.totalItems).toBe(2);
     expect(ev.deliveredItems).toBe(1);
-    // A entregue NÃO aparece no drill e NÃO engorda o gate: as 5 etapas
+    // A entregue NÃO aparece no drill e NÃO engorda o gate: TODAS as etapas
     // seguram por causa da draft, e o contador é 1 — não 2.
     expect(ev.pendingItems.map((it) => it.status)).toEqual(["draft"]);
-    expect(ev.stages.map((s) => s.pendingCount)).toEqual([1, 1, 1, 1, 1]);
+    expect(ev.stages.map((s) => s.pendingCount)).toEqual(STAGE_DEFS.map(() => 1));
     expect(ev.stages.every((s) => s.state !== "done")).toBe(true);
   });
 });
@@ -242,7 +243,7 @@ describe("T9 — canceladas/excluídas/arquivadas são invisíveis para o placar
     ]);
     expect(ev.totalItems).toBe(2);          // só a draft e a delivered
     expect(ev.deliveredItems).toBe(1);
-    expect(ev.stages[4].pendingCount).toBe(1);
+    expect(ev.stages.at(-1)!.pendingCount).toBe(1);
     expect(ev.pendingItems).toHaveLength(1);
     expect(ev.pendingItems[0].status).toBe("draft");
   });
@@ -275,21 +276,21 @@ describe("T10 — riskCritical: a régua inteira, não só um ponto", () => {
   it("acende com marco a 0, 1 ou 2 dias e 10+ peças no gate", () => {
     for (const dias of [0, 1, 2]) {
       const ev = comMarcoEm(dias, 10);
-      expect(ev.stages[4].diffDays, `marco a ${dias} dias`).toBe(dias);
+      expect(ev.stages.at(-1)!.diffDays, `marco a ${dias} dias`).toBe(dias);
       expect(ev.riskCritical, `marco a ${dias} dias com 10 peças`).toBe(true);
     }
   });
 
   it("NÃO acende com marco a 3 dias — a régua é 0..2", () => {
     const ev = comMarcoEm(3, 30);
-    expect(ev.stages[4].diffDays).toBe(3);
-    expect(ev.stages[4].state).toBe("warning"); // ainda é amarelo, só não é grito
+    expect(ev.stages.at(-1)!.diffDays).toBe(3);
+    expect(ev.stages.at(-1)!.state).toBe("warning"); // ainda é amarelo, só não é grito
     expect(ev.riskCritical).toBe(false);
   });
 
   it("NÃO acende com 9 peças, mesmo com o marco vencendo hoje", () => {
     const ev = comMarcoEm(0, 9);
-    expect(ev.stages[4].pendingCount).toBe(9);
+    expect(ev.stages.at(-1)!.pendingCount).toBe(9);
     expect(ev.riskCritical).toBe(false);
   });
 

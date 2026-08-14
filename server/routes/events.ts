@@ -34,6 +34,7 @@ const EVENT_DEADLINE_LABELS: Record<string, string> = {
   deadlineListaImagens: "Prazo da lista de imagens",
   deadlineEntregaLayouts: "Prazo de entrega dos layouts",
   deadlineAprovacaoLayout: "Prazo de aprovação do layout",
+  deadlineFinalizacao: "Prazo de finalização da arte",
   deadlineRevisaoLista: "Prazo de revisão da lista",
   deadlineProducaoGrafica: "Prazo da produção gráfica",
 };
@@ -171,6 +172,7 @@ interface MarcoDef {
     | "deadlineListaImagens"
     | "deadlineEntregaLayouts"
     | "deadlineAprovacaoLayout"
+    | "deadlineFinalizacao"
     | "deadlineRevisaoLista"
     | "deadlineProducaoGrafica";
   defaultOffset: number;
@@ -200,11 +202,17 @@ const MARCO_DEFS: MarcoDef[] = [
     pendingStatuses: ["awaiting_approval", "awaiting_sponsor_approval"],
   },
   {
+    key: "finalizacao", label: "Finalização",
+    offsetField: "deadlineFinalizacao", defaultOffset: -10, allDays: false,
+    pendingStatuses: [
+      "awaiting_finalization", "sponsor_approved", "awaiting_creator_review",
+    ],
+  },
+  {
     key: "revisao", label: "Revisão de Lista",
     offsetField: "deadlineRevisaoLista", defaultOffset: -8, allDays: false,
     pendingStatuses: [
-      "awaiting_finalization", "sponsor_approved",
-      "awaiting_final_review", "awaiting_review", "in_review", "awaiting_creator_review",
+      "awaiting_final_review", "awaiting_review", "in_review",
     ],
   },
   {
@@ -217,9 +225,23 @@ const MARCO_DEFS: MarcoDef[] = [
   },
 ];
 
-// status → índice do marco em que a peça está travada (0-4).
+// status → índice do marco em que a peça está travada.
 const STATUS_MARCO_RANK: Record<string, number> = {};
 MARCO_DEFS.forEach((m, i) => m.pendingStatuses.forEach((st) => { STATUS_MARCO_RANK[st] = i; }));
+
+const APROVACAO_MARCO_INDEX = MARCO_DEFS.findIndex((m) => m.key === "aprovacao");
+
+// Gêmeo de `marcoIndexFor` (services/prazo-domain.ts): peça isenta da aprovação
+// do patrocinador é cobrada pelo prazo de APROVAÇÃO DE LAYOUT — ela não passa
+// pela etapa de aprovação, então é esse o marco que vale para ela. Sem isto o
+// card do evento apontaria um "próximo marco" diferente do que a Gestão de
+// Prazos cobra para a mesma peça.
+function marcoIndexFor(status: string, skipApproval?: boolean | null): number | undefined {
+  const rank = STATUS_MARCO_RANK[status];
+  if (rank === undefined) return undefined;
+  if (skipApproval && rank < APROVACAO_MARCO_INDEX) return APROVACAO_MARCO_INDEX;
+  return rank;
+}
 
 // Marco da etapa: saída do caminhão + offset, com ajuste de fim de semana
 // quando a etapa não roda em todos os dias (mesma regra do event-detail e de
@@ -236,7 +258,7 @@ function marcoDeadline(truckDay: Date, offsetDays: number, allDays: boolean): Da
 }
 
 export interface NextMilestone {
-  /** Chave estável do marco: listaImagens | layouts | aprovacao | revisao | producao */
+  /** Chave: listaImagens | layouts | aprovacao | finalizacao | revisao | producao */
   key: string;
   /** Rótulo pt-BR pronto para exibição ("Lista de Imagens"). */
   label: string;
@@ -256,15 +278,15 @@ export interface NextMilestone {
 // resolver a seguir. Devolve null quando não há mais nada pendente no funil.
 function nextMilestoneFor(
   event: Record<string, any>,
-  eventItems: { status: string }[],
+  eventItems: { status: string; skipApproval?: boolean | null }[],
   todayMs: number,
 ): NextMilestone | null {
   const funnelItems = eventItems.filter((it) => !OUT_OF_FUNNEL.has(it.status));
 
   const direct = new Array(MARCO_DEFS.length).fill(0);
   for (const it of funnelItems) {
-    const rank = STATUS_MARCO_RANK[it.status];
-    if (rank !== undefined) direct[rank] += 1;
+    const marco = marcoIndexFor(it.status, it.skipApproval);
+    if (marco !== undefined) direct[marco] += 1;
   }
 
   const truckDay = dayUTC(event.truckDepartureDate);

@@ -100,13 +100,14 @@ const DEFAULT_DEADLINES = {
   deadlineListaImagens: -25,
   deadlineEntregaLayouts: -20,
   deadlineAprovacaoLayout: -12,
+  deadlineFinalizacao: -10,
   deadlineRevisaoLista: -8,
   deadlineProducaoGrafica: -1,
 };
 
 type DeadlineField = keyof typeof DEFAULT_DEADLINES;
 
-// Os 5 marcos, na ORDEM da cadeia causal. `key` casa com `nextMilestone.key`
+// Os marcos, na ORDEM da cadeia causal. `key` casa com `nextMilestone.key`
 // do servidor (server/routes/events.ts MARCO_DEFS) — é o que permite pintar a
 // bolinha do card com a cor do marco sem duplicar a conta de prazo.
 const MARCO_FIELDS: {
@@ -120,10 +121,19 @@ const MARCO_FIELDS: {
   { field: 'deadlineListaImagens',   key: 'listaImagens', label: 'Lista de Imagens',    desc: 'Criação dos itens do evento',          color: '#8b5cf6', allDays: false },
   { field: 'deadlineEntregaLayouts', key: 'layouts',      label: 'Entrega de Layouts',  desc: 'Arte entrega os arquivos finais',      color: '#3b82f6', allDays: false },
   { field: 'deadlineAprovacaoLayout',key: 'aprovacao',    label: 'Aprovação de Layout', desc: 'Aprovação pelo patrocinador',          color: '#f59e0b', allDays: false },
+  { field: 'deadlineFinalizacao',    key: 'finalizacao',  label: 'Finalização',         desc: 'Arte anexa o arquivo final da peça',   color: '#14b8a6', allDays: false },
   { field: 'deadlineRevisaoLista',   key: 'revisao',      label: 'Revisão de Lista',    desc: 'Criador revisa e lança todos os itens',color: '#10b981', allDays: false },
   { field: 'deadlineProducaoGrafica',key: 'producao',     label: 'Produção Gráfica',    desc: 'Prazo da gráfica para produzir',       color: '#f97316', allDays: true  },
 ];
 const MARCO_COLOR: Record<string, string> = Object.fromEntries(MARCO_FIELDS.map((m) => [m.key, m.color]));
+
+// Rótulo do botão "Restaurar padrão", DERIVADO dos offsets. Era a lista
+// datilografada "(−25 / −20 / −12 / −8 / −1)": acrescentar um marco deixava o
+// botão mentindo sobre o que ele restaura, sem erro de compilação.
+// U+2212 (menos) e não hífen — é o sinal que o resto da tela usa em fmtOffset.
+const DEFAULT_OFFSETS_LABEL = MARCO_FIELDS
+  .map((m) => `−${Math.abs(DEFAULT_DEADLINES[m.field])}`)
+  .join(' / ');
 
 /** Forma de `event.nextMilestone` — contrato de server/routes/events.ts. */
 interface NextMilestonePayload {
@@ -910,6 +920,7 @@ export default function Eventos() {
     deadlineListaImagens: fd.deadlineListaImagens,
     deadlineEntregaLayouts: fd.deadlineEntregaLayouts,
     deadlineAprovacaoLayout: fd.deadlineAprovacaoLayout,
+    deadlineFinalizacao: fd.deadlineFinalizacao,
     deadlineRevisaoLista: fd.deadlineRevisaoLista,
     deadlineProducaoGrafica: fd.deadlineProducaoGrafica,
   });
@@ -1160,7 +1171,7 @@ export default function Eventos() {
       setPrazosExpanded(true);
       toast({
         title: "Prazos fora de ordem",
-        description: `"${MARCO_FIELDS[first].label}" está antes de "${MARCO_FIELDS[first - 1].label}". Os 5 marcos seguem uma sequência — ajuste antes de salvar.`,
+        description: `"${MARCO_FIELDS[first].label}" está antes de "${MARCO_FIELDS[first - 1].label}". Os ${MARCO_FIELDS.length} marcos seguem uma sequência — ajuste antes de salvar.`,
         variant: "destructive",
       });
       return;
@@ -1207,6 +1218,7 @@ export default function Eventos() {
       deadlineListaImagens: event.deadlineListaImagens ?? DEFAULT_DEADLINES.deadlineListaImagens,
       deadlineEntregaLayouts: event.deadlineEntregaLayouts ?? DEFAULT_DEADLINES.deadlineEntregaLayouts,
       deadlineAprovacaoLayout: event.deadlineAprovacaoLayout ?? DEFAULT_DEADLINES.deadlineAprovacaoLayout,
+      deadlineFinalizacao: event.deadlineFinalizacao ?? DEFAULT_DEADLINES.deadlineFinalizacao,
       deadlineRevisaoLista: event.deadlineRevisaoLista ?? DEFAULT_DEADLINES.deadlineRevisaoLista,
       deadlineProducaoGrafica: event.deadlineProducaoGrafica ?? DEFAULT_DEADLINES.deadlineProducaoGrafica,
     };
@@ -1240,6 +1252,7 @@ export default function Eventos() {
       deadlineListaImagens: event.deadlineListaImagens ?? DEFAULT_DEADLINES.deadlineListaImagens,
       deadlineEntregaLayouts: event.deadlineEntregaLayouts ?? DEFAULT_DEADLINES.deadlineEntregaLayouts,
       deadlineAprovacaoLayout: event.deadlineAprovacaoLayout ?? DEFAULT_DEADLINES.deadlineAprovacaoLayout,
+      deadlineFinalizacao: event.deadlineFinalizacao ?? DEFAULT_DEADLINES.deadlineFinalizacao,
       deadlineRevisaoLista: event.deadlineRevisaoLista ?? DEFAULT_DEADLINES.deadlineRevisaoLista,
       deadlineProducaoGrafica: event.deadlineProducaoGrafica ?? DEFAULT_DEADLINES.deadlineProducaoGrafica,
     };
@@ -2030,7 +2043,7 @@ export default function Eventos() {
                           }}
                         >
                           <RotateCcw style={{ width: 12, height: 12 }} />
-                          Restaurar padrão (−25 / −20 / −12 / −8 / −1)
+                          Restaurar padrão ({DEFAULT_OFFSETS_LABEL})
                         </button>
                       </div>
                     </div>

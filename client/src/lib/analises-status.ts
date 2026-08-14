@@ -41,11 +41,17 @@ export const ANALISE_STAGES: AnaliseStage[] = [
     statuses: ["awaiting_approval", "awaiting_sponsor_approval"],
   },
   {
+    key: "finalizacao",
+    label: "Finalização",
+    statuses: [
+      "awaiting_finalization", "sponsor_approved", "awaiting_creator_review",
+    ],
+  },
+  {
     key: "revisao",
     label: "Revisão de Lista",
     statuses: [
-      "awaiting_finalization", "sponsor_approved",
-      "awaiting_final_review", "awaiting_review", "in_review", "awaiting_creator_review",
+      "awaiting_final_review", "awaiting_review", "in_review",
     ],
   },
   {

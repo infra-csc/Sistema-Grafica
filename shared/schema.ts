@@ -34,6 +34,12 @@ export const events = pgTable("events", {
   deadlineListaImagens: integer("deadline_lista_imagens").default(-25), // Criação dos itens
   deadlineEntregaLayouts: integer("deadline_entrega_layouts").default(-20), // Entrega pela Arte
   deadlineAprovacaoLayout: integer("deadline_aprovacao_layout").default(-12), // Aprovação do patrocinador
+  // DEFAULT no banco (não só no app): `db:push` emite
+  // `ALTER TABLE events ADD COLUMN deadline_finalizacao integer DEFAULT -10`,
+  // e o Postgres preenche as linhas JÁ EXISTENTES com -10 na mesma operação.
+  // É o que atende "colocar em todos os eventos em produção também" sem
+  // UPDATE manual — evento antigo passa a ter o marco preenchido.
+  deadlineFinalizacao: integer("deadline_finalizacao").default(-10), // Arte anexa o arquivo final
   deadlineRevisaoLista: integer("deadline_revisao_lista").default(-8), // Revisão de lista pelo criador
   deadlineProducaoGrafica: integer("deadline_producao_grafica").default(-1), // Produção gráfica
   createdAt: timestamp("created_at").notNull().default(sql`now()`),

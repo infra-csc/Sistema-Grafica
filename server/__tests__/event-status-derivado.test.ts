@@ -290,7 +290,12 @@ describe("evento FUTURO", () => {
     expect(marco("awaiting_linking")).toBe("listaImagens");
     expect(marco("awaiting_submission")).toBe("layouts");
     expect(marco("awaiting_approval")).toBe("aprovacao");
-    expect(marco("awaiting_finalization")).toBe("revisao");
+    // Finalização é etapa PRÓPRIA (a Arte anexando o arquivo final) — os três
+    // caminhos que chegam nela caem no mesmo marco.
+    expect(marco("awaiting_finalization")).toBe("finalizacao");
+    expect(marco("sponsor_approved")).toBe("finalizacao");
+    expect(marco("awaiting_creator_review")).toBe("finalizacao");
+    expect(marco("awaiting_final_review")).toBe("revisao");
     expect(marco("ready_for_production")).toBe("producao");
     // Grafias legadas em pt não podem sumir do funil (etapa virava verde falso).
     expect(marco("awaiting_sponsor_approval")).toBe("aprovacao");
@@ -332,7 +337,7 @@ describe("evento FUTURO", () => {
     });
     const hoje = dia("2026-08-13");
 
-    const revisao = enriquecer(ev, pecas("awaiting_finalization", 1), hoje).nextMilestone;
+    const revisao = enriquecer(ev, pecas("awaiting_final_review", 1), hoje).nextMilestone;
     expect(revisao.key).toBe("revisao");
     expect(revisao.deadline).toBe("2026-08-21");
 

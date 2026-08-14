@@ -56,8 +56,18 @@ export interface PrazoPendingItem {
   id: string;
   displayId: string;
   status: string;
-  /** Etapa calculada no servidor (fonte única status→etapa). */
+  /** Etapa calculada no servidor (fonte única status→etapa) — onde a peça ESTÁ. */
   stageIndex: number;
+  /**
+   * Índice do MARCO que mede o prazo desta peça — o que decide se ela está
+   * atrasada. Igual a `stageIndex` no caso normal.
+   *
+   * Difere na peça isenta da aprovação do patrocinador (`items.skipApproval`):
+   * ela não passa pela etapa de aprovação, então o marco que vale para ela é a
+   * Aprovação de Layout — quem não precisa de aprovação tem que estar pronto
+   * até lá. É por `marcoIndex` que `stages[].pendingCount` conta.
+   */
+  marcoIndex: number;
   type: string;
   description: string | null;
   quantity: number;

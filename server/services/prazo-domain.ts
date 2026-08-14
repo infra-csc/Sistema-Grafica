@@ -1,6 +1,6 @@
 // Domínio da Gestão de Prazos — regra de negócio PURA, sem Express e sem I/O.
 //
-// PORQUÊ este arquivo existe: a regra inteira do produto (o funil de 5 etapas,
+// PORQUÊ este arquivo existe: a regra inteira do produto (o funil de etapas,
 // a pendência acumulada, a âncora de fuso, o semáforo) morava dentro de um
 // handler Express de 270 linhas — impossível de testar sem subir servidor e
 // banco. Aqui ela é uma função pura sobre estruturas simples; a rota fica só
@@ -34,6 +34,7 @@ export interface StageDef {
     | "deadlineListaImagens"
     | "deadlineEntregaLayouts"
     | "deadlineAprovacaoLayout"
+    | "deadlineFinalizacao"
     | "deadlineRevisaoLista"
     | "deadlineProducaoGrafica";
   defaultOffset: number;
@@ -62,11 +63,26 @@ export const STAGE_DEFS: StageDef[] = [
     pendingStatuses: ["awaiting_approval", "awaiting_sponsor_approval"],
   },
   {
+    // A Arte anexando o arquivo final da peça. Era a metade da frente da
+    // "Revisão de Lista" e não tinha marco próprio: a peça aprovada no dia -12
+    // podia ficar 4 dias sem arquivo final e só acender vermelho no -8, junto
+    // com a revisão do criador, que nem começou. Os três status são o mesmo
+    // trabalho por três caminhos — `sponsor_approved` (aprovação normal),
+    // `awaiting_creator_review` (peça isenta de aprovação, ver items.ts:1335)
+    // e `awaiting_finalization` (grafia legada). O cliente já os rotula todos
+    // como "Aguardando Finalização" (client/src/lib/status.ts) e a Arte já os
+    // atende na mesma aba ("finalizar-layouts", client/src/lib/arte-rules.ts).
+    key: "finalizacao", label: "Finalização",
+    offsetField: "deadlineFinalizacao", defaultOffset: -10, allDays: false,
+    pendingStatuses: [
+      "awaiting_finalization", "sponsor_approved", "awaiting_creator_review",
+    ],
+  },
+  {
     key: "revisao", label: "Revisão de Lista",
     offsetField: "deadlineRevisaoLista", defaultOffset: -8, allDays: false,
     pendingStatuses: [
-      "awaiting_finalization", "sponsor_approved",
-      "awaiting_final_review", "awaiting_review", "in_review", "awaiting_creator_review",
+      "awaiting_final_review", "awaiting_review", "in_review",
     ],
   },
   {
@@ -91,10 +107,39 @@ export const STAGE_META = STAGE_DEFS.map((d) => ({ key: d.key, label: d.label })
 // "entregue" é a grafia legada de delivered — conta como pronta, não pendente.
 export const DELIVERED = new Set(["delivered", "entregue"]);
 
-// status → índice da etapa em que a peça está travada (0-4).
+// status → índice da etapa em que a peça está travada.
 // Fora do mapa = já passou por tudo (delivered) ou está fora do funil.
 export const STATUS_STAGE_RANK: Record<string, number> = {};
 STAGE_DEFS.forEach((s, i) => s.pendingStatuses.forEach((st) => { STATUS_STAGE_RANK[st] = i; }));
+
+/** Índice da Aprovação de Layout — o marco que cobra a peça isenta de aprovação. */
+export const APROVACAO_STAGE_INDEX = STAGE_DEFS.findIndex((s) => s.key === "aprovacao");
+
+/**
+ * Marco que MEDE o prazo de uma peça — nem sempre é a etapa em que ela está.
+ *
+ * REGRA DO DONO: peça marcada para pular a aprovação do patrocinador
+ * (`items.skipApproval`) é cobrada pelo prazo de APROVAÇÃO DE LAYOUT. Ela não
+ * passa pela etapa de aprovação — o fluxo manda `awaiting_submission` direto
+ * para `awaiting_creator_review` (server/routes/items.ts:1335) — então o marco
+ * que vale para ela é a data de aprovação: quem não precisa de aprovação tem
+ * que estar pronto até lá.
+ *
+ * CONSEQUÊNCIA ACEITA: enquanto está numa etapa ANTERIOR à aprovação, a peça
+ * isenta sai da contagem daquelas etapas — a Lista de Imagens não fica vermelha
+ * por causa dela, a Aprovação fica. É a folga que o dono escolheu dar em troca
+ * de um único marco cobrando essas peças.
+ *
+ * `stageIndex` (onde a peça ESTÁ, e portanto de quem é a bola) continua o de
+ * `STATUS_STAGE_RANK`: quem atribui setor no resumo de gargalos precisa da
+ * etapa real, não do marco.
+ */
+export function marcoIndexFor(status: string, skipApproval?: boolean | null): number | undefined {
+  const rank = STATUS_STAGE_RANK[status];
+  if (rank === undefined) return undefined;
+  if (skipApproval && rank < APROVACAO_STAGE_INDEX) return APROVACAO_STAGE_INDEX;
+  return rank;
+}
 
 // Cancelada/excluída/arquivada não conta como pendência nem como total.
 export const OUT_OF_FUNNEL = new Set(["canceled", "deleted", "archived"]);
@@ -173,6 +218,7 @@ export interface DomainEvent {
   deadlineListaImagens?: number | null;
   deadlineEntregaLayouts?: number | null;
   deadlineAprovacaoLayout?: number | null;
+  deadlineFinalizacao?: number | null;
   deadlineRevisaoLista?: number | null;
   deadlineProducaoGrafica?: number | null;
 }
@@ -184,6 +230,8 @@ export interface DomainItem {
   type: string;
   description?: string | null;
   quantity: number;
+  /** Peça isenta da aprovação do patrocinador — muda o marco que a cobra. */
+  skipApproval?: boolean | null;
   updatedAt?: Date | string | null;
   createdAt?: Date | string | null;
 }
@@ -260,13 +308,16 @@ export function buildEventPrazo(
   // A faixa mora em @shared/prazo-dates (fonte única, ver o arquivo).
   const invalidDate = !isPlausibleEventYear(truckDay.getUTCFullYear());
 
-  // Contagem por etapa: direta (travadas AQUI) e acumulada (aqui ou antes).
+  // Contagem por etapa: direta (cobradas AQUI) e acumulada (aqui ou antes).
+  // O índice é o do MARCO que mede a peça (`marcoIndexFor`), não o da etapa em
+  // que ela está: é assim que a peça isenta de aprovação passa a ser cobrada
+  // pelo prazo de Aprovação de Layout em vez do prazo da etapa anterior.
   const directCounts = new Array(STAGE_DEFS.length).fill(0);
   for (const it of eventItems) {
-    const rank = STATUS_STAGE_RANK[it.status];
-    if (rank !== undefined) directCounts[rank] += 1;
+    const marco = marcoIndexFor(it.status, it.skipApproval);
+    if (marco !== undefined) directCounts[marco] += 1;
   }
-  // Evento sem NENHUMA peça: runningPending 0 deixaria as 5 etapas
+  // Evento sem NENHUMA peça: runningPending 0 deixaria todas as etapas
   // "done" — verde falso para um evento em que nada começou. Etapas
   // ficam neutras e o front sinaliza "sem peças cadastradas".
   const noItems = eventItems.length === 0;
@@ -291,8 +342,8 @@ export function buildEventPrazo(
       label: def.label,
       deadline: deadline.toISOString().slice(0, 10),
       diffDays,
-      pendingCount: runningPending,   // travadas aqui OU antes (o gate real)
-      directCount: directCounts[i],   // travadas exatamente nesta etapa
+      pendingCount: runningPending,   // cobradas aqui OU antes (o gate real)
+      directCount: directCounts[i],   // cobradas exatamente por este marco
       state,
     };
   });
@@ -350,6 +401,9 @@ export function buildEventPrazo(
         // Etapa calculada AQUI (fonte única): o front não mantém mais
         // um espelho do mapa status→etapa que podia divergir.
         stageIndex: STATUS_STAGE_RANK[it.status],
+        // Marco que MEDE esta peça. Igual a `stageIndex` no caso normal;
+        // diferente só na peça isenta de aprovação — ver `marcoIndexFor`.
+        marcoIndex: marcoIndexFor(it.status, it.skipApproval) as number,
         type: it.type,
         description: it.description ?? null,
         quantity: it.quantity,

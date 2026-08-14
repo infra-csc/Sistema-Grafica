@@ -25,6 +25,8 @@ import {
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalFooter, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { FilterSelect } from "@/components/filter-select";
+import { ToastAction } from "@/components/ui/toast";
+import { useToast } from "@/hooks/use-toast";
 import { getPriorityMeta, PRIORITY } from "@/lib/status";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { onPrazosInvalidated } from "@/hooks/use-websocket";
@@ -34,22 +36,24 @@ import type {
 import {
   addDaysStr, apiErrorMessage, currentStageIdx, diasTexto, eventHasOverdue,
   fmtDayMonth, fmtRelative, fmtSaida, normalize, pecasTexto, saidaChip,
-  weekdayOfDay, LEGENDA_TRILHA, R, RISCO_TITLE, SCROLLPORT_MAX_H, SHADOW,
-  STAGE_HEADERS, STAGE_SECTOR, STAGE_SHORT, TH_STICKY, TI,
+  weekdayOfDay, LEGENDA_TRILHA, R, SHADOW,
+  STAGE_HEADERS, STAGE_SECTOR, STAGE_SHORT, TI,
 } from "@/components/prazos/tokens";
-import { PrioridadeChip, PrioridadePonto, temChipDePrioridade } from "@/components/prazos/prioridade";
 import { StageCell } from "@/components/prazos/stage-cell";
 import { KpiCard } from "@/components/prazos/kpi-card";
 import { CobradoControl } from "@/components/prazos/cobrado-control";
 import { EventDrilldown } from "@/components/prazos/event-drilldown";
-import { ProgressoPecas } from "@/components/prazos/progresso-pecas";
 import { QuadroCard } from "@/components/prazos/quadro-card";
 import { QuadroColuna } from "@/components/prazos/quadro-coluna";
 import { FilterChip } from "@/components/prazos/filter-chip";
 import { AnaliseBand } from "@/components/prazos/analise-band";
+import { CardMobilePrazos } from "@/components/prazos/card-mobile";
+import { TabelaPrazos } from "@/components/prazos/tabela-prazos";
+import { computeEventosPorEtapa, computeSectorSummary } from "@/components/prazos/gargalos";
 
 export default function GestaoPrazos() {
   const isMobile = useIsMobile();
+  const { toast } = useToast();
 
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery<PrazosPayload>({
     queryKey: ["/api/prazos"],
@@ -229,69 +233,20 @@ export default function GestaoPrazos() {
   // só para o primeiro render sem dado.
   const stageMeta = data?.stageMeta ?? STAGE_HEADERS.map((h) => ({ key: h.key, label: h.full }));
 
-  // Gargalo por setor (cross-evento, sobre o conjunto completo): quantas
-  // peças estão na MESA de cada setor agora. Atribuição pelo dono REAL da
-  // bola, não só pela etapa: aprovação cuja(s) bola(s) estão todas com a
-  // Arte conta na Arte; peça produzida/conferida não é mais "cobrança à
-  // Gráfica produzir" — vira o sub-rótulo "aguardando conferência/entrega".
-  const sectorSummary = useMemo(() => {
-    const acc = stageMeta.map((m) => ({
-      key: m.key,
-      sector: STAGE_SECTOR[m.key]?.sector ?? m.label,
-      stageLabel: m.label,
-      url: STAGE_SECTOR[m.key]?.url ?? null,
-      count: 0,
-      totalDays: 0,
-      maxDays: 0,
-      producedCount: 0,
-      eventIds: new Set<string>(),
-    }));
-    const arteIdx = stageMeta.findIndex((m) => m.key === "layouts");
-    const PRODUCED = new Set(["produced", "conferred", "produzido"]);
-    for (const ev of events) {
-      for (const it of ev.pendingItems) {
-        let idx = it.stageIndex;
-        // Bola de volta com a Arte (reprovação aguardando reenvio).
-        if (stageMeta[idx]?.key === "aprovacao" && arteIdx >= 0
-            && it.sponsors && it.sponsors.length > 0
-            && it.sponsors.every((s) => s.holder === "arte")) {
-          idx = arteIdx;
-        }
-        const s = acc[idx];
-        if (!s) continue;
-        s.count += 1;
-        s.totalDays += it.waitingDays;
-        s.maxDays = Math.max(s.maxDays, it.waitingDays);
-        s.eventIds.add(ev.id);
-        if (stageMeta[idx]?.key === "producao" && PRODUCED.has(it.status)) s.producedCount += 1;
-      }
-    }
-    const worst = acc.reduce((w, s) => (s.count > w ? s.count : w), 0);
-    // Empate em 3+ setores = dia normal distribuído, não gargalo — o
-    // destaque uniforme viraria alarme sem informação.
-    const tied = acc.filter((s) => s.count === worst && worst > 0).length;
-    return acc.map((s) => ({
-      ...s,
-      avgDays: s.count > 0 ? Math.round(s.totalDays / s.count) : 0,
-      eventCount: s.eventIds.size,
-      isWorst: worst > 0 && s.count === worst && tied < 3,
-    }));
-  }, [events, stageMeta]);
+  // Gargalo por setor e eventos por etapa: regra de negócio em
+  // `components/prazos/gargalos.ts` (funções puras, testadas em
+  // server/__tests__/prazo-gargalos.test.ts) — a página só memoiza.
+  const sectorSummary = useMemo(
+    () => computeSectorSummary(events, stageMeta),
+    [events, stageMeta],
+  );
 
   const sponsorDelays = data?.sponsorDelays ?? [];
 
-  // Quantos EVENTOS estão parados em cada etapa (a mesma conta da coluna do
-  // quadro). Não é o mesmo número do card de setor: aquele conta PEÇAS pelo
-  // dono real da bola, este conta EVENTOS pela etapa atual — por isso o botão
-  // do card fala em eventos e não repete o número de peças.
-  const eventosPorEtapa = useMemo(() => {
-    const m = new Map<string, number>();
-    for (const ev of events) {
-      const k = stageMeta[currentStageIdx(ev)]?.key;
-      if (k) m.set(k, (m.get(k) ?? 0) + 1);
-    }
-    return m;
-  }, [events, stageMeta]);
+  const eventosPorEtapa = useMemo(
+    () => computeEventosPorEtapa(events, stageMeta),
+    [events, stageMeta],
+  );
 
   const filtered = useMemo(() => {
     const q = normalize(busca.trim());
@@ -359,6 +314,38 @@ export default function GestaoPrazos() {
     setSoAtrasados(false); setSoSaidas7d(false); setSoSemPecas(false); setSoInvalidos(false);
     setBusca(""); setPrioridade("all"); setEtapaFoco("all"); setDiaFoco("");
   }, []);
+
+  // Esc "no vazio" limpa tudo — mas uma combinação de 3-4 filtros é trabalho
+  // montado à mão, e um Esc distraído jogava tudo fora sem volta. O toast com
+  // "Desfazer" devolve a combinação EXATA anterior.
+  const limparComDesfazer = useCallback(() => {
+    const anterior = {
+      soAtrasados, soSaidas7d, soSemPecas, soInvalidos,
+      busca, prioridade, etapaFoco, diaFoco,
+    };
+    clearFilters();
+    toast({
+      title: "Filtros limpos",
+      action: (
+        <ToastAction
+          altText="Desfazer a limpeza e restaurar os filtros anteriores"
+          onClick={() => {
+            setSoAtrasados(anterior.soAtrasados);
+            setSoSaidas7d(anterior.soSaidas7d);
+            setSoSemPecas(anterior.soSemPecas);
+            setSoInvalidos(anterior.soInvalidos);
+            setBusca(anterior.busca);
+            setPrioridade(anterior.prioridade);
+            setEtapaFoco(anterior.etapaFoco);
+            setDiaFoco(anterior.diaFoco);
+          }}
+        >
+          Desfazer
+        </ToastAction>
+      ),
+    });
+  }, [soAtrasados, soSaidas7d, soSemPecas, soInvalidos, busca, prioridade,
+    etapaFoco, diaFoco, clearFilters, toast]);
 
   // Um chip por filtro ativo, removível — inclusive o "Saídas em 7 dias", que
   // só existia como um anel de 1,5px num KPI fora da barra de filtros.
@@ -440,11 +427,19 @@ export default function GestaoPrazos() {
   const saiuDoPayload = !!detailId && !detailEv && !!modalEv;
   useEffect(() => {
     // Link colado apontando para um evento que não existe mais e do qual nem
-    // temos snapshot: não abre diálogo vazio, só limpa o id — que de quebra
+    // temos snapshot: não abre diálogo vazio, limpa o id — que de quebra
     // impede o modal de REABRIR sozinho caso o evento volte num refetch (o
-    // Radix não chama `onOpenChange` quando é o conteúdo que some).
-    if (data && detailId && !modalEv) setDetailId(null);
-  }, [data, detailId, modalEv]);
+    // Radix não chama `onOpenChange` quando é o conteúdo que some) — e DIZ o
+    // que houve. Antes era silêncio: quem clicou no link do grupo via a tela
+    // abrir sem modal nenhum e concluía que o link estava quebrado.
+    if (data && detailId && !modalEv) {
+      setDetailId(null);
+      toast({
+        title: "Este evento não está mais na gestão de prazos",
+        description: "Ele foi concluído, teve tudo entregue ou já começou.",
+      });
+    }
+  }, [data, detailId, modalEv, toast]);
 
   const tituloModalRef = useRef<HTMLHeadingElement>(null);
 
@@ -453,7 +448,7 @@ export default function GestaoPrazos() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement | null;
-      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      const emCampo = !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
       if (e.metaKey || e.ctrlKey || e.altKey) return;
       // Com o modal aberto TODOS os atalhos da página se calam: o Esc é do
       // Radix (fechar), e o "/" mandaria o foco para a busca ATRÁS do
@@ -461,15 +456,25 @@ export default function GestaoPrazos() {
       // só um pisca-pisca de foco. Limpar filtros por baixo do diálogo
       // também seria uma ação invisível.
       if (modalAberto) return;
+      // Esc em DEGRAUS, do menor gesto para o maior: com um campo focado, o
+      // primeiro Esc só desfoca (dropdowns do Radix já consomem o Esc deles
+      // antes de chegar aqui). Limpar TODOS os filtros — a ação destrutiva —
+      // fica para o Esc "no vazio", e mesmo esse ganha um "Desfazer": uma
+      // combinação de 3-4 filtros é trabalho montado à mão.
+      if (e.key === "Escape") {
+        if (emCampo) { t.blur(); return; }
+        if (hasActiveFilters) limparComDesfazer();
+        return;
+      }
+      if (emCampo) return;
       if (e.key === "/") { e.preventDefault(); buscaRef.current?.focus(); return; }
-      if (e.key === "Escape") { if (hasActiveFilters) clearFilters(); return; }
       if (isMobile) return;
       if (e.key === "q" || e.key === "Q") setVisao("quadro");
       if (e.key === "t" || e.key === "T") setVisao("tabela");
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [modalAberto, hasActiveFilters, clearFilters, isMobile]);
+  }, [modalAberto, hasActiveFilters, limparComDesfazer, isMobile]);
 
   // ── Imprimir pauta ────────────────────────────────────────────────────────
   // O CSS de print existia e o recurso falhava em silêncio: com o quadro como
@@ -547,7 +552,39 @@ export default function GestaoPrazos() {
       </div>
     );
   } else if (isError && !data) {
-    body = (
+    // "Sem permissão" NÃO é falha transitória: a rota é admin-only (403
+    // responde "Acesso negado"; o 401 nem chega aqui — o queryClient já
+    // redireciona para o login). Oferecer "Tentar novamente" a um operador
+    // era um botão que falha para sempre — retry eterno de um erro
+    // determinístico. A mensagem do erro chega traduzida do corpo JSON, então
+    // a detecção é pela frase (com o status ausente do Error, é o que há).
+    const msgErro = apiErrorMessage(error);
+    const semPermissao = /acesso negado|não autenticado/i.test(msgErro);
+    body = semPermissao ? (
+      <div role="alert" style={{
+        backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: R.lg,
+        padding: "36px 24px", textAlign: "center",
+      }}>
+        <AlertTriangle aria-hidden="true" style={{ width: 28, height: 28, color: TI.amber, margin: "0 auto 10px" }} />
+        <p style={{ margin: "0 0 4px", fontSize: 15, fontWeight: 700, color: TI.title }}>
+          Esta tela é do diretor
+        </p>
+        <p style={{ margin: "0 0 16px", fontSize: 13, color: TI.secondary }}>
+          Seu usuário não tem acesso à Gestão de Prazos.
+        </p>
+        <Link
+          href="/"
+          data-testid="link-voltar-painel"
+          style={{
+            display: "inline-flex", padding: "9px 18px", borderRadius: R.md,
+            backgroundColor: TI.ink, color: "#ffffff",
+            fontSize: 13, fontWeight: 700, textDecoration: "none",
+          }}
+        >
+          Ir para o Painel
+        </Link>
+      </div>
+    ) : (
       <div role="alert" style={{
         backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: R.lg,
         padding: "36px 24px", textAlign: "center",
@@ -557,7 +594,7 @@ export default function GestaoPrazos() {
           Não foi possível carregar os prazos
         </p>
         <p style={{ margin: "0 0 16px", fontSize: 13, color: TI.secondary }}>
-          {apiErrorMessage(error)}
+          {msgErro}
         </p>
         <button
           type="button"
@@ -649,114 +686,19 @@ export default function GestaoPrazos() {
       </div>
     );
   } else if (isMobile) {
-    // ── Cards mobile ────────────────────────────────────────────────────────
+    // ── Cards mobile (markup em components/prazos/card-mobile.tsx) ──────────
     body = (
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {filtered.map((ev) => {
-          const chip = saidaChip(ev);
-          const expanded = expandedId === ev.id;
-          return (
-            <div key={ev.id} style={{
-              backgroundColor: TI.card, border: `1px solid ${eventHasOverdue(ev) ? TI.redEdge : TI.border}`,
-              borderRadius: R.lg, padding: 14,
-            }}>
-              <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-                <div style={{ minWidth: 0 }}>
-                  <p style={{
-                    margin: 0, fontSize: 14, fontWeight: 800, color: TI.title,
-                    fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase",
-                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                  }} title={ev.name}>
-                    <PrioridadePonto priority={ev.priority} style={{ marginRight: 6 }} />
-                    {ev.name}
-                  </p>
-                  <p style={{ margin: "4px 0 0", fontSize: 12, color: TI.secondary, display: "flex", alignItems: "center", gap: 5 }}>
-                    <Truck aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} />
-                    Saída: {fmtSaida(ev.truckDepartureDate)}
-                  </p>
-                </div>
-                <span style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                  {/* Urgente/alta como CHIP: no mobile o nome do evento já
-                      compete com o chip de saída, e um ponto de 8px colado à
-                      esquerda dele era a única marca de prioridade da tela. */}
-                  <PrioridadeChip priority={ev.priority} />
-                  <span title={chip.full} style={{
-                    padding: "3px 9px", borderRadius: R.pill,
-                    backgroundColor: chip.bg, color: chip.color,
-                    fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
-                  }}>
-                    {chip.text}
-                  </span>
-                  {ev.riskCritical && (
-                    <span
-                      title={RISCO_TITLE}
-                      style={{
-                        padding: "2px 8px", borderRadius: R.pill, backgroundColor: TI.card,
-                        border: `1px solid ${TI.red}`, color: TI.red,
-                        fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em",
-                      }}
-                    >
-                      risco
-                      {/* O critério também FALADO: `title` é tooltip de mouse,
-                          e este é o alarme mais forte da tela. */}
-                      <span className="sr-only"> — {RISCO_TITLE}</span>
-                    </span>
-                  )}
-                </span>
-              </div>
-
-              {(ev.categoria === "semPecas" || ev.totalItems === 0) && (
-                <p style={{ margin: "10px 0 0", fontSize: 12, fontWeight: 700, color: "#ffffff", backgroundColor: TI.red, borderRadius: R.sm, padding: "3px 9px", display: "inline-block" }}>
-                  Nenhuma peça cadastrada
-                </p>
-              )}
-
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 4, marginTop: 12 }}>
-                {ev.stages.map((s) => (
-                  <div key={s.key} style={{ flex: 1, minWidth: 0, textAlign: "center" }}>
-                    <StageCell stage={s} invalidDate={ev.invalidDate} />
-                    <span style={{ display: "block", fontSize: 10, color: TI.label, marginTop: 2, letterSpacing: "-0.01em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {STAGE_SHORT[s.key] ?? s.label}
-                    </span>
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ marginTop: 12 }}>
-                <ProgressoPecas delivered={ev.deliveredItems} total={ev.totalItems} variant="empilhado" />
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setExpandedId(expanded ? null : ev.id)}
-                aria-expanded={expanded}
-                // aria-controls só quando o alvo existe no DOM (o drill é
-                // renderizado condicionalmente) — referência pendurada é erro de AT.
-                aria-controls={expanded ? `drill-${ev.id}` : undefined}
-                data-testid={`button-expandir-${ev.id}`}
-                className="gp-no-print"
-                style={{
-                  display: "flex", alignItems: "center", gap: 6, marginTop: 12,
-                  padding: "10px 0", width: "100%", justifyContent: "center", minHeight: 44,
-                  background: "none", border: "none", borderTop: `1px solid ${TI.border}`,
-                  fontSize: 12, fontWeight: 700, color: TI.strong, cursor: "pointer",
-                }}
-              >
-                <ChevronDown aria-hidden="true" style={{
-                  width: 15, height: 15,
-                  transform: expanded ? "rotate(180deg)" : "none",
-                  transition: "transform 0.15s ease",
-                }} />
-                {expanded ? "Esconder pendências" : "Ver o que está travando"}
-              </button>
-              {expanded && (
-                <div id={`drill-${ev.id}`}>
-                  <EventDrilldown ev={ev} cobranca={cobrancaEvento(ev.id)} today={today} />
-                </div>
-              )}
-            </div>
-          );
-        })}
+        {filtered.map((ev) => (
+          <CardMobilePrazos
+            key={ev.id}
+            ev={ev}
+            expanded={expandedId === ev.id}
+            onToggle={() => setExpandedId(expandedId === ev.id ? null : ev.id)}
+            cobranca={cobrancaEvento(ev.id)}
+            today={today}
+          />
+        ))}
       </div>
     );
   } else if (visao === "quadro") {
@@ -801,172 +743,17 @@ export default function GestaoPrazos() {
       </div>
     );
   } else {
-    // ── Tabela desktop ──────────────────────────────────────────────────────
-    // maxHeight + overflow auto: o thead sticky precisa de um scrollport —
-    // com 20+ eventos os cabeçalhos das 5 etapas seguem visíveis no scroll.
-    // `gp-scroll` solta esse teto na impressão (o Chromium recortava tudo o
-    // que passasse da primeira dobra).
+    // ── Tabela desktop (markup em components/prazos/tabela-prazos.tsx) ──────
     body = (
-      <div className="gp-scroll" style={{
-        backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: R.lg,
-        // Token compartilhado com as colunas do quadro: o "calc(100vh - 150px)"
-        // que estava aqui era ~160px otimista contra o espaço real acima da
-        // tabela, o que deixava um pedaço dela permanentemente abaixo da dobra
-        // dentro de um scrollport aninhado no scroll da página.
-        overflow: "auto", maxHeight: SCROLLPORT_MAX_H,
-      }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
-          <caption className="sr-only">Eventos ativos, prazos de cada etapa e peças entregues</caption>
-          <thead>
-            <tr>
-              <th scope="col" style={{ ...TH_STICKY, textAlign: "left", paddingLeft: 18, minWidth: 220 }}>Evento</th>
-              <th scope="col" style={{ ...TH_STICKY, textAlign: "left", minWidth: 150 }}>Saída</th>
-              {stageMeta.map((m) => (
-                <th key={m.key} scope="col" style={{ ...TH_STICKY, minWidth: 78 }} title={m.label}>
-                  {STAGE_SHORT[m.key] ?? m.label}
-                </th>
-              ))}
-              <th scope="col" style={{ ...TH_STICKY, minWidth: 110 }}>Entregues</th>
-              <th scope="col" style={{ ...TH_STICKY, width: 46 }}>
-                <span className="sr-only">Detalhes</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((ev) => {
-              const chip = saidaChip(ev);
-              // Na impressão TODOS os atrasados abrem: a pauta da reunião é
-              // justamente a lista de peças, e ela vivia só no expandido.
-              const expanded = expandedId === ev.id || (printMode && eventHasOverdue(ev));
-              const overdue = eventHasOverdue(ev);
-              const semPecas = ev.categoria === "semPecas" || ev.totalItems === 0;
-              return (
-                <Fragment key={ev.id}>
-                  <tr
-                    className="gp-row"
-                    style={{
-                      borderBottom: expanded ? "none" : `1px solid ${TI.rule}`,
-                      backgroundColor: overdue ? TI.redRow : "transparent",
-                    }}
-                  >
-                    <th scope="row" style={{
-                      padding: "12px 8px 12px 18px", verticalAlign: "middle", maxWidth: 320,
-                      textAlign: "left", fontWeight: 400,
-                    }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 7, minWidth: 0 }}>
-                        <PrioridadePonto priority={ev.priority} />
-                        {/* minWidth 0 no flex item: sem ele o ellipsis nunca
-                            dispara e um nome gigante alarga a coluna toda. */}
-                        <Link
-                          href={`/eventos/${ev.id}`}
-                          data-testid={`link-evento-${ev.id}`}
-                          title={ev.name}
-                          style={{
-                            fontSize: 13, fontWeight: 800, color: TI.title, textDecoration: "none",
-                            fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase",
-                            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                            minWidth: 0, flex: "0 1 auto",
-                          }}
-                        >
-                          {ev.name}
-                        </Link>
-                      </div>
-                      <span style={{ display: "block", fontSize: 11, color: TI.label, marginTop: 2 }}>
-                        Início: {fmtSaida(ev.startDate)}
-                      </span>
-                      {/* Selos na TERCEIRA linha, não ao lado do nome: a coluna
-                          tem minWidth 220 e um chip "URGENTE" de ~64px antes do
-                          link comeria justamente o texto que a tela existe para
-                          deixar legível. */}
-                      {(semPecas || temChipDePrioridade(ev.priority)) && (
-                        <span style={{ display: "flex", flexWrap: "wrap", gap: 5, marginTop: 4 }}>
-                          <PrioridadeChip priority={ev.priority} />
-                          {semPecas && (
-                            <span style={{
-                              display: "inline-block", padding: "1px 8px", borderRadius: R.sm,
-                              backgroundColor: TI.red, color: "#ffffff", fontSize: 10, fontWeight: 800,
-                              textTransform: "uppercase", letterSpacing: "0.05em",
-                            }}>
-                              sem peças
-                            </span>
-                          )}
-                        </span>
-                      )}
-                    </th>
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle" }}>
-                      <span style={{ display: "block", fontSize: 12, fontWeight: 600, color: TI.strong }}>
-                        {fmtSaida(ev.truckDepartureDate)}
-                      </span>
-                      <span title={chip.full} style={{
-                        display: "inline-block", marginTop: 3, padding: "2px 8px", borderRadius: R.pill,
-                        backgroundColor: chip.bg, color: chip.color, fontSize: 11, fontWeight: 700,
-                      }}>
-                        {chip.text}
-                      </span>
-                      {ev.riskCritical && (
-                        <span
-                          title={RISCO_TITLE}
-                          style={{
-                            display: "inline-block", marginTop: 3, marginLeft: 5, padding: "2px 8px",
-                            borderRadius: R.pill, backgroundColor: TI.card,
-                            border: `1px solid ${TI.red}`, color: TI.red,
-                            fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em",
-                          }}
-                        >
-                          risco
-                          <span className="sr-only"> — {RISCO_TITLE}</span>
-                        </span>
-                      )}
-                    </td>
-                    {ev.stages.map((s) => (
-                      <td key={s.key} style={{ padding: "10px 4px", verticalAlign: "middle", textAlign: "center" }}>
-                        <StageCell stage={s} invalidDate={ev.invalidDate} />
-                      </td>
-                    ))}
-                    <td style={{ padding: "12px 8px", verticalAlign: "middle", textAlign: "center" }}>
-                      <ProgressoPecas delivered={ev.deliveredItems} total={ev.totalItems} variant="coluna" />
-                    </td>
-                    <td style={{ padding: "12px 12px 12px 4px", verticalAlign: "middle", textAlign: "center" }}>
-                      <button
-                        type="button"
-                        onClick={() => setExpandedId(expanded ? null : ev.id)}
-                        aria-expanded={expanded}
-                        aria-controls={expanded ? `drill-${ev.id}` : undefined}
-                        aria-label={expanded ? `Esconder pendências de ${ev.name}` : `Ver pendências de ${ev.name}`}
-                        data-testid={`button-expandir-${ev.id}`}
-                        className="gp-no-print"
-                        style={{
-                          display: "inline-flex", alignItems: "center", justifyContent: "center",
-                          // 36 e não 30: a linha já tem ~50px de conteúdo
-                          // (nome + início + selos), então o alvo padrão da
-                          // casa cabe sem esticar nada.
-                          width: 36, height: 36, borderRadius: R.md,
-                          border: `1px solid ${TI.border}`, backgroundColor: TI.card, cursor: "pointer",
-                        }}
-                      >
-                        <ChevronDown aria-hidden="true" style={{
-                          width: 15, height: 15, color: TI.strong,
-                          transform: expanded ? "rotate(180deg)" : "none",
-                          transition: "transform 0.15s ease",
-                        }} />
-                      </button>
-                    </td>
-                  </tr>
-                  {expanded && (
-                    <tr style={{ borderBottom: `1px solid ${TI.rule}`, backgroundColor: TI.sunken }}>
-                      {/* colSpan derivado: era o último espelho local do
-                          número de etapas (nome + saída + etapas + entregues + ação). */}
-                      <td id={`drill-${ev.id}`} colSpan={stageMeta.length + 4} style={{ padding: "4px 18px 12px" }}>
-                        <EventDrilldown ev={ev} cobranca={cobrancaEvento(ev.id)} today={today} />
-                      </td>
-                    </tr>
-                  )}
-                </Fragment>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      <TabelaPrazos
+        eventos={filtered}
+        stageMeta={stageMeta}
+        expandedId={expandedId}
+        onToggleExpand={setExpandedId}
+        printMode={printMode}
+        cobrancaDe={cobrancaEvento}
+        today={today}
+      />
     );
   }
 
@@ -1075,18 +862,23 @@ export default function GestaoPrazos() {
                 <strong style={{ color: TI.red, fontWeight: 700 }}>
                   prazo vencido há {diasTexto(ev.piorAtrasoDias)}
                 </strong>
-                {ev.pecasEmAtraso > 0 && ` · ${pecasTexto(ev.pecasEmAtraso)} paradas`}
+                {ev.pecasEmAtraso > 0 && ` · ${pecasTexto(ev.pecasEmAtraso)} parada${ev.pecasEmAtraso !== 1 ? "s" : ""}`}
               </span>
               <div className="gp-no-print" style={{ marginLeft: "auto" }}>
-                {/* Contorno, não sólido: a ação primária SÓLIDA é a do rodapé
-                    do modal. Três botões pretos aqui em cima virariam mais um
-                    bloco competindo com o vermelho do diagnóstico. */}
+                {/* Contorno, não sólido: a ação primária SÓLIDA é a do bloco
+                    de cobrança do modal. Três botões pretos aqui em cima
+                    virariam mais um bloco competindo com o vermelho do
+                    diagnóstico. `showForm` (disclosure fechado por padrão)
+                    porque a fila é onde a ligação acontece: quem acabou de
+                    ouvir "te entrego quinta" registrava a promessa só abrindo
+                    o modal — dois cliques a mais bem no momento do combinado. */}
                 <CobradoControl
                   targetType="event"
                   targetId={ev.id}
                   cobranca={cobrancaEvento(ev.id)}
                   today={today}
                   variant="secondary"
+                  showForm
                 />
               </div>
             </div>
@@ -1171,7 +963,7 @@ export default function GestaoPrazos() {
           )}
           <p style={{ margin: 0, fontSize: 13, color: TI.secondary }}>
             {desdeOntem.pecasDestravadas > 0
-              ? `${pecasTexto(desdeOntem.pecasDestravadas)} saíram de etapa vencida.`
+              ? `${pecasTexto(desdeOntem.pecasDestravadas)} ${desdeOntem.pecasDestravadas !== 1 ? "saíram" : "saiu"} de etapa vencida.`
               : "Nenhuma peça saiu de etapa vencida no período."}
           </p>
         </div>
@@ -1541,15 +1333,17 @@ export default function GestaoPrazos() {
             )}
             {!isMobile && visao === "quadro" && (
               <span style={{
+                // Pontos de 8px e columnGap 10: com 6px e gap 5 a legenda era
+                // um borrão de pontinhos colados — o espaçamento maior separa
+                // cada par cor+palavra sem crescer a linha.
                 flexBasis: "100%", fontSize: 11, color: TI.label, paddingTop: 2,
-                display: "flex", alignItems: "center", gap: 5, flexWrap: "wrap",
+                display: "flex", alignItems: "center", rowGap: 5, columnGap: 10, flexWrap: "wrap",
               }}>
                 Trilha do card:
-                {LEGENDA_TRILHA.map((l, i) => (
+                {LEGENDA_TRILHA.map((l) => (
                   <span key={l.texto} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
-                    {i > 0 && <span aria-hidden="true" style={{ marginRight: 1 }}>·</span>}
                     <span aria-hidden="true" style={{
-                      width: 6, height: 6, borderRadius: R.pill, backgroundColor: l.cor, flexShrink: 0,
+                      width: 8, height: 8, borderRadius: R.pill, backgroundColor: l.cor, flexShrink: 0,
                     }} />
                     {l.texto}
                   </span>
@@ -1594,17 +1388,27 @@ export default function GestaoPrazos() {
                   subtitle={`Saída ${fmtSaida(modalEv.truckDepartureDate)} · ${modalChip.full} · ${modalEv.deliveredItems} de ${modalEv.totalItems} entregues`}
                   onClose={() => setDetailId(null)}
                 />
-                {/* O CORPO é o scrollport, não o Content: com o overflow no
-                    Content o X do cabeçalho rolava junto com o conteúdo e
-                    sumia num evento com quatro grupos de quinze linhas.
-                    `position: relative` para o título sr-only abaixo pertencer
-                    a ESTE scrollport — é o que faz a barra de espaço rolar. */}
+                {/* O CORPO é o scrollport ÚNICO do modal, não o Content: com
+                    o overflow no Content o X do cabeçalho rolava junto com o
+                    conteúdo e sumia num evento com quatro grupos de quinze
+                    linhas. `position: relative` para o título sr-only abaixo
+                    pertencer a ESTE scrollport — é o que faz a barra de
+                    espaço rolar.
+
+                    TUDO que tem altura variável (drill + bloco de cobrança
+                    com o form de promessa) mora AQUI DENTRO. O bloco de
+                    cobrança já viveu no ModalFooter: rodapé não rola, e com
+                    o form aberto num drill grande ele crescia para fora da
+                    viewport — o botão de confirmar sumia atrás da barra do
+                    Windows e o link do rodapé era desenhado fora do modal.
+                    No rodapé fixo fica só o que tem UMA linha (o link). */}
                 <div style={{
                   position: "relative", overflowY: "auto", padding: "18px 24px",
-                  // O teto desconta cabeçalho e rodapé: só "70vh" empurrava o
-                  // rodapé para fora da tela em notebook baixo, e o rodapé é
-                  // onde mora a ação primária.
-                  maxHeight: "min(70vh, calc(100vh - 280px))",
+                  // O teto desconta o cabeçalho (~84px), o rodapé de uma linha
+                  // (~50px) e a folga do Radix: só "70vh" empurrava o rodapé
+                  // para fora da tela em notebook baixo. Conferido de cabeça
+                  // numa viewport de 745px: 84 + 505 + 50 = 639 — sobra.
+                  maxHeight: "min(70vh, calc(100vh - 240px))",
                 }}>
                   {/* Título só para leitor de tela (o cabeçalho visual já
                       mostra o nome) e alvo do foco inicial. */}
@@ -1655,30 +1459,35 @@ export default function GestaoPrazos() {
                     today={today}
                     showCobranca={false}
                   />
+
+                  {/* Bloco de cobrança — a ação primária do modal — no FIM do
+                      scrollport, nunca no rodapé: o form "Combinar um prazo"
+                      expande e conteúdo de altura variável fora do scrollport
+                      é exatamente o que estourava o modal. */}
+                  <div className="gp-no-print" style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${TI.border}` }}>
+                    <CobradoControl
+                      targetType="event"
+                      targetId={modalEv.id}
+                      cobranca={cobrancaEvento(modalEv.id)}
+                      today={today}
+                      variant="primary"
+                      layout="bloco"
+                      showForm
+                      showHistorico
+                    />
+                  </div>
                 </div>
                 <ModalFooter>
-                  <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", justifyContent: "space-between", gap: 12 }}>
+                  <div style={{ display: "flex", justifyContent: "flex-start" }}>
                     {/* Envolto num flex item: como filho DIRETO do rodapé o
                         link era blocado a 100% da largura e clicar no vazio à
                         direita navegava para fora do modal sem aviso. */}
                     <Link
                       href={`/eventos/${modalEv.id}`}
-                      style={{ fontSize: 12, fontWeight: 600, color: TI.secondary, textDecoration: "none", alignSelf: "center" }}
+                      style={{ fontSize: 12, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
                     >
                       Abrir o evento completo →
                     </Link>
-                    <div className="gp-no-print" style={{ flex: "1 1 320px", minWidth: 0 }}>
-                      <CobradoControl
-                        targetType="event"
-                        targetId={modalEv.id}
-                        cobranca={cobrancaEvento(modalEv.id)}
-                        today={today}
-                        variant="primary"
-                        layout="bloco"
-                        showForm
-                        showHistorico
-                      />
-                    </div>
                   </div>
                 </ModalFooter>
               </>
@@ -1696,11 +1505,23 @@ export default function GestaoPrazos() {
             cobrancas={cobrancas}
             today={today}
             etapaFoco={etapaFoco}
-            // Filtrar o quadro por etapa acontece bem abaixo da dobra: sem o
-            // scroll o clique parecia não fazer nada.
-            onEtapaFoco={(k) => { setEtapaFoco(k); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+            // Filtrar por etapa/dia acontece bem abaixo da dobra: sem o
+            // scroll o clique parecia não fazer nada (os dois botões — o de
+            // etapa e o da barra de dias — precisam do mesmo gesto).
+            //
+            // O clique de etapa LIMPA os demais filtros de propósito: o botão
+            // promete "os N eventos parados nesta etapa" contando o CONJUNTO
+            // COMPLETO (a faixa de análise carimba esse escopo). Aplicar o
+            // foco por cima de "Só com atraso" + busca devolvia menos que N —
+            // o clique que se contradiz com o número prometido.
+            onEtapaFoco={(k) => {
+              setSoAtrasados(false); setSoSaidas7d(false); setSoSemPecas(false);
+              setSoInvalidos(false); setBusca(""); setPrioridade("all"); setDiaFoco("");
+              setEtapaFoco(k);
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
             diaFoco={diaFoco}
-            onDiaFoco={setDiaFoco}
+            onDiaFoco={(d) => { setDiaFoco(d); window.scrollTo({ top: 0, behavior: "smooth" }); }}
           />
         )}
       </div>

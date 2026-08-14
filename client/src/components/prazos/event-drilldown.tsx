@@ -16,7 +16,7 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
   ev: PrazoEvent;
   cobranca?: CobrancaEntry;
   today?: string;
-  /** O modal desliga: lá a cobrança é a ação primária do RODAPÉ. */
+  /** O modal desliga: lá a cobrança tem bloco próprio no fim do scrollport. */
   showCobranca?: boolean;
 }) {
   // Agrupa as peças pendentes por etapa; só etapas com peça travada NELA.
@@ -207,7 +207,12 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
         }}>
           {seguintes.map(({ stage }) => (
             <span key={stage.key} style={{ fontSize: 12, color: stage.state === "overdue" ? TI.red : TI.secondary }}>
-              As {pecasTexto(stage.pendingCount)} acima também travam <strong style={{ fontWeight: 700 }}>{stage.label}</strong>
+              {/* Artigo e verbo flexionados juntos: "As 1 peça acima também
+                  travam" era concordância quebrada bem na frase que explica o
+                  efeito dominó. */}
+              {stage.pendingCount === 1 ? "A " : "As "}
+              {pecasTexto(stage.pendingCount)} acima também{" "}
+              {stage.pendingCount === 1 ? "trava" : "travam"} <strong style={{ fontWeight: 700 }}>{stage.label}</strong>
               {ev.invalidDate
                 ? " (sem data confiável)"
                 : stage.state === "overdue"

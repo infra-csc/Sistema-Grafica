@@ -12,7 +12,7 @@
 // cliente importa: um campo esquecido aqui vira erro de tsc, não um número
 // errado na cara do diretor.
 import type { Express } from "express";
-import { eq, lt, desc } from "drizzle-orm";
+import { eq, lt, desc, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "../db";
 import { prazoCobrancas, prazoSnapshots, prazoEventSnapshots } from "@shared/schema";
@@ -199,12 +199,35 @@ export function registerPrazoRoutes(app: Express): void {
       }
 
       // Registro de cobrança por alvo ("event:id" / "sponsor:id") — fecha o
-      // loop cobrança→resultado no drill e no ranking. Antes este bloco lia
-      // TODAS as linhas e jogava fora tudo menos a última; agora a mesma
-      // varredura entrega contagem, histórico, promessa e nota.
+      // loop cobrança→resultado no drill e no ranking.
+      //
+      // Recorte pelos ALVOS VIVOS: só as chaves que o cliente consulta —
+      // os eventos deste payload e os patrocinadores do ranking. Antes o
+      // bloco lia `prazo_cobrancas` INTEIRA a cada GET: a tabela é só-insert
+      // (cada clique em "cobrar de novo" acrescenta linha, nada expira), então
+      // o custo crescia com a HISTÓRIA da empresa, não com o trabalho em
+      // aberto — no mesmo GET que acabou de ganhar `getItemsByEvents` pelo
+      // mesmo motivo. Em lotes de 500 ids porque `IN (...)` vira um parâmetro
+      // por id e o Postgres tem teto de parâmetros por consulta.
       const cobrancas: CobrancaMap = {};
       try {
-        const regs = await db.select().from(prazoCobrancas).orderBy(desc(prazoCobrancas.createdAt));
+        const alvosVivos = [
+          ...events.map((ev) => ev.id),
+          ...sponsorDelays.map((sp) => sp.sponsorId),
+        ];
+        const regs: (typeof prazoCobrancas.$inferSelect)[] = [];
+        for (let i = 0; i < alvosVivos.length; i += 500) {
+          const parte = await db.select().from(prazoCobrancas)
+            .where(inArray(prazoCobrancas.targetId, alvosVivos.slice(i, i + 500)))
+            .orderBy(desc(prazoCobrancas.createdAt));
+          regs.push(...parte);
+        }
+        // Com mais de um lote, a concatenação intercala as ordens parciais —
+        // reordena para preservar o invariante "primeira linha vista = a mais
+        // recente", de que o laço abaixo depende.
+        if (alvosVivos.length > 500) {
+          regs.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+        }
         for (const r of regs) {
           // targetType vem do banco como texto livre: normalizamos aqui em vez
           // de confiar, senão uma linha legada com lixo cria uma chave que o
@@ -253,10 +276,18 @@ export function registerPrazoRoutes(app: Express): void {
         // sobrenome de quem cobrou: quando é falsa, ou gera cobrança injusta
         // ou ensina o diretor a ignorar o campo. Uma peça que se moveu DEPOIS
         // da cobrança tem waitingDays menor que daysAgo.
+        //
+        // Cobrança de HOJE (daysAgo === 0) fica `null`, não `false`: o relógio
+        // das peças anda em dias inteiros, então no próprio dia não existe
+        // medição — `some(waitingDays < 0)` era sempre falso e, 5 segundos
+        // após o registro, o modal afirmava "nada se moveu desde então". A UI
+        // já trata `null` como silêncio.
         for (const ev of events) {
           const entry = cobrancas[`event:${ev.id}`];
           if (!entry) continue;
-          entry.houveMovimento = ev.pendingItems.some((it) => it.waitingDays < entry.daysAgo);
+          entry.houveMovimento = entry.daysAgo === 0
+            ? null
+            : ev.pendingItems.some((it) => it.waitingDays < entry.daysAgo);
         }
       } catch (e) {
         console.error("prazo_cobrancas indisponível (rode npm run db:push):", (e as Error).message);
@@ -292,7 +323,16 @@ export function registerPrazoRoutes(app: Express): void {
             if (before.hasOverdue && !nowOverdue) sairamDoAtraso.push({ id: ev.id, name: ev.name });
           }
 
-          const pecasBase = baseRows.reduce((acc, r) => acc + r.pecasAtrasadas, 0);
+          // A soma do dia-base considera SÓ os eventos ainda no funil hoje.
+          // Um evento que saiu do payload (concluído, tudo entregue ou já
+          // começado) levava as peças atrasadas dele junto, e a subtração
+          // creditava esse sumiço como "peças destravadas" — inflando o número
+          // bom com o que foi apenas um evento virando história. A DECISÃO:
+          // "destravou" só vale para peça que continua no jogo dos dois lados
+          // da comparação.
+          const idsHoje = new Set(events.map((ev) => ev.id));
+          const pecasBase = baseRows.reduce(
+            (acc, r) => acc + (idsHoje.has(r.eventId) ? r.pecasAtrasadas : 0), 0);
           const pecasHoje = events.reduce((acc, ev) => acc + ev.pecasEmAtraso, 0);
           desdeOntem = {
             baseDay: base.day,

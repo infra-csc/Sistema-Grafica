@@ -18,20 +18,11 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import type { CobrancaEntry, CobrancaMap, SponsorDelay } from "@shared/prazos-contract";
 import { CobradoControl, CobrancaLinha } from "./cobrado-control";
 import { dayColor, diasTexto, fmtDayMonth, pecasTexto, DRILL_TH, R, TI } from "./tokens";
+// O agregado (e o tipo dele) moram em `gargalos.ts` — função pura testada em
+// server/__tests__/prazo-gargalos.test.ts; a página calcula, este bloco pinta.
+import type { SetorResumo } from "./gargalos";
 
-/** Uma linha do resumo por setor, calculada na página. */
-export interface SetorResumo {
-  key: string;
-  sector: string;
-  stageLabel: string;
-  url: string | null;
-  count: number;
-  avgDays: number;
-  maxDays: number;
-  producedCount: number;
-  eventCount: number;
-  isWorst: boolean;
-}
+export type { SetorResumo };
 
 interface AnaliseBandProps {
   totalEventos: number;
@@ -447,7 +438,12 @@ export function AnaliseBand({
                       </span>
                       <span aria-hidden="true" style={{
                         width: "100%", height: Math.max(altura, 3), borderRadius: R.sm,
-                        backgroundColor: d.total === 0 ? TI.track : ativo ? TI.accentText : TI.strong,
+                        // Barras inativas em `idle` (o cinza de trilho da
+                        // casa): o `strong` é tinta de TEXTO e pintava dez
+                        // barras quase pretas competindo com a que está
+                        // selecionada — o laranja ativo é que deve ser o
+                        // único destaque.
+                        backgroundColor: d.total === 0 ? TI.track : ativo ? TI.accentText : TI.idle,
                       }} />
                       <span style={{ fontSize: 10, color: ativo ? TI.accentText : TI.label, fontWeight: ativo ? 700 : 500, whiteSpace: "nowrap" }}>
                         {fmtDayMonth(d.dia)}

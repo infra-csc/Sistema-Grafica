@@ -71,7 +71,7 @@ export function PrioridadeChip({ priority }: { priority?: string | null }) {
       }}
     >
       {/* "URGENTE" sozinho não diz de QUE atributo se fala quando lido em
-          sequência com "não iniciado" e "risco" na mesma linha de selos. */}
+          sequência com "risco" na mesma linha de selos. */}
       <span className="sr-only">Prioridade: </span>{prio.label}
     </span>
   );

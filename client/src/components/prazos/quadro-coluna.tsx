@@ -19,6 +19,13 @@
 // O scrollport VERTICAL é a própria <section>, e o cabeçalho sticky mora
 // dentro dela — se o sticky ficasse no scrollport horizontal do grid, grudaria
 // no lugar errado.
+//
+// NUNCA converter o quadro em drag-and-drop. A coluna é estado DERIVADO das
+// peças (a primeira etapa com pendência acumulada, calculada no servidor) —
+// não é um campo editável. Arrastar um card não teria efeito nenhum sobre as
+// peças, ou pior: exigiria inventar uma mutação que "move o evento de etapa",
+// que não existe no domínio. O evento só muda de coluna quando as peças
+// andam de verdade.
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { PrazoEvent } from "@shared/prazos-contract";
 import { pecasTexto, R, SCROLLPORT_MAX_H, STAGE_SECTOR, STAGE_SHORT, TI } from "./tokens";

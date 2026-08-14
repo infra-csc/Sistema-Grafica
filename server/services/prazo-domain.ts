@@ -16,6 +16,7 @@
 // (YYYY-MM-DD): o servidor pode rodar em qualquer fuso e o resultado
 // tem que bater com o que a UI exibe (que formata em UTC).
 import { isPlausibleEventYear } from "@shared/prazo-dates";
+import { PRODUCED_LIKE } from "@shared/prazos-contract";
 import type {
   PrazoCategoria,
   PrazoEvent,
@@ -71,12 +72,15 @@ export const STAGE_DEFS: StageDef[] = [
   {
     key: "producao", label: "Produção Gráfica",
     offsetField: "deadlineProducaoGrafica", defaultOffset: -1, allDays: true,
-    // Os 4 últimos são grafias LEGADAS em pt que circulam no banco (a
-    // dispensa da Arte grava pronto_para_producao; ver items.ts:1599) —
-    // sem elas a peça sumia do funil e a etapa virava verde falso.
+    // "pronto_para_producao"/"liberado"/"em_producao" são grafias LEGADAS em
+    // pt que circulam no banco (a dispensa da Arte grava pronto_para_producao;
+    // ver items.ts:1599) — sem elas a peça sumia do funil e a etapa virava
+    // verde falso. `PRODUCED_LIKE` (contrato compartilhado) traz o subconjunto
+    // "já produzida/conferida", que o cliente também cita no resumo por setor.
     pendingStatuses: [
-      "ready_for_production", "approved", "inProduction", "produced", "conferred",
-      "pronto_para_producao", "liberado", "em_producao", "produzido",
+      "ready_for_production", "approved", "inProduction",
+      "pronto_para_producao", "liberado", "em_producao",
+      ...PRODUCED_LIKE,
     ],
   },
 ];

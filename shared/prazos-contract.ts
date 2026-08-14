@@ -12,6 +12,18 @@
 // Regra: NADA de lógica aqui. Só tipos e as constantes de vocabulário que
 // os dois lados precisam citar pelo mesmo nome.
 
+/**
+ * Status de peça que significam "já produzida/conferida" dentro da etapa de
+ * Produção Gráfica ("produzido" é grafia legada que circula no banco).
+ *
+ * Vive AQUI porque dois lados citam o mesmo vocabulário: o domínio do servidor
+ * (compõe os `pendingStatuses` da produção) e o resumo por setor do cliente
+ * (o sub-rótulo "aguardando conferência/entrega"). Antes o cliente mantinha um
+ * `new Set([...])` local — a terceira cópia da mesma lista, pronta a divergir
+ * na próxima grafia legada descoberta.
+ */
+export const PRODUCED_LIKE = ["produced", "conferred", "produzido"] as const;
+
 // ─── Semáforo por etapa ──────────────────────────────────────────────────────
 
 /** Estado de um marco (etapa) de um evento. */
@@ -203,13 +215,16 @@ export interface CobrancaEntry {
   nota: string | null;
   /**
    * Houve movimento nas peças DEPOIS da última cobrança?
-   * `pendingItems.some(it => it.waitingDays < daysAgo)`.
+   * `pendingItems.some(it => it.waitingDays < daysAgo)` — quando `daysAgo > 0`.
    *
    * PORQUÊ: a tela afirmava "cobrado há 5d — segue parado" só olhando o
    * relógio da cobrança, sem conferir o andamento real. Uma afirmação factual
    * sobre a equipe, exibida com nome e sobrenome de quem cobrou, precisa ser
    * verificada. `null` para alvo "sponsor" (não há peças de um patrocinador
-   * único a comparar neste recorte).
+   * único a comparar neste recorte) E para cobrança de HOJE (`daysAgo === 0`):
+   * o relógio das peças anda em dias inteiros, então no próprio dia não existe
+   * medição possível — afirmar "nada se moveu" 5 segundos depois do registro
+   * seria falso. A UI trata `null` como silêncio.
    */
   houveMovimento: boolean | null;
 }

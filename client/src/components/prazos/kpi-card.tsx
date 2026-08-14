@@ -104,7 +104,7 @@ export function KpiCard({
         <TrendArrow delta={trend} goodWhenUp={goodWhenUp} />
       </span>
       {hint && (
-        <span style={{ display: "block", marginTop: 6, fontSize: 10, lineHeight: 1.35, color: TI.label }}>
+        <span style={{ display: "block", marginTop: 6, fontSize: 11, lineHeight: 1.35, color: TI.label }}>
           {hint}
         </span>
       )}

@@ -14,12 +14,13 @@
 import { useState } from "react";
 import { getPriorityMeta } from "@/lib/status";
 import type { CobrancaEntry, PrazoEvent, PrazoStage } from "@shared/prazos-contract";
-import { CobrancaLinha } from "./cobrado-control";
+import { CobrancaLinha, cobrancaResumo } from "./cobrado-control";
 import { PrioridadeChip, PrioridadePonto } from "./prioridade";
 import { ProgressoPecas } from "./progresso-pecas";
+import { SeloRisco } from "./selo-risco";
 import {
-  diasTexto, fmtDayMonth, fmtDiaCurto, pecasTexto, R, RISCO_TITLE, saidaChip,
-  SHADOW, STAGE_SHORT, STAGE_STYLE, TI,
+  dayColor, diasTexto, fmtDayMonth, fmtDiaCurto, pecasTexto, R, RISCO_TITLE,
+  saidaChip, SHADOW, STAGE_SHORT, STAGE_STYLE, TI,
 } from "./tokens";
 
 interface QuadroCardProps {
@@ -44,12 +45,13 @@ export function QuadroCard({ ev, stage, cobranca, onOpen, onFocusCard, realce }:
   const semPecas = ev.categoria === "semPecas" || ev.totalItems === 0;
   const overdue = stage?.state === "overdue";
 
-  // Ordem dos ramos: a DATA vem primeiro. O card imprimia "Marco em 13/05"
-  // calculado sobre um ano-lixo, duas linhas abaixo do chip que dizia que a
-  // data não era confiável — a tela se contradizendo em dois palmos.
+  // Ordem dos ramos: MESMA precedência da `categoria` do domínio
+  // (semPecas > dataInvalida > ...). O evento sem peça E com data quebrada
+  // deve dizer "Nenhuma peça cadastrada" — sem peça nem existe funil a
+  // corrigir, e é a mesma frase que o KPI e o filtro usam para ele.
   const gate: { texto: string; cor: string; solido: boolean } | null =
-    ev.invalidDate ? { texto: "Sem data confiável — corrija a saída", cor: TI.red, solido: true }
-    : semPecas ? { texto: "Nenhuma peça cadastrada", cor: TI.red, solido: true }
+    semPecas ? { texto: "Nenhuma peça cadastrada", cor: TI.red, solido: true }
+    : ev.invalidDate ? { texto: "Sem data confiável — corrija a saída", cor: TI.red, solido: true }
     : !stage ? null
     : stage.state === "overdue"
       ? { texto: `Prazo vencido há ${diasTexto(Math.abs(stage.diffDays))} · ${pecasTexto(stage.pendingCount)}`, cor: TI.red, solido: true }
@@ -78,12 +80,15 @@ export function QuadroCard({ ev, stage, cobranca, onOpen, onFocusCard, realce }:
 
   // O `aria-label` do botão SUBSTITUI todo o texto interno para o leitor de
   // tela — então tudo o que é selo visual precisa estar aqui, e o critério do
-  // RISCO por extenso (um `sr-only` dentro do botão seria ignorado).
+  // RISCO por extenso (um `sr-only` dentro do botão seria ignorado). A
+  // cobrança entra pelo mesmo motivo: "promessa vencida há 2d" é o rótulo
+  // mais forte da tela e ficava inaudível justamente na visão padrão.
   const resumoAcessivel = [
     prio ? `prioridade ${prio.label}` : null,
     chip.full,
     gate?.texto,
     ev.riskCritical ? `em risco: ${RISCO_TITLE}` : null,
+    cobranca ? cobrancaResumo(cobranca) : null,
   ].filter(Boolean).join("; ");
 
   return (
@@ -148,31 +153,10 @@ export function QuadroCard({ ev, stage, cobranca, onOpen, onFocusCard, realce }:
         >
           {chip.text}
         </span>
-        {semPecas && (
-          <span style={{
-            padding: "2px 8px", borderRadius: R.pill, backgroundColor: TI.amberBg,
-            border: `1px solid ${TI.amber}`, color: TI.amber,
-            fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em",
-            whiteSpace: "nowrap",
-          }}>
-            não iniciado
-          </span>
-        )}
-        {ev.riskCritical && (
-          // Contorno, não preenchimento: RISCO é projeção. O sólido ficou para
-          // o dano já consumado, na linha de gate abaixo.
-          <span
-            title={RISCO_TITLE}
-            style={{
-              padding: "2px 8px", borderRadius: R.pill, backgroundColor: TI.card,
-              border: `1px solid ${TI.red}`, color: TI.red,
-              fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em",
-              whiteSpace: "nowrap",
-            }}
-          >
-            risco
-          </span>
-        )}
+        {/* Sem chip "não iniciado" aqui: o gate sólido "Nenhuma peça
+            cadastrada" logo abaixo já conta essa história — dois selos para o
+            mesmo fato disputavam atenção sem acrescentar nada. */}
+        {ev.riskCritical && <SeloRisco />}
       </span>
 
       {gate && (
@@ -221,8 +205,14 @@ export function QuadroCard({ ev, stage, cobranca, onOpen, onFocusCard, realce }:
 
       {ev.piorEsperaDias > 0 && (
         // Separa o evento atrasado mas FERVENDO do atrasado e abandonado —
-        // duas cobranças completamente diferentes.
-        <span style={{ display: "block", marginTop: 6, fontSize: 11, color: TI.secondary }}>
+        // duas cobranças completamente diferentes. A partir de 3 dias a linha
+        // ganha a cor da régua única (`dayColor`): é o mesmo âmbar/vermelho
+        // que o drill usa para os mesmos dias — abandono visível de relance.
+        <span style={{
+          display: "block", marginTop: 6, fontSize: 11,
+          color: ev.piorEsperaDias >= 3 ? dayColor(ev.piorEsperaDias) : TI.secondary,
+          fontWeight: ev.piorEsperaDias >= 3 ? 700 : 400,
+        }}>
           {/* Por extenso: este "há 5 dias" fica a sete pixels do "Faltam 3
               dias" do chip. Duas grafias da mesma unidade no mesmo card fazem
               o olho comparar formatos em vez de números. */}

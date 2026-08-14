@@ -681,6 +681,23 @@ describe("T16 — cobranças no payload", () => {
     expect(p.cobrancas["event:EV1"]!.houveMovimento).toBe(false);
   });
 
+  it("houveMovimento é NULL quando a cobrança é de HOJE (daysAgo === 0)", async () => {
+    // Peça parada há 12 dias e cobrança registrada agora há pouco: no próprio
+    // dia não existe medição possível (o relógio das peças anda em dias
+    // inteiros), então nem "andou" nem "segue parado" — silêncio. Antes o
+    // campo saía `false` e, 5 segundos após registrar, o modal afirmava
+    // "nada se moveu desde então".
+    cadastrar(evento({ id: "EV1" }), [
+      { status: "draft", updatedAt: meioDia("2026-08-01") },
+    ]);
+    mundo.cobrancas.push(cobranca({ createdAt: AGORA }));
+
+    const p = await pegarPayload();
+    const c = p.cobrancas["event:EV1"]!;
+    expect(c.daysAgo).toBe(0);
+    expect(c.houveMovimento).toBeNull();
+  });
+
   it("alvo 'sponsor' recebe chave própria e houveMovimento fica null", async () => {
     cadastrar(evento({ id: "EV1" }), ["draft"]);
     mundo.patrocinadores = [{ id: "sp-1", name: "Coca-Cola", accountExecutiveId: null }];
@@ -873,6 +890,21 @@ describe("T18 — desdeOntem", () => {
     mundo.eventSnapshots = [{ day: ONTEM, eventId: "A", hasOverdue: true, pecasAtrasadas: 9 }];
     const p = await pegarPayload();
     expect(p.desdeOntem!.pecasDestravadas).toBe(8); // 9 → 1
+  });
+
+  it("evento que SAIU do funil não inflaciona pecasDestravadas", async () => {
+    // Ontem: A com 4 peças atrasadas e SUMIU com 6. Hoje SUMIU foi concluído
+    // e não está no payload. A soma do dia-base considera só os eventos ainda
+    // no funil: 4 − 1 = 3 destravadas — não 10 − 1 = 9, que creditaria o
+    // sumiço do evento inteiro como peça destravada.
+    cadastrar(evento({ id: "A" }), ["draft"]);
+    cadastrar(evento({ id: "SUMIU", status: "completed" }), ["draft"]);
+    mundo.eventSnapshots = [
+      { day: ONTEM, eventId: "A", hasOverdue: true, pecasAtrasadas: 4 },
+      { day: ONTEM, eventId: "SUMIU", hasOverdue: true, pecasAtrasadas: 6 },
+    ];
+    const p = await pegarPayload();
+    expect(p.desdeOntem!.pecasDestravadas).toBe(3);
   });
 
   it("SEM snapshot anterior o bloco é null — nunca zero, que afirmaria 'nada mudou'", async () => {

@@ -74,6 +74,29 @@ export function CobrancaLinha({ cobranca, fontSize = 11 }: { cobranca: CobrancaE
   );
 }
 
+/**
+ * O MESMO status da CobrancaLinha, em texto corrido — para o `aria-label` do
+ * card do quadro, que SUBSTITUI todo o conteúdo interno para o leitor de tela.
+ * Sem isto, "promessa vencida há 2d" — o rótulo mais forte da tela — era
+ * inaudível exatamente na visão padrão. Deriva das mesmas condições da linha
+ * visual para as duas nunca contarem histórias diferentes.
+ */
+export function cobrancaResumo(cobranca: CobrancaEntry): string {
+  const partes = [
+    `cobrado ${cobranca.daysAgo === 0 ? "hoje" : `há ${diasTexto(cobranca.daysAgo)}`} por ${cobranca.userName}`,
+  ];
+  if (cobranca.total > 1) partes.push(`${cobranca.total}ª cobrança`);
+  const restantes = cobranca.promessaDiasRestantes;
+  if (restantes != null) {
+    if (restantes < 0) partes.push(`promessa vencida há ${diasTexto(-restantes)}`);
+    else if (restantes === 0) partes.push("prometido para hoje");
+    else if (cobranca.promessaData) partes.push(`prometido ${fmtDiaSemana(cobranca.promessaData)}`);
+  }
+  if (cobranca.houveMovimento === true) partes.push("houve movimento depois");
+  if (cobranca.houveMovimento === false) partes.push("nada se moveu desde então");
+  return partes.join(", ");
+}
+
 interface CobradoControlProps {
   targetType: "event" | "sponsor";
   targetId: string;
@@ -100,6 +123,14 @@ export function CobradoControl({
   const [histAberto, setHistAberto] = useState(false);
   const [promessa, setPromessa] = useState("");
   const [nota, setNota] = useState("");
+  // Estado otimista pós-registro: guarda o `createdAt` que a prop `cobranca`
+  // tinha NO MOMENTO do sucesso ("primeira" quando o alvo nunca fora cobrado).
+  // Enquanto o refetch não troca esse createdAt, a linha de status mostra
+  // "cobrado agora por você" — antes havia um vão de segundos entre o toast e
+  // o dado real em que a tela seguia dizendo "cobrado há 5 dias".
+  const [otimistaDesde, setOtimistaDesde] = useState<string | null>(null);
+  const mostraOtimista = otimistaDesde !== null
+    && (cobranca?.createdAt ?? "primeira") === otimistaDesde;
 
   const minDia = today;
   const maxDia = today ? addDaysStr(today, PROMESSA_MAX_DIAS) : undefined;
@@ -120,6 +151,7 @@ export function CobradoControl({
       return await res.json();
     },
     onSuccess: () => {
+      setOtimistaDesde(cobranca?.createdAt ?? "primeira");
       queryClient.invalidateQueries({ queryKey: ["/api/prazos"] });
       toast({
         title: "Cobrança registrada",
@@ -188,7 +220,17 @@ export function CobradoControl({
       flexWrap: layout === "bloco" ? "nowrap" : "wrap",
       minWidth: 0,
     }}>
-      {cobranca && (
+      {/* A versão OTIMISTA cobre o vão entre o POST e o refetch: só o fato
+          certo ("cobrado agora por você"), sem inventar promessa nem
+          movimento. Vale também para a PRIMEIRA cobrança do alvo, quando nem
+          havia linha de status para atualizar. */}
+      {mostraOtimista ? (
+        <div style={{ minWidth: 0, flex: layout === "inline" ? "1 1 200px" : undefined }}>
+          <span style={{ display: "block", fontSize: 12, fontWeight: 600, color: TI.label, lineHeight: 1.5 }}>
+            cobrado agora por você
+          </span>
+        </div>
+      ) : cobranca ? (
         <div style={{ minWidth: 0, flex: layout === "inline" ? "1 1 200px" : undefined }}>
           <CobrancaLinha cobranca={cobranca} fontSize={12} />
           {cobranca.nota && (
@@ -232,13 +274,21 @@ export function CobradoControl({
             </>
           )}
         </div>
-      )}
+      ) : null}
 
       {showForm && (
         <div>
           <button
             type="button"
-            onClick={() => setFormAberto((v) => !v)}
+            onClick={() => {
+              // Recolher DESCARTA o rascunho. O rótulo do estado aberto é
+              // "Registrar sem combinar prazo": manter a data/nota digitadas
+              // depois dele faria a mutation enviar exatamente o que o
+              // diretor achou que tinha jogado fora — e gravaria uma promessa
+              // em nome do responsável sem ninguém ter combinado nada.
+              if (formAberto) { setPromessa(""); setNota(""); }
+              setFormAberto((v) => !v);
+            }}
             aria-expanded={formAberto}
             aria-controls={formAberto ? `combinado-${targetType}-${targetId}` : undefined}
             style={{
@@ -268,11 +318,6 @@ export function CobradoControl({
                   data-testid={`input-promessa-${targetType}-${targetId}`}
                   style={{ ...campo, height: alturaAcao }}
                 />
-                {promessaForaDaJanela && (
-                  <span role="alert" style={{ display: "block", fontSize: 12, fontWeight: 600, color: TI.red, marginTop: 4 }}>
-                    A promessa precisa cair entre hoje e os próximos {PROMESSA_MAX_DIAS} dias.
-                  </span>
-                )}
               </div>
               <div>
                 <label htmlFor={`nota-${targetId}`} style={rotuloCampo}>O que ficou combinado</label>
@@ -291,6 +336,15 @@ export function CobradoControl({
                 </span>
               </div>
             </div>
+          )}
+          {/* FORA do `formAberto` de propósito: este aviso é a CAUSA do botão
+              desabilitado. Escondê-lo junto com o form deixava um botão morto
+              sem explicação nenhuma na tela. (Com o recolher limpando o
+              rascunho o caso ficou raro — a linha continua como rede.) */}
+          {promessaForaDaJanela && (
+            <span role="alert" style={{ display: "block", fontSize: 12, fontWeight: 600, color: TI.red, marginTop: 4 }}>
+              A promessa precisa cair entre hoje e os próximos {PROMESSA_MAX_DIAS} dias.
+            </span>
           )}
         </div>
       )}

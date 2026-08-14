@@ -120,16 +120,23 @@ export function computePecasAtrasadas(events: PrazoEvent[]): PecaAtrasada[] {
 /**
  * Filtros que a lista aplica POR PEÇA.
  *
- * Os filtros de EVENTO (prioridade, saídas em 7 dias, sem peças, data
+ * Os RECORTES de evento (só com atraso, saídas em 7 dias, sem peças, data
  * inválida) já foram aplicados antes, sobre a lista de eventos — é a mesma
- * peneira das outras duas visões. O que muda aqui é que "etapa" e "dia"
- * ganham a leitura precisa que só existe quando a linha é uma peça:
+ * peneira das outras duas visões, e nenhum deles tem leitura por peça. O que
+ * mora aqui são as quatro dimensões que a linha-peça sabe responder sozinha:
  *
  *  • ETAPA — no quadro e na tabela filtra o EVENTO pela etapa em que o funil
  *    dele está travado; aqui filtra a PEÇA pela etapa em que ela está. É a
  *    mesma pergunta feita no grão certo: quem clica em "Arte" na faixa de
  *    diagnóstico quer as peças que estão na mesa da Arte.
  *  • DIA — mesma coisa: o prazo que mede aquela peça vence naquele dia.
+ *  • EVENTO e PRIORIDADE — são atributos do evento, e filtrar a lista de
+ *    eventos ANTES daria exatamente o mesmo resultado (`p.eventId` e
+ *    `p.eventPriority` são cópias do evento de origem). Vieram para cá por
+ *    causa da CONTAGEM: `contarPecasAtrasadas` precisa recontar cada dimensão
+ *    com ela mesma neutralizada, e isso só é possível quando as quatro passam
+ *    pela mesma peneira. Duas peneiras equivalentes em lugares diferentes é
+ *    como nascem dois critérios que discordam.
  *
  * BUSCA: nas outras visões procura só no nome do evento, porque a linha é o
  * evento. Aqui a linha é a peça, então o código, o tipo e a descrição também
@@ -138,19 +145,25 @@ export function computePecasAtrasadas(events: PrazoEvent[]): PecaAtrasada[] {
  */
 export interface FiltroPecasAtrasadas {
   busca?: string;
+  /** Id do evento ou "all". */
+  eventoId?: string;
   /** Chave da etapa ou "all". */
   etapaKey?: string;
+  /** Prioridade do EVENTO da peça, ou "all". */
+  prioridade?: string;
   /** "YYYY-MM-DD" ou "" — o prazo que mede a peça vence neste dia. */
   dia?: string;
 }
 
 export function filtrarPecasAtrasadas(
   lista: PecaAtrasada[],
-  { busca = "", etapaKey = "all", dia = "" }: FiltroPecasAtrasadas,
+  { busca = "", eventoId = "all", etapaKey = "all", prioridade = "all", dia = "" }: FiltroPecasAtrasadas,
 ): PecaAtrasada[] {
   const q = normalize(busca.trim());
   return lista.filter((p) => {
+    if (eventoId !== "all" && p.eventId !== eventoId) return false;
     if (etapaKey !== "all" && p.stage.key !== etapaKey) return false;
+    if (prioridade !== "all" && p.eventPriority !== prioridade) return false;
     if (dia && p.marco.deadline !== dia) return false;
     if (q) {
       const alvo = normalize(
@@ -159,4 +172,54 @@ export function filtrarPecasAtrasadas(
     }
     return true;
   });
+}
+
+/** Quantas peças por chave. Peça sem a chave (prioridade nula) não conta. */
+function agrupar(
+  lista: PecaAtrasada[],
+  chave: (p: PecaAtrasada) => string | null | undefined,
+): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const p of lista) {
+    const k = chave(p);
+    if (!k) continue;
+    m.set(k, (m.get(k) ?? 0) + 1);
+  }
+  return m;
+}
+
+/** Contagem por opção de cada filtro — o número que vai ao lado do rótulo. */
+export interface ContagensPecasAtrasadas {
+  /** eventId → peças atrasadas. */
+  porEvento: Map<string, number>;
+  /** chave da etapa em que a peça ESTÁ → peças. */
+  porEtapa: Map<string, number>;
+  /** prioridade do evento → peças. */
+  porPrioridade: Map<string, number>;
+  /** dia do prazo que mede a peça ("YYYY-MM-DD") → peças. */
+  porDia: Map<string, number>;
+}
+
+/**
+ * As contagens que cada filtro mostra ao lado das suas opções.
+ *
+ * A regra que faz o número ser útil: cada dimensão é contada com ELA MESMA
+ * neutralizada e com todas as outras aplicadas. Contar tudo sobre a lista já
+ * filtrada faria o menu de eventos, com um evento escolhido, exibir aquele
+ * evento com o total e TODOS os outros com zero — um menu que só sabe dizer o
+ * que já está na tela. Contar sobre a lista sem filtro nenhum seria o oposto:
+ * o número prometeria 30 peças e o clique entregaria 4, porque a busca e a
+ * etapa continuam ligadas. Com a própria dimensão de fora, "COPA A (12)" é a
+ * promessa exata do que aparece ao clicar.
+ */
+export function contarPecasAtrasadas(
+  lista: PecaAtrasada[],
+  filtro: FiltroPecasAtrasadas,
+): ContagensPecasAtrasadas {
+  return {
+    porEvento: agrupar(filtrarPecasAtrasadas(lista, { ...filtro, eventoId: "all" }), (p) => p.eventId),
+    porEtapa: agrupar(filtrarPecasAtrasadas(lista, { ...filtro, etapaKey: "all" }), (p) => p.stage.key),
+    porPrioridade: agrupar(filtrarPecasAtrasadas(lista, { ...filtro, prioridade: "all" }), (p) => p.eventPriority),
+    porDia: agrupar(filtrarPecasAtrasadas(lista, { ...filtro, dia: "" }), (p) => p.marco.deadline),
+  };
 }

@@ -19,7 +19,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { CheckCircle2, Search } from "lucide-react";
-import { useElementSize } from "@/hooks/use-mobile";
+import { CONTENT_CARDS_MAX, useElementSize } from "@/hooks/use-mobile";
 import { getStatusLabel } from "@/lib/status";
 import { FilterChip } from "./filter-chip";
 import { PrioridadeChip, PrioridadePonto, temChipDePrioridade } from "./prioridade";
@@ -41,23 +41,78 @@ import {
  */
 const PAGINA = 100;
 
+// ─── A LARGURA, REFEITA POR CONTEÚDO ─────────────────────────────────────────
+//
+// O DEFEITO. A tabela rolava de lado em 1536px (e até em ~1800px com a barra
+// lateral aberta) e o que ficava cortado era a AÇÃO: "Resolver em Solicitaçã",
+// "Resolver em Atendimen". A conta explica: em Inter 12px/600, "Resolver em
+// Atendimento →" mede ~164px de texto e a célula tinha 20px de padding — 184px
+// de necessidade numa coluna de 140. Com `table-layout: fixed` o texto que não
+// cabe não alarga a coluna: ele vaza para fora da tabela, e o `overflow: auto`
+// do scrollport transforma esse vazamento em rolagem horizontal. Ou seja, a
+// única coluna que existe para ser CLICADA era a que a tela empurrava para
+// fora da tela.
+//
+// A CORREÇÃO tem duas partes, as duas por conteúdo:
+//
+//  1. A ação vira DUAS LINHAS ("Resolver em" / "Atendimento →"). A linha mais
+//     larga passa a ser o setor (~90px), e a coluna cai de 184px de
+//     necessidade para 124px — 60px devolvidos à descrição sem perder uma
+//     palavra do texto e sem tocar no destino do link.
+//  2. Peça, etapa e atraso encolhem para o que o dado realmente pede, medido
+//     glifo a glifo (ver cada constante), e a etapa passa a QUEBRAR em duas
+//     linhas em vez de ser cortada com reticência.
+//
+// PRIORIDADE DE COLUNA (o que se sacrifica primeiro, se faltar espaço):
+// ação > atraso > peça > evento > descrição > ETAPA. A etapa é a primeira a
+// sair porque é a única cuja informação a linha já diz DUAS vezes: o setor que
+// destrava sai dela ("Entrega de Layouts" → "Resolver em Arte") e, quando ela
+// some, o rótulo desce para a segunda linha da descrição — nada é perdido, só
+// deixa de ter coluna própria. A ação nunca sai: sem ela a lista vira um
+// relatório de leitura, que é o oposto do motivo dela existir.
+
 /**
  * Abaixo desta largura de CONTAINER a tabela vira cartão.
  *
- * A conta, não o olho: as colunas previsíveis somam 506px (peça 112 + etapa
- * 150 + atraso 104 + ação 140) e o evento leva 26% da tabela; para a descrição
- * sobrar com pelo menos 160px — o mínimo para "Banner 3x1 — fachada lateral"
- * antes da reticência —, é preciso `506 + 0,26·L + 160 ≤ L`, ou seja `L ≥ 900`.
+ * É o `CONTENT_CARDS_MAX` da casa (820) — a mesma régua que as outras telas
+ * usam para trocar tabela por cartão —, e agora a conta fecha nela: no modo
+ * compacto (5 colunas) as previsíveis somam 316px (peça 104 + atraso 88 + ação
+ * 124) e o evento leva 24%; descontando ~17px de borda e barra de rolagem
+ * vertical, em 820 sobram `803 − 316 − 193 = 294px` para a descrição — bem
+ * acima dos 200px que "Banner 3x1 — fachada lateral" pede antes da reticência.
+ *
  * Mede-se o CONTAINER e não a janela porque a sidebar aberta come 256px: em
- * 1100px de janela sobram ~844 úteis e `window.innerWidth` responderia
+ * 1060px de janela sobram ~756 úteis e `window.innerWidth` responderia
  * "desktop" para uma tabela que não cabe.
  */
-const TABELA_MIN = 900;
+const TABELA_MIN = CONTENT_CARDS_MAX;
 
-const COL_PECA = 112;
-const COL_ETAPA = 150;
-const COL_ATRASO = 104;
-const COL_ACAO = 140;
+/**
+ * Abaixo desta largura de CONTAINER a coluna ETAPA sai e o rótulo dela desce
+ * para a segunda linha da descrição.
+ *
+ * A conta do modo COMPLETO (6 colunas): previsíveis 436px (peça 104 + etapa
+ * 120 + atraso 88 + ação 124), evento 22%, e a descrição fica com
+ * `0,78·L − 436`. Em 1040 isso dá 362px — o piso confortável. Abaixo daí a
+ * descrição começaria a comer reticência para sustentar uma coluna cujo
+ * conteúdo a linha já diz de outro jeito.
+ *
+ * Onde isso cai na prática (janela − 256 da sidebar − 48 do padding):
+ *   1366 → 1062 de container → COMPLETO, 6 colunas, descrição com ~379px.
+ *   1536 → 1232 de container → COMPLETO, 6 colunas, descrição com ~512px.
+ *   1280 →  976 de container → COMPACTO, 5 colunas, descrição com ~450px.
+ * Em nenhum dos três há rolagem horizontal.
+ */
+const ETAPA_MIN = 1040;
+
+/** "#3521" em 12px/700 mede ~40px; o status abaixo tem reticência. Padding 22. */
+const COL_PECA = 104;
+/** "Aprovação de Layout" quebra em duas linhas; a palavra mais larga tem ~62px. */
+const COL_ETAPA = 120;
+/** "venceu 24/07" em 10px mede ~65px; "120d" em 14px/800, ~34px. Padding 16. */
+const COL_ATRASO = 88;
+/** "Atendimento →" em 12px/700 mede ~93px (a linha mais larga). Padding 20. */
+const COL_ACAO = 124;
 
 /** Texto visível da peça: tipo e descrição na mesma frase (voz do drill). */
 function textoPeca(p: PecaAtrasada): string {
@@ -102,8 +157,30 @@ function LinkPeca({ p }: { p: PecaAtrasada }) {
   );
 }
 
-/** "Resolver em Arte →" — o destino que RESOLVE, não o que descreve. */
-function LinkSetor({ p, style }: { p: PecaAtrasada; style?: React.CSSProperties }) {
+/**
+ * "Resolver em Arte →" — o destino que RESOLVE, não o que descreve.
+ *
+ * `empilhado` quebra a MESMA frase em duas linhas ("Resolver em" por cima,
+ * "Arte →" embaixo). Não é enfeite: numa linha só a frase pede 184px de
+ * coluna e era ela que a tabela cortava no meio da palavra. Empilhada, a
+ * linha mais larga é o setor (~93px) e a coluna cabe em 124 — a frase
+ * continua inteira, o nome acessível do link continua sendo "Resolver em
+ * Atendimento →" (os dois spans vivem dentro do mesmo <a>) e a descrição
+ * ganha os 60px de volta. No cartão do celular a largura sobra, então lá
+ * fica em uma linha só.
+ *
+ * O setor NÃO leva `nowrap`: se um dia entrar um nome mais longo que a
+ * coluna, ele quebra em duas linhas em vez de vazar para fora da tabela e
+ * reacender a rolagem lateral que este arquivo existe para não ter.
+ *
+ * Contraste: `TI.secondary` (#746e69) sobre o branco do cartão/tabela =
+ * 5,03:1 ✓ — passa AA (4,5:1) nos dois tamanhos usados aqui, 10px e 12px.
+ */
+function LinkSetor({ p, empilhado, style }: {
+  p: PecaAtrasada;
+  empilhado?: boolean;
+  style?: React.CSSProperties;
+}) {
   return (
     <Link
       href={p.url}
@@ -111,10 +188,24 @@ function LinkSetor({ p, style }: { p: PecaAtrasada; style?: React.CSSProperties 
       data-testid={`resolver-${p.item.id}`}
       style={{
         fontSize: 12, fontWeight: 600, color: TI.secondary, textDecoration: "none",
-        whiteSpace: "nowrap", ...style,
+        whiteSpace: empilhado ? "normal" : "nowrap", ...style,
       }}
     >
-      Resolver em {p.setor} →
+      {empilhado ? (
+        <>
+          <span style={{
+            display: "block", fontSize: 10, fontWeight: 700, letterSpacing: "0.04em",
+            textTransform: "uppercase", lineHeight: 1.2,
+          }}>
+            Resolver em
+          </span>
+          <span style={{ display: "block", fontWeight: 700, lineHeight: 1.3 }}>
+            {p.setor} →
+          </span>
+        </>
+      ) : (
+        <>Resolver em {p.setor} →</>
+      )}
     </Link>
   );
 }
@@ -207,10 +298,11 @@ export function PecasAtrasadas({
   onAbrirEvento: (id: string) => void;
 }) {
   const { ref: caixaRef, width } = useElementSize<HTMLDivElement>();
-  // Antes da primeira medição a largura é 0: assume tabela e corrige no paint
-  // seguinte. O contrário (assumir cartão) faria a visão do desktop nascer
-  // errada em toda carga, que é o caso comum desta tela.
+  // Antes da primeira medição a largura é 0: assume tabela COMPLETA e corrige
+  // no paint seguinte. O contrário (assumir cartão) faria a visão do desktop
+  // nascer errada em toda carga, que é o caso comum desta tela.
   const emCartoes = width > 0 && width < TABELA_MIN;
+  const comEtapa = width === 0 || width >= ETAPA_MIN;
 
   const [mostrar, setMostrar] = useState(PAGINA);
   useEffect(() => { setMostrar(PAGINA); }, [filtroKey]);
@@ -323,10 +415,13 @@ export function PecasAtrasadas({
             </caption>
             <colgroup>
               <col style={{ width: COL_PECA }} />
-              <col style={{ width: "26%" }} />
+              {/* Evento ganha 2 pontos percentuais quando a etapa sai: o nome
+                  do evento em caixa alta é o texto que mais sofre com
+                  reticência depois da descrição. */}
+              <col style={{ width: comEtapa ? "22%" : "24%" }} />
               {/* Descrição sem largura: leva toda a sobra. */}
               <col />
-              <col style={{ width: COL_ETAPA }} />
+              {comEtapa && <col style={{ width: COL_ETAPA }} />}
               <col style={{ width: COL_ATRASO }} />
               <col style={{ width: COL_ACAO }} />
             </colgroup>
@@ -334,9 +429,21 @@ export function PecasAtrasadas({
               <tr>
                 <th scope="col" style={{ ...TH_STICKY, textAlign: "left", paddingLeft: 14 }}>Peça</th>
                 <th scope="col" style={{ ...TH_STICKY, textAlign: "left" }}>Evento</th>
-                <th scope="col" style={{ ...TH_STICKY, textAlign: "left" }}>Descrição</th>
-                <th scope="col" style={{ ...TH_STICKY, textAlign: "left" }}>Etapa</th>
-                <th scope="col" style={TH_STICKY} title="Dias desde o vencimento do prazo que mede esta peça">
+                <th scope="col" style={{ ...TH_STICKY, textAlign: "left" }}>
+                  {comEtapa ? "Descrição" : "Descrição e etapa"}
+                </th>
+                {comEtapa && <th scope="col" style={{ ...TH_STICKY, textAlign: "left" }}>Etapa</th>}
+                {/* O único cabeçalho que precisa quebrar: "ATRASADA HÁ" em
+                    10px/700 com 0,08em de espaçamento mede ~80px e a caixa da
+                    coluna tem 72. Com o `nowrap` do TH_STICKY ele vazaria para
+                    fora da tabela — e é justamente esse tipo de vazamento que
+                    o `overflow: auto` do scrollport transforma em rolagem
+                    horizontal. Mesma válvula do `DRILL_TH`. */}
+                <th
+                  scope="col"
+                  style={{ ...TH_STICKY, whiteSpace: "normal", lineHeight: 1.25 }}
+                  title="Dias desde o vencimento do prazo que mede esta peça"
+                >
                   Atrasada há
                 </th>
                 <th scope="col" style={{ ...TH_STICKY, textAlign: "left" }}>
@@ -404,16 +511,35 @@ export function PecasAtrasadas({
                     >
                       {textoPeca(p)}
                     </span>
-                    <span style={{ display: "block", fontSize: 10, marginTop: 2, color: dayColor(p.item.waitingDays), fontWeight: 700 }}>
-                      {p.item.waitingDays === 0 ? "sem movimento hoje" : `${p.item.waitingDays}d sem movimento`}
+                    <span style={{
+                      display: "block", fontSize: 10, marginTop: 2,
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                    }}>
+                      {/* Sem a coluna de etapa, o rótulo dela desce para cá —
+                          a linha continua dizendo em que mesa a peça está, só
+                          que na metade do espaço. `TI.secondary` (#746e69)
+                          sobre branco = 5,03:1 ✓ em 10px. */}
+                      {!comEtapa && (
+                        <span style={{ color: TI.secondary }}>{p.stage.label} · </span>
+                      )}
+                      <span style={{ color: dayColor(p.item.waitingDays), fontWeight: 700 }}>
+                        {p.item.waitingDays === 0 ? "sem movimento hoje" : `${p.item.waitingDays}d sem movimento`}
+                      </span>
                     </span>
+                    {!comEtapa && <NotaMarco p={p} />}
                   </td>
-                  <td style={{ padding: "9px 8px", verticalAlign: "top", fontSize: 12, color: TI.strong }}>
-                    <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={p.stage.label}>
-                      {p.stage.label}
-                    </span>
-                    <NotaMarco p={p} />
-                  </td>
+                  {comEtapa && (
+                    <td style={{ padding: "9px 8px", verticalAlign: "top", fontSize: 12, color: TI.strong }}>
+                      {/* Quebra em duas linhas em vez de reticência: "Aprovação
+                          de Layout" não cabe em 104px de caixa, e a etapa é a
+                          palavra que o diretor usa para cobrar — cortada em
+                          "Aprovação de La…" ela obriga a passar o mouse. */}
+                      <span style={{ display: "block", lineHeight: 1.3 }}>
+                        {p.stage.label}
+                      </span>
+                      <NotaMarco p={p} />
+                    </td>
+                  )}
                   <td style={{ padding: "9px 8px", verticalAlign: "top", textAlign: "center" }}>
                     <span style={{ display: "block", fontSize: 14, fontWeight: 800, color: TI.red, whiteSpace: "nowrap" }}>
                       {p.diasAtraso}d
@@ -424,7 +550,7 @@ export function PecasAtrasadas({
                     <span className="sr-only">Atrasada há {diasTexto(p.diasAtraso)}</span>
                   </td>
                   <td style={{ padding: "9px 12px 9px 8px", verticalAlign: "top" }}>
-                    <LinkSetor p={p} style={{ display: "block" }} />
+                    <LinkSetor p={p} empilhado style={{ display: "block" }} />
                   </td>
                 </tr>
               ))}

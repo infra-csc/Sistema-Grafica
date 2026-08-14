@@ -28,6 +28,7 @@
 import { describe, it, expect } from "vitest";
 import {
   computePecasAtrasadas,
+  contarPecasAtrasadas,
   filtrarPecasAtrasadas,
 } from "@/components/prazos/atrasadas";
 import {
@@ -256,5 +257,94 @@ describe("filtrarPecasAtrasadas — filtros no grão da PEÇA", () => {
 
   it("os filtros se acumulam", () => {
     expect(filtrarPecasAtrasadas(lista, { etapaKey: "layouts", busca: "3521" })).toHaveLength(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Os filtros da BARRA desta visão. O dono olhou a lista ao vivo e reprovou:
+// "falta filtros" — a barra tinha só a busca, e não havia como pedir "os
+// atrasados do evento X" nem "os atrasados da Gráfica" sem trocar de visão.
+// Evento e prioridade entraram na mesma peneira das outras duas dimensões
+// porque a CONTAGEM ao lado de cada opção depende disso.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("filtros de evento e prioridade no grão da peça", () => {
+  const a = montar(evento({ id: "ev-a", name: "COPA A", priority: "urgente" }), [
+    peca({ id: "a-lista", status: "draft" }),
+    peca({ id: "a-arte", status: "awaiting_submission" }),
+  ]);
+  const b = montar(evento({ id: "ev-b", name: "COPA B", priority: "alta" }), [
+    peca({ id: "b-lista", status: "draft" }),
+  ]);
+  const lista = computePecasAtrasadas([a, b]);
+
+  it("evento filtra pelo evento de origem da peça", () => {
+    expect(filtrarPecasAtrasadas(lista, { eventoId: "ev-a" }).map((p) => p.item.id))
+      .toEqual(["a-lista", "a-arte"]);
+    expect(filtrarPecasAtrasadas(lista, { eventoId: "all" })).toHaveLength(3);
+  });
+
+  it("prioridade filtra pela prioridade do EVENTO da peça", () => {
+    expect(filtrarPecasAtrasadas(lista, { prioridade: "alta" }).map((p) => p.item.id))
+      .toEqual(["b-lista"]);
+    expect(filtrarPecasAtrasadas(lista, { prioridade: "urgente" })).toHaveLength(2);
+    // Prioridade que ninguém tem devolve vazio — nunca "todas".
+    expect(filtrarPecasAtrasadas(lista, { prioridade: "baixa" })).toHaveLength(0);
+  });
+});
+
+describe("contarPecasAtrasadas — o número ao lado de cada opção", () => {
+  const a = montar(evento({ id: "ev-a", name: "COPA A", priority: "urgente" }), [
+    peca({ id: "a-lista", status: "draft", description: "Fachada" }),
+    peca({ id: "a-arte", status: "awaiting_submission", description: "Testeira" }),
+  ]);
+  const b = montar(evento({ id: "ev-b", name: "COPA B", priority: "alta" }), [
+    peca({ id: "b-lista", status: "draft", description: "Fachada" }),
+  ]);
+  const lista = computePecasAtrasadas([a, b]);
+
+  it("sem filtro, conta tudo por dimensão", () => {
+    const c = contarPecasAtrasadas(lista, {});
+    expect([...c.porEvento]).toEqual([["ev-a", 2], ["ev-b", 1]]);
+    expect(c.porEtapa.get("listaImagens")).toBe(2);
+    expect(c.porEtapa.get("layouts")).toBe(1);
+    expect([...c.porPrioridade]).toEqual([["urgente", 2], ["alta", 1]]);
+    // listaImagens vence em 05/08; layouts, em 10/08.
+    expect(c.porDia.get("2026-08-05")).toBe(2);
+    expect(c.porDia.get("2026-08-10")).toBe(1);
+  });
+
+  it("cada dimensão é contada com ELA MESMA neutralizada", () => {
+    // Com o evento A escolhido, o menu de eventos precisa continuar dizendo
+    // que o B tem 1 — senão o único destino oferecido é o que já está na tela
+    // e trocar de evento parece não ter efeito nenhum.
+    const c = contarPecasAtrasadas(lista, { eventoId: "ev-a" });
+    expect(c.porEvento.get("ev-b")).toBe(1);
+    expect(c.porEvento.get("ev-a")).toBe(2);
+  });
+
+  it("as OUTRAS dimensões continuam aplicadas — a contagem é a promessa do clique", () => {
+    // Evento A escolhido: o menu de etapas só pode oferecer as etapas de A, e
+    // "listaImagens (1)" tem que ser 1 (a peça de A) e não 2 (as duas do app).
+    const c = contarPecasAtrasadas(lista, { eventoId: "ev-a" });
+    expect(c.porEtapa.get("listaImagens")).toBe(1);
+    expect(c.porEtapa.get("layouts")).toBe(1);
+    expect(c.porPrioridade.get("alta")).toBeUndefined();
+    // E o número prometido é EXATAMENTE o que o clique entrega.
+    expect(filtrarPecasAtrasadas(lista, { eventoId: "ev-a", etapaKey: "listaImagens" }))
+      .toHaveLength(c.porEtapa.get("listaImagens"));
+  });
+
+  it("a busca entra em todas as contagens (é filtro de texto, não dimensão)", () => {
+    const c = contarPecasAtrasadas(lista, { busca: "fachada" });
+    expect(c.porEvento.get("ev-a")).toBe(1);
+    expect(c.porEvento.get("ev-b")).toBe(1);
+    expect(c.porEtapa.get("layouts")).toBeUndefined();
+  });
+
+  it("peça de evento sem prioridade não inventa uma chave de contagem", () => {
+    const semPrio = montar(evento({ id: "ev-c", name: "COPA C" }), [peca({ status: "draft" })]);
+    const c = contarPecasAtrasadas(computePecasAtrasadas([semPrio]), {});
+    expect(c.porPrioridade.size).toBe(0);
+    expect(c.porEvento.get("ev-c")).toBe(1);
   });
 });

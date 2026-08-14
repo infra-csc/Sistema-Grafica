@@ -35,7 +35,7 @@ import type {
 } from "@shared/prazos-contract";
 import {
   addDaysStr, apiErrorMessage, currentStageIdx, diasTexto, eventHasOverdue,
-  fmtDayMonth, fmtRelative, fmtSaida, normalize, pecasTexto, saidaChip,
+  fmtDayMonth, fmtDiaSemana, fmtRelative, fmtSaida, normalize, pecasTexto, saidaChip,
   weekdayOfDay, LEGENDA_TRILHA, R, SHADOW,
   STAGE_HEADERS, STAGE_SECTOR, STAGE_SHORT, TI,
 } from "@/components/prazos/tokens";
@@ -50,7 +50,9 @@ import { AnaliseBand } from "@/components/prazos/analise-band";
 import { CardMobilePrazos } from "@/components/prazos/card-mobile";
 import { TabelaPrazos } from "@/components/prazos/tabela-prazos";
 import { PecasAtrasadas } from "@/components/prazos/pecas-atrasadas";
-import { computePecasAtrasadas, filtrarPecasAtrasadas } from "@/components/prazos/atrasadas";
+import {
+  computePecasAtrasadas, contarPecasAtrasadas, filtrarPecasAtrasadas,
+} from "@/components/prazos/atrasadas";
 import { computeEventosPorEtapa, computeSectorSummary } from "@/components/prazos/gargalos";
 
 /**
@@ -129,6 +131,10 @@ export default function GestaoPrazos() {
       prioridade: p.get("prioridade") ?? "all",
       etapa: p.get("etapa") ?? "all",
       dia: p.get("dia") ?? "",
+      // `ev` e não `evento`: `?evento=` já é o id do modal aberto (`detailId`),
+      // e duas coisas diferentes no mesmo parâmetro fariam um link colado abrir
+      // o drill de um evento que a tela acabou de filtrar para fora.
+      eventoFiltro: p.get("ev") ?? "all",
       // "Mais atrasado" é o padrão: a tela existe para cobrar atraso — o
       // pior evento tem que ser a primeira linha, não estar no meio da lista.
       ordem: p.get("ordem") === "saida" ? "saida" : "atraso",
@@ -146,6 +152,7 @@ export default function GestaoPrazos() {
   const [prioridade, setPrioridade] = useState(initial.prioridade);
   const [etapaFoco, setEtapaFoco] = useState(initial.etapa);
   const [diaFoco, setDiaFoco] = useState(initial.dia);
+  const [eventoFiltro, setEventoFiltro] = useState(initial.eventoFiltro);
   const [ordem, setOrdem] = useState<"saida" | "atraso">(initial.ordem as "saida" | "atraso");
   const [visao, setVisao] = useState<Visao>(initial.visao);
   // Card do quadro abre o drill num modal (o detalhe "por cima") — a tabela
@@ -186,6 +193,7 @@ export default function GestaoPrazos() {
       if (prioridade !== "all") p.set("prioridade", prioridade);
       if (etapaFoco !== "all") p.set("etapa", etapaFoco);
       if (diaFoco) p.set("dia", diaFoco);
+      if (eventoFiltro !== "all") p.set("ev", eventoFiltro);
       if (ordem !== "atraso") p.set("ordem", ordem);
       if (visao !== "quadro") p.set("visao", visao);
       if (detailId) p.set("evento", detailId);
@@ -193,7 +201,7 @@ export default function GestaoPrazos() {
       window.history.replaceState(null, "", `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash}`);
     }, 300);
     return () => clearTimeout(timer);
-  }, [soAtrasados, soSaidas7d, soSemPecas, soInvalidos, busca, prioridade, etapaFoco, diaFoco, ordem, visao, detailId]);
+  }, [soAtrasados, soSaidas7d, soSemPecas, soInvalidos, busca, prioridade, etapaFoco, diaFoco, eventoFiltro, ordem, visao, detailId]);
 
   // Navegação do histórico (voltar/avançar entre telas) sincroniza o estado —
   // sem isto a URL e a tela discordavam depois de um Voltar.
@@ -208,6 +216,7 @@ export default function GestaoPrazos() {
       setPrioridade(p.get("prioridade") ?? "all");
       setEtapaFoco(p.get("etapa") ?? "all");
       setDiaFoco(p.get("dia") ?? "");
+      setEventoFiltro(p.get("ev") ?? "all");
       setOrdem(p.get("ordem") === "saida" ? "saida" : "atraso");
       setVisao(parseVisao(p.get("visao")));
       setDetailId(p.get("evento"));
@@ -292,8 +301,9 @@ export default function GestaoPrazos() {
   );
 
   /**
-   * Peneira de EVENTO comum às três visões: os filtros que falam do evento e
-   * só dele.
+   * Os RECORTES de evento: os quatro filtros que só o evento sabe responder e
+   * que não têm leitura por peça (só com atraso, saída em 7 dias, e os dois
+   * botões da faixa de triagem).
    *
    * Está separada do resto porque etapa, dia e busca mudam de GRÃO na visão de
    * peças — lá "etapa" é a etapa da PEÇA e a busca também procura no código e
@@ -301,7 +311,7 @@ export default function GestaoPrazos() {
    * a lista plana teria que reescrever os filtros de evento, que é exatamente
    * como nascem dois critérios que discordam.
    */
-  const passaFiltroDeEvento = useCallback((ev: PrazoEvent) => {
+  const passaRecorteDeEvento = useCallback((ev: PrazoEvent) => {
     if (soAtrasados && !eventHasOverdue(ev)) return false;
     if (soSaidas7d) {
       // `diasParaSaida` já vem do servidor com a âncora do negócio.
@@ -313,9 +323,25 @@ export default function GestaoPrazos() {
     // um número diferente do que o botão prometeu.
     if (soSemPecas && ev.categoria !== "semPecas") return false;
     if (soInvalidos && ev.categoria !== "dataInvalida") return false;
+    return true;
+  }, [soAtrasados, soSaidas7d, soSemPecas, soInvalidos]);
+
+  /**
+   * A peneira de evento COMPLETA: os recortes acima mais as duas dimensões
+   * que a lista de peças também sabe filtrar sozinha (evento e prioridade).
+   *
+   * A divisão em dois não é estilo. A lista plana precisa aplicar evento e
+   * prioridade NO GRÃO DA PEÇA para poder contar cada opção com ela mesma
+   * neutralizada ("COPA A (12)") — ver `contarPecasAtrasadas`. Como
+   * `p.eventId`/`p.eventPriority` são cópias do evento de origem, o resultado
+   * é idêntico dos dois lados; o que muda é só onde a peneira passa.
+   */
+  const passaFiltroDeEvento = useCallback((ev: PrazoEvent) => {
+    if (!passaRecorteDeEvento(ev)) return false;
+    if (eventoFiltro !== "all" && ev.id !== eventoFiltro) return false;
     if (prioridade !== "all" && ev.priority !== prioridade) return false;
     return true;
-  }, [soAtrasados, soSaidas7d, soSemPecas, soInvalidos, prioridade]);
+  }, [passaRecorteDeEvento, eventoFiltro, prioridade]);
 
   const filtered = useMemo(() => {
     const q = normalize(busca.trim());
@@ -353,16 +379,101 @@ export default function GestaoPrazos() {
   // diferença entre "não há peça atrasada" e "os seus filtros escondem todas".
   // A FILTRADA é o que a tela desenha.
   const pecasAtrasadasTodas = useMemo(() => computePecasAtrasadas(events), [events]);
+  // A BASE da visão: só os recortes de evento. É sobre ela que as quatro
+  // dimensões com contagem (evento, etapa, prioridade, dia) trabalham — se
+  // uma delas já tivesse sido aplicada aqui, contar as opções da própria
+  // dimensão devolveria zero para tudo que não está escolhido.
+  const pecasBase = useMemo(
+    () => computePecasAtrasadas(events.filter(passaRecorteDeEvento)),
+    [events, passaRecorteDeEvento],
+  );
+  const filtroPecas = useMemo(
+    () => ({ busca, eventoId: eventoFiltro, etapaKey: etapaFoco, prioridade, dia: diaFoco }),
+    [busca, eventoFiltro, etapaFoco, prioridade, diaFoco],
+  );
   const pecasAtrasadas = useMemo(
-    () => filtrarPecasAtrasadas(
-      computePecasAtrasadas(events.filter(passaFiltroDeEvento)),
-      { busca, etapaKey: etapaFoco, dia: diaFoco },
-    ),
-    [events, passaFiltroDeEvento, busca, etapaFoco, diaFoco],
+    () => filtrarPecasAtrasadas(pecasBase, filtroPecas),
+    [pecasBase, filtroPecas],
+  );
+  // Quatro passadas a mais na lista — só na visão que desenha os menus. Nas
+  // outras duas o resultado seria jogado fora a cada render (a query revalida
+  // sozinha a cada 60s).
+  const contagensPecas = useMemo(
+    () => contarPecasAtrasadas(visao === "atrasadas" ? pecasBase : [], filtroPecas),
+    [visao, pecasBase, filtroPecas],
   );
   // Assinatura dos filtros: a paginação da lista volta ao começo quando ELA
   // muda, e não a cada revalidação de 60s (que troca a identidade do array).
-  const filtroKey = `${soAtrasados}|${soSaidas7d}|${soSemPecas}|${soInvalidos}|${prioridade}|${etapaFoco}|${diaFoco}|${busca}`;
+  const filtroKey = `${soAtrasados}|${soSaidas7d}|${soSemPecas}|${soInvalidos}|${prioridade}|${etapaFoco}|${diaFoco}|${eventoFiltro}|${busca}`;
+
+  // ── Opções dos filtros da lista de peças ─────────────────────────────────
+  //
+  // Três regras, iguais nos quatro menus:
+  //  1. Só entra opção que TEM peça — oferecer "Revisão de Lista (0)" é
+  //     convidar para um clique que só pode dar na tela de vazio.
+  //  2. A opção ESCOLHIDA entra sempre, mesmo zerada: sem isso o gatilho
+  //     perderia o próprio rótulo assim que outro filtro zerasse a contagem
+  //     dela, e o diretor ficaria com um recorte ativo que não sabe nomear.
+  //  3. A contagem vem de `contagensPecas`, que reconta cada dimensão com ela
+  //     mesma neutralizada — o número ao lado do rótulo é exatamente o que
+  //     aparece ao clicar.
+  const opcoesEvento = useMemo(() => events
+    .filter((ev) => contagensPecas.porEvento.has(ev.id) || ev.id === eventoFiltro)
+    .map((ev) => ({
+      value: ev.id,
+      label: ev.name,
+      count: contagensPecas.porEvento.get(ev.id) ?? 0,
+      dotColor: getPriorityMeta(ev.priority)?.dot,
+    })), [events, contagensPecas, eventoFiltro]);
+
+  const opcoesEtapa = useMemo(() => stageMeta
+    .filter((m) => contagensPecas.porEtapa.has(m.key) || m.key === etapaFoco)
+    .map((m) => {
+      const setor = STAGE_SECTOR[m.key]?.sector;
+      // "Produção Gráfica · Gráfica" seria eco; "Entrega de Layouts · Arte"
+      // é a informação que falta. O setor entra só quando o nome da etapa
+      // ainda não o contém — é por ele que o diretor pergunta ("os atrasados
+      // da Gráfica"), e é ele que a coluna de ação repete linha a linha.
+      const dizSetor = !!setor && !normalize(m.label).includes(normalize(setor));
+      return {
+        value: m.key,
+        label: dizSetor ? `${m.label} · ${setor}` : m.label,
+        count: contagensPecas.porEtapa.get(m.key) ?? 0,
+        // `pinned` preserva a ordem em que as opções chegam; sem ele o
+        // FilterSelect ordena por rótulo e o funil vira lista telefônica
+        // (Aprovação antes de Lista de Imagens).
+        pinned: true,
+      };
+    }), [stageMeta, contagensPecas, etapaFoco]);
+
+  const opcoesPrioridade = useMemo(() => Object.keys(PRIORITY)
+    // Ordem canônica (urgente→baixa), não a ordem de inserção.
+    .filter((p) => (visao === "atrasadas"
+      ? contagensPecas.porPrioridade.has(p) || p === prioridade
+      : prioridadesDisponiveis.includes(p)))
+    .map((p) => ({
+      value: p,
+      label: getPriorityMeta(p)?.label ?? p,
+      dotColor: getPriorityMeta(p)?.dot,
+      // Nas visões de evento a contagem seria de EVENTOS e este menu passaria
+      // a dizer duas unidades diferentes conforme a aba — melhor sem número
+      // do que com um número que muda de assunto.
+      count: visao === "atrasadas" ? (contagensPecas.porPrioridade.get(p) ?? 0) : undefined,
+      pinned: true,
+    })), [visao, contagensPecas, prioridade, prioridadesDisponiveis]);
+
+  const opcoesDia = useMemo(() => {
+    const dias = Array.from(contagensPecas.porDia.keys());
+    if (diaFoco && !contagensPecas.porDia.has(diaFoco)) dias.push(diaFoco);
+    // Ordem cronológica CRESCENTE: o dia mais antigo é o mais atrasado, e é
+    // essa a ordem em que a lista abaixo já lê o problema.
+    return dias.sort().map((d) => ({
+      value: d,
+      label: fmtDiaSemana(d),
+      count: contagensPecas.porDia.get(d) ?? 0,
+      pinned: true,
+    }));
+  }, [contagensPecas, diaFoco]);
 
   // "Primeiro focar no evento com peças em atraso": na primeira carga, o
   // pior evento atrasado já chega expandido — o caminho evento→peça começa
@@ -387,10 +498,12 @@ export default function GestaoPrazos() {
   }, [data, filtered, visao, isMobile]);
 
   const hasActiveFilters = soAtrasados || soSaidas7d || soSemPecas || soInvalidos
-    || busca.trim() !== "" || prioridade !== "all" || etapaFoco !== "all" || diaFoco !== "";
+    || busca.trim() !== "" || prioridade !== "all" || etapaFoco !== "all" || diaFoco !== ""
+    || eventoFiltro !== "all";
   const clearFilters = useCallback(() => {
     setSoAtrasados(false); setSoSaidas7d(false); setSoSemPecas(false); setSoInvalidos(false);
     setBusca(""); setPrioridade("all"); setEtapaFoco("all"); setDiaFoco("");
+    setEventoFiltro("all");
   }, []);
 
   // Esc "no vazio" limpa tudo — mas uma combinação de 3-4 filtros é trabalho
@@ -399,7 +512,7 @@ export default function GestaoPrazos() {
   const limparComDesfazer = useCallback(() => {
     const anterior = {
       soAtrasados, soSaidas7d, soSemPecas, soInvalidos,
-      busca, prioridade, etapaFoco, diaFoco,
+      busca, prioridade, etapaFoco, diaFoco, eventoFiltro,
     };
     clearFilters();
     toast({
@@ -416,6 +529,7 @@ export default function GestaoPrazos() {
             setPrioridade(anterior.prioridade);
             setEtapaFoco(anterior.etapaFoco);
             setDiaFoco(anterior.diaFoco);
+            setEventoFiltro(anterior.eventoFiltro);
           }}
         >
           Desfazer
@@ -423,7 +537,7 @@ export default function GestaoPrazos() {
       ),
     });
   }, [soAtrasados, soSaidas7d, soSemPecas, soInvalidos, busca, prioridade,
-    etapaFoco, diaFoco, clearFilters, toast]);
+    etapaFoco, diaFoco, eventoFiltro, clearFilters, toast]);
 
   // Um chip por filtro ativo, removível — inclusive o "Saídas em 7 dias", que
   // só existia como um anel de 1,5px num KPI fora da barra de filtros.
@@ -436,7 +550,23 @@ export default function GestaoPrazos() {
     const nome = stageMeta.find((m) => m.key === etapaFoco)?.label ?? etapaFoco;
     chipsAtivos.push({ key: "etapa", label: `Etapa: ${nome}`, onRemove: () => setEtapaFoco("all") });
   }
-  if (diaFoco) chipsAtivos.push({ key: "dia", label: `Vencem em ${fmtDayMonth(diaFoco)}`, onRemove: () => setDiaFoco("") });
+  if (eventoFiltro !== "all") {
+    // Nome, nunca o id: um chip escrito "Evento: 7f3a-..." é estado ativo que
+    // o diretor não consegue ler para decidir se quer tirar.
+    const nomeEv = events.find((e) => e.id === eventoFiltro)?.name ?? "evento selecionado";
+    chipsAtivos.push({ key: "ev", label: `Evento: ${nomeEv}`, onRemove: () => setEventoFiltro("all") });
+  }
+  if (diaFoco) {
+    // Na lista de peças todo prazo desta lista já VENCEU — "Vencem em 24/07",
+    // no futuro do presente, contradiz cada linha da tela.
+    chipsAtivos.push({
+      key: "dia",
+      label: visao === "atrasadas"
+        ? `Prazo venceu em ${fmtDayMonth(diaFoco)}`
+        : `Vencem em ${fmtDayMonth(diaFoco)}`,
+      onRemove: () => setDiaFoco(""),
+    });
+  }
   if (prioridade !== "all") {
     chipsAtivos.push({
       key: "prioridade",
@@ -894,7 +1024,14 @@ export default function GestaoPrazos() {
       {texto}
     </button>
   );
-  const faixaTriagem = data && (kpis.semPecas > 0 || kpis.invalidCount > 0) ? (
+  // Some na lista de peças: os dois botões desta faixa são filtros que ali só
+  // sabem devolver zero. Evento SEM NENHUMA PEÇA não produz peça atrasada por
+  // definição, e evento com data de saída inválida nunca tem etapa vencida (o
+  // domínio segura tudo em "upcoming" — sem data confiável não há atraso
+  // confiável). Ficariam como dois botões que, clicados, esvaziam a tela e não
+  // explicam por quê. Os chips continuam listados se o filtro veio da URL, e
+  // continuam removíveis.
+  const faixaTriagem = data && visao !== "atrasadas" && (kpis.semPecas > 0 || kpis.invalidCount > 0) ? (
     <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
       <AlertTriangle aria-hidden="true" style={{ width: 15, height: 15, color: TI.red, flexShrink: 0 }} />
       {kpis.semPecas > 0 && triagemBotao(
@@ -1399,6 +1536,53 @@ export default function GestaoPrazos() {
                 Só com atraso
               </button>
             )}
+            {/* ── Os filtros da LISTA DE PEÇAS ────────────────────────────
+                Faltavam: nesta visão a barra tinha busca e mais nada, e o
+                diretor não conseguia pedir "os atrasados do evento X" ou "os
+                atrasados da Gráfica" sem voltar para outra visão e reencontrar
+                o caminho. Os três entram só aqui porque só aqui a linha é uma
+                PEÇA: no quadro e na tabela o evento já É a linha (filtrar por
+                um evento deixaria um card sozinho no kanban) e etapa/dia
+                mudam de significado — lá recortam o EVENTO pelo funil, aqui
+                recortam a PEÇA pela mesa em que ela está e pelo prazo que a
+                mede. */}
+            {visao === "atrasadas" && (
+              <FilterSelect
+                label="Evento"
+                allLabel="Todos os eventos"
+                value={eventoFiltro}
+                onChange={setEventoFiltro}
+                searchPlaceholder="Buscar evento..."
+                testId="select-evento-pecas"
+                options={opcoesEvento}
+              />
+            )}
+            {visao === "atrasadas" && (
+              <FilterSelect
+                label="Etapa"
+                allLabel="Todas as etapas"
+                value={etapaFoco}
+                onChange={setEtapaFoco}
+                hideSearch
+                // 300 e não os 280 padrão: "Aprovação de Layout · Atendimento"
+                // é o rótulo mais longo do menu e no painel padrão ele perdia
+                // justamente o setor para a reticência.
+                panelWidth={300}
+                testId="select-etapa-pecas"
+                options={opcoesEtapa}
+              />
+            )}
+            {visao === "atrasadas" && (
+              <FilterSelect
+                label="Prazo vencido em"
+                allLabel="Qualquer dia vencido"
+                value={diaFoco || "all"}
+                onChange={(v) => setDiaFoco(v === "all" ? "" : v)}
+                hideSearch
+                testId="select-dia-pecas"
+                options={opcoesDia}
+              />
+            )}
             {/* FilterSelect no lugar dos <select> nativos: é o controle usado
                 em 15 telas e traz a altura padrão (36 no desktop, 44 no toque).
                 Aqui nenhum controle declarava `height` e no mobile os alvos
@@ -1409,10 +1593,7 @@ export default function GestaoPrazos() {
               value={prioridade}
               onChange={setPrioridade}
               testId="select-prioridade-prazos"
-              options={Object.keys(PRIORITY)
-                // Ordem canônica (urgente→baixa), não a ordem de inserção.
-                .filter((p) => prioridadesDisponiveis.includes(p))
-                .map((p) => ({ value: p, label: getPriorityMeta(p)?.label ?? p, dotColor: getPriorityMeta(p)?.dot }))}
+              options={opcoesPrioridade}
             />
             {/* Mesma razão do "Só com atraso": a lista de peças tem uma ordem
                 só (pior atraso primeiro) e ordenar por "próxima saída" um
@@ -1721,6 +1902,7 @@ export default function GestaoPrazos() {
             onEtapaFoco={(k) => {
               setSoAtrasados(false); setSoSaidas7d(false); setSoSemPecas(false);
               setSoInvalidos(false); setBusca(""); setPrioridade("all"); setDiaFoco("");
+              setEventoFiltro("all");
               setEtapaFoco(k);
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}

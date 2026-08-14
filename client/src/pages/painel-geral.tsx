@@ -3,7 +3,7 @@ import { useState, useMemo, useRef, Fragment, useEffect, useCallback } from "rea
 import {
   Search, Calendar, Truck, Eye, Paperclip, Trash2, FileText, Printer, RotateCcw,
   Loader2, MessageSquare, ArrowUpRight, ChevronDown, ChevronUp, Copy, FileSpreadsheet,
-  SlidersHorizontal, Link2, Check,
+  SlidersHorizontal, Link2, Check, Lock,
 } from "lucide-react";
 import { Link } from "wouter";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
@@ -29,7 +29,7 @@ import { SponsorChips } from "@/components/sponsor-chips";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useIsMobile, useElementSize, densityFromWidth, type ContentDensity } from "@/hooks/use-mobile";
-import { getStatusMeta, getStatusLabel, getApprovalMeta } from "@/lib/status";
+import { getStatusMeta, getStatusLabel, getApprovalMeta, motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import { StatusPill } from "@/components/status-pill";
 import type { Event, Sponsor, StandardItem } from "@shared/schema";
 import {
@@ -2217,6 +2217,29 @@ export default function PainelGeral() {
               </Link>
             )}
             {(() => {
+              // "Continuar em X" leva à FILA de trabalho — e as filas escondem
+              // as peças de evento finalizado. Mandar a pessoa para uma tela
+              // onde a peça não aparece é o mesmo beco sem saída do botão que
+              // só devolve 409: ela vai procurar, não vai achar, e vai concluir
+              // que o sistema perdeu a peça. Aqui o atalho vira a explicação.
+              //
+              // Só o ATALHO muda. O Painel Geral continua listando a peça de
+              // propósito (registro não perde o passado) e "Abrir evento" e
+              // "Copiar link" seguem valendo — são leitura.
+              const motivoFim = motivoEventoFinalizado(selectedItem.event ?? null, todayBusinessMs());
+              if (motivoFim) {
+                return (
+                  <span
+                    data-testid="aviso-evento-finalizado-ficha"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 34, padding: "6px 12px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#fafaf9", color: "#57534e", fontSize: 12, fontWeight: 600, maxWidth: 360, lineHeight: 1.4 }}
+                  >
+                    <Lock style={{ width: 13, height: 13, flexShrink: 0, color: "#78716c" }} />
+                    {motivoFim === "encerrado"
+                      ? "Evento encerrado — esta peça não avança no fluxo. Reabra o evento para voltar a trabalhar nela."
+                      : "Evento já realizado — esta peça não avança no fluxo. Conferência e entrega seguem liberadas na Gráfica."}
+                  </span>
+                );
+              }
               const tela = proximaTelaDoStatus(selectedItem.status, user?.role);
               if (!tela) return null;
               return (

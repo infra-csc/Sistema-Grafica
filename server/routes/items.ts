@@ -130,15 +130,22 @@ async function canCreateItemsFor(req: { userRole?: string; userId?: string }, ev
   return !!ev && ev.createdBy === req.userId;
 }
 
-/** Bloqueio por encerramento À MÃO — esse tem volta, então a frase oferece. */
-export const EVENTO_ENCERRADO_ERRO = "Evento encerrado — reabra o evento para adicionar peças.";
+/**
+ * Bloqueio por encerramento À MÃO — esse tem volta, então a frase oferece.
+ *
+ * A frase diz "mexer nas peças" e não "adicionar peças" porque a guarda deixou
+ * de ser só das cinco portas de CRIAÇÃO: ela cobre agora toda escrita que faz o
+ * trabalho andar (aprovar, liberar, produzir, editar…). Dizer "para adicionar
+ * peças" a quem tentou APROVAR seria devolver uma instrução que não serve.
+ */
+export const EVENTO_ENCERRADO_ERRO = "Evento encerrado — reabra o evento para mexer nas peças dele.";
 
 /**
  * Bloqueio por o evento JÁ TER ACONTECIDO. Aqui não existe "reabrir": a data
  * passou. Oferecer uma ação que não existe é pior do que negar.
  */
 export const EVENTO_REALIZADO_ERRO =
-  "Este evento já aconteceu — não é possível adicionar peças a ele.";
+  "Este evento já aconteceu — não é possível mexer nas peças dele.";
 
 /**
  * Evento ENCERRADO à mão não recebe peça nova.
@@ -167,6 +174,104 @@ function motivoEventoFechado(
 /** Cada motivo tem a sua frase: encerrado tem volta, realizado não tem. */
 function erroEventoFechado(motivo: EventoFinalizadoMotivo): string {
   return motivo === "encerrado" ? EVENTO_ENCERRADO_ERRO : EVENTO_REALIZADO_ERRO;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EVENTO FINALIZADO × ESCRITA DE PEÇA — O CRITÉRIO. Leia isto antes de mexer.
+//
+// O buraco que originou esta seção, relatado pelo dono com observação em
+// produção: "vi situações de encerrar eventos e conseguirem aprovar ainda".
+// Só a CRIAÇÃO estava barrada. As filas de trabalho (Arte, Atendimento,
+// Gráfica, Revisão, Vincular) ESCONDEM as peças de evento finalizado — mas
+// esconder é filtro de CLIENTE, e o Painel Geral e o Detalhe do Evento
+// continuam mostrando essas peças DE PROPÓSITO (regra do dono: registro não
+// perde o passado). Era por ali que a ação seguia acontecendo.
+//
+// O CRITÉRIO, em uma frase:
+//   BARRA o que faz o trabalho ANDAR. PERMITE o que ARRUMA A CASA.
+//
+// "Andar" é qualquer escrita que empurre a peça adiante no fluxo, mande alguém
+// trabalhar, ou reescreva o contrato: aprovar, reprovar, liberar, dispensar,
+// enviar arquivo, trocar arte, produzir, marcar reaproveitamento, editar,
+// devolver, cancelar, vincular patrocinador. Nada disso pode acontecer num
+// evento que já acabou — no melhor caso é trabalho invisível (a fila não mostra
+// a peça, então ninguém a faz), no pior é lona impressa para um evento que já
+// passou.
+//
+// "Arrumar a casa" é o que só encerra o que já existe, sem gerar trabalho:
+//   · excluir peça e restaurar peça — limpeza reversível (soft delete). Barrar
+//     deixaria lixo PRESO num evento em que ninguém mais pode mexer.
+//   · cancelar complemento — é desfazer um aumento, e a rota já exige que
+//     nenhuma unidade tenha sido tocada. Barrar transformaria um engano num
+//     item permanente da fila da Gráfica.
+//   · conferir e registrar entrega — é FECHAR A CONTA do que fisicamente já
+//     saiu. Nenhuma das duas consegue produzir nada: conferir exige a peça em
+//     "Produzido" e entregar exige unidades já conferidas. E o dia seguinte ao
+//     evento — quando ele já é "realizado" por definição — é exatamente quando
+//     a papelada da entrega chega. Barrar tornaria o registro do que aconteceu
+//     de verdade impossível de completar, para sempre.
+//
+// EM CASO DE DÚVIDA, BARRA (decisão do dono): reabrir o evento é barato, e o
+// admin faz isso em um clique. Um trabalho feito por engano num evento morto
+// não tem desfazer barato.
+//
+// Reabrir/encerrar o evento (server/routes/events.ts) obviamente NÃO passa por
+// aqui: é a válvula que destrava tudo o que esta guarda barra.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Motivo da finalização do evento DONO da peça. `null` = evento ainda em jogo. */
+export async function motivoEventoDaPeca(
+  item: { eventId?: string | null } | null | undefined,
+): Promise<EventoFinalizadoMotivo | null> {
+  if (!item?.eventId) return null;
+  return motivoEventoFechado(await storage.getEvent(item.eventId));
+}
+
+/**
+ * A guarda das rotas que fazem o trabalho ANDAR. Responde 409 e devolve `true`
+ * quando barrou, para o handler sair com `if (await barraEventoFinalizado(...)) return;`
+ *
+ * `code` e `reason` vão no corpo porque o cliente precisa distinguir as duas
+ * origens sem parsear a frase: "encerrado" oferece reabrir, "realizado" não.
+ */
+export async function barraEventoFinalizado(
+  item: { eventId?: string | null } | null | undefined,
+  res: { status: (c: number) => any },
+): Promise<boolean> {
+  const motivo = await motivoEventoDaPeca(item);
+  if (!motivo) return false;
+  res.status(409).json({ error: erroEventoFechado(motivo), code: "EVENT_FINALIZED", reason: motivo });
+  return true;
+}
+
+/**
+ * A mesma guarda nas rotas de LOTE, que não podem simplesmente sair no
+ * primeiro item barrado — elas já têm o idioma de pular o item inválido e
+ * devolver a lista de erros no fim.
+ *
+ * Por que não 409 no primeiro barrado: um lote misto (peças de eventos vivos e
+ * de um evento finalizado) puniria as peças boas por causa da ruim. Por que
+ * ainda assim existe um 409: quando NADA passou e tudo o que falhou falhou por
+ * esta regra, um `{ success: 0, errors: N }` com status 200 vira "não fez nada
+ * e não disse por quê" — que é o silêncio de sempre, agora em lote.
+ */
+export function contadorDeBloqueio() {
+  let bloqueados = 0;
+  let motivo: EventoFinalizadoMotivo | null = null;
+  return {
+    /** Registra um item barrado e devolve a frase para a lista de erros. */
+    registra(m: EventoFinalizadoMotivo): string {
+      bloqueados += 1;
+      motivo ??= m;
+      return erroEventoFechado(m);
+    },
+    /** `true` (já respondeu 409) quando o lote INTEIRO caiu por esta regra. */
+    respondeLoteInteiro(res: { status: (c: number) => any }, processados: number, pedidos: number): boolean {
+      if (!motivo || processados > 0 || bloqueados !== pedidos) return false;
+      res.status(409).json({ error: erroEventoFechado(motivo), code: "EVENT_FINALIZED", reason: motivo });
+      return true;
+    },
+  };
 }
 
 // Enriquece uma lista de itens com { event, sponsors } fazendo apenas 4 queries
@@ -334,6 +439,13 @@ export function registerItemRoutes(app: Express): void {
 
   // Restaurar peça excluída (desfaz o soft delete) — SOMENTE admin.
   // A visão "Excluídos" era um beco sem saída: dava para ver, não para voltar.
+  //
+  // SEM a guarda de evento finalizado (é ARRUMAR A CASA, não fazer andar):
+  // restaurar é o desfazer de uma exclusão, e a exclusão continua liberada em
+  // evento finalizado. Barrar só aqui tornaria PERMANENTE um clique errado —
+  // a peça excluída por engano ficaria na lixeira para sempre, porque o
+  // caminho de volta estaria fechado. Restaurar não faz ninguém trabalhar: a
+  // peça volta com o MESMO status que tinha.
   app.post("/api/items/:id/restore", requireAuth, async (req, res) => {
     try {
       if (req.userRole !== "admin") {
@@ -803,6 +915,10 @@ export function registerItemRoutes(app: Express): void {
       if (!currentItem) {
         return res.status(404).json({ error: "Item not found" });
       }
+      // ANDA: este PATCH mexe em quantidade, material, dimensões e m² — o
+      // contrato da peça. Num evento que já acabou, mudar o contrato só
+      // reescreve o que foi fechado.
+      if (await barraEventoFinalizado(currentItem, res)) return;
 
       const updatePayload: Record<string, any> = { ...validatedData };
 
@@ -976,6 +1092,15 @@ export function registerItemRoutes(app: Express): void {
   });
 
   // Delete item (soft delete — preservado no histórico)
+  //
+  // SEM a guarda de evento finalizado (é ARRUMAR A CASA). Excluir não faz o
+  // trabalho andar: tira a peça da frente. Barrar aqui deixaria LIXO PRESO —
+  // a peça duplicada, o rascunho digitado errado e a linha que nunca deveria
+  // existir ficariam para sempre num evento em que ninguém mais pode mexer,
+  // poluindo o Painel Geral e a contagem do Detalhe do Evento. E o risco é
+  // baixo pelos dois motivos que já valem hoje: a exclusão é SOFT (a peça vai
+  // para a lixeira, com deletedAt) e RESTAURÁVEL pela rota de restauração,
+  // com autor e data no audit log.
   app.delete("/api/items/:id", requireAuth, async (req, res) => {
     try {
       // Gate de PAPEL — o único gate de permissão desta rota. Gráfica, Arte e
@@ -1258,6 +1383,13 @@ export function registerItemRoutes(app: Express): void {
   // A Gráfica pode cancelar de propósito: quem percebe o engano é quem está
   // com a peça na mão, e obrigá-la a caçar o solicitante para desfazer algo
   // que ainda não foi impresso é como se perde a confiança na ferramenta.
+  //
+  // SEM a guarda de evento finalizado (é ARRUMAR A CASA). Cancelar complemento
+  // é DESFAZER um aumento, nunca avançar: a rota já exige que nenhuma unidade
+  // tenha sido produzida, reaproveitada, conferida ou entregue. Barrar aqui
+  // transformaria um complemento criado por engano em item PERMANENTE da fila
+  // da Gráfica — um convite a imprimir, que é justamente o que esta guarda
+  // existe para evitar.
   app.delete("/api/items/:id/complement", requireAuth, async (req, res) => {
     try {
       const item = await storage.getItem(req.params.id);
@@ -1387,6 +1519,9 @@ export function registerItemRoutes(app: Express): void {
         return res.status(404).json({ error: "Item not found" });
       }
       
+      // ANDA: empurra a peça para a fila do Atendimento (ou da Revisão).
+      if (await barraEventoFinalizado(currentItem, res)) return;
+
       // Only items that passed through vincular-patrocinadores (awaiting_submission) can be worked on
       if (currentItem.status !== "awaiting_submission") {
         return res.status(409).json({ 
@@ -1517,12 +1652,17 @@ export function registerItemRoutes(app: Express): void {
         return res.status(404).json({ error: "Item not found" });
       }
       
+      // ANDA — e é LITERALMENTE o caso que o dono viu em produção ("encerrar
+      // eventos e conseguirem aprovar ainda"). A tela do Atendimento já esconde
+      // a peça; a ficha do Painel Geral, não.
+      if (await barraEventoFinalizado(currentItem, res)) return;
+
       if (currentItem.status !== "awaiting_sponsor_approval") {
-        return res.status(409).json({ 
-          error: `Item não pode ser aprovado pelo patrocinador. Status atual: ${currentItem.status}, esperado: awaiting_sponsor_approval` 
+        return res.status(409).json({
+          error: `Item não pode ser aprovado pelo patrocinador. Status atual: ${currentItem.status}, esperado: awaiting_sponsor_approval`
         });
       }
-      
+
       const item = await storage.updateItem(req.params.id, {
         status: "sponsor_approved",
         sponsorApprovedBy: req.userName,
@@ -1571,6 +1711,9 @@ export function registerItemRoutes(app: Express): void {
       }
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) return res.status(404).json({ error: "Item not found" });
+      // ANDA: a dispensa PULA a aprovação e joga a peça direto na fila da
+      // Gráfica — o gesto que mais rápido vira lona impressa.
+      if (await barraEventoFinalizado(currentItem, res)) return;
       const dispensableStatuses = ["awaiting_submission", "awaiting_sponsor_approval", "sponsor_approved", "awaiting_creator_review"];
       if (!dispensableStatuses.includes(currentItem.status)) {
         return res.status(409).json({ error: `Item não pode ser dispensado no status atual: ${currentItem.status}` });
@@ -1628,9 +1771,13 @@ export function registerItemRoutes(app: Express): void {
         return res.status(404).json({ error: "Item not found" });
       }
       
+      // ANDA: reprovar devolve a peça para a Arte refazer — trabalho novo,
+      // numa fila que não mostra mais essa peça.
+      if (await barraEventoFinalizado(currentItem, res)) return;
+
       if (currentItem.status !== "awaiting_sponsor_approval") {
-        return res.status(409).json({ 
-          error: `Item não pode ser reprovado pelo patrocinador. Status atual: ${currentItem.status}, esperado: awaiting_sponsor_approval` 
+        return res.status(409).json({
+          error: `Item não pode ser reprovado pelo patrocinador. Status atual: ${currentItem.status}, esperado: awaiting_sponsor_approval`
         });
       }
       
@@ -1711,18 +1858,22 @@ export function registerItemRoutes(app: Express): void {
         return res.status(404).json({ error: "Item não encontrado" });
       }
       
+      // ANDA: aprovação por patrocinador — o mesmo buraco do /sponsor-approve,
+      // por outra porta (é esta que a tela de Atendimento usa hoje).
+      if (await barraEventoFinalizado(currentItem, res)) return;
+
       if (currentItem.status !== "awaiting_sponsor_approval") {
-        return res.status(409).json({ 
-          error: `Item não está aguardando aprovação do patrocinador. Status atual: ${currentItem.status}` 
+        return res.status(409).json({
+          error: `Item não está aguardando aprovação do patrocinador. Status atual: ${currentItem.status}`
         });
       }
-      
+
       // Validate sponsor is linked to item
       const itemSponsors = await storage.getItemSponsors(itemId);
       if (!itemSponsors.find(s => s.sponsorId === sponsorId)) {
         return res.status(404).json({ error: "Patrocinador não está vinculado a este item" });
       }
-      
+
       // Get or create approval record
       let approval = await storage.getItemSponsorApproval(itemId, sponsorId);
 
@@ -1829,21 +1980,24 @@ export function registerItemRoutes(app: Express): void {
         return res.status(404).json({ error: "Item não encontrado" });
       }
       
+      // ANDA: reprovar por patrocinador manda a Arte fazer uma versão nova.
+      if (await barraEventoFinalizado(currentItem, res)) return;
+
       if (currentItem.status !== "awaiting_sponsor_approval") {
-        return res.status(409).json({ 
-          error: `Item não está aguardando aprovação do patrocinador. Status atual: ${currentItem.status}` 
+        return res.status(409).json({
+          error: `Item não está aguardando aprovação do patrocinador. Status atual: ${currentItem.status}`
         });
       }
-      
+
       // Validate sponsor is linked to item
       const itemSponsors = await storage.getItemSponsors(itemId);
       if (!itemSponsors.find(s => s.sponsorId === sponsorId)) {
         return res.status(404).json({ error: "Patrocinador não está vinculado a este item" });
       }
-      
+
       // Get or create approval record
       let approval = await storage.getItemSponsorApproval(itemId, sponsorId);
-      
+
       if (approval) {
         // Update existing approval
         approval = await storage.updateItemSponsorApproval(approval.id, {
@@ -1920,6 +2074,15 @@ export function registerItemRoutes(app: Express): void {
         return res.status(404).json({ error: "Item não encontrado" });
       }
 
+      // ANDA (e aqui foi uma DECISÃO, não um automatismo): "reverter" soa como
+      // arrumar a casa, mas o efeito é REABRIR a rodada — devolve o item de
+      // "sponsor_approved" para "awaiting_sponsor_approval", ou seja, recria
+      // uma pendência de aprovação numa fila que não mostra mais essa peça.
+      // Num evento vivo é correção; num evento morto é trabalho fantasma.
+      // Vale a regra do dono para os casos duvidosos: barra — o admin que
+      // precisar mesmo corrigir reabre o evento, que é barato.
+      if (await barraEventoFinalizado(currentItem, res)) return;
+
       const approval = await storage.getItemSponsorApproval(itemId, sponsorId);
       if (!approval) {
         return res.status(404).json({ error: "Aprovação não encontrada para este patrocinador" });
@@ -1993,6 +2156,9 @@ export function registerItemRoutes(app: Express): void {
       if (!currentItem) {
         return res.status(404).json({ error: "Item não encontrado" });
       }
+      // ANDA: nova versão de arte volta a cobrar revisão do Atendimento.
+      if (await barraEventoFinalizado(currentItem, res)) return;
+
       if (currentItem.status !== "awaiting_sponsor_approval") {
         return res.status(409).json({ error: "Item não está aguardando aprovação do patrocinador" });
       }
@@ -2049,10 +2215,16 @@ export function registerItemRoutes(app: Express): void {
     }
     try {
       const itemId = req.params.id;
-      
+
+      // ANDA: (re)inicializar zera as aprovações e abre uma rodada NOVA de
+      // cobrança de patrocinador. Precisa do item só para chegar ao evento.
+      const alvo = await storage.getItem(itemId);
+      if (!alvo) return res.status(404).json({ error: "Item não encontrado" });
+      if (await barraEventoFinalizado(alvo, res)) return;
+
       // Get item sponsors
       const itemSponsors = await storage.getItemSponsors(itemId);
-      
+
       if (itemSponsors.length === 0) {
         return res.status(400).json({ error: "Item não possui patrocinadores vinculados" });
       }
@@ -2107,6 +2279,10 @@ export function registerItemRoutes(app: Express): void {
         return res.status(404).json({ error: "Item not found" });
       }
       
+      // ANDA: o arquivo final leva a peça para a Revisão Final e, dali, para a
+      // Gráfica.
+      if (await barraEventoFinalizado(currentItem, res)) return;
+
       // sponsor_approved: normal flow after sponsor approval
       // awaiting_creator_review: skipApproval / no-sponsor flow (sponsor approval skipped)
       if (currentItem.status !== "sponsor_approved" && currentItem.status !== "awaiting_creator_review") {
@@ -2173,6 +2349,8 @@ export function registerItemRoutes(app: Express): void {
       if (!currentItem) {
         return res.status(404).json({ error: "Item not found" });
       }
+      // ANDA: trocar o thumb é refazer o material que os patrocinadores olham.
+      if (await barraEventoFinalizado(currentItem, res)) return;
       if (!currentItem.approvalThumbUrl) {
         return res.status(409).json({ error: "Este item ainda não possui um thumb enviado" });
       }
@@ -2223,6 +2401,10 @@ export function registerItemRoutes(app: Express): void {
       if (!currentItem) {
         return res.status(404).json({ error: "Item not found" });
       }
+      // ANDA: substituir o arquivo final notifica a Gráfica para RE-VERIFICAR
+      // antes de produzir e ainda propaga a arte nova para os complementos —
+      // é um pedido de reimpressão disfarçado de correção de arquivo.
+      if (await barraEventoFinalizado(currentItem, res)) return;
       if (!currentItem.finalFileUrl) {
         return res.status(409).json({ error: "Este item ainda não possui um arquivo final enviado" });
       }
@@ -2328,6 +2510,11 @@ export function registerItemRoutes(app: Express): void {
         return res.status(404).json({ error: "Item not found" });
       }
       
+      // ANDA: liberar para produção é o gesto que autoriza imprimir. Vem ANTES
+      // do atalho idempotente logo abaixo de propósito — num evento finalizado
+      // a resposta certa é 409, e não um 200 silencioso.
+      if (await barraEventoFinalizado(currentItem, res)) return;
+
       // Idempotente: se a peça JÁ foi liberada (ou já avançou na produção), não
       // é erro clicar "Liberar" de novo (lista desatualizada / clique duplo) —
       // só devolve a peça como sucesso, sem reprocessar.
@@ -2435,12 +2622,16 @@ export function registerItemRoutes(app: Express): void {
         return res.status(404).json({ error: "Item not found" });
       }
       
+      // ANDA: reprovar APAGA o arquivo final e o thumb e devolve a peça para a
+      // Arte refazer — destrói material e cria trabalho de uma vez só.
+      if (await barraEventoFinalizado(currentItem, res)) return;
+
       if (currentItem.status !== "awaiting_final_review") {
-        return res.status(409).json({ 
-          error: `Item não pode ser reprovado pelo criador. Status atual: ${currentItem.status}, esperado: awaiting_final_review` 
+        return res.status(409).json({
+          error: `Item não pode ser reprovado pelo criador. Status atual: ${currentItem.status}, esperado: awaiting_final_review`
         });
       }
-      
+
       const item = await storage.updateItem(req.params.id, {
         status: "awaiting_submission",
         creatorReviewedAt: null,
@@ -2495,6 +2686,9 @@ export function registerItemRoutes(app: Express): void {
         return res.status(404).json({ error: "Item not found" });
       }
       
+      // ANDA: devolver para a Arte com observações é pedir retrabalho.
+      if (await barraEventoFinalizado(currentItem, res)) return;
+
       if (currentItem.status !== "awaiting_final_review") {
         return res.status(409).json({ error: `Item não pode ser devolvido. Status atual: ${currentItem.status}` });
       }
@@ -2557,19 +2751,27 @@ export function registerItemRoutes(app: Express): void {
       
       const results = [];
       const errors = [];
-      
+      // ANDA: mesma devolução do individual, multiplicada.
+      const bloqueio = contadorDeBloqueio();
+
       for (const itemId of itemIds) {
         const currentItem = await storage.getItem(itemId);
         if (!currentItem) {
           errors.push({ itemId, error: "Item não encontrado" });
           continue;
         }
-        
+
+        const motivoEvento = await motivoEventoDaPeca(currentItem);
+        if (motivoEvento) {
+          errors.push({ itemId, error: bloqueio.registra(motivoEvento) });
+          continue;
+        }
+
         if (currentItem.status !== "awaiting_final_review") {
           errors.push({ itemId, error: `Status inválido: ${currentItem.status}` });
           continue;
         }
-        
+
         const item = await storage.updateItem(itemId, {
           status: "awaiting_submission",
           creatorReviewedAt: null,
@@ -2580,7 +2782,7 @@ export function registerItemRoutes(app: Express): void {
           // substitui a observação — o lote herdava a antiga silenciosamente.
           observations: notes ?? "",
         });
-        
+
         if (item) {
           results.push(item);
           await createAuditLog(
@@ -2593,7 +2795,9 @@ export function registerItemRoutes(app: Express): void {
           broadcast({ type: "item_updated", item });
         }
       }
-      
+
+      if (bloqueio.respondeLoteInteiro(res, results.length, itemIds.length)) return;
+
       if (results.length > 0) {
         const detailMsg = notes ? ` Observações: ${notes}` : "";
         const notification = await storage.createNotification({
@@ -2625,15 +2829,26 @@ export function registerItemRoutes(app: Express): void {
         return res.status(404).json({ error: "Item not found" });
       }
       
+      // CASO DUVIDOSO — barrado, e o porquê da dúvida fica aqui.
+      // A favor de permitir: cancelar não faz ninguém trabalhar; parece a
+      // faxina natural das peças que ficaram penduradas quando o evento acabou.
+      // Contra (e foi o que decidiu): esta rota NÃO tem gate de status nenhum —
+      // ela aceita cancelar uma peça ENTREGUE, e isso reescreveria o registro
+      // de um evento fechado ("entregue" vira "cancelado"), justamente o número
+      // que fecha a conta com o patrocinador. Na dúvida, barra: quem precisa
+      // mesmo cancelar pede para reabrir o evento, e para a faxina de peça que
+      // nunca existiu já existe a exclusão, que segue liberada e é reversível.
+      if (await barraEventoFinalizado(currentItem, res)) return;
+
       const item = await storage.updateItem(req.params.id, {
         status: "canceled",
         observations: notes || currentItem.observations,
       });
-      
+
       if (!item) {
         return res.status(404).json({ error: "Item not found" });
       }
-      
+
       const detailMsg = notes ? ` Motivo: ${notes}` : "";
       await createAuditLog(
         req,
@@ -2663,12 +2878,20 @@ export function registerItemRoutes(app: Express): void {
       }
       
       const results = [];
-      
+      // Mesma decisão (e mesma dúvida) do cancelamento individual acima.
+      const bloqueio = contadorDeBloqueio();
+
       for (const itemId of itemIds) {
         const currentItem = await storage.getItem(itemId);
         if (!currentItem) continue;
-        
-        const item = await storage.updateItem(itemId, { 
+
+        const motivoEvento = await motivoEventoDaPeca(currentItem);
+        if (motivoEvento) {
+          bloqueio.registra(motivoEvento);
+          continue;
+        }
+
+        const item = await storage.updateItem(itemId, {
           status: "canceled",
           observations: notes || currentItem.observations,
         });
@@ -2681,7 +2904,9 @@ export function registerItemRoutes(app: Express): void {
           broadcast({ type: "item_updated", item });
         }
       }
-      
+
+      if (bloqueio.respondeLoteInteiro(res, results.length, itemIds.length)) return;
+
       res.json({ canceled: results.length, items: results });
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -2700,6 +2925,10 @@ export function registerItemRoutes(app: Express): void {
         return res.status(404).json({ error: "Item not found" });
       }
       
+      // ANDA: é a irmã do PATCH genérico — muda quantidade, material, medidas e
+      // m². Mesmo motivo, mesma guarda.
+      if (await barraEventoFinalizado(currentItem, res)) return;
+
       const { type, quantity, description, fileWidth, fileHeight, material, finish, calculatedM2, measurement } = req.body;
 
       // Valores efetivos após o merge (novo valor ou o atual).
@@ -2769,19 +2998,27 @@ export function registerItemRoutes(app: Express): void {
       
       const results = [];
       const errors = [];
-      
+      // ANDA: mesma reprovação do individual, multiplicada.
+      const bloqueio = contadorDeBloqueio();
+
       for (const itemId of itemIds) {
         const currentItem = await storage.getItem(itemId);
         if (!currentItem) {
           errors.push({ itemId, error: "Item não encontrado" });
           continue;
         }
-        
+
+        const motivoEvento = await motivoEventoDaPeca(currentItem);
+        if (motivoEvento) {
+          errors.push({ itemId, error: bloqueio.registra(motivoEvento) });
+          continue;
+        }
+
         if (currentItem.status !== "awaiting_final_review") {
           errors.push({ itemId, error: `Status inválido: ${currentItem.status}` });
           continue;
         }
-        
+
         const item = await storage.updateItem(itemId, {
           status: "awaiting_submission",
           creatorReviewedAt: null,
@@ -2808,6 +3045,8 @@ export function registerItemRoutes(app: Express): void {
         }
       }
       
+      if (bloqueio.respondeLoteInteiro(res, results.length, itemIds.length)) return;
+
       // Notifica Arte uma vez para todos os itens
       if (results.length > 0) {
         const notification = await storage.createNotification({
@@ -2845,6 +3084,9 @@ export function registerItemRoutes(app: Express): void {
       // Pre-fetch event for notification message (read outside tx — no row lock needed)
       const preItem = await storage.getItem(req.params.id);
       if (!preItem) return res.status(404).json({ error: "Item not found" });
+      // ANDA: caminho antigo do "liberar para produção". Depreciado, mas
+      // registrado — e uma rota registrada é uma rota chamável.
+      if (await barraEventoFinalizado(preItem, res)) return;
       const event = await storage.getEvent(preItem.eventId);
 
       // Atomic: item status update + audit log + notification in one transaction.
@@ -2907,6 +3149,10 @@ export function registerItemRoutes(app: Express): void {
       // to compute the new status — replicating startProduction logic inside tx).
       const before = await storage.getItem(req.params.id);
       if (!before) return res.status(404).json({ error: "Item not found" });
+      // ANDA — e é o mais caro de todos: aqui a peça vira LONA IMPRESSA e ainda
+      // gera ativos no Estoque. Imprimir para um evento que já aconteceu é
+      // dinheiro queimado que nenhum estorno recupera.
+      if (await barraEventoFinalizado(before, res)) return;
 
       // ── Concorrência: `quantityProduced` é ABSOLUTO (total produzido até
       // agora), não incremental. Quando o cliente informa `expectedProduced`
@@ -3060,6 +3306,10 @@ export function registerItemRoutes(app: Express): void {
       }
       const current = await storage.getItem(req.params.id);
       if (!current) return res.status(404).json({ error: "Item not found" });
+      // ANDA: marcar reaproveitamento move a peça no fluxo (pode fechá-la como
+      // "Produzido") e, por tabela, cria ativo de inventário. É decisão de
+      // produção, não registro do passado.
+      if (await barraEventoFinalizado(current, res)) return;
       if (current.status === "delivered" || current.status === "entregue") {
         return res.status(409).json({ error: "Não é possível reaproveitar uma peça já entregue" });
       }
@@ -3125,6 +3375,12 @@ export function registerItemRoutes(app: Express): void {
 
       const current = await storage.getItem(req.params.id);
       if (!current) return res.status(404).json({ error: "Item not found" });
+
+      // ANDA, apesar do nome. "Corrigir reaproveitamento" devolve a peça para
+      // "Pronto p/ Produção" e ZERA quantityProduced — ou seja, recoloca a peça
+      // na fila da Gráfica pedindo impressão. Num evento finalizado é
+      // exatamente o trabalho fantasma que esta guarda existe para impedir.
+      if (await barraEventoFinalizado(current, res)) return;
 
       // O que realmente impede a correção é a peça já ter sido conferida ou
       // entregue — é aí que o número vira contagem física. O status por si só
@@ -3196,6 +3452,14 @@ export function registerItemRoutes(app: Express): void {
   });
 
   // Gráfica confere a peça produzida (com foto). Suporta conferência parcial.
+  //
+  // SEM a guarda de evento finalizado (é FECHAR A CONTA do que já existe).
+  // Conferir não produz nada: a rota exige `status === "produced"`, isto é, a
+  // impressão já aconteceu e a peça está fisicamente no galpão. O que se
+  // registra aqui é a contagem do material — e a contagem costuma acontecer
+  // depois do evento, que é justamente quando ele já conta como "realizado".
+  // Barrar deixaria a peça eternamente "Produzida" e travaria a entrega, que
+  // só aceita unidades conferidas.
   app.post("/api/items/:id/confer", requireAuth, async (req, res) => {
     try {
       if ((req as any).userRole !== "grafica" && (req as any).userRole !== "admin") {
@@ -3240,6 +3504,14 @@ export function registerItemRoutes(app: Express): void {
   });
 
   // Mark item as delivered (Gráfica module)
+  //
+  // SEM a guarda de evento finalizado — é O exemplo de FECHAR A CONTA: registrar
+  // a entrega de algo que fisicamente já saiu. A rota não consegue inventar
+  // trabalho: o teto de entrega é `conferredQty` (unidades já produzidas E já
+  // conferidas), e produzir está barrado. E a entrega quase sempre é lançada
+  // DEPOIS do evento — todo evento vira "realizado" no dia seguinte, então
+  // barrar aqui impediria, para sempre, fechar o registro do que aconteceu de
+  // verdade. É exatamente o oposto do que a regra quer.
   app.patch("/api/items/:id/deliver", requireAuth, async (req, res) => {
     // Entrega é etapa da Gráfica (solicitacao entra pelo fluxo de reuso) — era
     // a ÚNICA transição do fluxo de produção sem gate de papel.
@@ -3355,6 +3627,17 @@ export function registerItemRoutes(app: Express): void {
       }
       if (bookUrl !== null && (typeof bookUrl !== "string" || !bookUrl.trim())) {
         return res.status(400).json({ error: "bookUrl inválido" });
+      }
+      // ANDA (caso duvidoso, barrado): o book é o material que a Arte manda aos
+      // patrocinadores para aprovarem — vincular um é abrir rodada de
+      // aprovação. E a rota LIMPA o bookUrl de todas as peças do evento antes
+      // de gravar, então em evento finalizado ela também apagaria o book
+      // arquivado. Na dúvida entre "arquivo" e "trabalho", barra.
+      const fechadoBook = motivoEventoFechado(await storage.getEvent(req.params.eventId));
+      if (fechadoBook) {
+        return res.status(409).json({
+          error: erroEventoFechado(fechadoBook), code: "EVENT_FINALIZED", reason: fechadoBook,
+        });
       }
       // Limpa o bookUrl antigo de TODOS os itens do evento antes de setar o novo.
       // Isso garante que itens não selecionados não fiquem com URL obsoleta,

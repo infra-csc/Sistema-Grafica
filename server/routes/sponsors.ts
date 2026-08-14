@@ -14,6 +14,12 @@ import {
   createAuditLog,
   updateEventStatus,
 } from "./shared";
+// A guarda de evento finalizado mora em ./items porque é lá que o predicado
+// compartilhado (@shared/prazo-dates) já estava embrulhado nas frases de erro
+// desta casa — duas cópias da mesma guarda divergiriam no primeiro ajuste. Só
+// vale a dependência de módulo de rota para módulo de rota nesse sentido:
+// items.ts não importa nada daqui.
+import { barraEventoFinalizado, motivoEventoDaPeca, contadorDeBloqueio } from "./items";
 
 // Papéis que escrevem em vinculação de patrocinadores — o mesmo conjunto que a
 // rota /vincular-patrocinadores permite no client (App.tsx). Antes essas rotas
@@ -266,6 +272,10 @@ export function registerSponsorRoutes(app: Express): void {
 
   app.post("/api/events/:id/auto-link-sponsors", requireLinkingWrite, async (req, res) => {
     try {
+      // ANDA: a vinculação automática cria vínculos peça↔patrocinador em massa,
+      // que é a etapa que faz a peça seguir para a Arte. Recebe o eventId
+      // direto — a guarda só precisa saber a que evento a escrita pertence.
+      if (await barraEventoFinalizado({ eventId: req.params.id }, res)) return;
       const linked = await storage.autoLinkByQuota(req.params.id);
       // Era a única escrita da tela de vinculação invisível no histórico e
       // sem broadcast — outros clientes ficavam com /api/items stale.
@@ -436,6 +446,9 @@ export function registerSponsorRoutes(app: Express): void {
       if (!currentItem) {
         return res.status(404).json({ error: "Item não encontrado" });
       }
+      // ANDA: reescrever os patrocinadores (e o "sem aprovação") é a etapa de
+      // vinculação do fluxo — o que decide quem terá de aprovar a peça.
+      if (await barraEventoFinalizado(currentItem, res)) return;
 
       // Vínculo só faz sentido enquanto a peça está na fase de vinculação —
       // sem isto dava para reescrever patrocinadores de peça já em produção
@@ -486,6 +499,11 @@ export function registerSponsorRoutes(app: Express): void {
       const { id } = req.params;
       const item = await storage.getItem(id);
       if (!item) return res.status(404).json({ error: "Item não encontrado" });
+      // ANDA (caso duvidoso, barrado): "devolver para a Criação" soa como
+      // desfazer, mas o efeito é jogar a peça de volta na mesa da Solicitação
+      // com os vínculos APAGADOS — trabalho novo, e perda de informação, numa
+      // fila que já não mostra esta peça.
+      if (await barraEventoFinalizado(item, res)) return;
 
       const allowedStatuses = ['draft', 'requested', 'awaiting_linking', 'awaiting_submission'];
       if (!allowedStatuses.includes(item.status)) {
@@ -532,7 +550,12 @@ export function registerSponsorRoutes(app: Express): void {
       
       const results: any[] = [];
       const errors: string[] = [];
-      
+      // ANDA: "enviar para a Arte" é literalmente empurrar trabalho para a fila
+      // de outra equipe. Em lote, o item barrado entra na lista de erros (para
+      // não punir as peças boas do mesmo envio) e o 409 só sai quando o lote
+      // inteiro caiu por esta regra.
+      const bloqueio = contadorDeBloqueio();
+
       for (const itemId of itemIds) {
         try {
           const item = await storage.getItem(itemId);
@@ -540,7 +563,13 @@ export function registerSponsorRoutes(app: Express): void {
             errors.push(`Item ${itemId} não encontrado`);
             continue;
           }
-          
+
+          const motivoEvento = await motivoEventoDaPeca(item);
+          if (motivoEvento) {
+            errors.push(`Item ${item.displayId}: ${bloqueio.registra(motivoEvento)}`);
+            continue;
+          }
+
           // Items with status 'awaiting_linking' can be sent to Arte (submitted by creator)
           if (item.status !== 'awaiting_linking') {
             errors.push(`Item ${item.displayId} não está no status correto para envio`);
@@ -561,7 +590,9 @@ export function registerSponsorRoutes(app: Express): void {
           errors.push(`Erro ao processar item ${itemId}: ${error.message}`);
         }
       }
-      
+
+      if (bloqueio.respondeLoteInteiro(res, results.length, itemIds.length)) return;
+
       if (results.length > 0) {
         await createAuditLog(
           req,
@@ -603,11 +634,17 @@ export function registerSponsorRoutes(app: Express): void {
         sponsorId: req.body.sponsorId,
       });
 
-      const itemSponsor = await storage.addSponsorToItem(validatedData);
-      
+      // ANDA: vincular um patrocinador cria uma aprovação a cobrar. A leitura
+      // do item subiu para ANTES da escrita — sem ela a guarda chegaria tarde,
+      // com o vínculo já gravado.
       const item = await storage.getItem(req.params.id);
+      if (!item) return res.status(404).json({ error: "Item não encontrado" });
+      if (await barraEventoFinalizado(item, res)) return;
+
+      const itemSponsor = await storage.addSponsorToItem(validatedData);
+
       const sponsor = await storage.getSponsor(validatedData.sponsorId);
-      
+
       await createAuditLog(
         req,
         'added',
@@ -627,15 +664,23 @@ export function registerSponsorRoutes(app: Express): void {
   app.delete("/api/items/:itemId/sponsors/:sponsorId", requireLinkingWrite, async (req, res) => {
     try {
       const { itemId, sponsorId } = req.params;
+
+      // ANDA (caso duvidoso, barrado): remover um patrocinador parece limpeza,
+      // mas é o mesmo gesto de vincular ao contrário — muda quem aprova a peça
+      // e some com o registro de quem estava na arte de um evento já fechado.
+      // Leitura ANTES da remoção, senão a guarda chegaria depois do estrago.
+      const item = await storage.getItem(itemId);
+      if (!item) return res.status(404).json({ error: "Item não encontrado" });
+      if (await barraEventoFinalizado(item, res)) return;
+
       const success = await storage.removeSponsorFromItem(itemId, sponsorId);
-      
+
       if (!success) {
         return res.status(404).json({ error: "Vinculação não encontrada" });
       }
-      
-      const item = await storage.getItem(itemId);
+
       const sponsor = await storage.getSponsor(sponsorId);
-      
+
       await createAuditLog(
         req,
         'removed',

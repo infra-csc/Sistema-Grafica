@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
-import { getStatusLabel, getStatusMeta, FINAL_STATUSES, PRODUCTION_STATUSES } from "@/lib/status";
+import { getStatusLabel, getStatusMeta, FINAL_STATUSES, PRODUCTION_STATUSES, motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, Building2, Loader2, User, History, Lock, Unlock, Paperclip, ExternalLink, X, RotateCcw, Recycle, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, Search } from "lucide-react";
@@ -44,7 +44,7 @@ import { useEventImport, useEventClone } from "@/hooks/use-event-import";
 import { useEventReference } from "@/hooks/use-event-reference";
 import { useEventItemFlags } from "@/hooks/use-event-item-flags";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
+import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { reductionFloorOf } from "@/lib/saldo";
 import {
   AumentarQuantidadeDialog,
@@ -816,8 +816,36 @@ export default function EventDetail() {
       .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   };
 
+  // ── Evento FINALIZADO: encerrado à mão OU já realizado ────────────────────
+  // Esta tela mostra as peças do evento finalizado DE PROPÓSITO (registro não
+  // perde o passado) — e era exatamente por isso que a ação continuava
+  // acontecendo aqui depois de o servidor passar a recusá-la. Um botão que só
+  // existe para devolver 409 é pior do que um botão desabilitado: gasta o
+  // clique, some com o trabalho digitado e não explica nada.
+  //
+  // O CRITÉRIO é o mesmo do servidor (server/routes/items.ts): desabilita o
+  // que faz o trabalho ANDAR (adicionar, importar, clonar, editar, enviar,
+  // marcar reaproveitamento, mexer na referência); mantém o que ARRUMA A CASA
+  // (excluir peça) e o que só lê (exportar).
+  //
+  // Fica ANTES de canUploadReference/canEditLists porque os dois já dependem
+  // dele — em JS, `const` não sobe.
+  const motivoEventoFim = useMemo(
+    () => motivoEventoFinalizado(event ?? null, todayBusinessMs()),
+    [event],
+  );
+  const eventoFinalizado = motivoEventoFim !== null;
+  /** A frase do botão travado — a mesma distinção das duas origens. */
+  const avisoEventoFim = motivoEventoFim === "encerrado"
+    ? "Evento encerrado — reabra o evento para mexer nas peças dele."
+    : "Este evento já aconteceu — não é possível mexer nas peças dele.";
+
   // Solicitação ou admin podem adicionar referência
-  const canUploadReference = hasPermission("admin") || user?.role === "solicitacao";
+  // Anexar/trocar/remover referência visual é PATCH /api/items/:id — a mesma
+  // rota que o servidor passou a recusar em evento finalizado. Sem `&&
+  // !eventoFinalizado` o clipe continuaria convidando a subir um arquivo que
+  // seria descartado no 409 depois do upload inteiro.
+  const canUploadReference = (hasPermission("admin") || user?.role === "solicitacao") && !eventoFinalizado;
 
   // Quem cria a lista (solicitação, admin ou criador do evento) sempre pode
   // editar uma peça, mesmo depois que ela entra em produção/entrega.
@@ -1267,7 +1295,25 @@ export default function EventDetail() {
   // de edição — antes dava para editar peça liberada/conferida mas não
   // excluí-la, um gate incoerente.
   const BLOCKED_EDIT_STATUSES = ["ready_for_production", "pronto_para_producao", "approved", "inProduction", "produced", "conferred", "delivered"];
-  const isEditBlocked = (status: string) => BLOCKED_EDIT_STATUSES.includes(status) && !canEditLists;
+
+  /**
+   * POR QUE devolve a FRASE e não um booleano: agora há DUAS razões para o
+   * cadeado, e elas pedem explicações opostas. "Já liberado para a gráfica" é
+   * sobre a peça e depende do papel; "evento finalizado" é sobre o evento e
+   * vale para todo mundo, inclusive admin. Um `title` genérico manda a pessoa
+   * procurar a permissão errada.
+   *
+   * O evento finalizado vem PRIMEIRO porque é o mais forte: nem quem edita a
+   * lista escapa dele, e é o que o servidor recusa com 409.
+   */
+  const motivoEdicaoBloqueada = (status: string): string | null => {
+    if (eventoFinalizado) return avisoEventoFim;
+    if (BLOCKED_EDIT_STATUSES.includes(status) && !canEditLists) {
+      return "Edição bloqueada — item já liberado para gráfica";
+    }
+    return null;
+  };
+  const isEditBlocked = (status: string) => motivoEdicaoBloqueada(status) !== null;
 
   // Exclusão: solicitação tem o MESMO alcance do admin (decisão do dono).
   // Antes, solicitação só excluía antes de a peça chegar na Arte — e
@@ -1508,6 +1554,29 @@ export default function EventDetail() {
         </div>
       )}
 
+      {/* Evento JÁ REALIZADO: a outra origem da finalização, e a que ninguém
+          percebe — não há decisão de gente para exibir, só a data que passou.
+          Sem esta faixa, os botões travados logo abaixo pareceriam bug. Aqui
+          NÃO se oferece "reabrir": a data não volta. */}
+      {motivoEventoFim === 'realizado' && (
+        <div
+          data-testid="banner-event-realizado"
+          style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 18px', marginBottom: 22, backgroundColor: '#f5f5f4', border: '1px solid #d6d3d1', borderLeft: '4px solid #78716c', borderRadius: 10 }}
+        >
+          <Calendar className="h-4 w-4" style={{ color: '#57534e', flexShrink: 0, marginTop: 2 }} />
+          <div>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#292524' }}>
+              Evento já realizado
+            </p>
+            <p style={{ margin: '4px 0 0 0', fontSize: 13, color: '#57534e', lineHeight: 1.6 }}>
+              A data do evento já passou, então a lista fica aqui como registro: as peças não
+              avançam mais no fluxo e não aparecem nas filas de trabalho. Conferir e registrar
+              entrega continuam liberados — é o que fecha a conta do que já saiu.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header principal */}
       <div style={{ marginBottom: '40px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px', gap: '24px', flexWrap: 'wrap' }}>
@@ -1573,11 +1642,13 @@ export default function EventDetail() {
             <button
               onClick={() => setImportDialogOpen(true)}
               data-testid="button-import-xlsx"
-              style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
+              disabled={eventoFinalizado}
+              title={eventoFinalizado ? avisoEventoFim : undefined}
+              style={{ backgroundColor: '#ffffff', color: eventoFinalizado ? '#a8a29e' : '#1a1c1c', padding: '11px 18px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: eventoFinalizado ? 'not-allowed' : 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
+              onMouseEnter={e => { if (eventoFinalizado) return; e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
+              onMouseLeave={e => { if (eventoFinalizado) return; e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
             >
-              <Upload className="h-4 w-4" style={{ color: '#22c55e' }} />
+              <Upload className="h-4 w-4" style={{ color: eventoFinalizado ? '#d6d3d1' : '#22c55e' }} />
               Importar Excel
             </button>
             )}
@@ -1587,11 +1658,13 @@ export default function EventDetail() {
             <button
               onClick={() => setCloneDialogOpen(true)}
               data-testid="button-clone-event"
-              style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
+              disabled={eventoFinalizado}
+              title={eventoFinalizado ? avisoEventoFim : undefined}
+              style={{ backgroundColor: '#ffffff', color: eventoFinalizado ? '#a8a29e' : '#1a1c1c', padding: '11px 18px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: eventoFinalizado ? 'not-allowed' : 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
+              onMouseEnter={e => { if (eventoFinalizado) return; e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
+              onMouseLeave={e => { if (eventoFinalizado) return; e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
             >
-              <Copy className="h-4 w-4" style={{ color: '#6366f1' }} />
+              <Copy className="h-4 w-4" style={{ color: eventoFinalizado ? '#d6d3d1' : '#6366f1' }} />
               Clonar Evento
             </button>
             )}
@@ -1652,15 +1725,25 @@ export default function EventDetail() {
                 setOpen(true);
               }}
               data-testid="button-add-item"
-              style={{ backgroundColor: '#b45309', color: '#ffffff', padding: '11px 24px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: 'none', cursor: 'pointer', transition: 'background-color 0.18s, box-shadow 0.18s, transform 0.1s', letterSpacing: '0.03em', whiteSpace: 'nowrap', flexShrink: 0, boxShadow: '0 1px 3px rgba(217,122,30,0.25)', fontFamily: "'Space Grotesk', sans-serif" }}
-              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#9a3412'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(217,122,30,0.35)'; }}
-              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#b45309'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(217,122,30,0.25)'; }}
-              onMouseDown={e => (e.currentTarget.style.transform = 'scale(0.97)')}
-              onMouseUp={e => (e.currentTarget.style.transform = 'scale(1)')}
+              disabled={eventoFinalizado}
+              title={eventoFinalizado ? avisoEventoFim : undefined}
+              style={{ backgroundColor: eventoFinalizado ? '#e7e5e4' : '#b45309', color: eventoFinalizado ? '#a8a29e' : '#ffffff', padding: '11px 24px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: 'none', cursor: eventoFinalizado ? 'not-allowed' : 'pointer', transition: 'background-color 0.18s, box-shadow 0.18s, transform 0.1s', letterSpacing: '0.03em', whiteSpace: 'nowrap', flexShrink: 0, boxShadow: eventoFinalizado ? 'none' : '0 1px 3px rgba(217,122,30,0.25)', fontFamily: "'Space Grotesk', sans-serif" }}
+              onMouseEnter={e => { if (eventoFinalizado) return; e.currentTarget.style.backgroundColor = '#9a3412'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(217,122,30,0.35)'; }}
+              onMouseLeave={e => { if (eventoFinalizado) return; e.currentTarget.style.backgroundColor = '#b45309'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(217,122,30,0.25)'; }}
+              onMouseDown={e => { if (eventoFinalizado) return; e.currentTarget.style.transform = 'scale(0.97)'; }}
+              onMouseUp={e => { if (eventoFinalizado) return; e.currentTarget.style.transform = 'scale(1)'; }}
             >
               <Plus className="h-4 w-4" />
               Adicionar Peça
             </button>
+            )}
+
+            {/* A explicação fica ao lado dos botões travados: sem ela, três
+                botões cinzas em sequência lêem como bug de permissão. */}
+            {canEditLists && eventoFinalizado && (
+              <span data-testid="aviso-evento-finalizado" style={{ fontSize: 12, color: '#746e69', alignSelf: 'center', maxWidth: 260, lineHeight: 1.4 }}>
+                {avisoEventoFim}
+              </span>
             )}
 
             {/* Perfil sem edição: em vez de esconder tudo em silêncio, diz o porquê. */}
@@ -1688,6 +1771,16 @@ export default function EventDetail() {
                 onInteractOutside={(e) => { if (bulkMode && !editingItem) e.preventDefault(); }}
                 onEscapeKeyDown={(e) => { if (bulkMode && !editingItem) e.preventDefault(); }}
               >
+                {/* POR QUE congelar aqui: os três onSuccess que fecham este
+                    modal (criar peça, criar em lote, atualizar) invalidam duas
+                    chaves de /api/items, fecham, toastam e ainda mexem no que
+                    o modal está exibindo — `setFormData(EMPTY_ITEM_FORM)` e
+                    `setBulkMode(false)`. Esse último é o pior: trocar bulkMode
+                    no mesmo commit do fechamento faz a subárvore em
+                    desmontagem passar do modo LOTE para o modo SIMPLES no meio
+                    do fade, o que remonta a árvore inteira dentro do Presence.
+                    Mecanismo por extenso em components/modal-shell.tsx. */}
+                <FreezeWhileClosing open={open}>
                 <DialogTitle className="sr-only">{bulkMode && !editingItem ? "Entrada Rápida" : "Adicionar Peça"}</DialogTitle>
                 <DialogDescription className="sr-only">
                   {bulkMode && !editingItem ? "Modo lote — entrada rápida de peças" : "Nova peça de produção"}
@@ -1757,6 +1850,7 @@ export default function EventDetail() {
                     getUploadUrl={getUploadUrl}
                   />
                 )}
+                </FreezeWhileClosing>
               </DialogContent>
             </Dialog>
           </div>
@@ -2122,7 +2216,7 @@ export default function EventDetail() {
                                               disabled
                                               aria-disabled="true"
                                               className="p-1.5 rounded-md"
-                                              title="Edição bloqueada — item já liberado para gráfica"
+                                              title={motivoEdicaoBloqueada(item.status) ?? undefined}
                                               style={{ color: "#a8a29e", cursor: "not-allowed", background: "none", border: "none" }}
                                             >
                                               <Lock className="h-3.5 w-3.5" />
@@ -2178,8 +2272,14 @@ export default function EventDetail() {
                 onClick={() => setSubmitConfirmOpen(true)}
                 // Gate: enviar rascunhos para a Arte é ação de admin ou do
                 // papel "solicitação" — mesmo critério do title abaixo.
-                disabled={submitDraftsMutation.isPending || !(hasPermission("admin") || user?.role === "solicitacao")}
-                title={!(hasPermission("admin") || user?.role === "solicitacao") ? "Apenas Solicitação ou administradores podem enviar" : undefined}
+                // Evento finalizado também trava: enviar rascunho é EMPURRAR
+                // trabalho para a fila de vinculação, que já não mostra estas
+                // peças. (O endpoint vive em server/routes/events.ts e ainda
+                // aceita a chamada — este gate é o que segura hoje.)
+                disabled={submitDraftsMutation.isPending || eventoFinalizado || !(hasPermission("admin") || user?.role === "solicitacao")}
+                title={eventoFinalizado
+                  ? avisoEventoFim
+                  : !(hasPermission("admin") || user?.role === "solicitacao") ? "Apenas Solicitação ou administradores podem enviar" : undefined}
                 size="lg"
                 data-testid="button-submit-drafts"
               >
@@ -2449,8 +2549,14 @@ export default function EventDetail() {
                             <div style={{ display: 'flex', gap: 6, marginTop: 8 }} onClick={e => e.stopPropagation()}>
                               {/* handleEditItem (não setEditingItem cru): hidrata o
                                   formData — sem isso, salvar apagava a peça. */}
+                              {/* `disabled` real, e não só o early-return de
+                                  handleEditItem: no celular um botão que
+                                  aceita o toque e não abre nada lê como app
+                                  travado. O title carrega o motivo. */}
                               <button onClick={() => handleEditItem(item)}
-                                style={{ flex: 1, minHeight: 44, borderRadius: 6, border: '1px solid #e7e5e4', background: '#fafaf9', fontSize: 13, fontWeight: 700, color: '#746e69', cursor: 'pointer' }}>
+                                disabled={isEditBlocked(item.status)}
+                                title={motivoEdicaoBloqueada(item.status) ?? undefined}
+                                style={{ flex: 1, minHeight: 44, borderRadius: 6, border: '1px solid #e7e5e4', background: '#fafaf9', fontSize: 13, fontWeight: 700, color: isEditBlocked(item.status) ? '#a8a29e' : '#746e69', cursor: isEditBlocked(item.status) ? 'not-allowed' : 'pointer' }}>
                                 Editar
                               </button>
                               {/* Aumentar quantidade NÃO mora aqui: o gatilho
@@ -2708,7 +2814,7 @@ export default function EventDetail() {
                                   type="button"
                                   disabled
                                   aria-disabled="true"
-                                  title="Edição bloqueada"
+                                  title={motivoEdicaoBloqueada(item.status) ?? undefined}
                                   style={{ color: '#a8a29e', padding: '6px', cursor: 'not-allowed', background: 'none', border: 'none' }}
                                   data-testid={`button-edit-item-${item.id}`}
                                 >
@@ -2794,7 +2900,7 @@ export default function EventDetail() {
             }}
           />
         ) : undefined}
-        onEditSave={canEditLists ? (edited: any) => updateItemMutation.mutate({
+        onEditSave={canEditLists && !eventoFinalizado ? (edited: any) => updateItemMutation.mutate({
           id: edited.id,
           data: {
             type: edited.type,
@@ -2968,6 +3074,13 @@ export default function EventDetail() {
       {/* Dialog separado para editar item */}
       <Dialog open={editDialogOpen} onOpenChange={(o) => { if (!o) handleCloseEditDialog(); }}>
         <DialogContent className={HIDE_NATIVE_CLOSE} style={{ maxWidth: isMobile ? "95vw" : "800px", width: "100%", padding: "0", backgroundColor: "#ffffff", borderRadius: "16px", overflow: "hidden", maxHeight: "90vh", display: "flex", flexDirection: "column" }}>
+          {/* POR QUE congelar aqui: o onSuccess de atualizar peça invalida
+              /api/items, fecha este diálogo e faz `setEditingItem(null)` no
+              mesmo commit — e é `editingItem` que escreve o título
+              ("PEC-123 — Backdrop") e o subtítulo do cabeçalho. Sem congelar,
+              o cabeçalho cai para "Editar Peça" genérico durante o fade, e os
+              renders da invalidação ainda batem na subárvore em desmontagem. */}
+          <FreezeWhileClosing open={editDialogOpen}>
           <DialogTitle className="sr-only">Editar Peça</DialogTitle>
           <DialogDescription className="sr-only">Atualize as informações da peça</DialogDescription>
           <ModalHeader
@@ -3006,6 +3119,7 @@ export default function EventDetail() {
             quantityFloor={reductionFloorOf(editingItem ?? {})}
             quantityCeiling={Number(editingItem?.quantity) || 1}
           />
+          </FreezeWhileClosing>
         </DialogContent>
       </Dialog>
 

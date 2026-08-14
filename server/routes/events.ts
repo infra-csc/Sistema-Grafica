@@ -20,6 +20,65 @@ function toDateOnlyStr(value: unknown): string {
   return String(value ?? "").slice(0, 10);
 }
 
+// Data/hora legível no audit log. Lida em UTC de propósito — é a convenção de
+// todo o app (as telas formatam com timeZone:'UTC'), e um log que trocasse de
+// hora conforme o fuso do processo seria pior que nenhum log.
+function toAuditDateStr(value: unknown): string {
+  const d = value instanceof Date ? value : new Date(String(value ?? ""));
+  if (Number.isNaN(d.getTime())) return "—";
+  const iso = d.toISOString();
+  return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)} ${iso.slice(11, 16)}`;
+}
+
+const EVENT_DEADLINE_LABELS: Record<string, string> = {
+  deadlineListaImagens: "Prazo da lista de imagens",
+  deadlineEntregaLayouts: "Prazo de entrega dos layouts",
+  deadlineAprovacaoLayout: "Prazo de aprovação do layout",
+  deadlineRevisaoLista: "Prazo de revisão da lista",
+  deadlineProducaoGrafica: "Prazo da produção gráfica",
+};
+
+/**
+ * Diff campo a campo da edição de evento, no mesmo formato que o PATCH de peça
+ * já usa ("Campo: antes → depois"). Existe porque `Evento "X" atualizado`
+ * — texto que o log gravava — não responde NENHUMA pergunta de auditoria.
+ * A saída do caminhão vem primeiro: é a âncora de todos os prazos da casa.
+ */
+function describeEventChanges(before: any, after: any): string[] {
+  const parts: string[] = [];
+  const ts = (v: unknown) => {
+    const d = v instanceof Date ? v : new Date(String(v ?? ""));
+    return Number.isNaN(d.getTime()) ? NaN : d.getTime();
+  };
+
+  if (ts(before.truckDepartureDate) !== ts(after.truckDepartureDate)) {
+    parts.push(
+      `Saída do caminhão: ${toAuditDateStr(before.truckDepartureDate)} → ${toAuditDateStr(after.truckDepartureDate)}`
+    );
+  }
+  if (ts(before.startDate) !== ts(after.startDate)) {
+    parts.push(`Início do evento: ${toAuditDateStr(before.startDate)} → ${toAuditDateStr(after.startDate)}`);
+  }
+  if (before.name !== after.name) {
+    parts.push(`Nome: "${before.name}" → "${after.name}"`);
+  }
+  if (before.franchise !== after.franchise) {
+    parts.push(`Franquia: ${before.franchise || "—"} → ${after.franchise || "—"}`);
+  }
+  if (before.priority !== after.priority) {
+    parts.push(`Prioridade: ${before.priority || "sem prioridade"} → ${after.priority || "sem prioridade"}`);
+  }
+  if (before.approvalBookUrl !== after.approvalBookUrl) {
+    parts.push(after.approvalBookUrl ? "Book de aprovação atualizado" : "Book de aprovação removido");
+  }
+  for (const [field, label] of Object.entries(EVENT_DEADLINE_LABELS)) {
+    if (before[field] !== after[field]) {
+      parts.push(`${label}: ${before[field] ?? "—"} → ${after[field] ?? "—"} dias`);
+    }
+  }
+  return parts;
+}
+
 // Ano plausível para datas de evento — a regra (e o porquê dela) mora em
 // @shared/prazo-dates. Era a mesma faixa 2000-2100 datilografada aqui, na
 // Gestão de Prazos e no Painel Geral: três cópias de uma regra que decide se
@@ -523,6 +582,15 @@ export function registerEventRoutes(app: Express): void {
         });
       }
 
+      // Estado ANTES da gravação — é o que permite o audit log dizer o que
+      // mudou. `Evento "X" atualizado` sem diff é inútil mesmo quando exibido:
+      // a pergunta de auditoria mais cara da casa é "quem mudou a data de
+      // saída do caminhão e quando", e a resposta não estava em lugar nenhum.
+      const before = await storage.getEvent(req.params.id);
+      if (!before) {
+        return res.status(404).json({ error: "Event not found" });
+      }
+
       // Validação: se QUALQUER uma das datas está sendo alterada, verificar a
       // regra — compondo o lado ausente com o evento atual (payload parcial).
       // Comparação por STRING (YYYY-MM-DD), igual ao cliente e ao POST acima.
@@ -530,12 +598,8 @@ export function registerEventRoutes(app: Express): void {
         let startRaw: unknown = validatedData.startDate;
         let truckRaw: unknown = validatedData.truckDepartureDate;
         if (!startRaw || !truckRaw) {
-          const current = await storage.getEvent(req.params.id);
-          if (!current) {
-            return res.status(404).json({ error: "Event not found" });
-          }
-          startRaw = startRaw || current.startDate;
-          truckRaw = truckRaw || current.truckDepartureDate;
+          startRaw = startRaw || before.startDate;
+          truckRaw = truckRaw || before.truckDepartureDate;
         }
         const s = toDateOnlyStr(startRaw);
         const t = toDateOnlyStr(truckRaw);
@@ -574,12 +638,15 @@ export function registerEventRoutes(app: Express): void {
       }
 
       // Create audit log
+      const changes = describeEventChanges(before, event);
       await createAuditLog(
         (req as any).userName,
         'updated',
         'event',
         event.id,
-        `Evento "${event.name}" atualizado`
+        changes.length > 0
+          ? `Evento "${event.name}" atualizado — ${changes.join(" | ")}`
+          : `Evento "${event.name}" atualizado (sem alteração de campos)`
       );
 
       broadcast({ type: "event_updated", event });

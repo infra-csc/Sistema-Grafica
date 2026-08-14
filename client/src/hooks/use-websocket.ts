@@ -23,6 +23,14 @@ export function onPrazosInvalidated(fn: () => void): () => void {
   return () => { prazosListeners.delete(fn); };
 }
 
+// Mesmo debounce para a trilha de auditoria. O Histórico é a única tela que
+// consome a listagem COMPLETA de /api/audit-logs e ele não faz mutação nenhuma
+// — quem só consulta nunca invalidava o cache, e com o staleTime Infinity do
+// app a tela congelava no primeiro fetch. O caminho de falha era o do sino:
+// notificação chega, o usuário clica "Ver todas" e o registro que gerou a
+// notificação não está na lista.
+let auditInvalidateTimer: ReturnType<typeof setTimeout> | null = null;
+
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -48,6 +56,9 @@ export function useWebSocket() {
       // esta linha o painel do diretor servia o agregado de antes da queda —
       // errado com cara de certo, que é o pior modo de falha de um painel.
       queryClient.invalidateQueries({ queryKey: ['/api/prazos'] });
+      // Mesmo buraco, mesma cura, para a trilha de auditoria: enquanto o socket
+      // esteve fora, toda ação de outro usuário passou sem invalidar nada.
+      queryClient.invalidateQueries({ queryKey: ['/api/audit-logs'] });
     };
 
     ws.onmessage = (event) => {
@@ -70,6 +81,18 @@ export function useWebSocket() {
             prazosInvalidateTimer = null;
             queryClient.invalidateQueries({ queryKey: ['/api/prazos'] });
             prazosListeners.forEach((fn) => fn());
+          }, 500);
+        }
+
+        // Trilha de auditoria: mesma janela de 500ms, regex mais estreita de
+        // propósito — só mutação de evento/peça/produção grava audit log.
+        // `deadline_alert` e `prazo_` não gravam nada, e contá-los faria o
+        // Histórico anunciar "novas atividades" que não existem.
+        if (/^(event_|item|production_)/.test(data.type)) {
+          if (auditInvalidateTimer) clearTimeout(auditInvalidateTimer);
+          auditInvalidateTimer = setTimeout(() => {
+            auditInvalidateTimer = null;
+            queryClient.invalidateQueries({ queryKey: ['/api/audit-logs'] });
           }, 500);
         }
 

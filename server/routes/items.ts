@@ -966,14 +966,20 @@ export function registerItemRoutes(app: Express): void {
       }
       
       // Create audit log
+      //
+      // O nome do evento entra no texto porque a exclusão é SOFT: a peça sai de
+      // /api/items e o Histórico perde a única forma de saber a que evento ela
+      // pertencia — a linha mais sensível da auditoria era a única que
+      // renderizava "Evento desconhecido", sem ID e sem link.
+      const eventoDaPeca = await storage.getEvent(item.eventId).catch(() => undefined);
       await createAuditLog(
         (req as any).userName,
         'deleted',
         'item',
         req.params.id,
-        `Item "${item.type}" (${item.displayId}) excluído por ${req.userRole}`
+        `Item "${item.type}" (${item.displayId})${eventoDaPeca ? ` do evento "${eventoDaPeca.name}"` : ""} excluído por ${req.userRole}`
       );
-      
+
       broadcast({ type: "item_deleted", itemId: req.params.id, eventId: item.eventId });
 
       res.json({ success: true });

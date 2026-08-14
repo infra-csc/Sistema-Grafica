@@ -1,16 +1,19 @@
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import {
   Calendar, Package, FileCheck, Plus, Activity, Search, Truck, Clock,
-  ChevronLeft, ChevronRight, Link2, FileText, RefreshCw,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Link2, FileText,
+  RefreshCw, RotateCcw, Download, X, Copy, Check, Trash2, Undo2, Pencil,
+  ShieldAlert, Flag, CalendarClock, CopyPlus, ArrowUpToLine,
 } from "lucide-react";
 import { useLocation } from "wouter";
-import { format } from "date-fns";
+import { format, formatDistanceToNow, subDays, startOfDay, isToday, isYesterday } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useIsMobile } from "@/hooks/use-mobile";
-import { getStatusMeta } from "@/lib/status";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { HIDE_NATIVE_CLOSE, modalSurface, ModalHeader, ModalFooter } from "@/components/modal-shell";
+import { buildTimeline, type TimelineEvent } from "@/lib/timeline";
 
 /* ── Palette ── */
 const P = {
@@ -25,117 +28,146 @@ const P = {
   // cabeçalhos usam #746e69 (o cinza AA de lib/theme).
   muted:   "#a8a29e",
   label:   "#746e69",
-  accent:  "#f97316",
 };
 
-/* Deriva as cores da pill do STATUS de peça correspondente (lib/status.ts,
-   fonte única): o mesmo estado aparecia aqui com cor diferente das outras
-   telas (ex.: "Entregue" era roxo no histórico e esmeralda no resto do app).
-   Rótulo e ícone continuam locais — são específicos do histórico. */
-function fromStatus(status: string, label: string, icon: any) {
-  const m = getStatusMeta(status);
-  return { label, dot: m.dot, bg: m.bg, border: m.border, color: m.text, icon };
+/* ── Cor por FASE, não por tipo ────────────────────────────────────────────
+   Antes cada tipo tinha hex próprio e 16 dos 24 colidiam byte a byte: "Evento
+   Criado" tinha exatamente a cor de erro de "Pat. Reprovou", "Peça Adicionada"
+   era indistinguível de "Em Produção". A cor não carregava informação nenhuma
+   e o olho passava a ler o texto de 10px em caixa alta.
+
+   Agora são CINCO fases (as mesmas cinco que o filtro de Ação já agrupava) mais
+   um tom de exceção. O vermelho fica reservado ao excepcional — reprovação,
+   devolução, cancelamento e exclusão —, e o ÍCONE (que já existia no config e
+   nunca era desenhado) distingue tipos dentro da mesma fase.
+
+   Por que não `getStatusMeta`: estas pills são de AÇÃO, não de ESTADO. Derivá-las
+   de lib/status.ts criava um acoplamento invisível — mudar a cor de `approved`
+   na fonte única repintava duas pills de ação daqui. Os tons são os mesmos 50 /
+   200 / 700 da paleta base do app, então não há dialeto novo.
+
+   Contraste do texto sobre o fundo da pill (10px, exige 4,5:1), calculado:
+     #1d4ed8 / #eff6ff = 6,16:1   #b45309 / #fffbeb = 4,86:1
+     #7e22ce / #faf5ff = 6,51:1   #c2410c / #fff7ed = 4,96:1
+     #047857 / #ecfdf5 = 5,21:1   #b91c1c / #fef2f2 = 5,91:1
+     #44403c / #f5f5f4 = 9,42:1
+   Todos passam AA. Nenhum #f97316 ou #a8a29e entra como cor de texto. */
+type Phase = "criacao" | "arte" | "aprovacao" | "producao" | "encerramento" | "outros";
+
+const PHASE_STYLE: Record<Phase | "excecao", { bg: string; border: string; color: string }> = {
+  criacao:      { bg: "#eff6ff", border: "#bfdbfe", color: "#1d4ed8" },
+  arte:         { bg: "#fffbeb", border: "#fde68a", color: "#b45309" },
+  aprovacao:    { bg: "#faf5ff", border: "#e9d5ff", color: "#7e22ce" },
+  producao:     { bg: "#fff7ed", border: "#fed7aa", color: "#c2410c" },
+  encerramento: { bg: "#ecfdf5", border: "#a7f3d0", color: "#047857" },
+  outros:       { bg: "#f5f5f4", border: "#e7e5e4", color: "#44403c" },
+  excecao:      { bg: "#fef2f2", border: "#fecaca", color: "#b91c1c" },
+};
+
+const PHASE_LABEL: Record<Phase, string> = {
+  criacao: "Criação",
+  arte: "Arte",
+  aprovacao: "Aprovação",
+  producao: "Produção",
+  encerramento: "Encerramento",
+  outros: "Outros",
+};
+
+const PHASE_ORDER: Phase[] = ["criacao", "arte", "aprovacao", "producao", "encerramento", "outros"];
+
+interface TypeCfg {
+  label: string;
+  /** Rótulo do filtro (plural, como o usuário procura). */
+  filterLabel: string;
+  phase: Phase;
+  /** Excepcional: reprovação, devolução, cancelamento, exclusão. */
+  excecao?: boolean;
+  icon: any;
 }
 
-/* ── Type pill config ── */
-const TYPE_CONFIG: Record<string, {
-  label: string; dot: string; bg: string; border: string; color: string;
-  icon: any;
-}> = {
-  event_created: {
-    label: "Evento Criado", dot: "#dc2626", bg: "#fef2f2", border: "#fecaca", color: "#b91c1c",
-    icon: Calendar,
-  },
-  item_created: {
-    // #c2410c (orange-700): o #f97316 saturado como texto reprovava AA.
-    label: "Peça Adicionada", dot: "#f97316", bg: "#fff7ed", border: "#fed7aa", color: "#c2410c",
-    icon: Plus,
-  },
-  sponsor_linked: {
-    label: "Vinculação", dot: "#8b5cf6", bg: "#f5f3ff", border: "#ddd6fe", color: "#7c3aed",
-    icon: Link2,
-  },
-  thumb_uploaded: {
-    label: "Thumb Enviado", dot: "#f59e0b", bg: "#fffbeb", border: "#fde68a", color: "#b45309",
-    icon: FileCheck,
-  },
-  thumb_replaced: {
-    label: "Thumb Trocado", dot: "#d97706", bg: "#fffbeb", border: "#fcd34d", color: "#92400e",
-    icon: RefreshCw,
-  },
-  final_file_added: {
-    // #0e7490 (cyan-700): #0891b2 como texto a 10px não passava AA.
-    label: "Arq. Final", dot: "#06b6d4", bg: "#ecfeff", border: "#a5f3fc", color: "#0e7490",
-    icon: FileCheck,
-  },
-  final_file_replaced: {
-    label: "Arq. Final Trocado", dot: "#0e7490", bg: "#ecfeff", border: "#67e8f9", color: "#155e75",
-    icon: RefreshCw,
-  },
-  item_sent:          fromStatus("awaiting_approval", "Enviado p/ Aprov.", Clock),
-  sponsor_approved: {
-    label: "Pat. Aprovou", dot: "#16a34a", bg: "#f0fdf4", border: "#bbf7d0", color: "#15803d",
-    icon: FileCheck,
-  },
-  sponsor_rejected: {
-    label: "Pat. Reprovou", dot: "#dc2626", bg: "#fef2f2", border: "#fecaca", color: "#b91c1c",
-    icon: Activity,
-  },
-  item_approved:      fromStatus("approved", "Peça Liberada", FileCheck),
-  item_released:      fromStatus("approved", "Lib. p/ Produção", Package),
-  item_dispensed: {
-    label: "Dispensado", dot: "#6b7280", bg: "#f3f4f6", border: "#e5e7eb", color: "#374151",
-    icon: Activity,
-  },
-  item_deleted:       fromStatus("deleted", "Excluído", Activity),
-  production_started: fromStatus("inProduction", "Em Produção", Package),
-  item_produced:      fromStatus("produced", "Produzido", Package),
-  item_delivered:     fromStatus("delivered", "Peça Entregue", Truck),
-  book_sent: {
-    label: "Envio de Book", dot: "#7c3aed", bg: "#f5f3ff", border: "#ddd6fe", color: "#6d28d9",
-    icon: FileText,
-  },
-  item_conferred:     fromStatus("conferred", "Conferência", FileCheck),
-  item_reused: {
-    label: "Reaproveitamento", dot: "#059669", bg: "#f0fdf4", border: "#bbf7d0", color: "#047857",
-    icon: RefreshCw,
-  },
-  item_reused_partial: {
-    // #047857 (emerald-700): o #059669 reprovava AA sobre o tint claro.
-    label: "Reaprov. Parcial", dot: "#10b981", bg: "#f0fdf4", border: "#a7f3d0", color: "#047857",
-    icon: RefreshCw,
-  },
-  item_reuse_corrected: {
-    label: "Reaprov. Corrigido", dot: "#d97706", bg: "#fffbeb", border: "#fde68a", color: "#92400e",
-    icon: RefreshCw,
-  },
-  item_canceled:      fromStatus("canceled", "Cancelada", Activity),
-  item_returned: {
-    label: "Devolvida p/ Arte", dot: "#d97706", bg: "#fffbeb", border: "#fde68a", color: "#b45309",
-    icon: Activity,
-  },
-  // COMPLEMENTO — aumento de quantidade pedido DEPOIS que a peça entrou em
-  // produção (a peça original nunca muda; nasce a peça-filha #0062-C1). Sem
-  // estas duas entradas o registro do aumento SUMIA do histórico: buildTimeline
-  // termina sem push quando nada casa, e "isso fica nos logs" era metade do
-  // pedido. Texto em #c2410c (4.96:1 sobre o tint) — #f97316 só como bolinha,
-  // nunca como cor de texto.
-  item_complement_created: {
-    label: "Complemento", dot: "#f97316", bg: "#fff7ed", border: "#fed7aa", color: "#c2410c",
-    icon: Plus,
-  },
-  item_complement_canceled: {
-    label: "Compl. Cancelado", dot: "#dc2626", bg: "#fef2f2", border: "#fecaca", color: "#b91c1c",
-    icon: Activity,
-  },
+const TYPE_CONFIG: Record<string, TypeCfg> = {
+  /* ── Criação ── */
+  event_created:            { label: "Evento Criado",     filterLabel: "Eventos criados",           phase: "criacao", icon: Calendar },
+  event_updated:            { label: "Evento Alterado",   filterLabel: "Eventos alterados",         phase: "criacao", icon: CalendarClock },
+  event_priority:           { label: "Prioridade",        filterLabel: "Prioridade de evento",      phase: "criacao", icon: Flag },
+  item_created:             { label: "Peça Adicionada",   filterLabel: "Peças adicionadas",         phase: "criacao", icon: Plus },
+  item_edited:              { label: "Peça Editada",      filterLabel: "Peças editadas",            phase: "criacao", icon: Pencil },
+  item_restored:            { label: "Restaurada",        filterLabel: "Restaurações da lixeira",   phase: "criacao", icon: Undo2 },
+  items_cloned:             { label: "Peças Clonadas",    filterLabel: "Clonagens de peças",        phase: "criacao", icon: CopyPlus },
+  items_submitted:          { label: "Envio em Lote",     filterLabel: "Envios em lote",            phase: "criacao", icon: Package },
+  items_batch:              { label: "Lote de Peças",     filterLabel: "Lotes de peças",            phase: "criacao", icon: Package },
+  item_complement_created:  { label: "Complemento",       filterLabel: "Complementos criados",      phase: "criacao", icon: Plus },
+
+  /* ── Arte ── */
+  sponsor_linked:           { label: "Vinculação",        filterLabel: "Vinculações",               phase: "arte", icon: Link2 },
+  thumb_uploaded:           { label: "Thumb Enviado",     filterLabel: "Thumbs enviados",           phase: "arte", icon: FileCheck },
+  thumb_replaced:           { label: "Thumb Trocado",     filterLabel: "Thumbs trocados",           phase: "arte", icon: RefreshCw },
+  thumb_new_version:        { label: "Nova Versão",       filterLabel: "Novas versões de thumb",    phase: "arte", icon: RefreshCw },
+  final_file_added:         { label: "Arq. Final",        filterLabel: "Arq. finais adicionados",   phase: "arte", icon: FileCheck },
+  final_file_replaced:      { label: "Arq. Final Trocado", filterLabel: "Arq. finais trocados",     phase: "arte", icon: RefreshCw },
+  item_sent:                { label: "Enviada p/ Aprov.", filterLabel: "Enviadas p/ aprovação",     phase: "arte", icon: Clock },
+  item_sent_no_approval:    { label: "Envio s/ Aprov.",   filterLabel: "Envios sem aprovação",      phase: "arte", icon: Clock },
+  book_sent:                { label: "Envio de Book",     filterLabel: "Envios de book",            phase: "arte", icon: FileText },
+  item_dispensed:           { label: "Dispensada",        filterLabel: "Dispensadas",               phase: "arte", icon: Activity },
+
+  /* ── Aprovação ── */
+  sponsor_approved:         { label: "Pat. Aprovou",      filterLabel: "Pat. aprovou",              phase: "aprovacao", icon: FileCheck },
+  sponsor_rejected:         { label: "Pat. Reprovou",     filterLabel: "Pat. reprovou",             phase: "aprovacao", excecao: true, icon: Activity },
+  item_rejected_creator:    { label: "Reprov. Interna",   filterLabel: "Reprovações internas",      phase: "aprovacao", excecao: true, icon: Activity },
+  item_returned:            { label: "Devolvida p/ Arte", filterLabel: "Devolvidas p/ Arte",        phase: "aprovacao", excecao: true, icon: Undo2 },
+  approval_reverted:        { label: "Aprov. Revertida",  filterLabel: "Aprovações revertidas",     phase: "aprovacao", icon: ShieldAlert },
+  item_released:            { label: "Lib. p/ Produção",  filterLabel: "Liberadas para produção",   phase: "aprovacao", icon: Package },
+
+  /* ── Produção ── */
+  production_started:       { label: "Em Produção",       filterLabel: "Em produção",               phase: "producao", icon: Package },
+  item_produced:            { label: "Produzida",         filterLabel: "Produzidas",                phase: "producao", icon: Package },
+  item_conferred:           { label: "Conferência",       filterLabel: "Conferências",              phase: "producao", icon: FileCheck },
+  item_reused:              { label: "Reaproveitamento",  filterLabel: "Reaproveitamentos",         phase: "producao", icon: RefreshCw },
+  item_reused_partial:      { label: "Reaprov. Parcial",  filterLabel: "Reaprov. parciais",         phase: "producao", icon: RefreshCw },
+  item_reuse_corrected:     { label: "Reaprov. Corrigido", filterLabel: "Reaprov. corrigidos",      phase: "producao", icon: RefreshCw },
+
+  /* ── Encerramento ── */
+  item_delivered:           { label: "Peça Entregue",     filterLabel: "Entregas",                  phase: "encerramento", icon: Truck },
+  item_canceled:            { label: "Cancelada",         filterLabel: "Canceladas",                phase: "encerramento", excecao: true, icon: Activity },
+  item_complement_canceled: { label: "Compl. Cancelado",  filterLabel: "Complementos cancelados",   phase: "encerramento", excecao: true, icon: Activity },
+  item_deleted:             { label: "Peça Excluída",     filterLabel: "Peças excluídas",           phase: "encerramento", excecao: true, icon: Trash2 },
+  event_deleted:            { label: "Evento Excluído",   filterLabel: "Eventos excluídos",         phase: "encerramento", excecao: true, icon: Trash2 },
 };
 
-const DEFAULT_CFG = {
-  label: "atividade", dot: P.muted, bg: "#f5f5f4", border: P.border, color: P.second,
-  icon: Clock,
+// Alcançável de verdade agora: o motor não descarta mais nenhum log, e o que
+// não casa com padrão nenhum chega aqui com o `details` cru em vez de sumir.
+const DEFAULT_CFG: TypeCfg = {
+  label: "Atividade", filterLabel: "Outras atividades", phase: "outros", icon: Clock,
 };
 
-const PAGE_SIZE = 25;
+function cfgFor(type: string): TypeCfg & { bg: string; border: string; color: string } {
+  const cfg = TYPE_CONFIG[type] ?? DEFAULT_CFG;
+  return { ...cfg, ...PHASE_STYLE[cfg.excecao ? "excecao" : cfg.phase] };
+}
+
+/** Tipos que respondem "o que deu errado" — atalho do chip de métrica. */
+const EXCECAO_TYPES = Object.entries(TYPE_CONFIG)
+  .filter(([, c]) => c.excecao)
+  .map(([t]) => t);
+
+/* ── Período ── */
+const PERIODS = [
+  { value: "hoje", label: "Hoje" },
+  { value: "7d",   label: "Últimos 7 dias" },
+  { value: "30d",  label: "Últimos 30 dias" },
+  { value: "all",  label: "Todo o período" },
+];
+
+function cutoff(p: string): Date | null {
+  if (p === "hoje") return startOfDay(new Date());
+  if (p === "7d")  return subDays(new Date(), 7);
+  if (p === "30d") return subDays(new Date(), 30);
+  return null;
+}
+
+const PAGE_SIZES = [25, 50, 100];
+const SEM_AUTOR = "__sem_autor__";
+const VAZIO: any[] = [];
 
 /* ── Initials helper ── */
 function getInitials(name: string) {
@@ -153,7 +185,7 @@ function UserAvatar({ name }: { name?: string }) {
   const initials = unknown ? "—" : getInitials(display);
   return (
     <div
-      style={{ display: "flex", alignItems: "center", gap: 10 }}
+      style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}
       title={unknown ? "Autor não registrado (ação anterior ao registro de autoria)" : display}
     >
       <div style={{
@@ -165,51 +197,123 @@ function UserAvatar({ name }: { name?: string }) {
       }}>
         {initials}
       </div>
-      <span style={{ fontSize: 13, fontWeight: 700, color: unknown ? P.label : P.text, whiteSpace: "nowrap" }}>
+      <span style={{
+        fontSize: 13, fontWeight: 700, color: unknown ? P.label : P.text,
+        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+      }}>
         {display}
       </span>
     </div>
   );
 }
 
-interface TimelineEvent {
-  id: string;
-  type: string;
-  timestamp: Date;
-  eventName: string;
-  eventId: string;
-  itemType?: string;
-  itemId?: string;
-  itemDisplayId?: string;
-  quantity?: number;
-  quantityProduced?: number;
-  receivedBy?: string;
-  userName?: string;
-  sponsorCount?: number;
-  logDetails?: string;
+interface Nav {
+  goEvent: (eventId: string) => void;
+  goItem: (eventId: string, itemId: string) => void;
 }
 
 /* ── Micro-componentes da descrição ──
-   <B> (negrito no texto principal) e <Id> (código da peça) se repetiam
-   inline dezenas de vezes em buildDescription — extraídos, a descrição fica
-   legível e o estilo muda num lugar só. */
+   O nome do evento e o código da peça são LINKS de verdade dentro da descrição
+   (que é onde o olho já está), em vez de a linha inteira navegar: antes,
+   qualquer tentativa de selecionar o código para colar num chat disparava a
+   navegação ao soltar o botão. */
+const linkStyle: React.CSSProperties = {
+  background: "none", border: "none", padding: 0, margin: 0,
+  font: "inherit", color: P.text, fontWeight: 700,
+  cursor: "pointer", textDecoration: "underline",
+  textDecorationColor: "rgba(28,25,23,0.25)", textUnderlineOffset: 2,
+};
+
+// role="link" + Espaço bloqueado: a ação é NAVEGAR, e num link nativo o Espaço
+// rola a página em vez de ativar. É a mesma disciplina que a linha inteira já
+// seguia antes de o clique virar painel de detalhe.
+const asLink = {
+  role: "link" as const,
+  onKeyDown: (ev: React.KeyboardEvent) => { if (ev.key === " ") ev.preventDefault(); },
+};
+
 function B({ children }: { children: React.ReactNode }) {
   return <strong style={{ color: P.text }}>{children}</strong>;
 }
-function Id({ id }: { id?: string }) {
-  if (!id) return null;
-  return <code style={{ fontFamily: "monospace", fontWeight: 700, color: P.second, fontSize: 13 }}>{id}</code>;
+
+function Ev({ e, nav }: { e: TimelineEvent; nav: Nav }) {
+  if (!e.eventId) return <B>{e.eventName}</B>;
+  return (
+    <button
+      type="button"
+      {...asLink}
+      style={linkStyle}
+      title={`Abrir o evento ${e.eventName}`}
+      onClick={ev => { ev.stopPropagation(); nav.goEvent(e.eventId); }}
+    >
+      {e.eventName}
+    </button>
+  );
+}
+
+function Id({ e, nav }: { e: TimelineEvent; nav: Nav }) {
+  if (!e.itemDisplayId) return null;
+  const mono: React.CSSProperties = {
+    fontFamily: "'DM Mono', monospace", fontWeight: 700, color: P.second, fontSize: 13,
+  };
+  if (!e.eventId || !e.itemId || e.itemMissing) {
+    return <code style={mono}>{e.itemDisplayId}</code>;
+  }
+  return (
+    <button
+      type="button"
+      {...asLink}
+      style={{ ...linkStyle, ...mono, color: P.second }}
+      title={`Abrir a peça ${e.itemDisplayId} dentro do evento`}
+      onClick={ev => { ev.stopPropagation(); nav.goItem(e.eventId, e.itemId!); }}
+    >
+      {e.itemDisplayId}
+    </button>
+  );
+}
+
+/** "(peça excluída)" — os logs intermediários da peça deixaram de sumir. */
+function Excluida({ e }: { e: TimelineEvent }) {
+  if (!e.itemMissing || e.type === "item_deleted") return null;
+  return <span style={{ color: P.label, fontStyle: "italic" }}> (peça excluída)</span>;
+}
+
+/** Trecho útil do details, sem repetir o que a moldura da linha já diz. */
+function tail(details: string | undefined, prefix: RegExp): string {
+  const d = (details ?? "").trim();
+  const m = d.match(prefix);
+  return m ? d.slice(m[0].length).trim() : d;
 }
 
 /* ── Description builder ── */
-function buildDescription(e: TimelineEvent) {
-  const ID = <Id id={e.itemDisplayId} />;
+function buildDescription(e: TimelineEvent, nav: Nav) {
+  const ID = <Id e={e} nav={nav} />;
+  const EV = <Ev e={e} nav={nav} />;
 
   switch (e.type) {
     case "event_created":
-      return <span>Evento <B>{e.eventName}</B> foi criado</span>;
+      return <span>Evento {EV} foi criado</span>;
+    case "event_updated": {
+      const diff = tail(e.logDetails, /^Evento ".*?" atualizado\s*(—|-)?\s*/);
+      return <span>Evento {EV} alterado{diff ? <> — {diff}</> : null}</span>;
+    }
+    case "event_priority":
+      return <span>Evento {EV} — {tail(e.logDetails, /^Prioridade do evento ".*?"\s*/) || "prioridade alterada"}</span>;
+    case "event_deleted":
+      return <span>Evento <B>{e.eventName}</B> excluído — {tail(e.logDetails, /^Evento ".*?" excluído\s*(—|-)?\s*/) || "sem detalhes registrados"}</span>;
+    case "items_cloned":
+      return <span><B>{e.batchCount ?? "?"}</B> peças clonadas para o evento {EV}</span>;
+    case "items_submitted":
+      return <span><B>{e.batchCount ?? "?"}</B> peças enviadas para vinculação de patrocinadores · evento {EV}</span>;
+    case "items_batch":
+      return <span>{e.logDetails || "Operação em lote"} · evento {EV}</span>;
+
     case "item_created":
-      return <span>{ID} <B>{e.itemType}</B> ({e.quantity} un.) adicionado ao evento <B>{e.eventName}</B></span>;
+      return <span>{ID} <B>{e.itemType}</B>{e.quantity != null ? <> ({e.quantity} un.)</> : null} adicionada ao evento {EV}<Excluida e={e} /></span>;
+    case "item_edited":
+      return <span>{ID} <B>{e.itemType}</B> editada — {tail(e.logDetails, /^Item editado:?\s*/) || "sem campos alterados"} · evento {EV}<Excluida e={e} /></span>;
+    case "item_restored":
+      return <span>{ID} <B>{e.itemType}</B> restaurada da lixeira · evento {EV}</span>;
     case "sponsor_linked":
       return (
         <span>
@@ -218,44 +322,56 @@ function buildDescription(e: TimelineEvent) {
             ? <>{e.sponsorCount} {e.sponsorCount === 1 ? "patrocinador vinculado" : "patrocinadores vinculados"}</>
             : "patrocinadores atualizados"
           }{" "}
-          no evento <B>{e.eventName}</B>
+          no evento {EV}<Excluida e={e} />
         </span>
       );
     case "thumb_uploaded":
-      return <span>{ID} <B>{e.itemType}</B> — thumb de aprovação enviado · evento <B>{e.eventName}</B></span>;
+      return <span>{ID} <B>{e.itemType}</B> — thumb de aprovação enviado · evento {EV}<Excluida e={e} /></span>;
     case "thumb_replaced":
-      return <span>{ID} <B>{e.itemType}</B> — thumb trocado (versão anterior guardada) · evento <B>{e.eventName}</B></span>;
+      return <span>{ID} <B>{e.itemType}</B> — thumb trocado (versão anterior guardada) · evento {EV}<Excluida e={e} /></span>;
+    case "thumb_new_version":
+      return (
+        <span>
+          {ID} <B>{e.itemType}</B> — a Arte enviou nova versão do thumb
+          {e.sponsorCount != null ? <> para <B>{e.sponsorCount}</B> patrocinador(es)</> : null}
+          {" · evento "}{EV}<Excluida e={e} />
+        </span>
+      );
     case "final_file_added":
-      return <span>{ID} <B>{e.itemType}</B> — arquivo final adicionado · evento <B>{e.eventName}</B></span>;
+      return <span>{ID} <B>{e.itemType}</B> — arquivo final adicionado · evento {EV}<Excluida e={e} /></span>;
     case "final_file_replaced":
-      return <span>{ID} <B>{e.itemType}</B> — arquivo final substituído · evento <B>{e.eventName}</B></span>;
+      return <span>{ID} <B>{e.itemType}</B> — arquivo final substituído · evento {EV}<Excluida e={e} /></span>;
     case "item_sent":
-      return <span>{ID} <B>{e.itemType}</B> enviado para aprovação de patrocinador · evento <B>{e.eventName}</B></span>;
+      return <span>{ID} <B>{e.itemType}</B> enviada para aprovação de patrocinador · evento {EV}<Excluida e={e} /></span>;
+    case "item_sent_no_approval":
+      return <span>{ID} <B>{e.itemType}</B> enviada direto para revisão final — sem aprovação de patrocinador · evento {EV}<Excluida e={e} /></span>;
     case "sponsor_approved":
-      return <span>{ID} <B>{e.itemType}</B> — {e.logDetails || "patrocinador aprovou"} · evento <B>{e.eventName}</B></span>;
+      return <span>{ID} <B>{e.itemType}</B> — {e.logDetails || "patrocinador aprovou"} · evento {EV}<Excluida e={e} /></span>;
     case "sponsor_rejected":
-      return <span>{ID} <B>{e.itemType}</B> — {e.logDetails || "patrocinador reprovou"} · evento <B>{e.eventName}</B></span>;
-    case "item_approved":
-      return <span>{ID} <B>{e.itemType}</B> de <B>{e.eventName}</B> liberado para produção</span>;
+      return <span>{ID} <B>{e.itemType}</B> — {e.logDetails || "patrocinador reprovou"} · evento {EV}<Excluida e={e} /></span>;
+    case "item_rejected_creator":
+      return <span>{ID} <B>{e.itemType}</B> — reprovada internamente (pelo criador do evento) · evento {EV}<Excluida e={e} /></span>;
+    case "approval_reverted":
+      return <span>{ID} <B>{e.itemType}</B> — {e.logDetails || "aprovação revertida por administrador"} · evento {EV}<Excluida e={e} /></span>;
     case "item_released":
-      return <span>{ID} <B>{e.itemType}</B> revisado e liberado para produção · evento <B>{e.eventName}</B></span>;
+      return <span>{ID} <B>{e.itemType}</B> revisada e liberada para produção · evento {EV}<Excluida e={e} /></span>;
     case "item_dispensed":
-      return <span>{ID} <B>{e.itemType}</B> dispensado (aprovação ignorada) · evento <B>{e.eventName}</B></span>;
+      return <span>{ID} <B>{e.itemType}</B> dispensada (aprovação ignorada) · evento {EV}<Excluida e={e} /></span>;
     case "item_deleted":
-      return <span>Peça <B>{e.itemType}</B> excluída do evento <B>{e.eventName}</B></span>;
+      return <span>Peça {ID} <B>{e.itemType}</B> excluída do evento {EV}</span>;
     case "production_started":
-      return <span>Produção de {ID} <B>{e.itemType}</B> — {e.quantityProduced}/{e.quantity} un. · evento <B>{e.eventName}</B></span>;
+      return <span>Produção de {ID} <B>{e.itemType}</B> — {e.quantityProduced ?? "?"}/{e.quantity ?? "?"} un. · evento {EV}<Excluida e={e} /></span>;
     case "item_produced":
-      return <span>{ID} <B>{e.itemType}</B> produzida — {e.quantityProduced ?? e.quantity}/{e.quantity} un. · evento <B>{e.eventName}</B></span>;
+      return <span>{ID} <B>{e.itemType}</B> produzida — {e.quantityProduced ?? e.quantity}/{e.quantity} un. · evento {EV}<Excluida e={e} /></span>;
     case "item_delivered":
       return (
         <span>
-          {ID} <B>{e.itemType}</B> de <B>{e.eventName}</B> entregue
+          {ID} <B>{e.itemType}</B> de {EV} entregue
           {e.receivedBy && <> para <B>{e.receivedBy}</B></>}
         </span>
       );
     case "item_reused":
-      return <span>{ID} <B>{e.itemType}</B> marcada como reaproveitamento — não vai para produção · evento <B>{e.eventName}</B></span>;
+      return <span>{ID} <B>{e.itemType}</B> marcada como reaproveitamento — não vai para produção · evento {EV}<Excluida e={e} /></span>;
     case "item_reused_partial": {
       // Dois formatos gravam o parcial: o da Gráfica ("6/10 reaproveitadas") e o
       // da Revisão ("6 un. de 10"). O número que interessa é o mesmo.
@@ -266,376 +382,65 @@ function buildDescription(e: TimelineEvent) {
         <span>
           {ID} <B>{e.itemType}</B> — reaproveitamento parcial
           {m ? <> ({m[1]} de {m[2]} un.{toProduce ? `, ${toProduce} a produzir` : ""})</> : null}
-          {" · evento "}<B>{e.eventName}</B>
+          {" · evento "}{EV}<Excluida e={e} />
         </span>
       );
     }
     case "item_reuse_corrected":
-      return <span>{ID} <B>{e.itemType}</B> — {e.logDetails || "reaproveitamento corrigido"} · evento <B>{e.eventName}</B></span>;
+      return <span>{ID} <B>{e.itemType}</B> — {e.logDetails || "reaproveitamento corrigido"} · evento {EV}<Excluida e={e} /></span>;
     case "item_conferred":
-      return <span>{ID} <B>{e.itemType}</B> conferida{e.logDetails?.match(/\((\d+\/\d+)\)/) ? <> — {e.logDetails.match(/\((\d+\/\d+)\)/)![1]} un.</> : null} · evento <B>{e.eventName}</B></span>;
+      return <span>{ID} <B>{e.itemType}</B> conferida{e.logDetails?.match(/\((\d+\/\d+)\)/) ? <> — {e.logDetails.match(/\((\d+\/\d+)\)/)![1]} un.</> : null} · evento {EV}<Excluida e={e} /></span>;
     case "item_canceled":
-      return <span>{ID} <B>{e.itemType}</B> cancelada · evento <B>{e.eventName}</B></span>;
+      return <span>{ID} <B>{e.itemType}</B> cancelada · evento {EV}<Excluida e={e} /></span>;
     case "item_returned":
-      return <span>{ID} <B>{e.itemType}</B> devolvida para a Arte · evento <B>{e.eventName}</B></span>;
+      return <span>{ID} <B>{e.itemType}</B> devolvida para a Arte · evento {EV}<Excluida e={e} /></span>;
     // O texto do próprio audit log já conta a história inteira (quantas
     // unidades, contratado antes → depois, motivo, e em que status a peça
     // original permaneceu). Reescrevê-lo aqui só perderia informação; o que
     // falta é a moldura — o código da peça e o nome do evento.
     case "item_complement_created":
-      return <span>{ID} <B>{e.itemType}</B> — {e.logDetails || "complemento criado"} · evento <B>{e.eventName}</B></span>;
+      return <span>{ID} <B>{e.itemType}</B> — {e.logDetails || "complemento criado"} · evento {EV}<Excluida e={e} /></span>;
     case "item_complement_canceled":
-      return <span>{ID} <B>{e.itemType}</B> — {e.logDetails || "complemento cancelado"} · evento <B>{e.eventName}</B></span>;
+      return <span>{ID} <B>{e.itemType}</B> — {e.logDetails || "complemento cancelado"} · evento {EV}<Excluida e={e} /></span>;
     case "book_sent": {
       const removido = (e.logDetails || "").toLowerCase().includes("removido");
       return (
         <span>
           Book de aprovação {removido ? "removido de" : "enviado com"}{" "}
           {e.quantity ? <B>{e.quantity} peça{e.quantity === 1 ? "" : "s"}</B> : "peças"}
-          {" "}· evento <B>{e.eventName}</B>
+          {" "}· evento {EV}
         </span>
       );
     }
     default:
-      return <span>Atividade registrada</span>;
+      // Melhor uma linha feia do que um buraco silencioso numa auditoria.
+      return <span>{e.logDetails || "Atividade registrada"}{e.eventName !== "Evento desconhecido" ? <> · evento {EV}</> : null}</span>;
   }
 }
 
-/* ── Pipeline: sintetiza a linha do tempo a partir de 3 tabelas ──
-   Fica FORA do componente e roda dentro de um useMemo: antes ele
-   reconstruía a timeline inteira (e refazia um events.find O(n) por item) a
-   CADA render — inclusive a cada tecla digitada na busca. */
-function buildTimeline(events: any[], items: any[], auditLogs: any[]): TimelineEvent[] {
-  /* ── Build lookup maps ── */
-  // Keep FIRST log per entity+action for userName lookups (created/delivered fire once)
-  const auditLogMap = new Map<string, any>();
-  auditLogs.forEach(log => {
-    const key = `${log.entityId}-${log.action}`;
-    if (!auditLogMap.has(key)) auditLogMap.set(key, log);
-  });
-
-  const itemMap = new Map<string, any>();
-  items.forEach(item => itemMap.set(item.id, item));
-
-  // events.find(...) por item era O(n×m); o Map torna cada lookup O(1).
-  const eventMap = new Map<string, any>();
-  events.forEach(event => eventMap.set(event.id, event));
-
-  const timeline: TimelineEvent[] = [];
-
-  // Pre-scan audit logs so the items loop can skip synthetic fallbacks
-  // when a proper audit-log entry already covers that step.
-  const itemsWithRelease = new Set<string>();    // covered by item_released from audit log
-  const itemsWithProduction = new Set<string>(); // covered by production/produced logs
-  auditLogs.forEach((log: any) => {
-    const action = (log.action || "").toLowerCase();
-    const details = (log.details || "");
-    const itemId = log.entityId ?? log.entity_id;
-    if (action === "approved" && details.toLowerCase().includes("liberado para produção")) {
-      if (itemId) itemsWithRelease.add(itemId);
-    }
-    if (action === "production" || action === "produced") {
-      if (itemId) itemsWithProduction.add(itemId);
-    }
-  });
-
-  /* ── Synthetic events from items / events tables ── */
-  events.forEach(event => {
-    const log = auditLogMap.get(`${event.id}-created`);
-    timeline.push({
-      id: `event-${event.id}`, type: "event_created",
-      timestamp: new Date(event.createdAt),
-      eventName: event.name, eventId: event.id,
-      userName: log?.userName,
-    });
-  });
-
-  items.forEach(item => {
-    const event = eventMap.get(item.eventId);
-    const eventName = event?.name || "Evento desconhecido";
-    // Peças importadas via Excel antigas só têm o log agregado no evento —
-    // usa-o como fallback para não exibir "Sistema" como autor.
-    const createdLog = auditLogMap.get(`${item.id}-created`)
-      ?? auditLogMap.get(`${item.eventId}-created`);
-
-    timeline.push({
-      id: `item-created-${item.id}`, type: "item_created",
-      timestamp: new Date(item.createdAt),
-      eventName, eventId: item.eventId,
-      itemType: item.type, itemId: item.id, itemDisplayId: item.displayId,
-      quantity: item.quantity, userName: createdLog?.userName,
-    });
-
-    // Synthetic "Peça Liberada" only as fallback for legacy items without an audit log
-    if (
-      ["approved", "inProduction", "produced", "delivered"].includes(item.status) &&
-      !itemsWithRelease.has(item.id)
-    ) {
-      const log = auditLogMap.get(`${item.id}-approved`);
-      timeline.push({
-        id: `item-approved-${item.id}`, type: "item_approved",
-        timestamp: new Date(item.approvedAt || item.updatedAt),
-        eventName, eventId: item.eventId,
-        itemType: item.type, itemId: item.id, itemDisplayId: item.displayId,
-        quantity: item.quantity, userName: log?.userName,
-      });
-    }
-
-    // Fallback para itens antigos: quando não há log de produção, o evento é
-    // derivado do próprio item (sem autor). Com log, quem manda é o loop abaixo.
-    if (item.quantityProduced && item.quantityProduced > 0 && !itemsWithProduction.has(item.id)) {
-      const prodLog = auditLogMap.get(`${item.id}-produced`) ?? auditLogMap.get(`${item.id}-production`);
-      timeline.push({
-        id: `production-${item.id}`, type: "production_started",
-        timestamp: new Date(item.productionStartedAt || item.updatedAt),
-        eventName, eventId: item.eventId,
-        itemType: item.type, itemId: item.id, itemDisplayId: item.displayId,
-        quantity: item.quantity, quantityProduced: item.quantityProduced,
-        userName: prodLog?.userName ?? prodLog?.user_name,
-      });
-    }
-
-    if (item.status === "delivered" && item.deliveredAt) {
-      const log = auditLogMap.get(`${item.id}-delivered`);
-      timeline.push({
-        id: `delivered-${item.id}`, type: "item_delivered",
-        timestamp: new Date(item.deliveredAt),
-        eventName, eventId: item.eventId,
-        itemType: item.type, itemId: item.id, itemDisplayId: item.displayId,
-        receivedBy: item.receivedBy, userName: log?.userName,
-      });
-    }
-  });
-
-  // Parse audit logs for all relevant action types
-  auditLogs.forEach((log: any) => {
-    const action = (log.action || "").toLowerCase();
-    const details = (log.details || "");
-    const detailsLower = details.toLowerCase();
-    const itemId = log.entityId ?? log.entity_id;
-    const entityType = (log.entityType ?? log.entity_type ?? "").toLowerCase();
-    const ts = log.createdAt ?? log.created_at;
-    const userName = log.userName ?? log.user_name;
-
-    // Logs de EVENTO: hoje só o envio/remoção do book de aprovação interessa
-    // aqui (os demais viram entradas próprias a partir da tabela de eventos).
-    if (entityType === "event") {
-      if (detailsLower.includes("book")) {
-        const ev = eventMap.get(itemId);
-        const qtd = details.match(/(\d+)\s+pe/i)?.[1];
-        timeline.push({
-          id: `book-${log.id ?? itemId + ts}`,
-          type: "book_sent",
-          timestamp: new Date(ts),
-          eventName: ev?.name || "Evento desconhecido",
-          eventId: itemId,
-          itemId,
-          quantity: qtd ? parseInt(qtd, 10) : undefined,
-          userName,
-          logDetails: details,
-        });
-      }
-      return;
-    }
-
-    // Only process item-related logs
-    if (entityType !== "item") {
-      return;
-    }
-
-    const item = itemMap.get(itemId);
-    const event = item ? eventMap.get(item.eventId) : null;
-
-    // Extrai nome do evento e tipo da peça dos detalhes do log quando o item foi deletado
-    const eventNameFromDetails = details.match(/(?:do|no) evento "(.+?)"/i)?.[1];
-    const itemTypeFromDetails  = details.match(/(?:Peça|Item|peça) "(.+?)"/i)?.[1]
-                               || details.match(/^"(.+?)"/)?.[1];
-    const displayIdFromDetails = details.match(/#(\d+)/)?.[1];
-
-    const eventName    = event?.name || eventNameFromDetails || "Evento desconhecido";
-    const resolvedType = item?.type  || itemTypeFromDetails;
-    const resolvedId   = item?.displayId || (displayIdFromDetails ? `#${displayIdFromDetails}` : undefined);
-
-    const base = {
-      timestamp: new Date(ts),
-      eventName,
-      eventId: item?.eventId || "",
-      itemType: resolvedType,
-      itemId: itemId,
-      itemDisplayId: resolvedId,
-      quantity: item?.quantity,
-      userName,
-      logDetails: details,
-    };
-
-    // COMPLEMENTO — no TOPO do encadeamento, de propósito. O motivo do aumento
-    // é TEXTO LIVRE escrito por uma pessoa: um motivo que contenha
-    // "reaproveitamento" ou "conferência" cairia num dos casamentos por palavra
-    // logo abaixo e o aumento apareceria no histórico disfarçado de outra coisa.
-    // Casando por AÇÃO exata antes de todos eles, isso não tem como acontecer.
-    // São dois logs por complemento (um na mãe, um na filha) e os dois
-    // interessam: um responde "esta peça ganhou quantidade?", o outro "de onde
-    // este lote novo veio?".
-    if (action === "complement_created" || action === "complement_canceled") {
-      timeline.push({
-        id: `complement-${log.id ?? itemId + ts}`,
-        type: action === "complement_created" ? "item_complement_created" : "item_complement_canceled",
-        ...base,
-        itemType: resolvedType || "Peça",
-      });
-      return;
-    }
-
-    // Produção da Gráfica. Cada lançamento vira uma entrada — produções parciais
-    // aparecem uma a uma, e a que fecha a quantidade entra como "Produzido".
-    if (action === "production" || action === "produced") {
-      const produced = Number(details.match(/Produção:\s*(\d+)/)?.[1]) || undefined;
-      timeline.push({
-        id: `production-${log.id ?? itemId + ts}`,
-        type: action === "produced" ? "item_produced" : "production_started",
-        ...base,
-        quantityProduced: produced,
-      });
-      return;
-    }
-
-    // Reaproveitamento marcado pela Gráfica (total ou parcial). O log existia
-    // mas nenhum padrão o reconhecia, então sumia do histórico.
-    if (detailsLower.includes("reaproveitamento")) {
-      // Correção de marcação errada precisa ser rastreável: é uma peça que
-      // voltou para a produção depois de ter sido dada como reaproveitada.
-      const corrected = detailsLower.includes("corrigido") || detailsLower.includes("removido por correção");
-      timeline.push({
-        id: `reuse-${log.id ?? itemId + ts}`,
-        type: corrected
-          ? "item_reuse_corrected"
-          : detailsLower.includes("parcial") ? "item_reused_partial" : "item_reused",
-        ...base,
-      });
-      return;
-    }
-
-    // Conferência da Gráfica (parcial ou concluída)
-    if (detailsLower.includes("conferência")) {
-      timeline.push({ id: `conferred-${log.id ?? itemId + ts}`, type: "item_conferred", ...base });
-      return;
-    }
-
-    // Peça cancelada
-    if (detailsLower.includes("item cancelado")) {
-      timeline.push({ id: `canceled-${log.id ?? itemId + ts}`, type: "item_canceled", ...base });
-      return;
-    }
-
-    // Devolvida para a Arte
-    if (detailsLower.includes("devolvido para arte") || detailsLower.includes("devolvida para arte")
-      || detailsLower.includes("devolvido para criação")) {
-      timeline.push({ id: `returned-${log.id ?? itemId + ts}`, type: "item_returned", ...base });
-      return;
-    }
-
-    // Sponsor linking
-    if (action === "updated" && detailsLower.includes("patrocinadores atualizados")) {
-      if (!item) return; // só exibe se item ainda existe (sponsor linking sem item é raro/irrelevante)
-      const match = details.match(/(\d+)\s+patrocinador/i);
-      const sponsorCount = match ? parseInt(match[1], 10) : undefined;
-      timeline.push({ id: `sponsor-linked-${log.id ?? itemId + ts}`, type: "sponsor_linked", ...base, sponsorCount });
-      return;
-    }
-
-    // Thumb enviado ou trocado pela Arte. A troca preserva a versão anterior,
-    // por isso ganha um tipo próprio.
-    if (action === "updated" && detailsLower.includes("thumb de aprovação atualizado")) {
-      if (!item) return;
-      const isReplacement = /anterior:/i.test(details);
-      timeline.push({
-        id: `thumb-${log.id ?? itemId + ts}`,
-        type: isReplacement ? "thumb_replaced" : "thumb_uploaded",
-        ...base,
-      });
-      return;
-    }
-
-    // Arquivo final adicionado ou substituído (a substituição usa "substituído",
-    // que antes não casava com nenhum padrão e sumia do histórico).
-    if (action === "updated" && detailsLower.includes("arquivo final")
-        && /adicionad|atualizad|substituíd|substituid/i.test(detailsLower)) {
-      if (!item) return;
-      const isReplacement = /substitu|atualizad/i.test(detailsLower);
-      timeline.push({
-        id: `final-${log.id ?? itemId + ts}`,
-        type: isReplacement ? "final_file_replaced" : "final_file_added",
-        ...base,
-      });
-      return;
-    }
-
-    // Item sent for sponsor approval
-    if (action === "updated" && detailsLower.includes("status alterado") && details.includes("→ Aguardando Aprovação")) {
-      timeline.push({ id: `sent-${log.id ?? itemId + ts}`, type: "item_sent", ...base });
-      return;
-    }
-
-    // Sponsor approved (individual or all)
-    if (action === "approved" && (detailsLower.includes("patrocinador") || detailsLower.includes("aprovou"))) {
-      // Skip "liberado para produção" — that's item_released
-      if (detailsLower.includes("liberado para produção")) return;
-      timeline.push({ id: `sp-approved-${log.id ?? itemId + ts}`, type: "sponsor_approved", ...base });
-      return;
-    }
-
-    // Sponsor rejected
-    if (action === "rejected") {
-      timeline.push({ id: `sp-rejected-${log.id ?? itemId + ts}`, type: "sponsor_rejected", ...base });
-      return;
-    }
-
-    // Item released for production (creator review)
-    if (action === "approved" && detailsLower.includes("liberado para produção")) {
-      timeline.push({ id: `released-${log.id ?? itemId + ts}`, type: "item_released", ...base });
-      return;
-    }
-
-    // Item dispensed
-    if (action === "dispensed") {
-      timeline.push({ id: `dispensed-${log.id ?? itemId + ts}`, type: "item_dispensed", ...base });
-      return;
-    }
-
-    // Item deleted — sempre exibe, mesmo sem o item na tabela
-    if (action === "deleted") {
-      timeline.push({
-        id: `deleted-${log.id ?? itemId + ts}`,
-        type: "item_deleted",
-        ...base,
-        itemType: resolvedType || "Peça",
-      });
-      return;
-    }
-
-    // Item criado (log de auditoria, sem item na tabela = item foi criado e deletado)
-    if (action === "created" && !item) {
-      // Resumos de importação antigos foram gravados como 'item' mas com o id do
-      // EVENTO — não são peças, e renderizavam "Peça ( un.) — Evento desconhecido".
-      if (eventMap.has(itemId)) return;
-      timeline.push({
-        id: `item-created-log-${log.id ?? itemId + ts}`,
-        type: "item_created",
-        ...base,
-        itemType: resolvedType || "Peça",
-      });
-      return;
-    }
-  });
-
-  // Cópia antes do sort: não muta o array que acabou de ser montado à toa,
-  // e deixa explícito que a ordenação é responsabilidade de quem consome.
-  return [...timeline].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+/* ── Viewport ──
+   O corte de card empilhado sobe de 768 para 1024 nesta tela: entre 768 e
+   ~1100px o grid de 4 colunas vazava — pill e nome do autor com `nowrap`, sem
+   `minWidth: 0` e sem barra de rolagem, então o texto era simplesmente cortado. */
+function useViewport() {
+  const [w, setW] = useState(() => (typeof window === "undefined" ? 1280 : window.innerWidth));
+  useEffect(() => {
+    const onResize = () => setW(window.innerWidth);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return { isMobile: w < 768, isCompact: w < 1024 };
 }
 
+const GRID = "minmax(150px,180px) minmax(0,1fr) 110px minmax(0,200px) 40px";
+
 export default function Historico() {
-  const isMobile = useIsMobile();
+  const { isMobile, isCompact } = useViewport();
   const [, setLocation] = useLocation();
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const stickyRef = useRef<HTMLDivElement>(null);
+  const [stickyH, setStickyH] = useState(0);
+
   // Filtros inicializam da URL e são espelhados nela (mesmo padrão de
   // eventos.tsx): F5 não perde o estado e o link filtrado é compartilhável.
   const urlParams = useMemo(() => new URLSearchParams(window.location.search), []);
@@ -643,14 +448,31 @@ export default function Historico() {
     () => urlParams.get("evento")?.split(",").filter(Boolean) ?? [],
   );
   const [actionFilter, setActionFilter] = useState<string[]>(
-    () => urlParams.get("acao")?.split(",").filter(Boolean) ?? [],
+    // `item_approved` foi fundido em `item_released` (eram o mesmo conceito em
+    // grupos diferentes) — links antigos continuam valendo.
+    () => (urlParams.get("acao")?.split(",").filter(Boolean) ?? [])
+      .map(v => (v === "item_approved" ? "item_released" : v)),
   );
+  const [authorFilter, setAuthorFilter] = useState<string[]>(
+    () => urlParams.get("autor")?.split(",").filter(Boolean) ?? [],
+  );
+  const [period, setPeriod] = useState<string>(() => {
+    const p = urlParams.get("periodo") ?? "all";
+    return PERIODS.some(x => x.value === p) ? p : "all";
+  });
   const [searchFilter, setSearchFilter] = useState(() => urlParams.get("busca") ?? "");
+  const [pageSize, setPageSize] = useState(() => {
+    const n = parseInt(urlParams.get("tam") ?? "", 10);
+    return PAGE_SIZES.includes(n) ? n : 25;
+  });
   // Página também vem da URL: F5 na página 7 voltava para a 1.
   const [page, setPage] = useState(() => {
     const n = parseInt(urlParams.get("pagina") ?? "", 10);
     return Number.isFinite(n) && n >= 1 ? n : 1;
   });
+
+  const [detail, setDetail] = useState<TimelineEvent | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
 
   // Atalho "/" foca a busca (paridade com eventos.tsx e Painel Geral).
   const searchRef = useRef<HTMLInputElement>(null);
@@ -666,240 +488,591 @@ export default function Historico() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  const { data: events = [], isError: eventsError, refetch: refetchEvents } = useQuery<any[]>({ queryKey: ["/api/events"] });
-  const { data: items = [], isError: itemsError, refetch: refetchItems }  = useQuery<any[]>({ queryKey: ["/api/items"] });
-  const { data: auditLogs = [], isLoading: logsLoading, isError: logsError, refetch: refetchLogs } = useQuery<any[]>({ queryKey: ["/api/audit-logs"] });
+  const eventsQ = useQuery<any[]>({ queryKey: ["/api/events"] });
+  const itemsQ  = useQuery<any[]>({ queryKey: ["/api/items"] });
+  // Chave em DUAS partes (mesmo padrão de solicitacao.tsx): o payload precisa
+  // do ?withTotal=1 para a tela saber que a trilha está truncada nos 500 mais
+  // recentes, mas `invalidateQueries(["/api/audit-logs"])` casa por ELEMENTO do
+  // array — com a querystring colada na primeira posição, nenhuma das
+  // invalidações do app (nem a do WebSocket) alcançaria este cache.
+  const logsQ = useQuery<{ logs: any[]; total: number }>({
+    queryKey: ["/api/audit-logs", "?withTotal=1"],
+  });
+
+  // VAZIO (constante de módulo) e não `?? []`: um literal novo a cada render
+  // trocaria a identidade das dependências do useMemo, `sorted` seria
+  // recalculado sempre e o ajuste de estado feito no render abaixo entraria em
+  // laço infinito ("Too many re-renders").
+  const events = eventsQ.data ?? VAZIO;
+  const items = itemsQ.data ?? VAZIO;
+  const auditLogs = logsQ.data?.logs ?? VAZIO;
+  const logsTotal = logsQ.data?.total ?? auditLogs.length;
+  const isTruncated = logsTotal > auditLogs.length;
+
+  // Gate sobre as TRÊS queries. /api/items é a mais pesada e costuma terminar
+  // por último: quando só os logs chegavam, a timeline era montada com
+  // `items=[]` e a tela exibia uma trilha visivelmente errada por um instante
+  // ("Evento desconhecido" em tudo, sem ID, sem navegação, total dançando).
+  const isLoading = eventsQ.isLoading || itemsQ.isLoading || logsQ.isLoading;
+  const isFetching = eventsQ.isFetching || itemsQ.isFetching || logsQ.isFetching;
 
   // Qualquer uma das 3 fontes falhando deixa a timeline incompleta de um jeito
   // silencioso (ex.: tudo vira "Evento desconhecido") — melhor avisar e
   // oferecer nova tentativa do que exibir um histórico pela metade.
-  const isError = eventsError || itemsError || logsError;
-  const retryAll = () => { refetchEvents(); refetchItems(); refetchLogs(); };
+  const isError = eventsQ.isError || itemsQ.isError || logsQ.isError;
 
   const sorted = useMemo(
     () => buildTimeline(events, items, auditLogs),
     [events, items, auditLogs],
   );
 
-  /* ── Filters — memoizados à parte: mudar filtro não reconstrói a timeline ── */
+  /* ── Atualização em segundo plano sem reordenar sob o dedo ──────────────
+     A lista é cronológica desc: agora que o WebSocket invalida a trilha, ela se
+     reconstruiria sozinha e o conteúdo escorregaria enquanto o usuário lê. A
+     lista EXIBIDA fica no último estado adotado e a novidade vira uma pill — o
+     usuário decide quando incorporar.
+
+     O ajuste é feito durante o RENDER (padrão "derivar estado de props"), não
+     num efeito: num efeito, a lista nova chegaria a ser pintada por um frame
+     antes de o congelamento reverter para a antiga — um pisca-pisca pior que o
+     problema que se quer resolver.
+
+     Quando nada NOVO entrou (só saiu registro, ou só mudou texto), adota em
+     silêncio: sem linha nova no topo não há reordenação sob o dedo. */
+  const [displayed, setDisplayed] = useState<TimelineEvent[]>(sorted);
+  const [lastSorted, setLastSorted] = useState(sorted);
+  const adoptNextRef = useRef(false);
+  if (sorted !== lastSorted) {
+    setLastSorted(sorted);
+    const shown = new Set(displayed.map(e => e.id));
+    if (adoptNextRef.current || displayed.length === 0 || !sorted.some(e => !shown.has(e.id))) {
+      adoptNextRef.current = false;
+      setDisplayed(sorted);
+    }
+  }
+
+  const pendingCount = useMemo(() => {
+    if (displayed === sorted) return 0;
+    const shown = new Set(displayed.map(e => e.id));
+    return sorted.filter(e => !shown.has(e.id)).length;
+  }, [displayed, sorted]);
+
+  const adotarNovidades = useCallback(() => {
+    setDisplayed(sorted);
+    setPage(1);
+    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  }, [sorted]);
+
+  const atualizar = useCallback(() => {
+    adoptNextRef.current = true;
+    setDisplayed(sorted);
+    eventsQ.refetch(); itemsQ.refetch(); logsQ.refetch();
+  }, [sorted, eventsQ, itemsQ, logsQ]);
+
+  // "Atualizado há X" precisa reescrever sozinho; sem o tick ele congelava em
+  // "há menos de um minuto" pelo resto da sessão.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const t = window.setInterval(() => setTick(n => n + 1), 30000);
+    return () => window.clearInterval(t);
+  }, []);
+
+  /* ── Filtros — memoizados à parte: mudar filtro não reconstrói a timeline ── */
   const filtered = useMemo(() => {
-    let list = eventFilter.length === 0 ? sorted : sorted.filter(e => eventFilter.includes(e.eventId));
+    let list = displayed;
+    const cut = cutoff(period);
+    if (cut) list = list.filter(e => e.timestamp >= cut);
+    if (eventFilter.length > 0) list = list.filter(e => eventFilter.includes(e.eventId));
     if (actionFilter.length > 0) list = list.filter(e => actionFilter.includes(e.type));
+    if (authorFilter.length > 0) {
+      list = list.filter(e => authorFilter.includes(e.userName || SEM_AUTOR));
+    }
     if (searchFilter.trim()) {
       const q = searchFilter.toLowerCase();
-      list = list.filter(e =>
-        e.eventName.toLowerCase().includes(q) ||
-        e.userName?.toLowerCase().includes(q) ||
-        e.itemType?.toLowerCase().includes(q) ||
-        e.itemDisplayId?.toLowerCase().includes(q) ||
-        e.receivedBy?.toLowerCase().includes(q)
-      );
+      // searchBlob cobre também o `logDetails` — que é o texto RENDERIZADO nas
+      // linhas de aprovação/reprovação. O usuário lia "Patrocinador Ambev
+      // reprovou…", digitava "Ambev" e recebia "Nenhuma atividade encontrada".
+      list = list.filter(e => e.searchBlob.includes(q));
     }
     return list;
-  }, [sorted, eventFilter, actionFilter, searchFilter]);
+  }, [displayed, period, eventFilter, actionFilter, authorFilter, searchFilter]);
 
-  const hasActiveFilters = eventFilter.length > 0 || actionFilter.length > 0 || !!searchFilter.trim();
-  const clearFilters = () => { setEventFilter([]); setActionFilter([]); setSearchFilter(""); setPage(1); };
+  const activeFilterCount =
+    (eventFilter.length > 0 ? 1 : 0) +
+    (actionFilter.length > 0 ? 1 : 0) +
+    (authorFilter.length > 0 ? 1 : 0) +
+    (period !== "all" ? 1 : 0) +
+    (searchFilter.trim() ? 1 : 0);
+  const hasActiveFilters = activeFilterCount > 0;
+  const clearFilters = () => {
+    setEventFilter([]); setActionFilter([]); setAuthorFilter([]);
+    setPeriod("all"); setSearchFilter(""); setPage(1);
+  };
+
+  /* ── Opções de filtro derivadas dos DADOS (com contagem) ──
+     A lista de 24 ações era literal: "Reaprov. corrigido" aparecia mesmo que
+     nunca tivesse existido e levava a zero resultados. */
+  const actionOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    displayed.forEach(e => counts.set(e.type, (counts.get(e.type) ?? 0) + 1));
+    const opts = Array.from(counts.entries()).map(([type, count]) => {
+      const cfg = TYPE_CONFIG[type] ?? DEFAULT_CFG;
+      return {
+        value: type, label: cfg.filterLabel, count,
+        group: PHASE_LABEL[cfg.phase], pinned: true,
+        _order: PHASE_ORDER.indexOf(cfg.phase),
+      };
+    });
+    // Ordena por fase para o agrupamento do FilterSelect sair na ordem do fluxo.
+    opts.sort((a, b) => a._order - b._order || b.count - a.count);
+    return opts.map(({ _order, ...o }) => o);
+  }, [displayed]);
+
+  const eventOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    displayed.forEach(e => {
+      if (e.eventId) counts.set(e.eventId, (counts.get(e.eventId) ?? 0) + 1);
+    });
+    return events.map((ev: any) => ({ value: ev.id, label: ev.name, count: counts.get(ev.id) ?? 0 }));
+  }, [events, displayed]);
+
+  const authorOptions = useMemo(() => {
+    const counts = new Map<string, number>();
+    displayed.forEach(e => {
+      const k = e.userName || SEM_AUTOR;
+      counts.set(k, (counts.get(k) ?? 0) + 1);
+    });
+    return Array.from(counts.entries())
+      .map(([value, count]) => ({
+        value, count,
+        label: value === SEM_AUTOR ? "Sem autor registrado" : value,
+      }))
+      .sort((a, b) => b.count - a.count);
+  }, [displayed]);
+
+  /* ── Métricas-atalho ── */
+  const metrics = useMemo(() => {
+    const hoje = startOfDay(new Date());
+    const sete = subDays(new Date(), 7);
+    return {
+      hoje: displayed.filter(e => e.timestamp >= hoje).length,
+      sete: displayed.filter(e => e.timestamp >= sete).length,
+      excecoes: displayed.filter(e => EXCECAO_TYPES.includes(e.type)).length,
+    };
+  }, [displayed]);
+
+  /** Registro mais antigo carregado — é até onde o usuário pode confiar. */
+  const oldestLoaded = useMemo(() => {
+    let min: number | null = null;
+    auditLogs.forEach((l: any) => {
+      const t = new Date(l.createdAt ?? l.created_at).getTime();
+      if (Number.isFinite(t) && (min === null || t < min)) min = t;
+    });
+    return min === null ? null : new Date(min);
+  }, [auditLogs]);
 
   /* ── Pagination ── */
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   // Sincroniza o estado com o total: quando um filtro encolhe a lista, `page`
   // ficava além de totalPages e o "próxima" parecia quebrado (o disabled era
   // calculado sobre safePage, mas o clique somava sobre o page inflado).
-  // O guard de logsLoading protege o ?pagina= da URL: durante o carregamento
+  // O guard de isLoading protege o ?pagina= da URL: durante o carregamento
   // totalPages ainda é 1 e o clamp descartaria a página restaurada.
   useEffect(() => {
-    if (logsLoading) return;
+    if (isLoading) return;
     if (page > totalPages) setPage(totalPages);
-  }, [page, totalPages, logsLoading]);
-  const safePage   = Math.min(page, totalPages);
-  const pageItems  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  }, [page, totalPages, isLoading]);
+  const safePage  = Math.min(page, totalPages);
+  const pageItems = filtered.slice((safePage - 1) * pageSize, safePage * pageSize);
 
-  // Filtros e página espelhados na URL (o efeito vive aqui embaixo porque
-  // depende de safePage). + hash: replaceState sem #... apagava o fragmento.
+  const goToPage = (p: number) => {
+    setPage(p);
+    // Trocar de página mantinha a rolagem no rodapé: o usuário avançava e
+    // continuava vendo o FIM da lista nova.
+    scrollRef.current?.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  // Filtros e página espelhados na URL. replaceState (nunca pushState: no
+  // Safari o histórico do navegador enche e o "voltar" deixa de sair da tela)
+  // + debounce de 250ms, porque digitar na busca escrevia uma entrada por
+  // tecla. E o guard de isLoading, que existia só no efeito do clamp: sem ele
+  // um F5 durante o carregamento apagava o ?pagina= (safePage vale 1 até os
+  // dados chegarem). + hash: replaceState sem #... apagava o fragmento.
   useEffect(() => {
-    const p = new URLSearchParams();
-    if (searchFilter) p.set("busca", searchFilter);
-    if (actionFilter.length) p.set("acao", actionFilter.join(","));
-    if (eventFilter.length) p.set("evento", eventFilter.join(","));
-    if (safePage > 1) p.set("pagina", String(safePage));
-    const qs = p.toString();
-    window.history.replaceState(null, "", (qs ? `?${qs}` : window.location.pathname) + window.location.hash);
-  }, [searchFilter, actionFilter, eventFilter, safePage]);
+    if (isLoading) return;
+    const t = window.setTimeout(() => {
+      const p = new URLSearchParams();
+      if (searchFilter) p.set("busca", searchFilter);
+      if (actionFilter.length) p.set("acao", actionFilter.join(","));
+      if (eventFilter.length) p.set("evento", eventFilter.join(","));
+      if (authorFilter.length) p.set("autor", authorFilter.join(","));
+      if (period !== "all") p.set("periodo", period);
+      if (pageSize !== 25) p.set("tam", String(pageSize));
+      if (safePage > 1) p.set("pagina", String(safePage));
+      const qs = p.toString();
+      window.history.replaceState(null, "", (qs ? `?${qs}` : window.location.pathname) + window.location.hash);
+    }, 250);
+    return () => window.clearTimeout(t);
+  }, [searchFilter, actionFilter, eventFilter, authorFilter, period, pageSize, safePage, isLoading]);
 
   const handleFilterChange = (setter: (v: string[]) => void) => (v: string[]) => {
     setter(v);
     setPage(1);
   };
 
-  /* page buttons: show at most 5 — a janela desliza para manter a página
-     atual centrada; perto do fim, ancora nas 5 últimas (antes o fim da lista
-     mostrava a atual encostada na borda com botões "vazios" à direita). */
+  /* Janela de 5 páginas, com salto para primeira/última nas pontas. */
   const pageWindow: number[] = [];
   const start = Math.max(1, Math.min(safePage - 2, totalPages - 4));
   const end   = Math.min(totalPages, start + 4);
   for (let i = start; i <= end; i++) pageWindow.push(i);
 
-  /* ── Select style helper ── */
-  const selectStyle: React.CSSProperties = {
-    backgroundColor: "#ffffff", border: "none", borderRadius: 8,
-    padding: "9px 14px", fontSize: 13, fontWeight: 600,
-    color: P.text, cursor: "pointer",
-    appearance: "none", WebkitAppearance: "none", minWidth: 168,
+  const nav: Nav = useMemo(() => ({
+    goEvent: (eventId: string) => setLocation(`/eventos/${eventId}`),
+    // O registro fala de uma PEÇA e a tela tem o itemId em mãos; o
+    // event-detail já suporta deep-link ?item= (o sino usa). Antes o usuário
+    // caía na lista do evento e caçava a peça entre dezenas.
+    goItem: (eventId: string, itemId: string) => setLocation(`/eventos/${eventId}?item=${itemId}`),
+  }), [setLocation]);
+
+  const copiar = (texto: string, chave: string) => {
+    navigator.clipboard?.writeText(texto).then(() => {
+      setCopied(chave);
+      window.setTimeout(() => setCopied(cur => (cur === chave ? null : cur)), 1500);
+    });
   };
 
+  /* ── Exportar CSV do resultado filtrado ──
+     A tela irmã (/logs-sistema) já exporta, mas é admin-only — justamente os
+     perfis que mais precisam prestar contas não tinham como levar a trilha
+     para uma reunião. O aviso de truncamento vai DENTRO do arquivo: sem ele um
+     CSV parcial passa por completo em qualquer análise posterior. */
+  const exportarCsv = () => {
+    const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const aviso = isTruncated
+      ? [[`AVISO: trilha parcial — esta consulta carregou os ${auditLogs.length} registros mais recentes de ${logsTotal} no sistema${oldestLoaded ? ` (a partir de ${format(oldestLoaded, "dd/MM/yyyy HH:mm", { locale: ptBR })})` : ""}`]]
+      : [];
+    const header = ["Data/Hora", "Tipo", "Descrição", "Peça", "Evento", "Realizado por"];
+    const rows = filtered.map(e => [
+      format(e.timestamp, "dd/MM/yyyy HH:mm:ss", { locale: ptBR }),
+      cfgFor(e.type).label,
+      e.logDetails ?? cfgFor(e.type).label,
+      e.itemDisplayId ?? "",
+      e.eventName,
+      e.userName ?? "—",
+    ]);
+    const csv = [...aviso, header, ...rows]
+      .map(r => r.map(c => esc(String(c))).join(";"))
+      .join("\r\n");
+    const blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `historico-${format(new Date(), "yyyy-MM-dd-HHmm")}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  /* ── Separadores de dia ──
+     A coluna de data gastava uma linha inteira com o ano, idêntico em 25 linhas
+     seguidas, e não havia âncora temporal ao rolar. O ano passa a viver no
+     separador e a célula fica só com a hora. */
+  const grupos = useMemo(() => {
+    // `offset` mantém o data-testid `timeline-event-N` contínuo na página
+    // inteira — reiniciar a contagem a cada dia criaria ids repetidos.
+    const out: { chave: string; rotulo: string; offset: number; itens: TimelineEvent[] }[] = [];
+    pageItems.forEach((e, i) => {
+      const chave = format(e.timestamp, "yyyy-MM-dd");
+      const ultimo = out[out.length - 1];
+      if (ultimo && ultimo.chave === chave) { ultimo.itens.push(e); return; }
+      const rotulo = isToday(e.timestamp)
+        ? "Hoje"
+        : isYesterday(e.timestamp)
+          ? "Ontem"
+          : format(e.timestamp, "d 'de' MMMM 'de' yyyy", { locale: ptBR });
+      out.push({ chave, rotulo, offset: i, itens: [e] });
+    });
+    return out;
+  }, [pageItems]);
+
+  // Altura da faixa fixa medida em tempo real: é o `top` dos separadores de dia,
+  // que precisam parar logo abaixo dela em vez de sumir por trás.
+  useEffect(() => {
+    const el = stickyRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setStickyH(el.offsetHeight));
+    ro.observe(el);
+    setStickyH(el.offsetHeight);
+    return () => ro.disconnect();
+  }, [isMobile, isCompact]);
+
+  /* ── Estilos compartilhados ── */
+  // Só minWidth: o FilterSelect faz `...triggerStyle` na ÚLTIMA linha do
+  // pillTrigger, então passar backgroundColor/border/color/fontWeight aqui
+  // sobrescrevia exatamente os quatro valores que ele calcula em função de
+  // `isActive` — com um filtro aplicado, a faixa não mostrava nada de ativo e
+  // o usuário lia "não tem registro" causado por um filtro esquecido.
+  const selectStyle: React.CSSProperties = { minWidth: 168 };
+
+  const headerBtn: React.CSSProperties = {
+    display: "flex", alignItems: "center", gap: 7,
+    height: 38, padding: "0 16px",
+    backgroundColor: P.surface, color: P.second,
+    border: `1px solid ${P.border}`, borderRadius: 8,
+    fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
+    cursor: "pointer",
+  };
+
+  const subtitulo = oldestLoaded
+    ? `Ações registradas em eventos e peças · trilha a partir de ${format(oldestLoaded, "d 'de' MMMM 'de' yyyy", { locale: ptBR })}`
+    : "Ações registradas em eventos e peças";
+
   return (
-    <div style={{ backgroundColor: P.bg, height: "100%", overflowY: "auto", padding: isMobile ? "14px 14px 32px" : "28px 28px 48px" }}>
+    <div
+      ref={scrollRef}
+      style={{ backgroundColor: P.bg, height: "100%", overflowY: "auto", padding: isMobile ? "14px 14px 32px" : "28px 28px 48px" }}
+    >
 
       {/* ── Header ── */}
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 20, marginBottom: 32 }}>
-        <div style={{
-          width: 56, height: 56, flexShrink: 0,
-          backgroundColor: "#fff7ed",
-          borderRadius: 12,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          boxShadow: "0 1px 4px rgba(249,115,22,0.18)",
-        }}>
-          <Activity style={{ width: 28, height: 28, color: P.accent }} />
-        </div>
-        <div>
+      <div style={{
+        display: "flex", alignItems: "flex-end", justifyContent: "space-between",
+        gap: 16, flexWrap: "wrap", marginBottom: 20,
+      }}>
+        <div style={{ minWidth: 0 }}>
           <h1 style={{
-            fontSize: 26, fontWeight: 700, color: P.text, margin: 0,
-            letterSpacing: "-0.02em", fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1.1,
+            fontSize: 26, fontWeight: 900, color: P.text, margin: "0 0 6px",
+            letterSpacing: "-0.04em", textTransform: "uppercase",
+            fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1,
           }}>
             Histórico de Atividades
           </h1>
-          <p style={{ fontSize: 13, color: P.second, margin: "6px 0 0", fontWeight: 500 }}>
-            Audit log completo de todas as ações do sistema
+          <p style={{ fontSize: 13, color: P.second, margin: 0, fontWeight: 500 }}>
+            {subtitulo}
           </p>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          {logsQ.dataUpdatedAt > 0 && (
+            <span style={{ fontSize: 11, color: P.second, fontWeight: 600 }}>
+              Atualizado {formatDistanceToNow(new Date(logsQ.dataUpdatedAt), { locale: ptBR, addSuffix: true })}
+            </span>
+          )}
+          <button onClick={atualizar} disabled={isFetching} data-testid="button-refresh-historico"
+            aria-label="Atualizar o histórico"
+            style={{ ...headerBtn, cursor: isFetching ? "default" : "pointer", opacity: isFetching ? 0.7 : 1 }}>
+            <RotateCcw aria-hidden="true" className={isFetching ? "animate-spin" : undefined} style={{ width: 13, height: 13 }} />
+            {isFetching ? "Atualizando…" : "Atualizar"}
+          </button>
+          <button onClick={exportarCsv} disabled={filtered.length === 0} data-testid="button-export-historico"
+            style={{ ...headerBtn, cursor: filtered.length === 0 ? "not-allowed" : "pointer", opacity: filtered.length === 0 ? 0.6 : 1 }}>
+            <Download aria-hidden="true" style={{ width: 13, height: 13 }} />
+            Exportar CSV
+          </button>
         </div>
       </div>
 
-      {/* ── Card ── */}
-      <div style={{ backgroundColor: P.surface, border: `1px solid ${P.border}`, borderRadius: 12, overflow: "hidden" }}>
-
-        {/* Filter strip */}
-        <div style={{
-          padding: isMobile ? "14px 16px" : "20px 24px",
-          borderBottom: `1px solid ${P.border}`,
-          backgroundColor: "#f3f4f3",
-          display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center",
+      {/* ── Métricas-atalho (clicáveis: aplicam o filtro correspondente) ── */}
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 16 }}>
+        {[
+          { key: "hoje", label: "Hoje", value: metrics.hoje, color: "#1d4ed8", bg: "#eff6ff",
+            onClick: () => { setPeriod("hoje"); setPage(1); } },
+          { key: "7d", label: "Últimos 7 dias", value: metrics.sete, color: "#7e22ce", bg: "#faf5ff",
+            onClick: () => { setPeriod("7d"); setPage(1); } },
+          { key: "exc", label: "Exclusões e reprovações", value: metrics.excecoes, color: "#b91c1c", bg: "#fef2f2",
+            onClick: () => { setActionFilter(EXCECAO_TYPES); setPage(1); } },
+        ].map(chip => (
+          <button
+            key={chip.key}
+            onClick={chip.onClick}
+            data-testid={`chip-${chip.key}`}
+            style={{
+              padding: "8px 16px", backgroundColor: chip.bg, border: `1px solid ${P.border}`,
+              borderRadius: 8, display: "flex", flexDirection: "column", gap: 1,
+              cursor: "pointer", textAlign: "left",
+            }}
+          >
+            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 700, color: chip.color, lineHeight: 1 }}>
+              {chip.value}
+            </span>
+            <span style={{ fontSize: 10, color: "#57534e", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              {chip.label}
+            </span>
+          </button>
+        ))}
+        <div aria-live="polite" style={{
+          padding: "8px 16px", backgroundColor: "#e8e8e7", border: `1px solid ${P.border}`,
+          borderRadius: 8, display: "flex", flexDirection: "column", gap: 1,
         }}>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 700, color: "#9a3412", lineHeight: 1 }}>
+            {filtered.length}
+          </span>
+          <span style={{ fontSize: 10, color: "#57534e", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+            Resultados
+          </span>
+        </div>
+      </div>
 
-          {/* Search */}
-          <div style={{ position: "relative", flex: "1 1 240px", minWidth: 200 }}>
-            <Search style={{
-              position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)",
-              width: 14, height: 14, color: P.muted, pointerEvents: "none",
-            }} />
-            <input
-              placeholder="Buscar por ID, evento ou usuário..."
-              ref={searchRef}
-              value={searchFilter}
-              onChange={e => { setSearchFilter(e.target.value); setPage(1); }}
-              data-testid="input-search-filter"
-              style={{
-                width: "100%", paddingLeft: 34, paddingRight: 12, paddingTop: 9, paddingBottom: 9,
-                backgroundColor: "#ffffff", border: "none", borderRadius: 8,
-                fontSize: 13, color: P.text,
-                boxSizing: "border-box",
-              }}
-            />
-          </div>
+      {/* ── Faixa de confiança da trilha ──
+          O teto de 500 do servidor era invisível e o rodapé chamava tudo de
+          "registros": paginando para trás sobravam só criações e entregas, sem
+          que nada na tela dissesse que o resto simplesmente não foi consultado. */}
+      {isTruncated && (
+        <div style={{
+          display: "flex", alignItems: "flex-start", gap: 8,
+          padding: "10px 14px", marginBottom: 16,
+          backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8,
+          fontSize: 12, color: "#b45309", fontWeight: 600, lineHeight: 1.5,
+        }}>
+          <Clock aria-hidden="true" style={{ width: 14, height: 14, flexShrink: 0, marginTop: 2 }} />
+          <span>
+            Trilha completa a partir de{" "}
+            {oldestLoaded ? format(oldestLoaded, "d 'de' MMMM 'de' yyyy", { locale: ptBR }) : "—"}.
+            {" "}Registros anteriores não estão nesta consulta ({logsTotal.toLocaleString("pt-BR")} no total).
+          </span>
+        </div>
+      )}
 
-          {/* Action type select */}
-          <FilterSelect
-            showAllLabelWhenEmpty hideWhenEmpty={false}
-            label="Ação" allLabel="Todas as ações"
-            values={actionFilter} onValuesChange={handleFilterChange(setActionFilter)}
-            options={[
-              { value: "event_created", label: "Eventos criados", group: "Criação", pinned: true },
-              { value: "item_created", label: "Itens adicionados", group: "Criação", pinned: true },
-              { value: "item_deleted", label: "Itens excluídos", group: "Criação", pinned: true },
-              { value: "sponsor_linked", label: "Vinculações", group: "Arte", pinned: true },
-              { value: "thumb_uploaded", label: "Thumbs enviados", group: "Arte", pinned: true },
-              { value: "thumb_replaced", label: "Thumbs trocados", group: "Arte", pinned: true },
-              { value: "item_sent", label: "Enviados p/ aprovação", group: "Arte", pinned: true },
-              { value: "book_sent", label: "Envio de book", group: "Arte", pinned: true },
-              { value: "final_file_added", label: "Arq. finais adicionados", group: "Arte", pinned: true },
-              { value: "final_file_replaced", label: "Arq. finais trocados", group: "Arte", pinned: true },
-              { value: "item_dispensed", label: "Dispensados", group: "Arte", pinned: true },
-              { value: "sponsor_approved", label: "Pat. aprovou", group: "Aprovação", pinned: true },
-              { value: "sponsor_rejected", label: "Pat. reprovou", group: "Aprovação", pinned: true },
-              { value: "item_released", label: "Lib. p/ produção", group: "Aprovação", pinned: true },
-              { value: "item_approved", label: "Itens liberados", group: "Produção", pinned: true },
-              { value: "production_started", label: "Em produção", group: "Produção", pinned: true },
-              { value: "item_produced", label: "Produzido", group: "Produção", pinned: true },
-              { value: "item_conferred", label: "Conferências", group: "Produção", pinned: true },
-              { value: "item_reused", label: "Reaproveitamentos", group: "Produção", pinned: true },
-              { value: "item_reused_partial", label: "Reaprov. parciais", group: "Produção", pinned: true },
-              { value: "item_reuse_corrected", label: "Reaprov. corrigidos", group: "Produção", pinned: true },
-              { value: "item_delivered", label: "Entregas", group: "Produção", pinned: true },
-              { value: "item_returned", label: "Devolvidas p/ Arte", group: "Aprovação", pinned: true },
-              { value: "item_canceled", label: "Canceladas", group: "Criação", pinned: true },
-              { value: "item_complement_created", label: "Complementos criados", group: "Produção", pinned: true },
-              { value: "item_complement_canceled", label: "Complementos cancelados", group: "Produção", pinned: true },
-            ]}
-            searchPlaceholder="Buscar ação..." emptyText="Nenhuma ação encontrada."
-            testId="select-action-filter" triggerStyle={selectStyle}
-          />
+      {/* ── Card ──
+          Sem `overflow: hidden`: ele criava um scrollport próprio e desligava o
+          `position: sticky` da faixa de filtros e do cabeçalho de colunas. Os
+          cantos arredondados passam a ser dos filhos das pontas. */}
+      <div style={{ backgroundColor: P.surface, border: `1px solid ${P.border}`, borderRadius: 12 }}>
 
-          {/* Event select */}
-          <EventFilterDropdown
-            values={eventFilter}
-            onValuesChange={handleFilterChange(setEventFilter)}
-            options={events.map((ev: any) => ({ value: ev.id, label: ev.name }))}
-          />
-
-          {/* Counter chip — aria-live anuncia o novo total a cada filtro.
-              Sobre o #e8e8e7 do chip, #c2410c e o cinza de rótulo perdiam
-              contraste: número em #9a3412 e rótulo em #57534e passam AA. */}
-          <div aria-live="polite" style={{
-            display: "flex", alignItems: "center", gap: 8,
-            backgroundColor: "#e8e8e7", borderRadius: 8, padding: "9px 14px",
-            marginLeft: "auto",
+        <div ref={stickyRef} style={{ position: "sticky", top: 0, zIndex: 6, borderRadius: "12px 12px 0 0" }}>
+          {/* Filter strip */}
+          <div style={{
+            padding: isMobile ? "14px 16px" : "16px 24px",
+            borderBottom: `1px solid ${P.border}`,
+            backgroundColor: "#f3f4f3",
+            borderRadius: "11px 11px 0 0",
+            display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center",
           }}>
-            <span style={{ fontSize: 10, fontWeight: 800, color: "#57534e", textTransform: "uppercase", letterSpacing: "0.08em" }}>Total</span>
-            <span style={{ fontSize: 15, fontWeight: 900, color: "#9a3412" }}>{filtered.length}</span>
+            <div style={{ position: "relative", flex: "1 1 240px", minWidth: 200 }}>
+              <Search aria-hidden="true" style={{
+                position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)",
+                width: 14, height: 14, color: P.muted, pointerEvents: "none",
+              }} />
+              <input
+                placeholder="Buscar por peça, evento, pessoa ou descrição…"
+                aria-label="Buscar no histórico"
+                ref={searchRef}
+                value={searchFilter}
+                onChange={e => { setSearchFilter(e.target.value); setPage(1); }}
+                data-testid="input-search-filter"
+                style={{
+                  width: "100%", paddingLeft: 34, paddingRight: 12, paddingTop: 9, paddingBottom: 9,
+                  backgroundColor: "#ffffff", border: `1px solid ${P.border}`, borderRadius: 8,
+                  fontSize: 13, color: P.text, boxSizing: "border-box",
+                }}
+              />
+            </div>
+
+            <FilterSelect
+              showAllLabelWhenEmpty hideWhenEmpty={false}
+              label="Período" allLabel="Todo o período"
+              value={period}
+              onChange={v => { setPeriod(v === "all" ? "all" : v); setPage(1); }}
+              options={PERIODS.filter(p => p.value !== "all").map(p => ({ value: p.value, label: p.label, pinned: true }))}
+              searchPlaceholder="Buscar período…" emptyText="Nenhum período."
+              testId="select-period-filter" triggerStyle={{ minWidth: 150 }}
+            />
+
+            <FilterSelect
+              showAllLabelWhenEmpty hideWhenEmpty={false}
+              label="Ação" allLabel="Todas as ações"
+              values={actionFilter} onValuesChange={handleFilterChange(setActionFilter)}
+              options={actionOptions}
+              searchPlaceholder="Buscar ação…" emptyText="Nenhuma ação encontrada."
+              testId="select-action-filter" triggerStyle={selectStyle}
+            />
+
+            <EventFilterDropdown
+              values={eventFilter}
+              onValuesChange={handleFilterChange(setEventFilter)}
+              options={eventOptions}
+            />
+
+            <FilterSelect
+              showAllLabelWhenEmpty hideWhenEmpty={false}
+              label="Realizado por" allLabel="Todas as pessoas"
+              values={authorFilter} onValuesChange={handleFilterChange(setAuthorFilter)}
+              options={authorOptions}
+              searchPlaceholder="Buscar pessoa…" emptyText="Nenhuma pessoa encontrada."
+              testId="select-author-filter" triggerStyle={{ minWidth: 168 }}
+            />
+
+            {/* "Limpar" vivia só dentro do vazio por filtro — ou seja, aparecia
+                exatamente quando já não havia o que ver. */}
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                data-testid="button-clear-filters-bar"
+                style={{
+                  display: "flex", alignItems: "center", gap: 5,
+                  height: isMobile ? 44 : 36, padding: "0 12px",
+                  backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7,
+                  cursor: "pointer", fontSize: 10, fontWeight: 800, color: "#b91c1c",
+                  textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0,
+                }}
+              >
+                <X aria-hidden="true" style={{ width: 11, height: 11 }} />
+                Limpar ({activeFilterCount})
+              </button>
+            )}
           </div>
+
+          {/* Table header — no celular/tablet as linhas viram cards empilhados,
+              então o cabeçalho de colunas deixa de fazer sentido. */}
+          {!isCompact && (
+            <div style={{
+              display: "grid", gridTemplateColumns: GRID, gap: 12,
+              padding: "12px 32px",
+              backgroundColor: "#f3f4f3",
+              borderBottom: `1px solid ${P.border}`,
+            }}>
+              {["Tipo", "Ação", "Hora", "Realizado Por", ""].map((h, i) => (
+                <div key={h || `col-${i}`} style={{ fontSize: 10, fontWeight: 900, color: P.label, textTransform: "uppercase", letterSpacing: "0.12em" }}>
+                  {h}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Table header — no celular as linhas viram cards empilhados, então
-            o cabeçalho de colunas deixa de fazer sentido. */}
-        {!isMobile && (
-          <div style={{
-            display: "grid", gridTemplateColumns: "2fr 5fr 2fr 3fr",
-            padding: "14px 32px",
-            backgroundColor: "#f3f4f3",
-            borderBottom: `1px solid ${P.border}`,
-          }}>
-            {["Tipo", "Ação", "Data / Hora", "Realizado Por"].map(h => (
-              <div key={h} style={{ fontSize: 10, fontWeight: 900, color: P.label, textTransform: "uppercase", letterSpacing: "0.12em" }}>
-                {h}
+        {/* Rows */}
+        {isLoading ? (
+          <div data-testid="skeleton-historico">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} style={{
+                display: isCompact ? "flex" : "grid",
+                flexDirection: "column", gap: 12,
+                gridTemplateColumns: GRID,
+                padding: isCompact ? "14px 16px" : "18px 32px", alignItems: "center",
+                borderBottom: `1px solid #f0efee`,
+              }}>
+                <Sk w={120} h={20} r={999} />
+                <Sk w="80%" h={14} />
+                {!isCompact && <Sk w={58} h={14} />}
+                {!isCompact && <Sk w={140} h={22} r={999} />}
+                {!isCompact && <span />}
               </div>
             ))}
-          </div>
-        )}
-
-        {/* Rows */}
-        {logsLoading ? (
-          <div style={{ display: "flex", justifyContent: "center", padding: "80px 24px" }}>
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           </div>
         ) : isError ? (
           <div role="alert" style={{ padding: "72px 24px", textAlign: "center" }}>
             <h3 style={{ color: "#b91c1c", fontSize: 16, fontWeight: 700, marginBottom: 6 }}>Não foi possível carregar o histórico</h3>
             <p style={{ color: P.label, fontSize: 13, marginBottom: 20 }}>Verifique sua conexão e tente novamente.</p>
-            <button onClick={retryAll} data-testid="button-retry-historico"
-              style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}>
-              Tentar novamente
+            <button onClick={atualizar} disabled={isFetching} data-testid="button-retry-historico"
+              style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", cursor: isFetching ? "default" : "pointer", opacity: isFetching ? 0.7 : 1 }}>
+              {isFetching ? "Tentando…" : "Tentar novamente"}
             </button>
           </div>
         ) : filtered.length === 0 ? (
-          sorted.length === 0 ? (
+          displayed.length === 0 ? (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", textAlign: "center" }}>
               <div style={{ width: 72, height: 72, borderRadius: "50%", backgroundColor: "#e8e8e7", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, opacity: 0.5 }}>
-                <Activity style={{ width: 32, height: 32, color: P.muted }} />
+                <Activity aria-hidden="true" style={{ width: 32, height: 32, color: P.muted }} />
               </div>
               <h3 style={{ fontSize: 18, fontWeight: 700, color: P.text, margin: "0 0 8px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.01em" }}>
                 Nenhuma atividade ainda
@@ -909,207 +1082,453 @@ export default function Historico() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "80px 24px", textAlign: "center" }}>
               <div style={{ width: 72, height: 72, borderRadius: "50%", backgroundColor: "#e8e8e7", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20, opacity: 0.5 }}>
-                <Search style={{ width: 32, height: 32, color: P.muted }} />
+                <Search aria-hidden="true" style={{ width: 32, height: 32, color: P.muted }} />
               </div>
               <h3 style={{ fontSize: 18, fontWeight: 700, color: P.text, margin: "0 0 8px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.01em" }}>
                 Nenhuma atividade encontrada
               </h3>
-              <p style={{ fontSize: 13, color: P.second, margin: "0 0 20px" }}>Nenhum registro corresponde aos filtros ativos</p>
-              {hasActiveFilters && (
-                <button onClick={clearFilters} data-testid="button-clear-filters"
-                  style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}>
-                  Limpar filtros
-                </button>
-              )}
+              <p style={{ fontSize: 13, color: P.second, margin: "0 0 8px" }}>Nenhum registro corresponde aos filtros ativos</p>
+              <p style={{ fontSize: 12, color: P.label, margin: "0 0 20px" }}>
+                Ativos: {[
+                  searchFilter.trim() && `busca "${searchFilter.trim()}"`,
+                  period !== "all" && PERIODS.find(p => p.value === period)?.label,
+                  actionFilter.length > 0 && `${actionFilter.length} ação(ões)`,
+                  eventFilter.length > 0 && `${eventFilter.length} evento(s)`,
+                  authorFilter.length > 0 && `${authorFilter.length} pessoa(s)`,
+                ].filter(Boolean).join(" · ")}
+              </p>
+              <button onClick={clearFilters} data-testid="button-clear-filters"
+                style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}>
+                Limpar filtros
+              </button>
             </div>
           )
         ) : (
-          <div style={{ borderBottom: `1px solid ${P.border}` }}>
-            {pageItems.map((entry, idx) => {
-              const cfg = TYPE_CONFIG[entry.type] ?? DEFAULT_CFG;
-              const isLast = idx === pageItems.length - 1;
-
-              /* A linha do histórico leva ao evento no clique, mas era um
-                 div sem foco: por teclado o histórico não navegava para
-                 lugar nenhum. role="link" porque a ação é navegar, e só
-                 quando existe evento para onde ir. O aria-label diz PARA
-                 QUAL evento — "abrir evento deste registro" repetido 25
-                 vezes não distinguia nada. Só Enter ativa: num link nativo
-                 o Espaço rola a página, e role="link" deve imitá-lo. */
-              const linkProps = entry.eventId ? {
-                role: "link" as const,
-                tabIndex: 0,
-                "aria-label": `Abrir evento ${entry.eventName}`,
-                onKeyDown: (e: React.KeyboardEvent) => {
-                  if (e.key === "Enter") { e.preventDefault(); setLocation(`/eventos/${entry.eventId}`); }
-                },
-              } : {};
-
-              if (isMobile) {
-                return (
-                  <div
-                    key={entry.id}
-                    data-testid={`timeline-event-${idx}`}
-                    {...linkProps}
-                    onClick={entry.eventId ? () => setLocation(`/eventos/${entry.eventId}`) : undefined}
-                    style={{
-                      display: "flex", flexDirection: "column", gap: 8,
-                      padding: "14px 16px",
-                      borderBottom: isLast ? "none" : `1px solid #f0efee`,
-                      cursor: entry.eventId ? "pointer" : "default",
-                    }}
-                  >
-                    <div>
-                      <span style={{
-                        display: "inline-flex", alignItems: "center", gap: 6,
-                        padding: "4px 10px", borderRadius: 999,
-                        backgroundColor: cfg.bg, border: `1px solid ${cfg.border}`,
-                        fontSize: 10, fontWeight: 800, color: cfg.color,
-                        textTransform: "uppercase", letterSpacing: "0.04em",
-                        whiteSpace: "nowrap",
-                      }}>
-                        <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: cfg.dot, flexShrink: 0 }} />
-                        {cfg.label}
-                      </span>
-                    </div>
-                    <div style={{ fontSize: 13, color: P.second, lineHeight: 1.45 }}>
-                      {buildDescription(entry)}
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: P.text }}>
-                        {format(entry.timestamp, "dd MMM yyyy, HH:mm", { locale: ptBR })}
-                      </span>
-                      <UserAvatar name={entry.userName} />
-                    </div>
-                  </div>
-                );
-              }
-
-              return (
-                <div
-                  key={entry.id}
-                  data-testid={`timeline-event-${idx}`}
-                  {...linkProps}
-                  onClick={entry.eventId ? () => setLocation(`/eventos/${entry.eventId}`) : undefined}
-                  style={{
-                    display: "grid", gridTemplateColumns: "2fr 5fr 2fr 3fr",
-                    padding: "18px 32px", alignItems: "center",
-                    borderBottom: isLast ? "none" : `1px solid #f0efee`,
-                    cursor: entry.eventId ? "pointer" : "default", transition: "background 0.1s",
-                  }}
-                  onMouseEnter={e => { if (entry.eventId) e.currentTarget.style.backgroundColor = "#f9f9f8"; }}
-                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
-                >
-                  {/* Tipo pill */}
-                  <div>
-                    <span style={{
-                      display: "inline-flex", alignItems: "center", gap: 6,
-                      padding: "4px 10px", borderRadius: 999,
-                      backgroundColor: cfg.bg, border: `1px solid ${cfg.border}`,
-                      fontSize: 10, fontWeight: 800, color: cfg.color,
-                      textTransform: "uppercase", letterSpacing: "0.04em",
-                      whiteSpace: "nowrap",
-                    }}>
-                      <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: cfg.dot, flexShrink: 0 }} />
-                      {cfg.label}
-                    </span>
-                  </div>
-
-                  {/* Ação */}
-                  <div style={{ fontSize: 13, color: P.second, paddingRight: 16, lineHeight: 1.45 }}>
-                    {buildDescription(entry)}
-                  </div>
-
-                  {/* Data / Hora */}
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: P.text }}>
-                      {format(entry.timestamp, "dd MMM, HH:mm", { locale: ptBR })}
-                    </div>
-                    <div style={{ fontSize: 10, color: P.label, marginTop: 2 }}>
-                      {format(entry.timestamp, "yyyy", { locale: ptBR })}
-                    </div>
-                  </div>
-
-                  {/* Realizado por */}
-                  <div>
-                    <UserAvatar name={entry.userName} />
-                  </div>
+          <div>
+            {grupos.map(grupo => (
+              <div key={grupo.chave}>
+                <div style={{
+                  position: "sticky", top: stickyH, zIndex: 4,
+                  padding: isCompact ? "8px 16px" : "8px 32px",
+                  backgroundColor: "#f9f9f8", borderBottom: `1px solid ${P.border}`,
+                  borderTop: `1px solid ${P.border}`,
+                  fontSize: 10, fontWeight: 900, color: P.label,
+                  textTransform: "uppercase", letterSpacing: "0.12em",
+                }}>
+                  {grupo.rotulo}
+                  <span style={{ fontWeight: 700, letterSpacing: "0.04em", marginLeft: 8, textTransform: "none" }}>
+                    · {grupo.itens.length} registro{grupo.itens.length === 1 ? "" : "s"}
+                  </span>
                 </div>
-              );
-            })}
+
+                {grupo.itens.map((entry, idx) => (
+                  <Row
+                    key={entry.id}
+                    entry={entry}
+                    idx={grupo.offset + idx}
+                    isCompact={isCompact}
+                    nav={nav}
+                    onOpen={() => setDetail(entry)}
+                    onCopy={copiar}
+                    copied={copied}
+                  />
+                ))}
+              </div>
+            ))}
           </div>
         )}
 
         {/* Footer pagination */}
-        {!isError && filtered.length > 0 && (
+        {!isError && !isLoading && filtered.length > 0 && (
           <div style={{
-            padding: isMobile ? "14px 16px" : "14px 32px",
+            padding: isCompact ? "14px 16px" : "14px 32px",
             backgroundColor: "#f3f4f3",
             borderTop: `1px solid ${P.border}`,
+            borderRadius: "0 0 11px 11px",
             display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap",
           }}>
             <span style={{ fontSize: 13, color: P.second }}>
-              Exibindo <strong style={{ color: P.text }}>{Math.min((safePage - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(safePage * PAGE_SIZE, filtered.length)}</strong> de <strong style={{ color: P.text }}>{filtered.length}</strong> registros
+              Exibindo <strong style={{ color: P.text }}>{Math.min((safePage - 1) * pageSize + 1, filtered.length)}–{Math.min(safePage * pageSize, filtered.length)}</strong> de <strong style={{ color: P.text }}>{filtered.length}</strong> resultado{filtered.length === 1 ? "" : "s"}
             </span>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
-              {/* Prev/Next sobre safePage (não o functional p): `page` pode
-                  estar inflado após um filtro encolher a lista — somar sobre
-                  ele pulava páginas em relação ao que a tela exibia. */}
-              <PageBtn
-                onClick={() => setPage(Math.max(1, safePage - 1))}
-                disabled={safePage === 1}
-                testId="button-prev-page"
-                label="Página anterior"
-              >
-                <ChevronLeft style={{ width: 14, height: 14 }} />
-              </PageBtn>
-
-              {/* Page numbers */}
-              {pageWindow.map(p => (
-                <button
-                  key={p}
-                  onClick={() => setPage(p)}
-                  data-testid={`button-page-${p}`}
-                  aria-current={p === safePage ? "page" : undefined}
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <label style={{ fontSize: 12, color: P.second, display: "flex", alignItems: "center", gap: 6 }}>
+                Por página
+                <select
+                  value={pageSize}
+                  onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}
+                  data-testid="select-page-size"
                   style={{
-                    padding: "4px 10px", borderRadius: 6, border: "none",
-                    fontSize: 13, fontWeight: p === safePage ? 900 : 700,
-                    cursor: "pointer",
-                    // #c2410c: o branco sobre #f97316 ficava em 2.8:1 — a
-                    // página ativa era justamente a menos legível do grupo.
-                    backgroundColor: p === safePage ? "#c2410c" : "transparent",
-                    color: p === safePage ? "#ffffff" : P.second,
-                    transition: "all 0.12s",
-                    minWidth: 32,
+                    height: isMobile ? 44 : 30, borderRadius: 6, border: `1px solid ${P.border}`,
+                    backgroundColor: "#fff", fontSize: 12, fontWeight: 700, color: P.text, padding: "0 6px",
                   }}
-                  onMouseEnter={e => { if (p !== safePage) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#e8e8e7"; }}
-                  onMouseLeave={e => { if (p !== safePage) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
                 >
-                  {p}
-                </button>
-              ))}
+                  {PAGE_SIZES.map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </label>
 
-              {/* Next */}
-              <PageBtn
-                onClick={() => setPage(Math.min(totalPages, safePage + 1))}
-                disabled={safePage === totalPages}
-                testId="button-next-page"
-                label="Próxima página"
-              >
-                <ChevronRight style={{ width: 14, height: 14 }} />
-              </PageBtn>
+              {/* Com uma página só, dois botões desabilitados e um "1" inútil
+                  não informam nada — some tudo e fica só a contagem. */}
+              {totalPages > 1 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                  <PageBtn onClick={() => goToPage(1)} disabled={safePage === 1} testId="button-first-page" label="Primeira página" big={isMobile}>
+                    <ChevronsLeft aria-hidden="true" style={{ width: 14, height: 14 }} />
+                  </PageBtn>
+                  {/* Prev/Next sobre safePage (não o functional p): `page` pode
+                      estar inflado após um filtro encolher a lista — somar sobre
+                      ele pulava páginas em relação ao que a tela exibia. */}
+                  <PageBtn onClick={() => goToPage(Math.max(1, safePage - 1))} disabled={safePage === 1} testId="button-prev-page" label="Página anterior" big={isMobile}>
+                    <ChevronLeft aria-hidden="true" style={{ width: 14, height: 14 }} />
+                  </PageBtn>
+
+                  {pageWindow.map(p => (
+                    <button
+                      key={p}
+                      onClick={() => goToPage(p)}
+                      data-testid={`button-page-${p}`}
+                      aria-label={`Página ${p}`}
+                      aria-current={p === safePage ? "page" : undefined}
+                      style={{
+                        minWidth: isMobile ? 44 : 32, height: isMobile ? 44 : 30,
+                        borderRadius: 6, border: "none",
+                        fontSize: 13, fontWeight: p === safePage ? 900 : 700,
+                        cursor: "pointer",
+                        // #c2410c: o branco sobre #f97316 ficava em 2.8:1 — a
+                        // página ativa era justamente a menos legível do grupo.
+                        backgroundColor: p === safePage ? "#c2410c" : "transparent",
+                        color: p === safePage ? "#ffffff" : P.second,
+                        transition: "all 0.12s",
+                      }}
+                      onMouseEnter={e => { if (p !== safePage) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#e8e8e7"; }}
+                      onMouseLeave={e => { if (p !== safePage) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
+                    >
+                      {p}
+                    </button>
+                  ))}
+
+                  <PageBtn onClick={() => goToPage(Math.min(totalPages, safePage + 1))} disabled={safePage === totalPages} testId="button-next-page" label="Próxima página" big={isMobile}>
+                    <ChevronRight aria-hidden="true" style={{ width: 14, height: 14 }} />
+                  </PageBtn>
+                  <PageBtn onClick={() => goToPage(totalPages)} disabled={safePage === totalPages} testId="button-last-page" label="Última página" big={isMobile}>
+                    <ChevronsRight aria-hidden="true" style={{ width: 14, height: 14 }} />
+                  </PageBtn>
+                </div>
+              )}
             </div>
           </div>
         )}
       </div>
+
+      {/* ── Pill de novidades ──
+          Sinal de que o sistema está vivo SEM mover o conteúdo: a lista só se
+          reordena quando o usuário mandar. */}
+      {pendingCount > 0 && (
+        <button
+          onClick={adotarNovidades}
+          data-testid="button-novas-atividades"
+          style={{
+            position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)",
+            zIndex: 40, display: "flex", alignItems: "center", gap: 8,
+            height: 40, padding: "0 18px", borderRadius: 999, border: "none",
+            backgroundColor: "#1c1917", color: "#ffffff",
+            fontSize: 13, fontWeight: 700, cursor: "pointer",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.24)",
+          }}
+        >
+          <ArrowUpToLine aria-hidden="true" style={{ width: 14, height: 14 }} />
+          {pendingCount} nova{pendingCount === 1 ? "" : "s"} atividade{pendingCount === 1 ? "" : "s"} — atualizar
+        </button>
+      )}
+
+      <DetailDialog
+        entry={detail}
+        onClose={() => setDetail(null)}
+        nav={nav}
+        onCopy={copiar}
+        copied={copied}
+      />
     </div>
   );
 }
 
+/* ── Skeleton block ── */
+function Sk({ w, h, r = 6 }: { w: number | string; h: number; r?: number }) {
+  return <div style={{ width: w, height: h, borderRadius: r, backgroundColor: "#f0efee" }} />;
+}
+
+/* ── Linha ── */
+function Row({ entry, idx, isCompact, nav, onOpen, onCopy, copied }: {
+  entry: TimelineEvent; idx: number; isCompact: boolean; nav: Nav;
+  onOpen: () => void; onCopy: (t: string, k: string) => void; copied: string | null;
+}) {
+  const cfg = cfgFor(entry.type);
+  const Icon = cfg.icon;
+  const downRef = useRef<{ x: number; y: number } | null>(null);
+
+  // A linha inteira abre o painel de detalhe (não navega): antes, qualquer
+  // tentativa de SELECIONAR o código da peça para colar num chat disparava a
+  // navegação ao soltar o botão — numa tela de auditoria, copiar um
+  // identificador é a segunda ação mais frequente depois de ler.
+  const onMouseDown = (e: React.MouseEvent) => { downRef.current = { x: e.clientX, y: e.clientY }; };
+  const onClick = (e: React.MouseEvent) => {
+    const d = downRef.current;
+    downRef.current = null;
+    if (d && Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) return;
+    if ((window.getSelection()?.toString() ?? "").length > 0) return;
+    onOpen();
+  };
+
+  const pill = (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 5,
+      maxWidth: "100%", padding: "4px 10px", borderRadius: 999,
+      backgroundColor: cfg.bg, border: `1px solid ${cfg.border}`,
+      fontSize: 10, fontWeight: 800, color: cfg.color,
+      textTransform: "uppercase", letterSpacing: "0.04em",
+      whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+    }}>
+      <Icon aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
+      {cfg.label}
+    </span>
+  );
+
+  const detalhesBtn = (
+    <button
+      type="button"
+      onClick={e => { e.stopPropagation(); onOpen(); }}
+      aria-label={`Ver detalhes: ${cfg.label} — ${format(entry.timestamp, "dd/MM/yyyy HH:mm:ss", { locale: ptBR })}`}
+      data-testid={`button-detail-${idx}`}
+      title="Ver detalhes do registro"
+      style={{
+        width: 30, height: 30, borderRadius: 6, border: "none", background: "none",
+        cursor: "pointer", color: P.second, display: "flex", alignItems: "center", justifyContent: "center",
+      }}
+    >
+      <FileText aria-hidden="true" style={{ width: 14, height: 14 }} />
+    </button>
+  );
+
+  const copiarBtn = entry.itemDisplayId ? (
+    <button
+      type="button"
+      onClick={e => { e.stopPropagation(); onCopy(entry.itemDisplayId!, entry.id); }}
+      aria-label={`Copiar o código ${entry.itemDisplayId}`}
+      title="Copiar o código da peça"
+      style={{
+        width: 26, height: 26, borderRadius: 6, border: "none", background: "none",
+        cursor: "pointer", color: copied === entry.id ? "#15803d" : P.second,
+        display: "inline-flex", alignItems: "center", justifyContent: "center", verticalAlign: "middle",
+      }}
+    >
+      {copied === entry.id
+        ? <Check aria-hidden="true" style={{ width: 12, height: 12 }} />
+        : <Copy aria-hidden="true" style={{ width: 12, height: 12 }} />}
+    </button>
+  ) : null;
+
+  if (isCompact) {
+    return (
+      <div
+        data-testid={`timeline-event-${idx}`}
+        onMouseDown={onMouseDown}
+        onClick={onClick}
+        style={{
+          display: "flex", flexDirection: "column", gap: 8,
+          padding: "14px 16px", borderBottom: `1px solid #f0efee`, cursor: "pointer",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          {pill}
+          {detalhesBtn}
+        </div>
+        <div style={{ fontSize: 13, color: P.second, lineHeight: 1.45 }}>
+          {buildDescription(entry, nav)}{copiarBtn}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+          <TimeCell ts={entry.timestamp} inline />
+          <UserAvatar name={entry.userName} />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      data-testid={`timeline-event-${idx}`}
+      onMouseDown={onMouseDown}
+      onClick={onClick}
+      style={{
+        display: "grid", gridTemplateColumns: GRID, gap: 12,
+        padding: "16px 32px", alignItems: "center",
+        borderBottom: `1px solid #f0efee`,
+        cursor: "pointer", transition: "background 0.1s",
+      }}
+      onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#f9f9f8"; }}
+      onMouseLeave={e => { e.currentTarget.style.backgroundColor = "transparent"; }}
+    >
+      <div style={{ minWidth: 0, overflow: "hidden" }}>{pill}</div>
+      <div style={{ fontSize: 13, color: P.second, lineHeight: 1.45, minWidth: 0 }}>
+        {buildDescription(entry, nav)}{copiarBtn}
+      </div>
+      <TimeCell ts={entry.timestamp} />
+      <div style={{ minWidth: 0 }}><UserAvatar name={entry.userName} /></div>
+      <div>{detalhesBtn}</div>
+    </div>
+  );
+}
+
+/* ── Célula de hora ──
+   Sem segundos, duas ações do mesmo minuto não desempatavam — numa trilha de
+   auditoria a ordem É a informação. E nas últimas 24h o que a pessoa quer saber
+   é "há quanto tempo", não o horário absoluto. O ano vive no separador de dia. */
+function TimeCell({ ts, inline = false }: { ts: Date; inline?: boolean }) {
+  const recente = Date.now() - ts.getTime() < 24 * 60 * 60 * 1000;
+  const completo = format(ts, "dd/MM/yyyy HH:mm:ss", { locale: ptBR });
+  return (
+    <div title={completo} style={inline ? { display: "flex", alignItems: "center", gap: 8 } : undefined}>
+      <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600, color: P.text }}>
+        {format(ts, "HH:mm:ss", { locale: ptBR })}
+      </div>
+      {recente && (
+        <div style={{ fontSize: 10, color: P.label, marginTop: inline ? 0 : 2 }}>
+          {formatDistanceToNow(ts, { locale: ptBR, addSuffix: true })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Painel de detalhe do registro ──
+   Clicar na linha NÃO ejeta mais o usuário: filtros, página e rolagem ficam
+   onde estavam, o `details` cru fica disponível (é o que a auditoria às vezes
+   exige) e a navegação vira decisão explícita, com "Abrir peça" via ?item=. */
+function DetailDialog({ entry, onClose, nav, onCopy, copied }: {
+  entry: TimelineEvent | null; onClose: () => void; nav: Nav;
+  onCopy: (t: string, k: string) => void; copied: string | null;
+}) {
+  const cfg = entry ? cfgFor(entry.type) : null;
+  const linha: React.CSSProperties = { display: "flex", gap: 12, fontSize: 13, lineHeight: 1.55 };
+  const rotulo: React.CSSProperties = {
+    width: 116, flexShrink: 0, fontSize: 10, fontWeight: 900, color: P.label,
+    textTransform: "uppercase", letterSpacing: "0.1em", paddingTop: 3,
+  };
+  const acaoBtn: React.CSSProperties = {
+    flex: 1, height: 42, borderRadius: 8, border: `1px solid ${P.border}`,
+    backgroundColor: "#fff", color: P.text, fontSize: 13, fontWeight: 700, cursor: "pointer",
+  };
+
+  return (
+    <Dialog open={!!entry} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(560)}>
+        <DialogTitle className="sr-only">Detalhe do registro do histórico</DialogTitle>
+        <DialogDescription className="sr-only">
+          Tipo, descrição completa, texto bruto do registro, autor e data. Permite abrir o evento ou a peça.
+        </DialogDescription>
+
+        {entry && cfg && (
+          <>
+            <ModalHeader
+              variant="work"
+              icon={cfg.icon}
+              tint={cfg.color}
+              title={cfg.label}
+              subtitle={format(entry.timestamp, "dd/MM/yyyy 'às' HH:mm:ss", { locale: ptBR })}
+              onClose={onClose}
+            />
+
+            <div style={{ padding: "18px 24px", display: "flex", flexDirection: "column", gap: 14, maxHeight: "56vh", overflowY: "auto" }}>
+              <div style={linha}>
+                <span style={rotulo}>O que houve</span>
+                <span style={{ color: P.second, minWidth: 0 }}>{buildDescription(entry, nav)}</span>
+              </div>
+
+              {entry.itemDisplayId && (
+                <div style={linha}>
+                  <span style={rotulo}>Peça</span>
+                  <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+                    <code style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: P.text }}>
+                      {entry.itemDisplayId}
+                    </code>
+                    <button
+                      type="button"
+                      onClick={() => onCopy(entry.itemDisplayId!, `dlg-${entry.id}`)}
+                      aria-label={`Copiar o código ${entry.itemDisplayId}`}
+                      style={{ border: "none", background: "none", cursor: "pointer", padding: 2, display: "flex", color: copied === `dlg-${entry.id}` ? "#15803d" : P.second }}
+                    >
+                      {copied === `dlg-${entry.id}`
+                        ? <Check aria-hidden="true" style={{ width: 13, height: 13 }} />
+                        : <Copy aria-hidden="true" style={{ width: 13, height: 13 }} />}
+                    </button>
+                    {entry.itemMissing && <span style={{ fontSize: 12, color: P.label, fontStyle: "italic" }}>(peça excluída)</span>}
+                  </span>
+                </div>
+              )}
+
+              <div style={linha}>
+                <span style={rotulo}>Evento</span>
+                <span style={{ color: P.text, fontWeight: 700, minWidth: 0 }}>{entry.eventName}</span>
+              </div>
+
+              <div style={linha}>
+                <span style={rotulo}>Realizado por</span>
+                <span style={{ color: entry.userName ? P.text : P.label, fontWeight: 700 }}>
+                  {entry.userName || "— (autor não registrado)"}
+                </span>
+              </div>
+
+              {entry.logDetails && (
+                <div style={{ ...linha, flexDirection: "column", gap: 6 }}>
+                  <span style={{ ...rotulo, width: "auto", paddingTop: 0 }}>Registro bruto</span>
+                  <pre style={{
+                    margin: 0, padding: "10px 12px", backgroundColor: "#f5f5f4",
+                    border: `1px solid ${P.border}`, borderRadius: 8,
+                    fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#44403c",
+                    whiteSpace: "pre-wrap", wordBreak: "break-word",
+                  }}>
+                    {entry.logDetails}
+                  </pre>
+                </div>
+              )}
+            </div>
+
+            <ModalFooter>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  type="button"
+                  disabled={!entry.eventId}
+                  onClick={() => { nav.goEvent(entry.eventId); onClose(); }}
+                  data-testid="button-abrir-evento"
+                  style={{ ...acaoBtn, opacity: entry.eventId ? 1 : 0.5, cursor: entry.eventId ? "pointer" : "not-allowed" }}
+                >
+                  Abrir evento
+                </button>
+                <button
+                  type="button"
+                  disabled={!entry.eventId || !entry.itemId || entry.itemMissing}
+                  onClick={() => { nav.goItem(entry.eventId, entry.itemId!); onClose(); }}
+                  data-testid="button-abrir-peca"
+                  style={{
+                    ...acaoBtn,
+                    backgroundColor: "#1c1917", color: "#fff", border: "none",
+                    opacity: entry.eventId && entry.itemId && !entry.itemMissing ? 1 : 0.5,
+                    cursor: entry.eventId && entry.itemId && !entry.itemMissing ? "pointer" : "not-allowed",
+                  }}
+                >
+                  Abrir peça
+                </button>
+              </div>
+            </ModalFooter>
+          </>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 /* ── Pagination arrow button ── */
-function PageBtn({ onClick, disabled, children, testId, label }: {
-  onClick: () => void; disabled: boolean; children: React.ReactNode; testId: string; label: string;
+function PageBtn({ onClick, disabled, children, testId, label, big }: {
+  onClick: () => void; disabled: boolean; children: React.ReactNode;
+  testId: string; label: string; big?: boolean;
 }) {
   const [h, setH] = useState(false);
   return (
@@ -1122,7 +1541,8 @@ function PageBtn({ onClick, disabled, children, testId, label }: {
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
       style={{
-        padding: 6, borderRadius: 6, border: "none", cursor: disabled ? "default" : "pointer",
+        width: big ? 44 : 30, height: big ? 44 : 30,
+        borderRadius: 6, border: "none", cursor: disabled ? "default" : "pointer",
         backgroundColor: h && !disabled ? "#e8e8e7" : "transparent",
         // Desabilitada fica em #a8a29e SEM opacity por cima: opacity 0.35
         // sobre um cinza claro sumia com a seta em vez de só recuá-la.

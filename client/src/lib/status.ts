@@ -15,6 +15,7 @@ import { Clock, CheckCircle, Package, Truck, XCircle, Lock } from "lucide-react"
 import type { LucideIcon } from "lucide-react";
 import {
   EVENT_CLOSED_STATUS,
+  eventDayMs,
   isEventoFinalizado,
   motivoEventoFinalizado,
   todayBusinessMs,
@@ -231,6 +232,95 @@ export function avisoPecasOcultas(
     texto: `${verbo} fora ${onde}: ${encerrado} porque o evento foi encerrado`
       + ` e ${realizado} porque o evento já foi realizado.`
       + ` ${elas} no Detalhe do Evento e no Painel Geral.`,
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// O FIM DA HISTÓRIA DA PEÇA — o marco que faltava nas linhas do tempo.
+//
+// O ACHADO (dono, 14/08, olhando a aba Histórico do Atendimento): "no app onde
+// tem algum histórico, tem que colocar que o evento foi encerrado". A trilha da
+// peça ia de "Criado" a "Todos aprovaram" e parava ali — em nenhum ponto ela
+// dizia que a peça deixou de ser cobrada e saiu das filas. O motivo disso não
+// está na peça: está no EVENTO. Por isso todo rótulo daqui começa com a palavra
+// "Evento" — quem lê a trilha de uma peça precisa saber, na mesma frase, que o
+// que acabou não foi a peça.
+//
+// AS DUAS ORIGENS, E O QUE CADA UMA PODE AFIRMAR:
+//   · "encerrado" → decisão de gente, e TEM VOLTA (reabrir). Quem encerrou e
+//     quando existem só no audit log do EVENTO (não há coluna `closedAt`), e
+//     esse log não viaja junto com a peça. Logo este marco NÃO tem data nem
+//     autor — e é por isso que ele diz onde procurar em vez de chutar um
+//     carimbo. Inventar aqui a data de `updatedAt` seria exatamente o tipo de
+//     data falsa que esta base já removeu de uma trilha antes.
+//   · "realizado" → a DATA DO EVENTO passou, e não tem volta. Aqui há uma data
+//     honesta para mostrar, porque a data É o fato: `events.startDate`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface MarcoEventoFinalizado {
+  motivo: EventoFinalizadoMotivo;
+  /** Rótulo curto da trilha. Começa em "Evento" de propósito. */
+  label: string;
+  /** Frase inteira — tooltip e leitor de tela. */
+  hint: string;
+  /**
+   * Dia do evento em "YYYY-MM-DD", só no "realizado". `null` no encerramento
+   * manual (não há data para afirmar) e no evento sem data plausível.
+   *
+   * String de dia, e não `Date`: o ms de finalização é meia-noite UTC, e
+   * formatá-lo direto renderiza a VÉSPERA em qualquer fuso a oeste de
+   * Greenwich. Quem exibe passa por `parseDateLocal` (lib/utils), que é como o
+   * resto do app já mostra data de evento.
+   */
+  dataEventoISO: string | null;
+  /** Bolinha da trilha (tom saturado — não carrega texto). */
+  dot: string;
+  /** Cor do rótulo — tom escuro, AA sobre fundo claro. */
+  text: string;
+}
+
+/**
+ * O marco de fim da história de UMA peça, derivado do evento dela.
+ * `null` enquanto o evento está em jogo — a trilha não ganha linha nenhuma.
+ *
+ * Mesmo predicado das filas (`motivoEventoFinalizado`): a trilha nunca vai
+ * dizer "encerrado" para uma peça que continua sendo cobrada, nem o contrário.
+ */
+export function marcoEventoFinalizado(
+  event: EventoFinalizavel | null | undefined,
+  hojeMs: number,
+): MarcoEventoFinalizado | null {
+  const motivo = motivoEventoFinalizado(event, hojeMs);
+  if (motivo === null) return null;
+
+  if (motivo === "encerrado") {
+    return {
+      motivo,
+      label: "Evento encerrado",
+      hint: "Um administrador encerrou este evento — a peça saiu das filas de trabalho e"
+        + " da cobrança de prazos. Quem encerrou e quando estão no Histórico geral;"
+        + " reabrir o evento traz o trabalho de volta.",
+      dataEventoISO: null,
+      // Cinza, o mesmo do selo "Encerrado" (STATUS.closed) e do acento da lista
+      // de Eventos: verde diria "deu tudo certo", âmbar diria "corre atrás".
+      dot: P.neutral.dot,
+      text: P.neutral.text,
+    };
+  }
+
+  const dia = eventDayMs(event?.startDate);
+  return {
+    motivo,
+    label: "Evento realizado",
+    // A palavra "reabrir" NÃO entra aqui, nem para ser negada: é o mesmo
+    // cuidado de `avisoPecasOcultas`. Oferecer e retirar na mesma frase é como
+    // a leitura apressada acaba levando embora só a oferta.
+    hint: "A data deste evento já passou — a peça deixou de ser cobrada e saiu das filas."
+      + " Não há autor nem volta: quem decide aqui é a data.",
+    dataEventoISO: dia === null ? null : new Date(dia).toISOString().slice(0, 10),
+    // Âmbar, o mesmo acento que a lista de Eventos dá ao lifecycle 'realizado'.
+    dot: P.amber.dot,
+    text: P.amber.text,   // #b45309 — 5,02:1 sobre #fff, 4,77:1 sobre #f9f9f8
   };
 }
 

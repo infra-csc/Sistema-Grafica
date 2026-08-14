@@ -30,7 +30,7 @@ import {
   EVENT_CLOSED_STATUS,
 } from "@shared/prazo-dates";
 import { isPrazoCandidate, type DomainEvent } from "../services/prazo-domain";
-import { avisoPecasOcultas, isEventoEncerrado } from "@/lib/status";
+import { avisoPecasOcultas, isEventoEncerrado, marcoEventoFinalizado } from "@/lib/status";
 
 const dia = (s: string) => {
   const [y, m, d] = s.split("-").map(Number);
@@ -234,6 +234,73 @@ describe("nada some em silêncio — a frase do aviso", () => {
   it("sempre diz ONDE a peça continua — esconder não é apagar", () => {
     for (const c of [{ encerrado: 2, realizado: 0 }, { encerrado: 0, realizado: 2 }, { encerrado: 1, realizado: 1 }]) {
       expect(avisoPecasOcultas(c, "desta fila")!.texto).toContain("Detalhe do Evento");
+    }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// O MARCO NA TRILHA DA PEÇA — pedido do dono (14/08), olhando a aba Histórico
+// do Atendimento: "no app onde tem algum histórico, tem que colocar que o
+// evento foi encerrado".
+//
+// O QUE ESTE BLOCO PROTEGE:
+//   1. A PALAVRA. O rótulo aparece dentro da história de uma PEÇA e precisa
+//      dizer EVENTO — sem isso a leitura vira "a peça foi encerrada", que é
+//      falso: a peça continua existindo, com o mesmo status.
+//   2. A DATA QUE NÃO EXISTE. Não há coluna `closedAt`/`closedBy` em events; o
+//      autor e a hora do encerramento vivem só no audit log, que não viaja com
+//      a peça. O marco de encerramento tem de sair SEM data — o dia em que
+//      alguém "resolver" preenchê-la com `updatedAt` é o dia em que a trilha
+//      passa a mentir, e é aqui que isso quebra.
+//   3. A DATA QUE EXISTE. No "realizado" a data É o fato (events.startDate), e
+//      ela sai como dia-calendário "YYYY-MM-DD" — nunca um Date de meia-noite
+//      UTC, que renderiza a VÉSPERA em qualquer fuso a oeste de Greenwich.
+describe("marco de fim na trilha da peça", () => {
+  it("evento em jogo não ganha marco nenhum", () => {
+    expect(marcoEventoFinalizado(evento(), HOJE)).toBeNull();
+  });
+
+  it("encerrado: fala de EVENTO, tem volta, e NÃO inventa data", () => {
+    const m = marcoEventoFinalizado(evento({ status: EVENT_CLOSED_STATUS }), HOJE)!;
+    expect(m.motivo).toBe("encerrado");
+    expect(m.label).toBe("Evento encerrado");
+    expect(m.dataEventoISO).toBeNull();
+    expect(m.hint).toContain("Histórico geral");
+    expect(m.hint).toContain("reabrir");
+  });
+
+  it("realizado: mostra a data do evento e NÃO promete reabrir", () => {
+    const m = marcoEventoFinalizado(evento({ startDate: "2026-08-12T00:00:00.000Z" }), HOJE)!;
+    expect(m.motivo).toBe("realizado");
+    expect(m.label).toBe("Evento realizado");
+    expect(m.dataEventoISO).toBe("2026-08-12");
+    expect(m.hint).not.toContain("reabrir");
+  });
+
+  it("o rótulo sempre começa em 'Evento' — nunca deixa parecer que a PEÇA acabou", () => {
+    for (const ev of [evento({ status: EVENT_CLOSED_STATUS }), evento({ startDate: "2026-08-12" })]) {
+      const m = marcoEventoFinalizado(ev, HOJE)!;
+      expect(m.label.startsWith("Evento ")).toBe(true);
+      expect(m.label.toLowerCase()).not.toContain("peça");
+    }
+  });
+
+  it("encerrado à mão vence a data — o marco é o do humano, mesmo com o dia já passado", () => {
+    const m = marcoEventoFinalizado(
+      evento({ status: EVENT_CLOSED_STATUS, startDate: "2026-08-01" }), HOJE,
+    )!;
+    expect(m.motivo).toBe("encerrado");
+    expect(m.dataEventoISO).toBeNull();
+  });
+
+  it("durante o DIA do evento ainda não há marco (mesma virada de dia das filas)", () => {
+    expect(marcoEventoFinalizado(evento({ startDate: "2026-08-14" }), HOJE)).toBeNull();
+  });
+
+  it("nenhuma cor de texto proibida (#f97316 / #a8a29e) sai deste marco", () => {
+    for (const ev of [evento({ status: EVENT_CLOSED_STATUS }), evento({ startDate: "2026-08-12" })]) {
+      const m = marcoEventoFinalizado(ev, HOJE)!;
+      expect(["#f97316", "#a8a29e"]).not.toContain(m.text);
     }
   });
 });

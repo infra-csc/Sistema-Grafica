@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
-import { getStatusLabel, getStatusMeta } from "@/lib/status";
+import { getStatusLabel, getStatusMeta, marcoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import {
   Calendar, ClipboardList, FileText, History,
   Edit, Save, X, Link2, Palette, CheckCircle, Zap, Eye, Cog, Check,
@@ -295,6 +295,17 @@ export function ItemDetailsDialog({
 
   const rawStatus = (item.status || "").trim();
   const step = STATUS_STEP[rawStatus] ?? STATUS_STEP[rawStatus.toLowerCase()] ?? -1;
+
+  // FIM DA HISTÓRIA — o evento desta peça saiu de circulação (encerrado por
+  // alguém, ou realizado porque a data passou). Pedido do dono (14/08): a
+  // trilha não dizia isso em lugar nenhum, embora seja o que explica a peça ter
+  // parado onde parou. Esta ficha abre em cinco telas (Arte, Gráfica,
+  // Solicitação, Vincular, Painel Geral), então o marco chega às cinco de uma
+  // vez — e mora SÓ na trilha do Histórico: repeti-lo no cabeçalho escuro, que
+  // já carrega status + reaproveitamento + reprovações, trocaria informação
+  // nova por barulho. `item.event` é o evento cru do enrich de /api/items:
+  // traz `status` e `startDate`, as duas colunas do predicado.
+  const marcoEvento = marcoEventoFinalizado(item.event, todayBusinessMs());
 
   const handleEditChange = (field: string, value: any) =>
     setEditedItem((p: any) => ({ ...p, [field]: value }));
@@ -1254,6 +1265,43 @@ export function ItemDetailsDialog({
                         </p>
                       </div>
                     ))}
+                    {/* ÚLTIMO NÓ — o evento acabou. Sempre por último porque é o
+                        fim da história: depois dele nada mais acontece com esta
+                        peça enquanto o evento não for reaberto (e "reaberto" só
+                        existe no encerramento manual).
+
+                        A frase diz EVENTO, nunca "peça": quem lê está na ficha de
+                        uma peça e precisa saber, na mesma linha, que o que
+                        terminou foi o evento em volta dela.
+
+                        A segunda linha é onde as duas origens se separam:
+                        "realizado" mostra a data do evento (o fato é a data);
+                        "encerrado" não mostra data nem autor porque nenhum dos
+                        dois viaja com a peça — o evento não tem coluna de
+                        encerramento, só um registro no Histórico geral. Dizer
+                        onde procurar é honesto; carimbar `updatedAt` seria
+                        inventar. */}
+                    {marcoEvento && (
+                      <div style={{ position: "relative" }} title={marcoEvento.hint}>
+                        <div style={{
+                          position: "absolute", left: -23, top: 4,
+                          width: 12, height: 12, borderRadius: "50%",
+                          backgroundColor: marcoEvento.dot,
+                          boxShadow: `0 0 0 4px ${marcoEvento.dot}26`,
+                        }} />
+                        <p style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "-0.04em", color: marcoEvento.text, margin: "0 0 2px 0" }}>
+                          {marcoEvento.label}
+                        </p>
+                        {/* #746e69, e não o #8c7164 das linhas vizinhas: em 10px
+                            a régua da casa é AA 4,5:1, e sobre o #f9f9f8 desta
+                            ficha o #8c7164 dá 4,28:1 — o #746e69 dá 4,77:1. */}
+                        <p style={{ fontSize: 10, color: "#746e69", margin: 0, fontFamily: "'DM Mono', monospace" }}>
+                          {marcoEvento.dataEventoISO
+                            ? format(parseDateLocal(marcoEvento.dataEventoISO), "dd/MM/yy", { locale: ptBR })
+                            : "DATA E AUTOR NO HISTÓRICO GERAL"}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

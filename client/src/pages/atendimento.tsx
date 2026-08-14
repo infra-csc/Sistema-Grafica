@@ -17,7 +17,8 @@ import {
 import { FilePreview } from "@/components/file-preview";
 import {
   getStatusMeta, getStatusLabel, getStatusShort, PRODUCTION_STATUSES,
-  isEventoFinalizado, motivoEventoFinalizado, avisoPecasOcultas, todayBusinessMs,
+  isEventoFinalizado, motivoEventoFinalizado, marcoEventoFinalizado,
+  avisoPecasOcultas, todayBusinessMs,
 } from "@/lib/status";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -2277,12 +2278,41 @@ export default function Atendimento() {
                   const pipelineIdx = PIPELINE_STAGES.findIndex(s => s.statuses.includes(item.status));
                   const currentPipelineIdx = pipelineIdx === -1 ? 0 : pipelineIdx;
 
+                  // O FIM DA HISTÓRIA — o marco que o dono pediu (14/08): a
+                  // trilha ia de "Criado" a "Todos aprovaram" e parava, sem
+                  // dizer que a peça saiu das filas porque o EVENTO acabou.
+                  // Fonte única em lib/status: mesma regra das filas, mesmas
+                  // palavras. `ev` vem enriquecido de /api/events; o fallback
+                  // `item.event` é o evento cru de /api/items, que já traz as
+                  // duas colunas que o predicado lê (status e startDate).
+                  //
+                  // É o ÚNICO lugar do cartão que fala disso de propósito: o
+                  // cabeçalho já está cheio (status, contagem, patrocinadores)
+                  // e a informação é de FIM, então o fim da trilha é onde ela
+                  // é lida sem competir com nada.
+                  const marcoEvento = marcoEventoFinalizado(ev ?? item.event, hojeBusinessMs);
+
                   const timelineMilestones = [
                     item.createdAt && { dot: '#93c5fd', label: 'Criado', date: fmtDt(item.createdAt) },
                     !item.sponsorApprovedAt && lastApprovedAt && { dot: '#4ade80', label: `Últ. aprovação`, sublabel: `${approvedOnes.length} de ${sponsorApprovals.length}`, date: fmtDt(lastApprovedAt), by: lastApprovedBy },
                     item.sponsorApprovedAt && { dot: '#22c55e', label: 'Todos aprovaram', date: fmtDt(item.sponsorApprovedAt) },
                     item.approvedAt && { dot: '#a78bfa', label: 'Liberado p/ produção', date: fmtDt(item.approvedAt) },
-                  ].filter(Boolean) as { dot: string; label: string; date: string | null; by?: string | null }[];
+                    marcoEvento && {
+                      dot: marcoEvento.dot,
+                      label: marcoEvento.label,
+                      // Data SÓ no "realizado", onde ela é o próprio fato (a
+                      // data do evento). O encerramento manual não tem carimbo
+                      // que viaje com a peça — a linha diz o que sabe.
+                      date: marcoEvento.dataEventoISO
+                        ? format(parseDateLocal(marcoEvento.dataEventoISO), "dd/MM/yy", { locale: ptBR })
+                        : null,
+                      title: marcoEvento.hint,
+                      color: marcoEvento.text,
+                    },
+                  ].filter(Boolean) as {
+                    dot: string; label: string; date: string | null;
+                    by?: string | null; title?: string; color?: string;
+                  }[];
 
                   return (
                     /* Cartão do histórico: abre o detalhe de aprovações. Era um
@@ -2400,9 +2430,9 @@ export default function Atendimento() {
                           }}>
                             {timelineMilestones.map((m, i) => (
                               <Fragment key={i}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
+                                <div title={m.title} style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
                                   <span style={{ width: 7, height: 7, borderRadius: '50%', background: m.dot, flexShrink: 0, boxShadow: `0 0 0 2px ${m.dot}33` }} />
-                                  <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', whiteSpace: 'nowrap' }}>{m.label}{(m as any).sublabel && <span style={{ fontWeight: 500, color: '#746e69', marginLeft: 3 }}>({(m as any).sublabel})</span>}</span>
+                                  <span style={{ fontSize: 11, fontWeight: 700, color: m.color ?? '#57534e', whiteSpace: 'nowrap' }}>{m.label}{(m as any).sublabel && <span style={{ fontWeight: 500, color: '#746e69', marginLeft: 3 }}>({(m as any).sublabel})</span>}</span>
                                   {m.date && <span style={{ fontSize: 11, color: '#746e69', whiteSpace: 'nowrap' }}>{m.date}{m.by ? ` · ${m.by}` : ''}</span>}
                                 </div>
                                 {i < timelineMilestones.length - 1 && (

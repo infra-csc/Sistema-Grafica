@@ -336,6 +336,31 @@ export function buildTimeline(
         return;
       }
 
+      // ENCERRAR / REABRIR — a única ação HUMANA sobre o ciclo de vida do
+      // evento, e a que muda mais coisa de lugar: o evento sai (ou volta) da
+      // Gestão de Prazos e das cinco filas de trabalho de uma vez.
+      //
+      // Ambas são gravadas com action "updated" (POST /api/events/:id/close e
+      // /reopen), então caíam no balde genérico logo abaixo e a linha aparecia
+      // como "Evento Alterado" — o rótulo mais morno possível para a decisão
+      // mais cara do módulo. Pior: o `tail` do genérico procura o prefixo
+      // "...atualizado", que não existe nestas duas frases, e devolvia o
+      // `details` inteiro — a tela dizia "Evento X alterado — Evento "X"
+      // ENCERRADO manualmente…", repetindo o nome do evento na mesma linha.
+      //
+      // Casa por FRASE porque é só isso que o log carrega. As duas palavras-
+      // chave são maiúsculas e únicas no vocabulário de logs de evento; o teste
+      // em server/__tests__/historico-timeline.test.ts guarda as duas com
+      // amostras reais copiadas de server/routes/events.ts.
+      if (action === "updated" && detailsLower.includes("encerrado manualmente")) {
+        timeline.push({ id: `event-closed-${uid}`, type: "event_closed", ...eventBase });
+        return;
+      }
+      if (action === "updated" && detailsLower.includes("reaberto")) {
+        timeline.push({ id: `event-reopened-${uid}`, type: "event_reopened", ...eventBase });
+        return;
+      }
+
       if (detailsLower.includes("prioridade do evento")) {
         timeline.push({ id: `event-priority-${uid}`, type: "event_priority", ...eventBase });
         return;

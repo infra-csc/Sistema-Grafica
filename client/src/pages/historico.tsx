@@ -5,7 +5,7 @@ import {
   Calendar, Package, FileCheck, Plus, Activity, Search, Truck, Clock,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Link2, FileText,
   RefreshCw, RotateCcw, Download, X, Copy, Check, Trash2, Undo2, Pencil,
-  ShieldAlert, Flag, CalendarClock, CopyPlus, ArrowUpToLine,
+  ShieldAlert, Flag, CalendarClock, CopyPlus, ArrowUpToLine, Lock,
   Users, SlidersHorizontal, ChevronDown,
 } from "lucide-react";
 import { useLocation } from "wouter";
@@ -90,6 +90,10 @@ const TYPE_CONFIG: Record<string, TypeCfg> = {
   event_created:            { label: "Evento Criado",     filterLabel: "Eventos criados",           phase: "criacao", icon: Calendar },
   event_updated:            { label: "Evento Alterado",   filterLabel: "Eventos alterados",         phase: "criacao", icon: CalendarClock },
   event_priority:           { label: "Prioridade",        filterLabel: "Prioridade de evento",      phase: "criacao", icon: Flag },
+  // Reabrir devolve o evento às filas — é retomada de trabalho, e por isso mora
+  // na fase de criação (mesmo lugar de "Restaurada", com o mesmo ícone de
+  // desfazer). Encerrar está lá embaixo, na fase de encerramento.
+  event_reopened:           { label: "Evento Reaberto",   filterLabel: "Eventos reabertos",         phase: "criacao", icon: Undo2 },
   item_created:             { label: "Peça Adicionada",   filterLabel: "Peças adicionadas",         phase: "criacao", icon: Plus },
   item_edited:              { label: "Peça Editada",      filterLabel: "Peças editadas",            phase: "criacao", icon: Pencil },
   item_restored:            { label: "Restaurada",        filterLabel: "Restaurações da lixeira",   phase: "criacao", icon: Undo2 },
@@ -131,6 +135,10 @@ const TYPE_CONFIG: Record<string, TypeCfg> = {
   item_canceled:            { label: "Cancelada",         filterLabel: "Canceladas",                phase: "encerramento", excecao: true, icon: Activity },
   item_complement_canceled: { label: "Compl. Cancelado",  filterLabel: "Complementos cancelados",   phase: "encerramento", excecao: true, icon: Activity },
   item_deleted:             { label: "Peça Excluída",     filterLabel: "Peças excluídas",           phase: "encerramento", excecao: true, icon: Trash2 },
+  // Encerrar NÃO é exceção: é uma decisão legítima de administrador, com volta.
+  // Marcá-la em vermelho junto de exclusões e reprovações a contaria como "algo
+  // deu errado" no atalho de exceções — e é exatamente o oposto.
+  event_closed:             { label: "Evento Encerrado",  filterLabel: "Eventos encerrados",        phase: "encerramento", icon: Lock },
   event_deleted:            { label: "Evento Excluído",   filterLabel: "Eventos excluídos",         phase: "encerramento", excecao: true, icon: Trash2 },
 };
 
@@ -450,6 +458,18 @@ function buildDescription(e: TimelineEvent, nav: Nav) {
     }
     case "event_priority":
       return <span>Evento {EV} — {tail(e.logDetails, /^Prioridade do evento ".*?"\s*/) || "prioridade alterada"}</span>;
+    // As duas frases do servidor já vêm inteiras e explicam a consequência
+    // ("sai da Gestão de Prazos e das filas", "volta … com N peças em aberto").
+    // A moldura só tira o prefixo que repetiria o nome do evento — o resto é o
+    // texto do registro, que é o que uma auditoria vem ler.
+    case "event_closed": {
+      const resumo = tail(e.logDetails, /^Evento ".*?" ENCERRADO manualmente\s*(—|-)?\s*/i);
+      return <span>Evento {EV} encerrado manualmente{resumo ? <> — {resumo}</> : null}</span>;
+    }
+    case "event_reopened": {
+      const resumo = tail(e.logDetails, /^Evento ".*?" REABERTO\s*(—|-)?\s*/i);
+      return <span>Evento {EV} reaberto{resumo ? <> — {resumo}</> : null}</span>;
+    }
     case "event_deleted":
       return <span>Evento <B>{e.eventName}</B> excluído — {tail(e.logDetails, /^Evento ".*?" excluído\s*(—|-)?\s*/) || "sem detalhes registrados"}</span>;
     case "items_cloned":

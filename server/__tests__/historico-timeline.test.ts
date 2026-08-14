@@ -136,6 +136,55 @@ describe("buildTimeline — logs de EVENTO deixaram de ser descartados", () => {
     expect(e!.quantity).toBe(12);
   });
 
+  // ENCERRAR × REABRIR — as duas ações HUMANAS sobre o ciclo de vida do evento.
+  // Ambas são gravadas com action "updated" (POST /api/events/:id/close e
+  // /reopen), então nasceram indistinguíveis de "mudou a data do caminhão" e
+  // apareciam na trilha como "Evento Alterado" — o rótulo mais morno possível
+  // para a decisão que tira o evento das cinco filas e da Gestão de Prazos.
+  // Os `details` abaixo são amostras REAIS de server/routes/events.ts: se
+  // alguém trocar uma palavra lá, é aqui que quebra, e não na auditoria.
+  it("encerramento manual vira event_closed, não event_updated", () => {
+    const tl = buildTimeline([evento], [], [
+      log({
+        entityType: "event", entityId: EV_ID, action: "updated",
+        details: 'Evento "Maratona de São Paulo" ENCERRADO manualmente — 3 peças continuam em aberto (1 em produção, 9 de 12 entregues). Sai da Gestão de Prazos e das filas de trabalho; segue visível no histórico e pode ser reaberto.',
+      }),
+    ]);
+    expect(typesOf(tl)).toContain("event_closed");
+    expect(typesOf(tl)).not.toContain("event_updated");
+    const e = find(tl, "event_closed")!;
+    expect(e.eventId).toBe(EV_ID);
+    // O autor do encerramento é a informação que a peça NÃO tem — é para cá
+    // que a trilha da peça manda quem quer saber quem e quando.
+    expect(e.userName).toBe("Ana Souza");
+    expect(e.authorSource).toBe("log");
+    expect(e.logDetails).toContain("3 peças continuam em aberto");
+  });
+
+  it("reabertura vira event_reopened, não event_updated", () => {
+    const tl = buildTimeline([evento], [], [
+      log({
+        entityType: "event", entityId: EV_ID, action: "updated",
+        details: 'Evento "Maratona de São Paulo" REABERTO — volta para a Gestão de Prazos e para as filas de trabalho com 3 peças em aberto (1 em produção).',
+      }),
+    ]);
+    expect(typesOf(tl)).toContain("event_reopened");
+    expect(typesOf(tl)).not.toContain("event_updated");
+    expect(find(tl, "event_reopened")!.eventId).toBe(EV_ID);
+  });
+
+  it("alteração comum de evento continua sendo event_updated (as duas guardas são estreitas)", () => {
+    const tl = buildTimeline([evento], [], [
+      log({
+        entityType: "event", entityId: EV_ID, action: "updated",
+        details: 'Evento "Maratona de São Paulo" atualizado — Nome: Maratona → Maratona de São Paulo',
+      }),
+    ]);
+    expect(typesOf(tl)).toContain("event_updated");
+    expect(typesOf(tl)).not.toContain("event_closed");
+    expect(typesOf(tl)).not.toContain("event_reopened");
+  });
+
   it("criação de evento não duplica a entrada sintética da tabela de eventos", () => {
     const tl = buildTimeline([evento], [], [
       log({ entityType: "event", entityId: EV_ID, action: "created", details: 'Evento "Maratona de São Paulo" criado' }),

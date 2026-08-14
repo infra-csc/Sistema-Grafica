@@ -174,6 +174,17 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
   const emCartoes = larguraDrill > 0 ? larguraDrill < DRILL_TABELA_MIN : isMobile;
 
   // Agrupa as peças pendentes por etapa; só etapas com peça travada NELA.
+  //
+  // `stageIndex` (onde a peça ESTÁ), NUNCA `marcoIndex` (que prazo a mede). O
+  // contrato tem os dois desde que peça isenta de aprovação passou a ser
+  // cobrada pelo marco da Aprovação mesmo estando numa etapa anterior — e a
+  // tentação de "unificar" nesse campo é justamente o que quebraria este
+  // bloco. Aqui o agrupamento responde DE QUEM É A BOLA: é ele que escolhe o
+  // link "Resolver em {setor} →", e mandar o diretor cobrar o Atendimento por
+  // uma peça que está na mesa da Arte é o erro que a tela existe para evitar.
+  // O marco continua mandando onde deve: `stages[].pendingCount` conta por
+  // ele, então a peça isenta aparece no grupo da etapa em que está E na linha
+  // "as N peças acima também travam Aprovação de Layout" logo abaixo.
   const { groups, seguintes } = useMemo(() => {
     const byStage = new Map<number, PrazoPendingItem[]>();
     for (const it of ev.pendingItems) {

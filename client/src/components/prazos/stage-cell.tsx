@@ -6,9 +6,9 @@
 // `aria-hidden`, e o `title` mora NELE. Antes o chip era aria-hidden mas a
 // linha do meio não, e o `title` estava no wrapper visível — resultado: o
 // leitor anunciava "8 peças", depois a frase do `sr-only` e, em alguns
-// leitores, o `title` como descrição. Três vezes por célula, cinco células por
-// linha de tabela. Agora o `sr-only` é a ÚNICA fonte falada e o `title` volta a
-// ser o que sempre foi: tooltip de mouse.
+// leitores, o `title` como descrição. Três vezes por célula, uma célula por
+// etapa em cada linha de tabela. Agora o `sr-only` é a ÚNICA fonte falada e o
+// `title` volta a ser o que sempre foi: tooltip de mouse.
 import { diasTexto, fmtDayMonth, pecasTexto, R, STAGE_STYLE, TI } from "./tokens";
 import type { PrazoStage } from "@shared/prazos-contract";
 
@@ -25,11 +25,16 @@ export function StageCell({ stage, invalidDate }: { stage: PrazoStage; invalidDa
     : `prevista para ${fmtDayMonth(stage.deadline)}`;
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "2px 0" }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, padding: "2px 0", minWidth: 0 }}>
       <span
         aria-hidden="true"
         title={`${stage.label}: ${statusText}`}
-        style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3 }}
+        // `maxWidth: 100%` (com o `minWidth: 0` acima): num flex column com
+        // `align-items: center` o item ganha largura de CONTEÚDO e transborda
+        // centralizado, sem cortar. Numa trilha de coluna estreita isso é
+        // colisão silenciosa entre duas células vizinhas — ver o `maxWidth` do
+        // rótulo abaixo.
+        style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 3, maxWidth: "100%", minWidth: 0 }}
       >
         <span
           style={{
@@ -44,13 +49,21 @@ export function StageCell({ stage, invalidDate }: { stage: PrazoStage; invalidDa
           {stage.state === "done" ? "✓"
             : stage.state === "overdue" ? `${Math.abs(stage.diffDays)}d`
             : stage.state === "warning" ? stage.pendingCount
-            // Futura: só as peças travadas NELA (o acumulado repetido em 5
-            // células cinza era ruído); sem pendência própria, célula quieta.
+            // Futura: só as peças travadas NELA (o acumulado repetido em toda
+            // célula cinza era ruído); sem pendência própria, célula quieta.
             : stage.directCount > 0 ? stage.directCount : "–"}
         </span>
+        {/* Reticência como REDE, não como regra: com a entrada da Finalização
+            a trilha passou a seis células e a coluna caiu de ~58 para ~49px
+            num modal de celular. "125 peças" mede ~46px ali — cabe, mas por
+            1px de cada lado. Sem teto, o que passa disso não corta: transborda
+            centralizado e colide com a célula vizinha, e aí DUAS ficam
+            ilegíveis em vez de uma abreviada. O texto inteiro segue no `title`
+            do invólucro e no `sr-only` ao lado. */}
         <span style={{
           fontSize: 10, color: stage.state === "overdue" ? TI.red : TI.label,
           fontWeight: stage.state === "overdue" ? 700 : 500, whiteSpace: "nowrap",
+          maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis",
         }}>
           {invalidDate ? "—"
             // Prazo vencido: quantas peças travadas importa mais que o dd/mm

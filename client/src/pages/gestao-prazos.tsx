@@ -516,8 +516,11 @@ export default function GestaoPrazos() {
 
   if (isLoading) {
     // Skeleton RAMIFICADO por visão: o antigo desenhava uma faixa de 120px
-    // onde hoje há um botão de ~44px e cinco linhas empilhadas onde o padrão
-    // é um grid de cinco colunas — salto de layout em toda carga.
+    // onde hoje há um botão de ~44px e linhas empilhadas onde o padrão é um
+    // grid de uma coluna por etapa — salto de layout em toda carga. A
+    // contagem vem de `stageMeta`, nunca escrita à mão: o esqueleto precisa
+    // desenhar o MESMO número de colunas que o quadro, e a entrada da
+    // Finalização (a sexta etapa) mostrou o custo de ter um literal aqui.
     const bloco = (altura: number, chave: React.Key) => (
       <div key={chave} className="animate-pulse" style={{
         height: altura, borderRadius: R.lg, backgroundColor: TI.track, border: `1px solid ${TI.border}`,
@@ -711,7 +714,7 @@ export default function GestaoPrazos() {
     // na coluna onde o funil dele está travado. Clique abre o drill em modal.
     //
     // `minmax(190px, 1fr)` + scroll horizontal: um kanban tem uma largura
-    // mínima abaixo da qual deixa de ser kanban e vira cinco tarjas
+    // mínima abaixo da qual deixa de ser kanban e vira um punhado de tarjas
     // ilegíveis. Em 1024px (iPad em paisagem) as colunas fluidas ficavam em
     // ~136px e a etapa virava "Apro…". Rolar de lado é preferível a coluna
     // ilegível — e o número de colunas vem de `stageMeta`, não mais do "5"
@@ -1477,9 +1480,12 @@ export default function GestaoPrazos() {
                     </p>
                   )}
 
-                  {/* Os cinco prazos com DATA, no topo. O modal era o caminho
-                      principal do quadro e não trazia um dd/mm em lugar nenhum:
-                      o melhor artefato da tela ficava invisível justamente ali. */}
+                  {/* Um prazo com DATA por etapa, no topo — a lista vem de
+                      `modalEv.stages`, então a trilha acompanha o funil sozinha
+                      (foi assim que a Finalização entrou aqui sem tocar em
+                      nada). O modal era o caminho principal do quadro e não
+                      trazia um dd/mm em lugar nenhum: o melhor artefato da
+                      tela ficava invisível justamente ali. */}
                   <div style={{ display: "flex", justifyContent: "space-between", gap: 4, marginBottom: 16 }}>
                     {modalEv.stages.map((s) => (
                       <div key={s.key} style={{ flex: 1, minWidth: 0, textAlign: "center" }}>

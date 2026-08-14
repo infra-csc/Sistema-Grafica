@@ -15,7 +15,7 @@ import {
   prazoAprovacaoLayout,
 } from "@/lib/atendimento-prazo";
 import { FilePreview } from "@/components/file-preview";
-import { getStatusMeta, getStatusLabel, getStatusShort, PRODUCTION_STATUSES } from "@/lib/status";
+import { getStatusMeta, getStatusLabel, getStatusShort, PRODUCTION_STATUSES, isEventoEncerrado } from "@/lib/status";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -274,11 +274,29 @@ export default function Atendimento() {
     return map;
   }, [standardItems]);
 
-  // Memoizar awaiting items para evitar fetches desnecessários
+  // Memoizar awaiting items para evitar fetches desnecessários.
+  //
+  // Evento ENCERRADO sai da fila: é a promessa feita em voz alta na confirmação
+  // do encerramento ("sai da Gestão de Prazos e das filas de trabalho"). O
+  // filtro é do CLIENTE, não de /api/items — o Detalhe do Evento e o Painel
+  // Geral leem a mesma chave e a lista de peças do evento encerrado precisa
+  // continuar aparecendo lá. `item.event` vem cru do storage (nunca passa por
+  // enrichEvent), então o status chega como "closed".
   const awaitingItems = useMemo(() =>
     items.filter(item =>
       item.status === 'awaiting_sponsor_approval' && !item.skipApproval
+      && !isEventoEncerrado(item.event)
     ), [items]
+  );
+
+  // Quantas peças a regra acima tirou de vista. Sem este número a tela diria
+  // "Nenhum item pendente" — isto é, "nada a fazer" — a quem, na verdade, teve
+  // o trabalho retirado por uma decisão de admin.
+  const pecasDeEventoEncerrado = useMemo(() =>
+    items.filter(item =>
+      item.status === 'awaiting_sponsor_approval' && !item.skipApproval
+      && isEventoEncerrado(item.event)
+    ).length, [items]
   );
 
   // Chave estável do conjunto de peças em aprovação: o efeito abaixo só refaz
@@ -1649,6 +1667,21 @@ export default function Atendimento() {
             )}
           </div>
         </section>
+      )}
+
+      {/* Peça de evento encerrado não entra nesta fila (ver `awaitingItems`).
+          Esconder em silêncio faria a tela dizer "nada a fazer" para quem, na
+          verdade, teve o trabalho retirado por uma decisão de admin. */}
+      {pecasDeEventoEncerrado > 0 && (
+        <div
+          role="status"
+          data-testid="aviso-eventos-encerrados"
+          style={{ background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#44403c', lineHeight: 1.5 }}
+        >
+          <strong>{pecasDeEventoEncerrado} peça{pecasDeEventoEncerrado !== 1 ? 's' : ''}</strong>{' '}
+          {pecasDeEventoEncerrado !== 1 ? 'estão' : 'está'} fora desta fila porque o evento foi encerrado.
+          {' '}Elas continuam no Detalhe do Evento — reabrir o evento traz o trabalho de volta.
+        </div>
       )}
 
       {/* ─── GRID DE CARDS (bento-style) ─────────────────────────── */}

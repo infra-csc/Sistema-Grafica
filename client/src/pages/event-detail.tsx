@@ -886,6 +886,12 @@ export default function EventDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId] });
       queryClient.invalidateQueries({ queryKey: ["/api/prazos"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs", "event", eventId] });
+      // As filas de trabalho leem `item.event.status` do payload de PEÇAS —
+      // sem estas três, a aba de Arte/Gráfica já aberta continuaria mostrando
+      // o evento encerrado (essas chaves rodam com staleTime Infinity).
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items/resubmission-needed"] });
       setCloseDialogOpen(false);
       const abertas = data?.openCount ?? 0;
       toast({
@@ -910,6 +916,10 @@ export default function EventDetail() {
       queryClient.invalidateQueries({ queryKey: ["/api/events", eventId] });
       queryClient.invalidateQueries({ queryKey: ["/api/prazos"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs", "event", eventId] });
+      // Mesmas três do encerrar: é o que devolve as peças às filas na hora.
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items/resubmission-needed"] });
       setReopenDialogOpen(false);
       toast({
         title: "Evento reaberto",

@@ -282,6 +282,19 @@ describe("saída da gestão de prazos", () => {
     expect(isPrazoCandidate(evento({ status: "completed" }), hoje)).toBe(false);
   });
 
+  // O evento ENCERRADO à mão é o caso que a outra condição NÃO cobre: aqui a
+  // saída ainda está no futuro (05/09 contra hoje 13/08) e há peça em aberto —
+  // sem a cláusula de "closed" ele seguiria sendo cobrado toda semana por um
+  // trabalho que um admin já decidiu que ninguém mais vai fazer.
+  it("evento ENCERRADO à mão sai, mesmo com a saída ainda no futuro", () => {
+    const encerrado = evento({ status: "closed" });
+
+    expect(isPrazoCandidate(encerrado, hoje)).toBe(false);
+    expect(buildEventPrazo(encerrado, [peca()], { today: hoje })).toBeNull();
+    // Controle: o MESMO evento sem o encerramento continua sendo cobrado.
+    expect(isPrazoCandidate(evento(), hoje)).toBe(true);
+  });
+
   it("evento com TUDO entregue sai — mas só se tiver alguma peça", () => {
     expect(buildEventPrazo(evento(), [peca({ status: "delivered" })], { today: hoje })).toBeNull();
     // Zero peças NÃO é "tudo entregue": esse é justamente o caso que a tela

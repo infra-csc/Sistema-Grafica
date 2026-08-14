@@ -18,6 +18,7 @@ import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { R, onColor } from "@/lib/theme";
+import { isEventoEncerrado } from "@/lib/status";
 
 type ItemChanges = {
   sponsorIds: string[];
@@ -36,6 +37,26 @@ type UIStatus = 'RASCUNHO' | 'PRONTO' | 'ENVIADO' | 'PENDENTE';
 // Status iniciais em que o item ainda está na fase de vinculação de
 // patrocinadores (pode ser enviado para a Arte).
 const LINKING_STATUSES = ['requested', 'awaiting_linking'];
+
+// Status que esta tela exibe. Nomes que o backend realmente grava (sem
+// 'released'/'in_production', que eram fantasmas e nunca casavam). No topo do
+// módulo porque DUAS contas leem a lista: a que monta `visibleItems` e a que
+// conta quantas peças o evento encerrado tirou de vista — se divergissem, o
+// aviso prometeria um número que a lista não teria mostrado.
+const VINCULACAO_VISIBLE_STATUSES = [
+  'awaiting_linking',
+  'awaiting_submission',
+  'awaiting_sponsor_approval',
+  'sponsor_approved',
+  'awaiting_finalization',
+  'awaiting_final_review',
+  'awaiting_creator_review',
+  'ready_for_production',
+  'pronto_para_producao',
+  'inProduction',
+  'produced',
+  'delivered',
+];
 
 // Status "a jusante": o item já saiu da vinculação (foi para a Arte, aprovação
 // ou produção). Precisa cobrir TODAS as convenções de status de ITEM realmente
@@ -301,31 +322,20 @@ export default function VincularPatrocinadores() {
   // Exclui: draft e requested (Rascunho — ainda não enviado pela Solicitação)
   const visibleItems = useMemo(() => {
     const today = startOfDay(new Date());
-    // Nomes que o backend realmente grava (sem 'released'/'in_production', que
-    // eram fantasmas e nunca casavam).
-    const allowedStatuses = [
-      'awaiting_linking',
-      'awaiting_submission',
-      'awaiting_sponsor_approval',
-      'sponsor_approved',
-      'awaiting_finalization',
-      'awaiting_final_review',
-      'awaiting_creator_review',
-      'ready_for_production',
-      'pronto_para_producao',
-      'inProduction',
-      'produced',
-      'delivered'
-    ];
-    
     const pendingStatuses = ['awaiting_linking'];
 
     return items.filter(item => {
       // Filtro 1: Status permitido (exclui draft)
-      if (!allowedStatuses.includes(item.status)) return false;
+      if (!VINCULACAO_VISIBLE_STATUSES.includes(item.status)) return false;
 
       const event = eventById.get(item.eventId);
       if (!event) return false;
+
+      // Evento ENCERRADO à mão sai desta fila — e o teste vem ANTES do atalho
+      // de `pendingStatuses` logo abaixo, que faz a peça `awaiting_linking`
+      // aparecer sempre, inclusive furando o recorte de data. Sem isto, a peça
+      // de um evento que um admin fechou seria cobrada aqui para sempre.
+      if (isEventoEncerrado(event)) return false;
 
       // Itens com trabalho pendente aparecem sempre (independente da data do evento)
       if (pendingStatuses.includes(item.status)) return true;
@@ -335,6 +345,15 @@ export default function VincularPatrocinadores() {
       return isAfter(eventStartDate, today) || eventStartDate.getTime() === today.getTime();
     });
   }, [items, eventById]);
+
+  // Quantas peças o recorte de evento encerrado tirou de vista. Sem este número
+  // a tela ficaria vazia sem explicação — o mesmo aviso das outras filas.
+  const pecasDeEventoEncerrado = useMemo(
+    () => items.filter((item: any) =>
+      VINCULACAO_VISIBLE_STATUSES.includes(item.status)
+      && isEventoEncerrado(eventById.get(item.eventId))).length,
+    [items, eventById],
+  );
   
   // Toggle "Sem Patrocinador" por item individual
   const toggleItemSkipApproval = (item: any) => {
@@ -1972,6 +1991,22 @@ export default function VincularPatrocinadores() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Peça de evento encerrado não entra nesta tela (ver `visibleItems`).
+          Esconder em silêncio faria a tela dizer "nada a vincular" a quem, na
+          verdade, teve o trabalho retirado por uma decisão de admin. Fica fora
+          dos dois modos de visão porque vale para os dois. */}
+      {pecasDeEventoEncerrado > 0 && (
+        <div
+          role="status"
+          data-testid="aviso-eventos-encerrados"
+          style={{ background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#44403c', lineHeight: 1.5 }}
+        >
+          <strong>{pecasDeEventoEncerrado} peça{pecasDeEventoEncerrado !== 1 ? 's' : ''}</strong>{' '}
+          {pecasDeEventoEncerrado !== 1 ? 'estão' : 'está'} fora desta tela porque o evento foi encerrado.
+          {' '}Elas continuam no Detalhe do Evento — reabrir o evento traz o trabalho de volta.
         </div>
       )}
 

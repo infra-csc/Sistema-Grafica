@@ -25,7 +25,7 @@ import {
 import { useState, useMemo, useEffect, Fragment, useRef } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
-import { STATUS, getStatusMeta } from "@/lib/status";
+import { STATUS, getStatusMeta, isEventoEncerrado } from "@/lib/status";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { AumentarQuantidadeDialog, parseApiError } from "@/components/aumentar-quantidade-dialog";
 
@@ -347,7 +347,22 @@ export default function Solicitacao() {
     onError: (error: any) => toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" }),
   });
 
-  const pendingItems = useMemo(() => items.filter(item => item.status === REVIEW_STATUS), [items]);
+  // A Revisão Final é a QUARTA fila de trabalho — mesma promessa das de
+  // Arte/Atendimento/Gráfica: evento encerrado sai daqui. O filtro é do
+  // cliente; /api/items continua devolvendo tudo para o Detalhe do Evento e o
+  // Painel Geral. `item.event` vem cru do storage, então o status chega
+  // como "closed".
+  const pendingItems = useMemo(
+    () => items.filter(item => item.status === REVIEW_STATUS && !isEventoEncerrado(item.event)),
+    [items],
+  );
+
+  // Esconder sem dizer que escondeu faria "Tudo revisado!" mentir para quem, na
+  // verdade, teve o trabalho retirado por uma decisão de admin.
+  const pecasDeEventoEncerrado = useMemo(
+    () => items.filter(item => item.status === REVIEW_STATUS && isEventoEncerrado(item.event)).length,
+    [items],
+  );
 
   const filteredItems = useMemo(() => pendingItems.filter(item => {
     const matchesSearch = searchTerm === "" ||
@@ -667,6 +682,20 @@ export default function Solicitacao() {
 
       {/* ── 3 & 4. HIGH-DENSITY TABLE ──────────────────────────────────── */}
       <section style={{ padding: isMobile ? "12px 12px" : "32px", maxWidth: 1200, margin: "0 auto", paddingBottom: isMobile ? 20 : 80 }}>
+        {/* Peça de evento encerrado não entra nesta fila (ver `pendingItems`).
+            Sem este aviso "Tudo revisado!" leria como "nada a fazer" para quem
+            teve o trabalho retirado por uma decisão de admin. */}
+        {pecasDeEventoEncerrado > 0 && (
+          <div
+            role="status"
+            data-testid="aviso-eventos-encerrados"
+            style={{ background: "#f5f5f4", border: "1px solid #e7e5e4", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#44403c", lineHeight: 1.5 }}
+          >
+            <strong>{pecasDeEventoEncerrado} peça{pecasDeEventoEncerrado !== 1 ? "s" : ""}</strong>{" "}
+            {pecasDeEventoEncerrado !== 1 ? "estão" : "está"} fora desta fila porque o evento foi encerrado.
+            {" "}Elas continuam no Detalhe do Evento — reabrir o evento traz o trabalho de volta.
+          </div>
+        )}
         {filteredItems.length === 0 ? (
           <div style={{ backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 8, textAlign: "center", padding: "80px 24px" }}>
             <CheckCircle style={{ width: 48, height: 48, color: "#d1cfce", margin: "0 auto 16px" }} />

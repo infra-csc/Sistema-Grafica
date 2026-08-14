@@ -128,6 +128,18 @@ export function useWebSocket() {
               queryClient.invalidateQueries({ queryKey: ['/api/events', data.eventId] });
               queryClient.invalidateQueries({ queryKey: ['/api/items', data.eventId] });
             }
+            // As FILAS DE TRABALHO (Arte, Atendimento, Gráfica, Revisão Final,
+            // Vinculação) decidem o que mostrar lendo `item.event.status` do
+            // payload de PEÇAS — não de '/api/events'. Sem estas invalidações o
+            // evento encerrado continuaria na fila da outra aba até um F5:
+            // essas chaves rodam com staleTime Infinity, e o casamento do
+            // TanStack é por PREFIXO — ['/api/items', id] logo acima NÃO
+            // alcança ['/api/items'].
+            if (data.type === 'event_closed' || data.type === 'event_reopened') {
+              queryClient.invalidateQueries({ queryKey: ['/api/items'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/items/approved'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/items/resubmission-needed'] });
+            }
             if (data.type === 'event_created') {
               toast({
                 title: 'Novo evento criado',

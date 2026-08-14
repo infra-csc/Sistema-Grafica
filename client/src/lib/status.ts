@@ -109,6 +109,28 @@ export const STATUS: Record<string, StatusMeta> = {
 export const PRODUCTION_STATUSES = ["inProduction", "produced", "conferred", "delivered"] as const;
 export const FINAL_STATUSES = ["delivered", "canceled", "deleted"] as const;
 
+/** Valor gravado em `events.status` pelo encerramento MANUAL (routes/shared.ts). */
+export const EVENT_CLOSED_STATUS = "closed";
+
+/**
+ * Evento encerrado À MÃO — o gate das filas de trabalho e do calendário.
+ *
+ * A confirmação do encerramento promete que o evento "sai da Gestão de Prazos e
+ * das filas"; é aqui que essa promessa vira código no cliente. Existe uma vez
+ * só porque a mesma pergunta é feita em quatro telas (Arte, Atendimento,
+ * Gráfica, Calendário) — quatro cópias divergiriam no primeiro ajuste.
+ *
+ * Lê `manuallyClosed` E a coluna crua: o objeto de evento chega enriquecido
+ * (`enrichEvent`, com `manuallyClosed`) em /api/events, mas vem CRU pendurado
+ * em `item.event` nas listas de peças — ali só existe `status`.
+ */
+export function isEventoEncerrado(
+  event: { status?: string | null; manuallyClosed?: boolean | null } | null | undefined,
+): boolean {
+  if (!event) return false;
+  return event.manuallyClosed === true || event.status === EVENT_CLOSED_STATUS;
+}
+
 // ── Prioridade de EVENTO — mesma disciplina do StatusMeta (text escuro AA
 // sobre bg claro; dot saturada). Antes havia 4 mapas hex divergentes só em
 // eventos.tsx, um deles morto. ──

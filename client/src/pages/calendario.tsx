@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
-import { getPriorityMeta, getStatusMeta } from "@/lib/status";
+import { getPriorityMeta, getStatusMeta, isEventoEncerrado } from "@/lib/status";
 import { ChevronLeft, ChevronRight, AlertTriangle, Calendar, Truck, Search, BarChart2, Flag } from "lucide-react";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { useLocation } from "wouter";
@@ -35,8 +35,11 @@ const P = {
    prioridade cai na família neutra. */
 const NO_PRIO = { label: "Sem prioridade", bg: "#f5f5f4", text: "#44403c", border: "#e7e5e4", dot: "#78716c" };
 function prioMeta(ev: any): { label: string; bg: string; text: string; border: string; dot: string } {
-  if (ev.status === "completed") {
-    const m = getStatusMeta("completed");
+  // Encerrado à mão vem ANTES da prioridade: um evento que alguém fechou
+  // exibindo o chip vermelho "Urgente" cobra um trabalho que já saiu de pauta.
+  const chave = isEventoEncerrado(ev) ? "closed" : ev.status === "completed" ? "completed" : null;
+  if (chave) {
+    const m = getStatusMeta(chave);
     return { label: m.label, bg: m.bg, text: m.text, border: m.border, dot: m.dot };
   }
   return getPriorityMeta(ev.priority) ?? NO_PRIO;
@@ -49,6 +52,7 @@ const LEGEND_PRIOS: { label: string; dot: string }[] = [
     return { label: m.label, dot: m.dot };
   }),
   { label: getStatusMeta("completed").label, dot: getStatusMeta("completed").dot },
+  { label: getStatusMeta("closed").label, dot: getStatusMeta("closed").dot },
 ];
 
 /* ── Deadline types (same colors as event-detail) ──
@@ -196,7 +200,11 @@ export default function Calendario() {
   /* Next 5 events for sidebar */
   const upcomingEvents = useMemo(() =>
     events
-      .filter(ev => parseDateLocal(ev.startDate).getTime() >= now && ev.status !== "completed")
+      // Encerrado à mão sai dos "próximos eventos" pelo mesmo motivo que o
+      // concluído: a lista é a fila do que ainda vai acontecer, e o evento que
+      // um admin fechou não é mais trabalho de ninguém.
+      .filter(ev => parseDateLocal(ev.startDate).getTime() >= now
+        && ev.status !== "completed" && !isEventoEncerrado(ev))
       .sort((a, b) => parseDateLocal(a.startDate).getTime() - parseDateLocal(b.startDate).getTime())
       .slice(0, 5),
   [events, now]);
@@ -208,7 +216,12 @@ export default function Calendario() {
     return d.getFullYear() === year && d.getMonth() === month;
   }), [events, year, month]);
   const completedCount = monthEvents.filter(e => e.status === "completed").length;
+  // Encerrado à mão precisa de linha PRÓPRIA. Somado a "Concluídos" ele diria
+  // "deu tudo certo" num evento fechado com peça em aberto; sem linha nenhuma
+  // ele engordava "Em andamento", que é justamente o número lido como fila.
+  const closedCount    = monthEvents.filter(e => isEventoEncerrado(e)).length;
   const urgentCount    = monthEvents.filter(e => e.priority === "urgente").length;
+  const ongoingCount   = monthEvents.length - completedCount - closedCount;
 
   function msToHM(ms: number) {
     const h = Math.floor(ms / 3_600_000);
@@ -656,8 +669,9 @@ export default function Calendario() {
             {[
               { label: "Total de Eventos", value: monthEvents.length, color: P.accent },
               { label: "Concluídos",       value: completedCount,     color: "#22c55e" },
+              { label: "Encerrados",       value: closedCount,        color: "#d6d3d1" },
               { label: "Urgentes",         value: urgentCount,        color: "#dc2626" },
-              { label: "Em andamento",     value: monthEvents.length - completedCount, color: "#ffffff" },
+              { label: "Em andamento",     value: ongoingCount,       color: "#ffffff" },
             ].map(({ label, value, color }, i, arr) => (
               <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: i < arr.length - 1 ? "1px solid rgba(255,255,255,0.08)" : "none" }}>
                 <span style={{ fontSize: 13, color: "rgba(255,255,255,0.55)" }}>{label}</span>

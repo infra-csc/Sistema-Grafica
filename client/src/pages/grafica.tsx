@@ -16,7 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { getStatusMeta, getStatusLabel, getPriorityMeta } from "@/lib/status";
+import { getStatusMeta, getStatusLabel, getPriorityMeta, isEventoEncerrado } from "@/lib/status";
 import { StatusPill } from "@/components/status-pill";
 import { useAuth } from "@/contexts/auth-context";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
@@ -570,7 +570,7 @@ export default function Grafica() {
   const [bulkConferPhotos, setBulkConferPhotos] = useState<string[]>([]);
   const addBulkConferPhoto = (url: string) => setBulkConferPhotos(prev => [...prev, convertGCSUrlToLocalPath(url)]);
   const isMobile = useIsMobile();
-  const { data: items = [], isLoading, isError, error, refetch, isFetching, dataUpdatedAt } = useQuery<any[]>({
+  const { data: pecasDoServidor = [], isLoading, isError, error, refetch, isFetching, dataUpdatedAt } = useQuery<any[]>({
     queryKey: ["/api/items/approved"],
     // Override LOCAL do default global (staleTime: Infinity, sem refetch em
     // foco). Esta é a única tela do app em que DUAS PESSOAS trabalham a mesma
@@ -584,6 +584,27 @@ export default function Grafica() {
     refetchOnWindowFocus: true,
     refetchInterval: 60_000,
   });
+  // ── Evento ENCERRADO sai da fila ──────────────────────────────────────────
+  // A confirmação do encerramento promete, em voz alta, que o evento "sai da
+  // Gestão de Prazos e das filas de trabalho". Filtramos AQUI, no cliente, e
+  // não em /api/items/approved: o Detalhe do Evento e o Painel Geral leem essas
+  // mesmas chaves e a lista de peças do evento encerrado precisa continuar
+  // aparecendo lá — encerrar não apaga nada, só para de cobrar.
+  //
+  // `item.event` vem CRU do storage (nunca passa por enrichEvent), então o
+  // status chega como "closed" — é a coluna que `isEventoEncerrado` lê.
+  const items = useMemo(
+    () => (pecasDoServidor as any[]).filter((i: any) => !isEventoEncerrado(i.event)),
+    [pecasDoServidor],
+  );
+  // Esconder sem dizer que escondeu é pior que o problema: com a fila vazia, a
+  // tela diria "Nenhuma peça liberada ainda" para um operador cujo trabalho
+  // saiu porque alguém encerrou o evento. Este número alimenta o aviso.
+  const pecasDeEventoEncerrado = useMemo(
+    () => (pecasDoServidor as any[]).filter((i: any) => isEventoEncerrado(i.event)).length,
+    [pecasDoServidor],
+  );
+
   // Sem botão "Atualizar" (regra do dono): a tela se atualiza sozinha. O selo
   // "Atualizado há X" é a promessa de veracidade e o spinner ao lado é o único
   // sinal de recarga em curso. O "Tentar novamente" do estado de ERRO fica: lá
@@ -1962,6 +1983,22 @@ export default function Grafica() {
             >
               <X aria-hidden="true" style={{ width: 14, height: 14 }} />
             </button>
+          </div>
+        )}
+        {/* Peça de evento encerrado não entra na fila (ver `items` acima). Sem
+            este aviso a tela mentiria pelo silêncio: "Nenhuma peça liberada
+            ainda" para um operador cujo trabalho saiu porque um admin encerrou
+            o evento. Fica visível com a lista cheia também — o operador que
+            procura uma peça específica precisa saber por que ela sumiu. */}
+        {pecasDeEventoEncerrado > 0 && (
+          <div
+            role="status"
+            data-testid="aviso-eventos-encerrados"
+            style={{ background: "#f5f5f4", border: `1px solid ${TI.border}`, borderRadius: 10, padding: "10px 12px", margin: "12px 12px 0", fontSize: 12, color: "#44403c", lineHeight: 1.45 }}
+          >
+            <strong>{pecasDeEventoEncerrado} peça{pecasDeEventoEncerrado !== 1 ? "s" : ""}</strong>{" "}
+            {pecasDeEventoEncerrado !== 1 ? "estão" : "está"} fora desta fila porque o evento foi encerrado.
+            {" "}Elas continuam no Detalhe do Evento — reabrir o evento traz o trabalho de volta.
           </div>
         )}
         {isLoading ? (

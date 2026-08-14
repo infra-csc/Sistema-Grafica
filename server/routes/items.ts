@@ -19,6 +19,7 @@ import {
   translateStatus,
   createAuditLog,
   updateEventStatus,
+  EVENT_CLOSED_STATUS,
 } from "./shared";
 import { runInventoryCron } from "../services/inventoryLifecycle";
 import { handlePreviewXlsx, handleConfirmImport } from "../services/xlsxImport";
@@ -124,6 +125,26 @@ async function canCreateItemsFor(req: { userRole?: string; userId?: string }, ev
   if (!eventId || !req.userId) return false;
   const ev = await storage.getEvent(eventId);
   return !!ev && ev.createdBy === req.userId;
+}
+
+/** Mensagem única do bloqueio — a mesma frase nas cinco portas de entrada. */
+export const EVENTO_ENCERRADO_ERRO = "Evento encerrado — reabra o evento para adicionar peças.";
+
+/**
+ * Evento ENCERRADO à mão não recebe peça nova.
+ *
+ * Por que BLOQUEAR e não auto-reabrir como o ramo de `completed` logo abaixo
+ * faz: "completed" é um carimbo DERIVADO da produção, e reabri-lo ao receber
+ * peça só devolve o evento à sua própria derivação. "closed" é uma decisão de
+ * GENTE — reabrir sozinho a desfaria em silêncio, exatamente o que a guarda de
+ * `updateEventStatus` (routes/shared.ts) existe para impedir.
+ *
+ * E o estrago não seria só de princípio: a peça nasceria fora da Gestão de
+ * Prazos e fora das filas de Arte/Gráfica/Atendimento (que agora filtram o
+ * evento encerrado), isto é, invisível para quem teria de fazê-la.
+ */
+function eventoEncerrado(event: { status?: string | null } | null | undefined): boolean {
+  return event?.status === EVENT_CLOSED_STATUS;
 }
 
 // Enriquece uma lista de itens com { event, sponsors } fazendo apenas 4 queries
@@ -461,6 +482,11 @@ export function registerItemRoutes(app: Express): void {
         return res.status(404).json({ error: "Evento não encontrado" });
       }
       
+      // Encerramento manual vem ANTES do ramo de "completed": ver eventoEncerrado.
+      if (eventoEncerrado(event)) {
+        return res.status(409).json({ error: EVENTO_ENCERRADO_ERRO });
+      }
+
       // Check if event was completed - if so, reset priority and require re-definition
       if (event.status === "completed") {
         await storage.updateEvent(event.id, { 
@@ -521,7 +547,12 @@ export function registerItemRoutes(app: Express): void {
       if (!(await canCreateItemsFor(req, itemsData[0]?.eventId))) {
         return res.status(403).json({ error: "Sem permissão para criar itens neste evento" });
       }
-      
+      // Mesma trava do POST unitário — sem ela o lote era o caminho aberto para
+      // pendurar peça num evento encerrado.
+      if (eventoEncerrado(await storage.getEvent(itemsData[0]?.eventId))) {
+        return res.status(409).json({ error: EVENTO_ENCERRADO_ERRO });
+      }
+
       // Validate all items
       const validatedItems = itemsData.map((item, index) => {
         try {
@@ -595,6 +626,11 @@ export function registerItemRoutes(app: Express): void {
     if (!(await canCreateItemsFor(req, req.params.id))) {
       return res.status(403).json({ error: "Sem permissão para importar itens neste evento" });
     }
+    // A planilha é a porta que entra mais peça de uma vez — bloquear aqui, no
+    // wrapper que já faz o gate de papel, evita 200 peças invisíveis.
+    if (eventoEncerrado(await storage.getEvent(req.params.id))) {
+      return res.status(409).json({ error: EVENTO_ENCERRADO_ERRO });
+    }
     return handleConfirmImport(req, res);
   });
 
@@ -607,6 +643,10 @@ export function registerItemRoutes(app: Express): void {
     try {
       const targetEvent = await storage.getEvent(req.params.id);
       if (!targetEvent) return res.status(404).json({ error: "Evento destino não encontrado" });
+      // Clonar é criar peça — a quarta porta, e a que traz a lista inteira.
+      if (eventoEncerrado(targetEvent)) {
+        return res.status(409).json({ error: EVENTO_ENCERRADO_ERRO });
+      }
 
       const { sourceEventId } = req.body as { sourceEventId: string };
       if (!sourceEventId) return res.status(400).json({ error: "sourceEventId é obrigatório" });
@@ -1034,6 +1074,11 @@ export function registerItemRoutes(app: Express): void {
 
       const event = await storage.getEvent(parent.eventId);
       if (!event) return res.status(404).json({ error: "Evento não encontrado" });
+      // Complemento é peça NOVA na fila da Gráfica. Num evento encerrado ela
+      // nasceria invisível — a fila não a mostraria e ninguém a produziria.
+      if (eventoEncerrado(event)) {
+        return res.status(409).json({ error: EVENTO_ENCERRADO_ERRO });
+      }
 
       // Dedupe de 60 s (duplo clique / retry de rede): devolve 200 com o
       // complemento que já existe, não erro. Duas linhas idênticas na fila da

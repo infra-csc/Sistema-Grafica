@@ -15,7 +15,7 @@ import { compareDisplayId } from "@/lib/displayId";
 // mais motor próprio; qualquer ajuste de layout do book vale para as duas telas.
 import { exportMixedToPDF, convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { HIDE_NATIVE_CLOSE, modalSurface, ModalHeader, ModalFooter } from "@/components/modal-shell";
-import { getStatusLabel } from "@/lib/status";
+import { getStatusLabel, isEventoEncerrado } from "@/lib/status";
 import { useAuth } from "@/contexts/auth-context";
 // Regras puras (recortes de status, predicado de filtro, prazo por fase,
 // vínculo do multi-upload) — testadas em server/__tests__/arte-rules.test.ts.
@@ -373,12 +373,12 @@ export default function Arte() {
   // enquanto um envio direto corria TODAS as linhas ficavam desabilitadas.
   const [sendingId, setSendingId] = useState<string | null>(null);
 
-  const { data: allItems = [], isLoading, isError, error, refetch } = useQuery<any[]>({
+  const { data: pecasDoServidor = [], isLoading, isError, error, refetch } = useQuery<any[]>({
     queryKey: ["/api/items"],
   });
 
   const {
-    data: correcaoItems = [],
+    data: correcaoDoServidor = [],
     isLoading: correcaoLoading,
     isError: correcaoIsError,
     error: correcaoError,
@@ -386,6 +386,43 @@ export default function Arte() {
   } = useQuery<any[]>({
     queryKey: ["/api/items/resubmission-needed"],
   });
+
+  // ── Evento ENCERRADO sai das filas ────────────────────────────────────────
+  // A confirmação do encerramento promete, em voz alta, que o evento "sai da
+  // Gestão de Prazos e das filas de trabalho". O recorte é do CLIENTE e não de
+  // /api/items: o Detalhe do Evento e o Painel Geral leem a MESMA chave e a
+  // lista de peças do evento encerrado precisa continuar aparecendo lá —
+  // encerrar não apaga nada, só para de cobrar.
+  //
+  // `item.event` vem CRU do storage (nunca passa por enrichEvent), então o
+  // status chega como "closed" — é a coluna que `isEventoEncerrado` lê.
+  const allItems = useMemo(
+    () => (pecasDoServidor as any[]).filter((i: any) => !isEventoEncerrado(i.event)),
+    [pecasDoServidor],
+  );
+  const correcaoItems = useMemo(
+    () => (correcaoDoServidor as any[]).filter((i: any) => !isEventoEncerrado(i.event)),
+    [correcaoDoServidor],
+  );
+
+  // Quantas peças o recorte acima tirou das abas. Esconder sem dizer que
+  // escondeu faria "Nenhuma peça aguardando envio" ler como "nada a fazer"
+  // quando, na verdade, um admin encerrou o evento. Conta só o que APARECERIA
+  // (as abas têm statuses próprios) e deduplica: a peça em correção também
+  // está em /api/items.
+  const pecasDeEventoEncerrado = useMemo(() => {
+    const statusDasAbas = new Set(Object.values(TAB_STATUSES).flat());
+    const vistos = new Set<string>();
+    for (const item of pecasDoServidor as any[]) {
+      if (!isEventoEncerrado(item.event)) continue;
+      if (!statusDasAbas.has(item.status)) continue;
+      vistos.add(item.id);
+    }
+    for (const item of correcaoDoServidor as any[]) {
+      if (isEventoEncerrado(item.event)) vistos.add(item.id);
+    }
+    return vistos.size;
+  }, [pecasDoServidor, correcaoDoServidor]);
 
   const { data: events = [] } = useQuery<any[]>({
     queryKey: ["/api/events"],
@@ -2994,6 +3031,22 @@ export default function Arte() {
         aria-labelledby={isMobile ? undefined : `aba-${activeTab}`}
         style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px 12px' : '24px 32px', maxWidth: 1600, margin: '0 auto', width: '100%' }}
       >
+      {/* Peça de evento encerrado não entra nas abas (ver `allItems` acima).
+          Sem este aviso a tela mentiria pelo silêncio: "Nenhuma peça aguardando
+          envio" leria como "nada a fazer" para um designer cujo trabalho saiu
+          porque um admin encerrou o evento. Fica visível com a lista cheia
+          também — quem procura uma peça específica precisa saber por que sumiu. */}
+      {!isLoading && !isError && pecasDeEventoEncerrado > 0 && (
+        <div
+          role="status"
+          data-testid="aviso-eventos-encerrados"
+          style={{ background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#44403c', lineHeight: 1.5 }}
+        >
+          <strong>{pecasDeEventoEncerrado} peça{pecasDeEventoEncerrado !== 1 ? 's' : ''}</strong>{' '}
+          {pecasDeEventoEncerrado !== 1 ? 'estão' : 'está'} fora destas abas porque o evento foi encerrado.
+          {' '}Elas continuam no Detalhe do Evento — reabrir o evento traz o trabalho de volta.
+        </div>
+      )}
       {isLoading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
           <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid #e7e5e4', borderTopColor: '#f97316', animation: 'spin 0.8s linear infinite' }} />

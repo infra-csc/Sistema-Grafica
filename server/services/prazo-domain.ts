@@ -276,9 +276,16 @@ export interface BuildEventDeps {
  * startPassed compara DIA-calendário UTC (não o instante): com timestamp à
  * meia-noite UTC, o evento sumia da tela às 21h da VÉSPERA em UTC-3 — as
  * horas de crise.
+ *
+ * "closed" (encerramento MANUAL, ver routes/shared.ts) NÃO é redundante com o
+ * teste de data logo abaixo: aquele só derruba evento cuja saída já passou, e
+ * o caso que motivou a feature é justamente o evento encerrado com saída
+ * FUTURA — ele continuaria sendo cobrado toda semana por um trabalho que
+ * alguém já decidiu que ninguém mais vai fazer. Um ponto só atende as duas
+ * portas (routes/prazos.ts e services/prazoSnapshots.ts).
  */
 export function isPrazoCandidate(event: DomainEvent, today: number): boolean {
-  if (event.status === "completed") return false;
+  if (event.status === "completed" || event.status === "closed") return false;
   const startPassed = today > truckDayUTC(event.startDate).getTime();
   return !startPassed;
 }

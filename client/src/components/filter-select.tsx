@@ -3,7 +3,7 @@
  * Suporta seleção simples (value/onChange) e múltipla (values/onValuesChange).
  * accent="orange" (padrão) ou "violet" para contextos com tema violeta.
  */
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useMemo, useState, useRef, useEffect, useLayoutEffect } from "react";
 import { Search, ChevronDown, Check, X } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 
@@ -82,6 +82,33 @@ export function FilterSelect({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [open]);
+
+  // Lado efetivo do painel: começa na preferência do chamador (dropdownAlign)
+  // e só vira para o outro lado quando a medição real mostra que ele não cabe
+  // na largura da janela — sem isso, um gatilho perto da borda direita abria
+  // o painel (até 360px) parcialmente fora da tela. useLayoutEffect (não
+  // useEffect) porque a correção precisa acontecer antes do navegador pintar,
+  // senão o usuário vê o painel "pular" de lado no primeiro open. Medido no
+  // open E a cada resize — o gatilho pode ter mudado de lugar (sidebar,
+  // rotação de tela) desde a última medição.
+  const [effectiveAlign, setEffectiveAlign] = useState<"left" | "right">(dropdownAlign);
+  useLayoutEffect(() => {
+    if (!open) return;
+    const measure = () => {
+      const el = ref.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      const width = Math.min(panelWidth ?? (fullWidth ? rect.width : 280), 360);
+      const fits = (align: "left" | "right") =>
+        align === "right" ? rect.right - width >= 0 : rect.left + width <= window.innerWidth;
+      if (fits(dropdownAlign)) { setEffectiveAlign(dropdownAlign); return; }
+      const opposite = dropdownAlign === "right" ? "left" : "right";
+      setEffectiveAlign(fits(opposite) ? opposite : dropdownAlign);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [open, dropdownAlign, panelWidth, fullWidth]);
 
   // ── Paleta de cor baseada no accent ───────────────────────────────────
   const C = accent === "violet" ? {
@@ -174,6 +201,20 @@ export function FilterSelect({
   };
 
   // ── Estilos ───────────────────────────────────────────────────────────
+  // Quem monta triggerStyle com `prop: condicao ? valor : undefined` (comum
+  // em objetos reaproveitados de outro lugar) mantém a CHAVE mesmo quando a
+  // condição é falsa. Espalhar esse objeto direto engolia o valor calculado
+  // do componente (ex.: a cor do "filtro ativo") com esse `undefined`, em vez
+  // de simplesmente não tocar nele. Tirando as chaves undefined antes do
+  // spread, o estilo de quem chama só sobrescreve o que ele de fato definiu —
+  // complementa o base em vez de apagar pedaços dele por acidente. Não muda
+  // nada para quem já passa objetos totalmente definidos (todo consumidor
+  // atual): `{...base, ...limpo}` == `{...base, ...triggerStyle}` quando não
+  // há `undefined` no meio.
+  const cleanTriggerStyle = triggerStyle
+    ? (Object.fromEntries(Object.entries(triggerStyle).filter(([, v]) => v !== undefined)) as React.CSSProperties)
+    : undefined;
+
   const pillTrigger: React.CSSProperties = {
     display: "flex", alignItems: "center",
     gap: 6, height: isMobile ? 44 : 36,
@@ -188,7 +229,7 @@ export function FilterSelect({
     transition: "background 0.15s, border 0.15s, color 0.15s",
     outline: "none", whiteSpace: "nowrap",
     ...(fullWidth ? { width: "100%", justifyContent: "space-between" } : { maxWidth: 260 }),
-    ...triggerStyle,
+    ...cleanTriggerStyle,
   };
 
   const bareTrigger: React.CSSProperties = {
@@ -202,11 +243,11 @@ export function FilterSelect({
     opacity: disabled ? 0.6 : 1,
     outline: "none", whiteSpace: "nowrap",
     ...(fullWidth ? { width: "100%", justifyContent: "space-between" } : { maxWidth: 260 }),
-    ...triggerStyle,
+    ...cleanTriggerStyle,
   };
 
   const resolvedTrigger = triggerClassName
-    ? { display: "flex", alignItems: "center", gap: 5, ...triggerStyle }
+    ? { display: "flex", alignItems: "center", gap: 5, ...cleanTriggerStyle }
     : variant === "bare" ? bareTrigger : pillTrigger;
 
   // ── Render opção ──────────────────────────────────────────────────────
@@ -349,7 +390,7 @@ export function FilterSelect({
       {/* ── Dropdown panel ── */}
       {open && (
         <div style={{
-          position: "absolute", top: "calc(100% + 6px)", ...(dropdownAlign === "right" ? { right: 0 } : { left: 0 }), zIndex: 9999,
+          position: "absolute", top: "calc(100% + 6px)", ...(effectiveAlign === "right" ? { right: 0 } : { left: 0 }), zIndex: 9999,
           backgroundColor: "#fff", border: "1px solid #E5E7EB",
           borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.10)",
           ...(panelW ? { width: panelW } : { minWidth: "100%" }),

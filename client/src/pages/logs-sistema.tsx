@@ -95,8 +95,15 @@ export default function LogsSistema() {
   // ?withTotal=1: além da lista (truncada nos 500 mais recentes pelo teto do
   // storage), a rota devolve o count REAL da tabela — sem ele o KPI "Total de
   // registros" apresentava o teto como se fosse o total do sistema.
+  // Chave em DUAS partes (mesmo padrão de solicitacao.tsx e historico.tsx): o
+  // queryFn padrão junta as partes com "/" para montar a URL, mas
+  // `invalidateQueries(["/api/audit-logs"])` (mutations + WebSocket) casa por
+  // ELEMENTO do array — com a querystring colada na primeira posição essa
+  // invalidação nunca alcançava este cache, e a tela também baixava o mesmo
+  // payload de novo sob uma chave própria em vez de reaproveitar o cache do
+  // Histórico.
   const { data, isLoading, isError, refetch } = useQuery<{ logs: AuditLog[]; total: number }>({
-    queryKey: ["/api/audit-logs?withTotal=1"],
+    queryKey: ["/api/audit-logs", "?withTotal=1"],
   });
   const logs = data?.logs ?? [];
   const total = data?.total ?? logs.length;

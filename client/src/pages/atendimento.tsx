@@ -2562,14 +2562,23 @@ export default function Atendimento() {
                         <span style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                           {ev?.name || 'Sem Evento'}
                         </span>
-                        {ev?.truckDepartureDate && (
-                          <>
-                            <span style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: '#d6d3d1' }} />
-                            <span style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                              Prazo · {format(toUTCDisplayDate(ev.truckDepartureDate), "dd/MM HH:mm")}
-                            </span>
-                          </>
-                        )}
+                        {ev?.truckDepartureDate && (() => {
+                          // O prazo desta tela é o marco de APROVAÇÃO DE LAYOUT,
+                          // não a saída do caminhão: aqui o patrocinador decide,
+                          // e cobrar pela saída dava ao atendimento semanas de
+                          // folga que ele não tem. Mesmo cálculo do card da
+                          // lista (offset do evento, padrão −12).
+                          const days = ev.deadlineAprovacaoLayout ?? -12;
+                          const limite = new Date(new Date(ev.truckDepartureDate).getTime() + days * 86400000);
+                          return (
+                            <>
+                              <span style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: '#d6d3d1' }} />
+                              <span style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                                Aprovação · {format(toUTCDisplayDate(limite.toISOString()), "dd/MM HH:mm")}
+                              </span>
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>

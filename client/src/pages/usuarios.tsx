@@ -524,7 +524,16 @@ export default function Usuarios() {
       >
         <DialogContent
           className="p-0 gap-0 border-none"
-          style={{ maxWidth: 520, width: "96vw", borderRadius: 12, overflow: "hidden", boxShadow: "0 24px 64px -12px rgba(0,0,0,0.3)" }}
+          // ALTURA: teto de `100vh − 48` (24px de respiro em cima e 24 embaixo;
+          // o desconto é simétrico porque o Radix centra o Content) e coluna
+          // flex, a mesma regra do `modal-shell` e da Gestão de Prazos.
+          // Medi 367px no desktop e 453px em 375 de largura, onde os campos
+          // Email e Perfil empilham. Em 1080, 745 e 445 de altura no desktop
+          // este modal nunca cortou; ele cortava só na combinação 375×445, e
+          // por pouco — 4px de cada lado, porque o Radix centra e o excedente
+          // sai simétrico. Cada FormMessage de validação soma ~20px e piora a
+          // conta. Com o teto, o excedente vira rolagem no corpo.
+          style={{ maxWidth: 520, width: "96vw", borderRadius: 12, overflow: "hidden", boxShadow: "0 24px 64px -12px rgba(0,0,0,0.3)", display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 48px)" }}
         >
           {/* POR QUE congelar aqui: criar/atualizar fecha o modal, invalida
               /api/users, chama form.reset() e toasta no mesmo commit. O
@@ -536,9 +545,11 @@ export default function Usuarios() {
           <FreezeWhileClosing open={modalOpen}>
           <DialogTitle className="sr-only">{editingUser ? "Editar usuário" : "Novo usuário"}</DialogTitle>
           <DialogDescription className="sr-only">Dados de acesso e perfil do usuário</DialogDescription>
-          <div>
+          {/* Coluna flex: o teto do Content só chega ao formulário se cada elo
+              entre os dois for flex e puder encolher (`minHeight: 0`). */}
+          <div style={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}>
             {/* Modal header */}
-            <div style={{ backgroundColor: T.low, padding: "20px 28px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+            <div style={{ backgroundColor: T.low, padding: "20px 28px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexShrink: 0 }}>
               <div>
                 <h2 style={{ fontSize: 22, fontWeight: 900, color: T.text, margin: "0 0 3px", fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase", letterSpacing: "-0.03em" }}>
                   {editingUser ? "Editar Usuário" : "Novo Usuário"}
@@ -558,7 +569,11 @@ export default function Usuarios() {
 
             {/* Modal form */}
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 18 }}>
+              {/* `Form` é o FormProvider e não desenha nada, então este <form> é
+                  o item flex logo abaixo do cabeçalho — e é o scrollport único
+                  do modal. Os botões moram dentro dele (precisam do submit) e
+                  rolam junto; num formulário de três campos isso não incomoda. */}
+              <form onSubmit={form.handleSubmit(onSubmit)} style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 18, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
 
                 {/* Nome */}
                 <FormField control={form.control} name="name" render={({ field }) => (

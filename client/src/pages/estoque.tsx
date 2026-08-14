@@ -581,12 +581,25 @@ function MapaGalpao({ value, onSelect, onClose }: {
       <DialogContent
         className={`p-0 gap-0 border-0 ${HIDE_NATIVE_CLOSE}`}
         style={{
-          display: "block", padding: 0, overflow: "hidden", borderRadius: 20,
+          // ALTURA: o mapa é fixo em 6 setores × 8 corredores — 6 linhas de 40px
+          // com 4 de respiro, mais cabeçalho, rodapé e a tarja da seleção. Medi
+          // 495px, e como aqui só havia `display: block` sem teto de altura, o
+          // Radix (que centra com `top: 50%` + translate) cortava 25px EM CIMA e
+          // 25 EMBAIXO numa janela de 445 — sumiam o título e o botão Confirmar
+          // ao mesmo tempo, com o `overflow: hidden` impedindo qualquer rolagem.
+          //
+          // A CONTA é `100vh − 48`: viewport menos 24px de respiro em cima e 24
+          // embaixo (simétrico, porque o modal é centrado). Cabeçalho e rodapé
+          // não rolam, então o navegador os mede sozinho e o corpo fica com o
+          // que sobrar via `flex: 1 1 auto; minHeight: 0`. Mesma regra do
+          // `modal-shell` e do modal da Gestão de Prazos.
+          display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 48px)",
+          padding: 0, overflow: "hidden", borderRadius: 20,
           width: "min(480px, calc(100vw - 32px))", maxWidth: "min(480px, calc(100vw - 32px))",
           boxShadow: "0 25px 60px rgba(0,0,0,0.2)",
         }}
       >
-        <div style={{ padding: "16px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ padding: "16px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <Grid3X3 size={18} color="#f97316" />
             <div>
@@ -602,7 +615,9 @@ function MapaGalpao({ value, onSelect, onClose }: {
             <X size={14} />
           </button>
         </div>
-        <div style={{ padding: 20 }}>
+        {/* O mapa é o único scrollport: em telas baixas ele rola e o botão
+            Confirmar continua no lugar. */}
+        <div style={{ padding: 20, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
           {/* Column headers */}
           <div style={{ display: "grid", gridTemplateColumns: "28px repeat(8, 1fr)", gap: 4, marginBottom: 4 }}>
             <div />
@@ -644,7 +659,7 @@ function MapaGalpao({ value, onSelect, onClose }: {
             </div>
           )}
         </div>
-        <div style={{ padding: "12px 20px", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end" }}>
+        <div style={{ padding: "12px 20px", borderTop: "1px solid #f1f5f9", display: "flex", justifyContent: "flex-end", flexShrink: 0 }}>
           <button onClick={onClose} style={{ padding: "9px 20px", borderRadius: 10, border: "none", background: "#f97316", color: "#fff", fontSize: 13, cursor: "pointer", fontFamily: "Space Grotesk, sans-serif", fontWeight: 700 }}>
             Confirmar
           </button>

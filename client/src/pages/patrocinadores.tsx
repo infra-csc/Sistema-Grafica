@@ -559,7 +559,33 @@ export default function Patrocinadores() {
       ══════════════════════════════ */}
       <Dialog open={modalOpen} onOpenChange={o => { if (!o) requestClose(); }}>
 
-        <DialogContent className="p-0 gap-0 border-none" style={{ maxWidth: 640, width: "96vw", borderRadius: 12, overflow: "hidden" }}>
+        <DialogContent
+          className="p-0 gap-0 border-none"
+          // ALTURA — a conta, porque é ela que alguém vai mexer sem entender.
+          //
+          // Antes aqui só havia `maxWidth`, `borderRadius` e `overflow: hidden`:
+          // nenhum teto de altura e nenhuma coluna flex. O modal crescia com o
+          // formulário — medi 1047px em 1280 de largura e 1215px em 375 —, e o
+          // Radix centra o Content com `top: 50%` + `translateY(-50%)`, então o
+          // que passa da viewport é cortado METADE em cima e METADE embaixo ao
+          // mesmo tempo. Medido antes da correção: 151px de cada lado em 745 de
+          // altura, 301px de cada lado em 445 (barra de favoritos + zoom, que é
+          // a janela do relato) e 274px em 375×667 — o cabeçalho e a seção 01
+          // saíam por cima e "Observações" por baixo. O `flex: 1` do corpo não
+          // segurava nada: `flex` só reparte altura quando existe altura
+          // limitada para repartir, e não havia nenhuma.
+          //
+          // A CONTA é `100vh − 48`: a viewport inteira menos 24px de respiro em
+          // cima e 24 embaixo. O desconto é simétrico porque o Radix centra.
+          // NÃO se desconta cabeçalho e rodapé por número fixo — eles são itens
+          // flex que não rolam, o próprio navegador os mede (o tamanho mínimo
+          // automático de um item flex é o conteúdo dele) e o corpo, com
+          // `flex: 1 1 auto; minHeight: 0`, fica com exatamente o que sobrar.
+          // Vale em 1080, em 445 e no celular, onde o título de duas linhas
+          // engorda o cabeçalho e nenhum número fixo acertaria os dois casos.
+          // É a mesma regra do modal da Gestão de Prazos e do `modal-shell`.
+          style={{ maxWidth: 640, width: "96vw", borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 48px)" }}
+        >
           {/* POR QUE congelar aqui: salvar fecha o modal, invalida /api/sponsors,
               chama form.reset() e toasta no MESMO commit. São 11 primitivas do
               Radix aqui dentro (9 FormControl, que é um <Slot>, mais título e
@@ -572,7 +598,11 @@ export default function Patrocinadores() {
           <DialogDescription className="sr-only">Dados de contato, identidade visual e executivo responsável</DialogDescription>
 
 
-          <div>
+          {/* Esta div é o elo da coluna: o Content é flex, mas os três blocos
+              (cabeçalho, corpo, rodapé) moram aqui dentro, então ELA precisa ser
+              a coluna flex e precisa poder encolher (`minHeight: 0`), senão o
+              teto do Content não chega até o corpo e nada rola. */}
+          <div style={{ display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}>
 
             {/* Header */}
             <div style={{ padding: "28px 32px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexShrink: 0 }}>
@@ -593,8 +623,11 @@ export default function Patrocinadores() {
               </button>
             </div>
 
-            {/* Scrollable form body */}
-            <div style={{ overflowY: "auto", flex: 1 }}>
+            {/* Corpo: o ÚNICO scrollport do modal. `minHeight: 0` é obrigatório
+                — sem ele o tamanho mínimo automático do item flex é o próprio
+                conteúdo, o corpo se recusa a encolher e volta a empurrar o
+                rodapé para fora da tela, que é o defeito de origem. */}
+            <div style={{ overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
               <Form {...form}>
                 <form id="sponsor-form" onSubmit={form.handleSubmit(onSubmit)}>
                   <div style={{ padding: "28px 32px", display: "flex", flexDirection: "column", gap: 28 }}>
@@ -801,7 +834,18 @@ export default function Patrocinadores() {
           MODAL: Confirmar Exclusão
       ══════════════════════════════ */}
       <Dialog open={!!deletingSponsor} onOpenChange={o => { if (!o) setDeletingSponsor(null); }}>
-        <DialogContent className="p-0 gap-0 border-none" style={{ maxWidth: 440, width: "96vw", borderRadius: 12, overflow: "hidden" }}>
+        <DialogContent
+          className="p-0 gap-0 border-none"
+          // Mesmo desenho do modal de cadastro, mesma conta: teto de
+          // `100vh − 48` (24px de respiro em cima e 24 embaixo, porque o Radix
+          // centra) e coluna flex. Aqui o conteúdo é curto — medi 276px, faixa
+          // vermelha + texto + botões — e por isso ele NÃO cortava em nenhuma
+          // das alturas conferidas. O teto está aqui porque a única parte
+          // elástica é o parágrafo, que carrega o nome do patrocinador: um nome
+          // de razão social longa leva o texto a cinco ou seis linhas, e sem
+          // teto o crescimento sairia pelos dois lados em vez de virar rolagem.
+          style={{ maxWidth: 440, width: "96vw", borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", maxHeight: "calc(100vh - 48px)" }}
+        >
           {/* POR QUE congelar aqui: quem fecha este diálogo é
               `setDeletingSponsor(null)` dentro do onSuccess — e é o MESMO
               estado que abre o corpo (`{deletingSponsor && ...}`). Sem
@@ -814,14 +858,17 @@ export default function Patrocinadores() {
 
 
 
-          <div data-testid="dialog-confirm-delete" style={{ backgroundColor: T.surface, width: "100%", maxWidth: 440, borderRadius: 12, overflow: "hidden", boxShadow: "0 32px 80px -16px rgba(0,0,0,0.35)" }}>
-            <div style={{ backgroundColor: "#ef4444", padding: "14px 24px", display: "flex", alignItems: "center", gap: 10 }}>
+          <div data-testid="dialog-confirm-delete" style={{ backgroundColor: T.surface, width: "100%", maxWidth: 440, borderRadius: 12, overflow: "hidden", boxShadow: "0 32px 80px -16px rgba(0,0,0,0.35)", display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0 }}>
+            <div style={{ backgroundColor: "#ef4444", padding: "14px 24px", display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
               <AlertTriangle style={{ width: 18, height: 18, color: "#fff", flexShrink: 0 }} />
               <span style={{ fontSize: 10, fontWeight: 900, color: "#fff", textTransform: "uppercase", letterSpacing: "0.14em", fontFamily: "'Space Grotesk', sans-serif" }}>
                 Atenção: Ação Irreversível
               </span>
             </div>
-            <div style={{ padding: "28px 28px 20px" }}>
+            {/* Só o texto rola. A faixa "Ação Irreversível" e os botões são
+                itens flex que não rolam, então continuam à vista mesmo se o
+                nome do patrocinador esticar o parágrafo. */}
+            <div style={{ padding: "28px 28px 20px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
               <h3 style={{ fontSize: 22, fontWeight: 900, color: T.text, margin: "0 0 12px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em" }}>
                 Excluir Patrocinador?
               </h3>
@@ -830,7 +877,7 @@ export default function Patrocinadores() {
                 <strong style={{ color: T.text }}>{deletingSponsor.name}</strong>. Esta ação removerá todos os vínculos com eventos ativos. Deseja continuar?
               </p>
             </div>
-            <div style={{ padding: "14px 28px 24px", display: "flex", justifyContent: "flex-end", gap: 20 }}>
+            <div style={{ padding: "14px 28px 24px", display: "flex", justifyContent: "flex-end", gap: 20, flexShrink: 0 }}>
               <button data-testid="button-cancel-delete" onClick={() => setDeletingSponsor(null)}
                 style={{ padding: "8px 0", background: "none", border: "none", cursor: "pointer", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", fontFamily: "'Space Grotesk', sans-serif" }}>
                 Manter

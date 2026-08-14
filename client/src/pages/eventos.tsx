@@ -38,7 +38,7 @@ import { FilterSelect } from "@/components/filter-select";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { PRIORITY, getPriorityMeta, getStatusMeta, PRODUCTION_STATUSES } from "@/lib/status";
 import { T, FS, R, SHADOW } from "@/lib/theme";
-import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
+import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import {
   Dialog,
   DialogContent,
@@ -1860,6 +1860,16 @@ export default function Eventos() {
               flexDirection: 'column',
             }}
           >
+            {/* Enquanto o modal SAI, o miolo para de renderizar. É a correção
+                do React #185 ao salvar — o mecanismo do laço está escrito por
+                extenso em components/modal-shell.tsx. Resumo: cada render da
+                página desanexa e reanexa a ref de toda primitiva Radix aqui
+                dentro, e fazer isso com a subárvore em desmontagem estoura o
+                contador de updates aninhados do React. Cancelar fazia UM
+                render; salvar faz quatro (isPending, useToast, timer do toast,
+                refetch do invalidateQueries) dentro dos ~200ms da animação de
+                saída. */}
+            <FreezeWhileClosing open={open}>
             <DialogTitle className="sr-only">
               {modalMode === 'edit' ? 'Editar evento' : modalMode === 'duplicate' ? 'Duplicar evento' : 'Novo evento'}
             </DialogTitle>
@@ -2513,6 +2523,7 @@ export default function Eventos() {
                 </div>
               </ModalFooter>
             </form>
+            </FreezeWhileClosing>
           </DialogContent>
         </Dialog>
 
@@ -2985,6 +2996,11 @@ export default function Eventos() {
       {/* ── PRIORIDADE ── */}
       <Dialog open={priorityDialogOpen} onOpenChange={setPriorityDialogOpen}>
         <DialogContent className={`${HIDE_NATIVE_CLOSE} p-0 gap-0`} style={{ ...modalSurface(460) }}>
+          {/* Mesma tríade do modal de edição: o onSuccess invalida, fecha e
+              toasta de uma vez, e ainda zera `selectedEventForPriority` — o
+              subtítulo ficava em branco durante a animação de saída. Congelar
+              resolve as duas coisas. */}
+          <FreezeWhileClosing open={priorityDialogOpen}>
           <DialogTitle className="sr-only">Definir prioridade</DialogTitle>
           <DialogDescription className="sr-only">Escolha o nível de prioridade do evento. Teclas 1 a 4 definem, 0 remove.</DialogDescription>
           <ModalHeader
@@ -3068,6 +3084,7 @@ export default function Eventos() {
               Cancelar
             </button>
           </div>
+          </FreezeWhileClosing>
         </DialogContent>
       </Dialog>
     </div>

@@ -872,19 +872,25 @@ export default function Eventos() {
     return empty;
   }, []);
 
+  /**
+   * FECHAR SÓ FECHA. Nenhum estado do formulário é zerado aqui.
+   *
+   * O modal do Radix continua MONTADO durante a animação de saída (Presence).
+   * Zerar formData, editingEvent, patrocinadores e prazos no mesmo clique
+   * fazia o conteúdo se reconstruir enquanto ele saía — e o ciclo de
+   * attach/detach de ref do Presence entrava em laço: React #185
+   * ("Maximum update depth exceeded"), tela branca com "Erro de renderização"
+   * ao cancelar, ao fechar no X e depois de salvar.
+   *
+   * A limpeza não é necessária porque as TRÊS portas de entrada (Novo Evento,
+   * handleEdit e handleDuplicate) já inicializam tudo antes de abrir. Se
+   * alguma porta nova aparecer, ela também precisa inicializar — não volte a
+   * limpar aqui.
+   */
   const handleCloseDialog = useCallback(() => {
     setOpen(false);
-    setEditingEvent(null);
-    setDuplicateSource(null);
-    const empty = resetForm();
-    setBaselineSig(formSignature(empty, [], {}));
-    // Sem estes resets, um erro/carregamento pendente do modo EDITAR
-    // contaminava a próxima abertura em modo CRIAR (banner de erro fantasma).
-    setSponsorsError(false);
-    setSponsorsLoading(false);
-    setPrazosExpanded(false);
     setConfirmDiscardOpen(false);
-  }, [resetForm, formSignature]);
+  }, []);
 
   /** Saída ÚNICA do modal: X, Esc e clique-fora passam todos por aqui. */
   const requestCloseDialog = useCallback(() => {
@@ -2501,6 +2507,13 @@ export default function Eventos() {
                   setDuplicateSource(null);
                   const empty = resetForm();
                   setBaselineSig(formSignature(empty, [], {}));
+                  // Fechar o modal não limpa mais nada (ver handleCloseDialog):
+                  // quem abre é que inicializa. Sem estas três linhas, um erro
+                  // ou um bloco de prazos aberto na sessão anterior reapareceria
+                  // aqui.
+                  setSponsorsError(false);
+                  setSponsorsLoading(false);
+                  setPrazosExpanded(false);
                   setOpen(true);
                 }}
                 style={{ backgroundColor: T.accentText, color: '#ffffff', borderRadius: R.md, fontWeight: '700', boxShadow: '0 4px 14px rgba(249,115,22,0.25)' }}

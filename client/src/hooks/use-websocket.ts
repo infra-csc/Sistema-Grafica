@@ -115,6 +115,14 @@ export function useWebSocket() {
           case 'event_updated':
           case 'event_deleted':
           case 'event_urgent':
+          // Encerrar/reabrir muda o que TODA aba vê: o evento sai (ou volta
+          // para) a Gestão de Prazos e as filas. Sem estes dois cases a
+          // mensagem caía no `default` e virava um console.log — a outra aba
+          // continuaria oferecendo "encerrar" num evento já encerrado e
+          // tomaria 409. A invalidação de '/api/prazos' já acontece no bloco
+          // de debounce acima (o regex `^event_` alcança os dois).
+          case 'event_closed':
+          case 'event_reopened':
             queryClient.invalidateQueries({ queryKey: ['/api/events'] });
             if (data.eventId) {
               queryClient.invalidateQueries({ queryKey: ['/api/events', data.eventId] });
@@ -126,6 +134,10 @@ export function useWebSocket() {
                 description: data.event?.name,
               });
             }
+            // Sem toast para closed/reopened, mesma razão de item_delivered:
+            // quem clicou já recebeu o feedback detalhado da própria mutation
+            // (com a contagem de peças), e o eco do próprio broadcast viraria
+            // aviso dobrado.
             break;
 
           case 'item_created':

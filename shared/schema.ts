@@ -23,7 +23,11 @@ export const events = pgTable("events", {
   name: text("name").notNull(),
   startDate: timestamp("start_date").notNull(),
   truckDepartureDate: timestamp("truck_departure_date").notNull(),
-  status: text("status").notNull().default("created"), // created, completed
+  // created/completed são DERIVADOS da produção (routes/shared.ts
+  // calculateEventStatus). "closed" é a única marca de encerramento MANUAL —
+  // gravada só por POST /api/events/:id/close e desfeita só por /reopen.
+  // Coluna text livre: o terceiro valor não exige migração.
+  status: text("status").notNull().default("created"), // created, completed, closed
   priority: text("priority"), // baixa, media, alta, urgente
   franchise: text("franchise"), // Franquia (ex: "Night Run", "Circuito Estações")
   approvalBookUrl: text("approval_book_url"), // URL do PDF com book de aprovação

@@ -454,7 +454,9 @@ describe("status do BANCO x status CALCULADO", () => {
     expect(r.status).toBe("completed");
   });
 
-  it("o lifecycle NUNCA olha para a coluna do banco", () => {
+  // A única exceção é o encerramento MANUAL ("closed"), que é decisão de gente
+  // e por isso vence a derivação — coberto em event-encerramento.test.ts.
+  it("o lifecycle NUNCA olha para a coluna do banco (salvo encerramento manual)", () => {
     // Evento futuro, com peça aberta, marcado como completed no banco: está
     // ativo, e a UI que lê lifecycle não pode ser enganada pelo dado sujo.
     const r = enriquecer(evento({ status: "completed" }), pecas("draft", 3));

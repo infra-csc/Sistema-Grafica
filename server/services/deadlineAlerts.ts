@@ -2,7 +2,7 @@
 // — pure relocation, same logic. Started explicitly via
 // startDeadlineAlerts() from the routes orchestrator.
 import { storage } from "../storage";
-import { broadcast } from "../routes/shared";
+import { broadcast, EVENT_CLOSED_STATUS } from "../routes/shared";
 
 // Deduplication: track alert keys already sent in this process lifetime.
 // Key format: "<eventId>-departure-<hours>h" or "<eventId>-<label>-<hours>h"
@@ -18,7 +18,10 @@ export function startDeadlineAlerts(): void {
       const now = new Date();
 
       for (const event of allEvents) {
-        if (event.status === 'completed') continue;
+        // Encerrado à mão sai do alerta pela MESMA porta do concluído: um
+        // evento que alguém fechou não pode continuar disparando "faltam 12h
+        // para a saída" para arte, gráfica e solicitação.
+        if (event.status === 'completed' || event.status === EVENT_CLOSED_STATUS) continue;
 
         // ── Truck departure alerts (48h / 24h / 12h) ────────────────────────
         const departure = new Date(event.truckDepartureDate);

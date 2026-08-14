@@ -11,7 +11,7 @@
 // contraste de texto. As paletas antigas usavam a cor saturada COMO texto, o
 // que reprovava AA.
 // ─────────────────────────────────────────────────────────────────────────────
-import { Clock, CheckCircle, Package, Truck, XCircle } from "lucide-react";
+import { Clock, CheckCircle, Package, Truck, XCircle, Lock } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 export interface StatusMeta {
@@ -95,6 +95,11 @@ export const STATUS: Record<string, StatusMeta> = {
   // "Concluído": termo usado na lista de eventos (chips/badges) — o badge do
   // detalhe usa este mesmo rótulo para não divergir.
   completed:             meta("Concluído",              "Concluído",      P.green, CheckCircle),
+  // "closed" = encerramento MANUAL (alguém clicou em Encerrar evento). Neutro
+  // de propósito: verde diria "deu tudo certo" e âmbar diria "corre atrás" —
+  // encerrado não é nenhum dos dois. Sem esta entrada o badge do detalhe do
+  // evento caía no fallback "—".
+  closed:                meta("Encerrado",              "Encerrado",      P.neutral, Lock),
 };
 
 // ── Listas canônicas por fase — para gates de edição/exclusão/referência. ──

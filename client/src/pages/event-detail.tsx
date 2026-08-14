@@ -4,7 +4,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { getStatusLabel, getStatusMeta, FINAL_STATUSES, PRODUCTION_STATUSES } from "@/lib/status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, Building2, Loader2, User, History, Lock, Paperclip, ExternalLink, X, RotateCcw, Recycle, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, Search } from "lucide-react";
+import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, Building2, Loader2, User, History, Lock, Unlock, Paperclip, ExternalLink, X, RotateCcw, Recycle, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, Search } from "lucide-react";
 import { Fragment, useState, useEffect, useMemo, useRef } from "react";
 import type { Sponsor, Item, Event as EventRecord } from "@shared/schema";
 import {
@@ -829,6 +829,98 @@ export default function EventDetail() {
   // que já virou material físico.
   const podeMexerQtd = podeMexerNaQuantidade(user?.role);
 
+  // ── Encerramento manual do evento ─────────────────────────────────────────
+  // `manuallyClosed` vem de enrichEvent; o fallback lê a coluna crua ("closed")
+  // para o caso do Express antigo respondendo sem o campo novo.
+  const isEventClosed = !!event && (event.manuallyClosed === true || event.status === 'closed');
+  // Mesmo gate do servidor (POST /api/events/:id/close|reopen): encerrar tira
+  // trabalho da vista de outras equipes, então é decisão de admin — a mesma
+  // classe da exclusão, não a da edição.
+  const canCloseEvent = user?.role === 'admin';
+
+  // Quem encerrou e quando: a resposta mora no audit log (o encerramento não
+  // tem coluna própria, de propósito — ver server/routes/shared.ts). Consulta
+  // com ESCOPO e só quando o evento está encerrado; sem isto o banner diria
+  // "encerrado" sem dizer por quem, que é metade da segurança da ação.
+  const { data: eventAuditLogs = [] } = useQuery<any[]>({
+    queryKey: ["/api/audit-logs", "event", eventId],
+    queryFn: () =>
+      fetch(`/api/audit-logs?entityType=event&entityId=${eventId}`, { credentials: "include" })
+        .then(r => r.json()),
+    enabled: !!eventId && isEventClosed,
+    placeholderData: (previousData: any) => previousData,
+    refetchOnWindowFocus: false,
+  });
+  const closureLog = useMemo(
+    () => (Array.isArray(eventAuditLogs) ? eventAuditLogs : [])
+      .filter((l: any) => typeof l?.details === 'string' && l.details.includes('ENCERRADO manualmente'))
+      .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0],
+    [eventAuditLogs],
+  );
+
+  // Peças que ficaram para trás — o número que a confirmação precisa dizer.
+  const openWork = useMemo(() => {
+    const OUT = new Set(['canceled', 'deleted', 'archived']);
+    const DONE = new Set(['delivered', 'entregue']);
+    const PROD = new Set(['inProduction', 'em_producao']);
+    let ativas = 0, entregues = 0, emProducao = 0;
+    for (const it of items) {
+      if (OUT.has(it.status)) continue;
+      ativas += 1;
+      if (DONE.has(it.status)) entregues += 1;
+      else if (PROD.has(it.status)) emProducao += 1;
+    }
+    return { ativas, entregues, emProducao, abertas: ativas - entregues };
+  }, [items]);
+
+  const [closeDialogOpen, setCloseDialogOpen] = useState(false);
+  const [reopenDialogOpen, setReopenDialogOpen] = useState(false);
+
+  const closeEventMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/events/${eventId}/close`);
+      return await res.json() as { openCount?: number };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/prazos"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs", "event", eventId] });
+      setCloseDialogOpen(false);
+      const abertas = data?.openCount ?? 0;
+      toast({
+        title: "Evento encerrado",
+        description: abertas > 0
+          ? `${abertas} ${abertas === 1 ? 'peça continua' : 'peças continuam'} na lista, sem ser ${abertas === 1 ? 'cobrada' : 'cobradas'} na Gestão de Prazos. Você pode reabrir a qualquer momento.`
+          : "Saiu da Gestão de Prazos e das filas de trabalho. Você pode reabrir a qualquer momento.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao encerrar evento", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const reopenEventMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/events/${eventId}/reopen`);
+      return await res.json() as { openCount?: number };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/prazos"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs", "event", eventId] });
+      setReopenDialogOpen(false);
+      toast({
+        title: "Evento reaberto",
+        description: "Voltou para a Gestão de Prazos e para as filas de trabalho.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao reabrir evento", description: error.message, variant: "destructive" });
+    },
+  });
+
   const getUploadUrl = async () => {
     const response = await apiRequest("POST", "/api/objects/upload", {});
     const data = await response.json();
@@ -1381,6 +1473,31 @@ export default function EventDetail() {
         </a>
       </Link>
 
+      {/* Evento ENCERRADO: a faixa é a primeira coisa depois do breadcrumb.
+          Quem abre este evento precisa saber, antes de qualquer número, que
+          nada aqui está sendo cobrado — e por decisão de quem. */}
+      {isEventClosed && (
+        <div
+          data-testid="banner-event-closed"
+          style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 18px', marginBottom: 22, backgroundColor: '#f5f5f4', border: '1px solid #d6d3d1', borderLeft: '4px solid #78716c', borderRadius: 10 }}
+        >
+          <Lock className="h-4 w-4" style={{ color: '#57534e', flexShrink: 0, marginTop: 2 }} />
+          <div>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: '#292524' }}>
+              Evento encerrado
+              {closureLog?.userName ? ` por ${closureLog.userName}` : ''}
+              {closureLog?.createdAt ? ` em ${formatDateTime(closureLog.createdAt)}` : ''}
+            </p>
+            <p style={{ margin: '4px 0 0 0', fontSize: 13, color: '#57534e', lineHeight: 1.6 }}>
+              {openWork.abertas > 0
+                ? `${openWork.abertas} ${openWork.abertas === 1 ? 'peça continua' : 'peças continuam'} em aberto${openWork.emProducao > 0 ? ` (${openWork.emProducao} em produção)` : ''} e ${openWork.abertas === 1 ? 'segue listada' : 'seguem listadas'} abaixo — mas o evento não é mais cobrado na Gestão de Prazos nem aparece nas filas de trabalho.`
+                : 'Não é mais cobrado na Gestão de Prazos nem aparece nas filas de trabalho.'}
+              {canCloseEvent ? ' Use "Reabrir Evento" para voltar atrás.' : ''}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header principal */}
       <div style={{ marginBottom: '40px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '28px', gap: '24px', flexWrap: 'wrap' }}>
@@ -1467,6 +1584,24 @@ export default function EventDetail() {
               <Copy className="h-4 w-4" style={{ color: '#6366f1' }} />
               Clonar Evento
             </button>
+            )}
+
+            {/* Encerrar / Reabrir — só admin (mesmo gate do servidor). Fica
+                junto das demais ações de evento; o rótulo troca conforme o
+                estado, porque é a mesma decisão nas duas direções. */}
+            {canCloseEvent && (
+              <button
+                onClick={() => (isEventClosed ? setReopenDialogOpen(true) : setCloseDialogOpen(true))}
+                data-testid={isEventClosed ? "button-reopen-event" : "button-close-event"}
+                style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
+              >
+                {isEventClosed
+                  ? <Unlock className="h-4 w-4" style={{ color: '#15803d' }} />
+                  : <Lock className="h-4 w-4" style={{ color: '#78716c' }} />}
+                {isEventClosed ? 'Reabrir Evento' : 'Encerrar Evento'}
+              </button>
             )}
 
             {/* Exportar Excel — leitura, disponível para todos os perfis */}
@@ -1668,7 +1803,8 @@ export default function EventDetail() {
           // passado não é "atraso" — o caminhão já foi. Mostrar "Atrasado 90d"
           // em vermelho num evento finalizado é alarme falso que ensina o
           // usuário a ignorar o vermelho de verdade.
-          const isHistorical = event.status === 'completed' || parseDateLocal(String(event.startDate)) < today;
+          const isHistorical = event.status === 'completed' || isEventClosed
+            || parseDateLocal(String(event.startDate)) < today;
           // Guarda de sanidade: ano 0206 no banco (typo de 2026) virava
           // "Atrasado 664730d". Dado absurdo pede correção, não contagem.
           const depYear = depDay.getFullYear();
@@ -2682,6 +2818,98 @@ export default function EventDetail() {
           if (child?.id) setSelectedItemForDetails(child);
         }}
       />
+
+      {/* ── ENCERRAR EVENTO ──
+          A confirmação diz o NÚMERO real ("12 peças pendentes, sendo 3 em
+          produção") e o que a ação FAZ e NÃO FAZ. Nenhuma peça muda de status:
+          é por isso que reabrir devolve o evento exatamente como estava. */}
+      <AlertDialog open={closeDialogOpen} onOpenChange={(o) => { if (!o && !closeEventMutation.isPending) setCloseDialogOpen(false); }}>
+        <AlertDialogContent style={{ width: "96vw", maxWidth: 460, backgroundColor: "#ffffff", borderRadius: "16px", padding: "32px", border: "none", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
+          <AlertDialogHeader style={{ padding: 0, marginBottom: "20px" }}>
+            <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "18px", fontWeight: 900, letterSpacing: "-0.03em", color: "#1a1c1c" }}>
+              Encerrar evento
+            </AlertDialogTitle>
+            <AlertDialogDescription style={{ fontSize: "15px", color: "#746e69", lineHeight: 1.6, marginTop: "6px" }}>
+              <span style={{ display: "block", fontWeight: 700, color: "#1a1c1c", marginBottom: 8 }}>
+                {event.name}
+              </span>
+              {openWork.abertas > 0 ? (
+                <span style={{ display: 'block', marginBottom: 8 }}>
+                  Este evento tem <strong style={{ color: '#1a1c1c' }}>{openWork.abertas} {openWork.abertas === 1 ? 'peça pendente' : 'peças pendentes'}</strong>
+                  {openWork.emProducao > 0 ? `, sendo ${openWork.emProducao} em produção` : ''}
+                  . Elas não são canceladas nem entregues — continuam nesta lista, mas param de ser cobradas na Gestão de Prazos e saem das filas de trabalho.
+                </span>
+              ) : (
+                <span style={{ display: 'block', marginBottom: 8 }}>
+                  {openWork.ativas > 0
+                    ? `Todas as ${openWork.ativas} peças já estão entregues.`
+                    : 'Este evento não tem nenhuma peça.'}
+                </span>
+              )}
+              <span style={{ display: 'block' }}>
+                O evento segue visível no histórico e na consulta. A ação fica registrada com seu nome e horário, e pode ser desfeita em "Reabrir Evento".
+              </span>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter style={{ padding: 0, display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px" }}>
+            <AlertDialogCancel
+              disabled={closeEventMutation.isPending}
+              style={{ padding: "10px 20px", backgroundColor: "#ffffff", border: "1.5px solid #e7e5e4", borderRadius: "8px", fontSize: "13px", fontWeight: 700, color: "#57534e", cursor: "pointer" }}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              // preventDefault: o AlertDialogAction fecha o diálogo no clique;
+              // sem isto o toast com a contagem real se perde.
+              onClick={(e) => { e.preventDefault(); closeEventMutation.mutate(); }}
+              disabled={closeEventMutation.isPending}
+              data-testid="button-confirm-close-event"
+              style={{ padding: "10px 20px", backgroundColor: "#57534e", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, color: "#ffffff", cursor: closeEventMutation.isPending ? "wait" : "pointer", opacity: closeEventMutation.isPending ? 0.5 : 1, display: "flex", alignItems: "center", gap: 7 }}
+            >
+              <Lock className="h-4 w-4" />
+              {closeEventMutation.isPending ? "Encerrando..." : "Encerrar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── REABRIR EVENTO ── */}
+      <AlertDialog open={reopenDialogOpen} onOpenChange={(o) => { if (!o && !reopenEventMutation.isPending) setReopenDialogOpen(false); }}>
+        <AlertDialogContent style={{ width: "96vw", maxWidth: 440, backgroundColor: "#ffffff", borderRadius: "16px", padding: "32px", border: "none", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
+          <AlertDialogHeader style={{ padding: 0, marginBottom: "20px" }}>
+            <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: "18px", fontWeight: 900, letterSpacing: "-0.03em", color: "#1a1c1c" }}>
+              Reabrir evento
+            </AlertDialogTitle>
+            <AlertDialogDescription style={{ fontSize: "15px", color: "#746e69", lineHeight: 1.6, marginTop: "6px" }}>
+              <span style={{ display: "block", fontWeight: 700, color: "#1a1c1c", marginBottom: 8 }}>
+                {event.name}
+              </span>
+              Volta para a Gestão de Prazos e para as filas de trabalho
+              {openWork.abertas > 0
+                ? ` com ${openWork.abertas} ${openWork.abertas === 1 ? 'peça em aberto' : 'peças em aberto'}${openWork.emProducao > 0 ? ` (${openWork.emProducao} em produção)` : ''}`
+                : ''}
+              . Os prazos passam a ser cobrados de novo. A reabertura fica registrada com seu nome e horário.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter style={{ padding: 0, display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px" }}>
+            <AlertDialogCancel
+              disabled={reopenEventMutation.isPending}
+              style={{ padding: "10px 20px", backgroundColor: "#ffffff", border: "1.5px solid #e7e5e4", borderRadius: "8px", fontSize: "13px", fontWeight: 700, color: "#57534e", cursor: "pointer" }}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); reopenEventMutation.mutate(); }}
+              disabled={reopenEventMutation.isPending}
+              data-testid="button-confirm-reopen-event"
+              style={{ padding: "10px 20px", backgroundColor: "#15803d", border: "none", borderRadius: "8px", fontSize: "13px", fontWeight: 700, color: "#ffffff", cursor: reopenEventMutation.isPending ? "wait" : "pointer", opacity: reopenEventMutation.isPending ? 0.5 : 1, display: "flex", alignItems: "center", gap: 7 }}
+            >
+              <Unlock className="h-4 w-4" />
+              {reopenEventMutation.isPending ? "Reabrindo..." : "Reabrir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog open={!!deletingItem} onOpenChange={(o) => { if (!o) setDeletingItem(null); }}>
         <AlertDialogContent style={{ width: "96vw", maxWidth: 400, backgroundColor: "#ffffff", borderRadius: "16px", padding: "32px", border: "none", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>

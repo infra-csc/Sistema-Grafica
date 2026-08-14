@@ -152,9 +152,11 @@ describe("T2 — âncora de fuso lida do relógio do processo (21h de Brasília)
 // ─────────────────────────────────────────────────────────────────────────────
 describe("T4 — nenhum status de peça VIVA fica fora do funil", () => {
   // `STATUS` mistura status de PEÇA e de EVENTO no mesmo mapa (o badge é o
-  // mesmo componente). Só estes dois são de evento — qualquer outro nome novo
+  // mesmo componente). Só estes três são de evento — qualquer outro nome novo
   // que apareça ali é peça e tem que estar classificado.
-  const STATUS_DE_EVENTO = new Set(["created", "completed"]);
+  // "closed" = encerramento MANUAL do evento (POST /api/events/:id/close);
+  // nenhuma peça usa esse status.
+  const STATUS_DE_EVENTO = new Set(["created", "completed", "closed"]);
 
   it("todo status de client/src/lib/status.ts está no funil, entregue ou fora do funil", async () => {
     const { STATUS } = await import("@/lib/status");

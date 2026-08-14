@@ -28,7 +28,7 @@ import { Button } from "@/components/ui/button";
 import {
   Plus, Calendar, Truck, AlertCircle, AlertTriangle, Search, Pencil, Trash2,
   Package, Flag, Building2, CheckCircle, ChevronDown, ChevronUp, Clock,
-  HelpCircle, Copy, RotateCcw, CalendarPlus, X,
+  HelpCircle, Copy, RotateCcw, CalendarPlus, X, Lock, Unlock,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Link, useLocation } from "wouter";
@@ -69,12 +69,21 @@ import { useAuth } from "@/contexts/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 type PriorityLevel = 'baixa' | 'media' | 'alta' | 'urgente' | 'sem_prioridade';
-type LifecycleKey = 'active' | 'completed' | 'closed_with_pending';
+// `manually_closed` é o único estado que NÃO é derivado: alguém clicou em
+// "Encerrar evento". Ele sobrepõe os outros três (ver enrichEvent) — é por isso
+// que a tela consegue separar "encerrado por alguém" de "concluído porque tudo
+// foi entregue".
+type LifecycleKey = 'active' | 'completed' | 'closed_with_pending' | 'manually_closed';
 
 // Pseudo-opções do filtro de prioridade que NÃO são prioridade: são dimensões
 // do ciclo de vida. Ficam no mesmo dropdown porque é onde o usuário já procura
 // por "Concluído" — mas casam por lifecycle, não por `event.priority`.
-const LIFECYCLE_FILTERS = ['completed', 'closed_with_pending'] as const;
+const LIFECYCLE_FILTERS = ['completed', 'closed_with_pending', 'manually_closed'] as const;
+
+// Os dois estados que saem da visão padrão da grade: trabalho que acabou
+// (entregue) e trabalho que alguém fechou. "Encerrado com pendências" NÃO entra
+// aqui — ele continua sendo cobrança.
+const ARCHIVED_LIFECYCLES = new Set<LifecycleKey>(['completed', 'manually_closed']);
 
 // ── Cotas de patrocinador ────────────────────────────────────────────────────
 // Par {dot, text} na mesma disciplina de lib/status.ts: hex SATURADO só em
@@ -160,6 +169,7 @@ interface EventStats {
   inProductionCount: number;
   allDelivered: boolean;
   eventHasPassed: boolean;
+  manuallyClosed: boolean;
   lifecycle: LifecycleKey;
   progressPct: number;
 }
@@ -212,8 +222,18 @@ function readEventStats(event: any): EventStats {
     eventHasPassed = todayStr >= String(event.startDate).slice(0, 10);
   }
 
-  const lifecycle: LifecycleKey = (event.lifecycle as LifecycleKey)
-    ?? (allDelivered ? 'completed' : eventHasPassed ? 'closed_with_pending' : 'active');
+  // Encerramento MANUAL: `manuallyClosed` vem do servidor; o fallback lê a
+  // coluna crua (status "closed") porque é ela que persiste a decisão. É o
+  // único pedaço do ciclo de vida que NÃO se recalcula a partir das peças —
+  // por isso vem primeiro e vence os outros três.
+  const manuallyClosed = typeof event.manuallyClosed === 'boolean'
+    ? event.manuallyClosed
+    : event.status === 'closed';
+
+  const lifecycle: LifecycleKey = manuallyClosed
+    ? 'manually_closed'
+    : (event.lifecycle as LifecycleKey)
+      ?? (allDelivered ? 'completed' : eventHasPassed ? 'closed_with_pending' : 'active');
 
   const progressPct = activeItemCount > 0
     ? Math.round((deliveredCount / activeItemCount) * 100)
@@ -221,7 +241,7 @@ function readEventStats(event: any): EventStats {
 
   return {
     itemCount, activeItemCount, deliveredCount, canceledCount, openCount,
-    inProductionCount, allDelivered, eventHasPassed, lifecycle, progressPct,
+    inProductionCount, allDelivered, eventHasPassed, manuallyClosed, lifecycle, progressPct,
   };
 }
 
@@ -324,10 +344,14 @@ function EventCardActions({
   onDelete,
   onDuplicate,
   onSetPriority,
+  onClose,
+  onReopen,
   canEdit,
   canDelete,
   canDuplicate,
   canSetPriority,
+  canClose,
+  isClosed,
   isMobile,
 }: {
   event: any;
@@ -336,10 +360,14 @@ function EventCardActions({
   onDelete: (id: string, e: React.MouseEvent) => void;
   onDuplicate: (event: any, e: React.MouseEvent) => void;
   onSetPriority: (event: any, e: React.MouseEvent) => void;
+  onClose: (event: any, e: React.MouseEvent) => void;
+  onReopen: (event: any, e: React.MouseEvent) => void;
   canEdit: boolean;
   canDelete: boolean;
   canDuplicate: boolean;
   canSetPriority: boolean;
+  canClose: boolean;
+  isClosed: boolean;
   isMobile?: boolean;
 }) {
   // Alvo de toque: 44px no mobile, 32px no desktop.
@@ -389,6 +417,23 @@ function EventCardActions({
           <Pencil style={{ width: '13px', height: '13px' }} />
         </button>
       )}
+      {/* Encerrar / Reabrir — o mesmo lugar no card, porque são a mesma
+          decisão nas duas direções. Só admin (ver gate do servidor). */}
+      {canClose && (
+        isClosed ? (
+          <button onClick={(e) => onReopen(event, e)} data-testid={`button-reopen-event-${event.id}`}
+            title="Reabrir evento" aria-label={`Reabrir evento ${event.name}`}
+            style={{ ...btnBase, backgroundColor: '#f0fdf4', color: '#15803d' }}>
+            <Unlock style={{ width: '13px', height: '13px' }} />
+          </button>
+        ) : (
+          <button onClick={(e) => onClose(event, e)} data-testid={`button-close-event-${event.id}`}
+            title="Encerrar evento" aria-label={`Encerrar evento ${event.name}`}
+            style={{ ...btnBase, backgroundColor: '#f9f9f8', color: '#57534e' }}>
+            <Lock style={{ width: '13px', height: '13px' }} />
+          </button>
+        )
+      )}
       {canDelete && (
         <button onClick={(e) => onDelete(event.id, e)} data-testid={`button-delete-event-${event.id}`}
           title="Excluir evento" aria-label={`Excluir evento ${event.name}`}
@@ -420,10 +465,13 @@ function EventCard({
   canDelete,
   canDuplicate,
   canSetPriority,
+  canClose,
   onEdit,
   onDelete,
   onDuplicate,
   onSetPriority,
+  onClose,
+  onReopen,
 }: {
   event: any;
   cardSponsors: Sponsor[];
@@ -433,16 +481,22 @@ function EventCard({
   canDelete: boolean;
   canDuplicate: boolean;
   canSetPriority: boolean;
+  canClose: boolean;
   onEdit: (event: any, e: React.MouseEvent) => void;
   onDelete: (id: string, e: React.MouseEvent) => void;
   onDuplicate: (event: any, e: React.MouseEvent) => void;
   onSetPriority: (event: any, e: React.MouseEvent) => void;
+  onClose: (event: any, e: React.MouseEvent) => void;
+  onReopen: (event: any, e: React.MouseEvent) => void;
 }) {
   const stats = readEventStats(event);
   const isDone = stats.lifecycle === 'completed';
   const isClosedPending = stats.lifecycle === 'closed_with_pending';
+  const isClosed = stats.lifecycle === 'manually_closed';
   const priorityConfig = getPriorityConfig(event.priority);
-  const accentHex = isDone ? '#10b981' : isClosedPending ? '#f59e0b' : priorityConfig.hex;
+  // Cinza no encerrado manual, de propósito: verde diria "deu tudo certo" e
+  // âmbar diria "corre atrás". Encerrado é nenhum dos dois — é fora de jogo.
+  const accentHex = isClosed ? '#78716c' : isDone ? '#10b981' : isClosedPending ? '#f59e0b' : priorityConfig.hex;
 
   // Urgência da saída pelo MESMO helper que a exibição e os filtros usam.
   // Com `new Date(...)` cru, um caminhão gravado para 08:00 virava o instante
@@ -458,34 +512,43 @@ function EventCard({
   const daysSinceDeparture = hoursUntilDeparture === null ? 0 : Math.floor(-hoursUntilDeparture / 24);
 
   // Saturado só no ÍCONE; o TEXTO usa tons escuros com contraste AA.
-  const truckIconColor = isDone ? '#10b981' : truckUrgency === 'urgent' ? '#ef4444' : truckUrgency === 'warning' ? '#f59e0b' : '#78716c';
-  const truckTextColor = !isDone && truckUrgency === 'urgent' ? '#b91c1c' : !isDone && truckUrgency === 'warning' ? '#b45309' : '#1c1917';
+  // `outOfPlay` = concluído ou encerrado à mão: nos dois casos a saída deixa de
+  // ser urgência. Pulsar vermelho num evento que alguém fechou é o alarme falso
+  // que ensina a ignorar o vermelho de verdade.
+  const outOfPlay = isDone || isClosed;
+  const truckIconColor = isDone ? '#10b981' : isClosed ? '#78716c' : truckUrgency === 'urgent' ? '#ef4444' : truckUrgency === 'warning' ? '#f59e0b' : '#78716c';
+  const truckTextColor = !outOfPlay && truckUrgency === 'urgent' ? '#b91c1c' : !outOfPlay && truckUrgency === 'warning' ? '#b45309' : '#1c1917';
 
   const ms: NextMilestonePayload | null = event.nextMilestone ?? null;
   const msTone = MILESTONE_TONE[ms?.state ?? 'upcoming'];
 
   // Espaço reservado na primeira linha para as ações sobrepostas.
-  const actionCount = (canSetPriority ? 1 : 0) + (canDuplicate ? 1 : 0) + (canEdit ? 1 : 0) + (canDelete ? 1 : 0);
+  const actionCount = (canSetPriority ? 1 : 0) + (canDuplicate ? 1 : 0) + (canEdit ? 1 : 0)
+    + (canClose ? 1 : 0) + (canDelete ? 1 : 0);
   const btnSize = isMobile ? 44 : 32;
   const actionsWidth = actionCount > 0 ? actionCount * btnSize + (actionCount - 1) * 6 + 10 : 0;
   const cardPad = isMobile ? 14 : 24;
 
-  const stateLabel = isDone
-    ? 'Concluído'
-    : isClosedPending
-      ? (isMobile ? 'Com pendências' : 'Encerrado com pendências')
-      : null;
+  const stateLabel = isClosed
+    ? (isMobile ? 'Encerrado' : 'Encerrado manualmente')
+    : isDone
+      ? 'Concluído'
+      : isClosedPending
+        ? (isMobile ? 'Com pendências' : 'Encerrado com pendências')
+        : null;
 
   // Evento encerrado SEM nenhuma peça: "0 peças em aberto" seria mentira ao
   // contrário — não há trabalho pendente, há trabalho que nunca começou.
   const closedEmpty = isClosedPending && stats.activeItemCount === 0;
-  const ariaLabel = isDone
-    ? `Abrir evento ${event.name} — concluído, ${stats.deliveredCount} peças entregues`
-    : closedEmpty
-      ? `Abrir evento ${event.name} — encerrado sem nenhuma peça criada`
-      : isClosedPending
-        ? `Abrir evento ${event.name} — encerrado com ${stats.openCount} ${stats.openCount === 1 ? 'peça em aberto' : 'peças em aberto'}`
-        : `Abrir evento ${event.name}`;
+  const ariaLabel = isClosed
+    ? `Abrir evento ${event.name} — encerrado manualmente${stats.openCount > 0 ? `, ${stats.openCount} ${stats.openCount === 1 ? 'peça ficou' : 'peças ficaram'} em aberto` : ''}`
+    : isDone
+      ? `Abrir evento ${event.name} — concluído, ${stats.deliveredCount} peças entregues`
+      : closedEmpty
+        ? `Abrir evento ${event.name} — encerrado sem nenhuma peça criada`
+        : isClosedPending
+          ? `Abrir evento ${event.name} — encerrado com ${stats.openCount} ${stats.openCount === 1 ? 'peça em aberto' : 'peças em aberto'}`
+          : `Abrir evento ${event.name}`;
 
   // Uma passada só sobre as peças (a grade monta até 50 cards).
   const phaseCounts = (() => {
@@ -548,23 +611,27 @@ function EventCard({
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', paddingRight: actionsWidth, minHeight: actionCount > 0 ? btnSize : undefined }}>
           {stateLabel ? (
             <span
-              title={isDone
-                ? 'Todas as peças foram entregues'
-                : closedEmpty
-                  ? 'A data do evento chegou e nenhuma peça chegou a ser criada'
-                  : `A data do evento chegou e ${stats.openCount} ${stats.openCount === 1 ? 'peça continua' : 'peças continuam'} em aberto`}
+              title={isClosed
+                ? `Encerrado por decisão de um administrador${stats.openCount > 0 ? ` com ${stats.openCount} ${stats.openCount === 1 ? 'peça em aberto' : 'peças em aberto'}` : ''}. Saiu da Gestão de Prazos e das filas de trabalho; pode ser reaberto.`
+                : isDone
+                  ? 'Todas as peças foram entregues'
+                  : closedEmpty
+                    ? 'A data do evento chegou e nenhuma peça chegou a ser criada'
+                    : `A data do evento chegou e ${stats.openCount} ${stats.openCount === 1 ? 'peça continua' : 'peças continuam'} em aberto`}
               style={{
                 fontSize: FS.micro, fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.06em',
-                color: isDone ? '#047857' : '#b45309',
-                backgroundColor: isDone ? '#ecfdf5' : '#fffbeb',
-                border: `1px solid ${isDone ? '#a7f3d0' : '#fde68a'}`,
+                color: isClosed ? '#44403c' : isDone ? '#047857' : '#b45309',
+                backgroundColor: isClosed ? '#f5f5f4' : isDone ? '#ecfdf5' : '#fffbeb',
+                border: `1px solid ${isClosed ? '#d6d3d1' : isDone ? '#a7f3d0' : '#fde68a'}`,
                 padding: '3px 8px', borderRadius: R.sm, whiteSpace: 'nowrap',
                 display: 'flex', alignItems: 'center', gap: '4px',
               }}
             >
-              {isDone
-                ? <CheckCircle style={{ width: '10px', height: '10px' }} />
-                : <AlertTriangle style={{ width: '10px', height: '10px' }} />}
+              {isClosed
+                ? <Lock style={{ width: '10px', height: '10px' }} />
+                : isDone
+                  ? <CheckCircle style={{ width: '10px', height: '10px' }} />
+                  : <AlertTriangle style={{ width: '10px', height: '10px' }} />}
               {stateLabel}
             </span>
           ) : !event.priority ? (
@@ -590,7 +657,7 @@ function EventCard({
         <div style={{ margin: '2px 0', display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
             <p style={{ fontSize: FS.micro, fontWeight: '700', color: T.second, textTransform: 'uppercase', letterSpacing: '0.06em', margin: 0 }}>Saída do Caminhão</p>
-            <div className={!isDone && truckUrgency === 'urgent' ? 'motion-safe:animate-pulse' : ''} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+            <div className={!outOfPlay && truckUrgency === 'urgent' ? 'motion-safe:animate-pulse' : ''} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
               <Truck style={{ width: '16px', height: '16px', color: truckIconColor, flexShrink: 0 }} />
               <span style={{ fontSize: FS.strong, fontWeight: '700', color: truckTextColor }}>
                 {departure ? fmtCardDate(departure, currentYear) : '—'}
@@ -599,7 +666,7 @@ function EventCard({
                     toUTCDisplayDate e é lido em hora LOCAL — ver fmtCardDate. */}
                 {departure ? departure.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : ''}
               </span>
-              {!isDone && truckUrgency === 'departed' && (
+              {!outOfPlay && truckUrgency === 'departed' && (
                 <span style={{ fontSize: FS.small, fontWeight: '700', color: '#b91c1c' }}>
                   {daysSinceDeparture < 1 ? 'Saiu hoje' : `Saiu há ${daysSinceDeparture}d`}
                 </span>
@@ -663,7 +730,14 @@ function EventCard({
                     : `${stats.deliveredCount} de ${stats.activeItemCount} ${stats.activeItemCount === 1 ? 'peça' : 'peças'}`}
                   {stats.inProductionCount > 0 ? ` · ${stats.inProductionCount} em produção` : ''}
                 </span>
-                {isDone ? (
+                {isClosed ? (
+                  // O número de peças abertas continua VISÍVEL num evento
+                  // encerrado: encerrar tira o evento das filas, não apaga o
+                  // que ficou para trás.
+                  <span style={{ fontSize: FS.small, fontWeight: '800', color: '#44403c', whiteSpace: 'nowrap' }}>
+                    {stats.openCount > 0 ? `Encerrado · ${stats.openCount} em aberto` : 'Encerrado'}
+                  </span>
+                ) : isDone ? (
                   <span style={{ fontSize: FS.small, fontWeight: '800', color: '#047857', whiteSpace: 'nowrap' }}>Concluído</span>
                 ) : isClosedPending ? (
                   <span style={{ fontSize: FS.small, fontWeight: '800', color: '#b45309', whiteSpace: 'nowrap' }}>
@@ -710,10 +784,16 @@ function EventCard({
           onDelete={onDelete}
           onDuplicate={onDuplicate}
           onSetPriority={onSetPriority}
+          onClose={onClose}
+          onReopen={onReopen}
           canEdit={canEdit}
           canDelete={canDelete}
           canDuplicate={canDuplicate}
-          canSetPriority={canSetPriority && !isDone}
+          // Prioridade não faz sentido no que já saiu de jogo — nem no
+          // concluído, nem no encerrado à mão.
+          canSetPriority={canSetPriority && !isDone && !isClosed}
+          canClose={canClose}
+          isClosed={isClosed}
           isMobile={isMobile}
         />
       </div>
@@ -730,6 +810,11 @@ export default function Eventos() {
   const role = user?.role;
   const canEdit = role === 'admin' || role === 'solicitacao';        // PATCH /api/events/:id
   const canDelete = role === 'admin';                                 // DELETE /api/events/:id
+  // Encerrar/reabrir é da mesma classe da exclusão (admin), e não da edição:
+  // não muda um dado do evento, tira trabalho do campo de visão de OUTRAS
+  // equipes — some da Gestão de Prazos e das filas. Espelha o gate do servidor
+  // em POST /api/events/:id/close e /reopen.
+  const canClose = role === 'admin';
   const canSetPriority = role === 'admin' || role === 'atendimento' || role === 'solicitacao';
   const canCreate = role === 'admin' || role === 'solicitacao';       // POST /api/events
   const [open, setOpen] = useState(false);
@@ -823,6 +908,10 @@ export default function Eventos() {
   const [copyItems, setCopyItems] = useState(false);
   const [deletingEventId, setDeletingEventId] = useState<string | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  // Encerrar e reabrir compartilham um único par de estados: nunca há os dois
+  // diálogos abertos ao mesmo tempo (o card mostra um botão OU o outro).
+  const [closingEventId, setClosingEventId] = useState<string | null>(null);
+  const [reopeningEventId, setReopeningEventId] = useState<string | null>(null);
   const [priorityDialogOpen, setPriorityDialogOpen] = useState(false);
   const [selectedEventForPriority, setSelectedEventForPriority] = useState<any>(null);
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
@@ -1092,6 +1181,62 @@ export default function Eventos() {
     },
   });
 
+  // ── Encerrar / reabrir ────────────────────────────────────────────────────
+  // O corpo da resposta traz a contagem REAL do servidor (openCount /
+  // inProductionCount): o toast repete o número que a confirmação prometeu, em
+  // vez de reafirmar o que o cliente já achava.
+  const closeEventMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("POST", `/api/events/${id}/close`);
+      return await res.json() as { openCount?: number; inProductionCount?: number };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/prazos"] });
+      setClosingEventId(null);
+      const open = data?.openCount ?? 0;
+      toast({
+        title: "Evento encerrado",
+        description: open > 0
+          ? `${open} ${open === 1 ? 'peça continua' : 'peças continuam'} em aberto na lista do evento, sem cobrança de prazo.`
+          : "Saiu da Gestão de Prazos e das filas de trabalho.",
+        // O card acabou de SUMIR da grade (a visão padrão esconde encerrados).
+        // Sem esta ação, "pode reabrir a qualquer momento" seria verdade só
+        // para quem já sabe onde o evento foi parar.
+        action: !showCompleted ? (
+          <ToastAction altText="Mostrar eventos encerrados" onClick={() => setShowCompleted(true)}>
+            Mostrar
+          </ToastAction>
+        ) : undefined,
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao encerrar evento", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const reopenEventMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await apiRequest("POST", `/api/events/${id}/reopen`);
+      return await res.json() as { openCount?: number };
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/prazos"] });
+      setReopeningEventId(null);
+      const open = data?.openCount ?? 0;
+      toast({
+        title: "Evento reaberto",
+        description: open > 0
+          ? `Voltou para a Gestão de Prazos e para as filas com ${open} ${open === 1 ? 'peça em aberto' : 'peças em aberto'}.`
+          : "Voltou para a Gestão de Prazos e para as filas de trabalho.",
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao reabrir evento", description: error.message, variant: "destructive" });
+    },
+  });
+
   const updatePriorityMutation = useMutation({
     mutationFn: async ({ id, priority }: { id: string; priority: string }) => {
       return await apiRequest("PATCH", `/api/events/${id}/priority`, { priority });
@@ -1272,6 +1417,18 @@ export default function Eventos() {
     setDeletingEventId(id);
   }, []);
 
+  const handleClose = useCallback((event: any, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setClosingEventId(event.id);
+  }, []);
+
+  const handleReopen = useCallback((event: any, e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setReopeningEventId(event.id);
+  }, []);
+
   // Buscar patrocinadores vinculados ao editar/duplicar evento — extraído do
   // useEffect para o banner de erro poder oferecer "Tentar novamente".
   const fetchEventSponsors = useCallback((eventId: string, rebaseline: boolean) => {
@@ -1370,7 +1527,7 @@ export default function Eventos() {
     if (!foco) return true;
     const stats = readEventStats(event);
     if (foco === "atrasado") return event.nextMilestone?.state === 'overdue';
-    if (foco === "sem_pecas") return stats.activeItemCount === 0 && stats.lifecycle !== 'completed';
+    if (foco === "sem_pecas") return stats.activeItemCount === 0 && !ARCHIVED_LIFECYCLES.has(stats.lifecycle);
     return true;
   }, [foco]);
 
@@ -1380,10 +1537,12 @@ export default function Eventos() {
     return selectedPriorities.some((sel) => {
       if (sel === 'completed') return lifecycle === 'completed';
       if (sel === 'closed_with_pending') return lifecycle === 'closed_with_pending';
-      // Um evento CONCLUÍDO não responde mais pela prioridade — o badge dele
-      // já não é a prioridade. "Encerrado com pendências", sim: ele continua
-      // sendo trabalho, e continua na fila da prioridade que tem.
-      return lifecycle !== 'completed' && eventPriorityKey(event) === sel;
+      if (sel === 'manually_closed') return lifecycle === 'manually_closed';
+      // Um evento CONCLUÍDO (ou encerrado à mão) não responde mais pela
+      // prioridade — o badge dele já não é a prioridade. "Encerrado com
+      // pendências", sim: ele continua sendo trabalho, e continua na fila da
+      // prioridade que tem.
+      return !ARCHIVED_LIFECYCLES.has(lifecycle) && eventPriorityKey(event) === sel;
     });
   }, [selectedPriorities]);
 
@@ -1398,7 +1557,10 @@ export default function Eventos() {
   const explicitLifecycleFilter = selectedPriorities.some((p) => (LIFECYCLE_FILTERS as readonly string[]).includes(p));
   const matchesVisibility = useCallback((event: any) => {
     if (showCompleted || explicitLifecycleFilter) return true;
-    return readEventStats(event).lifecycle !== 'completed';
+    // O encerrado à mão sai da visão padrão pela MESMA porta do concluído — e
+    // volta pela mesma: o botão "Ocultar concluídos" e o filtro explícito.
+    // Encerrar nunca esconde um evento de forma irrecuperável.
+    return !ARCHIVED_LIFECYCLES.has(readEventStats(event).lifecycle);
   }, [showCompleted, explicitLifecycleFilter]);
 
   /**
@@ -1413,7 +1575,7 @@ export default function Eventos() {
    */
   const sortRank = (event: any): number => {
     const lifecycle = readEventStats(event).lifecycle;
-    if (lifecycle === 'completed') return 2;
+    if (ARCHIVED_LIFECYCLES.has(lifecycle)) return 2;
     if (lifecycle === 'closed_with_pending') return 0;
     if (event.nextMilestone?.state === 'overdue') return 0;
     if (event.priority === 'urgente') return 0;
@@ -1462,6 +1624,10 @@ export default function Eventos() {
       .filter((e) => matchesSearch(e) && matchesDates(e) && matchesFoco(e) && matchesSponsor(e))
       .forEach((e) => {
         const lifecycle = readEventStats(e).lifecycle;
+        if (lifecycle === 'manually_closed') {
+          counts.manually_closed = (counts.manually_closed || 0) + 1;
+          return;
+        }
         if (lifecycle === 'completed') {
           counts.completed = (counts.completed || 0) + 1;
           return;
@@ -1482,6 +1648,7 @@ export default function Eventos() {
     { value: "sem_prioridade", label: "Sem Prioridade", dotColor: "#d6d3d1", count: priorityCounts.sem_prioridade || 0, pinned: true },
     { value: "closed_with_pending", label: "Encerrado com pendências", dotColor: "#f59e0b", count: priorityCounts.closed_with_pending || 0, pinned: true },
     { value: "completed", label: "Concluído", dotColor: "#10b981", count: priorityCounts.completed || 0, pinned: true },
+    { value: "manually_closed", label: "Encerrado manualmente", dotColor: "#78716c", count: priorityCounts.manually_closed || 0, pinned: true },
   ]), [priorityCounts]);
 
   // Opções/contagens do filtro de patrocinador — mesma disciplina: contam a
@@ -1514,8 +1681,9 @@ export default function Eventos() {
     base.forEach((e) => {
       const stats = readEventStats(e);
       if (e.nextMilestone?.state === 'overdue') atrasado += 1;
-      if (stats.activeItemCount === 0 && stats.lifecycle !== 'completed') semPecas += 1;
-      if (!e.priority && stats.lifecycle !== 'completed') semPrioridade += 1;
+      const arquivado = ARCHIVED_LIFECYCLES.has(stats.lifecycle);
+      if (stats.activeItemCount === 0 && !arquivado) semPecas += 1;
+      if (!e.priority && !arquivado) semPrioridade += 1;
     });
     return { atrasado, semPecas, semPrioridade };
   }, [events, matchesSearch, matchesDates, matchesPriority, matchesSponsor, matchesVisibility]);
@@ -1553,7 +1721,7 @@ export default function Eventos() {
     if (next10DaysFilter) chips.push({ key: 'proximos', label: 'Próximos 10 dias', clear: () => setNext10DaysFilter(false) });
     if (foco === 'atrasado') chips.push({ key: 'foco', label: 'Marco atrasado', clear: () => setFoco("") });
     if (foco === 'sem_pecas') chips.push({ key: 'foco', label: 'Sem peças', clear: () => setFoco("") });
-    if (!showCompleted && !explicitLifecycleFilter) chips.push({ key: 'concluidos', label: 'Concluídos ocultos', clear: () => setShowCompleted(true) });
+    if (!showCompleted && !explicitLifecycleFilter) chips.push({ key: 'concluidos', label: 'Concluídos e encerrados ocultos', clear: () => setShowCompleted(true) });
     return chips;
   }, [searchTerm, selectedPriorities, selectedSponsorFilter, monthFilter, next10DaysFilter, foco, showCompleted, explicitLifecycleFilter, priorityFilterOptions, monthOptions, sponsorById]);
 
@@ -1568,6 +1736,12 @@ export default function Eventos() {
   const deleteNeedsTyping = !!deletingStats && (deletingStats.deliveredCount > 0 || deletingStats.inProductionCount > 0);
   const deleteConfirmed = !deleteNeedsTyping
     || deleteConfirmText.trim().toLowerCase() === (deletingEvent?.name || "").trim().toLowerCase();
+
+  // ── Encerramento: dimensão real do que sai de vista ───────────────────────
+  const closingEvent = closingEventId ? events.find((e: any) => e.id === closingEventId) : null;
+  const closingStats = closingEvent ? readEventStats(closingEvent) : null;
+  const reopeningEvent = reopeningEventId ? events.find((e: any) => e.id === reopeningEventId) : null;
+  const reopeningStats = reopeningEvent ? readEventStats(reopeningEvent) : null;
 
   // ── Prazos: conversão offset ↔ data ───────────────────────────────────────
   const truckDateOnly = formData.truckDepartureDate ? formData.truckDepartureDate.slice(0, 10) : "";
@@ -2437,12 +2611,15 @@ export default function Eventos() {
         </button>
 
         {/* "Ocultar concluídos" nasce ligado: a grade padrão mostra o que ainda
-            tem trabalho. Nunca esconde "Encerrado com pendências". */}
+            tem trabalho. Esconde o concluído e o encerrado à mão; NUNCA esconde
+            "Encerrado com pendências", que segue sendo cobrança. */}
         <button
           onClick={() => setShowCompleted(!showCompleted)}
           aria-pressed={!showCompleted}
           disabled={explicitLifecycleFilter}
-          title={explicitLifecycleFilter ? 'Desativado enquanto o filtro de prioridade pede eventos concluídos' : undefined}
+          title={explicitLifecycleFilter
+            ? 'Desativado enquanto o filtro de prioridade pede eventos concluídos ou encerrados'
+            : 'Esconde os eventos concluídos e os encerrados manualmente. "Encerrado com pendências" continua na grade.'}
           data-testid="button-toggle-completed"
           style={{
             display: 'flex', alignItems: 'center', gap: '6px',
@@ -2588,10 +2765,13 @@ export default function Eventos() {
                   canDelete={canDelete}
                   canDuplicate={canCreate && !isMobile}
                   canSetPriority={canSetPriority}
+                  canClose={canClose}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                   onDuplicate={handleDuplicate}
                   onSetPriority={handleSetPriority}
+                  onClose={handleClose}
+                  onReopen={handleReopen}
                 />
               );
             })}
@@ -2684,6 +2864,109 @@ export default function Eventos() {
             >
               <Trash2 style={{ width: "14px", height: "14px" }} />
               {deleteEventMutation.isPending ? "Excluindo..." : "Excluir"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── ENCERRAR ──
+          A confirmação diz o NÚMERO real de peças em aberto e quantas estão em
+          produção. "Ainda há peças pendentes" não faz ninguém parar; "12 peças
+          pendentes, sendo 3 em produção" faz. E diz o que encerrar FAZ e o que
+          NÃO faz — nenhuma peça muda de status, nada é apagado. */}
+      <AlertDialog open={!!closingEventId} onOpenChange={(v) => { if (!v && !closeEventMutation.isPending) setClosingEventId(null); }}>
+        <AlertDialogContent style={{ maxWidth: "460px", backgroundColor: "#ffffff", borderRadius: R.xl, padding: 0, border: "none", boxShadow: SHADOW.lg, overflow: "hidden" }}>
+          <div style={{ padding: "32px 32px 8px 32px" }}>
+            <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.title, fontWeight: "700", letterSpacing: "-0.02em", color: T.dark, margin: 0 }}>
+              Encerrar evento
+            </AlertDialogTitle>
+
+            {closingStats && closingStats.openCount > 0 && (
+              <div style={{ marginTop: "20px", padding: "16px", backgroundColor: "#fffbeb", borderLeft: "4px solid #f59e0b", borderRadius: `0 ${R.md}px ${R.md}px 0`, display: "flex", alignItems: "flex-start", gap: "12px" }}>
+                <AlertTriangle style={{ width: "18px", height: "18px", color: "#b45309", flexShrink: 0, marginTop: "1px" }} />
+                <p style={{ fontSize: FS.body, fontWeight: "600", color: "#783200", margin: 0, lineHeight: 1.6 }}>
+                  Este evento tem{" "}
+                  <strong>{closingStats.openCount} {closingStats.openCount === 1 ? 'peça pendente' : 'peças pendentes'}</strong>
+                  {closingStats.inProductionCount > 0
+                    ? <>, {closingStats.inProductionCount === 1 ? 'sendo 1 em produção' : `sendo ${closingStats.inProductionCount} em produção`}</>
+                    : null}
+                  . Elas <strong>não são canceladas nem entregues</strong> — continuam na lista do evento, mas param de ser cobradas na Gestão de Prazos e saem das filas de trabalho.
+                </p>
+              </div>
+            )}
+
+            <AlertDialogDescription style={{ fontSize: FS.strong, color: T.second, lineHeight: 1.6, marginTop: "16px" }}>
+              Encerrar{" "}
+              <strong style={{ color: T.text, fontWeight: "600" }}>"{closingEvent?.name || "este evento"}"</strong>
+              {closingStats && closingStats.openCount === 0
+                ? closingStats.activeItemCount > 0
+                  ? <> — todas as {closingStats.activeItemCount} peças já estão entregues.</>
+                  : <> — este evento não tem nenhuma peça.</>
+                : '.'}
+              {" "}Ele sai da Gestão de Prazos e das filas de trabalho, e segue visível no histórico, na consulta e no filtro "Concluídos". A ação fica registrada com seu nome e horário, e pode ser desfeita em <strong style={{ color: T.text, fontWeight: 600 }}>Reabrir evento</strong>.
+            </AlertDialogDescription>
+          </div>
+
+          <AlertDialogFooter style={{ padding: "16px 32px 32px 32px", display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px" }}>
+            <AlertDialogCancel
+              disabled={closeEventMutation.isPending}
+              style={{ padding: "9px 24px", backgroundColor: "transparent", border: "1px solid #e0c0b1", borderRadius: R.sm, fontSize: FS.body, fontWeight: "700", color: "#625d5b", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                // preventDefault: sem ele o diálogo fecha antes de a mutação
+                // responder e o toast com a contagem real se perde.
+                e.preventDefault();
+                if (closingEventId) closeEventMutation.mutate(closingEventId);
+              }}
+              disabled={closeEventMutation.isPending}
+              data-testid="button-confirm-close-event"
+              style={{ padding: "9px 24px", backgroundColor: "#57534e", border: "none", borderRadius: R.sm, fontSize: FS.body, fontWeight: "700", color: "#ffffff", cursor: closeEventMutation.isPending ? "wait" : "pointer", opacity: closeEventMutation.isPending ? 0.5 : 1, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif", display: "flex", alignItems: "center", gap: "8px" }}
+            >
+              <Lock style={{ width: "14px", height: "14px" }} />
+              {closeEventMutation.isPending ? "Encerrando..." : "Encerrar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ── REABRIR ── */}
+      <AlertDialog open={!!reopeningEventId} onOpenChange={(v) => { if (!v && !reopenEventMutation.isPending) setReopeningEventId(null); }}>
+        <AlertDialogContent style={{ maxWidth: "440px", backgroundColor: "#ffffff", borderRadius: R.xl, padding: 0, border: "none", boxShadow: SHADOW.lg, overflow: "hidden" }}>
+          <div style={{ padding: "32px 32px 8px 32px" }}>
+            <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.title, fontWeight: "700", letterSpacing: "-0.02em", color: T.dark, margin: 0 }}>
+              Reabrir evento
+            </AlertDialogTitle>
+            <AlertDialogDescription style={{ fontSize: FS.strong, color: T.second, lineHeight: 1.6, marginTop: "16px" }}>
+              <strong style={{ color: T.text, fontWeight: "600" }}>"{reopeningEvent?.name || "Este evento"}"</strong>{" "}
+              volta para a Gestão de Prazos e para as filas de trabalho
+              {reopeningStats && reopeningStats.openCount > 0
+                ? <> com <strong style={{ color: T.text, fontWeight: 600 }}>{reopeningStats.openCount} {reopeningStats.openCount === 1 ? 'peça em aberto' : 'peças em aberto'}</strong>{reopeningStats.inProductionCount > 0 ? ` (${reopeningStats.inProductionCount} em produção)` : ''}</>
+                : null}
+              . A partir daí os prazos voltam a ser cobrados normalmente. A reabertura fica registrada com seu nome e horário.
+            </AlertDialogDescription>
+          </div>
+
+          <AlertDialogFooter style={{ padding: "16px 32px 32px 32px", display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px" }}>
+            <AlertDialogCancel
+              disabled={reopenEventMutation.isPending}
+              style={{ padding: "9px 24px", backgroundColor: "transparent", border: "1px solid #e0c0b1", borderRadius: R.sm, fontSize: FS.body, fontWeight: "700", color: "#625d5b", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+            >
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                if (reopeningEventId) reopenEventMutation.mutate(reopeningEventId);
+              }}
+              disabled={reopenEventMutation.isPending}
+              data-testid="button-confirm-reopen-event"
+              style={{ padding: "9px 24px", backgroundColor: "#15803d", border: "none", borderRadius: R.sm, fontSize: FS.body, fontWeight: "700", color: "#ffffff", cursor: reopenEventMutation.isPending ? "wait" : "pointer", opacity: reopenEventMutation.isPending ? 0.5 : 1, textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif", display: "flex", alignItems: "center", gap: "8px" }}
+            >
+              <Unlock style={{ width: "14px", height: "14px" }} />
+              {reopenEventMutation.isPending ? "Reabrindo..." : "Reabrir"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

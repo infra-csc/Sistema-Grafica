@@ -116,6 +116,16 @@ const DELIVERED_STATUSES = new Set(["delivered", "entregue"]);
 const OUT_OF_FUNNEL_STATUSES = new Set(["canceled", "deleted", "archived"]);
 
 /**
+ * Valor gravado em `events.status` quando UMA PESSOA encerra o evento.
+ *
+ * A coluna é `text` livre (schema: "created, completed, closed") — este
+ * terceiro valor não pede migração nenhuma. É a única marca de encerramento
+ * MANUAL do sistema: tudo o mais em torno de "evento acabou" é derivado da
+ * produção (allDelivered) ou da data (eventHasPassed).
+ */
+export const EVENT_CLOSED_STATUS = "closed";
+
+/**
  * Status PERSISTIDO do evento — deriva SÓ da produção, nunca da data.
  *
  * A versão anterior devolvia "completed" assim que `now > startDate`, isto é,
@@ -152,10 +162,20 @@ export async function calculateEventStatus(eventId: string): Promise<"created" |
 
 // Helper to update event status automatically
 export async function updateEventStatus(eventId: string): Promise<void> {
-  const newStatus = await calculateEventStatus(eventId);
   const event = await storage.getEvent(eventId);
+  if (!event) return;
 
-  if (event && event.status !== newStatus) {
+  // ENCERRAMENTO MANUAL VENCE A DERIVAÇÃO. Sem esta guarda, a primeira mexida
+  // em qualquer peça do evento encerrado (8 chamadas em routes/items.ts, mais
+  // sponsors.ts e xlsxImport.ts) reescreveria a coluna para created/completed
+  // e o evento voltaria sozinho para as filas de trabalho e para a Gestão de
+  // Prazos — desfazendo, sem log e sem aviso, uma decisão de gente. A saída de
+  // "closed" existe num caminho só: POST /api/events/:id/reopen.
+  if (event.status === EVENT_CLOSED_STATUS) return;
+
+  const newStatus = await calculateEventStatus(eventId);
+
+  if (event.status !== newStatus) {
     await storage.updateEvent(eventId, { status: newStatus });
     broadcast({ type: "event_updated", event: { ...event, status: newStatus } });
   }

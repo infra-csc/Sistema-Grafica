@@ -8,6 +8,7 @@ import {
   broadcast,
   translateStatus,
   createAuditLog,
+  EVENT_CLOSED_STATUS,
 } from "./shared";
 
 import { eventsCache, setEventsCache } from "../cache";
@@ -164,6 +165,35 @@ function dayUTC(value: Date | string): Date {
 const DELIVERED = new Set(["delivered", "entregue"]);
 // Cancelada/excluída/arquivada não conta como pendência nem como total.
 const OUT_OF_FUNNEL = new Set(["canceled", "deleted", "archived"]);
+// "em_producao" é a grafia legada de inProduction. Peça aqui significa material
+// físico já na máquina — é o número que a confirmação de encerramento precisa
+// dizer em voz alta.
+const IN_PRODUCTION = new Set(["inProduction", "em_producao"]);
+
+/**
+ * Dimensão do trabalho VIVO de um evento. Existe para o encerramento manual
+ * poder dizer "12 peças pendentes, sendo 3 em produção" em vez de "há peças em
+ * aberto" — a confirmação genérica que ninguém lê.
+ */
+export function countOpenWork(eventItems: { status: string }[]) {
+  let deliveredCount = 0;
+  let canceledCount = 0;
+  let inProductionCount = 0;
+  for (const it of eventItems) {
+    if (OUT_OF_FUNNEL.has(it.status)) { canceledCount += 1; continue; }
+    if (DELIVERED.has(it.status)) deliveredCount += 1;
+    else if (IN_PRODUCTION.has(it.status)) inProductionCount += 1;
+  }
+  const activeItemCount = eventItems.length - canceledCount;
+  return {
+    itemCount: eventItems.length,
+    activeItemCount,
+    deliveredCount,
+    canceledCount,
+    inProductionCount,
+    openCount: activeItemCount - deliveredCount,
+  };
+}
 
 interface MarcoDef {
   key: string;
@@ -384,14 +414,26 @@ export function enrichEvent(
   const startDay = dayUTC(event.startDate).getTime();
   const eventHasPassed = Number.isFinite(startDay) ? todayMs >= startDay : false;
 
-  const lifecycle: "active" | "completed" | "closed_with_pending" =
-    allDelivered ? "completed" : eventHasPassed ? "closed_with_pending" : "active";
+  // ENCERRAMENTO MANUAL SOBREPÕE A DERIVAÇÃO — nas duas direções. Um evento
+  // encerrado à mão com tudo entregue NÃO vira "Concluído" (a tela precisa
+  // distinguir "encerrado por alguém" de "encerrado porque tudo foi entregue"),
+  // e um encerrado à mão com peça em aberto NÃO vira "Encerrado com
+  // pendências" — esse selo é o alarme de quem esqueceu, e um evento que
+  // alguém fechou de propósito não é um esquecimento.
+  const manuallyClosed = event.status === EVENT_CLOSED_STATUS;
 
-  // Compatibilidade: status permanece "created" | "completed" e agora é
-  // totalmente derivado da produção. Qualquer outro valor que apareça na
-  // coluna é preservado (não inventamos vocabulário novo aqui).
+  const lifecycle: "active" | "completed" | "closed_with_pending" | "manually_closed" =
+    manuallyClosed ? "manually_closed"
+    : allDelivered ? "completed"
+    : eventHasPassed ? "closed_with_pending"
+    : "active";
+
+  // Compatibilidade: status permanece "created" | "completed" para os eventos
+  // vivos e agora é totalmente derivado da produção. "closed" é o único valor
+  // que a derivação NÃO pode reescrever.
   const derivedStatus =
-    allDelivered ? "completed"
+    manuallyClosed ? EVENT_CLOSED_STATUS
+    : allDelivered ? "completed"
     : event.status === "completed" ? "created"
     : event.status;
 
@@ -400,6 +442,7 @@ export function enrichEvent(
     status: derivedStatus,
     eventHasPassed,
     allDelivered,
+    manuallyClosed,
     lifecycle,
     itemCount,
     activeItemCount,
@@ -764,6 +807,111 @@ export function registerEventRoutes(app: Express): void {
       broadcast({ type: "event_deleted", eventId: req.params.id });
 
       res.json({ success: true, deletedItems: items.length, deliveredItems: deliveredCount });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // ENCERRAR / REABRIR — a única ação HUMANA sobre o ciclo de vida do evento.
+  //
+  // Por que existe: até aqui "acabou" era 100% derivado (todas as peças
+  // entregues, ou a data passou). Não havia como uma pessoa dizer "esse evento
+  // está fechado" — um evento que saiu com 3 peças canceladas na mão ficava
+  // para sempre em "Encerrado com pendências", cobrado toda semana na Gestão de
+  // Prazos por um trabalho que ninguém mais vai fazer.
+  //
+  // Por que é ADMIN, e não admin/solicitação como a edição: encerrar não muda
+  // um dado do evento, retira trabalho do campo de visão de OUTRAS equipes —
+  // some da Gestão de Prazos e das filas de Arte/Gráfica/Atendimento. É a mesma
+  // classe de decisão da exclusão (também admin), e não a de editar uma data.
+  // Reabrir usa o mesmo gate de propósito: quem pode desfazer é quem pode fazer.
+  //
+  // O que NÃO acontece: nenhuma peça muda de status. Encerrar não cancela nem
+  // entrega nada — é justamente por isso que reabrir devolve o evento
+  // exatamente ao estado em que ele estava.
+  // ───────────────────────────────────────────────────────────────────────────
+  app.post("/api/events/:id/close", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas administradores podem encerrar eventos" });
+      }
+      const event = await storage.getEvent(req.params.id);
+      if (!event) {
+        return res.status(404).json({ error: "Evento não encontrado" });
+      }
+      if (event.status === EVENT_CLOSED_STATUS) {
+        return res.status(409).json({ error: "Este evento já está encerrado" });
+      }
+
+      // Dimensão real do que está sendo tirado de vista — vai para o log e volta
+      // no corpo, para o toast repetir o número que a confirmação prometeu.
+      const items = await storage.getItemsByEvent(req.params.id);
+      const work = countOpenWork(items);
+
+      const updated = await storage.updateEvent(req.params.id, { status: EVENT_CLOSED_STATUS } as any);
+      if (!updated) {
+        return res.status(404).json({ error: "Evento não encontrado" });
+      }
+
+      const resumo = work.openCount > 0
+        ? `${work.openCount} ${work.openCount === 1 ? "peça continua" : "peças continuam"} em aberto (${work.inProductionCount} em produção, ${work.deliveredCount} de ${work.activeItemCount} ${work.deliveredCount === 1 ? "entregue" : "entregues"})`
+        : work.activeItemCount > 0
+          ? `todas as ${work.activeItemCount} peças já estavam entregues`
+          : "o evento não tinha nenhuma peça";
+
+      await createAuditLog(
+        (req as any).userName,
+        "updated",
+        "event",
+        updated.id,
+        `Evento "${updated.name}" ENCERRADO manualmente — ${resumo}. Sai da Gestão de Prazos e das filas de trabalho; segue visível no histórico e pode ser reaberto.`
+      );
+
+      broadcast({ type: "event_closed", eventId: updated.id, event: updated });
+
+      res.json({ success: true, event: updated, ...work });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/events/:id/reopen", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas administradores podem reabrir eventos" });
+      }
+      const event = await storage.getEvent(req.params.id);
+      if (!event) {
+        return res.status(404).json({ error: "Evento não encontrado" });
+      }
+      if (event.status !== EVENT_CLOSED_STATUS) {
+        return res.status(409).json({ error: "Este evento não está encerrado" });
+      }
+
+      // Volta para "created" e não para "completed": a partir daqui quem manda
+      // é a derivação de novo, e a primeira mexida numa peça (updateEventStatus)
+      // recarimba o valor certo. Carimbar "completed" aqui seria a mentira que
+      // esta base já corrigiu uma vez.
+      const updated = await storage.updateEvent(req.params.id, { status: "created" } as any);
+      if (!updated) {
+        return res.status(404).json({ error: "Evento não encontrado" });
+      }
+
+      const items = await storage.getItemsByEvent(req.params.id);
+      const work = countOpenWork(items);
+
+      await createAuditLog(
+        (req as any).userName,
+        "updated",
+        "event",
+        updated.id,
+        `Evento "${updated.name}" REABERTO — volta para a Gestão de Prazos e para as filas de trabalho com ${work.openCount} ${work.openCount === 1 ? "peça em aberto" : "peças em aberto"} (${work.inProductionCount} em produção).`
+      );
+
+      broadcast({ type: "event_reopened", eventId: updated.id, event: updated });
+
+      res.json({ success: true, event: updated, ...work });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

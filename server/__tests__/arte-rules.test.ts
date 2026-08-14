@@ -26,6 +26,8 @@ import {
   normalizeDisplayId,
   matchFileToItem,
   phaseDeadline,
+  PHASE_DEADLINE,
+  ARTE_MARCOS_FAIXA,
   compareEventUrgency,
   dentroDaJanelaFinalizados,
   isAtrasadaNaFase,
@@ -33,6 +35,7 @@ import {
   type ArteFilters,
 } from "../../client/src/lib/arte-rules";
 import { PRODUCTION_STATUSES } from "../../client/src/lib/status";
+import { STAGE_DEFS, stageDeadline, truckDayUTC } from "../services/prazo-domain";
 
 const NOW = new Date(2026, 7, 14, 10, 0, 0); // 14/08/2026, horário local
 const B = makeDateBounds(NOW);
@@ -300,24 +303,63 @@ describe("vínculo automático do multi-upload", () => {
 });
 
 describe("prazo por fase", () => {
-  const evento = { truckDepartureDate: saida(2026, 9, 3), deadlineEntregaLayouts: -20, deadlineAprovacaoLayout: -12 };
+  const evento = {
+    truckDepartureDate: saida(2026, 9, 3),
+    deadlineEntregaLayouts: -20,
+    deadlineAprovacaoLayout: -12,
+    deadlineFinalizacao: -10,
+  };
 
   it("a aba de envio usa Entrega de Layouts", () => {
     const d = phaseDeadline(evento, "criar-aprovacoes", B.today)!;
     expect(d.label).toBe("Entrega de Layouts");
-    expect(d.date.getDate()).toBe(14); // 03/09 − 20d = 14/08
+    expect(d.date.getDate()).toBe(14); // 03/09 (qui) − 20d = 14/08 (sex)
     expect(d.diff).toBe(0);
   });
 
   it("a aba de aguardando usa Aprovação de Layout", () => {
     const d = phaseDeadline(evento, "aguardando-patrocinador", B.today)!;
     expect(d.label).toBe("Aprovação de Layout");
-    expect(d.diff).toBe(8); // 03/09 − 12d = 22/08
+    // 03/09 − 12d = 22/08, um SÁBADO — antecipado para sexta 21/08.
+    expect(d.diff).toBe(7);
+    expect(d.date.getDate()).toBe(21);
+  });
+
+  it("a aba de finalizar usa FINALIZAÇÃO (−10), não mais a Aprovação (−12)", () => {
+    // A decisão do dono: anexar o arquivo final é a etapa Finalização do funil.
+    // Cobrar esta aba pela Aprovação media a peça pelo marco da etapa ANTERIOR,
+    // já cumprida — e a Gestão de Prazos dizia −10 para a mesma peça.
+    const d = phaseDeadline(evento, "finalizar-layouts", B.today)!;
+    expect(d.label).toBe("Finalização");
+    expect(d.date.getDate()).toBe(24); // 03/09 − 10d = 24/08 (seg)
+    expect(d.diff).toBe(10);
   });
 
   it("usa o padrão da casa quando o evento não define o marco", () => {
-    const d = phaseDeadline({ truckDepartureDate: saida(2026, 9, 3) }, "criar-aprovacoes", B.today)!;
-    expect(d.diff).toBe(0);
+    const semOffsets = { truckDepartureDate: saida(2026, 9, 3) };
+    expect(phaseDeadline(semOffsets, "criar-aprovacoes", B.today)!.diff).toBe(0);
+    // Evento antigo, gravado antes da Finalização existir: cai no padrão −10.
+    expect(phaseDeadline(semOffsets, "finalizar-layouts", B.today)!.diff).toBe(10);
+  });
+
+  it("marco que cai no fim de semana anda para o dia útil (mesma regra do funil)", () => {
+    const base = saida(2026, 9, 3); // quinta
+    // −12 → 22/08 sábado → antecipa para sexta 21/08.
+    const sabado = phaseDeadline({ truckDepartureDate: base, deadlineAprovacaoLayout: -12 }, "aguardando-patrocinador", B.today)!;
+    expect(sabado.date.getDay()).toBe(5);
+    expect(sabado.date.getDate()).toBe(21);
+    // −11 → 23/08 domingo → adia para segunda 24/08.
+    const domingo = phaseDeadline({ truckDepartureDate: base, deadlineAprovacaoLayout: -11 }, "aguardando-patrocinador", B.today)!;
+    expect(domingo.date.getDay()).toBe(1);
+    expect(domingo.date.getDate()).toBe(24);
+  });
+
+  it("Finalizados NÃO ajusta: o marco de lá é a saída real do caminhão", () => {
+    // 15/08/2026 é sábado. O caminhão sai no sábado — a data é um fato de
+    // despacho, não um marco de escritório que se antecipa para a sexta.
+    const d = phaseDeadline({ truckDepartureDate: saida(2026, 8, 15) }, "finalizados", B.today)!;
+    expect(d.date.getDay()).toBe(6);
+    expect(d.diff).toBe(1);
   });
 
   it("evento sem saída marcada não tem prazo inventado", () => {
@@ -340,6 +382,75 @@ describe("prazo por fase", () => {
   });
 });
 
+describe("a tela da Arte e o funil de prazos cobram a MESMA data", () => {
+  // PORQUÊ ESTE BLOCO EXISTE. `PHASE_DEADLINE` (cliente) e `STAGE_DEFS`
+  // (servidor) são duas escritas da MESMA regra de negócio — o cliente não pode
+  // importar o domínio do servidor, que iria junto no bundle. Quando as duas
+  // divergem, a mesma peça passa a ter dois prazos e ninguém sabe em qual
+  // acreditar: foi o que aconteceu quando a etapa Finalização (−10) nasceu e a
+  // aba "Finalizar arte" continuou cobrada pela Aprovação (−12), e de novo no
+  // ajuste de fim de semana, que só o servidor fazia. Aqui as duas contas rodam
+  // lado a lado; mexer numa sem mexer na outra derruba o teste.
+  const FASE_ETAPA: Record<string, string> = {
+    "criar-aprovacoes": "layouts",
+    correcao: "layouts",
+    "aguardando-patrocinador": "aprovacao",
+    "finalizar-layouts": "finalizacao",
+  };
+  const etapa = (key: string) => STAGE_DEFS.find((s) => s.key === key)!;
+  /** "YYYY-MM-DD" de uma data-calendário LOCAL (a que o cliente produz). */
+  const diaLocal = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  it("rótulo, offset padrão, campo do evento e regra de dia útil são os mesmos", () => {
+    for (const [fase, stageKey] of Object.entries(FASE_ETAPA)) {
+      const cfg = PHASE_DEADLINE[fase];
+      const def = etapa(stageKey);
+      expect(cfg.label).toBe(def.label);
+      expect(cfg.fallback).toBe(def.defaultOffset);
+      expect(cfg.field).toBe(def.offsetField);
+      expect(cfg.allDays).toBe(def.allDays);
+    }
+  });
+
+  it("os status de cada aba pertencem à etapa que a cobra", () => {
+    // O elo mais frágil: basta um status mudar de etapa no funil para a aba
+    // passar a ser medida por um marco que não é mais o dela.
+    for (const [fase, stageKey] of Object.entries(FASE_ETAPA)) {
+      for (const st of TAB_STATUSES[fase] ?? []) {
+        expect(etapa(stageKey).pendingStatuses).toContain(st);
+      }
+    }
+  });
+
+  it("a data bate dia a dia por mais de um ano de saídas, fins de semana inclusive", () => {
+    let caiuNoFimDeSemana = 0;
+    for (let i = 0; i < 400; i++) {
+      const dep = new Date(Date.UTC(2026, 0, 1 + i, 12, 0, 0)).toISOString();
+      for (const fase of ARTE_MARCOS_FAIXA) {
+        const def = etapa(FASE_ETAPA[fase]);
+        const cliente = phaseDeadline({ truckDepartureDate: dep }, fase, B.today)!;
+        const servidor = stageDeadline(truckDayUTC(dep), def.defaultOffset, def.allDays);
+        expect(diaLocal(cliente.date)).toBe(servidor.toISOString().slice(0, 10));
+        const cru = truckDayUTC(dep);
+        cru.setUTCDate(cru.getUTCDate() + def.defaultOffset);
+        if (cru.getUTCDay() === 0 || cru.getUTCDay() === 6) caiuNoFimDeSemana++;
+      }
+    }
+    // Sanidade: sem nenhum marco em fim de semana, o laço acima estaria
+    // comparando só a metade fácil da conta.
+    expect(caiuNoFimDeSemana).toBeGreaterThan(250);
+  });
+
+  it("o offset gravado no evento é lido do mesmo campo pelos dois lados", () => {
+    const dep = saida(2026, 11, 7);
+    const def = etapa("finalizacao");
+    expect(def.offsetField).toBe("deadlineFinalizacao");
+    const cliente = phaseDeadline({ truckDepartureDate: dep, deadlineFinalizacao: -13 }, "finalizar-layouts", B.today)!;
+    expect(diaLocal(cliente.date)).toBe(stageDeadline(truckDayUTC(dep), -13, def.allDays).toISOString().slice(0, 10));
+  });
+});
+
 describe("atraso contra o marco da FASE", () => {
   // Este bloco trava a decisão de produto do filtro "Prazo: atrasados": o que
   // conta é o marco da fase, não a saída do caminhão.
@@ -355,10 +466,20 @@ describe("atraso contra o marco da FASE", () => {
   });
 
   it("o marco muda com a fase: a mesma peça atrasa em uma e não na outra", () => {
-    // Saída 03/09 → Entrega de Layouts 14/08 (hoje, no prazo) e Aprovação de
-    // Layout 22/08 (ainda longe). Saída 30/08 → Entrega 10/08, já vencida.
+    // Saída 30/08 → Entrega de Layouts 10/08 (já vencida) e Aprovação de
+    // Layout 18/08 (ainda à frente). Mesma peça, dois veredictos.
     expect(naFase("criar-aprovacoes", saida(2026, 8, 30))).toBe(true);
     expect(naFase("aguardando-patrocinador", saida(2026, 8, 30))).toBe(false);
+  });
+
+  it("Finalizar arte ganha os 2 dias da Finalização (−10) sobre a Aprovação (−12)", () => {
+    // Saída 25/08. Aprovação de Layout = 13/08, ontem — pela regra ANTIGA esta
+    // aba mostraria "1d atrasado". O marco dela agora é Finalização = 15/08,
+    // sábado, antecipado para sexta 14/08: vence HOJE, não está atrasada.
+    const saida25 = saida(2026, 8, 25);
+    expect(phaseDeadline({ truckDepartureDate: saida25 }, "aguardando-patrocinador", B.today)!.diff).toBe(-1);
+    expect(phaseDeadline({ truckDepartureDate: saida25 }, "finalizar-layouts", B.today)!.diff).toBe(0);
+    expect(naFase("finalizar-layouts", saida25)).toBe(false);
   });
 
   it("vence hoje não é atrasado (diff 0)", () => {
@@ -370,8 +491,10 @@ describe("atraso contra o marco da FASE", () => {
   });
 
   it("respeita o offset gravado no evento, não só o padrão da casa", () => {
-    // Offset −5 sobre a saída de 20/08 → 15/08, ainda no futuro.
+    // Offset −5 sobre a saída de 20/08 → 15/08 (sábado), antecipado para sexta
+    // 14/08: vence hoje, não está atrasada. Com o padrão −20 estaria.
     expect(naFase("criar-aprovacoes", saida(2026, 8, 20), { deadlineEntregaLayouts: -5 })).toBe(false);
+    expect(naFase("criar-aprovacoes", saida(2026, 8, 20))).toBe(true);
   });
 
   it("Finalizados nunca acusa atraso — o marco de lá é a própria saída", () => {

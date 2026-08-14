@@ -41,6 +41,7 @@ import {
   serializeArteFilters,
   PERIOD_FILTERS,
   PHASE_DEADLINE,
+  ARTE_MARCOS_FAIXA,
   type ArteFilters,
   type TriState,
   type PeriodFilter,
@@ -2116,21 +2117,25 @@ export default function Arte() {
                       )}
                       {/* Chips de prazo: fundo sólido claro com texto escuro —
                           o dado mais urgente é o mais legível, e o atrasado
-                          salta da faixa. */}
-                      {bloco.eventObj?.truckDepartureDate && [
-                        { label: 'Entrega de Layouts', days: bloco.eventObj.deadlineEntregaLayouts ?? -20 },
-                        { label: 'Aprovação de Layout', days: bloco.eventObj.deadlineAprovacaoLayout ?? -12 },
-                      ].map(({ label, days }) => {
-                        const d = new Date(toUTCDisplayDate(bloco.eventObj.truckDepartureDate).getTime() + days * 86400000);
-                        d.setHours(0, 0, 0, 0);
-                        const diff = Math.ceil((d.getTime() - hoje.getTime()) / 86400000);
-                        const ds = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
-                        const s = semaforoPrazo(diff);
-                        const daFase = prazo?.label === label;
+                          salta da faixa.
+
+                          Os marcos saem de `phaseDeadline` (ARTE_MARCOS_FAIXA),
+                          não de uma conta local: esta faixa repetia a aritmética
+                          à mão e ficou de fora quando o marco da Finalização
+                          entrou — o chip "Marco desta fase" simplesmente não
+                          acendia em Finalizar arte, e as datas passariam a
+                          divergir da coluna Prazo ao lado no ajuste de fim de
+                          semana. Uma conta só, três chips. */}
+                      {bloco.eventObj?.truckDepartureDate && ARTE_MARCOS_FAIXA.map(fase => {
+                        const m = phaseDeadline(bloco.eventObj, fase, hoje);
+                        if (!m) return null;
+                        const ds = m.date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                        const s = semaforoPrazo(m.diff);
+                        const daFase = prazo?.label === m.label;
                         return (
-                          <span key={label} title={daFase ? 'Marco desta fase' : undefined}
+                          <span key={fase} title={daFase ? 'Marco desta fase' : undefined}
                             style={{ display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: s.bg, border: `1px solid ${daFase ? s.text : s.border}`, borderRadius: 999, padding: '3px 9px', fontSize: 11, fontWeight: 700, color: s.text, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
-                            {label} · {ds}{diff >= 0 && diff <= 14 && <span style={{ opacity: 0.72, fontWeight: 500 }}> ({diff}d)</span>}
+                            {m.label} · {ds}{m.diff >= 0 && m.diff <= 14 && <span style={{ opacity: 0.72, fontWeight: 500 }}> ({m.diff}d)</span>}
                           </span>
                         );
                       })}
@@ -2737,7 +2742,8 @@ export default function Arte() {
             <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Mostrar:</span>
 
             {/* Prazo — o recorte que o dono pediu. "Atrasada" é medida contra o
-                marco da FASE (Entrega de Layouts −20 / Aprovação de Layout −12),
+                marco da FASE (Entrega de Layouts −20 / Aprovação de Layout −12 /
+                Finalização −10, os mesmos do funil da Gestão de Prazos),
                 nunca contra a saída do caminhão: a saída é o prazo mais folgado
                 do fluxo e por ela quase nada apareceria. Mesma `phaseDeadline`
                 da coluna Prazo — o filtro entrega o conjunto dos selos "Nd

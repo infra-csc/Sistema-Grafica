@@ -378,14 +378,54 @@ export function matchFileToItem<T extends { id: string; displayId?: string | nul
 
 // ── Prazo por fase ──────────────────────────────────────────────────────────
 
-/** Marco relevante para cada fase da Arte, ancorado na saída do caminhão. */
-export const PHASE_DEADLINE: Record<string, { label: string; field: string; fallback: number }> = {
-  "criar-aprovacoes": { label: "Entrega de Layouts", field: "deadlineEntregaLayouts", fallback: -20 },
-  correcao: { label: "Entrega de Layouts", field: "deadlineEntregaLayouts", fallback: -20 },
-  "aguardando-patrocinador": { label: "Aprovação de Layout", field: "deadlineAprovacaoLayout", fallback: -12 },
-  "finalizar-layouts": { label: "Aprovação de Layout", field: "deadlineAprovacaoLayout", fallback: -12 },
-  finalizados: { label: "Saída do caminhão", field: "", fallback: 0 },
+/**
+ * Marco relevante para cada fase da Arte, ancorado na saída do caminhão.
+ *
+ * ESTE MAPA É UM ESPELHO de `STAGE_DEFS` (server/services/prazo-domain.ts) — o
+ * funil da Gestão de Prazos e esta tela cobram a MESMA peça, e por isso têm que
+ * cobrar pela MESMA data. Cada linha aqui aponta para a etapa do funil cujos
+ * `pendingStatuses` são exatamente os `TAB_STATUSES` da aba:
+ *
+ *   criar-aprovacoes (awaiting_submission) ............ layouts     (−20)
+ *   correcao (peça devolvida, refaz o layout) ......... layouts     (−20)
+ *   aguardando-patrocinador (awaiting_sponsor_...) .... aprovacao   (−12)
+ *   finalizar-layouts (sponsor_approved,
+ *                      awaiting_creator_review) ....... finalizacao (−10)
+ *
+ * PORQUÊ "Finalizar arte" é cobrada por FINALIZAÇÃO e não mais por Aprovação de
+ * Layout. Até a criação da etapa Finalização, anexar o arquivo final não tinha
+ * marco próprio e a aba pegava emprestado o da aprovação (−12) — a peça aprovada
+ * no dia −12 aparecia como já vencida no instante em que caía nesta aba, porque
+ * o marco que a media era o da etapa ANTERIOR, já cumprida. O funil ganhou
+ * `finalizacao` (−10) exatamente para esse trabalho: são os mesmos três status,
+ * é a mesma peça, e agora é a mesma data nas duas telas.
+ *
+ * `allDays` replica o campo homônimo de `StageDef`: os marcos do funil não caem
+ * em fim de semana (ver `phaseDeadline`). A exceção é Finalizados, cujo "marco"
+ * é a própria saída do caminhão — data real de despacho, que não se antecipa
+ * por ser sábado.
+ */
+export const PHASE_DEADLINE: Record<
+  string,
+  { label: string; field: string; fallback: number; allDays: boolean }
+> = {
+  "criar-aprovacoes": { label: "Entrega de Layouts", field: "deadlineEntregaLayouts", fallback: -20, allDays: false },
+  correcao: { label: "Entrega de Layouts", field: "deadlineEntregaLayouts", fallback: -20, allDays: false },
+  "aguardando-patrocinador": { label: "Aprovação de Layout", field: "deadlineAprovacaoLayout", fallback: -12, allDays: false },
+  "finalizar-layouts": { label: "Finalização", field: "deadlineFinalizacao", fallback: -10, allDays: false },
+  finalizados: { label: "Saída do caminhão", field: "", fallback: 0, allDays: true },
 };
+
+/**
+ * Marcos que a faixa do evento exibe, na ordem do funil. São as FASES (não
+ * rótulos soltos): a faixa reusa `phaseDeadline`, então a data do chip é
+ * necessariamente a mesma da coluna "Prazo" e do selo de atraso.
+ */
+export const ARTE_MARCOS_FAIXA = [
+  "criar-aprovacoes",
+  "aguardando-patrocinador",
+  "finalizar-layouts",
+] as const;
 
 export interface PhaseDeadline {
   label: string;
@@ -395,8 +435,36 @@ export interface PhaseDeadline {
 }
 
 /**
+ * Antecipa/adia o marco que cai no fim de semana — sábado → sexta, domingo →
+ * segunda.
+ *
+ * PORQUÊ ISTO EXISTE AQUI. É a segunda metade de `stageDeadline`
+ * (server/services/prazo-domain.ts): sem ela, a mesma peça tinha DUAS datas de
+ * prazo, uma na Gestão de Prazos (ajustada) e outra nesta tela (crua), e as
+ * duas telas discordavam sobre quem está atrasado toda vez que o marco caía num
+ * fim de semana. O código do servidor não pode ser importado pelo cliente (viria
+ * junto no bundle), então a conta é reescrita — e o teste
+ * `server/__tests__/arte-rules.test.ts` compara as duas implementações dia a dia
+ * por um ano inteiro: se alguém mexer numa e não na outra, ele quebra.
+ *
+ * O servidor faz a conta em UTC-meia-noite e a tela em local-meia-noite;
+ * `toUTCDisplayDate` preserva o DIA-calendário, então o dia da semana é o mesmo
+ * nos dois lados.
+ */
+function ajustaFimDeSemana(d: Date): void {
+  const dow = d.getDay();
+  if (dow === 6) d.setDate(d.getDate() - 1);
+  if (dow === 0) d.setDate(d.getDate() + 1);
+}
+
+/**
  * Prazo da fase para um evento. `null` quando o evento não tem saída marcada —
  * aí não há âncora e qualquer número seria inventado.
+ *
+ * A aritmética é de CALENDÁRIO (`setDate`), não de milissegundos, pelo mesmo
+ * motivo que a do servidor: somar `offset * 86400000` a um horário local erra o
+ * dia quando o intervalo cruza uma virada de horário de verão do fuso da
+ * máquina, e o "dia −20" tem que ser o dia −20 no calendário.
  */
 export function phaseDeadline(
   event: any,
@@ -407,8 +475,10 @@ export function phaseDeadline(
   if (!raw) return null;
   const cfg = PHASE_DEADLINE[tab] ?? PHASE_DEADLINE["criar-aprovacoes"];
   const offset = cfg.field ? (event[cfg.field] ?? cfg.fallback) : 0;
-  const d = new Date(toUTCDisplayDate(raw).getTime() + offset * 86400000);
+  const d = toUTCDisplayDate(raw);
   d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + offset);
+  if (!cfg.allDays) ajustaFimDeSemana(d);
   return {
     label: cfg.label,
     date: d,
@@ -436,8 +506,11 @@ export function compareEventUrgency(a: any, b: any, tab: string, today?: Date): 
  *
  * QUAL MARCO, E POR QUE NÃO É A SAÍDA DO CAMINHÃO. O prazo que a tela cobra é
  * o de `PHASE_DEADLINE` — Entrega de Layouts (−20) para quem ainda vai enviar
- * ou está em correção, Aprovação de Layout (−12) para quem espera patrocinador
- * ou vai finalizar. A saída do caminhão é o prazo mais FOLGADO do fluxo: é o
+ * ou está em correção, Aprovação de Layout (−12) para quem espera patrocinador,
+ * Finalização (−10) para quem vai anexar o arquivo final. São os mesmos marcos
+ * do funil da Gestão de Prazos, com o mesmo ajuste de fim de semana: as duas
+ * telas cobram a mesma peça na mesma data ou nenhuma das duas é confiável.
+ * A saída do caminhão é o prazo mais FOLGADO do fluxo: é o
  * fim da linha, semanas depois da data em que o trabalho desta fase precisa
  * estar feito. Medir por ela deixaria a fila inteira "no prazo" até o mês
  * seguinte e o filtro devolveria quase nada — que é exatamente o alarme tarde

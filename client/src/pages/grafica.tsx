@@ -547,11 +547,17 @@ export default function Grafica() {
   // operador ligaria para o suporte errado.
   const migracaoPendente = /parent_item_id|complement_|migra[çc][ãa]o pendente|42703/i
     .test(String((error as any)?.message ?? ""));
-  // Só busca os logs com o dialog de detalhes aberto — é o único consumidor, e
-  // a lista completa de auditoria é pesada demais para carregar junto da tela.
+  // Histórico DA PEÇA aberta, com escopo no servidor. A listagem global tem
+  // teto de 500 registros — peça antiga caía fora da janela e a ficha
+  // mostrava "sem histórico" (bug reportado pelo dono).
   const { data: auditLogs = [] } = useQuery<any[]>({
-    queryKey: ["/api/audit-logs"],
-    enabled: !!viewDetailsItem,
+    queryKey: ["/api/audit-logs", "item", viewDetailsItem?.id],
+    queryFn: () =>
+      fetch(`/api/audit-logs?entityType=item&entityId=${viewDetailsItem!.id}`, { credentials: "include" })
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(`Falha ao carregar o histórico (HTTP ${r.status})`))),
+    select: d => (Array.isArray(d) ? d : []),
+    enabled: !!viewDetailsItem?.id,
+    placeholderData: [],
   });
   const { data: standardItems = [] } = useQuery<any[]>({ queryKey: ['/api/standard-items'] });
   const typeToGroup = useMemo(() => {

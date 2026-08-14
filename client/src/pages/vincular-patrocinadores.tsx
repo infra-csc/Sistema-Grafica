@@ -255,8 +255,19 @@ export default function VincularPatrocinadores() {
     queryKey: ["/api/events"],
   });
 
+  // Histórico DA PEÇA aberta no dialog de detalhes, com escopo no servidor.
+  // A listagem global tem teto de 500 registros — peça antiga caía fora da
+  // janela e a ficha mostrava "sem histórico" (bug reportado pelo dono).
+  // Bônus: esta query rodava no LOAD da página, sem gate — era a última tela
+  // baixando a trilha inteira à toa.
   const { data: auditLogs = [] } = useQuery<any[]>({
-    queryKey: ["/api/audit-logs"],
+    queryKey: ["/api/audit-logs", "item", selectedItemForDetails?.id],
+    queryFn: () =>
+      fetch(`/api/audit-logs?entityType=item&entityId=${selectedItemForDetails!.id}`, { credentials: "include" })
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(`Falha ao carregar o histórico (HTTP ${r.status})`))),
+    select: d => (Array.isArray(d) ? d : []),
+    enabled: !!selectedItemForDetails?.id,
+    placeholderData: [],
   });
 
   const { data: sponsors = [], isError: sponsorsError, refetch: refetchSponsors } = useQuery<any[]>({

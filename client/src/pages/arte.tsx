@@ -202,8 +202,20 @@ export default function Arte() {
     queryKey: ["/api/events"],
   });
 
+  // Histórico DA PEÇA aberta, com escopo no servidor. A versão anterior
+  // baixava a listagem GLOBAL, que tem teto de 500 registros — com o volume
+  // atual, os logs das peças mais antigas saíam da janela e a ficha mostrava
+  // só "Criado", como se a peça não tivesse história ("itens sem histórico",
+  // bug reportado pelo dono com print). O escopo devolve a trilha inteira da
+  // peça, e barata.
   const { data: auditLogs = [] } = useQuery<any[]>({
-    queryKey: ["/api/audit-logs"],
+    queryKey: ["/api/audit-logs", "item", selectedItem?.id],
+    queryFn: () =>
+      fetch(`/api/audit-logs?entityType=item&entityId=${selectedItem!.id}`, { credentials: "include" })
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(`Falha ao carregar o histórico (HTTP ${r.status})`))),
+    select: d => (Array.isArray(d) ? d : []),
+    enabled: !!selectedItem?.id,
+    placeholderData: [],
   });
   const { data: standardItems = [] } = useQuery<any[]>({ queryKey: ['/api/standard-items'] });
   // Resolve o grupo pai (do catálogo de Modelos) para um item, tolerante a

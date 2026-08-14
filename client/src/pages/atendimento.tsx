@@ -232,11 +232,17 @@ export default function Atendimento() {
     queryKey: ["/api/sponsors"],
   });
 
-  // Só carrega os logs (milhares de registros) quando o modal de revisão —
-  // único consumidor deles nesta tela — está aberto.
+  // Histórico DA PEÇA em revisão, com escopo no servidor. A listagem global
+  // tem teto de 500 registros — peça antiga caía fora da janela e o modal
+  // mostrava "sem histórico" (bug reportado pelo dono).
   const { data: auditLogs = [] } = useQuery<any[]>({
-    queryKey: ["/api/audit-logs"],
-    enabled: dialogOpen,
+    queryKey: ["/api/audit-logs", "item", selectedItem?.id],
+    queryFn: () =>
+      fetch(`/api/audit-logs?entityType=item&entityId=${selectedItem!.id}`, { credentials: "include" })
+        .then(r => r.ok ? r.json() : Promise.reject(new Error(`Falha ao carregar o histórico (HTTP ${r.status})`))),
+    select: d => (Array.isArray(d) ? d : []),
+    enabled: dialogOpen && !!selectedItem?.id,
+    placeholderData: [],
   });
   const { data: standardItems = [] } = useQuery<any[]>({ queryKey: ['/api/standard-items'] });
   const typeToGroup = useMemo(() => {

@@ -86,14 +86,32 @@ export function countPendentes(items: Array<{ status?: string | null; deletedAt?
  * @param truckDayMs  saída do caminhão normalizada à meia-noite local, ou null
  * @param todayMs     hoje à meia-noite local
  * @param pendentes   peças do evento que ainda não chegaram a um status terminal
+ * @param finalizado  o evento saiu de circulação (encerrado à mão ou já realizado)
  *
  * Devolve `null` quando o evento não tem data de saída — ausência de prazo não
  * é um estado a ser pintado, é a ausência do chip.
+ *
+ * O QUE `finalizado` MUDA, e por quê. "Atrasado" é uma COBRANÇA, e não se cobra
+ * evento que ninguém mais vai tocar: o caso que originou este parâmetro era o
+ * "SÓ QUERO PEDALAR SP", encerrado à mão, gritando "ATRASADO 8D · 66
+ * PENDENTES" no Painel. Mas as 66 peças existem, e apagar o número seria
+ * trocar um erro por outro — foi exatamente isso que o "Encerrado" cinza da
+ * primeira versão deste chip fazia.
+ *
+ * Então o chip não some nem é substituído pelo selo de encerramento: ele MUDA
+ * DE PERGUNTA. De "quanto tempo falta / de quanto é o atraso" para "o que ficou
+ * para trás". O verbo perde o tempo presente ("ficaram em aberto", não
+ * "pendentes"), o tom cai para neutro, e o número — o dado caro — continua na
+ * tela, ao lado de um selo que agora diz por que ninguém vai correr atrás dele.
  */
 export function computeDeadlineChip(
   truckDayMs: number | null | undefined,
   todayMs: number,
   pendentes: number,
+  // Valor padrão, e não `?`: em TS um parâmetro opcional SEM default ainda
+  // conta em `Function.length`, e existe teste que prende o número de
+  // parâmetros obrigatórios desta função em 3.
+  finalizado: boolean = false,
 ): PrazoChip | null {
   if (truckDayMs == null || !Number.isFinite(truckDayMs)) return null;
 
@@ -112,6 +130,38 @@ export function computeDeadlineChip(
   }
 
   const d = dayDiff(todayMs, truckDayMs);
+
+  // Evento fora de jogo: nenhuma das faixas de urgência abaixo se aplica. Nem
+  // "Faltam 5d" (não falta nada — um evento encerrado antes da saída do
+  // caminhão não vai despachar coisa alguma), nem "Atrasado 8d". Sobra o único
+  // fato que ainda importa: o passivo, e desde quando ele parou de andar.
+  if (finalizado) {
+    const atraso = Math.abs(d);
+    const jaSaiu = d < 0;
+    if (pendentes > 0) {
+      const nPecas = `${pendentes} ${pendentes === 1 ? "peça" : "peças"}`;
+      return {
+        text: jaSaiu ? `Saiu há ${atraso}d · ${pendentes} em aberto` : `${pendentes} em aberto`,
+        srLabel: jaSaiu
+          ? `O caminhão saiu há ${atraso} ${atraso === 1 ? "dia" : "dias"} e ${nPecas} ${pendentes === 1 ? "ficou" : "ficaram"} em aberto; o evento saiu de circulação e não é mais cobrado`
+          : `${nPecas} ${pendentes === 1 ? "ficou" : "ficaram"} em aberto; o evento saiu de circulação e não é mais cobrado`,
+        tone: "neutral",
+        color: PRAZO_COLORS.neutral,
+        dias: d,
+      };
+    }
+    // Sem pendência e fora de jogo: a saída passada continua sendo um fato de
+    // calendário digno de nota; a saída FUTURA de um evento morto não é — o
+    // chip cede o lugar ao selo, que explica a situação inteira.
+    if (!jaSaiu) return null;
+    return {
+      text: `Saiu há ${atraso}d`,
+      srLabel: `O caminhão saiu há ${atraso} ${atraso === 1 ? "dia" : "dias"}; nenhuma peça ficou em aberto`,
+      tone: "neutral",
+      color: PRAZO_COLORS.neutral,
+      dias: d,
+    };
+  }
 
   if (d > 0) {
     const urgente = d <= PRAZO_ALERTA_DIAS;

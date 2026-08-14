@@ -102,10 +102,59 @@ describe("computeDeadlineChip", () => {
     }
   });
 
+  // ── Evento fora de jogo (encerrado à mão ou já realizado) ────────────────
+  // O caso real: "SÓ QUERO PEDALAR SP", encerrado em 09/08, exibindo
+  // "ATRASADO 8D · 66 PENDENTES". "Atrasado" é uma cobrança, e não se cobra
+  // evento que ninguém mais vai tocar — mas jogar fora o 66 seria repetir o
+  // erro do "Encerrado" cinza da primeira versão deste chip.
+  describe("evento finalizado", () => {
+    it("troca a cobrança pelo passivo, sem perder o número", () => {
+      const chip = computeDeadlineChip(emDias(-8), hoje, 66, true)!;
+      expect(chip.text).toBe("Saiu há 8d · 66 em aberto");
+      expect(chip.tone).toBe("neutral");
+      expect(chip.color).toBe(PRAZO_COLORS.neutral);
+      expect(chip.text).not.toContain("Atrasado");
+    });
+
+    it("saída ainda no futuro: não 'falta' nada, sobra o que ficou em aberto", () => {
+      // Encerrar um evento ANTES da saída do caminhão é comum (foi o caso do
+      // evento cancelado pelo cliente). "Faltam 5d" prometeria um despacho.
+      const chip = computeDeadlineChip(emDias(5), hoje, 3, true)!;
+      expect(chip.text).toBe("3 em aberto");
+      expect(chip.tone).toBe("neutral");
+    });
+
+    it("nada em aberto e saída no futuro: o chip cede o lugar ao selo", () => {
+      expect(computeDeadlineChip(emDias(5), hoje, 0, true)).toBeNull();
+    });
+
+    it("nada em aberto e caminhão já saiu: continua sendo história digna de nota", () => {
+      expect(computeDeadlineChip(emDias(-5), hoje, 0, true)).toMatchObject({
+        text: "Saiu há 5d", tone: "neutral",
+      });
+    });
+
+    it("nunca pinta urgência — em nenhuma faixa de calendário", () => {
+      for (const d of [30, 3, 1, 0, -1, -90]) {
+        const chip = computeDeadlineChip(emDias(d), hoje, 7, true);
+        expect(chip?.tone).toBe("neutral");
+      }
+    });
+
+    it("sem o sinalizador, tudo continua exatamente como era", () => {
+      expect(computeDeadlineChip(emDias(-8), hoje, 66)?.text).toBe("Atrasado 8d · 66 pendentes");
+      expect(computeDeadlineChip(emDias(-8), hoje, 66, false)?.text).toBe("Atrasado 8d · 66 pendentes");
+    });
+  });
+
   it("o dado de início do evento não participa mais do cálculo", () => {
     // A assinatura não aceita startDate: era ele que criava a carência de
     // 3 dias e meio (parseDateLocal devolve MEIO-DIA, então "3 dias" eram
     // 3d12h) — um número que ninguém conseguia reproduzir lendo a regra.
+    //
+    // Continua sendo 3 depois do `finalizado`: ele tem valor padrão, e
+    // parâmetro com default não entra em `Function.length`. É a contagem dos
+    // OBRIGATÓRIOS que este teste prende.
     expect(computeDeadlineChip.length).toBe(3);
   });
 });

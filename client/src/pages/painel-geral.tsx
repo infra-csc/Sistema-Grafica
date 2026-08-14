@@ -39,6 +39,10 @@ import {
 import {
   computeDeadlineChip, dayDiff, isPendingItemStatus, type PrazoChip,
 } from "@/lib/painel-prazo";
+import {
+  seloEventoFinalizado, chipOcultas, buscaEhCodigoDaPeca,
+  CONTAGEM_OCULTAS_ZERO, type SeloEventoFinalizado, type ContagemOcultas,
+} from "@/lib/painel-encerrados";
 import { formatFrescor } from "@/lib/painel-frescor";
 import { proximaTelaDoStatus } from "@/lib/painel-rotas";
 import {
@@ -355,6 +359,13 @@ export default function PainelGeral() {
   const [typeFilter, setTypeFilter]     = useState<string[]>(() => fromCsv("tipo"));
   const [dateFilter, setDateFilter]     = useState<string[]>(() => fromCsv("saida"));
   const [focoFilter, setFocoFilter]     = useState<string[]>(() => fromCsv("foco"));
+  // ── Peças de evento fora de jogo: ocultas na abertura ─────────────────────
+  // Decisão do dono (14/08): "acho que não precisa aparecer inicialmente".
+  // Mesmo padrão já provado das "entregues ocultas" da Gráfica — o estado mora
+  // na URL (um recorte compartilhado tem de chegar igual do outro lado) e o
+  // caminho de volta é um chip SEMPRE visível na faixa de atenção, nunca um
+  // filtro escondido num dropdown.
+  const [mostrarFinalizados, setMostrarFinalizados] = useState<boolean>(() => urlParams.get("finalizados") === "1");
 
   // Mantém a URL espelhando os filtros (replaceState: não polui o histórico).
   // Parte da query string ATUAL e sobrescreve só as chaves gerenciadas — um
@@ -369,9 +380,10 @@ export default function PainelGeral() {
     setOrDelete("tipo", typeFilter.join(","));
     setOrDelete("saida", dateFilter.join(","));
     setOrDelete("foco", focoFilter.join(","));
+    setOrDelete("finalizados", mostrarFinalizados ? "1" : "");
     const qs = p.toString();
     window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-  }, [searchTerm, statusFilter, eventFilter, sponsorFilter, typeFilter, dateFilter, focoFilter]);
+  }, [searchTerm, statusFilter, eventFilter, sponsorFilter, typeFilter, dateFilter, focoFilter, mostrarFinalizados]);
 
   // Debounce da busca (200ms) — ver comentário no estado searchInput.
   useEffect(() => {
@@ -393,6 +405,7 @@ export default function PainelGeral() {
       setTypeFilter(csv("tipo"));
       setDateFilter(csv("saida"));
       setFocoFilter(csv("foco"));
+      setMostrarFinalizados(p.get("finalizados") === "1");
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -569,11 +582,18 @@ export default function PainelGeral() {
   // Filtragem, ordenação, agrupamento e KPIs são recomputados SÓ quando os
   // dados ou filtros mudam — sem o useMemo, cada render (ex.: abrir um modal)
   // refazia filter+sort da lista inteira.
-  const { filteredItems, sortedGroupEntries, stats, eventMeta, atencao } = useMemo(() => {
+  const { filteredItems, sortedGroupEntries, stats, eventMeta, atencao, ocultas } = useMemo(() => {
   // Hoje à meia-noite — calculado UMA vez por recomputação (antes era um
   // new Date por item dentro do filtro).
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const todayMs = today.getTime();
+  // Âncora SEPARADA para o predicado de evento finalizado, e ela é obrigatória:
+  // `todayMs` acima é meia-noite LOCAL do navegador, enquanto o predicado
+  // compartilhado (servidor + as cinco filas) roda no dia do negócio em
+  // São Paulo. Duas âncoras diferentes fariam o Painel divergir das filas
+  // exatamente na virada do dia — o horário em que alguém confere o painel
+  // antes do evento.
+  const hojeNegocioMs = todayBusinessMs();
 
   // Içado do applyBaseFilters: eram até 4 toLowerCase() do MESMO termo por item.
   const q = searchTerm.toLowerCase();
@@ -582,7 +602,12 @@ export default function PainelGeral() {
   // De propósito não usa a lista filtrada: o chip de prazo diz "3 pendentes" e
   // esse número não pode encolher porque o usuário filtrou por "Entregue". O
   // estado do evento é o que é, independentemente do recorte na tela.
-  const eventMeta = new Map<string, { truckDayMs: number | null; pendentes: number }>();
+  const eventMeta = new Map<string, {
+    truckDayMs: number | null;
+    pendentes: number;
+    /** Selo de evento fora de jogo — `null` enquanto ele ainda conta. */
+    selo: SeloEventoFinalizado | null;
+  }>();
   for (const i of items as any[]) {
     const key = i.eventId || "no-event";
     let m = eventMeta.get(key);
@@ -592,20 +617,72 @@ export default function PainelGeral() {
       // new Date() local, um fuso atrás do UTC classificava o dia errado.
       let truckDayMs: number | null = null;
       if (raw) { const d = toUTCDisplayDate(raw); d.setHours(0, 0, 0, 0); truckDayMs = d.getTime(); }
-      m = { truckDayMs, pendentes: 0 };
+      m = { truckDayMs, pendentes: 0, selo: null };
       eventMeta.set(key, m);
     }
     if (!i.deletedAt && isPendingItemStatus(i.status)) m.pendentes++;
   }
+  // ── Selo de evento fora de jogo, por evento ──────────────────────────────
+  // Calculado DEPOIS do laço acima porque o rótulo do "realizado" depende da
+  // contagem de pendentes ("com pendências" × "sem pendências"), que só fecha
+  // no fim dele. `item.event` é o evento CRU do enrich de /api/items — traz
+  // `status` e `startDate`, que são exatamente as duas colunas do predicado
+  // compartilhado (@shared/prazo-dates), o mesmo das cinco filas.
+  //
+  // Cache próprio, alimentado sob demanda: a lista de EXCLUÍDAS pode trazer
+  // peça de um evento que não tem nenhuma peça viva, e esse evento não existe
+  // em `eventMeta`. Sem o fallback, a peça excluída de um evento encerrado
+  // apareceria sem selo nenhum — exatamente o silêncio que este trabalho veio
+  // acabar.
+  const seloPorEvento = new Map<string, SeloEventoFinalizado | null>();
+  const seloDoItem = (item: any): SeloEventoFinalizado | null => {
+    const key = item.eventId || "no-event";
+    if (seloPorEvento.has(key)) return seloPorEvento.get(key)!;
+    const selo = seloEventoFinalizado(item.event ?? null, hojeNegocioMs, eventMeta.get(key)?.pendentes ?? 0);
+    seloPorEvento.set(key, selo);
+    return selo;
+  };
+  for (const i of items as any[]) {
+    const m = eventMeta.get(i.eventId || "no-event");
+    if (m && m.selo === null) m.selo = seloDoItem(i);
+  }
+  const eventoFinalizado = (item: any) => seloDoItem(item) !== null;
 
   const temReprovacao = (item: any) =>
     Array.isArray(item.sponsors) &&
     item.sponsors.some((s: any) => getApprovalMeta(s?.approvalStatus)?.isRejection);
 
+  // "Atrasada" é uma COBRANÇA, e evento fora de jogo não se cobra — nem quando
+  // o usuário pede para VER as peças ocultas. Por isso a exclusão não olha o
+  // `mostrarFinalizados`: revelar o registro é uma coisa, voltar a chamar de
+  // atrasado o que ninguém mais vai tocar seria outra. Era isto que fazia o
+  // chip "436 peças em evento com caminhão atrasado" contar um passivo que
+  // ninguém ia atacar.
   const emEventoAtrasado = (item: any) => {
     const m = eventMeta.get(item.eventId || "no-event");
-    return !!m?.truckDayMs && dayDiff(todayMs, m.truckDayMs) < 0 && isPendingItemStatus(item.status);
+    return !!m?.truckDayMs && dayDiff(todayMs, m.truckDayMs) < 0
+      && isPendingItemStatus(item.status) && !eventoFinalizado(item);
   };
+
+  // ── A ocultação ──────────────────────────────────────────────────────────
+  // A peça sai da lista quando o EVENTO dela saiu de circulação. Três
+  // exceções, e as três são intenção EXPLÍCITA de ver aquilo:
+  //   · o usuário pediu para ver (chip da faixa de atenção / deep link);
+  //   · a busca é o CÓDIGO EXATO da peça — procurar "#3089" e ouvir "nenhuma
+  //     peça encontrada" faria qualquer um concluir que ela sumiu do sistema;
+  //   · o evento foi escolhido A DEDO no filtro de evento. Filtrar pelo nome do
+  //     evento encerrado e receber "Nenhuma peça encontrada" seria a mesma
+  //     armadilha, com um clique a menos de esforço para cair nela.
+  //
+  // `seriaOculto` ignora o botão e responde só "esta peça pertence à ocultação?".
+  // É ele que alimenta a contagem do chip — sem essa separação o chip zeraria
+  // assim que o usuário revelasse as peças, e o caminho de VOLTA para a lista
+  // limpa desapareceria junto com ele.
+  const seriaOculto = (item: any) =>
+    eventoFinalizado(item)
+    && !buscaEhCodigoDaPeca(item.displayId, searchTerm)
+    && !eventFilter.includes(item.eventId);
+  const ocultoPorEvento = (item: any) => !mostrarFinalizados && seriaOculto(item);
 
   const applyBaseFilters = (item: any) => {
     const matchesSearch =
@@ -663,11 +740,33 @@ export default function PainelGeral() {
 
   // Base do bloco "Precisa de atenção": respeita evento/tipo/busca, mas NÃO o
   // próprio foco — senão o número do chip mudaria ao clicar nele mesmo.
-  const baseItems = (items as any[]).filter(applyBaseFilters);
+  //
+  // A REGRA DOS NÚMEROS DESTA TELA, e ela vale para TUDO (KPIs, contador de
+  // resultados, chips de atenção, exportação): os números seguem o RECORTE
+  // VISÍVEL. Um KPI é "quanto trabalho eu tenho", e evento fora de jogo não é
+  // trabalho. A única exceção é o chip de ocultas logo abaixo — ele existe
+  // justamente para contar o que os outros deixaram de contar, e é a porta de
+  // volta. Metade dos números seguindo uma regra e metade outra seria pior que
+  // qualquer das duas.
+  const baseCompleta = (items as any[]).filter(applyBaseFilters);
+  const baseItems = baseCompleta.filter(i => !ocultoPorEvento(i));
   const atencao = {
     reprovadas: baseItems.filter(temReprovacao).length,
     atrasadas: baseItems.filter(emEventoAtrasado).length,
   };
+
+  // O que a ocultação tira (ou tiraria) da tela, por origem e por situação.
+  // Contado sobre a base JÁ filtrada pelos demais recortes: o chip fala do que
+  // sumiu DESTA lista, não do banco inteiro — senão ele anunciaria peças que o
+  // filtro de evento tinha excluído de qualquer jeito.
+  const ocultas: ContagemOcultas = { ...CONTAGEM_OCULTAS_ZERO };
+  for (const i of baseCompleta) {
+    if (!seriaOculto(i)) continue;
+    const motivo = seloDoItem(i)!.motivo;
+    const aberto = !i.deletedAt && isPendingItemStatus(i.status);
+    if (motivo === "encerrado") { ocultas.encerrado++; if (aberto) ocultas.encerradoAberto++; }
+    else { ocultas.realizado++; if (aberto) ocultas.realizadoAberto++; }
+  }
 
   const statsItems = baseItems.filter(matchesFoco);
 
@@ -682,6 +781,7 @@ export default function PainelGeral() {
   const dir = sortDir === "asc" ? 1 : -1;
   const filteredItems = allDisplayItems
     .filter(applyBaseFilters)
+    .filter((i: any) => !ocultoPorEvento(i))
     .filter(matchesFoco)
     .filter((i) => matchesStatus(i, statusFilter))
     .sort((a, b) => {
@@ -720,8 +820,18 @@ export default function PainelGeral() {
   // Grupos ordenados pela saída do caminhão (ascendente; sem data por último;
   // empate/sem data desempata pelo nome) — Object.entries herdava a ordem de
   // inserção, arbitrária para o usuário.
+  //
+  // ANTES DISSO, porém, evento fora de jogo vai para o FIM — nunca escondido,
+  // sempre no fim. A ordem é por saída do caminhão ASCENDENTE, ou seja o mais
+  // antigo primeiro: um evento encerrado em maio ficaria no topo da tela
+  // empurrando para baixo tudo que ainda está vivo. Só acontece com o chip de
+  // ocultas ligado (por padrão eles nem aparecem), e é exatamente aí que
+  // importa: quem revelou o registro quer olhá-lo DEPOIS do trabalho do dia.
   type EventGroup = { eventId: string | null; eventName: string; items: any[] };
   const sortedGroupEntries = (Object.entries(groupedItems) as Array<[string, EventGroup]>).sort(([ka, a], [kb, b]) => {
+    const fa = seloPorEvento.get(ka) ? 1 : 0;
+    const fb = seloPorEvento.get(kb) ? 1 : 0;
+    if (fa !== fb) return fa - fb;
     const da = eventMeta.get(ka)?.truckDayMs ?? null;
     const db = eventMeta.get(kb)?.truckDayMs ?? null;
     if (da == null && db == null) return a.eventName.localeCompare(b.eventName, "pt-BR");
@@ -731,8 +841,12 @@ export default function PainelGeral() {
     return diff !== 0 ? diff : a.eventName.localeCompare(b.eventName, "pt-BR");
   });
 
-  return { filteredItems, sortedGroupEntries, stats, eventMeta, atencao };
-  }, [items, deletedItems, showDeleted, searchTerm, statusFilter, eventFilter, sponsorFilter, typeFilter, dateFilter, focoFilter, typeToGroup, sortBy, sortDir]);
+  return { filteredItems, sortedGroupEntries, stats, eventMeta, atencao, ocultas };
+  }, [items, deletedItems, showDeleted, searchTerm, statusFilter, eventFilter, sponsorFilter, typeFilter, dateFilter, focoFilter, mostrarFinalizados, typeToGroup, sortBy, sortDir]);
+
+  // O chip de reversão. Fora do memo de propósito: ele depende de `ocultas`
+  // (que vem de lá) mas também do estado do botão, e nada mais.
+  const chipOcultasDados = chipOcultas(ocultas, mostrarFinalizados);
 
   // Clique no card alterna o status DENTRO do conjunto de filtros — coerente
   // com o dropdown multi-seleção. Antes o clique descartava a seleção inteira
@@ -769,7 +883,7 @@ export default function PainelGeral() {
   useEffect(() => {
     setExpandedEvents(new Set());
     setOpenGroups(new Set());
-  }, [searchTerm, statusFilter, eventFilter, sponsorFilter, typeFilter, dateFilter, focoFilter]);
+  }, [searchTerm, statusFilter, eventFilter, sponsorFilter, typeFilter, dateFilter, focoFilter, mostrarFinalizados]);
 
   // ── Visões salvas ─────────────────────────────────────────────────────────
   const visoes = useMemo(() => visoesParaPapel(user?.role), [user?.role]);
@@ -826,7 +940,14 @@ export default function PainelGeral() {
     p.delete("peca");
     const qs = p.toString();
     window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
-    if (alvo) setSelectedItem(alvo);
+    if (alvo) {
+      // A peça pode estar num evento fora de jogo, que a tela abre ocultando.
+      // O link tem de entregar a peça — e, junto, o CONTEXTO: revelar o recorte
+      // deixa o chip da faixa marcado, então o usuário vê onde ela estava. Sem
+      // isto, o dialog abriria sobre uma lista onde a peça não existe.
+      if (motivoEventoFinalizado(alvo.event, todayBusinessMs()) !== null) setMostrarFinalizados(true);
+      setSelectedItem(alvo);
+    }
     else toast({ title: "Peça não encontrada", description: "O link aponta para uma peça que não está mais nas listagens." });
   }, [items, toast]);
 
@@ -1055,7 +1176,7 @@ export default function PainelGeral() {
           Os 13 estados têm o mesmo peso visual, mas a operação não é simétrica:
           reprovação de patrocinador e caminhão que já saiu com peça pendente
           valem mais que as outras dez juntas. Só aparece quando há o que dizer. */}
-      {(atencao.reprovadas > 0 || atencao.atrasadas > 0) && (
+      {(atencao.reprovadas > 0 || atencao.atrasadas > 0 || chipOcultasDados) && (
         <section aria-label="Precisa de atenção" style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
           <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#78716c" }}>Precisa de atenção</span>
           {atencao.reprovadas > 0 && (
@@ -1078,6 +1199,34 @@ export default function PainelGeral() {
             >
               <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900 }}>{atencao.atrasadas}</span>
               {atencao.atrasadas === 1 ? "peça em evento com caminhão atrasado" : "peças em evento com caminhão atrasado"}
+            </button>
+          )}
+          {/* ── Peças de evento fora de jogo ────────────────────────────────
+              Mora AQUI, e não entre os cards de status, por dois motivos: os
+              cards são etapas do fluxo, e isto não é etapa nenhuma; e esta
+              faixa é o lugar onde os recortes transversais já vivem — foi dela
+              que saiu a contagem de "atrasadas" que antes misturava evento
+              vivo com evento morto.
+
+              Aparece SEMPRE que houver algo oculto, inclusive com a lista
+              cheia: esconder em silêncio seria pior que o problema que a
+              ocultação resolve. Cinza, não âmbar nem vermelho — não é
+              urgência, é registro; o alarme aqui ao lado tem de continuar
+              sendo o mais forte da faixa. */}
+          {chipOcultasDados && (
+            <button
+              onClick={() => setMostrarFinalizados(v => !v)}
+              aria-pressed={mostrarFinalizados}
+              title={chipOcultasDados.title}
+              aria-label={chipOcultasDados.srLabel}
+              data-testid="chip-atencao-ocultas"
+              /* Contrastes: #44403c sobre #f5f5f4 = 9,42:1; no estado marcado,
+                 #ffffff sobre #57534e = 7,63:1. Ambos AA com folga em 13px. */
+              style={{ display: "flex", alignItems: "center", gap: 8, height: 38, padding: "0 14px", borderRadius: 999, cursor: "pointer", fontSize: 13, fontWeight: 700, backgroundColor: mostrarFinalizados ? "#57534e" : "#f5f5f4", color: mostrarFinalizados ? "#fff" : "#44403c", border: `1px solid ${mostrarFinalizados ? "#57534e" : "#e7e5e4"}` }}
+            >
+              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900 }}>{chipOcultasDados.numero}</span>
+              {chipOcultasDados.texto}
+              <span style={{ textDecoration: "underline", fontWeight: 800 }}>{chipOcultasDados.acao}</span>
             </button>
           )}
         </section>
@@ -1340,6 +1489,12 @@ export default function PainelGeral() {
             <span style={{ color: "#1c1917", fontWeight: 900 }}>{filteredItems.length}</span>
             {" "}{filteredItems.length === 1 ? "peça encontrada" : "peças encontradas"}
             {activeFilterCount > 0 && ` · ${activeFilterCount} ${activeFilterCount === 1 ? "filtro ativo" : "filtros ativos"}`}
+            {/* O número desta tela conta o que está VISÍVEL. Ele só pode dizer
+                isso se disser, no mesmo fôlego, quanto ficou de fora — é aqui
+                que a contagem é lida (e anunciada pelo leitor de tela a cada
+                mudança de filtro), então é aqui que a ressalva tem de estar.
+                A porta de volta continua sendo o chip da faixa de atenção. */}
+            {chipOcultasDados && !mostrarFinalizados && ` · ${chipOcultasDados.total} ${chipOcultasDados.total === 1 ? "oculta" : "ocultas"}`}
           </span>
           {hasActiveFilters && (
             <button
@@ -1450,22 +1605,38 @@ export default function PainelGeral() {
           !bannerExcluidosVisivel && (
             <div style={{ backgroundColor: "#ffffff", border: "1px solid #e7e5e4", borderRadius: 10, padding: "56px 24px", textAlign: "center" }}>
               <Search style={{ width: 28, height: 28, color: "#d6d3d1", margin: "0 auto 12px" }} />
+              {/* Três motivos, três respostas. O terceiro é novo e é o que
+                  evita a pior leitura desta feature: lista vazia com peças
+                  ocultas por trás lida como "não existe" quando o certo é "não
+                  está aqui, e está a um clique". */}
               <p style={{ color: "#1c1917", fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>
-                {hasActiveFilters ? "Nenhuma peça encontrada" : "Nenhuma peça cadastrada ainda"}
+                {hasActiveFilters ? "Nenhuma peça encontrada"
+                  : chipOcultasDados && !mostrarFinalizados ? "Só sobrou o que já acabou"
+                  : "Nenhuma peça cadastrada ainda"}
               </p>
               <p style={{ color: "#746e69", fontSize: 13, margin: "0 0 16px" }}>
                 {hasActiveFilters
                   ? "Nenhuma peça corresponde aos filtros ativos. Ajuste a busca ou limpe os filtros."
-                  : "As peças aparecem aqui quando forem adicionadas a um evento."}
+                  : chipOcultasDados && !mostrarFinalizados
+                    ? `${chipOcultasDados.total} ${chipOcultasDados.total === 1 ? "peça está fora" : "peças estão fora"} da lista porque o evento delas foi encerrado ou já foi realizado.`
+                    : "As peças aparecem aqui quando forem adicionadas a um evento."}
               </p>
-              {hasActiveFilters && (
+              {hasActiveFilters ? (
                 <button
                   onClick={clearAllFilters}
                   style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}
                 >
                   Limpar filtros
                 </button>
-              )}
+              ) : chipOcultasDados && !mostrarFinalizados ? (
+                <button
+                  onClick={() => setMostrarFinalizados(true)}
+                  data-testid="button-mostrar-ocultas-vazio"
+                  style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}
+                >
+                  Mostrar as {chipOcultasDados.total} {chipOcultasDados.total === 1 ? "peça oculta" : "peças ocultas"}
+                </button>
+              ) : null}
             </div>
           )
         ) : (
@@ -1481,11 +1652,15 @@ export default function PainelGeral() {
             const visibleItems = !groupOpen ? [] : (isExpanded || gd.items.length <= ROW_CAP ? gd.items : gd.items.slice(0, ROW_CAP));
             const hiddenCount = gd.items.length - visibleItems.length;
             const meta = eventMeta.get(eventKey);
+            // Selo de evento fora de jogo (encerrado à mão ou já realizado).
+            // `null` enquanto o evento conta — a esmagadora maioria.
+            const selo = meta?.selo ?? null;
             // Chip de prazo: calendário CRUZADO com o estado real das peças.
             // A regra inteira (e o porquê de a versão antiga errar em 100% dos
-            // eventos) mora em lib/painel-prazo.ts, testada.
+            // eventos) mora em lib/painel-prazo.ts, testada. O 4º argumento é
+            // o que impede o "ATRASADO 8D" num evento que ninguém mais toca.
             const deadline: PrazoChip | null = computeDeadlineChip(
-              meta?.truckDayMs ?? null, hojeMs, meta?.pendentes ?? 0,
+              meta?.truckDayMs ?? null, hojeMs, meta?.pendentes ?? 0, !!selo,
             );
             const todasSelecionadas = visibleItems.length > 0 && visibleItems.every((i: any) => i.deletedAt || selectedIds.has(i.id));
             // overflow: clip (não hidden): clipa o border-radius SEM criar
@@ -1512,7 +1687,12 @@ export default function PainelGeral() {
                     ? { padding: "13px 18px 13px 20px" }
                     : { padding: "0 18px 0 20px", height: EVENT_HEADER_H, boxSizing: "border-box" as const }),
                   display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16,
-                  borderLeft: "3px solid #f97316",
+                  // Acento do evento fora de jogo — o MESMO da lista de
+                  // Eventos: cinza no encerrado à mão (verde diria "deu tudo
+                  // certo", âmbar diria "corre atrás", e encerrado não é
+                  // nenhum dos dois) e âmbar no realizado. O laranja da marca
+                  // fica para os eventos que ainda estão em jogo.
+                  borderLeft: `3px solid ${selo ? selo.dot : "#f97316"}`,
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
                     <div style={{ minWidth: 0 }}>
@@ -1541,6 +1721,21 @@ export default function PainelGeral() {
                           em silêncio (sem reticências) era justamente
                           "Atrasado 5d" — o dado mais acionável da linha. */}
                       <div style={{ display: "flex", alignItems: "center", gap: useCards ? 10 : 12, marginTop: 5, minWidth: 0, flexWrap: useCards ? "wrap" : "nowrap", overflow: "hidden" }}>
+                        {/* O selo vem ANTES do chip de prazo e também não
+                            encolhe: ele é a chave de leitura de todo o resto da
+                            linha. Sem ele, "Saiu há 8d · 66 em aberto" parecia
+                            um evento vivo em apuros. Palavras da lista de
+                            Eventos — as duas telas falam do mesmo estado. */}
+                        {selo && (
+                          <span
+                            title={selo.hint}
+                            data-testid={`selo-evento-${eventKey}`}
+                            style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}`, borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap", flexShrink: 0 }}
+                          >
+                            <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: selo.dot, flexShrink: 0 }} aria-hidden="true" />
+                            {isCompact || useCards ? selo.short : selo.label}
+                          </span>
+                        )}
                         {deadline && (
                           <span
                             title={deadline.srLabel}
@@ -1673,6 +1868,21 @@ export default function PainelGeral() {
                                       {/* Row 3: status pill */}
                                       <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                                         <StatusPill status={isDeleted ? "deleted" : item.status} />
+                                        {/* Mesmo selo da linha do desktop, ao
+                                            lado do status: no card o status é
+                                            a informação que a pessoa lê, e é
+                                            justamente ele que engana sozinho
+                                            ("Em Produção" num evento que
+                                            acabou). */}
+                                        {selo && !isDeleted && (
+                                          <span
+                                            title={selo.hintPeca}
+                                            data-testid={`selo-peca-${item.id}`}
+                                            style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}`, borderRadius: 999, padding: "2px 7px", whiteSpace: "nowrap" }}
+                                          >
+                                            {selo.labelPeca}
+                                          </span>
+                                        )}
                                         {isDeleted && item.deletedAt && (
                                           <span style={{ fontSize: 10, color: "#746e69" }}>
                                             {format(new Date(item.deletedAt), "dd/MM/yyyy", { locale: ptBR })}
@@ -1957,6 +2167,25 @@ export default function PainelGeral() {
                                       <span title={item.type} style={{ fontSize: 10, fontWeight: 600, color: "#746e69", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                                         {item.type}
                                       </span>
+                                      {/* O selo se repete na LINHA, e não só
+                                          no cabeçalho do grupo: quem chega por
+                                          busca de código, por link direto ou
+                                          rolando uma lista longa lê a linha, e
+                                          o cabeçalho pode estar 40 linhas
+                                          acima. A frase começa em "Evento" —
+                                          é a mesma da trilha da ficha (lib/
+                                          status, marcoEventoFinalizado), para
+                                          que ninguém entenda que foi a PEÇA
+                                          que acabou. */}
+                                      {selo && !isDeleted && (
+                                        <span
+                                          title={selo.hintPeca}
+                                          data-testid={`selo-peca-${item.id}`}
+                                          style={{ display: "inline-block", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}`, borderRadius: 999, padding: "2px 7px", width: "fit-content", whiteSpace: "nowrap" }}
+                                        >
+                                          {selo.labelPeca}
+                                        </span>
+                                      )}
                                       {isDeleted && item.deletedAt && (
                                         <span style={{ fontSize: 10, color: "#746e69" }}>
                                           Excluído {format(new Date(item.deletedAt), "dd/MM/yy", { locale: ptBR })}

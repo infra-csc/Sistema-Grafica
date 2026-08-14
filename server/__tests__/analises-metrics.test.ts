@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { spDayMs } from "../services/prazo-domain";
 import {
   businessDayMs, cycleWindow, eventCycleDayIndex, eventDayMs, filterEvents,
-  filterItems, instantDayMs, m2Of, previousWindow, qtyOf,
+  filterItems, instantDayMs, m2Of, pickDefaultPeriod, previousWindow, qtyOf,
 } from "@/lib/analises-metrics";
 import type { AnaliseEvent, AnaliseItem } from "@/lib/analises-metrics";
 
@@ -178,5 +178,55 @@ describe("filtro de patrocinador", () => {
     const idx = eventCycleDayIndex([evento({ id: "ev1" })]);
     const items = [item({ status: "delivered" })];
     expect(filterItems(items, idx, { window: null, eventFilter: "all", sponsorFilter: "all" })).toBe(items);
+  });
+});
+
+describe("período de abertura — a tela precisa chegar respondendo", () => {
+  // A tela abria em "Todo o período" e, como "todo o período" não tem janela
+  // anterior, os quatro KPIs abriam dizendo "Escolha um período para comparar".
+  // O padrão só é legítimo se ENTREGAR a comparação — por isso o teste prende
+  // a regra das duas janelas, não o valor "30d".
+  const agora = new Date("2026-08-14T15:00:00.000Z").getTime();
+  const hoje = businessDayMs(agora);
+  const diaIso = (atras: number) => new Date(hoje - atras * DIA).toISOString();
+
+  const cenario = (saidas: number[], status = "delivered") => {
+    const events = saidas.map((d, i) => evento({ id: `ev${i}`, truckDepartureDate: diaIso(d) }));
+    const items = saidas.map((_, i) => item({ id: `it${i}`, eventId: `ev${i}`, status }));
+    return { idx: eventCycleDayIndex(events), items };
+  };
+
+  it("abre em 30 dias quando há ciclo fechado nas DUAS janelas", () => {
+    const { idx, items } = cenario([5, 40]);
+    expect(pickDefaultPeriod(items, idx, agora)).toBe("30d");
+  });
+
+  it("alarga para o trimestre quando os 30 dias não têm anterior comparável", () => {
+    // Com peça só na janela atual, a comparação sairia "Sem base nos dois
+    // períodos" — o padrão não teria resolvido nada.
+    const { idx, items } = cenario([5, 100]);
+    expect(pickDefaultPeriod(items, idx, agora)).toBe("90d");
+  });
+
+  it("devolve 'all' quando nenhum candidato compara — e a tela volta a dizer isso", () => {
+    const { idx, items } = cenario([5]);
+    expect(pickDefaultPeriod(items, idx, agora)).toBe("all");
+  });
+
+  it("canceladas não sustentam um período padrão", () => {
+    // São as mesmas peças que já ficam fora de todo denominador da tela: abrir
+    // num recorte sustentado só por elas mostraria KPIs zerados.
+    const { idx, items } = cenario([5, 40], "canceled");
+    expect(pickDefaultPeriod(items, idx, agora)).toBe("all");
+  });
+
+  it("evento sem data de saída válida não entra na conta", () => {
+    const events = [evento({ id: "ev0", truckDepartureDate: null })];
+    const items = [item({ id: "it0", eventId: "ev0", status: "delivered" })];
+    expect(pickDefaultPeriod(items, eventCycleDayIndex(events), agora)).toBe("all");
+  });
+
+  it("base vazia abre em 'all' em vez de num recorte sem nada dentro", () => {
+    expect(pickDefaultPeriod([], new Map(), agora)).toBe("all");
   });
 });

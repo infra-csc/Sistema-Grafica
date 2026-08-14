@@ -12,6 +12,7 @@
 //  3. Regra de negócio dentro de componente não tem teste. Aqui tem
 //     (`server/__tests__/analises-metrics.test.ts`).
 import { isPlausibleEventYear } from "@shared/prazo-dates";
+import { isOutOfFunnel } from "./analises-status";
 
 export const DAY_MS = 86_400_000;
 
@@ -229,4 +230,61 @@ export function filterEvents(
 ): AnaliseEvent[] {
   if (!w) return events;
   return events.filter((e) => isInCycleWindow(cycleDayByEvent.get(e.id) ?? null, w));
+}
+
+// ─── Período de abertura ─────────────────────────────────────────────────────
+
+/**
+ * Ordem em que os períodos são tentados na abertura. Do mais recente para o
+ * mais largo: quanto mais curta a janela, mais o número fala do agora.
+ */
+export const DEFAULT_PERIOD_ORDER = ["30d", "90d"] as const;
+
+/**
+ * Período com que a tela ABRE quando a URL não traz um.
+ *
+ * PORQUÊ isto existe: sem período, os quatro KPIs abriam dizendo "Escolha um
+ * período para comparar". Estava correto — "Todo o período" não tem janela
+ * anterior, então não há comparação a fazer —, mas o primeiro contato com a
+ * tela eram quatro cartões que não comparavam nada. Um painel que abre pedindo
+ * configuração antes de responder não é um painel.
+ *
+ * PORQUÊ 30 dias e não 7: o recorte é por SAÍDA DE CAMINHÃO já ocorrida, e a
+ * casa tem poucas dezenas de eventos por ano — uma janela de 7 dias tem chance
+ * real de não conter nenhum ciclo fechado, e a tela abriria vazia, que é pior
+ * do que abrir sem comparação. 30 dias é o menor degrau que acompanha o ritmo
+ * mensal da operação.
+ *
+ * PORQUÊ a escolha é MEDIDA e não fixa: o padrão só vale se ele de fato
+ * entregar o que promete. Um período é aceito apenas quando existe peça na
+ * janela ATUAL **e** na ANTERIOR — sem as duas, a comparação continuaria em
+ * branco e o padrão não teria resolvido nada. Não havendo nenhum candidato que
+ * satisfaça isso, devolve "all" e a tela volta a DIZER que não há comparação,
+ * em vez de inventar uma.
+ *
+ * Canceladas e excluídas não contam: são as mesmas peças que já ficam fora de
+ * todo denominador da tela.
+ */
+export function pickDefaultPeriod(
+  items: AnaliseItem[],
+  cycleDayByEvent: Map<string, number | null>,
+  nowMs: number,
+  candidatos: readonly string[] = DEFAULT_PERIOD_ORDER,
+): string {
+  for (const p of candidatos) {
+    const atualW = cycleWindow(p, nowMs);
+    const anteriorW = previousWindow(atualW);
+    if (!atualW || !anteriorW) continue;
+    let atual = 0;
+    let anterior = 0;
+    for (const i of items) {
+      if (isOutOfFunnel(i.status)) continue;
+      const dia = cycleDayByEvent.get(i.eventId) ?? null;
+      if (dia == null) continue;
+      if (isInCycleWindow(dia, atualW)) atual++;
+      else if (isInCycleWindow(dia, anteriorW)) anterior++;
+      if (atual > 0 && anterior > 0) return p;
+    }
+  }
+  return "all";
 }

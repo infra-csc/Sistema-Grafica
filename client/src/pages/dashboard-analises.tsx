@@ -1,12 +1,14 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FilterSelect } from "@/components/filter-select";
-import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import {
   Bar, BarChart, CartesianGrid, ReferenceArea, ReferenceLine,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
-import { ArrowDown, ArrowUp, ChevronRight, Download, RotateCcw } from "lucide-react";
+import {
+  ArrowDown, ArrowUp, Building2, Calendar, ChevronDown, ChevronRight,
+  Clock, Download, RotateCcw, SlidersHorizontal, X,
+} from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useLocation } from "wouter";
@@ -15,10 +17,10 @@ import { useIsMobile } from "@/hooks/use-mobile";
 // Tokens canônicos — a paleta local divergia do resto do app e T.muted era
 // usado como cor de TEXTO, o que reprova AA em todas as superfícies.
 import { T, FS, R, SHADOW } from "@/lib/theme";
-import { ANALISE_STAGES, isOutOfFunnel } from "@/lib/analises-status";
+import { isOutOfFunnel } from "@/lib/analises-status";
 import type { AnaliseEvent, AnaliseItem, AnaliseSponsor } from "@/lib/analises-metrics";
 import {
-  cycleWindow, eventCycleDayIndex, filterItems, previousWindow, qtyOf,
+  cycleWindow, eventCycleDayIndex, filterItems, pickDefaultPeriod, previousWindow, qtyOf,
 } from "@/lib/analises-metrics";
 import {
   computeCapacidade, rotuloSemana,
@@ -39,6 +41,53 @@ const BOM = "#15803d";
 const RUIM = "#b91c1c";
 /* Cinza de objeto gráfico decorativo — 3,65:1 sobre branco. Nunca em texto. */
 const GRAFICO_NEUTRO = "#78716c";
+
+/* ── Ritmo vertical ──
+   Quatro degraus, e é a HIERARQUIA entre eles que agrupa: o que pertence à
+   mesma ideia usa o degrau menor, a troca de assunto usa o maior. Antes a tela
+   usava 24 / 22 / 16 / 22 / 16 entre blocos — números diferentes o bastante
+   para não parecerem sistema e parecidos o bastante para não separarem nada:
+   filtro, resultado e indicador ficavam todos à mesma distância e a tela lia
+   como uma seção só.
+
+   A escala conversa com as vizinhas: Histórico e Gestão de Prazos usam 28px de
+   padding lateral e 18–20px entre o cabeçalho e o conteúdo. A Análises usava
+   32px lateral, e era a única. */
+const SP = {
+  /** Dentro do mesmo elemento (título → subtítulo). */
+  intra: 6,
+  /** Irmãos da mesma ideia (faixa → KPIs, KPIs → ressalva). */
+  junto: 12,
+  /** Cabeçalho da página → primeiro conteúdo. */
+  bloco: 20,
+  /** Troca de assunto (indicadores → planejamento → ofensores). */
+  secao: 32,
+} as const;
+
+/* Padding da página. 28px na lateral é o que o Histórico e a Gestão de Prazos
+   usam; a Análises usava 32 e era a única — a diferença aparecia ao trocar de
+   tela pela barra lateral, com o conteúdo dando um passo para dentro. O topo
+   caiu de 28 para 24 porque a primeira dobra desta tela é disputada: KPIs,
+   gráfico de 21 semanas e a tabela de ofensores, tudo abaixo. */
+const PADDING_PAGINA = (isMobile: boolean) =>
+  isMobile ? "14px 14px 40px" : "24px 28px 56px";
+
+/* ── Contrastes calculados (WCAG 2.1; todo texto ≤13px exige 4,5:1) ──
+   Superfícies desta tela: branco #ffffff (cards), #f3f4f3 (faixa de filtros e
+   cabeçalho de tabela) e #f9f9f8 (fundo da página).
+
+     resumo do recorte    #746e69 / #f3f4f3 =  4,56:1 ✓
+     número do resumo     #1a1c1c / #f3f4f3 = 15,52:1 ✓
+     "Limpar tudo" ligado #b91c1c / #fef2f2 =  5,91:1 ✓
+     "Limpar tudo" apagado#57534e / #f3f4f3 =  6,92:1 ✓
+     gatilho inativo      #1c1917 / #ffffff = 17,49:1 ✓
+     gatilho ativo cheio  #ffffff / #c2410c =  5,18:1 ✓
+     botão Filtros (cel.) #ffffff / #c2410c =  5,18:1 ✓
+     texto secundário     #746e69 / #ffffff =  5,03:1 ✓ · / #f9f9f8 = 4,77:1 ✓
+     selo de dado velho   #b45309 / #f9f9f8 =  4,77:1 ✓
+     variação boa/ruim    #15803d / #ffffff =  5,02:1 ✓ · #b91c1c = 6,47:1 ✓
+   Objeto gráfico (1.4.11 pede 3:1): média concluída #78716c / #ffffff = 4,80:1 ✓ */
+const RESUMO_APAGADO = "#57534e";
 
 /* ── Recorte de período ──
    Por CICLO DO EVENTO (saída do caminhão já ocorrida), não por data de criação
@@ -143,46 +192,6 @@ function KpiAnalise({
   );
 }
 
-/* ── Campo de filtro (rótulo + ponto de "ativo" + FilterSelect) ──
-   NO MÓDULO, não dentro do render: definido inline, o React via um componente
-   NOVO a cada re-render e desmontava/remontava o dropdown — ele fechava
-   sozinho e perdia o texto buscado a cada tecla. */
-function Fld({ label, allLabel, value, onChange, testId, options }: {
-  label: string; allLabel: string; value: string; onChange: (v: string) => void;
-  testId?: string; options: { value: string; label: string; count?: number; pinned?: boolean }[];
-}) {
-  const active = value !== "all";
-  return (
-    <div style={{ flex: 1, minWidth: 0 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
-        <span style={{ fontSize: 10, fontWeight: 900, color: active ? ACCENT_TEXT : T.second, textTransform: "uppercase", letterSpacing: "0.16em", transition: "color 0.15s" }}>
-          {label}
-        </span>
-        {active && (
-          <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: ACCENT_TEXT, flexShrink: 0 }} />
-        )}
-      </div>
-      <FilterSelect
-        fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
-        label={label} allLabel={allLabel}
-        value={value} onChange={onChange}
-        options={options}
-        searchPlaceholder={`Buscar ${label.toLowerCase()}...`}
-        emptyText="Nada encontrado."
-        testId={testId}
-        triggerStyle={{
-          height: "auto", padding: "9px 10px",
-          backgroundColor: active ? "#fff7ed" : T.low,
-          border: `1px solid ${active ? "#fed7aa" : T.border}`,
-          borderRadius: R.sm,
-          fontSize: 11, fontWeight: active ? 700 : 600,
-          color: active ? ACCENT_TEXT : T.text,
-        }}
-      />
-    </div>
-  );
-}
-
 /* ── Tooltip do gráfico de carga ── */
 const CargaTip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
@@ -237,6 +246,10 @@ function lerFiltrosDaUrl() {
   const dim = p.get(URL_KEYS.dim) as OfensorDim | null;
   const ordem = p.get(URL_KEYS.ordem) as OfensorOrdem | null;
   return {
+    /* Distinguir "a URL não trouxe período" de "a URL trouxe `all`" é o que
+       permite abrir num padrão sem sequestrar a escolha de quem colou um link
+       ou apertou Voltar pedindo explicitamente todo o período. */
+    periodoAusente: !p.get(URL_KEYS.period),
     period: PERIODS.some((x) => x.value === val(URL_KEYS.period)) ? val(URL_KEYS.period) : "all",
     event: val(URL_KEYS.event),
     sponsor: val(URL_KEYS.sponsor),
@@ -255,6 +268,17 @@ export default function DashboardAnalises() {
   const [sponsorFilter, setSponsorFilter] = useState(inicial.sponsor);
   const [dim, setDim] = useState<OfensorDim>(inicial.dim);
   const [ordem, setOrdem] = useState<OfensorOrdem>(inicial.ordem);
+  /* Enquanto ligado, o período ainda não foi escolhido por ninguém: a tela
+     abriu sem `?periodo=` e vai resolver um padrão assim que os dados
+     chegarem. Qualquer toque do usuário desliga isto para sempre. */
+  const [periodoAutomatico, setPeriodoAutomatico] = useState(inicial.periodoAusente);
+  /* O período padrão É um filtro, e a tela não pode fingir que não é: com ele
+     ligado o resumo diria "1 filtro ativo" para um recorte que ninguém
+     escolheu. Enquanto ninguém tiver tocado nele, o resumo diz "Período
+     padrão" — é a mesma verdade, com a origem declarada. */
+  const [periodoPadraoAplicado, setPeriodoPadraoAplicado] = useState(false);
+  /* Gaveta de filtros do celular (o desktop mostra a faixa inteira). */
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
 
   // Override LOCAL do queryClient (o default global é staleTime: Infinity,
   // sem refetch em foco e sem polling). A tela afirmava "Dados em tempo real"
@@ -325,16 +349,46 @@ export default function DashboardAnalises() {
       const f = lerFiltrosDaUrl();
       setPeriod(f.period); setEventFilter(f.event); setSponsorFilter(f.sponsor);
       setDim(f.dim); setOrdem(f.ordem);
+      // Voltar para um endereço sem `?periodo=` devolve a tela ao padrão
+      // automático — é o mesmo estado em que ela teria sido aberta ali.
+      setPeriodoAutomatico(f.periodoAusente);
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
-  const limparFiltros = () => { setPeriod("all"); setEventFilter("all"); setSponsorFilter("all"); };
+  // Trocar o período é sempre uma escolha explícita — desliga o padrão
+  // automático para que o próximo tick de dados não o reescreva por baixo.
+  const escolherPeriodo = (v: string) => {
+    setPeriodoAutomatico(false); setPeriodoPadraoAplicado(false); setPeriod(v);
+  };
+  const limparFiltros = () => {
+    setPeriodoAutomatico(false); setPeriodoPadraoAplicado(false);
+    setPeriod("all"); setEventFilter("all"); setSponsorFilter("all");
+  };
 
   // Ciclo do evento (saída do caminhão) — é por ele que o período recorta e é
   // contra ele que "no prazo" é medido.
   const cycleDayByEvent = useMemo(() => eventCycleDayIndex(events), [events]);
+
+  /* ── Período de abertura ──
+     A tela abria em "Todo o período", e "todo o período" não tem janela
+     anterior: os quatro KPIs davam as boas-vindas com "Escolha um período para
+     comparar". Estava tecnicamente certo e mesmo assim errado — um painel cujo
+     primeiro contato são quatro cartões que não comparam nada não está
+     respondendo, está pedindo configuração.
+     `pickDefaultPeriod` escolhe o menor recorte que TEM as duas janelas com
+     peça dentro (30 dias, depois o trimestre); não havendo nenhum, devolve
+     "all" e a tela volta a declarar a ausência em vez de inventar comparação.
+     Roda uma vez, quando os dados chegam — a partir daí o período é do
+     usuário. */
+  useEffect(() => {
+    if (!periodoAutomatico || items.length === 0) return;
+    const escolhido = pickDefaultPeriod(items, cycleDayByEvent, agora);
+    setPeriod(escolhido);
+    setPeriodoPadraoAplicado(escolhido !== "all");
+    setPeriodoAutomatico(false);
+  }, [periodoAutomatico, items, cycleDayByEvent, agora]);
   const eventNameById = useMemo(() => new Map(events.map((e) => [e.id, e.name])), [events]);
   const janela = useMemo(() => cycleWindow(period, agora), [period, agora]);
   const janelaAnterior = useMemo(() => previousWindow(janela), [janela]);
@@ -403,8 +457,12 @@ export default function DashboardAnalises() {
   // Três motivos diferentes para não haver seta, três frases diferentes. Um
   // "0%" no lugar da variação seria lido como "não mudou nada", que é a única
   // leitura que os três casos NÃO permitem.
+  // "Escolha um período para comparar" era uma INSTRUÇÃO, e a tela abria com
+  // ela nos quatro cartões. Agora a tela já abre num período com janela
+  // anterior de verdade, e a frase de "todo o período" volta a ser o que
+  // sempre deveria ter sido: a constatação de um fato do recorte escolhido.
   const notaSem = (a: number | null, b: number | null | undefined): string => {
-    if (!anterior) return period === "all" ? "Escolha um período para comparar" : "Sem período anterior comparável";
+    if (!anterior) return period === "all" ? "Todo o período não tem anterior" : "Sem período anterior comparável";
     if (a == null || b == null) return "Sem base nos dois períodos";
     return "Igual ao período anterior";
   };
@@ -545,6 +603,168 @@ export default function DashboardAnalises() {
     if (rota) setLocation(rota);
   };
 
+  /* ── Faixa de filtros ────────────────────────────────────────────────────
+     Mesma língua do Histórico, que virou o padrão da casa: cada natureza com
+     a sua roupa. Filtro = caixa com o ícone da dimensão, e o gatilho diz o
+     RECORTE ("Saídas nos últimos 30 dias", "Copa Norte") em vez de repetir o
+     nome do campo. Resultado = texto puro, sem moldura, porque é a resposta da
+     consulta e não um controle.
+
+     O que saiu, e por quê:
+      · O rótulo em CAIXA ALTA acima de cada gatilho ("PERÍODO" sobre um botão
+        escrito "Todo o período"): a mesma informação duas vezes, gastando uma
+        linha inteira da primeira dobra. O ícone segura a identidade do campo
+        quando o texto vira o recorte.
+      · O texto centralizado dentro do gatilho — herança do `text-align: center`
+        que o navegador dá a todo <button>, que só aparecia porque `fullWidth`
+        esticava o <span> do rótulo. No resto do app o gatilho é à esquerda, e
+        centralizado ele lia como campo desabilitado. No desktop os três agora
+        têm a MESMA largura mínima e crescem com o conteúdo; a grade vem daí, e
+        não de três números soltos (320/190/320).
+      · "SEM FILTROS" cinza e sem moldura, que parecia um botão desligado: era
+        um rótulo de estado. Virou o resumo em `aria-live`, e no lugar dele fica
+        "Limpar tudo" SEMPRE desenhado (apagado quando não há o que limpar) —
+        antes o botão de limpar só nascia depois que já havia algo errado.
+      · A busca dentro do menu de Período: quatro opções fixas não são uma lista
+        para procurar, e o campo ainda roubava o foco de quem só queria as
+        setas. Mesmo conserto que o Histórico recebeu. */
+  const gatilhoDesktop = isMobile ? undefined : { minWidth: 176 };
+  const camposDeRecorte = (
+    <>
+      <FilterSelect
+        showAllLabelWhenEmpty hideWhenEmpty={false}
+        label="Período" allLabel="Todo o período"
+        icon={Clock} activeAppearance="solid"
+        value={period} onChange={escolherPeriodo}
+        options={PERIODS.filter((p) => p.value !== "all").map((p) => ({ value: p.value, label: p.label, pinned: true }))}
+        emptyText="Nenhum período."
+        hideSearch
+        testId="select-period"
+        fullWidth={isMobile}
+        panelWidth={isMobile ? undefined : 250}
+        triggerStyle={gatilhoDesktop}
+      />
+      <FilterSelect
+        showAllLabelWhenEmpty hideWhenEmpty={false}
+        label="Evento" allLabel="Todos os eventos"
+        icon={Calendar} activeAppearance="solid"
+        value={eventFilter} onChange={setEventFilter}
+        options={events.map((e) => ({ value: e.id, label: e.name, count: contagens.porEvento.get(e.id) ?? 0 }))}
+        searchPlaceholder="Buscar evento…" emptyText="Nenhum evento encontrado."
+        testId="select-event"
+        fullWidth={isMobile}
+        panelWidth={isMobile ? undefined : 330}
+        triggerStyle={gatilhoDesktop}
+      />
+      <FilterSelect
+        showAllLabelWhenEmpty hideWhenEmpty={false}
+        label="Patrocinador" allLabel="Todos os patrocinadores"
+        icon={Building2} activeAppearance="solid"
+        value={sponsorFilter} onChange={setSponsorFilter}
+        options={sponsors.map((s) => ({ value: s.id, label: s.name, count: contagens.porPatrocinador.get(s.id) ?? 0 }))}
+        searchPlaceholder="Buscar patrocinador…" emptyText="Nenhum patrocinador encontrado."
+        testId="select-sponsor"
+        fullWidth={isMobile}
+        panelWidth={isMobile ? undefined : 300}
+        triggerStyle={gatilhoDesktop}
+        // Último gatilho da linha: ancorado à esquerda, o painel nascia além da
+        // borda direita da janela.
+        dropdownAlign="right"
+      />
+    </>
+  );
+
+  // Celular: gaveta. O contador vive no próprio botão para que "tenho filtro
+  // ligado" sobreviva com a gaveta fechada — sem ele, um recorte esquecido
+  // explicaria números baixos sem nada na tela dizendo isso.
+  const botaoFiltros = (
+    <button
+      type="button"
+      onClick={() => setFiltrosAbertos((v) => !v)}
+      aria-expanded={filtrosAbertos}
+      aria-label={filtrosAtivos > 0 ? `Filtros — ${filtrosAtivos} ativo${filtrosAtivos === 1 ? "" : "s"}` : "Filtros"}
+      data-testid="button-toggle-filtros"
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 6,
+        height: 44, padding: "0 12px", borderRadius: R.md, flexShrink: 0,
+        backgroundColor: filtrosAtivos > 0 ? ACCENT_TEXT : T.surface,
+        border: `1px solid ${filtrosAtivos > 0 ? ACCENT_TEXT : T.bdark}`,
+        color: filtrosAtivos > 0 ? "#ffffff" : T.text,
+        fontSize: FS.body, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+      }}
+    >
+      <SlidersHorizontal aria-hidden="true" style={{ width: 14, height: 14 }} />
+      Filtros
+      {filtrosAtivos > 0 && (
+        <span style={{
+          fontSize: FS.small, fontWeight: 800, padding: "1px 7px", borderRadius: R.pill,
+          backgroundColor: "#ffffff", color: ACCENT_TEXT,
+        }}>
+          {filtrosAtivos}
+        </span>
+      )}
+      <ChevronDown aria-hidden="true" style={{
+        width: 13, height: 13, transition: "transform 0.2s",
+        transform: filtrosAbertos ? "rotate(180deg)" : "rotate(0deg)",
+      }} />
+    </button>
+  );
+
+  /* O resultado é TEXTO, sem moldura: diz de uma vez quantos filtros estão
+     ligados, quanto eles cortaram e como desfazer. É também a LINHA DE ESCOPO
+     da tela — antes um parágrafo solto abaixo da faixa, que gastava a sua
+     própria altura e ficava atrás do menu quando um filtro era aberto. Aqui
+     ele nasce ao lado dos controles que o produzem. */
+  const linhaDeResumo = (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 10,
+      ...(isMobile ? { width: "100%" } : { marginLeft: "auto" }), flexShrink: 0,
+    }}>
+      <span
+        role="status"
+        aria-live="polite"
+        data-testid="recorte-analises"
+        // No desktop a frase não quebra: se faltar largura, quem quebra é a
+        // FAIXA (flexWrap), levando o resumo inteiro para a linha de baixo.
+        // Sem isto, com um evento de nome longo selecionado em 1366px, o texto
+        // se partia no meio e "Limpar tudo" subia para o meio da frase.
+        style={{ fontSize: FS.body, color: T.second, fontWeight: 600, whiteSpace: isMobile ? "normal" : "nowrap" }}
+      >
+        {periodoPadraoAplicado && filtrosAtivos === 1
+          ? <>Período padrão{" · "}</>
+          : filtrosAtivos > 0 && (
+            <>{filtrosAtivos} filtro{filtrosAtivos === 1 ? "" : "s"} ativo{filtrosAtivos === 1 ? "" : "s"}{" · "}</>
+          )}
+        <strong style={{ color: T.text, fontFamily: "'DM Mono', monospace" }}>{int(atual.pecasTotal)}</strong>
+        {" de "}
+        <span style={{ fontFamily: "'DM Mono', monospace" }}>{int(contagens.totalFunil)}</span>
+        {" peças"}
+      </span>
+
+      <button
+        type="button"
+        onClick={limparFiltros}
+        disabled={filtrosAtivos === 0}
+        data-testid="btn-clear-filters"
+        title={filtrosAtivos > 0 ? "Remover todos os filtros" : "Não há filtro aplicado"}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 5,
+          height: isMobile ? 34 : 28, padding: "0 10px", borderRadius: 7,
+          marginLeft: isMobile ? "auto" : 0,
+          backgroundColor: filtrosAtivos > 0 ? "#fef2f2" : "transparent",
+          border: `1px solid ${filtrosAtivos > 0 ? "#fecaca" : T.bdark}`,
+          color: filtrosAtivos > 0 ? RUIM : RESUMO_APAGADO,
+          fontSize: FS.micro, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em",
+          cursor: filtrosAtivos > 0 ? "pointer" : "default",
+          whiteSpace: "nowrap", flexShrink: 0,
+        }}
+      >
+        <X aria-hidden="true" style={{ width: 11, height: 11 }} />
+        Limpar tudo
+      </button>
+    </div>
+  );
+
   if (isError) {
     return (
       <div style={{ backgroundColor: T.bg, height: "100%", display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
@@ -569,11 +789,14 @@ export default function DashboardAnalises() {
   // provoca um salto no primeiro paint.
   if (isLoading) {
     return (
-      <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "14px 16px 48px" : "28px 32px 64px" }} aria-busy="true" aria-label="Carregando análises">
+      <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: PADDING_PAGINA(isMobile) }} aria-busy="true" aria-label="Carregando análises">
         <div className="animate-pulse" style={{ width: 240, height: 24, borderRadius: 4, backgroundColor: "#e7e5e4", marginBottom: 10 }} />
-        <div className="animate-pulse" style={{ width: 420, maxWidth: "90%", height: 12, borderRadius: 4, backgroundColor: T.low, marginBottom: 26 }} />
-        <div className="animate-pulse" style={{ height: 78, borderRadius: R.lg, backgroundColor: T.surface, border: `1px solid ${T.border}`, marginBottom: 22 }} />
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 16, marginBottom: 22 }}>
+        <div className="animate-pulse" style={{ width: 420, maxWidth: "90%", height: 12, borderRadius: 4, backgroundColor: T.low, marginBottom: SP.bloco }} />
+        {/* A silhueta acompanha a faixa nova: uma linha de gatilhos, não o card
+            de duas linhas de antes — um esqueleto com a altura errada devolve o
+            salto que ele existe para evitar. */}
+        <div className="animate-pulse" style={{ height: 62, borderRadius: R.lg, backgroundColor: T.low, border: `1px solid ${T.border}`, marginBottom: SP.junto }} />
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 16, marginBottom: SP.secao }}>
           {[0, 1, 2, 3].map((i) => (
             <div key={i} style={{ backgroundColor: T.surface, borderLeft: `4px solid ${T.border}`, padding: "18px 20px 16px", boxShadow: SHADOW.sm }}>
               <div className="animate-pulse" style={{ width: "75%", height: 10, borderRadius: 4, backgroundColor: T.low, marginBottom: 12 }} />
@@ -582,21 +805,21 @@ export default function DashboardAnalises() {
             </div>
           ))}
         </div>
-        <div className="animate-pulse" style={{ height: 340, backgroundColor: T.surface, border: `1px solid ${T.border}`, marginBottom: 16 }} />
+        <div className="animate-pulse" style={{ height: 340, backgroundColor: T.surface, border: `1px solid ${T.border}`, marginBottom: SP.secao }} />
         <div className="animate-pulse" style={{ height: 260, backgroundColor: T.surface, border: `1px solid ${T.border}` }} />
       </div>
     );
   }
 
   return (
-    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "14px 16px 48px" : "28px 32px 64px" }}>
+    <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: PADDING_PAGINA(isMobile) }}>
 
-      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 24, gap: 16, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: SP.bloco, gap: 16, flexWrap: "wrap" }}>
         <div style={{ minWidth: 0 }}>
           <h1 style={{ fontSize: FS.h1, fontWeight: 700, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em", fontStyle: "italic" }}>
             Análises
           </h1>
-          <p style={{ fontSize: FS.small, color: T.second, margin: "6px 0 0", maxWidth: 680, lineHeight: 1.5 }}>
+          <p style={{ fontSize: FS.small, color: T.second, margin: `${SP.intra}px 0 0`, maxWidth: 680, lineHeight: 1.5 }}>
             O passado e o futuro da operação: desempenho dos <strong style={{ fontWeight: 700 }}>ciclos já encerrados</strong> e a
             carga que ainda vai vencer. O que está em andamento hoje fica no Painel Geral e na Gestão de Prazos.
           </p>
@@ -621,87 +844,38 @@ export default function DashboardAnalises() {
         </div>
       </div>
 
+      {/* Faixa em #f3f4f3, e não branca: o cinza separa CONTROLE de RESULTADO
+          à primeira olhada — daqui para baixo, tudo o que é branco é número.
+          Uma linha só, com a altura de um gatilho: o card anterior gastava
+          ~110px (rótulo em caixa alta + gatilho + folga larga) mais um
+          parágrafo de escopo por fora, numa tela cujo conteúdo principal já é
+          longo demais para a primeira dobra. */}
       <div style={{
-        backgroundColor: T.surface, border: `1px solid ${T.bdark}`, borderRadius: R.lg,
-        padding: "16px 20px", marginBottom: 22,
-        display: "flex", flexDirection: isMobile ? "column" : "row", flexWrap: "wrap",
-        alignItems: isMobile ? "stretch" : "flex-end", gap: 16,
+        backgroundColor: T.low, border: `1px solid ${T.border}`, borderRadius: R.lg,
+        padding: isMobile ? "10px 12px" : "12px 16px", marginBottom: SP.junto,
+        display: "flex", flexDirection: "column", gap: 10,
       }}>
-        <Fld
-          label="Período" allLabel="Todo o período"
-          value={period} onChange={setPeriod} testId="select-period"
-          options={PERIODS.filter((p) => p.value !== "all").map((p) => ({ value: p.value, label: p.label, pinned: true }))}
-        />
-        {!isMobile && <div style={{ width: 1, height: 40, backgroundColor: T.border, flexShrink: 0 }} />}
-
-        <div className="fld-evento-analises" style={{ flex: 1, minWidth: 0 }}>
-          {isMobile && (
-            <style>{`
-              .fld-evento-analises > div:last-child { width: 100%; }
-              .fld-evento-analises > div:last-child > button { max-width: none !important; width: 100%; }
-              .fld-evento-analises > div:last-child > button > span:first-child { max-width: none !important; flex: 1; text-align: left; }
-            `}</style>
-          )}
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 7 }}>
-            <span style={{ fontSize: 10, fontWeight: 900, color: eventFilter !== "all" ? ACCENT_TEXT : T.second, textTransform: "uppercase", letterSpacing: "0.16em" }}>
-              Evento
-            </span>
-            {eventFilter !== "all" && <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: ACCENT_TEXT, flexShrink: 0 }} />}
-          </div>
-          <EventFilterDropdown
-            value={eventFilter}
-            onChange={setEventFilter}
-            options={events.map((e) => ({ value: e.id, label: e.name, count: contagens.porEvento.get(e.id) ?? 0 }))}
-            allLabel={`Todos os eventos (${events.length})`}
-          />
-        </div>
-
-        <Fld
-          label="Patrocinador" allLabel="Todos os patrocinadores"
-          value={sponsorFilter} onChange={setSponsorFilter} testId="select-sponsor"
-          options={sponsors.map((s) => ({ value: s.id, label: s.name, count: contagens.porPatrocinador.get(s.id) ?? 0 }))}
-        />
-
-        {!isMobile && <div style={{ width: 1, height: 40, backgroundColor: T.border, flexShrink: 0 }} />}
-
-        <div style={{ flexShrink: 0, display: "flex", alignItems: "flex-end", paddingBottom: 2 }}>
-          {filtrosAtivos > 0 ? (
-            <button
-              data-testid="btn-clear-filters"
-              onClick={limparFiltros}
-              style={{
-                display: "flex", alignItems: "center", gap: 5, padding: "8px 14px",
-                backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: R.sm,
-                cursor: "pointer", fontSize: 10, fontWeight: 800, color: RUIM,
-                textTransform: "uppercase", letterSpacing: "0.1em", whiteSpace: "nowrap",
-              }}
-            >
-              Limpar ({filtrosAtivos})
-            </button>
-          ) : (
-            <div style={{ padding: "8px 14px", fontSize: 10, color: T.second, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em" }}>
-              Sem filtros
+        {isMobile ? (
+          <>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              {botaoFiltros}
             </div>
-          )}
-        </div>
+            {filtrosAbertos && (
+              <div data-testid="painel-filtros-mobile" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {camposDeRecorte}
+              </div>
+            )}
+            {linhaDeResumo}
+          </>
+        ) : (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+            {camposDeRecorte}
+            {linhaDeResumo}
+          </div>
+        )}
       </div>
 
-      {/* Região viva: trocar um filtro muda 4 KPIs, um gráfico e uma tabela
-          sem que nada fosse anunciado — quem usa leitor de tela não tinha como
-          saber que o gesto surtiu efeito. A frase também é o denominador do
-          recorte, que faltava em toda a tela. */}
-      <p
-        role="status"
-        aria-live="polite"
-        data-testid="recorte-analises"
-        style={{ fontSize: FS.small, color: T.second, margin: "0 0 16px", lineHeight: 1.45 }}
-      >
-        <strong style={{ fontWeight: 700, color: T.text }}>{int(atual.pecasTotal)}</strong> de {int(contagens.totalFunil)} peças
-        no recorte{period !== "all" ? `, em ciclos que saíram ${PERIODS.find((p) => p.value === period)?.label.replace("Saídas n", "n").toLowerCase()}` : ", todo o período"}.
-        Canceladas e excluídas não entram em nenhuma conta desta tela.
-      </p>
-
-      <section aria-labelledby="h-desempenho" style={{ marginBottom: 22 }}>
+      <section aria-labelledby="h-desempenho" style={{ marginBottom: SP.secao }}>
         <h2 id="h-desempenho" className="sr-only">Indicadores do período</h2>
         <dl style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(2, 1fr)" : "repeat(4, 1fr)", gap: 16, margin: 0 }}>
           {kpis.map((k) => (
@@ -717,18 +891,29 @@ export default function DashboardAnalises() {
             />
           ))}
         </dl>
-        <p style={{ fontSize: 10, color: T.second, margin: "10px 0 0", lineHeight: 1.5, maxWidth: 900 }}>
-          Comparação contra a janela imediatamente anterior, do mesmo tamanho.
+        {/* A ressalva pertence aos KPIs: fica a um degrau de distância deles
+            (SP.junto) e a um degrau inteiro do próximo assunto (SP.secao).
+            Aqui também moram as duas frases de método que saíram da linha de
+            escopo quando ela virou resumo da faixa — o lugar delas é junto dos
+            outros avisos de denominador, não repetidas ao lado de um gatilho
+            que já diz o período. */}
+        <p style={{ fontSize: FS.micro, color: T.second, margin: `${SP.junto}px 0 0`, lineHeight: 1.5, maxWidth: 900 }}>
+          O período recorta pela <strong style={{ fontWeight: 700 }}>saída do caminhão já ocorrida</strong> (ciclo encerrado),
+          não pela data em que a peça foi criada. Canceladas e excluídas não entram em nenhuma conta desta tela.
+          {" "}Comparação contra a janela imediatamente anterior, do mesmo tamanho.
           {atual.prazoSemData > 0 && ` ${int(atual.prazoSemData)} peças entregues sem data registrada ficam fora da taxa de prazo.`}
           {atual.complementoPecas > 0 && ` ${int(atual.complementoPecas)} peças do recorte são complementos (quantidade extra pedida depois da produção).`}
           {" "}Retrabalho é <strong style={{ fontWeight: 700 }}>piso</strong>: conta refação registrada (arquivo final ou layout substituído) e reprovação ainda em aberto — o histórico completo só existe na trilha de auditoria.
         </p>
       </section>
 
-      <section aria-labelledby="h-carga" style={{ backgroundColor: T.surface, border: `1px solid ${T.bdark}`, padding: isMobile ? "20px 16px" : "26px 28px 20px", marginBottom: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: 20 }}>
+      <section aria-labelledby="h-carga" style={{ backgroundColor: T.surface, border: `1px solid ${T.bdark}`, padding: isMobile ? "20px 16px" : "24px 28px 20px", marginBottom: SP.secao }}>
+        {/* rowGap maior que o columnGap: quando a legenda não cabe ao lado do
+            título (1366px com a barra lateral aberta), ela quebra para baixo e
+            colava no parágrafo, que é de outro assunto. */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", columnGap: 16, rowGap: SP.junto, flexWrap: "wrap", marginBottom: SP.bloco }}>
           <div style={{ minWidth: 0 }}>
-            <h2 id="h-carga" style={{ fontSize: FS.title, fontWeight: 700, color: T.text, margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em", fontStyle: "italic" }}>
+            <h2 id="h-carga" style={{ fontSize: FS.title, fontWeight: 700, color: T.text, margin: `0 0 ${SP.intra}px`, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em", fontStyle: "italic" }}>
               Capacidade × Demanda
             </h2>
             <p style={{ fontSize: FS.small, color: T.second, margin: 0, lineHeight: 1.45, maxWidth: 640 }}>
@@ -821,7 +1006,7 @@ export default function DashboardAnalises() {
           </>
         )}
 
-        <p style={{ fontSize: 10, color: T.second, margin: "14px 0 0", lineHeight: 1.5 }}>
+        <p style={{ fontSize: FS.micro, color: T.second, margin: `${SP.junto}px 0 0`, lineHeight: 1.5 }}>
           Janela fixa: <strong style={{ fontWeight: 700 }}>não segue o filtro de período</strong> — um bloco de planejamento que
           encolhe com o recorte esconderia o pico que ele existe para antecipar. Segue os filtros de evento e patrocinador.
           {temMedia
@@ -833,37 +1018,35 @@ export default function DashboardAnalises() {
         </p>
       </section>
 
-      <section aria-labelledby="h-etapa" style={{ backgroundColor: T.surface, border: `1px dashed ${T.bdark}`, padding: isMobile ? "20px 16px" : "24px 28px", marginBottom: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
-          <h2 id="h-etapa" style={{ fontSize: FS.title, fontWeight: 700, color: T.text, margin: 0, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em", fontStyle: "italic" }}>
-            Tempo por etapa
-          </h2>
-          <span style={{ padding: "3px 9px", border: `1px solid ${T.bdark}`, borderRadius: R.sm, fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em" }}>
-            Dado indisponível
-          </span>
-        </div>
-        <p style={{ fontSize: FS.small, color: T.second, margin: "0 0 14px", lineHeight: 1.5, maxWidth: 720 }}>
-          Onde o tempo é perdido — permanência mediana em cada etapa canônica contra o prazo planejado
-          (−25 / −20 / −12 / −8 / −1 dias da saída). <strong style={{ fontWeight: 700 }}>O banco não registra quando a peça ENTRA numa etapa</strong>:
-          existem carimbos das etapas finais (aprovação, produção, conferência, entrega), mas nada marca a entrada em
-          "aguardando envio" nem em "aguardando aprovação" — as duas onde a operação mais reclama de perder tempo.
-          O espaço fica reservado; medir exige uma coluna nova no banco.
-        </p>
-        <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "grid", gap: 6 }}>
-          {ANALISE_STAGES.map((s) => (
-            <li key={s.key} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, padding: "8px 12px", backgroundColor: T.low, borderRadius: R.sm }}>
-              <span style={{ fontSize: FS.small, fontWeight: 700, color: T.text }}>{s.label}</span>
-              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: FS.small, color: T.second }}>— dias</span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {/* ── "Tempo por etapa" foi REMOVIDO daqui (e não esquecido) ──
+          O bloco existia como lugar reservado: título, selo "DADO
+          INDISPONÍVEL", um parágrafo explicando a limitação e seis linhas de
+          "— dias". A intenção era honesta — não inventar número —, mas o efeito
+          era meia dobra de tela ocupada para não informar nada, empurrando os
+          Ofensores (conteúdo real) para baixo. Bloco a menos é melhor que bloco
+          vazio.
+
+          A LIMITAÇÃO CONTINUA VERDADEIRA, e é por isso que ela fica escrita
+          aqui: `items` não guarda quando a peça ENTRA em cada etapa. Existem
+          carimbos das etapas finais (`producedAt`, `conferredAt`,
+          `deliveredAt`) e nada que marque a entrada em "aguardando envio" ou
+          em "aguardando aprovação" — justamente as duas onde a operação mais
+          reclama de perder tempo. Calcular permanência mediana por etapa a
+          partir do que esta tela lê hoje só é possível INVENTANDO a data de
+          entrada; não faça isso.
+
+          O caminho para trazer o bloco de volta com número real existe e não
+          passa por coluna nova: o servidor grava as mudanças de status em
+          `audit_logs`, e a diferença entre carimbos consecutivos da mesma peça
+          É a permanência. Isso exige um agregado no servidor (a trilha não é
+          carregada por esta tela) e está sendo tratado à parte. Enquanto esse
+          número não existir, o espaço não volta. */}
 
       <section aria-labelledby="h-ofensores" style={{ backgroundColor: T.surface, border: `1px solid ${T.bdark}` }}>
-        <div style={{ padding: isMobile ? "18px 16px" : "22px 28px 16px", borderBottom: `1px solid ${T.low}` }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap" }}>
+        <div style={{ padding: isMobile ? "20px 16px 16px" : "24px 28px 16px", borderBottom: `1px solid ${T.low}` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", columnGap: 16, rowGap: SP.junto, flexWrap: "wrap" }}>
             <div style={{ minWidth: 0 }}>
-              <h2 id="h-ofensores" style={{ fontSize: FS.title, fontWeight: 700, color: T.text, margin: "0 0 4px", fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em", fontStyle: "italic" }}>
+              <h2 id="h-ofensores" style={{ fontSize: FS.title, fontWeight: 700, color: T.text, margin: `0 0 ${SP.intra}px`, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em", fontStyle: "italic" }}>
                 Ofensores
               </h2>
               <p style={{ fontSize: FS.small, color: T.second, margin: 0, lineHeight: 1.45 }}>

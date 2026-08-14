@@ -7,6 +7,8 @@ import {
   isPlausibleEventYear,
   spDayMs,
   todayBusinessMs,
+  eventDayMs,
+  motivoEventoFinalizado,
 } from "@shared/prazo-dates";
 import {
   requireAuth,
@@ -377,8 +379,11 @@ function nextMilestoneFor(
  *
  * Agora os dois conceitos viajam separados no payload:
  *   · allDelivered    → a PRODUÇÃO terminou (todas as peças do funil entregues)
- *   · eventHasPassed  → a DATA chegou (dia-calendário em America/Sao_Paulo)
- * e `lifecycle` combina os dois num discriminador pronto para a UI.
+ *   · eventHasPassed  → o DIA DO EVENTO passou (dia-calendário em
+ *                       America/Sao_Paulo, comparação estrita: durante o dia
+ *                       do evento o trabalho ainda conta)
+ * e `lifecycle` combina os dois num discriminador pronto para a UI:
+ * `active | completed | realizado | manually_closed`.
  *
  * `status` continua no payload, com a mesma semântica de antes ("created" |
  * "completed"), para não quebrar quem já o consome — mas agora é derivado nas
@@ -408,31 +413,43 @@ export function enrichEvent(
 
   const allDelivered = activeItemCount > 0 && openCount === 0;
 
-  // A data chegou: comparação por DIA-CALENDÁRIO no fuso do negócio. Com o
-  // instante bruto (`new Date() > new Date(startDate)`) sobre um timestamp
-  // gravado à meia-noite UTC, isto virava true às 21:00 de Brasília da véspera.
-  const startDay = dayUTC(event.startDate).getTime();
-  const eventHasPassed = Number.isFinite(startDay) ? todayMs >= startDay : false;
+  // O DIA DO EVENTO PASSOU — mesmo predicado das filas de trabalho e da Gestão
+  // de Prazos (@shared/prazo-dates). Era `>=` aqui e `>` lá: um dia inteiro em
+  // que a lista de Eventos carimbava "Encerrado com pendências" num evento que
+  // AINDA estava sendo cobrado em todas as outras telas. O dono decidiu por
+  // `>` (14/08): "passou o dia" é depois do fim do dia do evento — durante o
+  // dia do evento o trabalho ainda conta, e é o único critério compatível com
+  // a regra que tirou o evento realizado das cinco filas.
+  //
+  // `eventDayMs` (e não `dayUTC`) também descarta o ANO IMPLAUSÍVEL: um "0206"
+  // digitado no lugar de "2026" deixa de ser lido como "já passou" e volta a
+  // aparecer como cadastro a corrigir, em vez de nascer arquivado.
+  const eventDay = eventDayMs(event.startDate);
+  const eventHasPassed = eventDay !== null && todayMs > eventDay;
 
   // ENCERRAMENTO MANUAL SOBREPÕE A DERIVAÇÃO — nas duas direções. Um evento
   // encerrado à mão com tudo entregue NÃO vira "Concluído" (a tela precisa
   // distinguir "encerrado por alguém" de "encerrado porque tudo foi entregue"),
-  // e um encerrado à mão com peça em aberto NÃO vira "Encerrado com
+  // e um encerrado à mão com peça em aberto NÃO vira "Realizado com
   // pendências" — esse selo é o alarme de quem esqueceu, e um evento que
   // alguém fechou de propósito não é um esquecimento.
-  const manuallyClosed = event.status === EVENT_CLOSED_STATUS;
+  //
+  // `motivoEventoFinalizado` é quem decide: é o MESMO predicado que tira o
+  // evento das filas, então a lista de Eventos e as filas nunca discordam
+  // sobre quem saiu nem sobre por quê.
+  const motivoFinalizado = motivoEventoFinalizado(event, todayMs);
+  const manuallyClosed = motivoFinalizado === "encerrado";
 
-  // NOTA para quem for ligar isto à regra de "evento finalizado"
-  // (@shared/prazo-dates, que tira o evento realizado das filas e da Gestão de
-  // Prazos): `eventHasPassed` NÃO é aquele predicado, e a diferença é de um
-  // dia. Aqui a pergunta é "a data CHEGOU" (`>=`) — é o gatilho do selo
-  // "Encerrado com pendências" na lista de Eventos. Lá é "o dia PASSOU" (`>`):
-  // durante o dia do evento o trabalho ainda conta. Não unifique os dois sem o
-  // dono decidir qual dos dois selos muda.
-  const lifecycle: "active" | "completed" | "closed_with_pending" | "manually_closed" =
+  // VOCABULÁRIO: "encerrado" é sempre decisão de gente (tem volta: reabrir);
+  // "realizado" é sempre a data (não tem volta). `realizado` substituiu
+  // `closed_with_pending` — mesmo balde, nome honesto: ninguém encerrou o
+  // evento, ele simplesmente aconteceu e deixou trabalho para trás. Quando a
+  // produção terminou antes, o balde é "completed", que continua sendo o fim
+  // feliz e não é um alarme.
+  const lifecycle: "active" | "completed" | "realizado" | "manually_closed" =
     manuallyClosed ? "manually_closed"
     : allDelivered ? "completed"
-    : eventHasPassed ? "closed_with_pending"
+    : motivoFinalizado === "realizado" ? "realizado"
     : "active";
 
   // Compatibilidade: status permanece "created" | "completed" para os eventos
@@ -825,8 +842,9 @@ export function registerEventRoutes(app: Express): void {
   // Por que existe: até aqui "acabou" era 100% derivado (todas as peças
   // entregues, ou a data passou). Não havia como uma pessoa dizer "esse evento
   // está fechado" — um evento que saiu com 3 peças canceladas na mão ficava
-  // para sempre em "Encerrado com pendências", cobrado toda semana na Gestão de
-  // Prazos por um trabalho que ninguém mais vai fazer.
+  // para sempre em "Realizado com pendências", em âmbar na lista de Eventos por
+  // um trabalho que ninguém mais vai fazer. Encerrar é o que troca esse selo
+  // pelo cinza "Encerrado manualmente" — e é a única das duas saídas com volta.
   //
   // Por que é ADMIN, e não admin/solicitação como a edição: encerrar não muda
   // um dado do evento, retira trabalho do campo de visão de OUTRAS equipes —

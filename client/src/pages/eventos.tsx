@@ -6,8 +6,8 @@
 // tela saem daí:
 //
 // 1. ESTADO HONESTO. O servidor deixou de carimbar "Concluído" por DATA e passou
-//    a mandar `lifecycle` (active | completed | closed_with_pending) junto com
-//    `allDelivered`/`eventHasPassed`. Antes, um evento que apenas COMEÇOU virava
+//    a mandar `lifecycle` (active | completed | realizado | manually_closed)
+//    junto com `allDelivered`/`eventHasPassed`. Antes, um evento que só COMEÇOU virava
 //    verde, perdia a bandeira de prioridade, caía para o último balde da
 //    ordenação e ainda exibia "3/20 Entregues" ao lado de "Concluído" — a tela
 //    escondia exatamente o caso que ela existe para revelar. Aqui os três
@@ -36,7 +36,10 @@ import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import type { Sponsor } from "@shared/schema";
 import { FilterSelect } from "@/components/filter-select";
 import { SponsorChips } from "@/components/sponsor-chips";
-import { PRIORITY, getPriorityMeta, getStatusMeta, PRODUCTION_STATUSES } from "@/lib/status";
+import {
+  PRIORITY, getPriorityMeta, getStatusMeta, PRODUCTION_STATUSES,
+  motivoEventoFinalizado, todayBusinessMs,
+} from "@/lib/status";
 import { T, FS, R, SHADOW } from "@/lib/theme";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import {
@@ -69,20 +72,42 @@ import { useAuth } from "@/contexts/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 type PriorityLevel = 'baixa' | 'media' | 'alta' | 'urgente' | 'sem_prioridade';
-// `manually_closed` é o único estado que NÃO é derivado: alguém clicou em
-// "Encerrar evento". Ele sobrepõe os outros três (ver enrichEvent) — é por isso
-// que a tela consegue separar "encerrado por alguém" de "concluído porque tudo
-// foi entregue".
-type LifecycleKey = 'active' | 'completed' | 'closed_with_pending' | 'manually_closed';
+// VOCABULÁRIO DOS QUATRO ESTADOS — duas palavras, dois significados, sem
+// sobreposição:
+//   · `manually_closed` "Encerrado manualmente" — ENCERRAR é sempre decisão de
+//     gente, e é a única com volta (reabrir). É o único estado que NÃO é
+//     derivado, e sobrepõe os outros três (ver enrichEvent).
+//   · `completed` "Concluído" — a produção terminou. O fim feliz.
+//   · `realizado` "Realizado com pendências" — REALIZAR é sempre a data: o dia
+//     do evento passou e sobrou trabalho aberto. Substituiu
+//     `closed_with_pending`, que dizia "Encerrado" sem que ninguém tivesse
+//     encerrado nada — três rótulos começando por "Encerrado" para três coisas
+//     diferentes era a confusão que este nome desfaz.
+//   · `active` — em jogo.
+type LifecycleKey = 'active' | 'completed' | 'realizado' | 'manually_closed';
 
-// Pseudo-opções do filtro de prioridade que NÃO são prioridade: são dimensões
-// do ciclo de vida. Ficam no mesmo dropdown porque é onde o usuário já procura
-// por "Concluído" — mas casam por lifecycle, não por `event.priority`.
-const LIFECYCLE_FILTERS = ['completed', 'closed_with_pending', 'manually_closed'] as const;
+// Valor antigo do servidor/da URL → valor atual. Existe por dois caminhos
+// reais: o link salvo com `?prioridade=closed_with_pending` e o cenário
+// git-pull-sem-Stop/Run, em que o Express velho ainda responde o nome antigo.
+// Sem isto, o primeiro vira filtro que não casa com nada e o segundo vira card
+// sem selo nenhum.
+const LEGACY_LIFECYCLE: Record<string, LifecycleKey> = { closed_with_pending: 'realizado' };
+const normalizeLifecycle = (v: string | null | undefined): LifecycleKey | undefined =>
+  v ? (LEGACY_LIFECYCLE[v] ?? (v as LifecycleKey)) : undefined;
+
+// Pseudo-opções do filtro de prioridade que NÃO são prioridade: são a situação
+// do evento. Ficam no mesmo dropdown (em grupo próprio) porque é onde o usuário
+// já procura por "Concluído" — mas casam por lifecycle, não por
+// `event.priority`.
+const LIFECYCLE_FILTERS = ['completed', 'realizado', 'manually_closed'] as const;
 
 // Os dois estados que saem da visão padrão da grade: trabalho que acabou
-// (entregue) e trabalho que alguém fechou. "Encerrado com pendências" NÃO entra
-// aqui — ele continua sendo cobrança.
+// (entregue) e trabalho que alguém fechou. "Realizado com pendências" NÃO entra
+// aqui, DE PROPÓSITO: é o único balde em que alguma coisa ficou para trás, e
+// some por decisão de NINGUÉM — apenas o calendário virou. Arquivar por
+// calendário esconderia exatamente o que o dono não pode perder de vista. A
+// grade continua limpa porque o passado que acabou bem é `completed`, e esse
+// sim é arquivado.
 const ARCHIVED_LIFECYCLES = new Set<LifecycleKey>(['completed', 'manually_closed']);
 
 // ── Cotas de patrocinador ────────────────────────────────────────────────────
@@ -210,16 +235,17 @@ function readEventStats(event: any): EventStats {
     ? event.allDelivered
     : activeItemCount > 0 && openCount === 0;
 
-  // `eventHasPassed` do servidor usa dia-calendário em America/Sao_Paulo. O
-  // fallback local compara datas (não instantes) para não virar "passou" às
-  // 21:00 da véspera, que era o bug original.
+  // `eventHasPassed` do servidor = "o DIA DO EVENTO passou", dia-calendário em
+  // America/Sao_Paulo e comparação ESTRITA (durante o dia do evento ele ainda
+  // conta). O fallback chama o MESMO predicado das cinco filas de trabalho —
+  // era aqui que morava a segunda implementação da virada do dia, com `>=`,
+  // um dia à frente das outras telas. Só `startDate` é passado de propósito:
+  // aqui a pergunta é sobre a DATA, e o encerramento manual é lido logo abaixo.
   let eventHasPassed = false;
   if (typeof event.eventHasPassed === 'boolean') {
     eventHasPassed = event.eventHasPassed;
   } else if (event.startDate) {
-    const today = new Date();
-    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-    eventHasPassed = todayStr >= String(event.startDate).slice(0, 10);
+    eventHasPassed = motivoEventoFinalizado({ startDate: event.startDate }, todayBusinessMs()) === 'realizado';
   }
 
   // Encerramento MANUAL: `manuallyClosed` vem do servidor; o fallback lê a
@@ -232,8 +258,8 @@ function readEventStats(event: any): EventStats {
 
   const lifecycle: LifecycleKey = manuallyClosed
     ? 'manually_closed'
-    : (event.lifecycle as LifecycleKey)
-      ?? (allDelivered ? 'completed' : eventHasPassed ? 'closed_with_pending' : 'active');
+    : normalizeLifecycle(event.lifecycle)
+      ?? (allDelivered ? 'completed' : eventHasPassed ? 'realizado' : 'active');
 
   const progressPct = activeItemCount > 0
     ? Math.round((deliveredCount / activeItemCount) * 100)
@@ -491,12 +517,12 @@ function EventCard({
 }) {
   const stats = readEventStats(event);
   const isDone = stats.lifecycle === 'completed';
-  const isClosedPending = stats.lifecycle === 'closed_with_pending';
+  const isRealizado = stats.lifecycle === 'realizado';
   const isClosed = stats.lifecycle === 'manually_closed';
   const priorityConfig = getPriorityConfig(event.priority);
   // Cinza no encerrado manual, de propósito: verde diria "deu tudo certo" e
   // âmbar diria "corre atrás". Encerrado é nenhum dos dois — é fora de jogo.
-  const accentHex = isClosed ? '#78716c' : isDone ? '#10b981' : isClosedPending ? '#f59e0b' : priorityConfig.hex;
+  const accentHex = isClosed ? '#78716c' : isDone ? '#10b981' : isRealizado ? '#f59e0b' : priorityConfig.hex;
 
   // Urgência da saída pelo MESMO helper que a exibição e os filtros usam.
   // Com `new Date(...)` cru, um caminhão gravado para 08:00 virava o instante
@@ -529,25 +555,28 @@ function EventCard({
   const actionsWidth = actionCount > 0 ? actionCount * btnSize + (actionCount - 1) * 6 + 10 : 0;
   const cardPad = isMobile ? 14 : 24;
 
+  // Evento realizado SEM nenhuma peça: "0 peças em aberto" seria mentira ao
+  // contrário — não há trabalho pendente, há trabalho que nunca começou.
+  const realizadoVazio = isRealizado && stats.activeItemCount === 0;
+
   const stateLabel = isClosed
     ? (isMobile ? 'Encerrado' : 'Encerrado manualmente')
     : isDone
       ? 'Concluído'
-      : isClosedPending
-        ? (isMobile ? 'Com pendências' : 'Encerrado com pendências')
+      : isRealizado
+        ? (realizadoVazio
+            ? (isMobile ? 'Sem peças' : 'Realizado sem peças')
+            : (isMobile ? 'Com pendências' : 'Realizado com pendências'))
         : null;
 
-  // Evento encerrado SEM nenhuma peça: "0 peças em aberto" seria mentira ao
-  // contrário — não há trabalho pendente, há trabalho que nunca começou.
-  const closedEmpty = isClosedPending && stats.activeItemCount === 0;
   const ariaLabel = isClosed
     ? `Abrir evento ${event.name} — encerrado manualmente${stats.openCount > 0 ? `, ${stats.openCount} ${stats.openCount === 1 ? 'peça ficou' : 'peças ficaram'} em aberto` : ''}`
     : isDone
       ? `Abrir evento ${event.name} — concluído, ${stats.deliveredCount} peças entregues`
-      : closedEmpty
-        ? `Abrir evento ${event.name} — encerrado sem nenhuma peça criada`
-        : isClosedPending
-          ? `Abrir evento ${event.name} — encerrado com ${stats.openCount} ${stats.openCount === 1 ? 'peça em aberto' : 'peças em aberto'}`
+      : realizadoVazio
+        ? `Abrir evento ${event.name} — já realizado, nenhuma peça foi criada`
+        : isRealizado
+          ? `Abrir evento ${event.name} — já realizado com ${stats.openCount} ${stats.openCount === 1 ? 'peça em aberto' : 'peças em aberto'}`
           : `Abrir evento ${event.name}`;
 
   // Uma passada só sobre as peças (a grade monta até 50 cards).
@@ -615,9 +644,9 @@ function EventCard({
                 ? `Encerrado por decisão de um administrador${stats.openCount > 0 ? ` com ${stats.openCount} ${stats.openCount === 1 ? 'peça em aberto' : 'peças em aberto'}` : ''}. Saiu da Gestão de Prazos e das filas de trabalho; pode ser reaberto.`
                 : isDone
                   ? 'Todas as peças foram entregues'
-                  : closedEmpty
-                    ? 'A data do evento chegou e nenhuma peça chegou a ser criada'
-                    : `A data do evento chegou e ${stats.openCount} ${stats.openCount === 1 ? 'peça continua' : 'peças continuam'} em aberto`}
+                  : realizadoVazio
+                    ? 'O dia do evento passou e nenhuma peça chegou a ser criada. Saiu sozinho da Gestão de Prazos e das cinco filas de trabalho — ninguém encerrou este evento, e não há como reabri-lo.'
+                    : `O dia do evento passou e ${stats.openCount} ${stats.openCount === 1 ? 'peça continua' : 'peças continuam'} em aberto. Saiu sozinho da Gestão de Prazos e das cinco filas de trabalho — ninguém encerrou este evento, e não há como reabri-lo.`}
               style={{
                 fontSize: FS.micro, fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.06em',
                 color: isClosed ? '#44403c' : isDone ? '#047857' : '#b45309',
@@ -739,9 +768,9 @@ function EventCard({
                   </span>
                 ) : isDone ? (
                   <span style={{ fontSize: FS.small, fontWeight: '800', color: '#047857', whiteSpace: 'nowrap' }}>Concluído</span>
-                ) : isClosedPending ? (
+                ) : isRealizado ? (
                   <span style={{ fontSize: FS.small, fontWeight: '800', color: '#b45309', whiteSpace: 'nowrap' }}>
-                    {closedEmpty ? 'Nada criado' : `${stats.openCount} em aberto`}
+                    {realizadoVazio ? 'Nada criado' : `${stats.openCount} em aberto`}
                   </span>
                 ) : (
                   <span style={{ fontSize: FS.small, fontWeight: '800', color: T.dark, whiteSpace: 'nowrap' }}>{stats.progressPct}%</span>
@@ -830,8 +859,12 @@ export default function Eventos() {
   // (~100 chamadas/30s derrubam a árvore React) em gestao-prazos.tsx:575.
   const [searchInput, setSearchInput] = useState(() => urlParams.get("busca") ?? "");
   const [searchTerm, setSearchTerm] = useState(() => urlParams.get("busca") ?? "");
+  // `closed_with_pending` → `realizado` na leitura: um link salvo com o nome
+  // antigo continua abrindo o mesmo recorte (e a URL se corrige sozinha no
+  // próximo espelhamento) em vez de virar um filtro que não casa com nada.
   const [selectedPriorities, setSelectedPriorities] = useState<string[]>(
-    () => (urlParams.get("prioridade")?.split(",").filter(Boolean)) ?? [],
+    () => (urlParams.get("prioridade")?.split(",").filter(Boolean) ?? [])
+      .map((v) => LEGACY_LIFECYCLE[v] ?? v),
   );
   const [selectedSponsorFilter, setSelectedSponsorFilter] = useState<string[]>(
     () => (urlParams.get("patrocinador")?.split(",").filter(Boolean)) ?? [],
@@ -839,8 +872,8 @@ export default function Eventos() {
   const [next10DaysFilter, setNext10DaysFilter] = useState(() => urlParams.get("proximos") === "1");
   const [monthFilter, setMonthFilter] = useState<string>(() => urlParams.get("mes") ?? "all");
   // "Ocultar concluídos" nasce LIGADO: a visão padrão é o que ainda tem
-  // trabalho. Só esconde `lifecycle === 'completed'` — "Encerrado com
-  // pendências" continua visível, e em âmbar, porque ainda há o que fechar.
+  // trabalho. Só esconde os ARCHIVED_LIFECYCLES — "Realizado com pendências"
+  // continua visível, e em âmbar, porque ainda há o que fechar.
   // Na URL o parâmetro diz o CONTRÁRIO (`concluidos=1` = mostrar), para que o
   // estado padrão continue sendo a URL limpa.
   const [showCompleted, setShowCompleted] = useState(() => urlParams.get("concluidos") === "1");
@@ -1545,11 +1578,9 @@ export default function Eventos() {
     if (selectedPriorities.length === 0) return true;
     const lifecycle = readEventStats(event).lifecycle;
     return selectedPriorities.some((sel) => {
-      if (sel === 'completed') return lifecycle === 'completed';
-      if (sel === 'closed_with_pending') return lifecycle === 'closed_with_pending';
-      if (sel === 'manually_closed') return lifecycle === 'manually_closed';
+      if ((LIFECYCLE_FILTERS as readonly string[]).includes(sel)) return lifecycle === sel;
       // Um evento CONCLUÍDO (ou encerrado à mão) não responde mais pela
-      // prioridade — o badge dele já não é a prioridade. "Encerrado com
+      // prioridade — o badge dele já não é a prioridade. "Realizado com
       // pendências", sim: ele continua sendo trabalho, e continua na fila da
       // prioridade que tem.
       return !ARCHIVED_LIFECYCLES.has(lifecycle) && eventPriorityKey(event) === sel;
@@ -1579,14 +1610,14 @@ export default function Eventos() {
    * A saída é a âncora do negócio — todo prazo do sistema pende dela. A
    * prioridade deixa de ser o eixo primário e vira desempate + destaque
    * visual. Os três baldes:
-   *   0 · risco — encerrado com peça aberta, marco atrasado ou prioridade urgente
+   *   0 · risco — realizado com peça aberta, marco atrasado ou prioridade urgente
    *   1 · em jogo
-   *   2 · concluído (história; só aparece com "Ocultar concluídos" desligado)
+   *   2 · concluído/encerrado (história; só aparece com "Ocultar concluídos" desligado)
    */
   const sortRank = (event: any): number => {
     const lifecycle = readEventStats(event).lifecycle;
     if (ARCHIVED_LIFECYCLES.has(lifecycle)) return 2;
-    if (lifecycle === 'closed_with_pending') return 0;
+    if (lifecycle === 'realizado') return 0;
     if (event.nextMilestone?.state === 'overdue') return 0;
     if (event.priority === 'urgente') return 0;
     return 1;
@@ -1642,8 +1673,11 @@ export default function Eventos() {
           counts.completed = (counts.completed || 0) + 1;
           return;
         }
-        if (lifecycle === 'closed_with_pending') {
-          counts.closed_with_pending = (counts.closed_with_pending || 0) + 1;
+        // Realizado com pendências conta NOS DOIS lugares (sem `return`): o
+        // evento continua respondendo pela prioridade que tem, porque continua
+        // sendo trabalho a fechar.
+        if (lifecycle === 'realizado') {
+          counts.realizado = (counts.realizado || 0) + 1;
         }
         const p = eventPriorityKey(e);
         counts[p] = (counts[p] || 0) + 1;
@@ -1651,14 +1685,22 @@ export default function Eventos() {
     return counts;
   }, [events, matchesSearch, matchesDates, matchesFoco, matchesSponsor]);
 
+  // DUAS DIMENSÕES, UM MENU, DOIS GRUPOS. Continuam no mesmo dropdown porque
+  // são mutuamente exclusivas na prática (um evento arquivado já não responde
+  // pela prioridade, ver matchesPriority), porque o menu é um OU — "mostre o
+  // que for qualquer uma destas" — e porque separá-las custaria um quinto
+  // controle na faixa e quebraria todo link salvo com `?prioridade=`. O que
+  // faltava era só dizer onde uma acaba e a outra começa: os cabeçalhos de
+  // grupo do FilterSelect fazem isso, inclusive para leitor de tela (role=group).
   const priorityFilterOptions = useMemo(() => ([
     ...Object.entries(PRIORITY).map(([value, meta]) => ({
       value, label: meta.label, dotColor: meta.dot, count: priorityCounts[value] || 0, pinned: true,
+      group: "Prioridade",
     })),
-    { value: "sem_prioridade", label: "Sem Prioridade", dotColor: "#d6d3d1", count: priorityCounts.sem_prioridade || 0, pinned: true },
-    { value: "closed_with_pending", label: "Encerrado com pendências", dotColor: "#f59e0b", count: priorityCounts.closed_with_pending || 0, pinned: true },
-    { value: "completed", label: "Concluído", dotColor: "#10b981", count: priorityCounts.completed || 0, pinned: true },
-    { value: "manually_closed", label: "Encerrado manualmente", dotColor: "#78716c", count: priorityCounts.manually_closed || 0, pinned: true },
+    { value: "sem_prioridade", label: "Sem Prioridade", dotColor: "#d6d3d1", count: priorityCounts.sem_prioridade || 0, pinned: true, group: "Prioridade" },
+    { value: "realizado", label: "Realizado com pendências", dotColor: "#f59e0b", count: priorityCounts.realizado || 0, pinned: true, group: "Situação do evento" },
+    { value: "completed", label: "Concluído", dotColor: "#10b981", count: priorityCounts.completed || 0, pinned: true, group: "Situação do evento" },
+    { value: "manually_closed", label: "Encerrado manualmente", dotColor: "#78716c", count: priorityCounts.manually_closed || 0, pinned: true, group: "Situação do evento" },
   ]), [priorityCounts]);
 
   // Opções/contagens do filtro de patrocinador — mesma disciplina: contam a
@@ -2584,12 +2626,19 @@ export default function Eventos() {
           <div style={{ width: '1px', height: '20px', backgroundColor: '#e7e5e4', flexShrink: 0 }} />
         )}
 
+        {/* O rótulo diz as DUAS dimensões que o menu recorta. "Todas as
+            prioridades" era uma promessa que o menu já não cumpria: metade das
+            opções nunca foi prioridade. `hideSearch` porque a lista é curta e
+            FIXA (8 opções) — e porque a busca do FilterSelect não atravessa
+            opções agrupadas, então um campo aqui seria um campo que não faz
+            nada. */}
         <FilterSelect
-          label="Prioridade"
-          allLabel="Todas as prioridades"
+          label="Prioridade e situação"
+          allLabel="Prioridade e situação"
           values={selectedPriorities}
           onValuesChange={(v) => setSelectedPriorities(v)}
           options={priorityFilterOptions}
+          hideSearch
           testId="filter-priority"
         />
 
@@ -2633,14 +2682,14 @@ export default function Eventos() {
 
         {/* "Ocultar concluídos" nasce ligado: a grade padrão mostra o que ainda
             tem trabalho. Esconde o concluído e o encerrado à mão; NUNCA esconde
-            "Encerrado com pendências", que segue sendo cobrança. */}
+            "Realizado com pendências", que segue sendo cobrança. */}
         <button
           onClick={() => setShowCompleted(!showCompleted)}
           aria-pressed={!showCompleted}
           disabled={explicitLifecycleFilter}
           title={explicitLifecycleFilter
-            ? 'Desativado enquanto o filtro de prioridade pede eventos concluídos ou encerrados'
-            : 'Esconde os eventos concluídos e os encerrados manualmente. "Encerrado com pendências" continua na grade.'}
+            ? 'Desativado enquanto o filtro de prioridade e situação pede uma situação específica'
+            : 'Esconde os eventos concluídos e os encerrados manualmente. "Realizado com pendências" continua na grade — é o único estado em que sobrou trabalho, e some por decisão de ninguém.'}
           data-testid="button-toggle-completed"
           style={{
             display: 'flex', alignItems: 'center', gap: '6px',

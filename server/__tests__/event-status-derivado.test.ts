@@ -12,9 +12,16 @@
 //
 // A correção separou dois conceitos que estavam colados num único campo:
 //   · allDelivered   → a PRODUÇÃO terminou (toda peça do funil está entregue)
-//   · eventHasPassed → a DATA chegou (dia-calendário em America/Sao_Paulo)
+//   · eventHasPassed → o DIA DO EVENTO passou (dia-calendário em
+//                      America/Sao_Paulo, comparação ESTRITA)
 // Nada aqui pode voltar a confundir os dois. Cada teste abaixo é uma frase de
 // negócio, não um detalhe de implementação.
+//
+// A REGRA DE UM DIA (14/08): `eventHasPassed` era `>=` ("a data chegou")
+// enquanto @shared/prazo-dates usava `>` ("o dia passou") para tirar o evento
+// das cinco filas e da Gestão de Prazos. Durante o dia do evento as duas telas
+// discordavam. Ficou o `>`, e o balde `closed_with_pending` virou `realizado`
+// — ninguém encerrou o evento, ele simplesmente aconteceu.
 //
 // DISCIPLINA DE RELÓGIO: `enrichEvent` recebe o "hoje" por parâmetro, então
 // NENHUM teste depende da hora em que a suíte roda. As duas únicas exceções
@@ -31,6 +38,7 @@ import { describe, it, expect, vi } from "vitest";
 process.env.DATABASE_URL = "postgres://test:test@localhost:5432/banco_nunca_acessado";
 
 const { enrichEvent, spDayMs, todayBusinessMs } = await import("../routes/events");
+const { motivoEventoFinalizado } = await import("@shared/prazo-dates");
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fixtures
@@ -106,14 +114,14 @@ describe("evento SEM nenhuma peça", () => {
     expect(r.nextMilestone.pendingItems).toBe(0);
   });
 
-  it("com a data já passada, encerra COM pendência (e não como concluído)", () => {
-    // Evento vazio cuja data chegou é o pior cenário do negócio: ninguém
+  it("com o dia já passado, fica REALIZADO com pendência (e não concluído)", () => {
+    // Evento vazio cujo dia passou é o pior cenário do negócio: ninguém
     // cadastrou peça e o caminhão já saiu. Verde aqui seria mentira dupla.
     const r = enriquecer(evento(), [], dia("2026-03-20"));
 
     expect(r.eventHasPassed).toBe(true);
     expect(r.allDelivered).toBe(false);
-    expect(r.lifecycle).toBe("closed_with_pending");
+    expect(r.lifecycle).toBe("realizado");
     expect(r.status).toBe("created");
     expect(r.nextMilestone).toBeNull();
   });
@@ -208,7 +216,7 @@ describe("O BUG: data passada COM peças em aberto", () => {
     expect(r.eventHasPassed).toBe(true);
     expect(r.allDelivered).toBe(false);
     expect(r.status).toBe("created");
-    expect(r.lifecycle).toBe("closed_with_pending");
+    expect(r.lifecycle).toBe("realizado");
   });
 
   it("expõe o tamanho real da pendência", () => {
@@ -242,10 +250,10 @@ describe("O BUG: data passada COM peças em aberto", () => {
     expect(r.openCount).toBe(1);
     expect(r.allDelivered).toBe(false);
     expect(r.status).toBe("created");
-    expect(r.lifecycle).toBe("closed_with_pending");
+    expect(r.lifecycle).toBe("realizado");
   });
 
-  it("encerrado com pendência não recebe 'próximo marco'", () => {
+  it("realizado com pendência não recebe 'próximo marco'", () => {
     // Todos os marcos já venceram junto com o evento; cobrar um deles seria
     // ruído. Quem precisa de sinal aqui lê o lifecycle.
     expect(cenarioDoBug().nextMilestone).toBeNull();
@@ -265,11 +273,27 @@ describe("evento FUTURO", () => {
     expect(r.nextMilestone.pendingItems).toBe(4);
   });
 
-  it("a data 'chega' NO dia do evento, não no dia seguinte", () => {
-    // Comparação por dia-calendário com `>=`: às 00:00 de Brasília do dia do
-    // evento ele já está em curso.
+  it("NO DIA do evento ele ainda está em jogo — só passa no dia SEGUINTE", () => {
+    // A REGRA DE UM DIA, e o motivo de este teste ser o mais importante do
+    // arquivo. Esta comparação era `>=` ("a data CHEGOU") enquanto a regra que
+    // tira o evento das cinco filas e da Gestão de Prazos é `>` ("o dia
+    // PASSOU"). Um dia inteiro de divergência: a lista de Eventos carimbava
+    // "Encerrado com pendências" num evento que TODAS as outras telas ainda
+    // estavam cobrando. Ganhou o `>` — é a regra do dono, e é a única das duas
+    // que já estava em @shared/prazo-dates valendo para o app inteiro.
     expect(enriquecer(evento(), [], dia("2026-03-14")).eventHasPassed).toBe(false);
-    expect(enriquecer(evento(), [], dia("2026-03-15")).eventHasPassed).toBe(true);
+    expect(enriquecer(evento(), [], dia("2026-03-15")).eventHasPassed).toBe(false);
+    expect(enriquecer(evento(), [], dia("2026-03-16")).eventHasPassed).toBe(true);
+  });
+
+  it("no DIA do evento com peça aberta o lifecycle ainda é 'active'", () => {
+    // Consequência visível da regra de um dia: no dia do evento o card mantém
+    // a bandeira de prioridade e o próximo marco, porque a peça continua na
+    // fila da Arte e continua sendo cobrada em /prazos.
+    const r = enriquecer(evento(), pecas("draft", 2), dia("2026-03-15"));
+
+    expect(r.lifecycle).toBe("active");
+    expect(r.nextMilestone).not.toBeNull();
   });
 
   it("aceita startDate como string ISO, não só como Date", () => {
@@ -278,9 +302,20 @@ describe("evento FUTURO", () => {
     const comString = enriquecer(
       evento({ startDate: "2026-03-15T00:00:00.000Z", truckDepartureDate: "2026-03-10T00:00:00.000Z" }),
       [],
-      dia("2026-03-15"),
+      dia("2026-03-16"),
     );
     expect(comString.eventHasPassed).toBe(true);
+  });
+
+  it("ano absurdo na DATA DO EVENTO não arquiva o evento", () => {
+    // "0206" no lugar de "2026" está 1.800 anos no passado: com a comparação
+    // ingênua o evento nascia "realizado" e sumia da grade padrão. Agora a data
+    // implausível não decide nada — o evento fica visível como cadastro a
+    // corrigir. Mesma decisão que @shared/prazo-dates já tomava para as filas.
+    const r = enriquecer(evento({ startDate: new Date("0206-03-15T00:00:00.000Z") }), pecas("draft", 1));
+
+    expect(r.eventHasPassed).toBe(false);
+    expect(r.lifecycle).toBe("active");
   });
 
   it("o próximo marco anda conforme as peças avançam no funil", () => {
@@ -400,19 +435,30 @@ describe("virada de dia em America/Sao_Paulo (o bug das 21h)", () => {
     }
   });
 
-  it("evento do dia 10 NÃO passou às 21h do dia 9 (fim a fim)", () => {
+  it("evento do dia 10 só vira 'realizado' à meia-noite do dia 11 (fim a fim)", () => {
     const ev = evento({ startDate: new Date("2026-03-10T00:00:00.000Z") });
     const abertas = pecas("awaiting_approval", 2);
 
+    // 10/03 00:30Z = 09/03 21:30 em São Paulo — véspera, e as 3h de
+    // antecipação que já custaram um bug a esta base.
     const vespera21h = enrichEvent(ev, abertas, [], spDayMs(new Date("2026-03-10T00:30:00.000Z")));
     expect(vespera21h.eventHasPassed).toBe(false);
     expect(vespera21h.lifecycle).toBe("active");
     expect(vespera21h.nextMilestone).not.toBeNull();
 
-    const meiaNoiteBrt = enrichEvent(ev, abertas, [], spDayMs(new Date("2026-03-10T03:00:00.000Z")));
-    expect(meiaNoiteBrt.eventHasPassed).toBe(true);
-    expect(meiaNoiteBrt.lifecycle).toBe("closed_with_pending");
-    expect(meiaNoiteBrt.nextMilestone).toBeNull();
+    // 10/03 03:00Z = 10/03 00:00 em São Paulo — o DIA DO EVENTO começou, e
+    // durante ele o trabalho ainda conta. Aqui a comparação `>=` antiga já
+    // dizia "encerrado com pendências" com o evento acontecendo.
+    const diaDoEvento = enrichEvent(ev, abertas, [], spDayMs(new Date("2026-03-10T03:00:00.000Z")));
+    expect(diaDoEvento.eventHasPassed).toBe(false);
+    expect(diaDoEvento.lifecycle).toBe("active");
+    expect(diaDoEvento.nextMilestone).not.toBeNull();
+
+    // 11/03 03:00Z = 11/03 00:00 em São Paulo — o dia passou.
+    const diaSeguinte = enrichEvent(ev, abertas, [], spDayMs(new Date("2026-03-11T03:00:00.000Z")));
+    expect(diaSeguinte.eventHasPassed).toBe(true);
+    expect(diaSeguinte.lifecycle).toBe("realizado");
+    expect(diaSeguinte.nextMilestone).toBeNull();
   });
 
   it("o prazo do marco também não anda às 21h", () => {
@@ -423,6 +469,47 @@ describe("virada de dia em America/Sao_Paulo (o bug das 21h)", () => {
     // Ainda é dia 13: o marco vence HOJE, não ontem.
     expect(r.nextMilestone.daysRemaining).toBe(0);
     expect(r.nextMilestone.state).toBe("warning");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe("a lista de Eventos e as filas de trabalho usam O MESMO dia", () => {
+  // Este bloco é a trava da unificação. Enquanto existiam duas comparações
+  // (`>=` aqui, `>` em @shared/prazo-dates), a divergência era invisível: só
+  // aparecia durante 24h, no dia do evento, e para quem olhasse as duas telas
+  // ao mesmo tempo. Um laço sobre os três dias vizinhos custa nada e não deixa
+  // ninguém reintroduzir a diferença por engano.
+  const DIAS = ["2026-03-13", "2026-03-14", "2026-03-15", "2026-03-16", "2026-03-17"];
+
+  it("'realizado' na lista acontece exatamente quando o evento sai das filas", () => {
+    for (const hoje of DIAS) {
+      const r = enriquecer(evento(), pecas("draft", 2), dia(hoje));
+      const saiuDasFilas = motivoEventoFinalizado(evento(), dia(hoje)) === "realizado";
+
+      expect(r.eventHasPassed, `em ${hoje}`).toBe(saiuDasFilas);
+      expect(r.lifecycle === "realizado", `em ${hoje}`).toBe(saiuDasFilas);
+    }
+  });
+
+  it("evento encerrado à mão sai pelas filas como 'encerrado', nunca como 'realizado'", () => {
+    // Mesmo com a data passada: a decisão de uma pessoa é a explicação certa,
+    // e é a única com volta (reabrir). O lifecycle concorda com o motivo.
+    const ev = evento({ status: "closed" });
+    const r = enriquecer(ev, pecas("draft", 2), dia("2026-03-20"));
+
+    expect(motivoEventoFinalizado(ev, dia("2026-03-20"))).toBe("encerrado");
+    expect(r.lifecycle).toBe("manually_closed");
+    // O FATO da data continua no payload — só deixou de mandar no rótulo.
+    expect(r.eventHasPassed).toBe(true);
+  });
+
+  it("evento sem data de início nunca é 'realizado' — nem aqui, nem nas filas", () => {
+    const ev = evento({ startDate: null });
+    const r = enriquecer(ev, pecas("draft", 1), dia("2026-03-20"));
+
+    expect(motivoEventoFinalizado(ev, dia("2026-03-20"))).toBeNull();
+    expect(r.eventHasPassed).toBe(false);
+    expect(r.lifecycle).toBe("active");
   });
 });
 
@@ -438,7 +525,7 @@ describe("status do BANCO x status CALCULADO", () => {
     );
 
     expect(r.status).toBe("created");
-    expect(r.lifecycle).toBe("closed_with_pending");
+    expect(r.lifecycle).toBe("realizado");
   });
 
   it("promove um 'created' do banco quando a produção terminou", () => {

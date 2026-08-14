@@ -297,9 +297,10 @@ describe("o encerramento manual sobrepõe a derivação", () => {
     expect(r.allDelivered).toBe(true);
   });
 
-  it("evento encerrado com a data passada não vira 'Encerrado com pendências'", () => {
-    // Data do evento já passou e há peça aberta: sem o encerramento manual isto
-    // seria closed_with_pending, o selo de cobrança.
+  it("evento encerrado com o dia passado não vira 'Realizado com pendências'", () => {
+    // O dia do evento já passou e há peça aberta: sem o encerramento manual
+    // isto seria `realizado`, o selo de cobrança. Encerrar é decisão de gente
+    // e vence a data — inclusive porque só ela tem volta (reabrir).
     const depois = Date.UTC(2026, 2, 20);
     const r = enrichEvent(evento({ status: EVENT_CLOSED_STATUS }), pecas("draft", 3), [], depois);
 

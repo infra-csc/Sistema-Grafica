@@ -29,7 +29,7 @@ import {
   STATUS, getStatusMeta,
   isEventoFinalizado, motivoEventoFinalizado, avisoPecasOcultas, todayBusinessMs,
 } from "@/lib/status";
-import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
+import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { AumentarQuantidadeDialog, parseApiError } from "@/components/aumentar-quantidade-dialog";
 
 // Tons de texto desta paleta valem para superfícies CLARAS (bg/surface).
@@ -1134,6 +1134,16 @@ export default function Solicitacao() {
       {/* ── 5. REVIEW MODAL ────────────────────────────────────────────── */}
       <Dialog open={modalOpen} onOpenChange={open => { setModalOpen(open); if (!open) setReturnObservations(""); }}>
         <DialogContent className={`review-dialog-shell max-w-6xl p-0 gap-0 rounded-xl overflow-hidden flex flex-col ${HIDE_NATIVE_CLOSE}`} style={{ height: isMobile ? "94dvh" : "87vh", maxHeight: 900, maxWidth: isMobile ? "95vw" : undefined }} onInteractOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
+          {/* POR QUE congelar aqui: é o pior onSuccess da tela. Liberar (ou
+              devolver) dispara TRÊS invalidateQueries, fecha este modal, fecha
+              o AlertDialog de confirmação E faz `setSelectedItem(null)` — tudo
+              no mesmo commit. `selectedItem` é a fonte de TODO o miolo: sem
+              congelar, o modal esvazia (thumb, ID, tipo, patrocinadores,
+              histórico) no primeiro frame do fade, e cada um dos renders da
+              janela de saída ainda manda desanexa+reanexa de ref para a
+              subárvore em desmontagem — o laço do React #185. Mecanismo por
+              extenso em components/modal-shell.tsx. */}
+          <FreezeWhileClosing open={modalOpen}>
           <DialogTitle className="sr-only">Decisão de Revisão</DialogTitle>
           <DialogDescription className="sr-only">
             Compare o thumb aprovado pelo patrocinador com o arquivo final da Arte e libere ou devolva a peça
@@ -1522,6 +1532,7 @@ export default function Solicitacao() {
               )}
             </div>
           </div>
+          </FreezeWhileClosing>
         </DialogContent>
       </Dialog>
 
@@ -1530,6 +1541,11 @@ export default function Solicitacao() {
       {/* Release single */}
       <AlertDialog open={releaseConfirmOpen} onOpenChange={setReleaseConfirmOpen}>
         <AlertDialogContent className="review-confirm-content">
+          {/* POR QUE congelar aqui: o mesmo onSuccess que fecha esta confirmação
+              também faz `setSelectedItem(null)` — e é `selectedItem` que
+              escreve o ID e o tipo da peça na descrição. Sem congelar, a frase
+              inteira some antes do diálogo terminar de sair. */}
+          <FreezeWhileClosing open={releaseConfirmOpen}>
           <AlertDialogHeader>
             <AlertDialogTitle>Liberar para Produção</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1547,12 +1563,18 @@ export default function Solicitacao() {
               {creatorReviewMutation.isPending ? "Liberando..." : "Liberar"}
             </AlertDialogAction>
           </AlertDialogFooter>
+          </FreezeWhileClosing>
         </AlertDialogContent>
       </AlertDialog>
 
       {/* Return to Arte from card (quick) */}
       <AlertDialog open={returnConfirmOpen} onOpenChange={setReturnConfirmOpen}>
         <AlertDialogContent className="review-confirm-content">
+          {/* POR QUE congelar aqui: o onSuccess da devolução fecha este diálogo,
+              zera `selectedItem` (o ID na descrição) e ainda esvazia
+              `returnObservations` — o texto que a pessoa acabou de escrever
+              sumia do textarea à vista, no meio do fade. */}
+          <FreezeWhileClosing open={returnConfirmOpen}>
           <AlertDialogHeader>
             <AlertDialogTitle>Devolver para Arte</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1580,12 +1602,18 @@ export default function Solicitacao() {
               {returnToArteMutation.isPending ? "Devolvendo..." : "Devolver para Arte"}
             </AlertDialogAction>
           </AlertDialogFooter>
+          </FreezeWhileClosing>
         </AlertDialogContent>
       </AlertDialog>
 
       {/* Bulk release */}
       <AlertDialog open={bulkReleaseConfirmOpen} onOpenChange={setBulkReleaseConfirmOpen}>
         <AlertDialogContent className="review-confirm-content">
+          {/* POR QUE congelar aqui: o onSuccess troca `selectedItemIds` pelo
+              conjunto do que FALHOU e fecha o diálogo no mesmo commit. O
+              título é contado a partir desse conjunto — "Liberar 12 itens"
+              virava "Liberar 0 itens" enquanto a caixa saía de cena. */}
+          <FreezeWhileClosing open={bulkReleaseConfirmOpen}>
           <AlertDialogHeader>
             <AlertDialogTitle>Liberar {selectedItemIds.size} iten{selectedItemIds.size !== 1 ? "s" : ""}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1603,12 +1631,18 @@ export default function Solicitacao() {
               {bulkReleaseMutation.isPending ? "Liberando..." : "Liberar Todos"}
             </AlertDialogAction>
           </AlertDialogFooter>
+          </FreezeWhileClosing>
         </AlertDialogContent>
       </AlertDialog>
 
       {/* Bulk return */}
       <AlertDialog open={bulkReturnConfirmOpen} onOpenChange={setBulkReturnConfirmOpen}>
         <AlertDialogContent className="review-confirm-content">
+          {/* POR QUE congelar aqui: o onSuccess fecha, reescreve
+              `selectedItemIds` (que conta o título) e esvazia
+              `bulkReturnObservations` (que é o valor do textarea) no mesmo
+              commit — dois campos visíveis apagando durante o fade. */}
+          <FreezeWhileClosing open={bulkReturnConfirmOpen}>
           <AlertDialogHeader>
             <AlertDialogTitle>Devolver {selectedItemIds.size} iten{selectedItemIds.size !== 1 ? "s" : ""} para Arte</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1639,6 +1673,7 @@ export default function Solicitacao() {
               {bulkReturnMutation.isPending ? "Devolvendo..." : "Devolver para Arte"}
             </AlertDialogAction>
           </AlertDialogFooter>
+          </FreezeWhileClosing>
         </AlertDialogContent>
       </AlertDialog>
 
@@ -1650,6 +1685,12 @@ export default function Solicitacao() {
           painel no tamanho antigo. */}
       <Dialog open={!!reuseDialogItemId} onOpenChange={o => { if (!o) setReuseDialogItemId(null); }}>
         <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(420)}>
+          {/* POR QUE congelar aqui: o corpo inteiro é derivado de
+              `reuseDialogItemId` (e o item vem de `pendingItems`, que as três
+              invalidações do onSuccess recarregam). Ao confirmar, o id vira
+              null, a busca não acha nada e o modal fica LITERALMENTE VAZIO
+              durante toda a animação de saída. */}
+          <FreezeWhileClosing open={!!reuseDialogItemId}>
           {(() => {
             const dialogItem = pendingItems.find(i => i.id === reuseDialogItemId);
             if (!dialogItem) return null;
@@ -1736,12 +1777,18 @@ export default function Solicitacao() {
               </>
             );
           })()}
+          </FreezeWhileClosing>
         </DialogContent>
       </Dialog>
 
       {/* Delete confirmation */}
       <AlertDialog open={!!deleteConfirmItemId} onOpenChange={open => { if (!open) setDeleteConfirmItemId(null); }}>
         <AlertDialogContent className="review-confirm-content">
+          {/* POR QUE congelar aqui: o onSuccess da exclusão invalida, toasta e
+              zera `deleteConfirmItemId` — que é quem escreve o ID da peça na
+              descrição. Sem congelar, "A peça SOL-123 será excluída" cai para
+              o texto genérico durante a saída. */}
+          <FreezeWhileClosing open={!!deleteConfirmItemId}>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir peça</AlertDialogTitle>
             <AlertDialogDescription>
@@ -1765,6 +1812,7 @@ export default function Solicitacao() {
               {deleteItemMutation.isPending ? "Excluindo..." : "Excluir Peça"}
             </AlertDialogAction>
           </AlertDialogFooter>
+          </FreezeWhileClosing>
         </AlertDialogContent>
       </AlertDialog>
 

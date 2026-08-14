@@ -19,7 +19,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
+import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { R, onColor } from "@/lib/theme";
 import {
   isEventoFinalizado, motivoEventoFinalizado, avisoPecasOcultas, todayBusinessMs,
@@ -3194,6 +3194,15 @@ export default function VincularPatrocinadores() {
       {/* Dialog — Gerenciar Patrocinadores do Evento */}
       <Dialog open={sponsorDialogOpen} onOpenChange={(open) => { setSponsorDialogOpen(open); if (!open) setSponsorModalSearch(''); }}>
         <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(600)}>
+          {/* POR QUE congelar aqui: o onSuccess remove /api/events do cache,
+              faz refetch forçado, invalida /api/sponsors e /api/audit-logs,
+              fecha e toasta. O refetch derruba `selectedEventForSponsors`
+              (subtítulo do cabeçalho) e recalcula a lista inteira de linhas
+              enquanto o modal ainda está montado saindo — cada uma dessas
+              rodadas mandava desanexa+reanexa de ref para a subárvore em
+              desmontagem, que é o laço do React #185. Mecanismo por extenso em
+              components/modal-shell.tsx. */}
+          <FreezeWhileClosing open={sponsorDialogOpen}>
           <DialogTitle className="sr-only">Patrocinadores do evento</DialogTitle>
           <DialogDescription className="sr-only">Escolha quais patrocinadores participam deste evento</DialogDescription>
           <ModalHeader
@@ -3366,6 +3375,7 @@ export default function VincularPatrocinadores() {
               </button>
             </div>
           </div>
+          </FreezeWhileClosing>
         </DialogContent>
       </Dialog>
 
@@ -3600,6 +3610,14 @@ export default function VincularPatrocinadores() {
       {/* ===== Modal de Confirmação de Envio ===== */}
       <Dialog open={!!sendConfirmModal} onOpenChange={(open) => { if (!open && !isSending) setSendConfirmModal(null); }}>
         <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(680)}>
+          {/* POR QUE congelar aqui: o onSuccess do envio invalida /api/items,
+              /api/audit-logs e /api/notifications, esvazia `selectedItemIds`,
+              limpa os otimistas, fecha e toasta — no mesmo commit. O corpo
+              inteiro (a lista de peças e o contador do botão) vem de
+              `sendConfirmModal`, que acabou de virar null: sem congelar o
+              modal se esvazia durante toda a animação de saída, com três
+              invalidações renderizando a página por cima. */}
+          <FreezeWhileClosing open={!!sendConfirmModal}>
           <DialogTitle className="sr-only">Confirmar Envio para Arte</DialogTitle>
           <DialogDescription className="sr-only">Revise os itens e os patrocinadores antes de enviar para a Arte</DialogDescription>
 
@@ -3816,6 +3834,7 @@ export default function VincularPatrocinadores() {
               </button>
             </div>
           </div>
+          </FreezeWhileClosing>
         </DialogContent>
       </Dialog>
 
@@ -3886,6 +3905,12 @@ export default function VincularPatrocinadores() {
       {/* ── MODAL DE CONFIRMAÇÃO: DEVOLVER PARA CRIAÇÃO ── */}
       <Dialog open={!!returnModal} onOpenChange={open => { if (!open && !returnToCreationMutation.isPending) setReturnModal(null); }}>
         <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(440)}>
+          {/* POR QUE congelar aqui: o onSuccess da devolução invalida três
+              chaves, apaga o item de quatro mapas locais, fecha e toasta no
+              mesmo commit — e é `returnModal` que escreve o ID e o tipo da
+              peça na caixa de destaque. Sem congelar, a caixa some no primeiro
+              frame do fade. */}
+          <FreezeWhileClosing open={!!returnModal}>
           <DialogTitle className="sr-only">Devolver para Criação</DialogTitle>
           <ModalHeader
             variant="confirm"
@@ -3922,6 +3947,7 @@ export default function VincularPatrocinadores() {
               style={{ width: '100%', height: 36, borderRadius: R.md, border: 'none', background: 'none', fontSize: 13, fontWeight: 600, color: '#746e69', cursor: 'pointer' }}
             >Cancelar</button>
           </ModalFooter>
+          </FreezeWhileClosing>
         </DialogContent>
       </Dialog>
     </div>

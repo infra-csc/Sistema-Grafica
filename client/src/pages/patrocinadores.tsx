@@ -1,4 +1,5 @@
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { FreezeWhileClosing } from "@/components/modal-shell";
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -559,6 +560,14 @@ export default function Patrocinadores() {
       <Dialog open={modalOpen} onOpenChange={o => { if (!o) requestClose(); }}>
 
         <DialogContent className="p-0 gap-0 border-none" style={{ maxWidth: 640, width: "96vw", borderRadius: 12, overflow: "hidden" }}>
+          {/* POR QUE congelar aqui: salvar fecha o modal, invalida /api/sponsors,
+              chama form.reset() e toasta no MESMO commit. São 11 primitivas do
+              Radix aqui dentro (9 FormControl, que é um <Slot>, mais título e
+              descrição) recebendo desanexa+reanexa de ref a cada render da
+              página durante a animação de saída — o laço do React #185. Além
+              disso o form.reset() apagava o formulário À VISTA, no meio do
+              fade. Mecanismo por extenso em components/modal-shell.tsx. */}
+          <FreezeWhileClosing open={modalOpen}>
           <DialogTitle className="sr-only">{editingSponsor ? "Editar patrocinador" : "Novo patrocinador"}</DialogTitle>
           <DialogDescription className="sr-only">Dados de contato, identidade visual e executivo responsável</DialogDescription>
 
@@ -783,6 +792,7 @@ export default function Patrocinadores() {
               </button>
             </div>
           </div>
+          </FreezeWhileClosing>
 
         </DialogContent>
       </Dialog>
@@ -792,6 +802,12 @@ export default function Patrocinadores() {
       ══════════════════════════════ */}
       <Dialog open={!!deletingSponsor} onOpenChange={o => { if (!o) setDeletingSponsor(null); }}>
         <DialogContent className="p-0 gap-0 border-none" style={{ maxWidth: 440, width: "96vw", borderRadius: 12, overflow: "hidden" }}>
+          {/* POR QUE congelar aqui: quem fecha este diálogo é
+              `setDeletingSponsor(null)` dentro do onSuccess — e é o MESMO
+              estado que abre o corpo (`{deletingSponsor && ...}`). Sem
+              congelar, o texto "Excluir Patrocinador X?" some no primeiro
+              frame do fade e o usuário vê uma caixa vazia sumindo. */}
+          <FreezeWhileClosing open={!!deletingSponsor}>
           <DialogTitle className="sr-only">Excluir patrocinador</DialogTitle>
           <DialogDescription className="sr-only">Confirme a exclusão do patrocinador</DialogDescription>
           {deletingSponsor && (
@@ -828,6 +844,7 @@ export default function Patrocinadores() {
             </div>
           </div>
           )}
+          </FreezeWhileClosing>
         </DialogContent>
       </Dialog>
     </div>

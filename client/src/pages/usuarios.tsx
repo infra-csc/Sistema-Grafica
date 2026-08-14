@@ -1,4 +1,5 @@
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { FreezeWhileClosing } from "@/components/modal-shell";
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { FilterSelect } from "@/components/filter-select";
@@ -525,6 +526,14 @@ export default function Usuarios() {
           className="p-0 gap-0 border-none"
           style={{ maxWidth: 520, width: "96vw", borderRadius: 12, overflow: "hidden", boxShadow: "0 24px 64px -12px rgba(0,0,0,0.3)" }}
         >
+          {/* POR QUE congelar aqui: criar/atualizar fecha o modal, invalida
+              /api/users, chama form.reset() e toasta no mesmo commit. O
+              form.reset() troca o título ("Editar Usuário" → "Novo Usuário") e
+              esvazia os três campos À VISTA, durante a animação de saída — e
+              cada render da página nessa janela desanexa e reanexa a ref das 5
+              primitivas Radix daqui de dentro, que é o laço do React #185.
+              Mecanismo por extenso em components/modal-shell.tsx. */}
+          <FreezeWhileClosing open={modalOpen}>
           <DialogTitle className="sr-only">{editingUser ? "Editar usuário" : "Novo usuário"}</DialogTitle>
           <DialogDescription className="sr-only">Dados de acesso e perfil do usuário</DialogDescription>
           <div>
@@ -618,6 +627,7 @@ export default function Usuarios() {
               </form>
             </Form>
           </div>
+          </FreezeWhileClosing>
         </DialogContent>
       </Dialog>
 
@@ -632,6 +642,11 @@ export default function Usuarios() {
           className="p-0 gap-0 border-none"
           style={{ maxWidth: 420, width: "96vw", borderRadius: 12, overflow: "hidden", boxShadow: "0 24px 64px -12px rgba(0,0,0,0.3)", borderLeft: "4px solid #b91c1c" }}
         >
+          {/* POR QUE congelar aqui: quem fecha é `setDeletingUser(null)` no
+              onSuccess, e é o mesmo estado que abre o corpo
+              (`{deletingUser && ...}`). Sem congelar, "Excluir Fulano?" some
+              no primeiro frame do fade e sobra uma caixa vazia. */}
+          <FreezeWhileClosing open={!!deletingUser}>
           <DialogTitle className="sr-only">Excluir usuário</DialogTitle>
           <DialogDescription className="sr-only">Confirme a exclusão do usuário</DialogDescription>
           {deletingUser && (
@@ -662,6 +677,7 @@ export default function Usuarios() {
               </div>
             </div>
           )}
+          </FreezeWhileClosing>
         </DialogContent>
       </Dialog>
     </div>

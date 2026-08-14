@@ -14,7 +14,7 @@ import { compareDisplayId } from "@/lib/displayId";
 // Motor de PDF compartilhado (mesmo da tela de Atendimento) — a Arte não tem
 // mais motor próprio; qualquer ajuste de layout do book vale para as duas telas.
 import { exportMixedToPDF, convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
-import { HIDE_NATIVE_CLOSE, modalSurface, ModalHeader, ModalFooter } from "@/components/modal-shell";
+import { HIDE_NATIVE_CLOSE, modalSurface, ModalHeader, ModalFooter, FreezeWhileClosing } from "@/components/modal-shell";
 import {
   getStatusLabel,
   isEventoFinalizado,
@@ -3188,6 +3188,12 @@ export default function Arte() {
       <Dialog open={!!dispenseItem} onOpenChange={(open) => { if (!open) { setDispenseItem(null); setDispenseReason(""); } }}>
         {/* HIDE_NATIVE_CLOSE: este modal tem X próprio; sem a classe ficavam dois. */}
         <DialogContent className={cn("p-0 gap-0", HIDE_NATIVE_CLOSE)} style={modalSurface(420)}>
+          {/* POR QUE congelar aqui: o onSuccess da dispensa invalida /api/items
+              e /api/items/approved, fecha, esvazia `dispenseReason` e toasta no
+              mesmo commit — e tanto o cabeçalho quanto o campo de motivo vêm de
+              `dispenseItem`/`dispenseReason`, que acabaram de ser zerados. Sem
+              congelar o modal se apaga durante o fade. */}
+          <FreezeWhileClosing open={!!dispenseItem}>
           <DialogTitle className="sr-only">Dispensar peça</DialogTitle>
           <DialogDescription className="sr-only">Dispensar peça da fila de arte</DialogDescription>
           {/* ModalHeader compartilhado: o X feito à mão aqui tinha 20px, abaixo
@@ -3239,6 +3245,7 @@ export default function Arte() {
               </button>
             </div>
           </ModalFooter>
+          </FreezeWhileClosing>
         </DialogContent>
       </Dialog>
 
@@ -3254,6 +3261,13 @@ export default function Arte() {
           // (o Radix fecha por padrão) descartava o arquivo sem perguntar.
           onInteractOutside={e => { if (correcaoThumbUrl) e.preventDefault(); }}
         >
+          {/* POR QUE congelar aqui: o onSuccess do re-envio invalida duas
+              chaves, fecha e apaga de uma vez `correcaoItem`, `correcaoThumbUrl`,
+              `correcaoFileName` e a seleção de patrocinadores — que são
+              exatamente a miniatura, o nome do arquivo e a lista de checkboxes
+              que o modal está exibindo. Sem congelar, o modal fica vazio
+              durante toda a animação de saída. */}
+          <FreezeWhileClosing open={!!correcaoItem}>
           <DialogTitle className="sr-only">Enviar Nova Arte</DialogTitle>
           <DialogDescription className="sr-only">Reenvio de arte para patrocinadores</DialogDescription>
 
@@ -3521,6 +3535,7 @@ export default function Arte() {
               )}
             </button>
           </div>
+          </FreezeWhileClosing>
         </DialogContent>
       </Dialog>
 
@@ -3875,6 +3890,16 @@ export default function Arte() {
       {/* ═══════════════════════════════════════════════════════════════════ */}
       <Dialog open={showBulkDialog} onOpenChange={(open) => { if (!open) { setShowBulkDialog(false); setSharedPdfUrl(""); } }}>
         <DialogContent className={cn("p-0 gap-0", HIDE_NATIVE_CLOSE)} style={modalSurface(600)}>
+          {/* POR QUE congelar aqui: o onSuccess do envio em lote invalida TRÊS
+              chaves de /api/items, fecha o modal, esvazia `selectedItemIds` e
+              `sharedPdfUrl` e toasta — tudo no mesmo commit. Os dois estados
+              esvaziados são exatamente o que o modal mostra: a lista de itens
+              e o PDF anexado. Sem congelar, o modal vira "Itens Selecionados
+              (00)" sem PDF durante toda a animação de saída, enquanto os
+              renders da invalidação batem na subárvore em desmontagem — o laço
+              do React #185. Mecanismo por extenso em
+              components/modal-shell.tsx. */}
+          <FreezeWhileClosing open={showBulkDialog}>
           <DialogTitle className="sr-only">PDF compartilhado</DialogTitle>
           <DialogDescription className="sr-only">Vincular um PDF a múltiplas peças</DialogDescription>
 
@@ -4014,6 +4039,7 @@ export default function Arte() {
               </button>
             </div>
           </ModalFooter>
+          </FreezeWhileClosing>
         </DialogContent>
       </Dialog>
 

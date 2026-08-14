@@ -15,6 +15,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { FreezeWhileClosing } from "@/components/modal-shell";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -795,6 +796,17 @@ export default function Modelos() {
       {/* ── Modal Criar / Editar ── */}
       <Dialog open={open} onOpenChange={open => { if (!open) handleCloseDialog(); }}>
         <DialogContent style={{ padding: 0, gap: 0, maxWidth: 640, borderRadius: 16, overflow: "hidden", backgroundColor: "#ffffff", display: "flex", flexDirection: "column", maxHeight: "90vh" }}>
+          {/* POR QUE congelar aqui: este é o modal com MAIS primitivas do Radix
+              do app — 4 Popover + 4 Command (com CommandInput/List/Empty/Group
+              e uma CommandItem por opção do catálogo), além do título e da
+              descrição. Salvar invalida /api/standard-items, fecha, zera
+              `editingItem` e devolve `formData` ao EMPTY_FORM no mesmo commit:
+              o título vira "Novo Modelo de Item" e os campos esvaziam à vista.
+              Com esse volume de primitivas, cada render da janela de saída
+              custa uma rodada de desanexa+reanexa por primitiva dentro de uma
+              subárvore em desmontagem — é o pior caso do React #185 na base.
+              Mecanismo por extenso em components/modal-shell.tsx. */}
+          <FreezeWhileClosing open={open}>
           <DialogTitle className="sr-only">{editingItem ? "Editar modelo de item" : "Novo modelo de item"}</DialogTitle>
           <DialogDescription className="sr-only">Definição técnica do modelo: nome, tipo, grupo, medidas, material e acabamento</DialogDescription>
 
@@ -1286,6 +1298,7 @@ export default function Modelos() {
               </button>
             </div>
           </form>
+          </FreezeWhileClosing>
         </DialogContent>
       </Dialog>
 

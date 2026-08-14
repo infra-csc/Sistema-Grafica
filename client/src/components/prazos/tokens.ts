@@ -12,7 +12,7 @@
 // cores, formatação de data e o tradutor de erro de API.
 import { T, R, SHADOW } from "@/lib/theme";
 import { toUTCDisplayDate } from "@/lib/utils";
-import type { PrazoEvent, StageState } from "@shared/prazos-contract";
+import type { PrazoEvent, PrazoPendingSponsor, StageState } from "@shared/prazos-contract";
 
 export { R, SHADOW, T };
 
@@ -95,6 +95,8 @@ export const STAGE_SECTOR: Record<string, { sector: string; url: string | null }
   listaImagens: { sector: "Solicitação", url: null }, // null = detalhe do evento
   layouts:      { sector: "Arte",        url: "/arte" },
   aprovacao:    { sector: "Atendimento", url: "/atendimento" },
+  // Finalizacao e a Arte anexando o arquivo final — mesmo setor de layouts.
+  finalizacao:  { sector: "Arte",        url: "/arte" },
   revisao:      { sector: "Revisão",     url: "/solicitacao" },
   producao:     { sector: "Gráfica",     url: "/grafica" },
 };
@@ -103,6 +105,7 @@ export const STAGE_HEADERS = [
   { key: "listaImagens", short: "Lista", full: "Lista de Imagens" },
   { key: "layouts", short: "Layouts", full: "Entrega de Layouts" },
   { key: "aprovacao", short: "Aprovação", full: "Aprovação de Layout" },
+  { key: "finalizacao", short: "Final.", full: "Finalização" },
   { key: "revisao", short: "Revisão", full: "Revisão de Lista" },
   { key: "producao", short: "Produção", full: "Produção Gráfica" },
 ];
@@ -159,6 +162,52 @@ export const SCROLLPORT_MAX_H = "calc(100vh - 330px)";
 /** Cor dos dias de espera — régua ÚNICA dos blocos: ≥7 vermelho, ≥3 âmbar. */
 export function dayColor(days: number): string {
   return days >= 7 ? TI.red : days >= 3 ? TI.amber : TI.strong;
+}
+
+// ─── "Com quem está a bola" ──────────────────────────────────────────────────
+//
+// A coluna "Aprovação com quem" é a ÚNICA da tela cujo tamanho quem decide é o
+// dado: uma peça pode ter um patrocinador ou oito. Escrita inteira ela era um
+// bloco inquebrável — cada nome vinha num `white-space: nowrap` e entre dois
+// nomes não sobrava ponto de quebra nenhum —, então a tabela crescia além do
+// container e ligava uma SEGUNDA rolagem, horizontal, dentro do modal que já
+// rolava na vertical. E o que ficava cortado era justamente a informação que
+// faz a ligação acontecer.
+//
+// A saída é por CONTEÚDO, não por rolagem: mostra os piores, resume o resto em
+// "+3" e mantém a lista completa no `title`. Vive aqui porque o drill, o
+// cartão do celular e a faixa de análise precisam falar a MESMA língua.
+
+/** Quantos patrocinadores aparecem por extenso antes do "+N". */
+export const APROVACAO_VISIVEIS = 2;
+
+/** "Kiss FM (16d)" · "Crystal (hoje)" · "TMC — com a Arte". */
+export function textoAprovacao(s: PrazoPendingSponsor): string {
+  if (s.holder === "arte") return `${s.name} — com a Arte`;
+  return `${s.name} (${s.days === 0 ? "hoje" : `${s.days}d`})`;
+}
+
+export interface AprovacaoResumo {
+  visiveis: PrazoPendingSponsor[];
+  restantes: number;
+  /** A lista COMPLETA em texto. Vai para o `title`: resumir sem plano B esconde. */
+  titulo: string;
+}
+
+/**
+ * Pior primeiro — quem cai no "+N" é quem espera MENOS, mesma régua de
+ * ordenação que o drill já usa para as peças.
+ */
+export function resumoAprovacoes(
+  sponsors: PrazoPendingSponsor[] | undefined,
+  limite: number = APROVACAO_VISIVEIS,
+): AprovacaoResumo {
+  const ordenados = [...(sponsors ?? [])].sort((a, b) => b.days - a.days);
+  return {
+    visiveis: ordenados.slice(0, limite),
+    restantes: Math.max(0, ordenados.length - limite),
+    titulo: ordenados.map(textoAprovacao).join(", "),
+  };
 }
 
 export const MONTH_LABELS = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
@@ -319,11 +368,39 @@ export function apiErrorMessage(e: unknown): string {
 }
 
 // ─── Estilos de tabela (módulo: não realocar por render) ─────────────────────
+
+/**
+ * Abaixo desta largura de CONTAINER o drill vira CARTÃO em vez de tabela.
+ *
+ * O número sai de uma conta, não do olho. As colunas previsíveis somam 290px
+ * (peça 108 + qtd 54 + sem movimento 128) e a descrição leva 30% da tabela;
+ * para a coluna "Aprovação com quem" sobrar com pelo menos 200px — o mínimo
+ * para "Kiss FM (16d), TMC (3d) +3" em duas linhas —, é preciso
+ * `290 + 0,3·L + 200 ≤ L`, ou seja `L ≥ 700`.
+ *
+ * Medido em 560 (o palpite anterior): a coluna de aprovação ficava com 105px e
+ * um único nome de patrocinador transbordava a célula — a rolagem lateral
+ * voltava pela porta dos fundos.
+ *
+ * É largura do CONTAINER e não da janela de propósito: o mesmo drill é montado
+ * no modal (1057px), na linha da tabela desktop (≈864px) e no card do celular
+ * (≈312px).
+ */
+export const DRILL_TABELA_MIN = 700;
+
+/**
+ * `whiteSpace: normal` (era `nowrap`): as tabelas do drill e da faixa de
+ * análise passaram a `table-layout: fixed` com largura declarada por coluna, e
+ * num layout fixo o rótulo que não cabe NÃO alarga a coluna — ele transborda
+ * por cima da vizinha. Deixar quebrar em duas linhas é a válvula que garante
+ * que nenhum cabeçalho invada a coluna ao lado na largura mínima.
+ */
 export const DRILL_TH: React.CSSProperties = {
   padding: "6px 10px",
   fontSize: 10, fontWeight: 700, textTransform: "uppercase",
   letterSpacing: "0.08em", color: TI.label, textAlign: "center",
-  fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: "nowrap",
+  fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: "normal",
+  lineHeight: 1.3,
 };
 
 export const TH_STYLE: React.CSSProperties = {

@@ -24,6 +24,14 @@ import type { SetorResumo } from "./gargalos";
 
 export type { SetorResumo };
 
+// Colunas de largura PREVISÍVEL do ranking de patrocinadores, em px — o nome
+// leva a sobra. Dimensionadas pelo pior caso, 375px de viewport: sobram 351px
+// de conteúdo, 236 vão para estas três e 115 para o nome, que é o suficiente
+// para "Coca-Cola" inteiro e reticência com `title` no que passar disso.
+const COL_PECAS = 56;
+const COL_ESPERA = 92;
+const COL_ACAO = 88;
+
 interface AnaliseBandProps {
   totalEventos: number;
   setores: SetorResumo[];
@@ -65,6 +73,15 @@ export function AnaliseBand({
   const escopo = `considerando todos os ${totalEventos} evento${totalEventos !== 1 ? "s" : ""} ativo${totalEventos !== 1 ? "s" : ""} — não segue os filtros acima`;
   /** Altura de alvo de toque dos controles inline deste bloco. */
   const alturaToggle = isMobile ? 44 : 36;
+  /**
+   * No celular a coluna "Cobrar →" SAI da linha e o link desce para dentro da
+   * célula do nome. Com quatro colunas em 351px sobravam 74px para o nome do
+   * patrocinador — "Crystal Á…" — e o nome é justamente o dado que a tabela
+   * existe para entregar: é para ele que o diretor liga. Sem a quarta coluna
+   * sobram ~183px E o nome pode quebrar em duas linhas, que numa lista é
+   * barato. Perder coluna, nunca rolar de lado.
+   */
+  const acaoNaLinha = !isMobile;
   const cobrancaSponsor = (id: string): CobrancaEntry | undefined => cobrancas[`sponsor:${id}`];
 
   return (
@@ -238,21 +255,53 @@ export function AnaliseBand({
                 </span>
               </div>
             ) : (
-              <div style={{ overflowX: "auto", backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: R.lg }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 440 }}>
+              <div style={{ backgroundColor: TI.card, border: `1px solid ${TI.border}`, borderRadius: R.lg, overflow: "hidden" }}>
+                {/* Mesma regra do drill do evento: `table-layout: fixed` com
+                    largura declarada, e o que não cabe vira reticência com
+                    `title`. Era o outro lugar da tela onde "quem está devendo"
+                    ficava atrás de uma rolagem lateral — aqui pelo par
+                    `overflow-x: auto` + `min-width: 440`, que em 375 punha o
+                    ranking inteiro de lado. */}
+                <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
                   <caption className="sr-only">Patrocinadores com aprovações pendentes, pior primeiro</caption>
+                  <colgroup>
+                    <col />
+                    <col style={{ width: COL_PECAS }} />
+                    <col style={{ width: COL_ESPERA }} />
+                    {acaoNaLinha && <col style={{ width: COL_ACAO }} />}
+                  </colgroup>
                   <thead>
                     <tr style={{ borderBottom: `1px solid ${TI.border}` }}>
                       <th scope="col" style={{ ...DRILL_TH, textAlign: "left", paddingLeft: 14 }}>Patrocinador</th>
                       <th scope="col" style={DRILL_TH}>Peças</th>
                       <th scope="col" style={DRILL_TH}>Pior espera</th>
-                      <th scope="col" style={DRILL_TH}><span className="sr-only">Ações</span></th>
+                      {acaoNaLinha && <th scope="col" style={DRILL_TH}><span className="sr-only">Ações</span></th>}
                     </tr>
                   </thead>
                   <tbody>
                     {(verTodosSponsors ? sponsorDelays : sponsorDelays.slice(0, 5)).map((sp) => {
                       const expandido = sponsorExpandido === sp.sponsorId;
                       const cobranca = cobrancaSponsor(sp.sponsorId);
+                      // Um só link, duas casas: coluna própria no desktop,
+                      // dentro da célula do nome no celular. Duplicar a marcação
+                      // seria duplicar `aria-label` e alvo de toque.
+                      const linkCobrar = (
+                        <Link
+                          href={`/atendimento?patrocinador=${sp.sponsorId}`}
+                          aria-label={`Cobrar ${sp.name} no Atendimento`}
+                          // Mesmo alvo de toque do toggle ao lado: era um
+                          // link de 11px com ~15px de altura renderizado
+                          // no mobile.
+                          style={{
+                            display: "inline-flex", alignItems: "center",
+                            justifyContent: acaoNaLinha ? "flex-end" : "flex-start",
+                            minHeight: alturaToggle, minWidth: 64,
+                            fontSize: 11, fontWeight: 600, color: TI.secondary, textDecoration: "none",
+                          }}
+                        >
+                          Cobrar →
+                        </Link>
+                      );
                       return (
                         <Fragment key={sp.sponsorId}>
                           <tr style={{ borderBottom: expandido ? "none" : `1px solid ${TI.rule}` }}>
@@ -265,8 +314,10 @@ export function AnaliseBand({
                                 onClick={() => setSponsorExpandido(expandido ? null : sp.sponsorId)}
                                 aria-expanded={expandido}
                                 aria-controls={expandido ? `sp-drill-${sp.sponsorId}` : undefined}
+                                title={sp.name}
                                 style={{
-                                  display: "inline-flex", alignItems: "center", gap: 6,
+                                  display: "flex", alignItems: "center", gap: 6,
+                                  maxWidth: "100%",
                                   background: "none", border: "none", padding: "6px 0",
                                   // Alvo de toque real (36/44) SEM inflar a
                                   // linha da tabela: a margem negativa devolve
@@ -286,7 +337,16 @@ export function AnaliseBand({
                                   transform: expandido ? "rotate(180deg)" : "none",
                                   transition: "transform 0.15s ease",
                                 }} />
-                                {sp.name}
+                                {/* No desktop, reticência com `title`: num layout
+                                    fixo o nome comprido não alarga mais a
+                                    coluna, ele invadiria a de peças. No celular
+                                    a coluna de ação já saiu para dar espaço,
+                                    então o nome QUEBRA em vez de sumir. */}
+                                <span style={acaoNaLinha
+                                  ? { overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }
+                                  : { minWidth: 0, overflowWrap: "anywhere", textAlign: "left" }}>
+                                  {sp.name}
+                                </span>
                               </button>
                               <span style={{ display: "block", fontSize: 10, color: TI.label, marginLeft: 19, fontWeight: 500 }}>
                                 {sp.eventCount} evento{sp.eventCount !== 1 ? "s" : ""}
@@ -298,6 +358,9 @@ export function AnaliseBand({
                                 <span style={{ display: "block", marginLeft: 19 }}>
                                   <CobrancaLinha cobranca={cobranca} fontSize={10} />
                                 </span>
+                              )}
+                              {!acaoNaLinha && (
+                                <span style={{ display: "block", marginLeft: 19 }}>{linkCobrar}</span>
                               )}
                             </th>
                             <td style={{
@@ -313,26 +376,20 @@ export function AnaliseBand({
                             }}>
                               {sp.maxDays === 0 ? "hoje" : `${sp.maxDays}d`}
                             </td>
-                            <td style={{ padding: "8px 14px 8px 6px", textAlign: "right", whiteSpace: "nowrap" }}>
-                              <Link
-                                href={`/atendimento?patrocinador=${sp.sponsorId}`}
-                                aria-label={`Cobrar ${sp.name} no Atendimento`}
-                                // Mesmo alvo de toque do toggle ao lado: era um
-                                // link de 11px com ~15px de altura renderizado
-                                // no mobile.
-                                style={{
-                                  display: "inline-flex", alignItems: "center", justifyContent: "flex-end",
-                                  minHeight: alturaToggle, minWidth: 64,
-                                  fontSize: 11, fontWeight: 600, color: TI.secondary, textDecoration: "none",
-                                }}
-                              >
-                                Cobrar →
-                              </Link>
-                            </td>
+                            {acaoNaLinha && (
+                              <td style={{ padding: "8px 14px 8px 6px", textAlign: "right", whiteSpace: "nowrap" }}>
+                                {linkCobrar}
+                              </td>
+                            )}
                           </tr>
                           {expandido && (
                             <tr style={{ borderBottom: `1px solid ${TI.rule}`, backgroundColor: TI.sunken }}>
-                              <td id={`sp-drill-${sp.sponsorId}`} colSpan={4} style={{ padding: "6px 14px 12px" }}>
+                              {/* colSpan segue a contagem real de colunas: no
+                                  celular a de ação não existe, e um colSpan
+                                  maior que a tabela empurra a largura para
+                                  fora — a rolagem lateral pela porta dos
+                                  fundos. */}
+                              <td id={`sp-drill-${sp.sponsorId}`} colSpan={acaoNaLinha ? 4 : 3} style={{ padding: "6px 14px 12px" }}>
                                 <div className="gp-no-print" style={{ display: "flex", justifyContent: "flex-end", marginBottom: 6 }}>
                                   <CobradoControl
                                     targetType="sponsor"
@@ -356,11 +413,20 @@ export function AnaliseBand({
                                         backgroundColor: TI.chipBg, border: `1px solid ${TI.border}`,
                                         fontSize: 11, fontWeight: 600, color: TI.strong,
                                         textDecoration: "none", lineHeight: 1.5,
+                                        // O nome do evento é livre: sem teto, um
+                                        // chip só passava dos 351px do celular e
+                                        // levava a linha inteira para fora.
+                                        maxWidth: "100%", minWidth: 0,
                                       }}
                                     >
-                                      {it.displayId}
-                                      <span style={{ color: TI.secondary }}>{it.eventName}</span>
-                                      <span style={{ fontWeight: 700, color: dayColor(it.days) }}>
+                                      <span style={{ flexShrink: 0 }}>{it.displayId}</span>
+                                      <span style={{
+                                        color: TI.secondary, minWidth: 0,
+                                        overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                                      }}>
+                                        {it.eventName}
+                                      </span>
+                                      <span style={{ fontWeight: 700, color: dayColor(it.days), flexShrink: 0 }}>
                                         {it.days === 0 ? "hoje" : `${it.days}d`}
                                       </span>
                                     </Link>

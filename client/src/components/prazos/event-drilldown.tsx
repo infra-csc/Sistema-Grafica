@@ -1,16 +1,161 @@
 // Drill-down de um evento: quais peças estão travadas, em que etapa, há
 // quanto tempo e — na Aprovação — com QUEM está a bola.
-import { useMemo } from "react";
+//
+// NENHUMA ROLAGEM HORIZONTAL AQUI. Este bloco é montado dentro do modal do
+// evento, que já rola na vertical; a tabela tinha `overflow-x: auto` com
+// `min-width` de 560px e, quando a coluna "Aprovação com quem" não cabia, o
+// diretor precisava rolar de lado DENTRO de um bloco que rolava para baixo —
+// duas rolagens aninhadas para ler uma linha, e o que ficava escondido era
+// justamente o nome de quem ele precisava cobrar.
+//
+// O conserto tem duas metades e as duas importam:
+//  1. `table-layout: fixed` com largura declarada por coluna. Em layout
+//     automático quem decide a largura é o CONTEÚDO — um nome comprido bastava
+//     para a tabela passar do container. Fixo, ela nunca passa de 100%; o que
+//     não cabe vira reticência com `title`.
+//  2. A coluna de aprovação resume ("Crystal (3d), TMC (3d) +3") em vez de
+//     escrever tudo — ver `resumoAprovacoes` em tokens.ts.
+//
+// Abaixo de `DRILL_TABELA_MIN` a tabela vira CARTÃO: no celular cinco colunas
+// não cabem por mais fixas que sejam, e perder colunas é melhor que rolar.
+import { Fragment, useMemo } from "react";
 import { Link } from "wouter";
+import { useElementSize, useIsMobile } from "@/hooks/use-mobile";
 import { getStatusLabel } from "@/lib/status";
 import type { CobrancaEntry, PrazoEvent, PrazoPendingItem } from "@shared/prazos-contract";
 import { CobradoControl } from "./cobrado-control";
 import {
-  DRILL_TH, dayColor, diasTexto, fmtDayMonth, pecasTexto, R, STAGE_SECTOR,
-  STAGE_STYLE, TI,
+  DRILL_TABELA_MIN, DRILL_TH, dayColor, diasTexto, fmtDayMonth, pecasTexto, R,
+  resumoAprovacoes, STAGE_SECTOR, STAGE_STYLE, TI,
 } from "./tokens";
 
 const ROW_CAP = 15;
+
+// Larguras das colunas de tamanho PREVISÍVEL, em px. As duas de tamanho
+// imprevisível (descrição e aprovação) dividem o que sobra: a descrição leva
+// 30% da tabela e a aprovação fica com o resto, que é a maior fatia — é a
+// coluna que a tela existe para mostrar.
+const COL_PECA = 108;
+const COL_QTD = 54;
+const COL_ESPERA = 128;
+
+/** Texto visível da peça: tipo e descrição na mesma frase. */
+function textoPeca(it: PrazoPendingItem): string {
+  return it.description ? `${it.type} — ${it.description}` : it.type;
+}
+
+/** "Kiss FM (16d), Crystal (3d) +3" — a versão pintada do resumo. */
+function Aprovacoes({ it }: { it: PrazoPendingItem }) {
+  if (!it.sponsors || it.sponsors.length === 0) {
+    return (
+      <span style={{ color: TI.label }} title="Aprovações ainda não inicializadas para esta peça">
+        —
+      </span>
+    );
+  }
+  const ap = resumoAprovacoes(it.sponsors);
+  return (
+    <>
+      {/* O visual é resumo e cor; a lista COMPLETA é falada pelo `sr-only`
+          abaixo. Marcar este trecho como decorativo evita que o leitor de tela
+          anuncie "mais 3" sem dizer mais 3 o quê.
+
+          `overflowWrap: anywhere` é o cinto de segurança da coluna: nome de
+          patrocinador é texto livre, e um único token mais largo que a coluna
+          (um "@RadioMetropolitanaFM" sem espaço) transbordaria a célula e
+          traria a rolagem lateral de volta pela porta dos fundos. */}
+      <span
+        aria-hidden="true"
+        title={ap.titulo}
+        style={{ display: "block", lineHeight: 1.45, overflowWrap: "anywhere" }}
+      >
+        {ap.visiveis.map((s, i) => (
+          <Fragment key={`${it.id}-${s.name}-${i}`}>
+            {/* A vírgula é ponto de quebra: era exatamente a falta de um ponto
+                de quebra entre dois nomes que fazia a célula inteira virar um
+                bloco inquebrável e empurrar a tabela para fora do container. */}
+            {i > 0 && ", "}
+            {s.holder === "sponsor" ? (
+              <>
+                <strong style={{ color: s.days >= 7 ? TI.red : TI.title }}>{s.name}</strong>
+                {/* Espaço RÍGIDO antes do parêntese: o nome pode quebrar entre
+                    as próprias palavras, mas "(16d)" nunca desgruda da última
+                    delas — o número solto numa linha só perde o dono. */}
+                <span style={{ color: dayColor(s.days), whiteSpace: "nowrap" }}>
+                  {" "}({s.days === 0 ? "hoje" : `${s.days}d`})
+                </span>
+              </>
+            ) : (
+              // `title` PRÓPRIO: sobrepõe o da célula neste trecho e é a única
+              // explicação de por que a bola voltou. É a diferença entre "o
+              // patrocinador está demorando" e "a Arte precisa refazer".
+              <span
+                style={{ color: TI.label }}
+                title={`${s.name} devolveu — a Arte precisa reenviar antes de nova aprovação`}
+              >
+                {s.name} — com a Arte
+              </span>
+            )}
+          </Fragment>
+        ))}
+        {ap.restantes > 0 && (
+          <span style={{ whiteSpace: "nowrap", color: TI.secondary, fontWeight: 700 }}>
+            {" "}+{ap.restantes}
+          </span>
+        )}
+      </span>
+      <span className="sr-only">{ap.titulo}</span>
+    </>
+  );
+}
+
+/** Uma peça travada, no formato de cartão (container estreito). */
+function PecaCartao({ eventId, it, isAprovacao }: {
+  eventId: string;
+  it: PrazoPendingItem;
+  isAprovacao: boolean;
+}) {
+  return (
+    <li style={{
+      border: `1px solid ${TI.border}`, borderRadius: R.md, backgroundColor: TI.card,
+      padding: "8px 10px", listStyle: "none",
+    }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+        <Link
+          href={`/eventos/${eventId}?item=${it.id}`}
+          title={`Abrir ${it.displayId} no evento`}
+          style={{ fontSize: 12, fontWeight: 700, color: TI.accentText, textDecoration: "none" }}
+        >
+          {it.displayId}
+        </Link>
+        <span style={{
+          fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
+          color: dayColor(it.waitingDays),
+        }}>
+          {it.waitingDays === 0 ? "sem movimento hoje" : `${it.waitingDays}d sem movimento`}
+        </span>
+      </div>
+      <span style={{ display: "block", fontSize: 10, color: TI.label, marginTop: 1 }}>
+        {getStatusLabel(it.status)} · Qtd {it.quantity}
+      </span>
+      {/* Sem reticência no cartão: aqui a descrição pode ocupar duas linhas,
+          que é mais barato que esconder texto numa tela onde não há mouse
+          para revelar o `title`. */}
+      <span style={{
+        display: "block", fontSize: 12, color: TI.strong, marginTop: 3,
+        lineHeight: 1.45, overflowWrap: "anywhere",
+      }}>
+        {textoPeca(it)}
+      </span>
+      {isAprovacao && (
+        <span style={{ display: "block", fontSize: 12, marginTop: 4 }}>
+          <span style={{ color: TI.label }}>Aprovação com: </span>
+          <Aprovacoes it={it} />
+        </span>
+      )}
+    </li>
+  );
+}
 
 export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
   ev: PrazoEvent;
@@ -19,6 +164,15 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
   /** O modal desliga: lá a cobrança tem bloco próprio no fim do scrollport. */
   showCobranca?: boolean;
 }) {
+  const isMobile = useIsMobile();
+  // Mede o CONTAINER, não a janela: o mesmo drill é montado no modal, na linha
+  // da tabela desktop e no card do celular, e `window.innerWidth` responde
+  // "desktop" mesmo quando sobram 300px úteis. Antes da primeira medição a
+  // largura é 0 — aí o palpite é a janela, para o primeiro paint não nascer
+  // com o layout errado no celular.
+  const { ref: caixaRef, width: larguraDrill } = useElementSize<HTMLDivElement>();
+  const emCartoes = larguraDrill > 0 ? larguraDrill < DRILL_TABELA_MIN : isMobile;
+
   // Agrupa as peças pendentes por etapa; só etapas com peça travada NELA.
   const { groups, seguintes } = useMemo(() => {
     const byStage = new Map<number, PrazoPendingItem[]>();
@@ -80,7 +234,7 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14, padding: "4px 0 8px" }}>
+    <div ref={caixaRef} style={{ display: "flex", flexDirection: "column", gap: 14, padding: "4px 0 8px" }}>
       {blocoCobranca}
       {groups.map(({ stage, items }) => {
         const sector = STAGE_SECTOR[stage.key];
@@ -119,75 +273,98 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
                 Resolver em {sector?.sector ?? stage.label} →
               </Link>
             </div>
-            <div style={{ overflowX: "auto", border: `1px solid ${TI.border}`, borderRadius: R.md, backgroundColor: TI.card }}>
-              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: isAprovacao ? 560 : 420 }}>
-                <thead>
-                  <tr style={{ borderBottom: `1px solid ${TI.border}` }}>
-                    <th scope="col" style={DRILL_TH}>Peça</th>
-                    <th scope="col" style={{ ...DRILL_TH, textAlign: "left" }}>Descrição</th>
-                    <th scope="col" style={DRILL_TH}>Qtd</th>
-                    <th scope="col" style={DRILL_TH} title="Dias desde a última alteração da peça — qualquer edição atualiza este relógio">
-                      Sem movimento
-                    </th>
-                    {isAprovacao && <th scope="col" style={{ ...DRILL_TH, textAlign: "left" }}>Aprovação com quem</th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {shown.map((it) => (
-                    <tr key={it.id} style={{ borderBottom: `1px solid ${TI.track}` }}>
-                      <td style={{ padding: "6px 10px", whiteSpace: "nowrap" }}>
-                        <Link
-                          href={`/eventos/${ev.id}?item=${it.id}`}
-                          title={`Abrir ${it.displayId} no evento`}
-                          style={{ fontSize: 12, fontWeight: 700, color: TI.accentText, textDecoration: "none" }}
-                        >
-                          {it.displayId}
-                        </Link>
-                        <span style={{ display: "block", fontSize: 10, color: TI.label }}>
-                          {getStatusLabel(it.status)}
-                        </span>
-                      </td>
-                      <td style={{ padding: "6px 10px", fontSize: 12, color: TI.strong, maxWidth: 240 }}>
-                        <span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={it.description ?? it.type}>
-                          {it.type}{it.description ? ` — ${it.description}` : ""}
-                        </span>
-                      </td>
-                      <td style={{ padding: "6px 10px", fontSize: 12, color: TI.strong, textAlign: "center" }}>
-                        {it.quantity}
-                      </td>
-                      <td style={{
-                        padding: "6px 10px", textAlign: "center", whiteSpace: "nowrap",
-                        fontSize: 12, fontWeight: 700,
-                        color: dayColor(it.waitingDays),
-                      }}>
-                        {it.waitingDays === 0 ? "hoje" : `${it.waitingDays}d`}
-                      </td>
-                      {isAprovacao && (
-                        <td style={{ padding: "6px 10px", fontSize: 12, color: TI.strong }}>
-                          {it.sponsors && it.sponsors.length > 0
-                            ? it.sponsors.map((s, i) => (
-                                <span key={`${it.id}-${s.name}-${i}`} style={{ whiteSpace: "nowrap" }}>
-                                  {i > 0 && ", "}
-                                  {s.holder === "sponsor" ? (
-                                    <>
-                                      <strong style={{ color: s.days >= 7 ? TI.red : TI.title }}>{s.name}</strong>
-                                      <span style={{ color: dayColor(s.days) }}> ({s.days === 0 ? "hoje" : `${s.days}d`})</span>
-                                    </>
-                                  ) : (
-                                    <span style={{ color: TI.label }} title={`${s.name} devolveu — a Arte precisa reenviar antes de nova aprovação`}>
-                                      {s.name} — com a Arte
-                                    </span>
-                                  )}
-                                </span>
-                              ))
-                            : <span style={{ color: TI.label }} title="Aprovações ainda não inicializadas para esta peça">—</span>}
-                        </td>
-                      )}
+
+            {emCartoes ? (
+              <ul style={{ display: "flex", flexDirection: "column", gap: 6, margin: 0, padding: 0 }}>
+                {shown.map((it) => (
+                  <PecaCartao key={it.id} eventId={ev.id} it={it} isAprovacao={isAprovacao} />
+                ))}
+              </ul>
+            ) : (
+              <div style={{ border: `1px solid ${TI.border}`, borderRadius: R.md, backgroundColor: TI.card, overflow: "hidden" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+                  <colgroup>
+                    <col style={{ width: COL_PECA }} />
+                    {/* Descrição em % e aprovação sem largura: a aprovação leva
+                        TODA a sobra. Era a coluna cortada, e é a que responde
+                        "para quem eu ligo agora". */}
+                    <col style={isAprovacao ? { width: "30%" } : undefined} />
+                    <col style={{ width: COL_QTD }} />
+                    <col style={{ width: COL_ESPERA }} />
+                    {isAprovacao && <col />}
+                  </colgroup>
+                  <thead>
+                    <tr style={{ borderBottom: `1px solid ${TI.border}` }}>
+                      <th scope="col" style={DRILL_TH}>Peça</th>
+                      <th scope="col" style={{ ...DRILL_TH, textAlign: "left" }}>Descrição</th>
+                      <th scope="col" style={DRILL_TH}>Qtd</th>
+                      <th scope="col" style={DRILL_TH} title="Dias desde a última alteração da peça — qualquer edição atualiza este relógio">
+                        Sem movimento
+                      </th>
+                      {isAprovacao && <th scope="col" style={{ ...DRILL_TH, textAlign: "left" }}>Aprovação com quem</th>}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {shown.map((it) => (
+                      <tr key={it.id} style={{ borderBottom: `1px solid ${TI.track}` }}>
+                        {/* Reticência nas DUAS linhas desta célula: a coluna tem
+                            largura fixa, e num layout fixo o que não cabe não
+                            alarga a coluna — invade a vizinha. */}
+                        <td style={{ padding: "6px 10px" }}>
+                          <Link
+                            href={`/eventos/${ev.id}?item=${it.id}`}
+                            title={`Abrir ${it.displayId} no evento`}
+                            style={{
+                              display: "block", fontSize: 12, fontWeight: 700,
+                              color: TI.accentText, textDecoration: "none",
+                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                            }}
+                          >
+                            {it.displayId}
+                          </Link>
+                          <span
+                            title={getStatusLabel(it.status)}
+                            style={{
+                              display: "block", fontSize: 10, color: TI.label,
+                              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                            }}
+                          >
+                            {getStatusLabel(it.status)}
+                          </span>
+                        </td>
+                        <td style={{ padding: "6px 10px", fontSize: 12, color: TI.strong }}>
+                          {/* O `title` repete a frase INTEIRA (tipo + descrição),
+                              não só a descrição: era o texto visível que ficava
+                              cortado, então é ele que a dica precisa devolver. */}
+                          <span
+                            title={textoPeca(it)}
+                            style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                          >
+                            {textoPeca(it)}
+                          </span>
+                        </td>
+                        <td style={{ padding: "6px 10px", fontSize: 12, color: TI.strong, textAlign: "center" }}>
+                          {it.quantity}
+                        </td>
+                        <td style={{
+                          padding: "6px 10px", textAlign: "center", whiteSpace: "nowrap",
+                          fontSize: 12, fontWeight: 700,
+                          color: dayColor(it.waitingDays),
+                        }}>
+                          {it.waitingDays === 0 ? "hoje" : `${it.waitingDays}d`}
+                        </td>
+                        {isAprovacao && (
+                          <td style={{ padding: "6px 10px", fontSize: 12, color: TI.strong }}>
+                            <Aprovacoes it={it} />
+                          </td>
+                        )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
             {hidden > 0 && (
               <Link
                 href={`/eventos/${ev.id}`}

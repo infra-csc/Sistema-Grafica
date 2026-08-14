@@ -3,7 +3,7 @@
 // O quadro é a visão PADRÃO do desktop e tinha menos informação que a tabela
 // secundária. Este card devolve o que faltava: nome legível em duas linhas
 // (com `title`), a DATA da saída junto do countdown, a fração de entregues
-// rotulada, o critério do selo RISCO, a mini-trilha das cinco etapas, a pior
+// rotulada, o critério do selo RISCO, a mini-trilha das etapas, a pior
 // peça parada e — o mais importante — quantas peças estão travadas AQUI
 // contra o total do evento.
 //

@@ -1364,7 +1364,30 @@ export default function GestaoPrazos() {
             // 16px entre cabeçalho, corpo e rodapé. É o mesmo par usado nos
             // outros modais da casa.
             className={`p-0 gap-0 ${HIDE_NATIVE_CLOSE}`}
-            style={modalSurface(760)}
+            // 1120 e não os 760 de antes. Este modal não é um diálogo de
+            // confirmação: ele carrega até quatro tabelas de quinze linhas com
+            // uma coluna ("Aprovação com quem") de largura imprevisível. Em
+            // 760 sobravam 712px de corpo e a coluna que importa era a que
+            // ficava fora — o dono do app relatou a rolagem lateral por isso.
+            // Em 1120 o corpo dá 1072px e as cinco colunas cabem folgadas até
+            // com oito patrocinadores resumidos.
+            // O teto existe para a linha não virar faixa: `modalSurface` já
+            // mantém `width: 96vw`, então em 1366 e 1536 o modal para em 1120,
+            // e no celular continua acompanhando a viewport (96vw = 360 em
+            // 375). Acima de 1120 o ganho seria só percurso de olho.
+            //
+            // ALTURA: coluna flex com teto de `100vh − 48px` (24px de respiro
+            // acima e abaixo — o Radix centra com `top: 50%` e translate). O
+            // corpo é o único item que cresce e o único que rola; cabeçalho e
+            // rodapé param no tamanho do conteúdo deles, porque o tamanho
+            // mínimo automático de um bloco que NÃO rola é o próprio conteúdo.
+            // Isto substituiu o desconto fixo que o corpo carregava — ver o
+            // comentário do corpo para o porquê da troca.
+            style={{
+              ...modalSurface(1120),
+              display: "flex", flexDirection: "column",
+              maxHeight: "calc(100vh - 48px)",
+            }}
             // Sem isto o Radix focava o PRIMEIRO tabulável do conteúdo, que era
             // o botão de registrar cobrança: a primeira barra de espaço (gesto
             // natural de quem abriu e quer rolar) gravava um POST em nome do
@@ -1397,11 +1420,33 @@ export default function GestaoPrazos() {
                     No rodapé fixo fica só o que tem UMA linha (o link). */}
                 <div style={{
                   position: "relative", overflowY: "auto", padding: "18px 24px",
-                  // O teto desconta o cabeçalho (~84px), o rodapé de uma linha
-                  // (~50px) e a folga do Radix: só "70vh" empurrava o rodapé
-                  // para fora da tela em notebook baixo. Conferido de cabeça
-                  // numa viewport de 745px: 84 + 505 + 50 = 639 — sobra.
-                  maxHeight: "min(70vh, calc(100vh - 240px))",
+                  // O TETO SAIU DAQUI e virou layout — e a troca tem conta.
+                  //
+                  // Era `min(70vh, calc(100vh - 240px))`. Os 240 eram um
+                  // desconto CHUTADO: cabeçalho ~84 + rodapé ~50 + folga. Refiz
+                  // a conta com os valores reais do `modal-shell` — cabeçalho
+                  // 93 (22+22 de padding + max(ladrilho 40; título 20×1,25=25
+                  // + 3 + subtítulo 13×1,5≈19,5) ≈ 47,5 + 1 de borda), rodapé
+                  // 51 (16+16 + link de 12px ≈18 + 1), respiro 48 (24+24) —
+                  // e deu 192. Medi: em 1366×768 sobravam 51px de folga, certo;
+                  // em 375×667, só 12px. O erro é estrutural, não aritmético —
+                  // no celular o subtítulo ("Saída … · Saída atrasada … · 72 de
+                  // 149 entregues") quebra em três linhas e o cabeçalho vai de
+                  // 93 para ~130. Nenhum número fixo acerta os dois.
+                  //
+                  // Então o teto virou `maxHeight` no DialogContent (100vh−48)
+                  // com coluna flex: `flex: 1 1 auto` + `minHeight: 0` faz este
+                  // corpo receber EXATAMENTE o que sobrar depois do cabeçalho e
+                  // do rodapé medidos pelo próprio navegador, em qualquer
+                  // viewport. `minHeight: 0` é obrigatório: sem ele o tamanho
+                  // mínimo automático do item flex é o conteúdo, o corpo se
+                  // recusa a encolher e volta a empurrar o rodapé para fora da
+                  // tela — que é o bug de origem desta estrutura.
+                  //
+                  // O que NÃO mudou: este corpo segue o ÚNICO scrollport do
+                  // modal, e tudo de altura variável (drill + bloco de
+                  // cobrança com o form de promessa) segue morando aqui dentro.
+                  flex: "1 1 auto", minHeight: 0,
                 }}>
                   {/* Título só para leitor de tela (o cabeçalho visual já
                       mostra o nome) e alvo do foco inicial. */}
@@ -1409,7 +1454,7 @@ export default function GestaoPrazos() {
                     {modalEv.name}
                   </DialogTitle>
                   <DialogDescription className="sr-only">
-                    Prazos das cinco etapas, peças pendentes e registro de cobrança do evento.
+                    Prazos de cada etapa, peças pendentes e registro de cobrança do evento.
                   </DialogDescription>
 
                   {saiuDoPayload && (
@@ -1458,16 +1503,23 @@ export default function GestaoPrazos() {
                       expande e conteúdo de altura variável fora do scrollport
                       é exatamente o que estourava o modal. */}
                   <div className="gp-no-print" style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${TI.border}` }}>
-                    <CobradoControl
-                      targetType="event"
-                      targetId={modalEv.id}
-                      cobranca={cobrancaEvento(modalEv.id)}
-                      today={today}
-                      variant="primary"
-                      layout="bloco"
-                      showForm
-                      showHistorico
-                    />
+                    {/* O bloco de cobrança tem teto próprio: com o modal em
+                        1120 o layout "bloco" estica os campos, e uma caixa de
+                        data e um campo de nota com 1072px de largura são um
+                        alvo enorme para dois dados curtos. As tabelas usam a
+                        largura toda; o formulário, não. */}
+                    <div style={{ maxWidth: 640 }}>
+                      <CobradoControl
+                        targetType="event"
+                        targetId={modalEv.id}
+                        cobranca={cobrancaEvento(modalEv.id)}
+                        today={today}
+                        variant="primary"
+                        layout="bloco"
+                        showForm
+                        showHistorico
+                      />
+                    </div>
                   </div>
                 </div>
                 <ModalFooter>

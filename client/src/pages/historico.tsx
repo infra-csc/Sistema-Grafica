@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { FilterSelect } from "@/components/filter-select";
-import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import {
   Calendar, Package, FileCheck, Plus, Activity, Search, Truck, Clock,
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Link2, FileText,
   RefreshCw, RotateCcw, Download, X, Copy, Check, Trash2, Undo2, Pencil,
   ShieldAlert, Flag, CalendarClock, CopyPlus, ArrowUpToLine,
+  Users, SlidersHorizontal, ChevronDown,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { format, formatDistanceToNow, subDays, startOfDay, isToday, isYesterday } from "date-fns";
@@ -168,6 +168,62 @@ function cutoff(p: string): Date | null {
 const PAGE_SIZES = [25, 50, 100];
 const SEM_AUTOR = "__sem_autor__";
 const VAZIO: any[] = [];
+
+/* ── Atalho de filtro ───────────────────────────────────────────────────────
+   Antes três atalhos e um totalizador usavam o MESMO ladrilho grande: mesma
+   caixa, mesmo número gigante, mesma legenda em caixa alta — só que três
+   mudavam a consulta e o quarto era só o resultado dela. Aqui as três naturezas
+   da faixa ganham três formas distintas e não intercambiáveis:
+
+     atalho   → pílula (raio 999), tom semântico, aria-pressed
+     filtro   → caixa (raio 7) com ícone da dimensão
+     resultado→ texto puro, sem moldura nenhuma
+
+   O atalho é um INTERRUPTOR: clicar de novo desfaz o recorte que ele aplicou —
+   antes só havia caminho de ida, e desfazer exigia caçar o filtro certo.
+
+   Contraste calculado do rótulo (11px, exige 4,5:1):
+     inativo  #1d4ed8 / #eff6ff = 6,16:1   ativo  #ffffff / #1d4ed8 = 6,70:1
+              #7e22ce / #faf5ff = 6,51:1          #ffffff / #7e22ce = 6,98:1
+              #b91c1c / #fef2f2 = 5,91:1          #ffffff / #b91c1c = 6,47:1
+   Todos passam AA. */
+const ATALHO_TOM = {
+  azul:     { tint: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8" },
+  roxo:     { tint: "#faf5ff", border: "#e9d5ff", text: "#7e22ce" },
+  vermelho: { tint: "#fef2f2", border: "#fecaca", text: "#b91c1c" },
+} as const;
+
+function Atalho({ label, count, tom, ativo, alto, onClick, testId }: {
+  label: string; count: number; tom: keyof typeof ATALHO_TOM;
+  ativo: boolean; alto: boolean; onClick: () => void; testId: string;
+}) {
+  const t = ATALHO_TOM[tom];
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={ativo}
+      data-testid={testId}
+      title={ativo ? `Desfazer o atalho "${label}"` : `Filtrar por ${label.toLowerCase()}`}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 7,
+        height: alto ? 40 : 30, padding: "0 12px", borderRadius: 999,
+        backgroundColor: ativo ? t.text : t.tint,
+        border: `1px solid ${ativo ? t.text : t.border}`,
+        color: ativo ? "#ffffff" : t.text,
+        fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em",
+        cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
+        transition: "background 0.12s, color 0.12s",
+      }}
+    >
+      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, letterSpacing: 0 }}>
+        {count}
+      </span>
+      {label}
+      {ativo && <X aria-hidden="true" style={{ width: 11, height: 11 }} />}
+    </button>
+  );
+}
 
 /* ── Initials helper ── */
 function getInitials(name: string) {
@@ -473,6 +529,11 @@ export default function Historico() {
 
   const [detail, setDetail] = useState<TimelineEvent | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  // Gaveta de filtros do celular. Fechada por padrão: em 375px, quatro caixas
+  // permanentes empurrariam a primeira linha da trilha para fora da tela — e a
+  // faixa fixa (sticky) levaria essa altura junto durante toda a rolagem.
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
+  const [buscaFocada, setBuscaFocada] = useState(false);
 
   // Atalho "/" foca a busca (paridade com eventos.tsx e Painel Geral).
   const searchRef = useRef<HTMLInputElement>(null);
@@ -607,12 +668,17 @@ export default function Historico() {
     return list;
   }, [displayed, period, eventFilter, actionFilter, authorFilter, searchFilter]);
 
-  const activeFilterCount =
+  // Dois contadores, de propósito. `recorteCount` conta só as quatro dimensões
+  // que vivem nos dropdowns — é o número do botão "Filtros" do celular, que
+  // abre exatamente esses quatro. `activeFilterCount` soma também a busca, que
+  // fica fora da gaveta: é o número de "Limpar tudo", e limpar tudo tem de
+  // limpar a busca também.
+  const recorteCount =
     (eventFilter.length > 0 ? 1 : 0) +
     (actionFilter.length > 0 ? 1 : 0) +
     (authorFilter.length > 0 ? 1 : 0) +
-    (period !== "all" ? 1 : 0) +
-    (searchFilter.trim() ? 1 : 0);
+    (period !== "all" ? 1 : 0);
+  const activeFilterCount = recorteCount + (searchFilter.trim() ? 1 : 0);
   const hasActiveFilters = activeFilterCount > 0;
   const clearFilters = () => {
     setEventFilter([]); setActionFilter([]); setAuthorFilter([]);
@@ -670,6 +736,25 @@ export default function Historico() {
       excecoes: displayed.filter(e => EXCECAO_TYPES.includes(e.type)).length,
     };
   }, [displayed]);
+
+  // O atalho de exceções só se declara ativo quando o filtro de Ação é
+  // EXATAMENTE o conjunto que ele aplica: comparar por tamanho + pertinência
+  // evita acender a pílula quando o usuário montou à mão uma seleção parecida.
+  const excecoesAtivas =
+    actionFilter.length === EXCECAO_TYPES.length &&
+    EXCECAO_TYPES.every(t => actionFilter.includes(t));
+
+  const atalhos = [
+    { key: "hoje", testId: "chip-hoje", label: "Hoje", count: metrics.hoje, tom: "azul" as const,
+      ativo: period === "hoje",
+      onClick: () => { setPeriod(period === "hoje" ? "all" : "hoje"); setPage(1); } },
+    { key: "7d", testId: "chip-7d", label: "Últimos 7 dias", count: metrics.sete, tom: "roxo" as const,
+      ativo: period === "7d",
+      onClick: () => { setPeriod(period === "7d" ? "all" : "7d"); setPage(1); } },
+    { key: "exc", testId: "chip-exc", label: "Exclusões e reprovações", count: metrics.excecoes, tom: "vermelho" as const,
+      ativo: excecoesAtivas,
+      onClick: () => { setActionFilter(excecoesAtivas ? [] : EXCECAO_TYPES); setPage(1); } },
+  ];
 
   /** Registro mais antigo carregado — é até onde o usuário pode confiar. */
   const oldestLoaded = useMemo(() => {
@@ -823,7 +908,11 @@ export default function Historico() {
   // sobrescrevia exatamente os quatro valores que ele calcula em função de
   // `isActive` — com um filtro aplicado, a faixa não mostrava nada de ativo e
   // o usuário lia "não tem registro" causado por um filtro esquecido.
-  const selectStyle: React.CSSProperties = { minWidth: 168 };
+  //
+  // E o minWidth some no celular: com 168px fixos, dois gatilhos não cabiam
+  // lado a lado em 375px e a faixa virava uma coluna de caixas gigantes. Sem
+  // ele, cada gatilho ocupa só o seu texto.
+  const selectStyle: React.CSSProperties | undefined = isMobile ? undefined : { minWidth: 168 };
 
   const headerBtn: React.CSSProperties = {
     display: "flex", alignItems: "center", gap: 7,
@@ -837,6 +926,236 @@ export default function Historico() {
   const subtitulo = oldestLoaded
     ? `Ações registradas em eventos e peças · trilha a partir de ${format(oldestLoaded, "d 'de' MMMM 'de' yyyy", { locale: ptBR })}`
     : "Ações registradas em eventos e peças";
+
+  /* ── Peças da faixa de filtros ─────────────────────────────────────────────
+     Montadas aqui em vez de dentro do JSX porque desktop e celular as arrumam
+     em ordens diferentes: duplicar os quatro <FilterSelect> nos dois ramos era
+     garantir que um dia só um dos dois receberia a próxima correção. */
+
+  // A busca deixa de mandar na faixa: 320px de teto no desktop (era ~760, quase
+  // metade dela) e vai para o FIM da linha, depois do recorte.
+  const campoBusca = (
+    <div style={{
+      position: "relative",
+      ...(isMobile
+        ? { flex: "1 1 auto", minWidth: 0 }
+        : { flex: "1 1 240px", minWidth: 200, maxWidth: 320, marginLeft: "auto" }),
+    }}>
+      <Search aria-hidden="true" style={{
+        position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)",
+        width: 14, height: 14, color: P.label, pointerEvents: "none",
+      }} />
+      <input
+        placeholder="Buscar por peça, evento, pessoa ou descrição…"
+        aria-label="Buscar no histórico"
+        ref={searchRef}
+        value={searchFilter}
+        onChange={e => { setSearchFilter(e.target.value); setPage(1); }}
+        onFocus={() => setBuscaFocada(true)}
+        onBlur={() => setBuscaFocada(false)}
+        data-testid="input-search-filter"
+        style={{
+          width: "100%", height: isMobile ? 44 : 36,
+          paddingLeft: 34, paddingRight: searchFilter ? 34 : 12,
+          backgroundColor: "#ffffff",
+          // O foco tinha de ser visível também aqui, e não era: só a borda
+          // cinza padrão, idêntica ao estado normal.
+          border: `1px solid ${buscaFocada ? "#c2410c" : P.border}`,
+          boxShadow: buscaFocada ? "0 0 0 3px rgba(194,65,12,0.14)" : "none",
+          borderRadius: 8, outline: "none",
+          fontSize: 13, color: P.text, boxSizing: "border-box",
+        }}
+      />
+      {searchFilter && (
+        <button
+          type="button"
+          onClick={() => { setSearchFilter(""); setPage(1); searchRef.current?.focus(); }}
+          aria-label="Limpar a busca"
+          title="Limpar a busca"
+          data-testid="button-clear-search"
+          style={{
+            position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)",
+            width: 24, height: 24, borderRadius: 6, border: "none", background: "none",
+            cursor: "pointer", color: P.second,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          <X aria-hidden="true" style={{ width: 13, height: 13 }} />
+        </button>
+      )}
+    </div>
+  );
+
+  // Cada filtro leva o ícone da sua DIMENSÃO: quando o rótulo vira "3 ações" ou
+  // "Últimos 7 dias", é o ícone que continua dizendo de que campo se trata.
+  // Rótulos de "todos" padronizados em minúscula — "Todos os Eventos" era o
+  // único com maiúscula no meio da frase, contra "todas as ações" e
+  // "todas as pessoas". Por isso o filtro de evento também virou FilterSelect:
+  // o componente antigo trazia a maiúscula embutida e não recebe o selo de
+  // ativo nem o ícone, e seria a única caixa fora do idioma da faixa.
+  const camposDeRecorte = (
+    <>
+      <FilterSelect
+        showAllLabelWhenEmpty hideWhenEmpty={false}
+        label="Período" allLabel="Todo o período"
+        icon={Clock} activeAppearance="solid"
+        value={period}
+        onChange={v => { setPeriod(v === "all" ? "all" : v); setPage(1); }}
+        options={PERIODS.filter(p => p.value !== "all").map(p => ({ value: p.value, label: p.label, pinned: true }))}
+        emptyText="Nenhum período."
+        // Três opções fixas: buscar entre elas não é uma tarefa que exista.
+        hideSearch
+        testId="select-period-filter"
+        fullWidth={isMobile}
+        panelWidth={isMobile ? undefined : 230}
+        triggerStyle={isMobile ? undefined : { minWidth: 158 }}
+      />
+
+      <FilterSelect
+        showAllLabelWhenEmpty hideWhenEmpty={false}
+        label="Ação" allLabel="Todas as ações"
+        icon={Activity} activeAppearance="solid"
+        unitLabel={{ one: "ação", many: "ações" }}
+        values={actionFilter} onValuesChange={handleFilterChange(setActionFilter)}
+        options={actionOptions}
+        searchPlaceholder="Buscar ação…" emptyText="Nenhuma ação encontrada."
+        testId="select-action-filter"
+        fullWidth={isMobile}
+        // 24 ações agrupadas por fase, cada uma com contagem: em 280px o rótulo
+        // longo ("Reaprov. corrigidos") batia no selo do número.
+        panelWidth={isMobile ? undefined : 320}
+        triggerStyle={selectStyle}
+      />
+
+      <FilterSelect
+        showAllLabelWhenEmpty hideWhenEmpty={false}
+        label="Evento" allLabel="Todos os eventos"
+        icon={Calendar} activeAppearance="solid"
+        unitLabel={{ one: "evento", many: "eventos" }}
+        values={eventFilter} onValuesChange={handleFilterChange(setEventFilter)}
+        options={eventOptions}
+        searchPlaceholder="Buscar evento…" emptyText="Nenhum evento encontrado."
+        testId="select-event-filter"
+        fullWidth={isMobile}
+        panelWidth={isMobile ? undefined : 320}
+        triggerStyle={selectStyle}
+      />
+
+      <FilterSelect
+        showAllLabelWhenEmpty hideWhenEmpty={false}
+        label="Pessoa" allLabel="Todas as pessoas"
+        icon={Users} activeAppearance="solid"
+        unitLabel={{ one: "pessoa", many: "pessoas" }}
+        values={authorFilter} onValuesChange={handleFilterChange(setAuthorFilter)}
+        options={authorOptions}
+        searchPlaceholder="Buscar pessoa…" emptyText="Nenhuma pessoa encontrada."
+        testId="select-author-filter"
+        fullWidth={isMobile}
+        panelWidth={isMobile ? undefined : 300}
+        triggerStyle={selectStyle}
+        // Último filtro da faixa: ancorado à esquerda, o menu nascia além da
+        // borda direita da janela e ficava cortado.
+        dropdownAlign="right"
+      />
+    </>
+  );
+
+  // Gaveta do celular. O contador vai no próprio botão para que o estado
+  // "tenho filtro ligado" sobreviva com a gaveta fechada — sem ele, um recorte
+  // esquecido explicaria uma lista vazia sem nada na tela dizendo isso.
+  const botaoFiltros = (
+    <button
+      type="button"
+      onClick={() => setFiltrosAbertos(v => !v)}
+      aria-expanded={filtrosAbertos}
+      aria-label={recorteCount > 0 ? `Filtros — ${recorteCount} ativo${recorteCount === 1 ? "" : "s"}` : "Filtros"}
+      data-testid="button-toggle-filtros"
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 6,
+        height: 44, padding: "0 12px", borderRadius: 8, flexShrink: 0,
+        backgroundColor: recorteCount > 0 ? "#c2410c" : "#ffffff",
+        border: `1px solid ${recorteCount > 0 ? "#c2410c" : P.border}`,
+        color: recorteCount > 0 ? "#ffffff" : P.text,
+        fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap",
+      }}
+    >
+      <SlidersHorizontal aria-hidden="true" style={{ width: 14, height: 14 }} />
+      Filtros
+      {recorteCount > 0 && (
+        <span style={{
+          fontSize: 11, fontWeight: 800, padding: "1px 7px", borderRadius: 99,
+          backgroundColor: "#ffffff", color: "#c2410c",
+        }}>
+          {recorteCount}
+        </span>
+      )}
+      <ChevronDown aria-hidden="true" style={{
+        width: 13, height: 13, transition: "transform 0.2s",
+        transform: filtrosAbertos ? "rotate(180deg)" : "rotate(0deg)",
+      }} />
+    </button>
+  );
+
+  // O resultado é TEXTO, sem moldura: é a resposta da consulta, não um controle.
+  // Diz de uma vez as três coisas que o usuário precisa saber sem clicar em
+  // nada — quantos filtros estão ativos, quanto eles cortaram, e como desfazer.
+  // "Limpar tudo" fica sempre desenhado (desabilitado quando não há o que
+  // limpar): antes só existia dentro do estado vazio, ou seja, aparecia
+  // exatamente quando já não havia mais nada para ver.
+  //
+  // Contrastes (12px/10px, exigem 4,5:1), sobre a faixa #f3f4f3:
+  //   #746e69 / #f3f4f3 = 4,57:1 ✓   #1c1917 / #f3f4f3 = 15,29:1 ✓
+  //   "Limpar tudo" ligado  #b91c1c / #fef2f2 = 5,91:1 ✓
+  //   "Limpar tudo" apagado #57534e / #f3f4f3 = 6,92:1 ✓
+  const linhaDeResumo = (
+    <div style={{
+      display: "flex", alignItems: "center", gap: 10,
+      ...(isMobile ? { width: "100%" } : { marginLeft: "auto" }), flexShrink: 0,
+    }}>
+      <span
+        aria-live="polite"
+        data-testid="text-resumo-filtros"
+        style={{ fontSize: 12, color: P.second, fontWeight: 600, whiteSpace: "nowrap" }}
+      >
+        {hasActiveFilters ? (
+          <>
+            {activeFilterCount} filtro{activeFilterCount === 1 ? "" : "s"} ativo{activeFilterCount === 1 ? "" : "s"}
+            {" · "}
+            <strong style={{ color: P.text, fontFamily: "'DM Mono', monospace" }}>{filtered.length}</strong>
+            {" de "}
+            <span style={{ fontFamily: "'DM Mono', monospace" }}>{displayed.length}</span>
+          </>
+        ) : (
+          <>
+            <strong style={{ color: P.text, fontFamily: "'DM Mono', monospace" }}>{filtered.length}</strong>
+            {" resultado"}{filtered.length === 1 ? "" : "s"}
+          </>
+        )}
+      </span>
+
+      <button
+        type="button"
+        onClick={clearFilters}
+        disabled={!hasActiveFilters}
+        data-testid="button-clear-filters-bar"
+        title={hasActiveFilters ? "Remover todos os filtros e a busca" : "Não há filtro aplicado"}
+        style={{
+          display: "inline-flex", alignItems: "center", gap: 5,
+          height: isMobile ? 34 : 28, padding: "0 10px", borderRadius: 7,
+          marginLeft: isMobile ? "auto" : 0,
+          backgroundColor: hasActiveFilters ? "#fef2f2" : "transparent",
+          border: `1px solid ${hasActiveFilters ? "#fecaca" : P.border}`,
+          color: hasActiveFilters ? "#b91c1c" : "#57534e",
+          fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em",
+          cursor: hasActiveFilters ? "pointer" : "default",
+          whiteSpace: "nowrap", flexShrink: 0,
+        }}
+      >
+        <X aria-hidden="true" style={{ width: 11, height: 11 }} />
+        Limpar tudo
+      </button>
+    </div>
+  );
 
   return (
     <div
@@ -882,47 +1201,6 @@ export default function Historico() {
         </div>
       </div>
 
-      {/* ── Métricas-atalho (clicáveis: aplicam o filtro correspondente) ── */}
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center", marginBottom: 16 }}>
-        {[
-          { key: "hoje", label: "Hoje", value: metrics.hoje, color: "#1d4ed8", bg: "#eff6ff",
-            onClick: () => { setPeriod("hoje"); setPage(1); } },
-          { key: "7d", label: "Últimos 7 dias", value: metrics.sete, color: "#7e22ce", bg: "#faf5ff",
-            onClick: () => { setPeriod("7d"); setPage(1); } },
-          { key: "exc", label: "Exclusões e reprovações", value: metrics.excecoes, color: "#b91c1c", bg: "#fef2f2",
-            onClick: () => { setActionFilter(EXCECAO_TYPES); setPage(1); } },
-        ].map(chip => (
-          <button
-            key={chip.key}
-            onClick={chip.onClick}
-            data-testid={`chip-${chip.key}`}
-            style={{
-              padding: "8px 16px", backgroundColor: chip.bg, border: `1px solid ${P.border}`,
-              borderRadius: 8, display: "flex", flexDirection: "column", gap: 1,
-              cursor: "pointer", textAlign: "left",
-            }}
-          >
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 700, color: chip.color, lineHeight: 1 }}>
-              {chip.value}
-            </span>
-            <span style={{ fontSize: 10, color: "#57534e", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-              {chip.label}
-            </span>
-          </button>
-        ))}
-        <div aria-live="polite" style={{
-          padding: "8px 16px", backgroundColor: "#e8e8e7", border: `1px solid ${P.border}`,
-          borderRadius: 8, display: "flex", flexDirection: "column", gap: 1,
-        }}>
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, fontWeight: 700, color: "#9a3412", lineHeight: 1 }}>
-            {filtered.length}
-          </span>
-          <span style={{ fontSize: 10, color: "#57534e", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-            Resultados
-          </span>
-        </div>
-      </div>
-
       {/* ── Faixa de confiança da trilha ──
           O teto de 500 do servidor era invisível e o rodapé chamava tudo de
           "registros": paginando para trás sobravam só criações e entregas, sem
@@ -950,88 +1228,83 @@ export default function Historico() {
       <div style={{ backgroundColor: P.surface, border: `1px solid ${P.border}`, borderRadius: 12 }}>
 
         <div ref={stickyRef} style={{ position: "sticky", top: 0, zIndex: 6, borderRadius: "12px 12px 0 0" }}>
-          {/* Filter strip */}
+          {/* ── Faixa de filtros ──────────────────────────────────────────────
+              Três coisas de naturezas diferentes dividiam a mesma roupa: atalho,
+              filtro e resultado. Agora cada uma tem a sua, e a ordem de leitura
+              conta a história certa.
+
+              LINHA 1 — o RECORTE primeiro, a busca depois. O campo de texto
+              ocupava quase metade da faixa (uns 760px) sendo o controle mais
+              genérico que existe, enquanto os quatro filtros — que são o recorte
+              de verdade — se espremiam na direita. Invertido: os quatro abrem a
+              linha, a busca fecha, presa a 320px. A folga entre os dois grupos
+              não é sobra, é o que os separa em "recorte" e "procura".
+
+              LINHA 2 — atalhos (pílulas) à esquerda, resultado (texto puro) à
+              direita. Some a antiga fileira de quatro ladrilhos coloridos acima
+              do card: ela empatava três atalhos de filtro com um totalizador, e
+              empilhava uma segunda faixa colorida na primeira dobra.
+
+              O gatilho de cada filtro passa a dizer o RECORTE ("3 ações",
+              "Últimos 7 dias") em vez do rótulo genérico, com selo de fundo
+              cheio quando ativo — e o ícone da dimensão segura a identidade do
+              campo mesmo depois de o texto trocar. */}
           <div style={{
-            padding: isMobile ? "14px 16px" : "16px 24px",
+            padding: isMobile ? "12px 14px" : "14px 24px",
             borderBottom: `1px solid ${P.border}`,
             backgroundColor: "#f3f4f3",
             borderRadius: "11px 11px 0 0",
-            display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center",
+            display: "flex", flexDirection: "column", gap: 10,
           }}>
-            <div style={{ position: "relative", flex: "1 1 240px", minWidth: 200 }}>
-              <Search aria-hidden="true" style={{
-                position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)",
-                width: 14, height: 14, color: P.muted, pointerEvents: "none",
-              }} />
-              <input
-                placeholder="Buscar por peça, evento, pessoa ou descrição…"
-                aria-label="Buscar no histórico"
-                ref={searchRef}
-                value={searchFilter}
-                onChange={e => { setSearchFilter(e.target.value); setPage(1); }}
-                data-testid="input-search-filter"
-                style={{
-                  width: "100%", paddingLeft: 34, paddingRight: 12, paddingTop: 9, paddingBottom: 9,
-                  backgroundColor: "#ffffff", border: `1px solid ${P.border}`, borderRadius: 8,
-                  fontSize: 13, color: P.text, boxSizing: "border-box",
-                }}
-              />
+            {isMobile ? (
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {campoBusca}
+                {botaoFiltros}
+              </div>
+            ) : (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+                {camposDeRecorte}
+                {campoBusca}
+              </div>
+            )}
+
+            {isMobile && filtrosAbertos && (
+              <div
+                data-testid="painel-filtros-mobile"
+                style={{ display: "flex", flexDirection: "column", gap: 8 }}
+              >
+                {camposDeRecorte}
+              </div>
+            )}
+
+            <div style={{
+              display: "flex", alignItems: "center", gap: 8,
+              ...(isMobile
+                // Trilho rolável só aqui: os atalhos são botões simples, sem
+                // menu suspenso. Fazer o mesmo com os quatro filtros criaria um
+                // contexto de rolagem que RECORTARIA os menus deles.
+                ? { overflowX: "auto" as const, paddingBottom: 2 }
+                : { flexWrap: "wrap" as const, gap: 10 }),
+            }}>
+              {atalhos.map(a => (
+                <Atalho
+                  key={a.key}
+                  testId={a.testId}
+                  label={a.label}
+                  count={a.count}
+                  tom={a.tom}
+                  ativo={a.ativo}
+                  alto={isMobile}
+                  onClick={a.onClick}
+                />
+              ))}
+              {!isMobile && linhaDeResumo}
             </div>
 
-            <FilterSelect
-              showAllLabelWhenEmpty hideWhenEmpty={false}
-              label="Período" allLabel="Todo o período"
-              value={period}
-              onChange={v => { setPeriod(v === "all" ? "all" : v); setPage(1); }}
-              options={PERIODS.filter(p => p.value !== "all").map(p => ({ value: p.value, label: p.label, pinned: true }))}
-              searchPlaceholder="Buscar período…" emptyText="Nenhum período."
-              testId="select-period-filter" triggerStyle={{ minWidth: 150 }}
-            />
-
-            <FilterSelect
-              showAllLabelWhenEmpty hideWhenEmpty={false}
-              label="Ação" allLabel="Todas as ações"
-              values={actionFilter} onValuesChange={handleFilterChange(setActionFilter)}
-              options={actionOptions}
-              searchPlaceholder="Buscar ação…" emptyText="Nenhuma ação encontrada."
-              testId="select-action-filter" triggerStyle={selectStyle}
-            />
-
-            <EventFilterDropdown
-              values={eventFilter}
-              onValuesChange={handleFilterChange(setEventFilter)}
-              options={eventOptions}
-            />
-
-            <FilterSelect
-              showAllLabelWhenEmpty hideWhenEmpty={false}
-              label="Realizado por" allLabel="Todas as pessoas"
-              values={authorFilter} onValuesChange={handleFilterChange(setAuthorFilter)}
-              options={authorOptions}
-              searchPlaceholder="Buscar pessoa…" emptyText="Nenhuma pessoa encontrada."
-              testId="select-author-filter" triggerStyle={{ minWidth: 168 }}
-              // Último filtro da faixa: ancorado à esquerda, o menu (240px)
-              // nascia além da borda direita da janela e ficava cortado.
-              dropdownAlign="right"
-            />
-
-            {/* "Limpar" vivia só dentro do vazio por filtro — ou seja, aparecia
-                exatamente quando já não havia o que ver. */}
-            {hasActiveFilters && (
-              <button
-                onClick={clearFilters}
-                data-testid="button-clear-filters-bar"
-                style={{
-                  display: "flex", alignItems: "center", gap: 5,
-                  height: isMobile ? 44 : 36, padding: "0 12px",
-                  backgroundColor: "#fef2f2", border: "1px solid #fecaca", borderRadius: 7,
-                  cursor: "pointer", fontSize: 10, fontWeight: 800, color: "#b91c1c",
-                  textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0,
-                }}
-              >
-                <X aria-hidden="true" style={{ width: 11, height: 11 }} />
-                Limpar ({activeFilterCount})
-              </button>
+            {isMobile && (
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {linhaDeResumo}
+              </div>
             )}
           </div>
 
@@ -1105,9 +1378,9 @@ export default function Historico() {
                 Ativos: {[
                   searchFilter.trim() && `busca "${searchFilter.trim()}"`,
                   period !== "all" && PERIODS.find(p => p.value === period)?.label,
-                  actionFilter.length > 0 && `${actionFilter.length} ação(ões)`,
-                  eventFilter.length > 0 && `${eventFilter.length} evento(s)`,
-                  authorFilter.length > 0 && `${authorFilter.length} pessoa(s)`,
+                  actionFilter.length > 0 && `${actionFilter.length} ${actionFilter.length === 1 ? "ação" : "ações"}`,
+                  eventFilter.length > 0 && `${eventFilter.length} ${eventFilter.length === 1 ? "evento" : "eventos"}`,
+                  authorFilter.length > 0 && `${authorFilter.length} ${authorFilter.length === 1 ? "pessoa" : "pessoas"}`,
                 ].filter(Boolean).join(" · ")}
               </p>
               <button onClick={clearFilters} data-testid="button-clear-filters"

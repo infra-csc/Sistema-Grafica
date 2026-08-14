@@ -49,7 +49,33 @@ import { FilterChip } from "@/components/prazos/filter-chip";
 import { AnaliseBand } from "@/components/prazos/analise-band";
 import { CardMobilePrazos } from "@/components/prazos/card-mobile";
 import { TabelaPrazos } from "@/components/prazos/tabela-prazos";
+import { PecasAtrasadas } from "@/components/prazos/pecas-atrasadas";
+import { computePecasAtrasadas, filtrarPecasAtrasadas } from "@/components/prazos/atrasadas";
 import { computeEventosPorEtapa, computeSectorSummary } from "@/components/prazos/gargalos";
+
+/**
+ * As três visões do MESMO conjunto filtrado.
+ *
+ * `quadro` e `tabela` são orientadas a EVENTO (o funil visto de cima e a
+ * versão densa dele). `atrasadas` é orientada a PEÇA: uma linha por peça
+ * atrasada, de todos os eventos juntos — a resposta direta a "o que está
+ * atrasado agora", que era a pergunta que a tela obrigava a montar à mão,
+ * abrindo o drill de um evento por vez.
+ */
+type Visao = "quadro" | "tabela" | "atrasadas";
+
+const VISAO_LABEL: Record<Visao, string> = {
+  quadro: "Quadro",
+  tabela: "Tabela",
+  atrasadas: "Peças atrasadas",
+};
+
+/** Atalho de teclado de cada visão (paridade com o Q/T que já existia). */
+const VISAO_TECLA: Record<Visao, string> = { quadro: "Q", tabela: "T", atrasadas: "A" };
+
+function parseVisao(raw: string | null): Visao {
+  return raw === "tabela" || raw === "atrasadas" ? raw : "quadro";
+}
 
 export default function GestaoPrazos() {
   const isMobile = useIsMobile();
@@ -106,8 +132,9 @@ export default function GestaoPrazos() {
       // "Mais atrasado" é o padrão: a tela existe para cobrar atraso — o
       // pior evento tem que ser a primeira linha, não estar no meio da lista.
       ordem: p.get("ordem") === "saida" ? "saida" : "atraso",
-      // Quadro é a visão principal (o funil visto de cima); tabela é a densa.
-      visao: p.get("visao") === "tabela" ? "tabela" : "quadro",
+      // Quadro é a visão principal (o funil visto de cima); tabela é a densa;
+      // `atrasadas` é a lista plana de peças.
+      visao: parseVisao(p.get("visao")),
       evento: p.get("evento"),
     };
   }, []);
@@ -120,7 +147,7 @@ export default function GestaoPrazos() {
   const [etapaFoco, setEtapaFoco] = useState(initial.etapa);
   const [diaFoco, setDiaFoco] = useState(initial.dia);
   const [ordem, setOrdem] = useState<"saida" | "atraso">(initial.ordem as "saida" | "atraso");
-  const [visao, setVisao] = useState<"quadro" | "tabela">(initial.visao as "quadro" | "tabela");
+  const [visao, setVisao] = useState<Visao>(initial.visao);
   // Card do quadro abre o drill num modal (o detalhe "por cima") — a tabela
   // continua expandindo inline. `detailId` entra na URL como ?evento=<id>:
   // F5 e link colado no grupo preservam a pendência exata.
@@ -128,6 +155,17 @@ export default function GestaoPrazos() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [showDesdeOntem, setShowDesdeOntem] = useState(false);
   const [printMode, setPrintMode] = useState(false);
+
+  // Última visão de EVENTO usada. O placar "Peças em etapa vencida" leva para
+  // a lista de peças e traz de volta — e "de volta" tem que ser de onde a
+  // pessoa veio, não um quadro que ela talvez nunca tenha aberto.
+  const visaoAntesDaListaRef = useRef<Visao>("quadro");
+  useEffect(() => {
+    if (visao !== "atrasadas") visaoAntesDaListaRef.current = visao;
+  }, [visao]);
+  const alternarListaDePecas = useCallback(() => {
+    setVisao((atual) => (atual === "atrasadas" ? visaoAntesDaListaRef.current : "atrasadas"));
+  }, []);
 
   // Espelha filtros na URL sem empilhar histórico (preserva o hash).
   // Debounce: replaceState a cada tecla estoura o rate-limit do Safari
@@ -171,7 +209,7 @@ export default function GestaoPrazos() {
       setEtapaFoco(p.get("etapa") ?? "all");
       setDiaFoco(p.get("dia") ?? "");
       setOrdem(p.get("ordem") === "saida" ? "saida" : "atraso");
-      setVisao(p.get("visao") === "tabela" ? "tabela" : "quadro");
+      setVisao(parseVisao(p.get("visao")));
       setDetailId(p.get("evento"));
     };
     window.addEventListener("popstate", onPop);
@@ -253,20 +291,36 @@ export default function GestaoPrazos() {
     [events, stageMeta],
   );
 
+  /**
+   * Peneira de EVENTO comum às três visões: os filtros que falam do evento e
+   * só dele.
+   *
+   * Está separada do resto porque etapa, dia e busca mudam de GRÃO na visão de
+   * peças — lá "etapa" é a etapa da PEÇA e a busca também procura no código e
+   * na descrição dela (ver `components/prazos/atrasadas.ts`). Sem esta divisão
+   * a lista plana teria que reescrever os filtros de evento, que é exatamente
+   * como nascem dois critérios que discordam.
+   */
+  const passaFiltroDeEvento = useCallback((ev: PrazoEvent) => {
+    if (soAtrasados && !eventHasOverdue(ev)) return false;
+    if (soSaidas7d) {
+      // `diasParaSaida` já vem do servidor com a âncora do negócio.
+      if (ev.diasParaSaida == null) return false;
+      if (ev.diasParaSaida < 0 || ev.diasParaSaida > 7) return false;
+    }
+    // Filtro pela CATEGORIA (exclusiva), não por `invalidDate` solto: é o
+    // mesmo critério das contagens do placar, então o filtro nunca devolve
+    // um número diferente do que o botão prometeu.
+    if (soSemPecas && ev.categoria !== "semPecas") return false;
+    if (soInvalidos && ev.categoria !== "dataInvalida") return false;
+    if (prioridade !== "all" && ev.priority !== prioridade) return false;
+    return true;
+  }, [soAtrasados, soSaidas7d, soSemPecas, soInvalidos, prioridade]);
+
   const filtered = useMemo(() => {
     const q = normalize(busca.trim());
     const list = events.filter((ev) => {
-      if (soAtrasados && !eventHasOverdue(ev)) return false;
-      if (soSaidas7d) {
-        // `diasParaSaida` já vem do servidor com a âncora do negócio.
-        if (ev.diasParaSaida == null) return false;
-        if (ev.diasParaSaida < 0 || ev.diasParaSaida > 7) return false;
-      }
-      // Filtro pela CATEGORIA (exclusiva), não por `invalidDate` solto: é o
-      // mesmo critério das contagens do placar, então o filtro nunca devolve
-      // um número diferente do que o botão prometeu.
-      if (soSemPecas && ev.categoria !== "semPecas") return false;
-      if (soInvalidos && ev.categoria !== "dataInvalida") return false;
+      if (!passaFiltroDeEvento(ev)) return false;
       if (etapaFoco !== "all" && stageMeta[currentStageIdx(ev)]?.key !== etapaFoco) return false;
       // Mesmo predicado da barra "Próximos dias úteis" que gerou o clique,
       // INCLUSIVE o descarte de data inválida: a barra conta sobre
@@ -276,7 +330,6 @@ export default function GestaoPrazos() {
       // dos próximos 15 dias, então a linha não muda resultado nenhum — ela
       // impede que a divergência nasça na próxima mexida na barra.
       if (diaFoco && (ev.invalidDate || !ev.stages.some((s) => s.deadline === diaFoco && s.state !== "done"))) return false;
-      if (prioridade !== "all" && ev.priority !== prioridade) return false;
       if (q && !normalize(ev.name).includes(q)) return false;
       return true;
     });
@@ -292,7 +345,24 @@ export default function GestaoPrazos() {
     // quebraria sem sintoma na primeira paginação.
     return [...list].sort((a, b) =>
       new Date(a.truckDepartureDate).getTime() - new Date(b.truckDepartureDate).getTime());
-  }, [events, soAtrasados, soSaidas7d, soSemPecas, soInvalidos, etapaFoco, diaFoco, prioridade, busca, ordem, stageMeta]);
+  }, [events, passaFiltroDeEvento, etapaFoco, diaFoco, busca, ordem, stageMeta]);
+
+  // ── Visão de peças: a lista plana ────────────────────────────────────────
+  // Duas listas de propósito. A COMPLETA (sem filtro nenhum) é o denominador
+  // honesto — é ela que sustenta o "de 437 no total" e, principalmente, a
+  // diferença entre "não há peça atrasada" e "os seus filtros escondem todas".
+  // A FILTRADA é o que a tela desenha.
+  const pecasAtrasadasTodas = useMemo(() => computePecasAtrasadas(events), [events]);
+  const pecasAtrasadas = useMemo(
+    () => filtrarPecasAtrasadas(
+      computePecasAtrasadas(events.filter(passaFiltroDeEvento)),
+      { busca, etapaKey: etapaFoco, dia: diaFoco },
+    ),
+    [events, passaFiltroDeEvento, busca, etapaFoco, diaFoco],
+  );
+  // Assinatura dos filtros: a paginação da lista volta ao começo quando ELA
+  // muda, e não a cada revalidação de 60s (que troca a identidade do array).
+  const filtroKey = `${soAtrasados}|${soSaidas7d}|${soSemPecas}|${soInvalidos}|${prioridade}|${etapaFoco}|${diaFoco}|${busca}`;
 
   // "Primeiro focar no evento com peças em atraso": na primeira carga, o
   // pior evento atrasado já chega expandido — o caminho evento→peça começa
@@ -304,6 +374,9 @@ export default function GestaoPrazos() {
   const autoExpandedRef = useRef(false);
   useEffect(() => {
     if (autoExpandedRef.current || !data) return;
+    // A visão de peças não tem linha para expandir — e queimar a flag aqui
+    // roubaria o auto-expandir de quem trocar para a tabela em seguida.
+    if (visao === "atrasadas") return;
     // Só onde o drill abre INLINE: no quadro o detalhe é modal, e modal não
     // se auto-abre.
     if (!isMobile && visao !== "tabela") return;
@@ -473,6 +546,9 @@ export default function GestaoPrazos() {
       }
       if (emCampo) return;
       if (e.key === "/") { e.preventDefault(); buscaRef.current?.focus(); return; }
+      // "A" existe no celular também: lá o quadro e a tabela não são
+      // oferecidos, mas a lista de peças é — ela funciona em qualquer largura.
+      if (e.key === "a" || e.key === "A") { setVisao("atrasadas"); return; }
       if (isMobile) return;
       if (e.key === "q" || e.key === "Q") setVisao("quadro");
       if (e.key === "t" || e.key === "T") setVisao("tabela");
@@ -485,7 +561,7 @@ export default function GestaoPrazos() {
   // O CSS de print existia e o recurso falhava em silêncio: com o quadro como
   // padrão, Ctrl+P imprimia 5 colunas de cards e NENHUMA peça (o drill vive
   // dentro do Dialog, que não existe no papel).
-  const restaurarPrintRef = useRef<{ visao: "quadro" | "tabela" } | null>(null);
+  const restaurarPrintRef = useRef<{ visao: Visao } | null>(null);
   const imprimirPauta = () => {
     restaurarPrintRef.current = { visao };
     setDetailId(null);
@@ -537,7 +613,18 @@ export default function GestaoPrazos() {
           {[0, 1, 2, 3].map((i) => bloco(84, i))}
         </div>
         {bloco(44, "toolbar")}
-        {isMobile ? (
+        {visao === "atrasadas" ? (
+          // Silhueta REAL desta visão: uma linha de contagem e uma pilha de
+          // linhas de altura única — não o grid de colunas do quadro nem os
+          // cartões altos do celular, que dariam salto de layout na chegada
+          // do dado (é a lista que a maioria dos acessos vai abrir).
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {bloco(20, "contagem")}
+            {isMobile
+              ? [0, 1, 2, 3, 4].map((i) => bloco(150, `pc${i}`))
+              : [0, 1, 2, 3, 4, 5, 6, 7].map((i) => bloco(52, `pl${i}`))}
+          </div>
+        ) : isMobile ? (
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {[0, 1, 2].map((i) => bloco(190, `m${i}`))}
           </div>
@@ -644,6 +731,23 @@ export default function GestaoPrazos() {
           Ver eventos
         </Link>
       </div>
+    );
+  } else if (visao === "atrasadas") {
+    // Antes do "nenhum evento com esses filtros": aqui quem responde vazio é a
+    // própria lista de peças, que separa o vazio REAL (não há peça atrasada no
+    // app) do vazio POR FILTRO. Cair no branch de eventos diria "nenhum evento
+    // com esses filtros" numa tela que está listando peças — e diria isso até
+    // quando o certo é a boa notícia.
+    body = (
+      <PecasAtrasadas
+        pecas={pecasAtrasadas}
+        totalNoApp={pecasAtrasadasTodas.length}
+        kpiPecasAtrasadas={kpis.pecasAtrasadas}
+        filtroKey={filtroKey}
+        chips={chipsAtivos}
+        onLimparFiltros={clearFilters}
+        onAbrirEvento={setDetailId}
+      />
     );
   } else if (filtered.length === 0) {
     body = (
@@ -1177,10 +1281,15 @@ export default function GestaoPrazos() {
                 trend={trend?.saidas7d} goodWhenUp={false}
                 testId="kpi-saidas-7d"
               />
+              {/* Era o único KPI sem clique — mostrava "437" e deixava o
+                  diretor sem caminho para as 437. Agora ele é a porta da lista
+                  plana de peças, que é o conjunto que este número conta. */}
               <KpiCard
                 label="Peças em etapa vencida" value={kpis.pecasAtrasadas} tone="red"
+                active={visao === "atrasadas"}
+                onClick={alternarListaDePecas}
                 hint="já deveriam ter passado pela etapa mais atrasada do evento"
-                title="Peças que já deveriam ter passado pela etapa mais atrasada de cada evento."
+                title="Clique para ver TODAS as peças atrasadas numa lista só, de todos os eventos."
                 trend={trend?.pecasAtrasadas} goodWhenUp={false}
                 testId="kpi-pecas-atrasadas"
               />
@@ -1202,31 +1311,46 @@ export default function GestaoPrazos() {
         {/* Toolbar */}
         {data && events.length > 0 && (
           <div className="gp-no-print" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 14, marginBottom: 10 }}>
-            {!isMobile && (
-              <div role="group" aria-label="Modo de visualização" style={{
-                display: "inline-flex", borderRadius: R.md, border: `1px solid ${TI.border}`,
-                overflow: "hidden", flexShrink: 0, height: 36,
-              }}>
-                {(["quadro", "tabela"] as const).map((v) => (
+            {/* A lista de peças entra AQUI, como terceira visão, e não como um
+                bloco à parte: é o mesmo conjunto filtrado visto por outro
+                grão (evento → peça), e é isso que o seletor de visão já
+                significa. Um bloco próprio abaixo do quadro seria uma segunda
+                lista longa competindo com a primeira, e a pergunta mais
+                direta do diretor ("o que está atrasado agora") aterrissaria
+                sob duas dobras de rolagem.
+                No CELULAR o seletor também aparece — com dois botões, porque
+                lá quadro e tabela não são oferecidos (o corpo é sempre
+                cartão), mas a lista de peças funciona em qualquer largura e
+                sem o seletor não haveria caminho de volta. */}
+            <div role="group" aria-label="Modo de visualização" style={{
+              display: "inline-flex", borderRadius: R.md, border: `1px solid ${TI.border}`,
+              overflow: "hidden", flexShrink: 0, height: isMobile ? 44 : 36,
+            }}>
+              {(isMobile ? (["quadro", "atrasadas"] as const) : (["quadro", "tabela", "atrasadas"] as const)).map((v) => {
+                // No celular "Quadro" é o botão de VOLTAR para os eventos: a
+                // visão de evento lá é sempre o cartão, venha `visao` como
+                // quadro ou tabela.
+                const ativo = isMobile && v === "quadro" ? visao !== "atrasadas" : visao === v;
+                return (
                   <button
                     key={v}
                     type="button"
                     onClick={() => setVisao(v)}
-                    aria-pressed={visao === v}
+                    aria-pressed={ativo}
                     data-testid={`visao-${v}`}
-                    title={`Atalho: ${v === "quadro" ? "Q" : "T"}`}
+                    title={`Atalho: ${VISAO_TECLA[v]}`}
                     style={{
                       padding: "0 14px", border: "none", cursor: "pointer",
-                      fontSize: 12, fontWeight: 700, textTransform: "capitalize",
-                      backgroundColor: visao === v ? TI.ink : TI.card,
-                      color: visao === v ? "#ffffff" : TI.strong,
+                      fontSize: 12, fontWeight: 700,
+                      backgroundColor: ativo ? TI.ink : TI.card,
+                      color: ativo ? "#ffffff" : TI.strong,
                     }}
                   >
-                    {v}
+                    {isMobile && v === "quadro" ? "Eventos" : VISAO_LABEL[v]}
                   </button>
-                ))}
-              </div>
-            )}
+                );
+              })}
+            </div>
             <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : "0 1 280px" }}>
               <Search aria-hidden="true" style={{
                 position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)",
@@ -1237,8 +1361,14 @@ export default function GestaoPrazos() {
                 type="search"
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
-                placeholder="Buscar evento...  (/)"
-                aria-label="Buscar evento pelo nome"
+                // O rótulo acompanha o que a busca REALMENTE procura em cada
+                // visão: na lista de peças ela também varre código, tipo e
+                // descrição, e prometer só "evento" faria o diretor digitar o
+                // número da peça, receber a lista certa e achar que foi sorte.
+                placeholder={visao === "atrasadas" ? "Buscar peça ou evento...  (/)" : "Buscar evento...  (/)"}
+                aria-label={visao === "atrasadas"
+                  ? "Buscar por código, descrição da peça ou nome do evento"
+                  : "Buscar evento pelo nome"}
                 data-testid="input-busca-prazos"
                 style={{
                   width: "100%", boxSizing: "border-box",
@@ -1248,21 +1378,27 @@ export default function GestaoPrazos() {
                 }}
               />
             </div>
-            <button
-              type="button"
-              onClick={() => setSoAtrasados((v) => !v)}
-              aria-pressed={soAtrasados}
-              data-testid="toggle-so-atrasados"
-              style={{
-                padding: "0 14px", height: isMobile ? 44 : 36, borderRadius: R.pill,
-                border: soAtrasados ? `1.5px solid ${TI.red}` : `1px solid ${TI.border}`,
-                backgroundColor: soAtrasados ? TI.redBg : TI.card,
-                color: soAtrasados ? TI.red : TI.strong,
-                fontSize: 12, fontWeight: 700, cursor: "pointer",
-              }}
-            >
-              Só com atraso
-            </button>
+            {/* Some na visão de peças: lá TODA linha está atrasada por
+                definição, então o botão seria um clique que não muda nada — e
+                controle que não faz nada é o começo da desconfiança no resto
+                da barra. O chip continua removível se o filtro veio da URL. */}
+            {visao !== "atrasadas" && (
+              <button
+                type="button"
+                onClick={() => setSoAtrasados((v) => !v)}
+                aria-pressed={soAtrasados}
+                data-testid="toggle-so-atrasados"
+                style={{
+                  padding: "0 14px", height: isMobile ? 44 : 36, borderRadius: R.pill,
+                  border: soAtrasados ? `1.5px solid ${TI.red}` : `1px solid ${TI.border}`,
+                  backgroundColor: soAtrasados ? TI.redBg : TI.card,
+                  color: soAtrasados ? TI.red : TI.strong,
+                  fontSize: 12, fontWeight: 700, cursor: "pointer",
+                }}
+              >
+                Só com atraso
+              </button>
+            )}
             {/* FilterSelect no lugar dos <select> nativos: é o controle usado
                 em 15 telas e traz a altura padrão (36 no desktop, 44 no toque).
                 Aqui nenhum controle declarava `height` e no mobile os alvos
@@ -1278,6 +1414,11 @@ export default function GestaoPrazos() {
                 .filter((p) => prioridadesDisponiveis.includes(p))
                 .map((p) => ({ value: p, label: getPriorityMeta(p)?.label ?? p, dotColor: getPriorityMeta(p)?.dot }))}
             />
+            {/* Mesma razão do "Só com atraso": a lista de peças tem uma ordem
+                só (pior atraso primeiro) e ordenar por "próxima saída" um
+                conjunto de peças de eventos diferentes não é uma pergunta que
+                alguém faça. O critério fica escrito na legenda. */}
+            {visao !== "atrasadas" && (
             <FilterSelect
               label="Ordenar"
               allLabel="Ordenar: mais atrasado"
@@ -1299,6 +1440,7 @@ export default function GestaoPrazos() {
                 { value: "saida", label: "Ordenar: próxima saída" },
               ]}
             />
+            )}
             {hasActiveFilters && (
               <button
                 type="button"
@@ -1313,9 +1455,20 @@ export default function GestaoPrazos() {
                 Limpar
               </button>
             )}
+            {/* O contador fala da UNIDADE que a visão desenha. Dizer "12 de 40
+                eventos" sobre uma lista de peças é o mesmo tipo de número
+                deslocado que a tela passou a revisão inteira caçando. */}
             <span aria-live="polite" style={{ marginLeft: "auto", fontSize: 12, color: TI.secondary }}>
-              {filtered.length} de {events.length} evento{events.length !== 1 ? "s" : ""}
+              {visao === "atrasadas"
+                ? `${pecasAtrasadas.length} de ${pecasAtrasadasTodas.length} peça${pecasAtrasadasTodas.length !== 1 ? "s" : ""} atrasada${pecasAtrasadasTodas.length !== 1 ? "s" : ""}`
+                : `${filtered.length} de ${events.length} evento${events.length !== 1 ? "s" : ""}`}
             </span>
+            {visao === "atrasadas" && (
+              <span style={{ flexBasis: "100%", fontSize: 11, color: TI.label, paddingTop: 2 }}>
+                Uma linha por peça, de todos os eventos. <strong style={{ color: TI.strong }}>Atrasada</strong>{" "}
+                = o prazo da etapa que cobra a peça já venceu. Da mais atrasada para a menos atrasada.
+              </span>
+            )}
             {/* Legenda: a gramática do semáforo só existia no hover, célula a
                 célula — e só na TABELA, apesar de a mini-trilha de 5 pontos do
                 card do quadro usar exatamente as mesmas quatro cores. Cada

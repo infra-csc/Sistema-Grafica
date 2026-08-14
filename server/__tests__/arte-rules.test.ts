@@ -28,6 +28,8 @@ import {
   phaseDeadline,
   compareEventUrgency,
   dentroDaJanelaFinalizados,
+  isAtrasadaNaFase,
+  filtrarAtrasadasDaFase,
   type ArteFilters,
 } from "../../client/src/lib/arte-rules";
 import { PRODUCTION_STATUSES } from "../../client/src/lib/status";
@@ -335,6 +337,80 @@ describe("prazo por fase", () => {
     const ordenados = [longe, semData, perto].sort((a, b) => compareEventUrgency(a, b, "criar-aprovacoes", B.today));
     expect(ordenados[0]).toBe(perto);
     expect(ordenados[2]).toBe(semData);
+  });
+});
+
+describe("atraso contra o marco da FASE", () => {
+  // Este bloco trava a decisão de produto do filtro "Prazo: atrasados": o que
+  // conta é o marco da fase, não a saída do caminhão.
+  const naFase = (tab: string, saidaDate: string, over: Record<string, any> = {}) =>
+    isAtrasadaNaFase(item({ event: { truckDepartureDate: saidaDate, ...over } }), tab, B.today);
+
+  it("peça com saída no FUTURO já pode estar atrasada na fase", () => {
+    // Saída em 20/08 (6 dias à frente): pela saída do caminhão, no prazo.
+    // Entrega de Layouts é 20/08 − 20d = 31/07 — 14 dias vencida.
+    const saida20 = saida(2026, 8, 20);
+    expect(phaseDeadline({ truckDepartureDate: saida20 }, "criar-aprovacoes", B.today)!.diff).toBe(-14);
+    expect(naFase("criar-aprovacoes", saida20)).toBe(true);
+  });
+
+  it("o marco muda com a fase: a mesma peça atrasa em uma e não na outra", () => {
+    // Saída 03/09 → Entrega de Layouts 14/08 (hoje, no prazo) e Aprovação de
+    // Layout 22/08 (ainda longe). Saída 30/08 → Entrega 10/08, já vencida.
+    expect(naFase("criar-aprovacoes", saida(2026, 8, 30))).toBe(true);
+    expect(naFase("aguardando-patrocinador", saida(2026, 8, 30))).toBe(false);
+  });
+
+  it("vence hoje não é atrasado (diff 0)", () => {
+    expect(naFase("criar-aprovacoes", saida(2026, 9, 3))).toBe(false);
+  });
+
+  it("Correção é cobrada pelo mesmo marco de Entrega de Layouts", () => {
+    expect(naFase("correcao", saida(2026, 8, 30))).toBe(true);
+  });
+
+  it("respeita o offset gravado no evento, não só o padrão da casa", () => {
+    // Offset −5 sobre a saída de 20/08 → 15/08, ainda no futuro.
+    expect(naFase("criar-aprovacoes", saida(2026, 8, 20), { deadlineEntregaLayouts: -5 })).toBe(false);
+  });
+
+  it("Finalizados nunca acusa atraso — o marco de lá é a própria saída", () => {
+    expect(naFase("finalizados", saida(2025, 1, 5))).toBe(false);
+    expect(filtrarAtrasadasDaFase([item({ event: { truckDepartureDate: saida(2025, 1, 5) } })], "finalizados", B.today))
+      .toEqual([]);
+  });
+
+  it("peça sem saída marcada não é atrasada (não há âncora)", () => {
+    expect(naFase("criar-aprovacoes", null as any)).toBe(false);
+    expect(isAtrasadaNaFase({ event: null }, "criar-aprovacoes", B.today)).toBe(false);
+    expect(isAtrasadaNaFase({}, "criar-aprovacoes", B.today)).toBe(false);
+  });
+
+  it("filtrarAtrasadasDaFase devolve o mesmo conjunto do selo da coluna Prazo", () => {
+    const lista = [
+      item({ id: "atrasada", event: { truckDepartureDate: saida(2026, 8, 30) } }),
+      item({ id: "no-prazo", event: { truckDepartureDate: saida(2026, 10, 1) } }),
+      item({ id: "sem-saida", event: { truckDepartureDate: null } }),
+    ];
+    const so = filtrarAtrasadasDaFase(lista, "criar-aprovacoes", B.today);
+    expect(so.map((i: any) => i.id)).toEqual(["atrasada"]);
+    // O mesmo recorte que a coluna desenharia como "Nd atrasado".
+    const pelaColuna = lista.filter(
+      (i: any) => (phaseDeadline(i.event, "criar-aprovacoes", B.today)?.diff ?? 0) < 0,
+    );
+    expect(pelaColuna.map((i: any) => i.id)).toEqual(["atrasada"]);
+  });
+
+  it("entra na conta de filtros ativos e na chave de recorte", () => {
+    expect(countActiveFilters(filters({ atrasado: true }))).toBe(1);
+    expect(filtersKey(filters({ atrasado: true }), "x")).not.toBe(filtersKey(filters(), "x"));
+  });
+
+  it("vai e volta da URL como ?atrasados=1", () => {
+    expect(serializeArteFilters(filters({ atrasado: true }), "criar-aprovacoes")).toBe("atrasados=1");
+    expect(parseArteFilters("atrasados=1").filters.atrasado).toBe(true);
+    expect(parseArteFilters("").filters.atrasado).toBe(false);
+    expect(parseArteFilters("atrasados=talvez").filters.atrasado).toBe(false);
   });
 });
 

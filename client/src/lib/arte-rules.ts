@@ -100,6 +100,16 @@ export interface ArteFilters {
   thumb: TriState;
   final: TriState;
   period: PeriodFilter;
+  /**
+   * Só o que já passou do marco da FASE (ver `isAtrasadaNaFase`).
+   *
+   * NÃO é avaliado por `matchesArteFilters`: o marco depende da fase em que a
+   * peça está, e `matchesArteFilters` roda ANTES do balde por fase existir.
+   * Quem aplica é `filtrarAtrasadasDaFase`, já com a fase do balde em mãos.
+   * Ele mora aqui mesmo assim porque é filtro para todo o resto — URL,
+   * contagem de filtros ativos, chave de recorte e chip de "Ativos:".
+   */
+  atrasado: boolean;
 }
 
 export type TriState = "todos" | "com" | "sem";
@@ -118,6 +128,7 @@ export const EMPTY_ARTE_FILTERS: ArteFilters = {
   thumb: "todos",
   final: "todos",
   period: "Todos",
+  atrasado: false,
 };
 
 /** Marcos de data calculados UMA vez por passada, não por item. */
@@ -207,6 +218,7 @@ export function countActiveFilters(f: ArteFilters): number {
   if (f.thumb !== "todos") n++;
   if (f.final !== "todos") n++;
   if (f.period !== "Todos") n++;
+  if (f.atrasado) n++;
   return n;
 }
 
@@ -229,6 +241,7 @@ export function filtersKey(f: ArteFilters, tab: string): string {
     f.thumb,
     f.final,
     f.period,
+    f.atrasado ? "1" : "",
   ].join("~");
 }
 
@@ -250,6 +263,7 @@ export function serializeArteFilters(f: ArteFilters, tab: string): string {
   if (f.thumb !== "todos") p.set("thumb", f.thumb);
   if (f.final !== "todos") p.set("final", f.final);
   if (f.period !== "Todos") p.set("periodo", f.period);
+  if (f.atrasado) p.set("atrasados", "1");
   return p.toString();
 }
 
@@ -281,6 +295,7 @@ export function parseArteFilters(search: string): { filters: ArteFilters; tab: A
       period: (PERIOD_FILTERS as readonly string[]).includes(period ?? "")
         ? (period as PeriodFilter)
         : "Todos",
+      atrasado: p.get("atrasados") === "1",
     },
   };
 }
@@ -412,6 +427,40 @@ export function compareEventUrgency(a: any, b: any, tab: string, today?: Date): 
   if (!da) return 1;
   if (!db) return -1;
   return da.date.getTime() - db.date.getTime();
+}
+
+// ── Atraso ──────────────────────────────────────────────────────────────────
+
+/**
+ * A peça já passou do marco da FASE em que está?
+ *
+ * QUAL MARCO, E POR QUE NÃO É A SAÍDA DO CAMINHÃO. O prazo que a tela cobra é
+ * o de `PHASE_DEADLINE` — Entrega de Layouts (−20) para quem ainda vai enviar
+ * ou está em correção, Aprovação de Layout (−12) para quem espera patrocinador
+ * ou vai finalizar. A saída do caminhão é o prazo mais FOLGADO do fluxo: é o
+ * fim da linha, semanas depois da data em que o trabalho desta fase precisa
+ * estar feito. Medir por ela deixaria a fila inteira "no prazo" até o mês
+ * seguinte e o filtro devolveria quase nada — que é exatamente o alarme tarde
+ * demais que o marco por fase existe para evitar.
+ *
+ * É a MESMA `phaseDeadline` da coluna "Prazo" e da faixa de diagnóstico: o
+ * filtro mostra o conjunto dos selos "Nd atrasado" que já estão na tela, nunca
+ * uma segunda contagem paralela.
+ *
+ * Finalizados é a exceção deliberada: o marco daquela fase é a própria saída
+ * do caminhão, que para uma peça já pronta costuma ter passado — chamar isso
+ * de atraso acenderia alarme falso na lista inteira. Lá nada é atrasado.
+ */
+export function isAtrasadaNaFase(item: any, tab: string, today: Date): boolean {
+  if (tab === "finalizados") return false;
+  const p = phaseDeadline(item?.event, tab, today);
+  return !!p && p.diff < 0;
+}
+
+/** Recorte "só atrasadas" de um balde já filtrado, com a fase daquele balde. */
+export function filtrarAtrasadasDaFase(items: any[], tab: string, today: Date): any[] {
+  if (tab === "finalizados") return [];
+  return items.filter((i) => isAtrasadaNaFase(i, tab, today));
 }
 
 // ── Recorte temporal padrão da aba Finalizados ──────────────────────────────

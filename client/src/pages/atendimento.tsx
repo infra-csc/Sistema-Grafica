@@ -6,6 +6,14 @@ import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { ExportPdfDialog } from "@/components/export-pdf-dialog";
 import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip, Plus, Pencil, Trash2, Truck, Cog, Send, Link2, Unlock, Upload, ImageIcon, ArrowRightLeft, Check } from "lucide-react";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
+// Prazo desta tela = marco de APROVAÇÃO DE LAYOUT. Regra pura e única, testada
+// em server/__tests__/atendimento-prazo.test.ts.
+import {
+  filtrarAtrasadosNaAprovacao,
+  inicioDoDia,
+  isEventoAtrasadoNaAprovacao,
+  prazoAprovacaoLayout,
+} from "@/lib/atendimento-prazo";
 import { FilePreview } from "@/components/file-preview";
 import { getStatusMeta, getStatusLabel, getStatusShort, PRODUCTION_STATUSES } from "@/lib/status";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -151,6 +159,21 @@ export default function Atendimento() {
     const sp = new URLSearchParams(window.location.search).get("patrocinador");
     return sp ? [sp] : [];
   });
+  // ?atrasados=1 — recorte "só o que passou do marco de Aprovação de Layout".
+  const [atrasadosFilter, setAtrasadosFilter] = useState<boolean>(
+    () => new URLSearchParams(window.location.search).get("atrasados") === "1",
+  );
+
+  // Âncora de "hoje" ESTÁVEL. O selo de prazo do cabeçalho de evento fazia
+  // `new Date()` DENTRO do render de cada grupo: a mesma tela podia responder
+  // dias diferentes na virada da meia-noite, e nenhuma memoização segurava um
+  // valor que nascia novo a cada passada. Mesmo padrão de `agora` na Gráfica.
+  const [agora, setAgora] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setAgora(Date.now()), 600_000);
+    return () => clearInterval(id);
+  }, []);
+  const hoje = useMemo(() => inicioDoDia(new Date(agora)), [agora]);
 
   // Filtros — aba Histórico
   const [histEventFilter, setHistEventFilter] = useState<string[]>([]);
@@ -562,7 +585,15 @@ export default function Atendimento() {
 
   const pendingItems = awaitingItems;
 
-  const filteredItems = useMemo(() => {
+  /** Evento por id — o prazo da peça é o do evento dela. */
+  const eventoPorId = useMemo(
+    () => new Map((events as any[]).map((e: any) => [e.id, e])),
+    [events],
+  );
+
+  // "Base" = todos os filtros MENOS o de atrasados. É dela que sai a contagem
+  // exibida no próprio controle, que precisa continuar valendo depois do clique.
+  const filteredItemsBase = useMemo(() => {
     return pendingItems.filter(item => {
       const hasSponsors = itemSponsorsMap[item.id]?.length > 0;
       if (!hasSponsors && !loadingSponsors) return false;
@@ -581,11 +612,22 @@ export default function Atendimento() {
     });
   }, [pendingItems, deferredSearchTerm, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors]);
 
+  // UMA passada, memoizada na âncora estável — nada de recalcular data por card.
+  const atrasadosNaBase = useMemo(
+    () => filtrarAtrasadosNaAprovacao(filteredItemsBase, eventoPorId, hoje),
+    [filteredItemsBase, eventoPorId, hoje],
+  );
+
+  const filteredItems = atrasadosFilter ? atrasadosNaBase : filteredItemsBase;
+
   // Filtros facetados: cada filtro lista só o que existe na página, aplicando
   // os OUTROS filtros ativos (escolher um evento reduz tipos e patrocinadores).
   const facetPool = (exclude: 'event' | 'type' | 'sponsor') =>
     pendingItems.filter((item: any) => {
       if (!(itemSponsorsMap[item.id]?.length > 0) && !loadingSponsors) return false;
+      // O recorte de atrasados também é faceta: sem ele aqui, o dropdown
+      // ofereceria "Evento X · 12" e a lista devolveria 2.
+      if (atrasadosFilter && !isEventoAtrasadoNaAprovacao(eventoPorId.get(item.eventId), hoje)) return false;
       if (exclude !== 'event' && eventFilter.length > 0 && !eventFilter.includes(item.eventId)) return false;
       if (exclude !== 'type' && itemTypeFilter.length > 0 && !itemTypeFilter.includes(item.type)) return false;
       if (exclude !== 'sponsor' && sponsorFilter.length > 0 && !itemSponsorsMap[item.id]?.some(s => sponsorFilter.includes(s.id))) return false;
@@ -606,7 +648,7 @@ export default function Atendimento() {
       }
     });
     return Array.from(map.values());
-  }, [pendingItems, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors, events]);
+  }, [pendingItems, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors, events, atrasadosFilter, eventoPorId, hoje]);
 
   const typeFilterOptions = useMemo(() => {
     const map = new Map<string, { value: string; label: string; count: number }>();
@@ -617,7 +659,7 @@ export default function Atendimento() {
       else map.set(i.type, { value: i.type, label: i.type, count: 1 });
     });
     return Array.from(map.values());
-  }, [pendingItems, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors]);
+  }, [pendingItems, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors, atrasadosFilter, eventoPorId, hoje]);
 
   // Enquanto o mapa ainda carrega, mostra todos os patrocinadores da API
   // (sem contagem) para que o filtro apareça imediatamente. Assim que o mapa
@@ -633,7 +675,7 @@ export default function Atendimento() {
       else map.set(s.id, { value: s.id, label: s.name, count: 1, dotColor: s.color || '#a8a29e' });
     }));
     return Array.from(map.values());
-  }, [pendingItems, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors, sponsors]);
+  }, [pendingItems, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors, sponsors, atrasadosFilter, eventoPorId, hoje]);
 
   // Itens filtrados para o modal de exportação PDF (filtros independentes da página)
   // Pool para o modal de exportação compartilhado: anexa os patrocinadores
@@ -867,7 +909,21 @@ export default function Atendimento() {
   }, [batchSponsorId, batchEventId, batchEligibleItems]);
 
   // Ao trocar de aba ou mexer nos filtros, volta a listagem para o topo.
-  useEffect(() => { setPendVisible(PAGE_SIZE); }, [activeTab, searchTerm, eventFilter, itemTypeFilter, sponsorFilter]);
+  useEffect(() => { setPendVisible(PAGE_SIZE); }, [activeTab, searchTerm, eventFilter, itemTypeFilter, sponsorFilter, atrasadosFilter]);
+
+  // O recorte de atrasados vive na URL, como nas demais telas: é o link que se
+  // manda para o colega ("olha o que já venceu"). replaceState com debounce de
+  // 300ms (a regra da casa pede ≥200) e preservando os outros parâmetros — o
+  // ?patrocinador= da Gestão de Prazos chega por aqui e não pode ser apagado.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const p = new URLSearchParams(window.location.search);
+      if (atrasadosFilter) p.set("atrasados", "1"); else p.delete("atrasados");
+      const qs = p.toString();
+      window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [atrasadosFilter]);
   useEffect(() => { setHistVisible(PAGE_SIZE); }, [activeTab, histEventFilter, histSponsorFilter, histPeriodFilter, histSearchTerm]);
 
   const getEventInfo = (eventId: string) => events.find((e: any) => e.id === eventId);
@@ -1067,10 +1123,54 @@ export default function Atendimento() {
             testId="select-sponsor-filter"
           />
 
+          {/* Atrasados — o recorte que o dono pediu.
+              "Atrasado" aqui é medido contra o marco de APROVAÇÃO DE LAYOUT
+              (deadlineAprovacaoLayout do evento, padrão −12 dias sobre a saída),
+              que é o mesmo selo já exibido no cabeçalho de cada evento e no
+              modal de revisão. NÃO é a saída do caminhão: ela é o prazo mais
+              folgado do fluxo, semanas depois da data em que a decisão do
+              patrocinador precisa existir — por ela quase nada apareceria como
+              atrasado, que é justamente o alarme tarde demais.
+              A contagem fica no controle: o recorte diz quantos são antes de
+              ser clicado. Ver lib/atendimento-prazo. */}
+          <button
+            onClick={() => setAtrasadosFilter(v => !v)}
+            aria-pressed={atrasadosFilter}
+            data-testid="button-filter-atrasados"
+            title="Só peças cujo evento já passou do prazo de Aprovação de Layout"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 7,
+              height: isMobile ? 44 : 36, padding: '0 12px',
+              borderRadius: 7,
+              backgroundColor: atrasadosFilter ? '#991b1b' : '#ffffff',
+              border: atrasadosFilter ? '1.5px solid #991b1b' : '1px solid #e7e5e4',
+              color: atrasadosFilter ? '#ffffff' : '#1c1917',
+              fontSize: 13, fontWeight: atrasadosFilter ? 600 : 400,
+              cursor: 'pointer', whiteSpace: 'nowrap',
+              transition: 'background 0.15s, border 0.15s, color 0.15s',
+            }}
+          >
+            <Clock aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} />
+            Atrasados
+            <span
+              data-testid="badge-atrasados-count"
+              // Contrastes (texto ≤13px exige 4,5:1): #991b1b sobre #fef2f2 =
+              // 7,60:1 ✓ · #57534e sobre #f5f5f4 = 6,99:1 ✓ · branco sobre o
+              // véu claro do estado ativo (≈#af4d4d) = 5,24:1 ✓
+              style={{
+                padding: '1px 7px', borderRadius: 99, fontSize: 11, fontWeight: 700,
+                backgroundColor: atrasadosFilter ? 'rgba(255,255,255,0.22)' : atrasadosNaBase.length > 0 ? '#fef2f2' : '#f5f5f4',
+                color: atrasadosFilter ? '#ffffff' : atrasadosNaBase.length > 0 ? '#991b1b' : '#57534e',
+              }}
+            >
+              {atrasadosNaBase.length}
+            </span>
+          </button>
+
           {/* Limpar filtros */}
-          {(searchTerm || eventFilter.length > 0 || itemTypeFilter.length > 0 || sponsorFilter.length > 0) && (
+          {(searchTerm || eventFilter.length > 0 || itemTypeFilter.length > 0 || sponsorFilter.length > 0 || atrasadosFilter) && (
             <button
-              onClick={() => { setSearchTerm(""); setEventFilter([]); setItemTypeFilter([]); setSponsorFilter([]); }}
+              onClick={() => { setSearchTerm(""); setEventFilter([]); setItemTypeFilter([]); setSponsorFilter([]); setAtrasadosFilter(false); }}
               aria-label="Limpar filtros"
               data-testid="button-clear-filters"
               style={{
@@ -1553,16 +1653,32 @@ export default function Atendimento() {
 
       {/* ─── GRID DE CARDS (bento-style) ─────────────────────────── */}
       {filteredItems.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '64px 0' }}>
+        <div style={{ textAlign: 'center', padding: '64px 0' }} data-testid="empty-atendimento">
           <CheckCircle style={{ width: 48, height: 48, color: '#86efac', margin: '0 auto 16px' }} />
           <h3 style={{ fontSize: 18, fontWeight: 700, color: '#1c1917', margin: '0 0 8px' }}>
-            {pendingItems.length === 0 ? "Nenhum item pendente" : "Nenhum resultado encontrado"}
+            {/* Vazio por causa do recorte de atrasados tem texto próprio: com o
+                filtro ligado, "Nenhum item pendente" leria como "nada a fazer"
+                enquanto a fila inteira continua ali, dentro do prazo. */}
+            {atrasadosFilter
+              ? "Nada atrasado neste recorte"
+              : pendingItems.length === 0 ? "Nenhum item pendente" : "Nenhum resultado encontrado"}
           </h3>
-          <p style={{ color: '#746e69', fontSize: 15 }}>
-            {pendingItems.length === 0
+          <p style={{ color: '#746e69', fontSize: 15, maxWidth: 520, margin: '0 auto' }} data-testid="empty-atendimento-motivo">
+            {atrasadosFilter
+              ? `A lista está vazia pelo FILTRO "Atrasados" — ${filteredItemsBase.length === 0 ? 'os demais filtros já não devolvem nenhuma peça' : `as ${filteredItemsBase.length} peças deste recorte estão todas dentro do prazo de Aprovação de Layout`}.`
+              : pendingItems.length === 0
               ? "Não há itens aguardando aprovação do patrocinador no momento."
               : "Tente ajustar os filtros para ver mais resultados."}
           </p>
+          {atrasadosFilter && (
+            <button
+              onClick={() => setAtrasadosFilter(false)}
+              data-testid="button-clear-atrasados-empty"
+              style={{ marginTop: 16, height: 40, padding: '0 18px', borderRadius: 8, border: 'none', background: '#0c0a09', color: '#ffffff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
+            >
+              Mostrar todas as peças
+            </button>
+          )}
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
@@ -1621,13 +1737,14 @@ export default function Atendimento() {
                       </span>
                     )}
                   </h4>
-                  {ev?.truckDepartureDate && (() => {
-                    const days = ev.deadlineAprovacaoLayout ?? -12;
-                    const d = new Date(new Date(ev.truckDepartureDate).getTime() + days * 86400000);
-                    d.setHours(0,0,0,0);
-                    const tod = new Date(); tod.setHours(0,0,0,0);
-                    const diff = Math.ceil((d.getTime() - tod.getTime()) / 86400000);
-                    const ds = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                  {(() => {
+                    // Marco de Aprovação de Layout — regra única em
+                    // lib/atendimento-prazo, a mesma do filtro "Atrasados" e do
+                    // cabeçalho do modal. `hoje` é a âncora estável da tela.
+                    const p = prazoAprovacaoLayout(ev, hoje);
+                    if (!p) return null;
+                    const diff = p.diff;
+                    const ds = p.dia.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
                     const s = diff < 0
                       ? { bg: '#FEE2E2', border: '#FECACA', text: '#B84040' }
                       : diff === 0
@@ -2562,14 +2679,16 @@ export default function Atendimento() {
                         <span style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                           {ev?.name || 'Sem Evento'}
                         </span>
-                        {ev?.truckDepartureDate && (() => {
+                        {(() => {
                           // O prazo desta tela é o marco de APROVAÇÃO DE LAYOUT,
                           // não a saída do caminhão: aqui o patrocinador decide,
                           // e cobrar pela saída dava ao atendimento semanas de
-                          // folga que ele não tem. Mesmo cálculo do card da
-                          // lista (offset do evento, padrão −12).
-                          const days = ev.deadlineAprovacaoLayout ?? -12;
-                          const limite = new Date(new Date(ev.truckDepartureDate).getTime() + days * 86400000);
+                          // folga que ele não tem. A conta era uma cópia da do
+                          // card da lista — agora as duas (e o filtro
+                          // "Atrasados") leem a mesma regra pura.
+                          const p = prazoAprovacaoLayout(ev, hoje);
+                          if (!p) return null;
+                          const limite = p.limite;
                           return (
                             <>
                               <span style={{ width: 4, height: 4, borderRadius: '50%', backgroundColor: '#d6d3d1' }} />

@@ -28,8 +28,10 @@ import {
   countActiveFilters,
   dentroDaJanelaFinalizados,
   filtersKey,
+  filtrarAtrasadasDaFase,
   compareEventUrgency,
   formatQuantity,
+  isAtrasadaNaFase,
   isUrgente,
   makeDateBounds,
   matchFileToItem,
@@ -38,6 +40,7 @@ import {
   phaseDeadline,
   serializeArteFilters,
   PERIOD_FILTERS,
+  PHASE_DEADLINE,
   type ArteFilters,
   type TriState,
   type PeriodFilter,
@@ -345,6 +348,23 @@ export default function Arte() {
   const [finalFilter, setFinalFilter] = useState<TriState>(urlInicial.filters.final);
   const [urgenteFilter, setUrgenteFilter] = useState(urlInicial.filters.urgente);
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>(urlInicial.filters.period);
+  // Só o que passou do marco da FASE — ver isAtrasadaNaFase em lib/arte-rules.
+  const [atrasadoFilter, setAtrasadoFilter] = useState(urlInicial.filters.atrasado);
+
+  // Âncora de "hoje" ESTÁVEL. `makeDateBounds()` era chamada dentro de quatro
+  // memos e de novo em cada passada de renderGroupedTable: a memoização era
+  // decorativa (marco novo a cada render) e, numa aba aberta durante a virada
+  // do dia, duas partes da mesma tela podiam responder dias diferentes. Um
+  // estado com tique de 10 min dá o mesmo padrão da Gráfica (`agora`): a data
+  // só muda quando o relógio muda, e aí a tela inteira muda junto.
+  const [agora, setAgora] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setAgora(Date.now()), 600_000);
+    return () => clearInterval(id);
+  }, []);
+  const dateBounds = useMemo(() => makeDateBounds(new Date(agora)), [agora]);
+  const hoje = dateBounds.today;
+
   const isMobile = useIsMobile();
   const [dispenseItem, setDispenseItem] = useState<any>(null);
   const [dispenseReason, setDispenseReason] = useState<string>("");
@@ -1109,8 +1129,9 @@ export default function Arte() {
     thumb: thumbFilter,
     final: finalFilter,
     period: periodFilter,
+    atrasado: atrasadoFilter,
   }), [deferredSearch, eventFilter, sponsorFilter, typeFilter, materialFilter, monthFilter,
-    next10DaysFilter, urgenteFilter, thumbFilter, finalFilter, periodFilter]);
+    next10DaysFilter, urgenteFilter, thumbFilter, finalFilter, periodFilter, atrasadoFilter]);
 
   const activeFilterCount = useMemo(
     // O filtro local de patrocinador da aba Correção não aparecia nem nos chips
@@ -1132,6 +1153,7 @@ export default function Arte() {
     setFinalFilter("todos");
     setUrgenteFilter(false);
     setPeriodFilter("Todos");
+    setAtrasadoFilter(false);
     setCorrecaoSponsorFilter("all");
   }, []);
 
@@ -1148,14 +1170,17 @@ export default function Arte() {
 
   // Aplica os filtros uma única vez e separa por aba. As contagens saem do
   // .length de cada balde; só a aba aberta paga o custo da ordenação.
-  const itemsByTab = useMemo(() => {
-    const bounds = makeDateBounds();
+  //
+  // "Base" = tudo MENOS o recorte de atrasadas: o marco depende da fase, que só
+  // existe depois do balde. É desta base que sai a contagem exibida no próprio
+  // controle "Prazo" — número que precisa continuar valendo depois de clicado.
+  const itemsByTabBase = useMemo(() => {
     const buckets: Record<string, any[]> = {
       "criar-aprovacoes": [], "aguardando-patrocinador": [],
       "finalizar-layouts": [], "finalizados": [],
     };
     for (const item of allItems) {
-      if (!matchesArteFilters(item, filters, bounds)) continue;
+      if (!matchesArteFilters(item, filters, dateBounds)) continue;
       for (const tab in buckets) {
         if (TAB_STATUSES[tab].includes(item.status)) { buckets[tab].push(item); break; }
       }
@@ -1165,23 +1190,32 @@ export default function Arte() {
     // caminhão mantém a aba útil como conferência recente; "ver tudo" está a
     // um clique no cabeçalho da aba.
     if (!finalizadosTudo) {
-      buckets["finalizados"] = buckets["finalizados"].filter(i => dentroDaJanelaFinalizados(i, bounds.today));
+      buckets["finalizados"] = buckets["finalizados"].filter(i => dentroDaJanelaFinalizados(i, hoje));
     }
     return buckets;
-  }, [allItems, filters, finalizadosTudo]);
+  }, [allItems, filters, finalizadosTudo, dateBounds, hoje]);
+
+  const itemsByTab = useMemo(() => {
+    if (!filters.atrasado) return itemsByTabBase;
+    const out: Record<string, any[]> = {};
+    for (const tab in itemsByTabBase) out[tab] = filtrarAtrasadasDaFase(itemsByTabBase[tab], tab, hoje);
+    return out;
+  }, [itemsByTabBase, filters.atrasado, hoje]);
 
   // Quantas peças a janela de 90 dias está escondendo (para o rótulo do "ver tudo").
   const finalizadosForaDaJanela = useMemo(() => {
-    if (finalizadosTudo) return 0;
-    const bounds = makeDateBounds();
+    // Com "só atrasadas" ligado a aba Finalizados fica vazia por definição (o
+    // marco dela é a própria saída); anunciar "N peças mais antigas fora do
+    // recorte" ali seria contar o que nenhum clique traz de volta.
+    if (finalizadosTudo || filters.atrasado) return 0;
     let n = 0;
     for (const item of allItems) {
       if (!TAB_STATUSES["finalizados"].includes(item.status)) continue;
-      if (!matchesArteFilters(item, filters, bounds)) continue;
-      if (!dentroDaJanelaFinalizados(item, bounds.today)) n++;
+      if (!matchesArteFilters(item, filters, dateBounds)) continue;
+      if (!dentroDaJanelaFinalizados(item, hoje)) n++;
     }
     return n;
-  }, [allItems, filters, finalizadosTudo]);
+  }, [allItems, filters, finalizadosTudo, dateBounds, hoje]);
 
   // Qualquer mudança de recorte recomeça a paginação. A dependência é uma CHAVE
   // do recorte, não a identidade do objeto de baldes: `itemsByTab` é um objeto
@@ -1208,7 +1242,6 @@ export default function Arte() {
     const list = itemsByTab[activeTab] ?? [];
     // Um Collator reutilizado é bem mais rápido que localeCompare por comparação.
     const cmp = new Intl.Collator('pt-BR');
-    const hoje = makeDateBounds().today;
     return [...list].sort((a, b) => {
       // Ordenar por PRAZO reordena os blocos inteiros (a lista é agrupada por
       // evento): o evento com o marco da fase mais próximo sobe para o topo.
@@ -1225,7 +1258,7 @@ export default function Arte() {
       // virava 621 e caía a centenas de linhas da peça de que ele nasceu.
       return compareDisplayId(a.displayId, b.displayId);
     });
-  }, [itemsByTab, activeTab, groupMaps, sortMode]);
+  }, [itemsByTab, activeTab, groupMaps, sortMode, hoje]);
 
   const pendingCount = itemsByTab["criar-aprovacoes"].length;
   const aguardandoCount = itemsByTab["aguardando-patrocinador"].length;
@@ -1234,11 +1267,24 @@ export default function Arte() {
   // Mesmo predicado das outras abas: antes esta contagem só conhecia evento,
   // tipo, material, patrocinador e busca — ligar "Saída 10 dias" acendia o chip
   // e devolvia a lista inteira.
-  const correcaoFiltrados = useMemo(() => {
-    const bounds = makeDateBounds();
-    return (correcaoItems as any[]).filter(item => matchesArteFilters(item, filters, bounds));
-  }, [correcaoItems, filters]);
+  const correcaoBase = useMemo(
+    () => (correcaoItems as any[]).filter(item => matchesArteFilters(item, filters, dateBounds)),
+    [correcaoItems, filters, dateBounds],
+  );
+  const correcaoFiltrados = useMemo(
+    () => (filters.atrasado ? filtrarAtrasadasDaFase(correcaoBase, "correcao", hoje) : correcaoBase),
+    [correcaoBase, filters.atrasado, hoje],
+  );
   const correcaoCount = correcaoFiltrados.length;
+
+  // Quantas peças da ABA ATIVA estão atrasadas contra o marco da própria fase.
+  // Sai da base (sem o recorte de atraso aplicado) para que o número no
+  // controle seja o mesmo antes e depois de ligá-lo. Uma passada por aba, com
+  // a âncora estável de "hoje" — nada disso é recalculado por linha da tabela.
+  const atrasadasNaAba = useMemo(() => {
+    const base = activeTab === "correcao" ? correcaoBase : (itemsByTabBase[activeTab] ?? []);
+    return filtrarAtrasadasDaFase(base, activeTab, hoje).length;
+  }, [itemsByTabBase, correcaoBase, activeTab, hoje]);
 
   const handleViewDetails = (item: any) => {
     setSelectedItemId(item.id);
@@ -1340,6 +1386,7 @@ export default function Arte() {
     if (next10DaysFilter) chips.push({ kind: 'next10', label: "Próximos 10 dias" });
     if (periodFilter !== "Todos") chips.push({ kind: 'period', label: `Período: ${periodFilter}` });
     if (urgenteFilter) chips.push({ kind: 'urgente', label: "Urgente" });
+    if (atrasadoFilter) chips.push({ kind: 'atrasado', label: "Só atrasadas" });
     if (thumbFilter !== "todos") chips.push({ kind: 'thumb', label: thumbFilter === "sem" ? "Sem thumb" : "Com thumb" });
     if (finalFilter !== "todos") chips.push({ kind: 'final', label: finalFilter === "sem" ? "Sem arquivo final" : "Com arquivo final" });
     if (searchFilter) chips.push({ kind: 'search', label: `Busca: "${searchFilter}"` });
@@ -1351,7 +1398,7 @@ export default function Arte() {
       chips.push({ kind: 'correcaoSponsor', label: `Correção · ${nome || 'patrocinador'}` });
     }
     return chips;
-  }, [eventFilter, sponsorFilter, typeFilter, materialFilter, monthFilter, next10DaysFilter, periodFilter, urgenteFilter, thumbFilter, finalFilter, searchFilter, correcaoSponsorFilter, correcaoItems, events, uniqueSponsors]);
+  }, [eventFilter, sponsorFilter, typeFilter, materialFilter, monthFilter, next10DaysFilter, periodFilter, urgenteFilter, atrasadoFilter, thumbFilter, finalFilter, searchFilter, correcaoSponsorFilter, correcaoItems, events, uniqueSponsors]);
 
   const removeChipFilter = (chip: ActiveChip) => {
     switch (chip.kind) {
@@ -1363,6 +1410,7 @@ export default function Arte() {
       case 'next10': setNext10DaysFilter(false); break;
       case 'period': setPeriodFilter("Todos"); break;
       case 'urgente': setUrgenteFilter(false); break;
+      case 'atrasado': setAtrasadoFilter(false); break;
       case 'thumb': setThumbFilter("todos"); break;
       case 'final': setFinalFilter("todos"); break;
       case 'search': setSearchFilter(""); break;
@@ -1776,27 +1824,44 @@ export default function Arte() {
     const comSelecao = tabId === "criar-aprovacoes" || tabId === "finalizados";
     const minW = tableMinWidth(comSelecao);
     const totalColunas = ARTE_COLS.length + (comSelecao ? 1 : 0);
-    const hoje = makeDateBounds().today;
 
     if (items.length === 0) {
       const porFiltro = activeFilterCount > 0;
+      // Vazio POR CAUSA do recorte de atrasadas tem texto próprio: "nenhuma
+      // peça aguardando envio" leria como "nada a fazer" quando a fila inteira
+      // continua ali, só que dentro do prazo. O atalho desliga só este recorte
+      // e mantém os demais — sair de "atrasadas" não deveria custar o filtro
+      // de evento que a pessoa montou antes.
+      const soAtrasadas = atrasadoFilter;
+      const marco = PHASE_DEADLINE[tabId]?.label ?? "prazo da fase";
+      const outrosFiltros = activeFilterCount - 1;
       return (
         <div style={{ textAlign: 'center', padding: '48px 0' }} data-testid="empty-arte">
-          {porFiltro
-            ? <Search style={{ width: 40, height: 40, color: '#a8a29e', margin: '0 auto 16px' }} />
+          {soAtrasadas
+            ? <CheckCircle style={{ width: 44, height: 44, color: '#16a34a', margin: '0 auto 16px' }} />
+            : porFiltro
+            ? <Search style={{ width: 40, height: 40, color: '#78716c', margin: '0 auto 16px' }} />
             : tabId === "criar-aprovacoes" ? <CheckCircle style={{ width: 48, height: 48, color: '#16a34a', margin: '0 auto 16px' }} />
             : tabId === "finalizar-layouts" ? <Upload style={{ width: 48, height: 48, color: '#2563eb', margin: '0 auto 16px' }} />
             : <Eye style={{ width: 48, height: 48, color: '#57534e', margin: '0 auto 16px' }} />}
           <p style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 4 }}>
-            {porFiltro
+            {soAtrasadas
+              ? tabId === "finalizados"
+                ? "Finalizados não tem atraso a mostrar"
+                : "Nada atrasado nesta fase"
+              : porFiltro
               ? "Nenhuma peça neste recorte"
               : tabId === "criar-aprovacoes" ? "Nenhuma peça aguardando envio"
               : tabId === "aguardando-patrocinador" ? "Nenhuma peça aguardando patrocinador"
               : tabId === "finalizar-layouts" ? "Nenhuma peça aguardando arquivo final"
               : "Nenhuma peça finalizada"}
           </p>
-          <p style={{ fontSize: 13, color: '#57534e' }}>
-            {porFiltro
+          <p style={{ fontSize: 13, color: '#57534e', maxWidth: 460, margin: '0 auto' }} data-testid="empty-arte-motivo">
+            {soAtrasadas
+              ? tabId === "finalizados"
+                ? "O marco desta fase é a própria saída do caminhão, que numa peça já pronta passou por definição — a lista está vazia pelo filtro, não porque falte trabalho."
+                : `A lista está vazia pelo FILTRO "Prazo: atrasados"${outrosFiltros > 0 ? ` (e mais ${outrosFiltros} ${outrosFiltros === 1 ? 'filtro' : 'filtros'})` : ''} — as peças desta fase estão todas dentro do marco de ${marco}.`
+              : porFiltro
               ? `${activeFilterCount} ${activeFilterCount === 1 ? 'filtro ativo' : 'filtros ativos'} estão escondendo o resto da fila`
               : tabId === "criar-aprovacoes" ? "Todo thumb desta fase já foi enviado"
               : tabId === "aguardando-patrocinador" ? "Nenhuma peça em aprovação pelo patrocinador"
@@ -1806,13 +1871,24 @@ export default function Arte() {
           {/* O texto mandava limpar os filtros mas o botão só existia lá em cima,
               na linha de chips do cabeçalho fixo. */}
           {porFiltro && (
-            <button
-              onClick={clearAllFilters}
-              data-testid="button-clear-filters-empty"
-              style={{ marginTop: 14, height: 36, padding: '0 16px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#1c1917', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-            >
-              Limpar {activeFilterCount === 1 ? 'o filtro' : `os ${activeFilterCount} filtros`}
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: 14, flexWrap: 'wrap' }}>
+              {soAtrasadas && (
+                <button
+                  onClick={() => setAtrasadoFilter(false)}
+                  data-testid="button-clear-atrasado-empty"
+                  style={{ height: 36, padding: '0 16px', borderRadius: 8, border: 'none', background: '#1c1917', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                >
+                  Mostrar todos os prazos
+                </button>
+              )}
+              <button
+                onClick={clearAllFilters}
+                data-testid="button-clear-filters-empty"
+                style={{ height: 36, padding: '0 16px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#1c1917', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+              >
+                Limpar {activeFilterCount === 1 ? 'o filtro' : `os ${activeFilterCount} filtros`}
+              </button>
+            </div>
           )}
         </div>
       );
@@ -1849,13 +1925,10 @@ export default function Arte() {
     // que descreve, e não no cabeçalho fixo — assim custa zero de primeira
     // dobra quando não há nada a dizer.
     //
-    // Em "Finalizados" não há atraso a apontar: o marco daquela fase é a
-    // própria saída do caminhão, que para uma peça pronta já passou por
-    // definição — dizer "atrasada" ali seria alarme falso em toda a lista.
-    const atrasadas = tabId === "finalizados" ? 0 : items.filter(i => {
-      const p = phaseDeadline(i.event, tabId, hoje);
-      return !!p && p.diff < 0;
-    }).length;
+    // A regra de atraso é UMA (`isAtrasadaNaFase`), compartilhada com o filtro
+    // "Prazo: atrasados" e com a coluna Prazo — a exceção de Finalizados mora
+    // lá dentro, não em cada chamador.
+    const atrasadas = items.filter(i => isAtrasadaNaFase(i, tabId, hoje)).length;
     const urgentes = items.filter(i => isUrgente(i.event?.priority)).length;
 
     // Só as primeiras linhas entram no DOM. Com quase mil peças numa aba, montar
@@ -2662,6 +2735,48 @@ export default function Arte() {
               por um divisor. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap', borderTop: '1px solid #f0efee', paddingTop: 8 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Mostrar:</span>
+
+            {/* Prazo — o recorte que o dono pediu. "Atrasada" é medida contra o
+                marco da FASE (Entrega de Layouts −20 / Aprovação de Layout −12),
+                nunca contra a saída do caminhão: a saída é o prazo mais folgado
+                do fluxo e por ela quase nada apareceria. Mesma `phaseDeadline`
+                da coluna Prazo — o filtro entrega o conjunto dos selos "Nd
+                atrasado" que já estão na tela. Ver lib/arte-rules.
+                Em Finalizados o marco É a saída, que numa peça pronta já passou
+                por definição: lá o recorte não existe em vez de mentir. */}
+            <div role="group" aria-label="Prazo da fase" data-testid="segment-atrasado"
+              style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 999, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', padding: '0 6px 0 8px' }}>Prazo</span>
+              {([
+                { on: false, label: 'todos' },
+                { on: true, label: 'atrasados' },
+              ] as { on: boolean; label: string }[]).map(({ on, label }) => {
+                const bloqueado = on && activeTab === "finalizados";
+                const ativo = atrasadoFilter === on;
+                return (
+                  <button key={label} onClick={() => { if (!bloqueado) setAtrasadoFilter(on); }}
+                    aria-pressed={ativo} disabled={bloqueado}
+                    data-testid={`button-atrasado-${on ? 'sim' : 'nao'}`}
+                    title={bloqueado
+                      ? "Em Finalizados o marco é a própria saída do caminhão, que numa peça pronta já passou — não há atraso a apontar"
+                      : on ? "Só peças que já passaram do marco desta fase" : undefined}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 22, padding: '0 10px', borderRadius: 999, border: 'none', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.5 : 1, fontSize: 11, fontWeight: ativo ? 700 : 500, background: ativo ? '#ffffff' : 'transparent', color: ativo ? '#1c1917' : '#57534e', boxShadow: ativo ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.12s' }}>
+                    {label}
+                    {on && !bloqueado && (
+                      // A contagem vive no controle: o recorte diz QUANTOS são
+                      // antes de ser clicado, como as abas e os dropdowns fazem.
+                      <span data-testid="badge-atrasadas-count"
+                        // Contrastes (texto ≤13px exige 4,5:1):
+                        // #991b1b sobre #fef2f2 = 7,60:1 ✓ · #57534e sobre
+                        // #e7e5e4 = 6,00:1 ✓
+                        style={{ padding: '0 6px', borderRadius: 999, fontSize: 11, fontWeight: 700, lineHeight: '16px', background: atrasadasNaAba > 0 ? '#fef2f2' : '#e7e5e4', color: atrasadasNaAba > 0 ? '#991b1b' : '#57534e' }}>
+                        {atrasadasNaAba}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
 
             <div role="group" aria-label="Prioridade" data-testid="segment-urgente"
               style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 999, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>

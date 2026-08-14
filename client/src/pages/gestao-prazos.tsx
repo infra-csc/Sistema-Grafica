@@ -69,6 +69,11 @@ export default function GestaoPrazos() {
     staleTime: 60_000,
     refetchOnMount: true,
     refetchOnWindowFocus: true,
+    // A tela não tem botão "Atualizar": ela se atualiza sozinha (WebSocket
+    // invalida a cada mutação de evento/peça) e este polling é a rede de
+    // segurança para o socket morrer em silêncio — sem ele, "sem botão"
+    // viraria "congelada até o próximo foco de janela".
+    refetchInterval: 60_000,
   });
 
   // Tick de 1 min: "há 12 min" era calculado no render e congelava no instante
@@ -82,7 +87,7 @@ export default function GestaoPrazos() {
   // "N mudanças desde que você abriu": o WebSocket invalida com debounce de
   // 500ms e isso era completamente invisível. A pílula não promete dado novo
   // (a query já revalidou) — promete CONTINUIDADE DE LEITURA: diz que o chão
-  // se moveu enquanto o diretor lia, e o clique recarrega e zera.
+  // se moveu enquanto o diretor lia, e o clique só zera o contador.
   const [novidades, setNovidades] = useState(0);
   useEffect(() => onPrazosInvalidated(() => setNovidades((n) => n + 1)), []);
 
@@ -1057,14 +1062,11 @@ export default function GestaoPrazos() {
               {novidades > 0 && (
                 <button
                   type="button"
-                  onClick={() => { setNovidades(0); refetch(); }}
+                  onClick={() => setNovidades(0)}
                   data-testid="button-novidades"
-                  title="A tela já recarregou sozinha — este contador diz que o chão se moveu enquanto você lia. Clique para recarregar agora e zerar."
+                  title="A tela já recarregou sozinha — este contador diz que o chão se moveu enquanto você lia. Clique para zerar."
                   style={{
                     display: "inline-flex", alignItems: "center", gap: 6,
-                    // Mesma altura de "Atualizar" ao lado: é a MESMA ação
-                    // (recarregar), e a pílula ficava 14px mais baixa que o
-                    // botão vizinho na mesma fileira.
                     padding: "0 12px", height: isMobile ? 44 : 36, borderRadius: R.pill,
                     border: `1px solid ${TI.amber}`, backgroundColor: TI.amberBg,
                     color: TI.amber, fontSize: 11, fontWeight: 700, cursor: "pointer",
@@ -1074,28 +1076,19 @@ export default function GestaoPrazos() {
                   {novidades} mudança{novidades !== 1 ? "s" : ""} desde que você abriu
                 </button>
               )}
+              {/* Sem botão "Atualizar" (pedido do dono): a tela se atualiza
+                  sozinha — WebSocket + polling de 60s + refetch no foco. O selo
+                  continua sendo a promessa de veracidade, e o spinner ao lado é
+                  o único sinal de que uma recarga está em curso. Os botões de
+                  "Tentar de novo" dos estados de ERRO ficam: lá a recarga
+                  automática falhou e o clique é recuperação, não rotina. */}
               <span
-                style={{ fontSize: 11, color: dadoVelho ? TI.amber : TI.label, fontWeight: dadoVelho ? 700 : 400 }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 11, color: dadoVelho ? TI.amber : TI.label, fontWeight: dadoVelho ? 700 : 400 }}
                 title={new Date(data.generatedAt).toLocaleString("pt-BR")}
               >
+                {isFetching && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}
                 Atualizado {fmtRelative(data.generatedAt, agora)}
               </span>
-              <button
-                type="button"
-                onClick={() => { setNovidades(0); refetch(); }}
-                disabled={isFetching}
-                data-testid="button-atualizar-prazos"
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 7,
-                  padding: "0 14px", height: isMobile ? 44 : 36, borderRadius: R.md,
-                  border: `1px solid ${TI.border}`,
-                  backgroundColor: TI.card, color: isFetching ? TI.label : TI.strong,
-                  fontSize: 12, fontWeight: 700, cursor: isFetching ? "default" : "pointer",
-                }}
-              >
-                <RotateCcw aria-hidden="true" className={isFetching ? "animate-spin" : undefined} style={{ width: 14, height: 14 }} />
-                {isFetching ? "Atualizando..." : "Atualizar"}
-              </button>
               {!isMobile && (
                 <button
                   type="button"

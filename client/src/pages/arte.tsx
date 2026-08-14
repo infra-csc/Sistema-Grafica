@@ -15,7 +15,14 @@ import { compareDisplayId } from "@/lib/displayId";
 // mais motor próprio; qualquer ajuste de layout do book vale para as duas telas.
 import { exportMixedToPDF, convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { HIDE_NATIVE_CLOSE, modalSurface, ModalHeader, ModalFooter } from "@/components/modal-shell";
-import { getStatusLabel, isEventoEncerrado } from "@/lib/status";
+import {
+  getStatusLabel,
+  isEventoFinalizado,
+  motivoEventoFinalizado,
+  avisoPecasOcultas,
+  type EventoFinalizadoMotivo,
+} from "@/lib/status";
+import { spDayMs } from "@shared/prazo-dates";
 import { useAuth } from "@/contexts/auth-context";
 // Regras puras (recortes de status, predicado de filtro, prazo por fase,
 // vínculo do multi-upload) — testadas em server/__tests__/arte-rules.test.ts.
@@ -115,13 +122,45 @@ const EVENT_CHIPS_VISIBLE = 8;
  * com 100 linhas montadas isso é mais de mil pixels de rolagem vertical contra
  * 32 de horizontal, num eixo que já tem scroller. A conta vai para 1138/1182:
  * em 1536 (e nos 1568 em que a tela foi revisada) continua inteira na janela.
+ *
+ * QUARTA RODADA — "Dimensões" e "M²" liam como uma coluna só. Com dados reais o
+ * dono viu "1.90 (sangria) 1.71" como se fosse um valor. A causa NÃO era o
+ * espaçamento: a tabela é `tableLayout: fixed` e a célula de dimensões é
+ * `nowrap` SEM `overflow: hidden`, então a segunda linha simplesmente PINTAVA
+ * POR CIMA da célula vizinha, encostando na área. Medido no navegador (Inter,
+ * DOM real), a linha antiga "0.90 × 1.90 (sangria)" pede 108px e "10.90 ×
+ * 23.15 (sangria)" pede 118 — contra os 84 ÚTEIS dos 108 antigos. Ou seja: o
+ * vazamento não era um caso extremo, era o caso comum.
+ *
+ * Quatro mudanças, em ordem de importância:
+ *  1. A célula de dimensões passou a RECORTAR (overflow hidden + reticências +
+ *     valor inteiro no `title`). É a garantia estrutural: nenhum conteúdo
+ *     futuro volta a invadir a coluna vizinha, em nenhuma largura.
+ *  2. "Dimensões" foi de 108 para 152 — 128 úteis, exatamente o que o pior caso
+ *     real pede ("SANGRIA 10.90 × 23.15", rótulo 10px + número 11px, medido no
+ *     DOM). O caso comum ("SANGRIA 0.90 × 1.90") pede 112 e sobra folga; acima
+ *     do pior caso entram as reticências, com o valor inteiro no `title`.
+ *  3. "M²" foi de 56 para 72 (48 úteis; "252.34" em Space Grotesk 13 pede 45),
+ *     alinhada à DIREITA com `tabular-nums` — medida e área são grandezas
+ *     diferentes, e é o alinhamento à direita que deixa varrer a coluna de
+ *     cima a baixo — e com um filete de 1px marcando a fronteira.
+ *  4. Dentro da célula, a sangria deixou de ter quase o peso da medida
+ *     principal: rótulo primeiro, em versalete de 10px, número em cinza AA.
+ *
+ * A CONTA. +60px nas duas colunas, pagos com a folga da coluna elástica: o
+ * mínimo de "Peça" foi de 176 para 148. É a troca certa porque "Peça" é a única
+ * coluna que QUEBRA LINHA — ela degrada com elegância, as outras truncam — e
+ * porque esse mínimo só é atingido nas larguras em que a tabela já rola. O
+ * total fica em 1170/1214 (sem/com a coluna de seleção): em 1536 continua
+ * inteiro na janela, e em 1366 o scroller horizontal da aba resolve, como já
+ * resolvia. Em 1848 (a tela do dono) sobra tudo para "Peça".
  */
-const ARTE_COLS: { label: string; w: number | string; right?: boolean }[] = [
+const ARTE_COLS: { label: string; w: number | string; right?: boolean; sep?: boolean }[] = [
   { label: 'ID',            w: 116 },
   { label: 'Qtd',           w: 58 },
   { label: 'Peça',          w: 'auto' },
-  { label: 'Dimensões',     w: 108 },
-  { label: 'M²',            w: 56 },
+  { label: 'Dimensões',     w: 152 },
+  { label: 'M²',            w: 72, right: true, sep: true },
   { label: 'Material',      w: 132 },
   { label: 'Arte',          w: 76 },
   { label: 'Prazo',         w: 144 },
@@ -132,7 +171,7 @@ const ARTE_COLS: { label: string; w: number | string; right?: boolean }[] = [
 // Colunas fixas + um mínimo para "Peça" (largura 'auto'). Derivado, não
 // hardcoded: a largura de "Ações" já mudou três vezes enquanto o número ficava
 // parado, e foi isso que causou a sobreposição de colunas.
-const ARTE_PECA_MIN_WIDTH = 176;
+const ARTE_PECA_MIN_WIDTH = 148;
 const ARTE_COLS_WIDTH = ARTE_PECA_MIN_WIDTH
   + ARTE_COLS.reduce((sum, c) => sum + (typeof c.w === 'number' ? c.w : 0), 0);
 // A coluna de seleção só existe em duas das quatro abas de tabela; somá-la
@@ -408,42 +447,62 @@ export default function Arte() {
     queryKey: ["/api/items/resubmission-needed"],
   });
 
-  // ── Evento ENCERRADO sai das filas ────────────────────────────────────────
-  // A confirmação do encerramento promete, em voz alta, que o evento "sai da
-  // Gestão de Prazos e das filas de trabalho". O recorte é do CLIENTE e não de
-  // /api/items: o Detalhe do Evento e o Painel Geral leem a MESMA chave e a
-  // lista de peças do evento encerrado precisa continuar aparecendo lá —
-  // encerrar não apaga nada, só para de cobrar.
+  // ── Evento FINALIZADO sai das filas ───────────────────────────────────────
+  // Duas origens, um gate só (`motivoEventoFinalizado`, @shared/prazo-dates):
+  //   · "encerrado" → um admin clicou em Encerrar evento. A confirmação promete,
+  //     em voz alta, que o evento "sai da Gestão de Prazos e das filas".
+  //   · "realizado" → a DATA DO EVENTO (events.startDate — não a saída do
+  //     caminhão, que é sempre anterior) já passou. Regra do dono: não se
+  //     trabalha mais em evento que já aconteceu. Durante o DIA do evento a
+  //     peça ainda aparece; ela sai depois da virada do dia em São Paulo.
+  //     Evento SEM data de início nunca some por esta regra.
+  //
+  // O recorte é do CLIENTE e não de /api/items: o Detalhe do Evento e o Painel
+  // Geral leem a MESMA chave e a lista de peças precisa continuar aparecendo lá
+  // — a Arte é tela de AÇÃO, aqueles são registro.
   //
   // `item.event` vem CRU do storage (nunca passa por enrichEvent), então o
-  // status chega como "closed" — é a coluna que `isEventoEncerrado` lê.
+  // status chega como "closed" e a data como `startDate` — as duas colunas que
+  // o predicado lê.
+  const hojeBusinessMs = useMemo(() => spDayMs(new Date(agora)), [agora]);
   const allItems = useMemo(
-    () => (pecasDoServidor as any[]).filter((i: any) => !isEventoEncerrado(i.event)),
-    [pecasDoServidor],
+    () => (pecasDoServidor as any[]).filter((i: any) => !isEventoFinalizado(i.event, hojeBusinessMs)),
+    [pecasDoServidor, hojeBusinessMs],
   );
   const correcaoItems = useMemo(
-    () => (correcaoDoServidor as any[]).filter((i: any) => !isEventoEncerrado(i.event)),
-    [correcaoDoServidor],
+    () => (correcaoDoServidor as any[]).filter((i: any) => !isEventoFinalizado(i.event, hojeBusinessMs)),
+    [correcaoDoServidor, hojeBusinessMs],
   );
 
-  // Quantas peças o recorte acima tirou das abas. Esconder sem dizer que
-  // escondeu faria "Nenhuma peça aguardando envio" ler como "nada a fazer"
-  // quando, na verdade, um admin encerrou o evento. Conta só o que APARECERIA
-  // (as abas têm statuses próprios) e deduplica: a peça em correção também
-  // está em /api/items.
-  const pecasDeEventoEncerrado = useMemo(() => {
+  // Quantas peças o recorte acima tirou das abas, POR MOTIVO. Esconder sem
+  // dizer que escondeu faria "Nenhuma peça aguardando envio" ler como "nada a
+  // fazer" quando, na verdade, um admin encerrou o evento ou ele já aconteceu —
+  // e as duas frases são diferentes (só a primeira tem volta). Conta só o que
+  // APARECERIA (as abas têm statuses próprios) e deduplica: a peça em correção
+  // também está em /api/items.
+  const pecasOcultas = useMemo(() => {
     const statusDasAbas = new Set(Object.values(TAB_STATUSES).flat());
-    const vistos = new Set<string>();
+    const vistos = new Map<string, EventoFinalizadoMotivo>();
     for (const item of pecasDoServidor as any[]) {
-      if (!isEventoEncerrado(item.event)) continue;
+      const motivo = motivoEventoFinalizado(item.event, hojeBusinessMs);
+      if (!motivo) continue;
       if (!statusDasAbas.has(item.status)) continue;
-      vistos.add(item.id);
+      vistos.set(item.id, motivo);
     }
     for (const item of correcaoDoServidor as any[]) {
-      if (isEventoEncerrado(item.event)) vistos.add(item.id);
+      const motivo = motivoEventoFinalizado(item.event, hojeBusinessMs);
+      if (motivo) vistos.set(item.id, motivo);
     }
-    return vistos.size;
-  }, [pecasDoServidor, correcaoDoServidor]);
+    let encerrado = 0, realizado = 0;
+    vistos.forEach((m) => { if (m === "encerrado") encerrado++; else realizado++; });
+    return { encerrado, realizado };
+  }, [pecasDoServidor, correcaoDoServidor, hojeBusinessMs]);
+  // Uma frase só, montada pela fonte única (lib/status) — as cinco filas
+  // contam a mesma história com as mesmas palavras.
+  const avisoOcultas = useMemo(
+    () => avisoPecasOcultas(pecasOcultas, "destas abas"),
+    [pecasOcultas],
+  );
 
   const { data: events = [] } = useQuery<any[]>({
     queryKey: ["/api/events"],
@@ -1772,21 +1831,46 @@ export default function Arte() {
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>{renderTagsDaPeca(item)}</div>
         </div>
       </td>
-      {/* Dimensões */}
-      <td style={{ padding: '9px 12px', whiteSpace: 'nowrap' }}>
+      {/* Dimensões — MEDIDA (a coluna seguinte é ÁREA; ver ARTE_COLS).
+          `overflow: hidden` é o que impede a linha da sangria, que é `nowrap`
+          numa tabela `tableLayout: fixed`, de pintar por cima da célula de M² e
+          fazer "1.90 (sangria)" e "1.71" lerem como um valor só. O `title`
+          devolve o valor inteiro quando as reticências entram. */}
+      <td style={{ padding: '9px 12px', whiteSpace: 'nowrap', overflow: 'hidden' }}>
         {item.visualWidth && item.visualHeight ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#1c1917' }}>{item.visualWidth} × {item.visualHeight}</span>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 1, minWidth: 0 }}>
+            <span
+              title={`${item.visualWidth} × ${item.visualHeight}`}
+              style={{ fontSize: 12, fontWeight: 700, color: '#1c1917', fontVariantNumeric: 'tabular-nums', overflow: 'hidden', textOverflow: 'ellipsis' }}
+            >
+              {item.visualWidth} × {item.visualHeight}
+            </span>
+            {/* A sangria vinha com quase o mesmo peso da medida principal (11px
+                contra 12px, cor escura), e a palavra "(sangria)" só aparecia no
+                FIM — o olho lia dois números irmãos. Agora o rótulo vem antes,
+                em versalete claro, e o número vai em cinza AA: fica óbvio quem
+                é o principal antes de ler qualquer dígito. */}
             {item.fileWidth && item.fileHeight && (
-              <span style={{ fontSize: 11, color: '#57534e' }}>{item.fileWidth} × {item.fileHeight} (sangria)</span>
+              <span
+                title={`Sangria: ${item.fileWidth} × ${item.fileHeight}`}
+                style={{ fontSize: 11, fontWeight: 400, color: '#746e69', fontVariantNumeric: 'tabular-nums', overflow: 'hidden', textOverflow: 'ellipsis' }}
+              >
+                <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>sangria</span>
+                {' '}{item.fileWidth} × {item.fileHeight}
+              </span>
             )}
           </div>
         ) : (
           <span style={{ color: '#57534e', fontSize: 12 }}>—</span>
         )}
       </td>
-      {/* m² */}
-      <td style={{ padding: '9px 12px', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 600, fontSize: 13, color: '#1c1917' }}>
+      {/* m² — ÁREA. Alinhada à direita com `tabular-nums` (é o que permite
+          comparar a coluna de cima a baixo) e separada da medida por um filete:
+          são grandezas diferentes e precisam ser lidas como duas colunas. */}
+      <td
+        title={item.calculatedM2 ? `${item.calculatedM2} m²` : undefined}
+        style={{ padding: '9px 12px', textAlign: 'right', borderLeft: '1px solid #f0efed', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 600, fontSize: 13, color: '#1c1917', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+      >
         {item.calculatedM2 || '—'}
       </td>
       {/* Material */}
@@ -2025,10 +2109,14 @@ export default function Arte() {
       grupo.items.push(item);
     });
 
-    const thStyle = (right?: boolean): React.CSSProperties => ({
+    // `sep` desenha o mesmo filete de 1px que a célula de M² usa: sem ele no
+    // cabeçalho, "M²" ficava alinhado à direita mas a fronteira entre as duas
+    // colunas só existia meia tabela abaixo.
+    const thStyle = (col: { right?: boolean; sep?: boolean }): React.CSSProperties => ({
       padding: '10px 12px', fontSize: 11, fontWeight: 700, color: '#57534e',
       textTransform: 'uppercase', letterSpacing: '0.06em',
-      textAlign: right ? 'right' : 'left',
+      textAlign: col.right ? 'right' : 'left',
+      borderLeft: col.sep ? '1px solid #f0efed' : undefined,
       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
     });
 
@@ -2232,7 +2320,7 @@ export default function Arte() {
                       <thead>
                         <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4', boxShadow: '0 1px 0 #e7e5e4' }}>
                           {comSelecao && <th style={{ padding: '10px 12px' }}><span className="sr-only">Selecionar</span></th>}
-                          {ARTE_COLS.map((col, ci) => <th key={ci} style={thStyle(col.right)}>{col.label}</th>)}
+                          {ARTE_COLS.map((col, ci) => <th key={ci} style={thStyle(col)}>{col.label}</th>)}
                         </tr>
                       </thead>
                       {bloco.grupos.map((grupo, gi) => {
@@ -3059,20 +3147,20 @@ export default function Arte() {
         aria-labelledby={isMobile ? undefined : `aba-${activeTab}`}
         style={{ flex: 1, overflowY: 'auto', padding: isMobile ? '12px 12px' : '24px 32px', maxWidth: 1600, margin: '0 auto', width: '100%' }}
       >
-      {/* Peça de evento encerrado não entra nas abas (ver `allItems` acima).
-          Sem este aviso a tela mentiria pelo silêncio: "Nenhuma peça aguardando
-          envio" leria como "nada a fazer" para um designer cujo trabalho saiu
-          porque um admin encerrou o evento. Fica visível com a lista cheia
-          também — quem procura uma peça específica precisa saber por que sumiu. */}
-      {!isLoading && !isError && pecasDeEventoEncerrado > 0 && (
+      {/* Peça de evento finalizado — encerrado à mão OU já realizado — não entra
+          nas abas (ver `allItems` acima). Sem este aviso a tela mentiria pelo
+          silêncio: "Nenhuma peça aguardando envio" leria como "nada a fazer"
+          para um designer cujo trabalho saiu de pauta. Fica visível com a lista
+          cheia também — quem procura uma peça específica precisa saber por que
+          sumiu. A frase (e a distinção entre os dois motivos) vem de
+          `avisoPecasOcultas`, a mesma das outras filas. */}
+      {!isLoading && !isError && avisoOcultas && (
         <div
           role="status"
           data-testid="aviso-eventos-encerrados"
           style={{ background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#44403c', lineHeight: 1.5 }}
         >
-          <strong>{pecasDeEventoEncerrado} peça{pecasDeEventoEncerrado !== 1 ? 's' : ''}</strong>{' '}
-          {pecasDeEventoEncerrado !== 1 ? 'estão' : 'está'} fora destas abas porque o evento foi encerrado.
-          {' '}Elas continuam no Detalhe do Evento — reabrir o evento traz o trabalho de volta.
+          <strong>{avisoOcultas.destaque}</strong>{' '}{avisoOcultas.texto}
         </div>
       )}
       {isLoading ? (

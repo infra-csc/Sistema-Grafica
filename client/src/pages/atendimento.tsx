@@ -15,7 +15,10 @@ import {
   prazoAprovacaoLayout,
 } from "@/lib/atendimento-prazo";
 import { FilePreview } from "@/components/file-preview";
-import { getStatusMeta, getStatusLabel, getStatusShort, PRODUCTION_STATUSES, isEventoEncerrado } from "@/lib/status";
+import {
+  getStatusMeta, getStatusLabel, getStatusShort, PRODUCTION_STATUSES,
+  isEventoFinalizado, motivoEventoFinalizado, avisoPecasOcultas, todayBusinessMs,
+} from "@/lib/status";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -276,27 +279,46 @@ export default function Atendimento() {
 
   // Memoizar awaiting items para evitar fetches desnecessários.
   //
-  // Evento ENCERRADO sai da fila: é a promessa feita em voz alta na confirmação
-  // do encerramento ("sai da Gestão de Prazos e das filas de trabalho"). O
-  // filtro é do CLIENTE, não de /api/items — o Detalhe do Evento e o Painel
-  // Geral leem a mesma chave e a lista de peças do evento encerrado precisa
-  // continuar aparecendo lá. `item.event` vem cru do storage (nunca passa por
-  // enrichEvent), então o status chega como "closed".
+  // Evento FINALIZADO sai da fila — duas origens, um gate só
+  // (`motivoEventoFinalizado`, @shared/prazo-dates):
+  //   · "encerrado" → um admin encerrou o evento; é a promessa feita em voz
+  //     alta na confirmação ("sai da Gestão de Prazos e das filas de trabalho").
+  //   · "realizado" → a DATA DO EVENTO (events.startDate, não a saída do
+  //     caminhão) já passou. Regra do dono: cobrar aprovação de patrocinador
+  //     para um evento que já aconteceu não faz sentido. Durante o DIA do
+  //     evento a peça ainda conta; sai depois da virada do dia em São Paulo.
+  //     Evento SEM data de início nunca sai por esta regra.
+  //
+  // O filtro é do CLIENTE, não de /api/items — o Detalhe do Evento e o Painel
+  // Geral leem a mesma chave e a lista de peças precisa continuar aparecendo lá
+  // (são telas de registro; esta é tela de ação). `item.event` vem cru do
+  // storage (nunca passa por enrichEvent): traz `status` e `startDate`, que são
+  // exatamente as duas colunas que o predicado lê.
+  const hojeBusinessMs = todayBusinessMs();
   const awaitingItems = useMemo(() =>
     items.filter(item =>
       item.status === 'awaiting_sponsor_approval' && !item.skipApproval
-      && !isEventoEncerrado(item.event)
-    ), [items]
+      && !isEventoFinalizado(item.event, hojeBusinessMs)
+    ), [items, hojeBusinessMs]
   );
 
-  // Quantas peças a regra acima tirou de vista. Sem este número a tela diria
-  // "Nenhum item pendente" — isto é, "nada a fazer" — a quem, na verdade, teve
-  // o trabalho retirado por uma decisão de admin.
-  const pecasDeEventoEncerrado = useMemo(() =>
-    items.filter(item =>
-      item.status === 'awaiting_sponsor_approval' && !item.skipApproval
-      && isEventoEncerrado(item.event)
-    ).length, [items]
+  // Quantas peças a regra acima tirou de vista, POR MOTIVO. Sem este número a
+  // tela diria "Nenhum item pendente" — isto é, "nada a fazer" — a quem, na
+  // verdade, teve o trabalho retirado; e sem o motivo não dá para saber se há
+  // volta (reabrir o evento) ou não (ele já aconteceu).
+  const pecasOcultas = useMemo(() => {
+    let encerrado = 0, realizado = 0;
+    for (const item of items) {
+      if (item.status !== 'awaiting_sponsor_approval' || item.skipApproval) continue;
+      const motivo = motivoEventoFinalizado(item.event, hojeBusinessMs);
+      if (motivo === 'encerrado') encerrado++;
+      else if (motivo === 'realizado') realizado++;
+    }
+    return { encerrado, realizado };
+  }, [items, hojeBusinessMs]);
+  const avisoOcultas = useMemo(
+    () => avisoPecasOcultas(pecasOcultas, 'desta fila'),
+    [pecasOcultas],
   );
 
   // Chave estável do conjunto de peças em aprovação: o efeito abaixo só refaz
@@ -1669,18 +1691,16 @@ export default function Atendimento() {
         </section>
       )}
 
-      {/* Peça de evento encerrado não entra nesta fila (ver `awaitingItems`).
-          Esconder em silêncio faria a tela dizer "nada a fazer" para quem, na
-          verdade, teve o trabalho retirado por uma decisão de admin. */}
-      {pecasDeEventoEncerrado > 0 && (
+      {/* Peça de evento finalizado — encerrado à mão OU já realizado — não entra
+          nesta fila (ver `awaitingItems`). Esconder em silêncio faria a tela
+          dizer "nada a fazer" para quem, na verdade, teve o trabalho retirado. */}
+      {avisoOcultas && (
         <div
           role="status"
           data-testid="aviso-eventos-encerrados"
           style={{ background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#44403c', lineHeight: 1.5 }}
         >
-          <strong>{pecasDeEventoEncerrado} peça{pecasDeEventoEncerrado !== 1 ? 's' : ''}</strong>{' '}
-          {pecasDeEventoEncerrado !== 1 ? 'estão' : 'está'} fora desta fila porque o evento foi encerrado.
-          {' '}Elas continuam no Detalhe do Evento — reabrir o evento traz o trabalho de volta.
+          <strong>{avisoOcultas.destaque}</strong>{' '}{avisoOcultas.texto}
         </div>
       )}
 

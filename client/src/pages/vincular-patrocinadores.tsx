@@ -12,13 +12,18 @@ import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { Package, Check, Calendar, Truck, AlertTriangle, CheckCircle2, X, Building2, Plus, Search, Users, ClipboardList, Save, Send, ChevronDown, Info, Lock, Paperclip, ExternalLink, RotateCcw, Zap } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { format, isAfter, startOfDay } from "date-fns";
+// `isAfter`/`startOfDay` saíram junto com os dois recortes de data que esta
+// tela mantinha por conta própria — a comparação de dia agora é a do predicado
+// único (@shared/prazo-dates), no fuso do negócio e não no do navegador.
+import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { R, onColor } from "@/lib/theme";
-import { isEventoEncerrado } from "@/lib/status";
+import {
+  isEventoFinalizado, motivoEventoFinalizado, avisoPecasOcultas, todayBusinessMs,
+} from "@/lib/status";
 
 type ItemChanges = {
   sponsorIds: string[];
@@ -301,14 +306,23 @@ export default function VincularPatrocinadores() {
     return map;
   }, [standardItems]);
 
-  // Filtrar apenas eventos futuros (data de início >= hoje)
-  const events = useMemo(() => {
-    const today = startOfDay(new Date());
-    return rawEvents.filter(event => {
-      const eventStartDate = startOfDay(parseDateLocal(event.startDate));
-      return isAfter(eventStartDate, today) || eventStartDate.getTime() === today.getTime();
-    });
-  }, [rawEvents]);
+  // "Hoje" do NEGÓCIO (dia-calendário em São Paulo). Uma âncora só para a tela
+  // inteira: a lista de eventos e o recorte de peças precisam virar o dia no
+  // mesmo instante, senão o evento sai de um e fica no outro.
+  const hojeBusinessMs = todayBusinessMs();
+
+  // Eventos que ainda estão em jogo. Era um terceiro jeito de perguntar a mesma
+  // coisa (`startOfDay` no fuso do NAVEGADOR sobre `parseDateLocal`); agora é o
+  // predicado único — mesma virada de dia do recorte de peças logo abaixo e da
+  // Gestão de Prazos no servidor. Muda duas coisas de propósito: evento
+  // encerrado à mão também sai daqui (as peças dele já saíam), e evento SEM
+  // data de início passa a APARECER em vez de ser descartado por uma data
+  // inválida — sem data não há "já passou", e é o cadastro que precisa de
+  // conserto, não o evento que precisa sumir.
+  const events = useMemo(
+    () => rawEvents.filter(event => !isEventoFinalizado(event, hojeBusinessMs)),
+    [rawEvents, hojeBusinessMs],
+  );
 
   // Lookup O(1) de evento por id — evita rawEvents.find() dentro de loops de
   // filtro (que era O(nº itens × nº eventos) e pesava com muitos itens).
@@ -318,12 +332,10 @@ export default function VincularPatrocinadores() {
     return m;
   }, [rawEvents]);
 
-  // Mostrar apenas items de eventos futuros com status que permitem vinculação de patrocinadores
-  // Exclui: draft e requested (Rascunho — ainda não enviado pela Solicitação)
+  // Mostrar apenas items de eventos ainda em jogo, com status que permitem
+  // vinculação de patrocinadores. Exclui: draft e requested (Rascunho — ainda
+  // não enviado pela Solicitação).
   const visibleItems = useMemo(() => {
-    const today = startOfDay(new Date());
-    const pendingStatuses = ['awaiting_linking'];
-
     return items.filter(item => {
       // Filtro 1: Status permitido (exclui draft)
       if (!VINCULACAO_VISIBLE_STATUSES.includes(item.status)) return false;
@@ -331,28 +343,39 @@ export default function VincularPatrocinadores() {
       const event = eventById.get(item.eventId);
       if (!event) return false;
 
-      // Evento ENCERRADO à mão sai desta fila — e o teste vem ANTES do atalho
-      // de `pendingStatuses` logo abaixo, que faz a peça `awaiting_linking`
-      // aparecer sempre, inclusive furando o recorte de data. Sem isto, a peça
-      // de um evento que um admin fechou seria cobrada aqui para sempre.
-      if (isEventoEncerrado(event)) return false;
+      // Filtro 2: evento FINALIZADO sai desta fila — encerrado à mão OU com a
+      // DATA DO EVENTO (events.startDate, não a saída do caminhão) já passada.
+      // Vem ANTES do atalho de `awaiting_linking` logo abaixo, que fazia a peça
+      // pendente aparecer sempre, furando o recorte de data: era exatamente
+      // assim que a peça de um evento de 2024 continuava sendo cobrada aqui.
+      //
+      // Isto SUBSTITUI o recorte de data antigo ("só evento futuro ou hoje"),
+      // que dizia quase a mesma coisa com outra conta: `startOfDay` no fuso do
+      // NAVEGADOR contra `parseDateLocal`. Agora é o mesmo predicado, a mesma
+      // virada de dia (São Paulo) e a mesma regra que o servidor usa na Gestão
+      // de Prazos — e o dia do evento continua contando (a comparação é `>`).
+      // Evento SEM data de início não é finalizado: continua aqui.
+      if (isEventoFinalizado(event, hojeBusinessMs)) return false;
 
-      // Itens com trabalho pendente aparecem sempre (independente da data do evento)
-      if (pendingStatuses.includes(item.status)) return true;
-
-      // Demais status: só mostrar se evento for futuro ou hoje
-      const eventStartDate = startOfDay(parseDateLocal(event.startDate));
-      return isAfter(eventStartDate, today) || eventStartDate.getTime() === today.getTime();
+      return true;
     });
-  }, [items, eventById]);
+  }, [items, eventById, hojeBusinessMs]);
 
-  // Quantas peças o recorte de evento encerrado tirou de vista. Sem este número
-  // a tela ficaria vazia sem explicação — o mesmo aviso das outras filas.
-  const pecasDeEventoEncerrado = useMemo(
-    () => items.filter((item: any) =>
-      VINCULACAO_VISIBLE_STATUSES.includes(item.status)
-      && isEventoEncerrado(eventById.get(item.eventId))).length,
-    [items, eventById],
+  // Quantas peças o recorte acima tirou de vista, POR MOTIVO. Sem este número a
+  // tela ficaria vazia sem explicação — o mesmo aviso das outras filas.
+  const pecasOcultas = useMemo(() => {
+    let encerrado = 0, realizado = 0;
+    for (const item of items as any[]) {
+      if (!VINCULACAO_VISIBLE_STATUSES.includes(item.status)) continue;
+      const motivo = motivoEventoFinalizado(eventById.get(item.eventId), hojeBusinessMs);
+      if (motivo === 'encerrado') encerrado++;
+      else if (motivo === 'realizado') realizado++;
+    }
+    return { encerrado, realizado };
+  }, [items, eventById, hojeBusinessMs]);
+  const avisoOcultas = useMemo(
+    () => avisoPecasOcultas(pecasOcultas, 'desta tela'),
+    [pecasOcultas],
   );
   
   // Toggle "Sem Patrocinador" por item individual
@@ -1994,19 +2017,17 @@ export default function VincularPatrocinadores() {
         </div>
       )}
 
-      {/* Peça de evento encerrado não entra nesta tela (ver `visibleItems`).
-          Esconder em silêncio faria a tela dizer "nada a vincular" a quem, na
-          verdade, teve o trabalho retirado por uma decisão de admin. Fica fora
-          dos dois modos de visão porque vale para os dois. */}
-      {pecasDeEventoEncerrado > 0 && (
+      {/* Peça de evento finalizado — encerrado à mão OU já realizado — não entra
+          nesta tela (ver `visibleItems`). Esconder em silêncio faria a tela
+          dizer "nada a vincular" a quem, na verdade, teve o trabalho retirado.
+          Fica fora dos dois modos de visão porque vale para os dois. */}
+      {avisoOcultas && (
         <div
           role="status"
           data-testid="aviso-eventos-encerrados"
           style={{ background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#44403c', lineHeight: 1.5 }}
         >
-          <strong>{pecasDeEventoEncerrado} peça{pecasDeEventoEncerrado !== 1 ? 's' : ''}</strong>{' '}
-          {pecasDeEventoEncerrado !== 1 ? 'estão' : 'está'} fora desta tela porque o evento foi encerrado.
-          {' '}Elas continuam no Detalhe do Evento — reabrir o evento traz o trabalho de volta.
+          <strong>{avisoOcultas.destaque}</strong>{' '}{avisoOcultas.texto}
         </div>
       )}
 

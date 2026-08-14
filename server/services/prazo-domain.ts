@@ -15,7 +15,16 @@
 // Toda a aritmética de datas é feita em UTC sobre a data-calendário
 // (YYYY-MM-DD): o servidor pode rodar em qualquer fuso e o resultado
 // tem que bater com o que a UI exibe (que formata em UTC).
-import { isPlausibleEventYear } from "@shared/prazo-dates";
+import {
+  isPlausibleEventYear,
+  motivoEventoFinalizado,
+  SP_DAY_FMT,
+  spDayMs,
+  todayBusinessMs,
+  todayBusinessStr,
+  businessDayStrToMs,
+} from "@shared/prazo-dates";
+import type { EventoFinalizadoMotivo } from "@shared/prazo-dates";
 import { PRODUCED_LIKE } from "@shared/prazos-contract";
 import type {
   PrazoCategoria,
@@ -157,25 +166,13 @@ export const SPONSOR_TURN = new Set(["pending", "new_version_pending"]);
 // o diretor confere pendência de véspera. As DATAS de evento continuam
 // tratadas como wall-clock em UTC (convenção de toda a UI); só o "hoje"
 // e os timestamps reais (updatedAt) usam o fuso do negócio.
-export const SP_DAY_FMT = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
-});
-export function spDayMs(date: Date): number {
-  const [y, m, d] = SP_DAY_FMT.format(date).split("-").map(Number);
-  return Date.UTC(y, m - 1, d);
-}
-export function todayBusinessMs(): number {
-  return spDayMs(new Date());
-}
-export function todayBusinessStr(): string {
-  return SP_DAY_FMT.format(new Date()); // YYYY-MM-DD (en-CA)
-}
-
-/** "YYYY-MM-DD" (fuso do negócio) → milissegundos UTC-meia-noite. */
-export function businessDayStrToMs(day: string): number {
-  const [y, m, d] = day.split("-").map(Number);
-  return Date.UTC(y, (m ?? 1) - 1, d ?? 1);
-}
+//
+// A implementação MUDOU DE CASA (para @shared/prazo-dates) sem mudar de
+// comportamento: o CLIENTE precisa da mesma virada de dia para decidir o que
+// esconder das filas, e o cliente não importa `server/`. Os nomes continuam
+// exportados daqui — todo mundo que já importava de `prazo-domain` segue
+// funcionando, e não existem duas contas de "hoje" para divergir.
+export { SP_DAY_FMT, spDayMs, todayBusinessMs, todayBusinessStr, businessDayStrToMs };
 
 // Data-calendário (UTC, meia-noite) da saída do caminhão.
 export function truckDayUTC(truckDepartureDate: Date | string): Date {
@@ -273,27 +270,39 @@ export interface BuildEventDeps {
  * ANTES de buscar as peças no banco (o filtro por `allDelivered` depende das
  * peças e continua dentro de `buildEventPrazo`).
  *
- * startPassed compara DIA-calendário UTC (não o instante): com timestamp à
- * meia-noite UTC, o evento sumia da tela às 21h da VÉSPERA em UTC-3 — as
- * horas de crise.
+ * As DUAS origens de "finalizado" (encerramento manual e data do evento já
+ * passada) vivem num predicado só, em @shared/prazo-dates — o mesmo que as
+ * telas de fila usam no cliente. Elas não são redundantes: o encerramento
+ * manual derruba também o evento com data FUTURA (trabalho que alguém decidiu
+ * que ninguém mais vai fazer), e a data derruba o evento que ninguém lembrou
+ * de encerrar. `motivoEventoFinalizado` compara DIA-calendário no fuso do
+ * negócio, então nada some às 21h da véspera, e trata evento SEM data de
+ * início como ainda em jogo.
  *
- * "closed" (encerramento MANUAL, ver routes/shared.ts) NÃO é redundante com o
- * teste de data logo abaixo: aquele só derruba evento cuja saída já passou, e
- * o caso que motivou a feature é justamente o evento encerrado com saída
- * FUTURA — ele continuaria sendo cobrado toda semana por um trabalho que
- * alguém já decidiu que ninguém mais vai fazer. Um ponto só atende as duas
- * portas (routes/prazos.ts e services/prazoSnapshots.ts).
+ * "completed" continua aqui à parte: não é finalização, é produção terminada
+ * (tudo entregue) — o mesmo que `allDelivered` faz em `buildEventPrazo`.
+ *
+ * Um ponto só atende as duas portas (routes/prazos.ts e
+ * services/prazoSnapshots.ts).
  */
 export function isPrazoCandidate(event: DomainEvent, today: number): boolean {
-  if (event.status === "completed" || event.status === "closed") return false;
-  const startPassed = today > truckDayUTC(event.startDate).getTime();
-  return !startPassed;
+  if (event.status === "completed") return false;
+  return motivoEventoFinalizado(event, today) === null;
 }
 
 /**
+ * A origem da saída, para quem precisa EXPLICAR a ausência (o servidor conta
+ * quantos eventos saíram por cada motivo; as telas dizem a frase certa).
+ * Reexportado daqui para que o server tenha um import só.
+ */
+export { motivoEventoFinalizado };
+export type { EventoFinalizadoMotivo };
+
+/**
  * Monta o objeto `PrazoEvent` completo de um evento.
- * Devolve `null` quando o evento saiu da gestão de prazos (concluído, tudo
- * entregue, ou já começado) — "é história", nas palavras do negócio.
+ * Devolve `null` quando o evento saiu da gestão de prazos (tudo entregue, ou
+ * finalizado — encerrado à mão ou com a data do evento já passada) — "é
+ * história", nas palavras do negócio.
  */
 export function buildEventPrazo(
   event: DomainEvent,
@@ -304,7 +313,7 @@ export function buildEventPrazo(
 
   const eventItems = items.filter((it) => !OUT_OF_FUNNEL.has(it.status));
 
-  // Evento concluído, com tudo entregue ou já começado é história —
+  // Evento com tudo entregue, encerrado à mão ou já realizado é história —
   // sai da gestão de prazos.
   const allDelivered = eventItems.length > 0 && eventItems.every((it) => DELIVERED.has(it.status));
   if (allDelivered || !isPrazoCandidate(event, today)) return null;

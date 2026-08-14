@@ -2,7 +2,12 @@
 import type { Express } from "express";
 import { storage } from "../storage";
 import { insertEventSchema, type Item } from "@shared/schema";
-import { isPlausibleEventDate, isPlausibleEventYear } from "@shared/prazo-dates";
+import {
+  isPlausibleEventDate,
+  isPlausibleEventYear,
+  spDayMs,
+  todayBusinessMs,
+} from "@shared/prazo-dates";
 import {
   requireAuth,
   broadcast,
@@ -137,20 +142,15 @@ function toUtcInstant(value: unknown): Date | null {
 // gravado à meia-noite UTC) virava "o evento já passou" às 21h de Brasília do
 // dia ANTERIOR ao início — 3h de antecipação justamente nas horas em que
 // alguém está correndo atrás de peça faltando.
-const SP_DAY_FMT = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit",
-});
-// Exportada só para os testes (server/__tests__/event-status-derivado.test.ts):
-// a virada de dia no fuso do negócio já causou bug nesta base e precisa de
-// asserção própria — testá-la via HTTP exigiria banco.
-export function spDayMs(date: Date): number {
-  const [y, m, d] = SP_DAY_FMT.format(date).split("-").map(Number);
-  return Date.UTC(y, m - 1, d);
-}
-// Exportada só para os testes: é o "hoje" real que as duas rotas GET usam.
-export function todayBusinessMs(): number {
-  return spDayMs(new Date());
-}
+//
+// A conta MUDOU DE CASA (para @shared/prazo-dates), não de comportamento: a
+// regra "evento realizado sai das filas" é avaliada também no CLIENTE, que não
+// importa `server/`, e uma segunda implementação da virada do dia divergiria.
+// Continuam exportadas daqui para os testes
+// (server/__tests__/event-status-derivado.test.ts): a virada de dia no fuso do
+// negócio já causou bug nesta base e precisa de asserção própria — testá-la
+// via HTTP exigiria banco.
+export { spDayMs, todayBusinessMs };
 
 // Data-calendário (UTC, meia-noite) de um timestamp de evento. As DATAS de
 // evento continuam tratadas como wall-clock em UTC (convenção de toda a UI);
@@ -422,6 +422,13 @@ export function enrichEvent(
   // alguém fechou de propósito não é um esquecimento.
   const manuallyClosed = event.status === EVENT_CLOSED_STATUS;
 
+  // NOTA para quem for ligar isto à regra de "evento finalizado"
+  // (@shared/prazo-dates, que tira o evento realizado das filas e da Gestão de
+  // Prazos): `eventHasPassed` NÃO é aquele predicado, e a diferença é de um
+  // dia. Aqui a pergunta é "a data CHEGOU" (`>=`) — é o gatilho do selo
+  // "Encerrado com pendências" na lista de Eventos. Lá é "o dia PASSOU" (`>`):
+  // durante o dia do evento o trabalho ainda conta. Não unifique os dois sem o
+  // dono decidir qual dos dois selos muda.
   const lifecycle: "active" | "completed" | "closed_with_pending" | "manually_closed" =
     manuallyClosed ? "manually_closed"
     : allDelivered ? "completed"

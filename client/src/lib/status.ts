@@ -13,6 +13,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { Clock, CheckCircle, Package, Truck, XCircle, Lock } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import {
+  EVENT_CLOSED_STATUS,
+  isEventoFinalizado,
+  motivoEventoFinalizado,
+  todayBusinessMs,
+} from "@shared/prazo-dates";
+import type { EventoFinalizadoMotivo, EventoFinalizavel } from "@shared/prazo-dates";
 
 export interface StatusMeta {
   label: string;      // rótulo completo (desktop)
@@ -110,7 +117,7 @@ export const PRODUCTION_STATUSES = ["inProduction", "produced", "conferred", "de
 export const FINAL_STATUSES = ["delivered", "canceled", "deleted"] as const;
 
 /** Valor gravado em `events.status` pelo encerramento MANUAL (routes/shared.ts). */
-export const EVENT_CLOSED_STATUS = "closed";
+export { EVENT_CLOSED_STATUS };
 
 /**
  * Evento encerrado À MÃO — o gate das filas de trabalho e do calendário.
@@ -123,12 +130,108 @@ export const EVENT_CLOSED_STATUS = "closed";
  * Lê `manuallyClosed` E a coluna crua: o objeto de evento chega enriquecido
  * (`enrichEvent`, com `manuallyClosed`) em /api/events, mas vem CRU pendurado
  * em `item.event` nas listas de peças — ali só existe `status`.
+ *
+ * CONTINUA EXISTINDO com este escopo estreito (só o encerramento manual)
+ * porque o Calendário precisa exatamente dele: lá o evento realizado NÃO some
+ * — um calendário sem o passado não é um calendário. Quem filtra FILA de
+ * trabalho usa `motivoEventoFinalizado`/`isEventoFinalizado`, que cobre as
+ * duas origens.
  */
 export function isEventoEncerrado(
   event: { status?: string | null; manuallyClosed?: boolean | null } | null | undefined,
 ): boolean {
   if (!event) return false;
   return event.manuallyClosed === true || event.status === EVENT_CLOSED_STATUS;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// EVENTO FINALIZADO — o gate das telas de AÇÃO.
+//
+// A REGRA (do dono, 14/08): "eventos finalizados, ou seja que passou o dia, não
+// contam mais para prazos e no app"; e, sobre a âncora, "saída do caminhão não,
+// e sim a DATA DO EVENTO". Depois ele estreitou o alcance: "evento passado some
+// de tudo NÃO. Ele tem que ficar de registro no app em algumas telas, mas não
+// em tela de ações e nem de gestão."
+//
+// Ou seja, quem filtra é só quem MANDA TRABALHAR ou COBRA:
+//   FILTRA  → Arte, Atendimento, Gráfica, Revisão Final, Vincular
+//             Patrocinadores (filas de ação) e Gestão de Prazos (cobrança,
+//             filtrada no servidor por `isPrazoCandidate`).
+//   NÃO FILTRA → Painel Geral, Histórico, Registros, lista de Eventos, Detalhe
+//             do Evento, Consulta, Análises e Calendário — são registro, e
+//             registro não perde o passado.
+//
+// O predicado em si mora em @shared/prazo-dates (servidor e cliente precisam da
+// MESMA virada de dia). Aqui ficam só os apetrechos de UI: a âncora de "hoje" e
+// a frase que explica a ausência.
+// ─────────────────────────────────────────────────────────────────────────────
+export { motivoEventoFinalizado, isEventoFinalizado, todayBusinessMs };
+export type { EventoFinalizadoMotivo, EventoFinalizavel };
+
+/**
+ * Contagem de peças escondidas, por origem. Toda fila monta uma destas e
+ * entrega para `avisoPecasOcultas` — assim as cinco telas contam a mesma
+ * história com as mesmas palavras.
+ */
+export interface PecasOcultasPorMotivo {
+  /** Peças fora da fila porque um admin encerrou o evento. */
+  encerrado: number;
+  /** Peças fora da fila porque a data do evento já passou. */
+  realizado: number;
+}
+
+export interface AvisoPecasOcultas {
+  /** Trecho em negrito — o número, que é o que a pessoa procura. */
+  destaque: string;
+  /** O resto da frase: onde não estão, por quê, e onde continuam. */
+  texto: string;
+}
+
+/**
+ * A frase do aviso de peças ocultas — FONTE ÚNICA das cinco filas.
+ *
+ * PORQUÊ existe: esconder em silêncio é o pior desfecho possível desta regra.
+ * "Nenhuma peça aguardando envio" lido como "nada a fazer" por quem, na
+ * verdade, teve o trabalho retirado — e quem procura UMA peça específica
+ * precisa entender por que ela não está ali. Com duas origens, a frase também
+ * tem que dizer QUAL: "encerrado" tem volta (reabrir o evento), "realizado"
+ * não tem.
+ *
+ * `onde` é o complemento de lugar da tela ("destas abas", "desta fila",
+ * "desta tela") — a única coisa que varia entre elas.
+ */
+export function avisoPecasOcultas(
+  contagem: PecasOcultasPorMotivo,
+  onde: string,
+): AvisoPecasOcultas | null {
+  const { encerrado, realizado } = contagem;
+  const total = encerrado + realizado;
+  if (total <= 0) return null;
+
+  const destaque = `${total} peça${total !== 1 ? "s" : ""}`;
+  const verbo = total !== 1 ? "estão" : "está";
+  const elas = total !== 1 ? "Elas continuam" : "Ela continua";
+
+  if (realizado === 0) {
+    return {
+      destaque,
+      texto: `${verbo} fora ${onde} porque o evento foi encerrado.`
+        + ` ${elas} no Detalhe do Evento — reabrir o evento traz o trabalho de volta.`,
+    };
+  }
+  if (encerrado === 0) {
+    return {
+      destaque,
+      texto: `${verbo} fora ${onde} porque o evento já foi realizado.`
+        + ` ${elas} no Detalhe do Evento e no Painel Geral — evento que já aconteceu não é mais cobrado.`,
+    };
+  }
+  return {
+    destaque,
+    texto: `${verbo} fora ${onde}: ${encerrado} porque o evento foi encerrado`
+      + ` e ${realizado} porque o evento já foi realizado.`
+      + ` ${elas} no Detalhe do Evento e no Painel Geral.`,
+  };
 }
 
 // ── Prioridade de EVENTO — mesma disciplina do StatusMeta (text escuro AA

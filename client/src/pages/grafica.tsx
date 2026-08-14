@@ -16,7 +16,10 @@ import { useToast } from "@/hooks/use-toast";
 import { ObjectUploader } from "@/components/ObjectUploader";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { getStatusMeta, getStatusLabel, getPriorityMeta, isEventoEncerrado } from "@/lib/status";
+import {
+  getStatusMeta, getStatusLabel, getPriorityMeta,
+  isEventoFinalizado, motivoEventoFinalizado, avisoPecasOcultas, todayBusinessMs,
+} from "@/lib/status";
 import { StatusPill } from "@/components/status-pill";
 import { useAuth } from "@/contexts/auth-context";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
@@ -584,25 +587,43 @@ export default function Grafica() {
     refetchOnWindowFocus: true,
     refetchInterval: 60_000,
   });
-  // ── Evento ENCERRADO sai da fila ──────────────────────────────────────────
-  // A confirmação do encerramento promete, em voz alta, que o evento "sai da
-  // Gestão de Prazos e das filas de trabalho". Filtramos AQUI, no cliente, e
-  // não em /api/items/approved: o Detalhe do Evento e o Painel Geral leem essas
-  // mesmas chaves e a lista de peças do evento encerrado precisa continuar
-  // aparecendo lá — encerrar não apaga nada, só para de cobrar.
+  // ── Evento FINALIZADO sai da fila ─────────────────────────────────────────
+  // Duas origens, um gate só (`motivoEventoFinalizado`, @shared/prazo-dates):
+  //   · "encerrado" → um admin clicou em Encerrar evento; a confirmação promete,
+  //     em voz alta, que o evento "sai da Gestão de Prazos e das filas".
+  //   · "realizado" → a DATA DO EVENTO (events.startDate — NÃO a saída do
+  //     caminhão, que acontece dias antes) já passou. Regra do dono: não se
+  //     imprime mais material para um evento que já aconteceu. Durante o DIA do
+  //     evento a peça ainda aparece (a virada é no fim do dia, fuso de São
+  //     Paulo); evento SEM data de início nunca sai por esta regra.
   //
-  // `item.event` vem CRU do storage (nunca passa por enrichEvent), então o
-  // status chega como "closed" — é a coluna que `isEventoEncerrado` lê.
+  // Filtramos AQUI, no cliente, e não em /api/items/approved: o Detalhe do
+  // Evento e o Painel Geral leem essas mesmas chaves e a lista de peças precisa
+  // continuar aparecendo lá — a Gráfica é tela de AÇÃO, aqueles são registro.
+  //
+  // `item.event` vem CRU do storage (nunca passa por enrichEvent): traz
+  // `status` ("closed") e `startDate` — as duas colunas que o predicado lê.
+  const hojeBusinessMs = todayBusinessMs();
   const items = useMemo(
-    () => (pecasDoServidor as any[]).filter((i: any) => !isEventoEncerrado(i.event)),
-    [pecasDoServidor],
+    () => (pecasDoServidor as any[]).filter((i: any) => !isEventoFinalizado(i.event, hojeBusinessMs)),
+    [pecasDoServidor, hojeBusinessMs],
   );
   // Esconder sem dizer que escondeu é pior que o problema: com a fila vazia, a
   // tela diria "Nenhuma peça liberada ainda" para um operador cujo trabalho
-  // saiu porque alguém encerrou o evento. Este número alimenta o aviso.
-  const pecasDeEventoEncerrado = useMemo(
-    () => (pecasDoServidor as any[]).filter((i: any) => isEventoEncerrado(i.event)).length,
-    [pecasDoServidor],
+  // saiu de pauta. Contamos por MOTIVO porque as duas frases são diferentes —
+  // "encerrado" tem volta (reabrir), "realizado" não tem.
+  const pecasOcultas = useMemo(() => {
+    let encerrado = 0, realizado = 0;
+    for (const i of pecasDoServidor as any[]) {
+      const motivo = motivoEventoFinalizado(i.event, hojeBusinessMs);
+      if (motivo === "encerrado") encerrado++;
+      else if (motivo === "realizado") realizado++;
+    }
+    return { encerrado, realizado };
+  }, [pecasDoServidor, hojeBusinessMs]);
+  const avisoOcultas = useMemo(
+    () => avisoPecasOcultas(pecasOcultas, "desta fila"),
+    [pecasOcultas],
   );
 
   // Sem botão "Atualizar" (regra do dono): a tela se atualiza sozinha. O selo
@@ -1985,20 +2006,19 @@ export default function Grafica() {
             </button>
           </div>
         )}
-        {/* Peça de evento encerrado não entra na fila (ver `items` acima). Sem
-            este aviso a tela mentiria pelo silêncio: "Nenhuma peça liberada
-            ainda" para um operador cujo trabalho saiu porque um admin encerrou
-            o evento. Fica visível com a lista cheia também — o operador que
-            procura uma peça específica precisa saber por que ela sumiu. */}
-        {pecasDeEventoEncerrado > 0 && (
+        {/* Peça de evento finalizado — encerrado à mão OU já realizado — não
+            entra na fila (ver `items` acima). Sem este aviso a tela mentiria
+            pelo silêncio: "Nenhuma peça liberada ainda" para um operador cujo
+            trabalho saiu de pauta. Fica visível com a lista cheia também — o
+            operador que procura uma peça específica precisa saber por que ela
+            sumiu. */}
+        {avisoOcultas && (
           <div
             role="status"
             data-testid="aviso-eventos-encerrados"
             style={{ background: "#f5f5f4", border: `1px solid ${TI.border}`, borderRadius: 10, padding: "10px 12px", margin: "12px 12px 0", fontSize: 12, color: "#44403c", lineHeight: 1.45 }}
           >
-            <strong>{pecasDeEventoEncerrado} peça{pecasDeEventoEncerrado !== 1 ? "s" : ""}</strong>{" "}
-            {pecasDeEventoEncerrado !== 1 ? "estão" : "está"} fora desta fila porque o evento foi encerrado.
-            {" "}Elas continuam no Detalhe do Evento — reabrir o evento traz o trabalho de volta.
+            <strong>{avisoOcultas.destaque}</strong>{" "}{avisoOcultas.texto}
           </div>
         )}
         {isLoading ? (

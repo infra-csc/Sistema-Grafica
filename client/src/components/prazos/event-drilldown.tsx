@@ -27,6 +27,7 @@ import { CobradoControl } from "./cobrado-control";
 import {
   DRILL_TABELA_MIN, DRILL_TH, dayColor, diasTexto, fmtDayMonth, pecasTexto, R,
   resumoAprovacoes, STAGE_SECTOR, STAGE_STYLE, TI,
+  urlPecaNoEvento, urlSetorDaPeca, urlSetorDoEvento,
 } from "./tokens";
 
 const ROW_CAP = 15;
@@ -122,7 +123,7 @@ function PecaCartao({ eventId, it, isAprovacao }: {
     }}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
         <Link
-          href={`/eventos/${eventId}?item=${it.id}`}
+          href={urlPecaNoEvento(eventId, it.id)}
           title={`Abrir ${it.displayId} no evento`}
           style={{ fontSize: 12, fontWeight: 700, color: TI.accentText, textDecoration: "none" }}
         >
@@ -254,7 +255,19 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
         const sorted = [...items].sort((a, b) => b.waitingDays - a.waitingDays);
         const shown = sorted.slice(0, ROW_CAP);
         const hidden = sorted.length - shown.length;
-        const sectorUrl = sector?.url ?? `/eventos/${ev.id}`;
+        // O grão do link segue o grão do grupo. Grupo com VÁRIAS peças é um
+        // recorte de evento + etapa (e é isso que a URL carrega); grupo com
+        // UMA peça tem nome e sobrenome, então o link abre a peça — havia
+        // informação para ser específico, e antes ela era jogada fora.
+        const sectorUrl = sorted.length === 1
+          ? urlSetorDaPeca(stage.key, {
+              eventId: ev.id,
+              itemId: sorted[0].id,
+              displayId: sorted[0].displayId,
+              status: sorted[0].status,
+              atrasada: stage.state === "overdue",
+            })
+          : urlSetorDoEvento(stage.key, ev.id, { atrasada: stage.state === "overdue" });
         const isAprovacao = stage.key === "aprovacao";
         return (
           <div key={stage.key}>
@@ -278,6 +291,9 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
                   o mesmo laranja no mesmo peso. */}
               <Link
                 href={sectorUrl}
+                title={sorted.length === 1
+                  ? `${sector?.sector ?? stage.label} — já no recorte da peça ${sorted[0].displayId}`
+                  : `${sector?.sector ?? stage.label} — já no recorte das peças deste evento nesta etapa`}
                 style={{ fontSize: 12, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
                 data-testid={`link-setor-${ev.id}-${stage.key}`}
               >
@@ -323,7 +339,7 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
                             alarga a coluna — invade a vizinha. */}
                         <td style={{ padding: "6px 10px" }}>
                           <Link
-                            href={`/eventos/${ev.id}?item=${it.id}`}
+                            href={urlPecaNoEvento(ev.id, it.id)}
                             title={`Abrir ${it.displayId} no evento`}
                             style={{
                               display: "block", fontSize: 12, fontWeight: 700,

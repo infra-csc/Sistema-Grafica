@@ -17,7 +17,7 @@ import { ChevronDown, CheckCircle2 } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { CobrancaEntry, CobrancaMap, SponsorDelay } from "@shared/prazos-contract";
 import { CobradoControl, CobrancaLinha } from "./cobrado-control";
-import { dayColor, diasTexto, fmtDayMonth, pecasTexto, DRILL_TH, R, TI } from "./tokens";
+import { dayColor, diasTexto, fmtDayMonth, pecasTexto, DRILL_TH, R, TI, urlPecaNoEvento } from "./tokens";
 // O agregado (e o tipo dele) moram em `gargalos.ts` — função pura testada em
 // server/__tests__/prazo-gargalos.test.ts; a página calcula, este bloco pinta.
 import type { SetorResumo } from "./gargalos";
@@ -227,7 +227,13 @@ export function AnaliseBand({
                       </button>
                     )}
                     {s.count > 0 && (
-                      <Link href={s.url ?? "/eventos"} style={{ display: "inline-block", marginTop: 6, fontSize: 11, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}>
+                      <Link
+                        href={s.url ?? "/eventos"}
+                        title={s.url
+                          ? `Abrir ${s.sector} já na fase de ${s.stageLabel}`
+                          : "Peças desta etapa nascem no evento — abrir a lista de eventos"}
+                        style={{ display: "inline-block", marginTop: 6, fontSize: 11, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
+                      >
                         Abrir {s.url ? s.sector : "Eventos"} →
                       </Link>
                     )}
@@ -405,8 +411,8 @@ export function AnaliseBand({
                                   {(sp.items ?? []).map((it) => (
                                     <Link
                                       key={it.itemId}
-                                      href={`/eventos/${it.eventId}?item=${it.itemId}`}
-                                      title={`${it.eventName} — abrir a peça`}
+                                      href={urlPecaNoEvento(it.eventId, it.itemId)}
+                                      title={`${it.eventName} — abrir a peça ${it.displayId}`}
                                       style={{
                                         display: "inline-flex", alignItems: "center", gap: 5,
                                         padding: "3px 9px", borderRadius: R.pill,

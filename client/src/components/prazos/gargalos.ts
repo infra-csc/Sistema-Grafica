@@ -8,13 +8,18 @@
 // diretório que o vitest.config inclui; funciona porque nada aqui toca DOM).
 import { PRODUCED_LIKE } from "@shared/prazos-contract";
 import type { PrazoEvent } from "@shared/prazos-contract";
-import { currentStageIdx, STAGE_SECTOR } from "./tokens";
+import { currentStageIdx, STAGE_SECTOR, urlSetor } from "./tokens";
 
 /** Uma linha do resumo por setor (consumida pela AnaliseBand). */
 export interface SetorResumo {
   key: string;
   sector: string;
   stageLabel: string;
+  /**
+   * Href do card, já com a aba do setor quando ela existe (`urlSetor`). Este
+   * bloco conta o conjunto COMPLETO, então não há evento nem peça para citar —
+   * a etapa é toda a especificidade disponível, e ela vai na URL.
+   */
   url: string | null;
   count: number;
   avgDays: number;
@@ -49,7 +54,7 @@ export function computeSectorSummary(
     key: m.key,
     sector: STAGE_SECTOR[m.key]?.sector ?? m.label,
     stageLabel: m.label,
-    url: STAGE_SECTOR[m.key]?.url ?? null,
+    url: urlSetor(m.key),
     count: 0,
     totalDays: 0,
     maxDays: 0,

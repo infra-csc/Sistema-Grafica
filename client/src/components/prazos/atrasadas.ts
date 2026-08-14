@@ -39,7 +39,7 @@
 // não venceu; nesse caso esta lista fica MENOR que o KPI, nunca maior — e a
 // tela diz isso em uma linha em vez de deixar dois números se contradizerem.
 import type { PrazoEvent, PrazoPendingItem, PrazoStage } from "@shared/prazos-contract";
-import { normalize, STAGE_SECTOR } from "./tokens";
+import { normalize, STAGE_SECTOR, urlPecaNoEvento, urlSetorDaPeca } from "./tokens";
 
 /** Uma peça atrasada, já resolvida: evento, etapa, prazo, setor e destino. */
 export interface PecaAtrasada {
@@ -66,8 +66,13 @@ export interface PecaAtrasada {
   diasAtraso: number;
   /** Setor que destrava — mesma fonte do drill (`STAGE_SECTOR`). */
   setor: string;
-  /** Tela que RESOLVE a peça. Sem tela de setor, o detalhe do evento. */
+  /**
+   * Tela que RESOLVE a peça, já apontada NA PEÇA — não na fila do setor.
+   * Montada por `urlSetorDaPeca`; ver o contrato de parâmetro em `tokens.ts`.
+   */
   url: string;
+  /** A ficha da peça aberta dentro do evento (`/eventos/:id?item=`). */
+  urlPeca: string;
 }
 
 /**
@@ -104,9 +109,16 @@ export function computePecasAtrasadas(events: PrazoEvent[]): PecaAtrasada[] {
         cobradaPorOutraEtapa: marcoIdx !== item.stageIndex,
         diasAtraso: Math.abs(marco.diffDays),
         setor: alvo?.sector ?? stage.label,
-        // Mesmo fallback do drill: etapa sem tela própria (Lista de Imagens)
-        // resolve no detalhe do evento, que é onde a peça nasce.
-        url: alvo?.url ?? `/eventos/${ev.id}`,
+        // Toda peça desta lista está atrasada por definição (o `continue`
+        // acima), então o recorte de atrasados do destino pode ir ligado.
+        url: urlSetorDaPeca(stage.key, {
+          eventId: ev.id,
+          itemId: item.id,
+          displayId: item.displayId,
+          status: item.status,
+          atrasada: true,
+        }),
+        urlPeca: urlPecaNoEvento(ev.id, item.id),
       });
     }
   }

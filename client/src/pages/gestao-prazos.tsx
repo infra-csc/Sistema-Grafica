@@ -37,7 +37,7 @@ import {
   addDaysStr, apiErrorMessage, currentStageIdx, diasTexto, eventHasOverdue,
   fmtDayMonth, fmtDiaSemana, fmtRelative, fmtSaida, normalize, pecasTexto, saidaChip,
   weekdayOfDay, LEGENDA_TRILHA, R, SHADOW,
-  STAGE_HEADERS, STAGE_SECTOR, STAGE_SHORT, TI,
+  STAGE_HEADERS, STAGE_SECTOR, STAGE_SHORT, TI, urlSetorDoEvento,
 } from "@/components/prazos/tokens";
 import { StageCell } from "@/components/prazos/stage-cell";
 import { KpiCard } from "@/components/prazos/kpi-card";
@@ -1078,7 +1078,14 @@ export default function GestaoPrazos() {
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {piores.map((ev, i) => {
           const idx = currentStageIdx(ev);
-          const setor = STAGE_SECTOR[stageMeta[idx]?.key ?? ""]?.sector;
+          const etapaKey = stageMeta[idx]?.key ?? "";
+          const setor = STAGE_SECTOR[etapaKey]?.sector;
+          // A faixa NOMEAVA o setor e não dava caminho até ele: quem lia
+          // "Arte · prazo vencido há 12 dias" tinha de abrir o modal, achar o
+          // grupo da etapa e só então clicar. O link é de EVENTO + ETAPA (é o
+          // grão da linha, que fala de um evento inteiro) e leva o recorte
+          // junto — ver o contrato em components/prazos/tokens.ts.
+          const urlSetorAqui = setor ? urlSetorDoEvento(etapaKey, ev.id, { atrasada: true }) : null;
           return (
             <div key={ev.id} style={{
               display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap",
@@ -1113,6 +1120,16 @@ export default function GestaoPrazos() {
                 </strong>
                 {ev.pecasEmAtraso > 0 && ` · ${pecasTexto(ev.pecasEmAtraso)} parada${ev.pecasEmAtraso !== 1 ? "s" : ""}`}
               </span>
+              {urlSetorAqui && (
+                <Link
+                  href={urlSetorAqui}
+                  data-testid={`comece-setor-${ev.id}`}
+                  title={`${setor} — já no recorte das peças deste evento nesta etapa`}
+                  style={{ fontSize: 12, fontWeight: 600, color: TI.secondary, textDecoration: "none", whiteSpace: "nowrap" }}
+                >
+                  Resolver em {setor} →
+                </Link>
+              )}
               <div className="gp-no-print" style={{ marginLeft: "auto" }}>
                 {/* Contorno, não sólido: a ação primária SÓLIDA é a do bloco
                     de cobrança do modal. Três botões pretos aqui em cima

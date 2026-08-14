@@ -163,16 +163,34 @@ describe("ordem e destino de cada linha", () => {
     expect(lista.map((p) => p.item.id)).toEqual(["c", "b", "a"]);
   });
 
-  it("cada linha aponta para a tela que RESOLVE a peça (mesmo mapa do drill)", () => {
+  it("cada linha aponta para a PEÇA na tela que a resolve, não para a fila", () => {
     const ev = montar(evento(), [
-      peca({ id: "arte", status: "awaiting_submission" }),
-      peca({ id: "solicitacao", status: "draft" }),
+      peca({ id: "arte", displayId: "#3521", status: "awaiting_submission" }),
+      peca({ id: "solicitacao", displayId: "#3522", status: "draft" }),
     ]);
     const porId = new Map(computePecasAtrasadas([ev]).map((p) => [p.item.id, p]));
     expect(porId.get("arte")?.setor).toBe("Arte");
-    expect(porId.get("arte")?.url).toBe("/arte");
-    // Etapa sem tela própria cai no detalhe do evento, onde a peça nasce.
-    expect(porId.get("solicitacao")?.url).toBe("/eventos/ev-1");
+    // O defeito que este caso trava: era o literal "/arte", e um clique numa
+    // peça caía na fila inteira do setor.
+    const url = new URL(porId.get("arte")!.url, "http://x");
+    expect(url.pathname).toBe("/arte");
+    expect(url.searchParams.get("item")).toBe("arte");
+    expect(url.searchParams.get("busca")).toBe("#3521");
+    expect(url.searchParams.get("fase")).toBe("criar-aprovacoes");
+    // Etapa sem tela própria cai no detalhe do evento com a FICHA aberta —
+    // que é o destino mais específico que existe para ela.
+    expect(porId.get("solicitacao")?.url).toBe("/eventos/ev-1?item=solicitacao");
+    expect(porId.get("solicitacao")?.urlPeca).toBe("/eventos/ev-1?item=solicitacao");
+  });
+
+  it("toda linha tem um link que ABRE A PEÇA, seja qual for a etapa", () => {
+    const ev = montar(evento(), [
+      peca({ id: "a", status: "draft" }),
+      peca({ id: "b", status: "awaiting_submission" }),
+    ]);
+    for (const p of computePecasAtrasadas([ev])) {
+      expect(p.urlPeca).toBe(`/eventos/ev-1?item=${p.item.id}`);
+    }
   });
 
   it("mistura eventos numa lista só, sem agrupar, dizendo de qual evento é cada peça", () => {

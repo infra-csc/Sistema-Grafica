@@ -10,6 +10,7 @@
 // Também mora aqui tudo o que os componentes de `components/prazos/*` e a
 // página compartilham e que não depende de React: mapa de setores, régua de
 // cores, formatação de data e o tradutor de erro de API.
+import { TAB_STATUSES } from "@/lib/arte-rules";
 import { T, R, SHADOW } from "@/lib/theme";
 import { toUTCDisplayDate } from "@/lib/utils";
 import type { PrazoEvent, PrazoPendingSponsor, StageState } from "@shared/prazos-contract";
@@ -91,15 +92,149 @@ export const LEGENDA_TRILHA: { cor: string; texto: string }[] = [
 
 // Para cada etapa, o setor que destrava e a tela onde se age.
 // listaImagens aponta para o detalhe do evento (peças nascem lá).
-export const STAGE_SECTOR: Record<string, { sector: string; url: string | null }> = {
-  listaImagens: { sector: "Solicitação", url: null }, // null = detalhe do evento
-  layouts:      { sector: "Arte",        url: "/arte" },
-  aprovacao:    { sector: "Atendimento", url: "/atendimento" },
-  // Finalizacao e a Arte anexando o arquivo final — mesmo setor de layouts.
-  finalizacao:  { sector: "Arte",        url: "/arte" },
-  revisao:      { sector: "Revisão",     url: "/solicitacao" },
-  producao:     { sector: "Gráfica",     url: "/grafica" },
+//
+// `base` é BASE de caminho, nunca o href final: quem navega chama um dos
+// construtores de `urlSetor*` abaixo. O campo chamava-se `url` e era colado
+// cru num `href` — foi esse nome que fez a tela prometer "Resolver em Arte →"
+// para UMA peça e entregar a fila inteira da Arte, com 1.112 peças dentro.
+export const STAGE_SECTOR: Record<string, {
+  sector: string;
+  /** Caminho da tela do setor. `null` = a peça se resolve no próprio evento. */
+  base: string | null;
+  /** Aba da Arte (`?fase=`) em que as peças DESTA etapa vivem. */
+  fase?: string;
+}> = {
+  listaImagens: { sector: "Solicitação", base: null }, // null = detalhe do evento
+  layouts:      { sector: "Arte",        base: "/arte", fase: "criar-aprovacoes" },
+  aprovacao:    { sector: "Atendimento", base: "/atendimento" },
+  // Finalizacao e a Arte anexando o arquivo final — mesmo setor de layouts,
+  // outra aba: lá a peça já voltou aprovada e o que falta é o arquivo final.
+  finalizacao:  { sector: "Arte",        base: "/arte", fase: "finalizar-layouts" },
+  revisao:      { sector: "Revisão",     base: "/solicitacao" },
+  producao:     { sector: "Gráfica",     base: "/grafica" },
 };
+
+// ─── ATALHOS: para onde cada link desta tela leva ────────────────────────────
+//
+// O CONTRATO DE PARÂMETRO É `?item=<uuid da peça>`.
+//
+// PORQUÊ `item` E NÃO `peca`. Duas telas do app já recebem uma peça pela URL:
+// o Detalhe do Evento (`/eventos/:id?item=`, que abre a ficha) e a Gráfica
+// (`/grafica?item=`, o deep link do sino). O Painel Geral usa `?peca=`, mas o
+// Painel não é destino de nenhum link daqui. Entre os dois nomes que já
+// existem, `item` é o que vale nos destinos que ESTA tela usa — e inventar um
+// terceiro nome seria criar a terceira gramática de deep link do mesmo app.
+//
+// PARÂMETROS SECUNDÁRIOS. Cada um já é LIDO hoje pela tela em que é usado, e
+// por isso o link é específico agora e não só depois:
+//   • `fase=<aba>`        — Arte (`parseArteFilters`, lib/arte-rules.ts)
+//   • `busca=<displayId>` — Arte e Revisão casam displayId na busca
+//   • `evento=<id>`       — Arte e Gráfica (CSV de ids)
+//   • `atrasados=1`       — Atendimento (recorte "passou do marco de Aprovação")
+//
+// A GRÁFICA RECEBE `item` SOZINHO, de propósito: o efeito dela resolve o uuid
+// para o displayId e escreve a busca por conta própria; um `busca=` nosso
+// seria sobrescrito — e, quando o uuid não estivesse no cache, sobrescrito
+// pelo PRÓPRIO uuid, que não acha nada. Mandar menos, aqui, acerta mais.
+//
+// O QUE FALTA (especificado para as telas de destino, não implementável daqui):
+// `arte.tsx`, `atendimento.tsx` e `solicitacao.tsx` ainda não leem `?item=`.
+// Até lá o link chega no recorte mais estreito que cada uma sabe aplicar —
+// nunca na fila inteira — e o `item` viaja junto, pronto para ser consumido.
+
+/** O que a Gestão de Prazos sabe de uma peça na hora de montar um link. */
+export interface AlvoPeca {
+  eventId: string;
+  itemId: string;
+  displayId: string;
+  /** Status da peça — é dele que sai a ABA da Arte. */
+  status: string;
+  /** O prazo que mede a peça já venceu (liga o `?atrasados=1`). */
+  atrasada?: boolean;
+}
+
+/**
+ * A peça aberta no evento — o único destino do app que HOJE abre a ficha de
+ * uma peça a partir de um link (event-detail consome o `?item=` e abre o
+ * dialog). É o piso de especificidade de todo link de peça desta tela.
+ */
+export function urlPecaNoEvento(eventId: string, itemId: string): string {
+  return `/eventos/${eventId}?item=${encodeURIComponent(itemId)}`;
+}
+
+/**
+ * Aba da Arte em que uma peça com este status aparece.
+ *
+ * Deriva de `TAB_STATUSES` (lib/arte-rules.ts), a fonte única de status→aba da
+ * própria tela de Arte: uma segunda tabela aqui seria a cópia que diverge no
+ * dia em que a Arte ganhar uma aba. A ordem de `Object.entries` segue a de
+ * declaração — as abas específicas primeiro, `finalizados` (que é o balaio
+ * largo) por último.
+ */
+export function faseDaArte(status: string): string | null {
+  for (const [aba, statuses] of Object.entries(TAB_STATUSES)) {
+    if (statuses.includes(status)) return aba;
+  }
+  return null;
+}
+
+/**
+ * Onde uma PEÇA específica se resolve. É o href de "Resolver em {setor} →"
+ * numa linha de peça.
+ *
+ * Etapa sem tela de setor (Lista de Imagens) cai no evento com a ficha aberta:
+ * é o destino mais específico que existe para ela, e não uma listagem.
+ */
+export function urlSetorDaPeca(stageKey: string, alvo: AlvoPeca): string {
+  const base = STAGE_SECTOR[stageKey]?.base;
+  if (!base) return urlPecaNoEvento(alvo.eventId, alvo.itemId);
+  const p = new URLSearchParams();
+  p.set("item", alvo.itemId);
+  if (base === "/arte") {
+    const fase = faseDaArte(alvo.status);
+    if (fase) p.set("fase", fase);
+    p.set("busca", alvo.displayId);
+    p.set("evento", alvo.eventId);
+  } else if (base === "/solicitacao") {
+    p.set("busca", alvo.displayId);
+  } else if (base === "/atendimento" && alvo.atrasada) {
+    p.set("atrasados", "1");
+  }
+  return `${base}?${p.toString()}`;
+}
+
+/**
+ * Onde as peças de UM evento numa UMA etapa se resolvem — o href do cabeçalho
+ * de grupo do drill, que cobre N peças de uma vez. Não é link de peça: o grão
+ * certo aqui é evento + etapa, e é o que a URL carrega.
+ */
+export function urlSetorDoEvento(
+  stageKey: string,
+  eventId: string,
+  opts: { atrasada?: boolean } = {},
+): string {
+  const alvo = STAGE_SECTOR[stageKey];
+  if (!alvo?.base) return `/eventos/${eventId}`;
+  const p = new URLSearchParams();
+  if (alvo.fase) p.set("fase", alvo.fase);
+  if (alvo.base === "/arte" || alvo.base === "/grafica") p.set("evento", eventId);
+  if (alvo.base === "/atendimento" && opts.atrasada) p.set("atrasados", "1");
+  const qs = p.toString();
+  return qs ? `${alvo.base}?${qs}` : alvo.base;
+}
+
+/**
+ * A tela do setor sem recorte de evento nem de peça — o href do card da faixa
+ * de análise, que conta o conjunto COMPLETO e por isso não tem um evento para
+ * citar. Mesmo aqui o link é mais estreito que a fila: a etapa vira `?fase=`.
+ *
+ * `null` quando a etapa não tem tela própria; quem chama decide o texto.
+ */
+export function urlSetor(stageKey: string): string | null {
+  const alvo = STAGE_SECTOR[stageKey];
+  if (!alvo?.base) return null;
+  return alvo.fase ? `${alvo.base}?fase=${alvo.fase}` : alvo.base;
+}
 
 export const STAGE_HEADERS = [
   { key: "listaImagens", short: "Lista", full: "Lista de Imagens" },

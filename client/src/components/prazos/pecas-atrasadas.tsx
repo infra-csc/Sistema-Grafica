@@ -16,6 +16,11 @@
 // — o link "Resolver em {setor} →", que usa exatamente o mesmo `STAGE_SECTOR`
 // do drill do modal (mandar o diretor cobrar o Atendimento por uma peça que
 // está na mesa da Arte é o erro que a tela existe para evitar).
+//
+// E o link leva À PEÇA, não à fila do setor: `PecaAtrasada.url` sai de
+// `urlSetorDaPeca` (tokens.ts), que carrega aba, busca e evento — os
+// parâmetros que cada tela de destino já sabe ler. Antes era o caminho cru
+// "/arte", e um clique numa peça aterrissava nas 1.112 da Arte.
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { CheckCircle2, Search } from "lucide-react";
@@ -143,7 +148,7 @@ function NotaMarco({ p }: { p: PecaAtrasada }) {
 function LinkPeca({ p }: { p: PecaAtrasada }) {
   return (
     <Link
-      href={`/eventos/${p.eventId}?item=${p.item.id}`}
+      href={p.urlPeca}
       title={`Abrir ${p.item.displayId} no evento ${p.eventName}`}
       data-testid={`peca-atrasada-${p.item.id}`}
       style={{
@@ -184,7 +189,7 @@ function LinkSetor({ p, empilhado, style }: {
   return (
     <Link
       href={p.url}
-      title={`Ir para a tela de ${p.setor}, onde esta peça é destravada`}
+      title={`${p.setor} — a tela que destrava ${p.item.displayId}, já no recorte desta peça`}
       data-testid={`resolver-${p.item.id}`}
       style={{
         fontSize: 12, fontWeight: 600, color: TI.secondary, textDecoration: "none",

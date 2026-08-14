@@ -1167,10 +1167,15 @@ export default function EventDetail() {
   const BLOCKED_EDIT_STATUSES = ["ready_for_production", "pronto_para_producao", "approved", "inProduction", "produced", "conferred", "delivered"];
   const isEditBlocked = (status: string) => BLOCKED_EDIT_STATUSES.includes(status) && !canEditLists;
 
-  // Exclusão: admin pode sempre; solicitação apenas antes de chegar na Arte
+  // Exclusão: solicitação tem o MESMO alcance do admin (decisão do dono).
+  // Antes, solicitação só excluía antes de a peça chegar na Arte — e
+  // "awaiting_submission" estava na lista de bloqueio, ou seja, nem o próprio
+  // rascunho recém-criado ela conseguia apagar. A exclusão aqui é SOFT
+  // (deletedAt), fica no log de auditoria e é restaurável em Peças Excluídas,
+  // então o risco é reversível; a trava que continua valendo para todos é a
+  // de integridade (mãe com complemento vivo, barrada no servidor).
   const canDeleteAny = hasPermission("admin") || user?.role === "solicitacao";
-  const BLOCKED_DELETE_STATUSES = ["awaiting_submission", "awaiting_approval", "awaiting_final_review", "ready_for_production", "pronto_para_producao", "approved", "inProduction", "produced", "conferred", "delivered"];
-  const canDeleteItem = (status: string) => hasPermission("admin") || !BLOCKED_DELETE_STATUSES.includes(status);
+  const canDeleteItem = (_status: string) => canDeleteAny;
 
   const handleEditItem = (item: any) => {
     if (isEditBlocked(item.status)) return;

@@ -934,6 +934,73 @@ describe("DELETE /api/items/:id — a mãe não some deixando filho órfão", ()
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
+describe("DELETE /api/items/:id — alcance da solicitação (decisão do dono)", () => {
+  // A solicitação esbarrava numa lista de status bloqueados que começava em
+  // "awaiting_submission": o papel dono da peça não conseguia excluir nem o
+  // próprio rascunho recém-criado. Agora o alcance é o MESMO do admin. É seguro
+  // porque a exclusão é SOFT (deletedAt) e restaurável.
+  const excluir = (userRole: string) =>
+    chamar(DELETE_ITEM, { params: { id: "mae-1" }, userRole, userId: `user-${userRole}` });
+
+  it("solicitação exclui o próprio rascunho (awaiting_submission)", async () => {
+    mundo.itens["mae-1"] = peca({ status: "awaiting_submission", quantityProduced: 0, conferredQty: 0, deliveredQty: 0 });
+    const r = await excluir("solicitacao");
+    expect(r.status).toBe(200);
+    expect(H.storage.deleteItem).toHaveBeenCalledWith("mae-1");
+  });
+
+  it("solicitação alcança TODOS os status que estavam travados, como o admin", async () => {
+    const antesTravados = [
+      "awaiting_submission", "awaiting_approval", "awaiting_sponsor_approval",
+      "awaiting_finalization", "sponsor_approved", "awaiting_creator_review",
+      "awaiting_final_review", "ready_for_production", "pronto_para_producao",
+      "approved", "inProduction", "produced", "conferred", "delivered",
+    ];
+    for (const status of antesTravados) {
+      mundo.itens["mae-1"] = peca({ status });
+      const r = await excluir("solicitacao");
+      expect(r.status, `status ${status}`).toBe(200);
+    }
+  });
+
+  it("a exclusão continua SOFT e auditada — é o que torna a liberação segura", async () => {
+    mundo.itens["mae-1"] = peca({ status: "produced" });
+    await excluir("solicitacao");
+    // deleteItem é a exclusão soft do storage (grava deletedAt); nenhum DELETE
+    // físico é emitido por esta rota.
+    expect(H.storage.deleteItem).toHaveBeenCalledWith("mae-1");
+    expect(H.createAuditLog).toHaveBeenCalled();
+    const [autor, acao, entidade, id, detalhe] = (H.createAuditLog as any).mock.calls[0];
+    expect(autor).toBe("Maria Silva");
+    expect(acao).toBe("deleted");
+    expect(entidade).toBe("item");
+    expect(id).toBe("mae-1");
+    expect(detalhe).toContain("#0062");
+    expect(detalhe).toContain("solicitacao");
+    expect(tiposDeBroadcast()).toContain("item_deleted");
+  });
+
+  it("a integridade do complemento é regra de DADO: vale também para a solicitação", async () => {
+    mundo.itens["mae-1"] = peca();
+    mundo.itens["filho-1"] = peca({ id: "filho-1", displayId: "#0062-C1", parentItemId: "mae-1", quantity: 4 });
+    const r = await excluir("solicitacao");
+    expect(r.status).toBe(409);
+    expect(r.body.code).toBe("HAS_COMPLEMENTS");
+    expect(H.storage.deleteItem).not.toHaveBeenCalled();
+  });
+
+  it("quem não é admin nem solicitação continua tomando 403", async () => {
+    for (const papel of ["grafica", "arte", "atendimento", "financeiro"]) {
+      mundo.itens["mae-1"] = peca({ status: "awaiting_submission" });
+      const r = await excluir(papel);
+      expect(r.status, `papel ${papel}`).toBe(403);
+      expect(r.body.error).toContain("Sem permissão para excluir");
+    }
+    expect(H.storage.deleteItem).not.toHaveBeenCalled();
+  });
+});
+
+// ═════════════════════════════════════════════════════════════════════════════
 describe("PATCH start-production — lock otimista do modal incremental", () => {
   const produzir = (body: any) => chamar(START_PRODUCTION, {
     params: { id: "filho-1" }, body, userRole: "grafica", userId: "user-graf",

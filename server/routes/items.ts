@@ -911,10 +911,9 @@ export function registerItemRoutes(app: Express): void {
   // Delete item (soft delete — preservado no histórico)
   app.delete("/api/items/:id", requireAuth, async (req, res) => {
     try {
-      const isAdmin = req.userRole === "admin";
-      const isSolicitacao = req.userRole === "solicitacao";
-
-      if (!isAdmin && !isSolicitacao) {
+      // Gate de PAPEL — o único gate de permissão desta rota. Gráfica, Arte e
+      // Atendimento seguem recebendo 403.
+      if (!["admin", "solicitacao"].includes(req.userRole ?? "")) {
         return res.status(403).json({ error: "Sem permissão para excluir peças" });
       }
 
@@ -923,27 +922,20 @@ export function registerItemRoutes(app: Express): void {
         return res.status(404).json({ error: "Item not found" });
       }
 
-      // Atendimento só pode excluir peças que ainda não foram liberadas para Arte/Gráfica.
-      // "pronto_para_producao" incluído: o client já bloqueava, mas o servidor
-      // aceitava o DELETE direto.
-      // Espelho EXATO do BLOCKED_DELETE_STATUSES do client
-      // (client/src/pages/painel-geral.tsx) — inclui os status intermediários
-      // reais do fluxo de aprovação (awaiting_sponsor_approval,
-      // awaiting_finalization, sponsor_approved, awaiting_creator_review),
-      // que o gate anterior deixava passar.
-      const LOCKED_STATUSES = [
-        "awaiting_submission", "awaiting_approval", "awaiting_sponsor_approval",
-        "awaiting_finalization", "sponsor_approved", "awaiting_creator_review",
-        "awaiting_final_review",
-        "ready_for_production", "pronto_para_producao", "approved",
-        "inProduction", "produced", "conferred", "delivered",
-        "canceled", "deleted",
-      ];
-      if (isSolicitacao && LOCKED_STATUSES.includes(item.status)) {
-        return res.status(403).json({
-          error: "Não é possível excluir uma peça que já foi enviada para Arte ou está em produção",
-        });
-      }
+      // ── Alcance da exclusão: solicitação = admin (decisão do dono) ────────
+      // Havia uma lista de status bloqueados só para a solicitação, e ela
+      // começava em "awaiting_submission": na prática o papel dono da peça não
+      // conseguia excluir nem o próprio rascunho recém-criado, e cada engano de
+      // digitação virava chamado para o administrador.
+      //
+      // A liberação é segura porque a exclusão aqui é SOFT (grava deletedAt, a
+      // peça sai das listagens e continua no banco) e RESTAURÁVEL pela rota de
+      // restauração — nada é destruído, e o audit log abaixo registra quem
+      // excluiu, o quê e de qual evento. O gate de PAPEL continua: quem não é
+      // admin nem solicitação segue tomando 403 logo acima.
+      //
+      // O que NÃO é regra de papel e por isso continua valendo para todo mundo,
+      // inclusive admin: a integridade do complemento, logo abaixo.
 
       // Mãe com complemento vivo não some. O `ON DELETE SET NULL` da FK só
       // dispara em DELETE físico — aqui a exclusão é SOFT (deletedAt), então o
@@ -1517,7 +1509,31 @@ export function registerItemRoutes(app: Express): void {
         req.params.id,
         `Peça dispensada pela Arte. Status anterior: ${currentItem.status}${reason ? `. Motivo: ${reason}` : ''}`
       );
-      res.json({ success: true });
+
+      // A dispensa PULA a aprovação e joga a peça direto na fila da Gráfica —
+      // era a única transição do fluxo que fazia isso em silêncio: nenhum
+      // broadcast, nenhuma notificação e um `{success:true}` que não deixava o
+      // cliente atualizar nada. A peça aparecia na Gráfica só no próximo F5, e
+      // ninguém do chão de fábrica sabia que ela tinha entrado.
+      // Espelha o que /submit-for-approval faz logo acima.
+      const item = await storage.getItem(req.params.id);
+      if (!item) return res.status(404).json({ error: "Item not found" });
+      const event = await storage.getEvent(item.eventId);
+
+      const notification = await storage.createNotification({
+        type: "itemAdded",
+        message: `Peça liberada sem aprovação: ${item.type}${event ? ` — ${event.name}` : ""}`,
+        eventId: item.eventId,
+        itemId: item.id,
+        targetRoles: ["grafica"],
+      });
+
+      broadcast({ type: "item_updated", item });
+      broadcast({ type: "notification_created", notification });
+
+      // Devolve O ITEM (não `{success:true}`): é o contrato das rotas irmãs, e
+      // é o que permite ao cliente ler o novo status sem outro round-trip.
+      res.json(item);
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

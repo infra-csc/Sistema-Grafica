@@ -38,6 +38,25 @@ import {
 // "#0062-C1" tem de ordenar COLADO em "#0062" — com o replace(/\D/g,'') antigo
 // virava 621 e o complemento aparecia centenas de linhas longe da mãe.
 import { compareDisplayId, splitDisplayId } from "@/lib/displayId";
+// Recorte da fila: fonte única em lib/grafica-filtros.ts. Os doze filtros eram
+// doze useState soltos e cada lugar que perguntava "há filtro ativo?" mantinha a
+// lista À MÃO — foi assim que Grupo e Percurso entraram sem entrar no
+// `hasActiveFilters` e o vazio por filtro passou a dizer "Nenhuma peça liberada
+// ainda". Agora o recorte é UM objeto: contagem, descrição, URL e casamento
+// item↔filtro saem todos dele.
+import {
+  FILTROS_VAZIOS, filtrosDaURL, filtrosParaQuery, itemCasaFiltros, itemPercursos,
+  contarFiltrosAtivos, temFiltroAtivo, descreverFiltros, nomeDoMes, escondeEntregues,
+  hojeEmUTC, normKey, ordemPercurso,
+  type GraficaFiltros, type FacetaGrafica,
+} from "@/lib/grafica-filtros";
+// Lançamento de produção: o único campo do app cujo contrato é ABSOLUTO ao lado
+// de dois vizinhos incrementais. A regra (teto, lock otimista, confirmação da
+// redução) mora em lib/grafica-producao.ts.
+import { avaliarProducao, tetoDeProducao, ehConflitoDeProducao } from "@/lib/grafica-producao";
+// Selo "Atualizado há X" — o mesmo formatador da Gestão de Prazos e das
+// Análises, para as três telas dizerem a idade do dado com as mesmas palavras.
+import { fmtRelative } from "@/components/prazos/tokens";
 // AUMENTAR QUANTIDADE nasce AQUI. Esta é a tela onde as peças em produção
 // vivem e onde o aumento precisa ser visto — o Detalhe do Evento ficou só com
 // a REDUÇÃO (campo Qtd. com piso físico) e aponta para cá. O gate é
@@ -131,7 +150,10 @@ const rowBg = (item: any, isSelected: boolean, hover: boolean, isNovo = false) =
   if (isSelected) return hover ? CO.border : CO.hoverBg;
   if (complementOpen(item)) return hover ? CO.hoverBg : CO.bg;
   if (item?.isReuse) return hover ? "#dcfce7" : "#f0fdf4";
-  return hover ? "#fafaf9" : "";
+  // Branco explícito (e não ""): a célula de Ações é `position: sticky` e herda
+  // esta cor com `background: inherit`. Fundo transparente deixaria o conteúdo
+  // rolando por baixo dela — sticky só existe se a célula for opaca.
+  return hover ? "#fafaf9" : "#ffffff";
 };
 
 /** Mensagem legível de um erro da API (apiRequest devolve o corpo cru). */
@@ -172,33 +194,37 @@ function DeadlineChip({ event }: { event: any }) {
     : diff <= 3
     ? { bg: "rgba(255,160,50,0.22)", border: "rgba(255,160,50,0.38)", text: "#ffc78a" }
     : { bg: "rgba(255,255,255,0.12)", border: "rgba(255,255,255,0.2)", text: "rgba(255,255,255,0.72)" };
+  // O sufixo só aparecia entre 0 e 14 dias: com o prazo VENCIDO o chip ficava
+  // "Produção Gráfica · 09/08" em vermelho, sem número — exatamente o caso em
+  // que a magnitude decide a ordem do galpão. Há diferença operacional enorme
+  // entre "venceu ontem" e "venceu há duas semanas".
+  const sufixo = diff < 0 ? `atrasado ${Math.abs(diff)}d`
+    : diff === 0 ? "hoje"
+    : diff <= 14 ? `${diff}d`
+    : "";
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 5, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 999, padding: "3px 9px", fontSize: 10, fontWeight: 700, color: s.text, letterSpacing: "0.04em", whiteSpace: "nowrap", alignSelf: "flex-start" }}>
-      Produção Gráfica · {ds}{diff >= 0 && diff <= 14 && <span style={{ opacity: 0.65, fontWeight: 500 }}> ({diff}d)</span>}
+    <span
+      title={`Marco de Produção Gráfica em ${ds}${sufixo ? ` — ${sufixo}` : ""}`}
+      aria-label={`Prazo de produção gráfica: ${ds}${sufixo ? `, ${sufixo}` : ""}`}
+      style={{ display: "inline-flex", alignItems: "center", gap: 5, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 999, padding: "3px 9px", fontSize: 10, fontWeight: 700, color: s.text, letterSpacing: "0.04em", whiteSpace: "nowrap", alignSelf: "flex-start" }}
+    >
+      Produção Gráfica · {ds}{sufixo && <span style={{ opacity: diff < 0 ? 0.95 : 0.65, fontWeight: diff < 0 ? 700 : 500 }}> · {sufixo}</span>}
     </span>
   );
 }
 
 // Seletor de fotos (câmera + galeria) com miniaturas e remoção — unifica as
 // três cópias que existiam (modais individuais, entrega e conferência em lote).
-// Normaliza texto para comparação (minúscula, sem acento, espaço colapsado) —
-// mesma regra da Arte para casar type com nome/grupo do catálogo de Modelos.
-const normKey = (s: string) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+// `normKey` (casar type com o catálogo de Modelos) e `itemPercursos` (a
+// distância que vive no TEXTO da peça, porque o app não tem campo para ela)
+// moram em lib/grafica-filtros.ts, junto com o resto da regra de recorte.
 
-// PERCURSO das placas de quilometragem. O app não tem campo para isso: a
-// distância vive no texto da peça, na forma que a operação escreve — "10k - km 8",
-// "5k - km 4", "5k/10k - km 1" (esta última pertence aos DOIS percursos).
-// Casa "5k", "10km", "21,1k" e ignora o marcador "km 8" (exige dígito ANTES do k)
-// e unidades como "kg" (lookahead).
-const PERCURSO_RE = /(\d{1,3}(?:[.,]\d{1,2})?)\s*k(?:m|ms)?(?![a-z])/gi;
-function itemPercursos(item: any): string[] {
-  const text = `${item?.description ?? ""} ${item?.type ?? ""}`;
-  const out = new Set<string>();
-  PERCURSO_RE.lastIndex = 0;
-  let m: RegExpExecArray | null;
-  while ((m = PERCURSO_RE.exec(text)) !== null) out.add(`${m[1].replace(".", ",")}k`);
-  return Array.from(out);
-}
+// Renderização incremental: cada evento desenha até ROW_CAP linhas e o resto
+// entra sob demanda — o mesmo teto do Painel Geral, da Arte e do Vincular. A
+// fila inclui as entregues de todo o histórico; sem o teto, cada entrada na rota
+// pintava milhares de linhas concluídas (com miniatura e handlers de hover) em
+// máquinas modestas de galpão.
+const ROW_CAP = 50;
 
 function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos", hint, dense = false }: {
   photos: string[];
@@ -384,7 +410,7 @@ function BulkActionDialog({
                         onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                       />
                     ) : (
-                      <Package aria-hidden="true" style={{ width: 16, height: 16, color: "#a8a29e" }} />
+                      <Package aria-hidden="true" style={{ width: 16, height: 16, color: "#78716c" }} />
                     )}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -476,22 +502,29 @@ export default function Grafica() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [modalType, setModalType] = useState<"production" | "delivery" | "conference" | null>(null);
   const [viewDetailsItem, setViewDetailsItem] = useState<any>(null);
-  const [statusFilter, setStatusFilter] = useState<string[]>([]);
-  const [eventFilter, setEventFilter] = useState<string[]>([]);
-  const [typeFilter, setTypeFilter] = useState<string[]>([]);
-  const [materialFilter, setMaterialFilter] = useState<string[]>([]);
-  const [finishFilter, setFinishFilter] = useState<string[]>([]);
-  // Pedido da Gráfica: separar o trabalho por GRUPO (ex.: "Placa km") e, dentro
-  // dele, por PERCURSO (5k, 10k) — com dezenas de placas quase idênticas na
-  // fila, era o único jeito de montar o lote certo sem conferir uma a uma.
-  const [groupFilter, setGroupFilter] = useState<string[]>([]);
-  const [percursoFilter, setPercursoFilter] = useState<string[]>([]);
-  // Chip "complementos": recorta a fila para os aumentos de quantidade pedidos
-  // depois que a peça já estava em produção. Não pinamos os complementos no
-  // topo da lista (arrancá-los do bloco do evento duplicaria cabeçalhos e a
-  // Gráfica trabalha POR EVENTO, com o caminhão marcado) — o acesso rápido vem
-  // deste filtro, e o realce visual faz o resto.
-  const [complementFilter, setComplementFilter] = useState(false);
+  // ── RECORTE (os doze filtros) ─────────────────────────────────────────────
+  // UM objeto, inicializado da URL: F5 não perde o trabalho de filtrar e dá
+  // para mandar no WhatsApp o link de "peças do evento de sábado que faltam
+  // entregar". Mesmo padrão de outras nove telas do app.
+  //
+  // Dentro dele: busca, status, evento, GRUPO ("Placa km") e PERCURSO (5k, 10k)
+  // — pedido da Gráfica, o único jeito de montar o lote certo com dezenas de
+  // placas quase idênticas na fila —, tipo, material, acabamento, mês,
+  // próximos 10 dias, o chip de complementos e o "mostrar entregues".
+  //
+  // O chip de complementos recorta a fila para os aumentos pedidos depois que a
+  // peça já estava em produção. Os complementos NÃO são pinados no topo da lista
+  // (arrancá-los do bloco do evento duplicaria cabeçalhos, e a Gráfica trabalha
+  // POR EVENTO com o caminhão marcado) — o acesso rápido vem deste filtro.
+  const [filtros, setFiltros] = useState<GraficaFiltros>(() => filtrosDaURL(window.location.search));
+  const patchFiltros = (p: Partial<GraficaFiltros>) => setFiltros(f => ({ ...f, ...p }));
+  // Busca com debounce: o input responde a cada tecla, o RECORTE só 200ms
+  // depois. Sem isto, cada tecla refiltrava, reordenava e reagrupava a base
+  // inteira — que inclui todo o histórico de entregues — e recalculava as seis
+  // listas de faceta.
+  const [buscaInput, setBuscaInput] = useState(() => filtrosDaURL(window.location.search).busca);
+  // Grupos por evento já expandidos além do ROW_CAP.
+  const [gruposExpandidos, setGruposExpandidos] = useState<Set<string>>(new Set());
   // Confirmação em dois toques do "cancelar complemento" — mesmo idioma dos
   // botões de reaproveitamento desta tela, e nunca destrutivo num clique só.
   const [cancelComplementId, setCancelComplementId] = useState<string | null>(null);
@@ -505,9 +538,6 @@ export default function Grafica() {
   const [bannerComplemento, setBannerComplemento] = useState<{ id: string; displayId: string } | null>(null);
   const abrirComplemento = (item: any) => setComplementoItem(item);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
-  const [next10DaysFilter, setNext10DaysFilter] = useState(false);
-  const [monthFilter, setMonthFilter] = useState<string[]>([]);
-  const [searchFilter, setSearchFilter] = useState<string>("");
   const [isExporting, setIsExporting] = useState(false);
   const [productionData, setProductionData] = useState({ quantityProduced: 0 });
   const [deliveryData, setDeliveryData] = useState({ receivedBy: "" });
@@ -540,7 +570,63 @@ export default function Grafica() {
   const [bulkConferPhotos, setBulkConferPhotos] = useState<string[]>([]);
   const addBulkConferPhoto = (url: string) => setBulkConferPhotos(prev => [...prev, convertGCSUrlToLocalPath(url)]);
   const isMobile = useIsMobile();
-  const { data: items = [], isLoading, isError, error, refetch } = useQuery<any[]>({ queryKey: ["/api/items/approved"] });
+  const { data: items = [], isLoading, isError, error, refetch, isFetching, dataUpdatedAt } = useQuery<any[]>({
+    queryKey: ["/api/items/approved"],
+    // Override LOCAL do default global (staleTime: Infinity, sem refetch em
+    // foco). Esta é a única tela do app em que DUAS PESSOAS trabalham a mesma
+    // fila ao mesmo tempo — o operador no computador ao lado da impressora e o
+    // conferente com o celular ao lado do material — e a aba fica aberta o dia
+    // inteiro. O WebSocket agora invalida esta chave em conferência,
+    // reaproveitamento e entrega (ver use-websocket.ts); este polling é a rede
+    // de segurança para o socket morrer em silêncio.
+    staleTime: 60_000,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    refetchInterval: 60_000,
+  });
+  // Sem botão "Atualizar" (regra do dono): a tela se atualiza sozinha. O selo
+  // "Atualizado há X" é a promessa de veracidade e o spinner ao lado é o único
+  // sinal de recarga em curso. O "Tentar novamente" do estado de ERRO fica: lá
+  // a recarga automática falhou e o clique é recuperação, não rotina.
+  //
+  // Tick de 1 min: "há 12 min" calculado no render congelaria no primeiro paint.
+  const [agora, setAgora] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setAgora(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Debounce da busca (200ms) — ver o comentário do estado `buscaInput`.
+  useEffect(() => {
+    const t = setTimeout(() => patchFiltros({ busca: buscaInput }), 200);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buscaInput]);
+
+  // URL espelhando o recorte (replaceState: não polui o histórico). Com o mesmo
+  // debounce de 200ms da busca, para digitar não escrever uma entrada por tecla.
+  // `filtrosParaQuery` parte da query ATUAL e sobrescreve só as chaves
+  // gerenciadas — o `?item=` do deep link do sino sobrevive até o efeito dele
+  // limpá-lo, e qualquer param alheio também.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const qs = filtrosParaQuery(window.location.search, filtros);
+      window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+    }, 200);
+    return () => clearTimeout(t);
+  }, [filtros]);
+
+  // Voltar/avançar do navegador: reidrata o recorte a partir da URL. Sem isto o
+  // back trocava a URL e a tela continuava com os filtros novos.
+  useEffect(() => {
+    const onPop = () => {
+      const f = filtrosDaURL(window.location.search);
+      setFiltros(f);
+      setBuscaInput(f.busca);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
   // Enquanto o `npm run db:push` das colunas de complemento não roda, o SELECT
   // do Drizzle pede colunas que não existem e a leitura inteira falha (não só
   // o recurso). Sem esta detecção a tela diria "verifique sua conexão" e o
@@ -582,10 +668,27 @@ export default function Grafica() {
     });
     return { byName, byGroup };
   }, [standardItems]);
-  const groupOf = (type: string): string => {
-    const k = normKey(type);
-    return groupMaps.byName[k] || groupMaps.byGroup[k] || "";
-  };
+  // Memoizado com as deps reais: `groupOf` entra no ctx de TODA avaliação de
+  // filtro (a lista, o pool dos KPIs e as seis facetas). Como identidade nova a
+  // cada render, ele invalidava todos os useMemo derivados de uma vez.
+  const groupOf = useMemo(() => {
+    const cache = new Map<string, string>();
+    return (type: string): string => {
+      const achado = cache.get(type);
+      if (achado !== undefined) return achado;
+      const k = normKey(type);
+      // normalize("NFD") + duas regex por chamada, várias vezes por render e
+      // sobre a base inteira: o cache por `type` (dezenas de valores distintos,
+      // não milhares) tira a conta do caminho quente da digitação.
+      const g = groupMaps.byName[k] || groupMaps.byGroup[k] || "";
+      cache.set(type, g);
+      return g;
+    };
+  }, [groupMaps]);
+
+  // Âncora temporal dos filtros de data, em UTC (o mesmo fuso da Saída exibida).
+  // Presa ao tick de 1 min para a virada de meia-noite não exigir F5.
+  const ctxFiltros = useMemo(() => ({ groupOf, hojeUTC: hojeEmUTC(new Date(agora)) }), [groupOf, agora]);
 
   const startProductionMutation = useMutation({
     mutationFn: async ({ itemId, data }: { itemId: string; data: any }) =>
@@ -597,7 +700,19 @@ export default function Grafica() {
       setProductionData({ quantityProduced: 0 });
       toast({ title: "Produção iniciada", description: "A produção foi registrada com sucesso" });
     },
-    onError: (error: Error) => toast({ title: "Erro ao iniciar produção", description: error.message, variant: "destructive" }),
+    onError: (error: Error) => {
+      // O 409 do lock otimista não é "erro do sistema": é outra pessoa tendo
+      // lançado produção na mesma peça. A tela recarrega para o operador ver o
+      // número novo antes de tentar de novo — e o corpo cru do JSON vira texto.
+      const bruto = String(error?.message ?? "");
+      const conflito = ehConflitoDeProducao(bruto);
+      if (conflito) queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      toast({
+        title: conflito ? "Alguém lançou produção antes de você" : "Erro ao iniciar produção",
+        description: apiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
   });
 
   const markDeliveredMutation = useMutation({
@@ -697,30 +812,31 @@ export default function Grafica() {
     },
   });
 
-  // Filtros facetados: cada filtro lista só o que existe no recorte atual,
-  // aplicando os OUTROS filtros ativos (com contagem por opção).
-  const gFacetPool = (exclude: 'event' | 'status' | 'type' | 'material' | 'finish' | 'group' | 'percurso') =>
-    (items as any[]).filter((item: any) => {
-      if (exclude !== 'group' && groupFilter.length > 0 && !groupFilter.includes(groupOf(item.type))) return false;
-      if (exclude !== 'percurso' && percursoFilter.length > 0 && !itemPercursos(item).some(p => percursoFilter.includes(p))) return false;
-      if (exclude !== 'status' && statusFilter.length > 0) {
-        // Estrito: "pronto_para_producao" é só grafia legada do mesmo status;
-        // "approved" NÃO entra aqui (o KPI Liberados seleciona os dois valores).
-        const ok = statusFilter.some(sf => sf === "ready_for_production"
-          ? (item.status === "ready_for_production" || item.status === "pronto_para_producao")
-          : item.status === sf);
-        if (!ok) return false;
-      }
-      if (exclude !== 'event' && eventFilter.length > 0 && !eventFilter.includes(item.eventId)) return false;
-      if (exclude !== 'type' && typeFilter.length > 0 && !typeFilter.includes(item.type)) return false;
-      if (exclude !== 'material' && materialFilter.length > 0 && !materialFilter.includes(item.material)) return false;
-      if (exclude !== 'finish' && finishFilter.length > 0 && !finishFilter.includes(item.finish)) return false;
-      return true;
-    });
+  // Filtros facetados: cada dropdown lista só o que existe no recorte atual,
+  // aplicando os OUTROS filtros ativos (com contagem por opção) — o
+  // comportamento correto, que a maioria dos apps erra. A regra é a MESMA da
+  // lista (`itemCasaFiltros`), só com o próprio filtro excluído: antes o pool
+  // das facetas ignorava busca, mês e próximos-10-dias, então digitar na busca
+  // encolhia a lista e as contagens dos dropdowns continuavam prometendo o
+  // número antigo.
+  //
+  // useMemo obrigatório: eram SEIS varreduras da base a cada tecla digitada,
+  // sem memo nenhum, cada uma chamando `groupOf` (normalize + duas regex) e
+  // `itemPercursos` (exec em laço) sobre todo o histórico.
+  const gFacetPool = useMemo(() => {
+    const cache = new Map<FacetaGrafica, any[]>();
+    return (excluir: FacetaGrafica): any[] => {
+      const pronto = cache.get(excluir);
+      if (pronto) return pronto;
+      const pool = (items as any[]).filter((i: any) => itemCasaFiltros(i, filtros, ctxFiltros, { excluir }));
+      cache.set(excluir, pool);
+      return pool;
+    };
+  }, [items, filtros, ctxFiltros]);
 
-  const countField = (exclude: any, key: 'type' | 'material' | 'finish') => {
+  const countField = (excluir: FacetaGrafica, key: 'type' | 'material' | 'finish') => {
     const map = new Map<string, { value: string; label: string; count: number }>();
-    gFacetPool(exclude).forEach((i: any) => {
+    gFacetPool(excluir).forEach((i: any) => {
       const v = i[key];
       if (!v) return;
       const cur = map.get(v);
@@ -730,31 +846,31 @@ export default function Grafica() {
     return Array.from(map.values());
   };
 
-  const eventFilterOptions = (() => {
+  const eventFilterOptions = useMemo(() => {
     // Cores de prioridade vêm da fonte única (lib/status) — o mapa hex local
     // divergia dela ("alta" laranja aqui, âmbar no resto do app).
     // 'urgent' é grafia legada de 'urgente' que ainda existe em eventos antigos.
     const dotFor = (priority: string | undefined) =>
       getPriorityMeta(priority === 'urgent' ? 'urgente' : priority)?.dot;
     const map = new Map<string, { value: string; label: string; count: number; dotColor?: string }>();
-    gFacetPool('event').forEach((i: any) => {
+    gFacetPool('evento').forEach((i: any) => {
       if (!i.eventId) return;
       const cur = map.get(i.eventId);
       if (cur) cur.count++;
       else map.set(i.eventId, { value: i.eventId, label: i.event?.name || 'Sem evento', count: 1, dotColor: dotFor(i.event?.priority) });
     });
     return Array.from(map.values());
-  })();
-  const typeFilterOptions = countField('type', 'type');
-  const materialFilterOptions = countField('material', 'material');
-  const finishFilterOptions = countField('finish', 'finish');
+  }, [gFacetPool]);
+  const typeFilterOptions = useMemo(() => countField('tipo', 'type'), [gFacetPool]);
+  const materialFilterOptions = useMemo(() => countField('material', 'material'), [gFacetPool]);
+  const finishFilterOptions = useMemo(() => countField('acabamento', 'finish'), [gFacetPool]);
 
   // Grupos presentes no recorte atual (ex.: 5KM, 10KM, PÓRTICO). Derivado do
   // catálogo de Modelos, então o filtro só aparece quando há grupo cadastrado
   // e nunca oferece uma opção que não bate em nada.
-  const groupFilterOptions = (() => {
+  const groupFilterOptions = useMemo(() => {
     const map = new Map<string, { value: string; label: string; count: number }>();
-    gFacetPool('group').forEach((i: any) => {
+    gFacetPool('grupo').forEach((i: any) => {
       const g = groupOf(i.type);
       if (!g) return;
       const cur = map.get(g);
@@ -765,23 +881,23 @@ export default function Grafica() {
     return Array.from(map.values())
       .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR', { numeric: true }))
       .map((o) => ({ ...o, pinned: true }));
-  })();
+  }, [gFacetPool, groupOf]);
 
   // Percursos presentes no recorte (5k, 10k...). Uma placa "5k/10k" conta nos
   // dois — é peça compartilhada e tem de aparecer em qualquer um dos filtros.
-  const percursoFilterOptions = (() => {
+  const percursoFilterOptions = useMemo(() => {
     const map = new Map<string, { value: string; label: string; count: number; sort: number }>();
     gFacetPool('percurso').forEach((i: any) => {
       itemPercursos(i).forEach((p) => {
         const cur = map.get(p);
         if (cur) cur.count++;
-        else map.set(p, { value: p, label: p, count: 1, sort: parseFloat(p.replace(',', '.')) });
+        else map.set(p, { value: p, label: p, count: 1, sort: ordemPercurso(p) });
       });
     });
     return Array.from(map.values())
       .sort((a, b) => a.sort - b.sort)
       .map(({ value, label, count }) => ({ value, label, count, pinned: true }));
-  })();
+  }, [gFacetPool]);
 
   const months = [
     { value: "all", label: "Todos os meses" },
@@ -793,62 +909,14 @@ export default function Grafica() {
     { value: "11", label: "Novembro" }, { value: "12", label: "Dezembro" },
   ];
 
-  // Filtro compartilhado entre a lista e os KPIs — a única diferença é que os
-  // KPIs ignoram o filtro de status (cada card mostra a contagem do seu status
-  // dentro do recorte atual). Antes eram duas cópias quase idênticas.
-  const matchesFilters = (item: any, opts?: { skipStatus?: boolean }) => {
-    if (searchFilter) {
-      const q = searchFilter.toLowerCase();
-      if (!item.type?.toLowerCase().includes(q) &&
-          !item.description?.toLowerCase().includes(q) &&
-          !item.displayId?.toLowerCase().includes(q) &&
-          !item.event?.name?.toLowerCase().includes(q)) return false;
-    }
-    if (!opts?.skipStatus && statusFilter.length > 0) {
-      // Estrito, como no gFacetPool: escolher "Pronto p/ Produção" no select
-      // não pode devolver também os "Liberados" (duplicava a outra opção).
-      const ok = statusFilter.some(sf => sf === "ready_for_production"
-        ? (item.status === "ready_for_production" || item.status === "pronto_para_producao")
-        : item.status === sf);
-      if (!ok) return false;
-    }
-    // O chip de complementos é filtro de RECORTE, como o status: o pool que
-    // alimenta os cards e o próprio chip ignora os dois (`skipStatus`), senão
-    // cada um zeraria a contagem de onde nasceu.
-    if (!opts?.skipStatus && complementFilter && !isComplement(item)) return false;
-    if (eventFilter.length > 0 && !eventFilter.includes(item.eventId)) return false;
-    if (groupFilter.length > 0 && !groupFilter.includes(groupOf(item.type))) return false;
-    // Percurso: casa com QUALQUER um dos selecionados (placa "5k/10k" entra
-    // tanto no filtro 5k quanto no 10k).
-    if (percursoFilter.length > 0 && !itemPercursos(item).some(p => percursoFilter.includes(p))) return false;
-    if (typeFilter.length > 0 && !typeFilter.includes(item.type)) return false;
-    if (materialFilter.length > 0 && !materialFilter.includes(item.material)) return false;
-    if (finishFilter.length > 0 && !finishFilter.includes(item.finish)) return false;
-    if (next10DaysFilter) {
-      // Sem data de saída não há como estar "nos próximos 10 dias" — antes o
-      // item sem data passava pelo filtro. E a conta é em UTC, o mesmo fuso em
-      // que a Saída é exibida na lista.
-      if (!item.event?.truckDepartureDate) return false;
-      const now = new Date();
-      const todayUTC = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-      const dep = new Date(item.event.truckDepartureDate);
-      const depUTC = Date.UTC(dep.getUTCFullYear(), dep.getUTCMonth(), dep.getUTCDate());
-      if (!(depUTC >= todayUTC && depUTC <= todayUTC + 10 * 86400000)) return false;
-    }
-    if (monthFilter.length > 0 && item.event?.truckDepartureDate) {
-      // getUTCMonth: a exibição da Saída é UTC — com getMonth() local a virada
-      // de mês perto da meia-noite UTC caía no mês errado do filtro.
-      const month = new Date(item.event.truckDepartureDate).getUTCMonth() + 1;
-      if (!monthFilter.includes(month.toString())) return false;
-    }
-    return true;
-  };
-
-  // Memoizado com as deps reais dos filtros — sem isto era um array novo por
-  // render, e os useMemo derivados (deliverable/conferable) nunca acertavam.
+  // O casamento item↔recorte mora em lib/grafica-filtros.ts. A lista e o pool
+  // dos KPIs usam a MESMA função; a única diferença é `ignorarStatus`, que
+  // desliga os três recortes com forma de status (o filtro de status, o chip de
+  // complementos e a ocultação das entregues) para cada card poder mostrar a
+  // contagem do seu próprio status dentro do recorte atual.
   const filteredItems = useMemo(() =>
     (items as any[])
-      .filter((item: any) => matchesFilters(item))
+      .filter((item: any) => itemCasaFiltros(item, filtros, ctxFiltros))
       .sort((a: any, b: any) => {
         // Urgência primeiro: evento com saída do caminhão mais próxima no topo;
         // sem data vai para o fim. Nome desempata (e mantém os grupos estáveis).
@@ -867,14 +935,15 @@ export default function Grafica() {
         // (derivados por comparação com a linha anterior) seguem corretos.
         return compareDisplayId(a.displayId, b.displayId);
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [items, searchFilter, statusFilter, eventFilter, groupFilter, percursoFilter, typeFilter, materialFilter, finishFilter, next10DaysFilter, monthFilter, complementFilter, standardItems]);
+    [items, filtros, ctxFiltros]);
 
-  // statsPool: todos os filtros ativos (exceto status) — os cards mostram contagens dentro do contexto atual
+  // statsPool: todos os filtros ativos EXCETO os de forma de status — os cards
+  // mostram a contagem de cada status dentro do recorte atual. É também de onde
+  // sai o "Entregues ocultas (N)": o KPI Entregues não pode ler 0 justamente
+  // porque as entregues estão ocultas.
   const statsPool = useMemo(() =>
-    (items as any[]).filter((item: any) => matchesFilters(item, { skipStatus: true })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [items, searchFilter, eventFilter, groupFilter, percursoFilter, typeFilter, materialFilter, finishFilter, next10DaysFilter, monthFilter, standardItems]);
+    (items as any[]).filter((item: any) => itemCasaFiltros(item, filtros, ctxFiltros, { ignorarStatus: true })),
+    [items, filtros, ctxFiltros]);
   const stats = {
     liberados:  statsPool.filter((i: any) => i.status === 'approved' || i.status === 'ready_for_production' || i.status === 'pronto_para_producao').length,
     emProducao: statsPool.filter((i: any) => i.status === 'inProduction').length,
@@ -904,6 +973,31 @@ export default function Grafica() {
     ? `+${complementoUn} un. em ${complementosAbertos.length} complemento${complementosAbertos.length !== 1 ? "s" : ""} ${complementoAProduzir > 0 ? "a produzir" : "em aberto"}`
     : `${complementosNaLista.length} complemento${complementosNaLista.length !== 1 ? "s" : ""} na lista`;
 
+  // ── Entregues ocultas ─────────────────────────────────────────────────────
+  // A tela abre na FILA DO QUE FALTA, não no arquivo de tudo que já foi
+  // liberado. Esconder dado sem dizer que está escondido, porém, é pior que o
+  // problema: este número alimenta o chip de reversão do rodapé, que é parte da
+  // feature e não um extra.
+  const entreguesOcultas = useMemo(
+    () => (escondeEntregues(filtros) ? statsPool.filter((i: any) => isDelivered(i)).length : 0),
+    [filtros, statsPool],
+  );
+
+  // Contagem e descrição do recorte — derivadas da tabela de campos da lib, não
+  // de uma lista escrita à mão que o próximo filtro esqueceria de atualizar.
+  const nFiltros = contarFiltrosAtivos(filtros);
+  const haFiltro = temFiltroAtivo(filtros);
+  const limparFiltros = () => {
+    setFiltros({ ...FILTROS_VAZIOS, entregues: filtros.entregues });
+    setBuscaInput("");
+  };
+  // Rótulos bonitos para o empty state: status e evento são chaves/ids na URL.
+  const descricaoFiltros = descreverFiltros(filtros, {
+    status: (v) => v.map(getStatusLabel).join(", "),
+    evento: (v) => v.map(id => eventFilterOptions.find(o => o.value === id)?.label ?? id).join(", "),
+    mes: (v) => v.map(nomeDoMes).join(", "),
+  });
+
   // Deep link do sino: /grafica?item=<id> cai aqui vindo da notificação de
   // complemento. Joga o displayId no campo de busca (que já procura por ele) e
   // limpa a URL, para um F5 não reaplicar o recorte — mesmo padrão do
@@ -914,8 +1008,16 @@ export default function Grafica() {
     const alvoId = new URLSearchParams(window.location.search).get("item");
     if (!alvoId) return;
     const alvo = (items as any[]).find((i: any) => i.id === alvoId);
-    setSearchFilter(alvo?.displayId ?? alvoId);
-    window.history.replaceState({}, "", window.location.pathname);
+    const busca = alvo?.displayId ?? alvoId;
+    setBuscaInput(busca);
+    patchFiltros({ busca });
+    // Remove só o `item=`: o recorte do operador (que agora vive na URL) tem de
+    // sobreviver ao deep link. Antes o replaceState apagava a query inteira.
+    const p = new URLSearchParams(window.location.search);
+    p.delete("item");
+    const qs = p.toString();
+    window.history.replaceState({}, "", qs ? `?${qs}` : window.location.pathname);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, isLoading]);
 
   // ── Depois de confirmar o aumento ──────────────────────────────────────────
@@ -942,19 +1044,29 @@ export default function Grafica() {
   // está no recorte é que o silêncio vira o pior desfecho — e aí abre o banner.
   useEffect(() => {
     if (!novoComplementoId) return;
-    const noRecorte = (filteredItems as any[]).some((i: any) => i.id === novoComplementoId);
+    const noRecorte = (filteredItems as any[]).find((i: any) => i.id === novoComplementoId);
     if (!noRecorte) {
       const naLista = (items as any[]).find((i: any) => i.id === novoComplementoId);
       if (naLista) setBannerComplemento({ id: naLista.id, displayId: naLista.displayId });
       return;
     }
-    document.querySelector(`[data-item-row="${novoComplementoId}"]`)
-      ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    const alvo = document.querySelector(`[data-item-row="${novoComplementoId}"]`);
+    if (!alvo) {
+      // Está no recorte, mas ALÉM do teto de linhas do bloco do evento: abre o
+      // bloco e deixa o efeito rodar de novo (gruposExpandidos está nas deps).
+      // Sem isto a rolagem falharia em silêncio — o pior desfecho possível logo
+      // depois de um clique, que é justamente o que este bloco existe para
+      // evitar. Devolver `prev` quando já está aberto corta qualquer laço.
+      const chave = String(noRecorte.eventId ?? noRecorte.event?.name ?? "sem-evento");
+      setGruposExpandidos(prev => (prev.has(chave) ? prev : new Set(prev).add(chave)));
+      return;
+    }
+    alvo.scrollIntoView({ behavior: "smooth", block: "center" });
     // Quem veio pelo teclado não pode ser despejado no <body>, e o leitor de
     // tela precisa anunciar a peça que acabou de nascer.
     (document.querySelector(`[data-testid="text-display-id-${novoComplementoId}"]`) as HTMLElement | null)
       ?.focus({ preventScroll: true });
-  }, [items, filteredItems, novoComplementoId]);
+  }, [items, filteredItems, novoComplementoId, gruposExpandidos]);
 
   // O banner some sozinho assim que a peça entra no recorte — inclusive quando
   // é o operador que afrouxa um filtro por conta própria.
@@ -968,17 +1080,11 @@ export default function Grafica() {
   // ele pedir é justamente o que este banner existe para evitar.
   const mostrarComplementoCriado = () => {
     if (!bannerComplemento) return;
-    setStatusFilter([]);
-    setEventFilter([]);
-    setTypeFilter([]);
-    setMaterialFilter([]);
-    setFinishFilter([]);
-    setGroupFilter([]);
-    setPercursoFilter([]);
-    setComplementFilter(false);
-    setNext10DaysFilter(false);
-    setMonthFilter([]);
-    setSearchFilter(bannerComplemento.displayId);
+    // Zera o recorte inteiro e busca a peça. `entregues: true` porque o
+    // complemento pode nascer num evento cujo recorte é o arquivo — e um botão
+    // chamado "Mostrar" que não mostra é o pior desfecho possível.
+    setFiltros({ ...FILTROS_VAZIOS, busca: bannerComplemento.displayId, entregues: true });
+    setBuscaInput(bannerComplemento.displayId);
     setNovoComplementoId(bannerComplemento.id);
     setBannerComplemento(null);
   };
@@ -986,7 +1092,19 @@ export default function Grafica() {
   const handleSubmitProduction = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedItem) return;
-    startProductionMutation.mutate({ itemId: selectedItem.id, data: productionData });
+    // O campo grava o TOTAL produzido (contrato ABSOLUTO do servidor) enquanto
+    // os dois modais irmãos mandam incremento. `avaliarProducao` é a única
+    // dona dessa diferença: valida o teto, monta o `expectedProduced` (o lock
+    // otimista que o servidor sempre soube conferir e o cliente nunca enviava)
+    // e diz quando a gravação REDUZ o registro — caso em que a pergunta cita os
+    // dois números, em vez de um "tem certeza?" que ninguém lê.
+    const av = avaliarProducao(selectedItem, productionData.quantityProduced);
+    if (!av.ok || !av.payload) {
+      toast({ title: "Quantidade inválida", description: av.erro, variant: "destructive" });
+      return;
+    }
+    if (av.precisaConfirmar && !window.confirm(av.confirmacao)) return;
+    startProductionMutation.mutate({ itemId: selectedItem.id, data: av.payload });
   };
 
   const handleSubmitDelivery = async (e: React.FormEvent) => {
@@ -1087,8 +1205,9 @@ export default function Grafica() {
   const openProductionModal = (item: any) => {
     setSelectedItem(item);
     setModalType("production");
-    // O que já foi reaproveitado não precisa ser produzido de novo.
-    setProductionData({ quantityProduced: qtyOf(item) - reusedOf(item) });
+    // Pré-preenche com o TOTAL a produzir (o campo é absoluto): o que já foi
+    // reaproveitado não precisa ser produzido de novo. Quem só confirma acerta.
+    setProductionData({ quantityProduced: tetoDeProducao(item) });
   };
 
   // Exporta a lista visível. Manda os ids em vez de repetir os filtros no
@@ -1097,7 +1216,7 @@ export default function Grafica() {
     if (!filteredItems.length) return;
     setIsExporting(true);
     try {
-      const statusNames = statusFilter.map(s => getStatusLabel(s));
+      const statusNames = filtros.status.map(s => getStatusLabel(s));
       const title = statusNames.length
         ? `Produção — ${statusNames.join(", ")}`
         : "Produção — Gráfica";
@@ -1140,6 +1259,38 @@ export default function Grafica() {
     setDeliveryData({ receivedBy: "" });
     setDeliverQty(remainingDeliver(item)); // padrão: o que falta entregar
   };
+
+  // ── Renderização incremental ──────────────────────────────────────────────
+  // Cada bloco de evento desenha até ROW_CAP linhas; o resto entra por "Mostrar
+  // todas". A fila inclui as entregues de todo o histórico e o endpoint não tem
+  // recorte de período, então sem teto a tela pintava milhares de linhas
+  // concluídas (miniatura, badges e handlers de hover em cada uma) a cada
+  // entrada na rota. `filteredItems` já vem ordenado por evento, então as peças
+  // de um mesmo evento são contíguas e o Map preserva a ordem.
+  const { linhasVisiveis, cortePorItem } = useMemo(() => {
+    const porEvento = new Map<string, any[]>();
+    for (const i of filteredItems as any[]) {
+      const chave = String(i.eventId ?? i.event?.name ?? "sem-evento");
+      const arr = porEvento.get(chave);
+      if (arr) arr.push(i); else porEvento.set(chave, [i]);
+    }
+    const linhas: any[] = [];
+    const corte = new Map<string, { chave: string; total: number; ocultas: number }>();
+    porEvento.forEach((arr, chave) => {
+      const aberto = gruposExpandidos.has(chave) || arr.length <= ROW_CAP;
+      const visiveis = aberto ? arr : arr.slice(0, ROW_CAP);
+      linhas.push(...visiveis);
+      if (!aberto) {
+        // Marca a ÚLTIMA linha visível do bloco: é depois dela que entra o
+        // "Mostrar todas", dentro do bloco a que o número pertence.
+        corte.set(visiveis[visiveis.length - 1].id, { chave, total: arr.length, ocultas: arr.length - visiveis.length });
+      }
+    });
+    return { linhasVisiveis: linhas, cortePorItem: corte };
+  }, [filteredItems, gruposExpandidos]);
+
+  const expandirGrupo = (chave: string) =>
+    setGruposExpandidos(prev => { const n = new Set(prev); n.add(chave); return n; });
 
   // Items que podem ser entregues no filtro atual
   const deliverableInFilter = useMemo(
@@ -1405,19 +1556,34 @@ export default function Grafica() {
               importante demais para sumir justamente na tela de quem está no
               galpão). É o atalho para a fila de aumentos sem tirar a peça do
               bloco do evento a que ela pertence. */}
-          {(complementosAbertos.length > 0 || complementFilter) && (
+          {/* Selo de frescor — sem botão "Atualizar" (regra do dono): a tela se
+              atualiza sozinha (WebSocket + polling de 60s + refetch no foco) e
+              este selo é a promessa de veracidade. O spinner ao lado é o único
+              sinal de que uma recarga está em curso. Sem isto, uma aba aberta o
+              dia inteiro nunca dizia de quando são os números que mostra. */}
+          {!isLoading && !isError && (
+            <span
+              data-testid="selo-atualizado"
+              title={new Date(dataUpdatedAt).toLocaleString("pt-BR")}
+              style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, color: "#78716c", whiteSpace: "nowrap" }}
+            >
+              {isFetching && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}
+              Atualizado {fmtRelative(new Date(dataUpdatedAt).toISOString(), agora)}
+            </span>
+          )}
+          {(complementosAbertos.length > 0 || filtros.complementos) && (
             <button
-              onClick={() => setComplementFilter(v => !v)}
-              aria-pressed={complementFilter}
+              onClick={() => patchFiltros({ complementos: !filtros.complementos })}
+              aria-pressed={filtros.complementos}
               data-testid="chip-complementos"
-              title={complementFilter
+              title={filtros.complementos
                 ? "Mostrando só complementos — toque para ver a lista inteira"
                 : "Mostrar só as peças complementares (aumentos de quantidade pedidos após a produção)"}
               style={{
                 display: "inline-flex", alignItems: "center", gap: 6,
-                backgroundColor: complementFilter ? CO.hoverBg : CO.bg,
+                backgroundColor: filtros.complementos ? CO.hoverBg : CO.bg,
                 color: CO.text,
-                border: `1px solid ${complementFilter ? CO.stripe : CO.border}`,
+                border: `1px solid ${filtros.complementos ? CO.stripe : CO.border}`,
                 borderRadius: 999, padding: isMobile ? "7px 12px" : "5px 11px",
                 fontSize: 11, fontWeight: 700, cursor: "pointer",
                 whiteSpace: "nowrap", transition: "background-color 0.15s",
@@ -1500,8 +1666,14 @@ export default function Grafica() {
         </div>
       </div>
 
-      {/* ── KPI Strip ── */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(5, 1fr)", gap: isMobile ? 6 : 12 }}>
+      {/* ── KPI Strip ──
+          São SEIS cards (cinco status + Total) e o grid do desktop tinha CINCO
+          colunas: o Total caía sozinho numa segunda linha ocupando 1/5 da
+          largura, ~80% de área morta logo abaixo do bloco de maior peso visual
+          da tela — e deixava de se ler como parte da série, embora seja o botão
+          que limpa o filtro de status. `auto-fit` fecha a linha em qualquer
+          largura e degrada 6→4→3→2 sem nunca deixar órfão. */}
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(auto-fit, minmax(150px, 1fr))", gap: isMobile ? 6 : 12 }}>
         {[
           // O KPI Liberados agrega dois status; ele seleciona os DOIS valores
           // no filtro (o filtro em si é estrito — ver matchesFilters).
@@ -1511,7 +1683,7 @@ export default function Grafica() {
           { label: "Conferidos",   value: stats.conferidos, sub: "Ag. entrega",      testId: "stat-conferred",  filterVals: ["conferred"] },
           { label: "Entregues",    value: stats.entregues,  sub: "Concluído",        testId: "stat-delivered",  filterVals: ["delivered"] },
         ].map(kpi => {
-          const isActive = kpi.filterVals.every(v => statusFilter.includes(v)) && statusFilter.length === kpi.filterVals.length;
+          const isActive = kpi.filterVals.every(v => filtros.status.includes(v)) && filtros.status.length === kpi.filterVals.length;
           // Cores derivadas do MESMO mapa dos pills (lib/status): dot para a
           // borda, text (tom 700, AA) para o número e para o fundo ativo.
           // Antes cada card tinha hex próprio — "Entregues" saía com borda azul
@@ -1529,11 +1701,11 @@ export default function Grafica() {
               tabIndex={0}
               aria-pressed={isActive}
               aria-label={`Filtrar por ${kpi.label}`}
-              onClick={() => setStatusFilter(isActive ? [] : kpi.filterVals)}
+              onClick={() => patchFiltros({ status: isActive ? [] : kpi.filterVals })}
               onKeyDown={e => {
                 if (e.key === 'Enter' || e.key === ' ') {
                   e.preventDefault();
-                  setStatusFilter(isActive ? [] : kpi.filterVals);
+                  patchFiltros({ status: isActive ? [] : kpi.filterVals });
                 }
               }}
               data-testid={kpi.testId}
@@ -1562,18 +1734,18 @@ export default function Grafica() {
         <div
           role="button"
           tabIndex={0}
-          aria-pressed={statusFilter.length === 0}
+          aria-pressed={filtros.status.length === 0}
           aria-label="Mostrar todos os status"
-          onClick={() => setStatusFilter([])}
+          onClick={() => patchFiltros({ status: [] })}
           onKeyDown={e => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setStatusFilter([]); }
+            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); patchFiltros({ status: [] }); }
           }}
           data-testid="stat-total"
           style={{
             backgroundColor: TI.text, borderLeft: `4px solid ${TI.accent}`, borderRadius: 8,
             padding: isMobile ? "10px 10px" : "16px 18px",
             // Estado ativo em boxShadow, outline livre para o foco (ver KPIs).
-            boxShadow: statusFilter.length === 0 ? `0 4px 16px rgba(0,0,0,0.14), 0 0 0 2px ${TI.accent}` : "0 4px 16px rgba(0,0,0,0.14)",
+            boxShadow: filtros.status.length === 0 ? `0 4px 16px rgba(0,0,0,0.14), 0 0 0 2px ${TI.accent}` : "0 4px 16px rgba(0,0,0,0.14)",
             cursor: "pointer", transition: "opacity 0.15s",
           }}
           onMouseEnter={e => ((e.currentTarget as HTMLDivElement).style.opacity = "0.85")}
@@ -1581,7 +1753,7 @@ export default function Grafica() {
         >
           <div style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em", color: "rgba(255,255,255,0.72)", marginBottom: isMobile ? 3 : 6, fontFamily: "'Space Grotesk', sans-serif" }}>Total</div>
           <div style={{ fontSize: isMobile ? 22 : 32, fontWeight: 900, letterSpacing: "-0.03em", fontFamily: "'Space Grotesk', sans-serif", color: "#ffffff", lineHeight: 1 }}>{stats.total}</div>
-          {!isMobile && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.72)", marginTop: 4 }}>{statusFilter.length === 0 ? "Todos selecionados" : "Ver todos"}</div>}
+          {!isMobile && <div style={{ fontSize: 11, color: "rgba(255,255,255,0.72)", marginTop: 4 }}>{filtros.status.length === 0 ? "Todos selecionados" : "Ver todos"}</div>}
         </div>
       </div>
 
@@ -1589,22 +1761,28 @@ export default function Grafica() {
       <div style={{ backgroundColor: "#f3f4f3", borderRadius: 12, padding: "12px 14px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
         {/* Search */}
         <div style={{ position: "relative", flex: "1", minWidth: 200 }}>
-          <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: TI.muted }} />
+          {/* #78716c em vez de TI.muted (#a8a29e): 2,06:1 sobre o fundo
+              #e8e8e7 do input reprovava o mínimo de 3:1 de elemento não
+              textual. E a borda de 1px devolve ao campo a cara de campo — sem
+              ela eram 1,06:1 de diferença contra a barra. */}
+          <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "#78716c" }} />
           <input
             type="text"
             placeholder="Buscar por ID, descrição ou evento..."
             aria-label="Buscar peças"
-            value={searchFilter}
-            onChange={e => setSearchFilter(e.target.value)}
+            value={buscaInput}
+            onChange={e => setBuscaInput(e.target.value)}
             data-testid="input-search-filter"
-            style={{ width: "100%", paddingLeft: 32, paddingRight: 12, paddingTop: 8, paddingBottom: 8, backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, color: TI.text, boxSizing: "border-box" }}
+            style={{ width: "100%", paddingLeft: 32, paddingRight: 12, paddingTop: 8, paddingBottom: 8, backgroundColor: "#e8e8e7", border: "1px solid #d6d3d1", borderRadius: 6, fontSize: 13, color: TI.text, boxSizing: "border-box" }}
+            onFocus={e => { e.currentTarget.style.borderColor = "#c2410c"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(194,65,12,0.18)"; }}
+            onBlur={e => { e.currentTarget.style.borderColor = "#d6d3d1"; e.currentTarget.style.boxShadow = "none"; }}
           />
         </div>
 
         {/* Event */}
         <EventFilterDropdown
-          values={eventFilter}
-          onValuesChange={setEventFilter}
+          values={filtros.evento}
+          onValuesChange={v => patchFiltros({ evento: v })}
           options={eventFilterOptions}
         />
 
@@ -1612,7 +1790,7 @@ export default function Grafica() {
         <FilterSelect
           showAllLabelWhenEmpty hideWhenEmpty={false}
           label="Status" allLabel="Todos os status"
-          values={statusFilter} onValuesChange={setStatusFilter}
+          values={filtros.status} onValuesChange={v => patchFiltros({ status: v })}
           options={[
             { value: "ready_for_production", label: "Pronto p/ Produção", pinned: true },
             { value: "approved", label: "Liberados", pinned: true },
@@ -1633,7 +1811,7 @@ export default function Grafica() {
         <FilterSelect
           showAllLabelWhenEmpty
           label="Grupo" allLabel="Todos os grupos"
-          values={groupFilter} onValuesChange={setGroupFilter}
+          values={filtros.grupo} onValuesChange={v => patchFiltros({ grupo: v })}
           options={groupFilterOptions}
           searchPlaceholder="Buscar grupo..." emptyText="Nenhum grupo encontrado."
           testId="select-group-filter"
@@ -1643,7 +1821,7 @@ export default function Grafica() {
         <FilterSelect
           showAllLabelWhenEmpty
           label="Percurso" allLabel="Todos os percursos"
-          values={percursoFilter} onValuesChange={setPercursoFilter}
+          values={filtros.percurso} onValuesChange={v => patchFiltros({ percurso: v })}
           options={percursoFilterOptions}
           searchPlaceholder="Buscar percurso..." emptyText="Nenhum percurso encontrado."
           testId="select-percurso-filter"
@@ -1654,7 +1832,7 @@ export default function Grafica() {
         <FilterSelect
           showAllLabelWhenEmpty hideWhenEmpty={false}
           label="Mês" allLabel={months.find(m => m.value === "all")?.label || "Todos os meses"}
-          values={monthFilter} onValuesChange={setMonthFilter}
+          values={filtros.mes} onValuesChange={v => patchFiltros({ mes: v })}
           options={months.filter(m => m.value !== "all").map(m => ({ value: m.value, label: m.label, pinned: true }))}
           searchPlaceholder="Buscar mês..." emptyText="Nenhum mês encontrado."
           testId="select-month-filter"
@@ -1666,20 +1844,20 @@ export default function Grafica() {
         <div style={{ borderLeft: `1px solid ${TI.border}`, paddingLeft: 12, marginLeft: 4 }}>
           <button
             role="switch"
-            aria-checked={next10DaysFilter}
-            onClick={() => setNext10DaysFilter(v => !v)}
+            aria-checked={filtros.proximos10}
+            onClick={() => patchFiltros({ proximos10: !filtros.proximos10 })}
             data-testid="button-next-10-days-filter"
             style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 44, background: "none", border: "none", padding: 0, cursor: "pointer" }}
           >
             <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: TI.secondary, whiteSpace: "nowrap" }}>Próximos 10 dias</span>
             <span style={{
               width: 38, height: 20, borderRadius: 999, position: "relative", flexShrink: 0, display: "inline-block",
-              backgroundColor: next10DaysFilter ? TI.accent : "#d6d3d1", transition: "background-color 0.2s",
+              backgroundColor: filtros.proximos10 ? TI.accent : "#d6d3d1", transition: "background-color 0.2s",
             }}>
               <span style={{
                 position: "absolute", top: 3, width: 14, height: 14, borderRadius: "50%",
                 backgroundColor: "#ffffff", transition: "left 0.2s",
-                left: next10DaysFilter ? 20 : 3,
+                left: filtros.proximos10 ? 20 : 3,
               }} />
             </span>
           </button>
@@ -1696,13 +1874,37 @@ export default function Grafica() {
           <ChevronDown style={{ width: 12, height: 12, transform: showAdvancedFilters ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
         </button>
 
+        {/* Limpar tudo — não existia reset global em lugar nenhum da tela: o
+            card Total limpava só o status, o link vermelho só os três
+            avançados, e busca/evento/grupo/percurso/mês/próximos-10-dias
+            precisavam ser desfeitos um a um (6 a 9 cliques com tudo ligado).
+            A contagem sai da tabela de campos da lib — filtro novo entra aqui
+            sozinho, sem ninguém lembrar de atualizar lista nenhuma. */}
+        {haFiltro && (
+          <button
+            type="button"
+            onClick={limparFiltros}
+            data-testid="button-limpar-filtros"
+            title={`Limpar: ${descricaoFiltros.join(" · ")}`}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 5,
+              background: "#fff", color: "#b91c1c", border: "1px solid #fecaca",
+              borderRadius: 999, padding: isMobile ? "10px 14px" : "7px 12px",
+              fontSize: 11, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap",
+            }}
+          >
+            <X aria-hidden="true" style={{ width: 12, height: 12 }} />
+            Limpar tudo ({nFiltros})
+          </button>
+        )}
+
         {/* Avançados */}
         {showAdvancedFilters && (
           <div style={{ width: "100%", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 8, borderTop: `1px solid ${TI.border}`, paddingTop: 10, marginTop: 2 }}>
             {[
-              { label: "Tipo", allLabel: "Todos os tipos", values: typeFilter, onValuesChange: setTypeFilter, options: typeFilterOptions, testId: "select-type-filter" },
-              { label: "Material", allLabel: "Todos os materiais", values: materialFilter, onValuesChange: setMaterialFilter, options: materialFilterOptions, testId: "select-material-filter" },
-              { label: "Acabamento", allLabel: "Todos os acabamentos", values: finishFilter, onValuesChange: setFinishFilter, options: finishFilterOptions, testId: "select-finish-filter" },
+              { label: "Tipo", allLabel: "Todos os tipos", values: filtros.tipo, onValuesChange: (v: string[]) => patchFiltros({ tipo: v }), options: typeFilterOptions, testId: "select-type-filter" },
+              { label: "Material", allLabel: "Todos os materiais", values: filtros.material, onValuesChange: (v: string[]) => patchFiltros({ material: v }), options: materialFilterOptions, testId: "select-material-filter" },
+              { label: "Acabamento", allLabel: "Todos os acabamentos", values: filtros.acabamento, onValuesChange: (v: string[]) => patchFiltros({ acabamento: v }), options: finishFilterOptions, testId: "select-finish-filter" },
             ].map(f => (
               <FilterSelect
                 key={f.label}
@@ -1716,9 +1918,9 @@ export default function Grafica() {
                 triggerStyle={{ backgroundColor: "#e8e8e7", border: "none", fontSize: 13, color: TI.text }}
               />
             ))}
-            {(typeFilter.length > 0 || materialFilter.length > 0 || finishFilter.length > 0) && (
+            {(filtros.tipo.length > 0 || filtros.material.length > 0 || filtros.acabamento.length > 0) && (
               <div style={{ gridColumn: "1 / -1" }}>
-                <button onClick={() => { setTypeFilter([]); setMaterialFilter([]); setFinishFilter([]); }} data-testid="button-reset-advanced-filters" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#dc2626", fontWeight: 600 }}>
+                <button onClick={() => patchFiltros({ tipo: [], material: [], acabamento: [] })} data-testid="button-reset-advanced-filters" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#dc2626", fontWeight: 600 }}>
                   Limpar filtros avançados
                 </button>
               </div>
@@ -1779,31 +1981,50 @@ export default function Grafica() {
             <button onClick={() => refetch()} style={{ background: TI.text, color: "#fff", border: "none", borderRadius: 8, padding: "8px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Tentar novamente</button>
           </div>
         ) : filteredItems.length === 0 ? (
-          (() => {
-            // Mensagem conforme o motivo: com filtro ativo o problema é o
-            // recorte; sem filtro é a fila que está vazia mesmo — "ajuste os
-            // filtros" sem filtro nenhum só confundia.
-            const hasActiveFilters = !!searchFilter || statusFilter.length > 0 || eventFilter.length > 0 ||
-              typeFilter.length > 0 || materialFilter.length > 0 || finishFilter.length > 0 ||
-              groupFilter.length > 0 || percursoFilter.length > 0 || complementFilter ||
-              next10DaysFilter || monthFilter.length > 0;
-            return (
-              <div style={{ textAlign: "center", padding: "48px 24px", color: TI.secondary }}>
-                <Package style={{ width: 40, height: 40, margin: "0 auto 12px", color: TI.secondary }} />
-                <div style={{ fontSize: 15, fontWeight: 700, color: TI.secondary, marginBottom: 4 }}>
-                  {hasActiveFilters ? "Nenhuma peça encontrada" : "Nenhuma peça liberada ainda"}
-                </div>
-                <div style={{ fontSize: 13 }}>
-                  {hasActiveFilters ? "Ajuste os filtros para visualizar itens" : "Quando a Arte liberar peças para produção, elas aparecem aqui"}
-                </div>
-              </div>
-            );
-          })()
+          /* Três motivos diferentes, três respostas diferentes: recorte
+             filtrado (com botão de volta e a lista do que está ativo), só
+             entregues escondidas (mostrar é um clique), ou a fila vazia mesmo.
+             `temFiltroAtivo` deriva da tabela de campos da lib — era essa lista
+             mantida à mão que fazia a tela dizer "Nenhuma peça liberada ainda"
+             depois de filtrar por Grupo. */
+          <div style={{ textAlign: "center", padding: "48px 24px", color: TI.secondary }}>
+            <Package style={{ width: 40, height: 40, margin: "0 auto 12px", color: TI.secondary }} />
+            <div style={{ fontSize: 15, fontWeight: 700, color: TI.secondary, marginBottom: 4 }}>
+              {haFiltro ? "Nenhuma peça encontrada"
+                : entreguesOcultas > 0 ? "Tudo entregue por aqui"
+                : "Nenhuma peça liberada ainda"}
+            </div>
+            <div style={{ fontSize: 13, maxWidth: 520, margin: "0 auto" }}>
+              {haFiltro ? `Recorte atual: ${descricaoFiltros.join(" · ")}`
+                : entreguesOcultas > 0 ? `${entreguesOcultas} peça${entreguesOcultas !== 1 ? "s" : ""} já entregue${entreguesOcultas !== 1 ? "s" : ""} ${entreguesOcultas !== 1 ? "estão" : "está"} fora da fila.`
+                : "Quando a Arte liberar peças para produção, elas aparecem aqui"}
+            </div>
+            {haFiltro ? (
+              <button
+                type="button"
+                onClick={limparFiltros}
+                data-testid="button-limpar-filtros-vazio"
+                style={{ marginTop: 16, background: TI.text, color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 44 }}
+              >
+                Limpar filtros ({nFiltros})
+              </button>
+            ) : entreguesOcultas > 0 ? (
+              <button
+                type="button"
+                onClick={() => patchFiltros({ entregues: true })}
+                data-testid="button-mostrar-entregues-vazio"
+                style={{ marginTop: 16, background: TI.text, color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 44 }}
+              >
+                Mostrar as {entreguesOcultas} entregue{entreguesOcultas !== 1 ? "s" : ""}
+              </button>
+            ) : null}
+          </div>
         ) : isMobile ? (
           /* ── View mobile: cards ── */
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '8px 8px' }}>
-            {(filteredItems as any[]).map((item: any, index: number) => {
-              const prev = index > 0 ? (filteredItems as any[])[index - 1] : null;
+            {(linhasVisiveis as any[]).map((item: any, index: number) => {
+              const prev = index > 0 ? (linhasVisiveis as any[])[index - 1] : null;
+              const corte = cortePorItem.get(item.id);
               const showEvHeader = !prev || prev.event?.name !== item.event?.name;
               const isSelected = bulkSelectedIds.has(item.id);
               const canDeliverItem = canDeliver(item);
@@ -1947,11 +2168,13 @@ export default function Grafica() {
                     {/* Content */}
                     <div style={{ flex: 1, padding: '11px 12px', display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
-                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: item.isReuse ? '#059669' : '#c2410c' }}>
+                        {/* #047857 (5,48:1) e não #059669 (3,77:1): 13px/700
+                            precisa passar AA. Ver lib/status.ts P.emerald. */}
+                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: item.isReuse ? '#047857' : '#c2410c' }}>
                           {(() => { const { base, suffix } = splitDisplayId(item.displayId); return (<>{base}{suffix && <span style={{ color: CO.suffix }}>{suffix}</span>}</>); })()}
                         </span>
                         <StatusPill status={item.status} size="sm" showDot={false} />
-                        {item.isReuse && <span style={{ fontSize: 10, fontWeight: 800, color: '#059669', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, padding: '2px 6px' }}>REAPROV.</span>}
+                        {item.isReuse && <span style={{ fontSize: 10, fontWeight: 800, color: '#047857', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, padding: '2px 6px' }}>REAPROV.</span>}
                         {/* Selo do complemento: sólido enquanto o lote está em
                             aberto (trabalho novo), outline depois de entregue —
                             a identidade fica, o alarme não. */}
@@ -2075,7 +2298,11 @@ export default function Grafica() {
                         {canProduce && canConferItem && (
                           <button
                             onClick={e => { e.stopPropagation(); openConferenceModal(item); }}
-                            style={{ width: '100%', minHeight: 44, padding: '0 12px', borderRadius: 8, background: '#0891b2', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            /* #0e7490 (5,36:1) — o mesmo ciano do desktop, do
+                               lote e do modal. #0891b2 com branco 13px/800 dá
+                               3,68:1 e reprova AA, e a tela tinha DOIS cianos
+                               diferentes para a mesma ação. */
+                            style={{ width: '100%', minHeight: 44, padding: '0 12px', borderRadius: 8, background: '#0e7490', border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
                           >
                             <CheckCircle aria-hidden="true" style={{ width: 13, height: 13 }} />
                             Conferir
@@ -2161,6 +2388,19 @@ export default function Grafica() {
                       </div>
                     )}
                   </div>
+                  {/* Renderização incremental: o bloco deste evento tem mais
+                      peças do que o teto. O botão fica DENTRO do bloco, com o
+                      número, para não parecer fim de lista. */}
+                  {corte && (
+                    <button
+                      type="button"
+                      onClick={() => expandirGrupo(corte.chave)}
+                      data-testid={`button-mostrar-todas-${corte.chave}`}
+                      style={{ width: '100%', minHeight: 44, marginTop: 2, borderRadius: 10, background: '#f5f5f4', border: `1px dashed ${TI.border}`, color: TI.text, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                    >
+                      Mostrar todas as {corte.total} peças (+{corte.ocultas})
+                    </button>
+                  )}
                 </Fragment>
               );
             })}
@@ -2172,15 +2412,27 @@ export default function Grafica() {
             <thead>
               <tr style={{ backgroundColor: TI.text }}>
                 {["ID", "Descrição", "QTD", "REAPROV.", "PROD", "Dimensões (V × A)", "M² a produzir", "Material", "Status", ""].map(col => (
-                  <th key={col} style={{ padding: "13px 16px", textAlign: col === "" ? "right" : "left", fontSize: 10, fontWeight: 900, color: "rgba(255,255,255,0.72)", textTransform: "uppercase", letterSpacing: "0.08em", whiteSpace: "nowrap" }}>
+                  /* A coluna de AÇÕES é `sticky right`: são 10 colunas e num
+                     notebook 1366 (menos a sidebar fixa de 16rem sobram ~1110px)
+                     ela ficava fora da vista. O usuário recorrente faz o mesmo
+                     gesto o dia inteiro — achar a linha e clicar no botão —, e
+                     rolar para a direita e voltar a cada peça triplica o custo e
+                     ainda perde a linha no caminho. */
+                  <th key={col} style={{
+                    padding: "13px 16px", textAlign: col === "" ? "right" : "left",
+                    fontSize: 10, fontWeight: 900, color: "rgba(255,255,255,0.72)",
+                    textTransform: "uppercase", letterSpacing: "0.08em", whiteSpace: "nowrap",
+                    ...(col === "" ? { position: "sticky" as const, right: 0, zIndex: 2, backgroundColor: TI.text } : {}),
+                  }}>
                     {col}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filteredItems.map((item: any, index: number) => {
-                const prev = index > 0 ? filteredItems[index - 1] : null;
+              {linhasVisiveis.map((item: any, index: number) => {
+                const prev = index > 0 ? linhasVisiveis[index - 1] : null;
+                const corte = cortePorItem.get(item.id);
                 const showEvHeader = !prev || (prev as any).event?.name !== item.event?.name;
                 const showTypeHeader = !prev || (prev as any).event?.name !== item.event?.name || (prev as any).type !== item.type;
                 // Mesmo padrão do mobile: elegível conforme o modo de lote
@@ -2359,8 +2611,16 @@ export default function Grafica() {
                             precisa aparecer sempre que houver reaproveitamento,
                             inclusive nas peças marcadas antes de reuseQty existir. */}
                         {(item.isReuse || reusedOf(item) > 0) && (
+                          /* Era branco 10px/800 sobre #10b981 no caso parcial:
+                             2,54:1, o pior contraste da tela — justamente no
+                             rótulo que decide se a peça vai ou não para a
+                             impressora, num galpão com iluminação ruim. Agora
+                             segue a mesma regra que lib/status.ts documenta
+                             ("bg = 50, text = 700"): tint claro com texto
+                             #047857 (5,4:1 sobre #d1fae5). #10b981/#059669
+                             ficam reservados para preenchimento e bolinha. */
                           <div title={item.isReuse ? "Peça inteira reaproveitada" : `${reusedOf(item)} de ${qtyOf(item)} un. reaproveitadas`}
-                            style={{ display: "inline-flex", alignItems: "center", gap: 5, backgroundColor: item.isReuse ? "#059669" : "#10b981", color: "#ffffff", borderRadius: 6, padding: "3px 9px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>
+                            style={{ display: "inline-flex", alignItems: "center", gap: 5, backgroundColor: "#d1fae5", color: "#047857", border: "1px solid #6ee7b7", borderRadius: 6, padding: "2px 8px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5 }}>
                             <RotateCcw style={{ width: 11, height: 11 }} />
                             {item.isReuse ? "Reaproveitamento" : `Reaproveitamento ${reusedOf(item)}/${qtyOf(item)}`}
                           </div>
@@ -2443,7 +2703,7 @@ export default function Grafica() {
                         </div>
                       </td>
                       {/* Reaproveitado */}
-                      <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: reusedTotalOf(item) > 0 ? "#059669" : TI.secondary }}>
+                      <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: reusedTotalOf(item) > 0 ? "#047857" : TI.secondary }}>
                         {reusedTotalOf(item) > 0 ? (
                           <span title={item.isReuse ? "Peça inteira reaproveitada" : `${reusedTotalOf(item)} de ${qtyOf(item)} un. reaproveitadas`}>
                             {reusedTotalOf(item)}
@@ -2483,7 +2743,7 @@ export default function Grafica() {
                           if (reusedTotalOf(item) === 0) return total.toFixed(2);
                           return (
                             <span title={`Total da peça: ${total.toFixed(2)} m² · reaproveitado não é impresso`}>
-                              <span style={{ color: toPrint === 0 ? "#059669" : TI.text }}>{toPrint.toFixed(2)}</span>
+                              <span style={{ color: toPrint === 0 ? "#047857" : TI.text }}>{toPrint.toFixed(2)}</span>
                               <span style={{ display: "block", fontSize: 10, fontWeight: 400, color: TI.secondary, textDecoration: "line-through" }}>
                                 {total.toFixed(2)}
                               </span>
@@ -2500,10 +2760,27 @@ export default function Grafica() {
                       <td style={{ padding: "13px 16px" }}>
                         <StatusPill status={item.status} size="sm" showDot={false} />
                       </td>
-                      {/* Ações */}
-                      <td style={{ padding: "13px 16px", textAlign: "right" }} onClick={e => e.stopPropagation()}>
+                      {/* Ações — `sticky right` com sombra à esquerda marcando a
+                          borda. `background: inherit` copia a cor da <tr>,
+                          inclusive quando o hover a troca por JS (por isso
+                          rowBg devolve branco explícito e nunca ""). */}
+                      <td
+                        style={{
+                          padding: "13px 16px", textAlign: "right",
+                          position: "sticky", right: 0, zIndex: 1,
+                          background: "inherit",
+                          boxShadow: "-8px 0 8px -8px rgba(28,25,23,0.28)",
+                        }}
+                        onClick={e => e.stopPropagation()}
+                      >
+                        {/* Em modo lote sobram só conteúdo e checkbox, como no
+                            card mobile já fazia. Na tabela a correção nunca foi
+                            propagada: numa "conferência em lote", cada linha
+                            elegível exibia um botão Conferir ciano cheio colado
+                            no checkbox, disputando o clique com a seleção. */}
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
                           {/* Ver detalhes */}
+                          {!bulkOn && (
                           <button
                             onClick={() => setViewDetailsItem(item)}
                             title="Ver detalhes"
@@ -2514,6 +2791,7 @@ export default function Grafica() {
                           >
                             <Eye style={{ width: 15, height: 15 }} />
                           </button>
+                          )}
 
                           {/* Cancelar complemento — a janela de arrependimento.
                               Mesmo papel de quem CRIA o complemento (admin |
@@ -2526,7 +2804,7 @@ export default function Grafica() {
                               conferido ou entregue: uma única unidade já é
                               material no galpão. Confirmação em dois passos, no
                               mesmo idioma dos botões de reaproveitamento. */}
-                          {podeMexerQtd && ehComplemento && complementUntouched(item) && (
+                          {!bulkOn && podeMexerQtd && ehComplemento && complementUntouched(item) && (
                             cancelComplementId === item.id ? (
                               <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>
                                 <span style={{ fontSize: 11, fontWeight: 700, color: "#b91c1c", whiteSpace: "nowrap" }}>Cancelar {item.displayId}?</span>
@@ -2542,7 +2820,7 @@ export default function Grafica() {
                                   onClick={() => setCancelComplementId(null)}
                                   title="Manter o complemento"
                                   aria-label="Manter o complemento"
-                                  style={{ background: "none", border: `1px solid ${TI.border}`, borderRadius: 6, height: 26, padding: "0 6px", fontSize: 10, fontWeight: 700, color: TI.muted, cursor: "pointer" }}
+                                  style={{ background: "none", border: `1px solid ${TI.border}`, borderRadius: 6, height: 26, padding: "0 6px", fontSize: 10, fontWeight: 700, color: "#78716c", cursor: "pointer" }}
                                 >
                                   <X style={{ width: 10, height: 10 }} />
                                 </button>
@@ -2566,7 +2844,7 @@ export default function Grafica() {
                           {/* Iniciar / Continuar Produção — oculto para reaproveitamento
                               e para quem o servidor recusa (só grafica/admin produzem).
                               Depois de conferida, a peça só tem a entrega pela frente. */}
-                          {canProduce && !isDelivered(item) && !isProduced(item) && !isConferred(item) && !item.isReuse && (
+                          {!bulkOn && canProduce && !isDelivered(item) && !isProduced(item) && !isConferred(item) && !item.isReuse && (
                             <button
                               onClick={() => openProductionModal(item)}
                               title={isInProd(item) ? "Continuar Produção" : "Iniciar Produção"}
@@ -2582,7 +2860,7 @@ export default function Grafica() {
 
                           {/* Reaproveitar — total ou parcial, enquanto ainda há
                               unidades sem produzir nem reaproveitar */}
-                          {!isDelivered(item) && !isProduced(item) && !isConferred(item) && remainingReuse(item) > 0 && (
+                          {!bulkOn && !isDelivered(item) && !isProduced(item) && !isConferred(item) && remainingReuse(item) > 0 && (
                             reuseConfirmItemId === item.id ? (
                               <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>
                                 <input
@@ -2608,7 +2886,7 @@ export default function Grafica() {
                                 <button
                                   onClick={() => setReuseConfirmItemId(null)}
                                   title="Cancelar"
-                                  style={{ background: "none", border: `1px solid ${TI.border}`, borderRadius: 6, height: 26, padding: "0 6px", fontSize: 10, fontWeight: 700, color: TI.muted, cursor: "pointer" }}
+                                  style={{ background: "none", border: `1px solid ${TI.border}`, borderRadius: 6, height: 26, padding: "0 6px", fontSize: 10, fontWeight: 700, color: "#78716c", cursor: "pointer" }}
                                 >
                                   <X style={{ width: 10, height: 10 }} />
                                 </button>
@@ -2635,7 +2913,7 @@ export default function Grafica() {
                               produzir, com a peça em "Pronto p/ Produção". O
                               admin corrige em qualquer etapa anterior à
                               conferência; para a Gráfica segue como estava. */}
-                          {(isProduced(item) || isAdmin) && reusedTotalOf(item) > 0
+                          {!bulkOn && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0
                             && conferredOf(item) === 0 && deliveredOf(item) === 0 && (
                             correctReuseItemId === item.id ? (
                               <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>
@@ -2673,7 +2951,7 @@ export default function Grafica() {
                                 <button
                                   onClick={() => setCorrectReuseItemId(null)}
                                   title="Cancelar"
-                                  style={{ background: "none", border: `1px solid ${TI.border}`, borderRadius: 6, height: 26, padding: "0 6px", fontSize: 10, fontWeight: 700, color: TI.muted, cursor: "pointer" }}
+                                  style={{ background: "none", border: `1px solid ${TI.border}`, borderRadius: 6, height: 26, padding: "0 6px", fontSize: 10, fontWeight: 700, color: "#78716c", cursor: "pointer" }}
                                 >
                                   <X style={{ width: 10, height: 10 }} />
                                 </button>
@@ -2702,7 +2980,7 @@ export default function Grafica() {
 
                           {/* Conferir — etapa entre Produzido e Entregue (com foto);
                               gate igual ao do servidor (grafica/admin) */}
-                          {canProduce && canConfer(item) && (
+                          {!bulkOn && canProduce && canConfer(item) && (
                             <button
                               onClick={() => openConferenceModal(item)}
                               title={`Conferir (faltam ${remainingConfer(item)} de ${qtyOf(item)})`}
@@ -2742,7 +3020,7 @@ export default function Grafica() {
                             </div>
                           )}
                           {/* Entregar — reaproveitamento: direto; normal: o que já foi conferido */}
-                          {canDeliver(item) && (
+                          {!bulkOn && canDeliver(item) && (
                             <button
                               onClick={() => openDeliveryModal(item)}
                               title={`Entregar (${remainingDeliver(item)} conferido(s) pendente(s))`}
@@ -2764,7 +3042,7 @@ export default function Grafica() {
                           )}
 
                           {/* Entregue */}
-                          {isDelivered(item) && (
+                          {!bulkOn && isDelivered(item) && (
                             <span style={{ fontSize: 13, color: "#15803d", display: "inline-flex", alignItems: "center", gap: 4, fontWeight: 600 }}>
                               <Check style={{ width: 13, height: 13 }} /> Entregue
                             </span>
@@ -2809,6 +3087,22 @@ export default function Grafica() {
                         </td>
                       </tr>
                     )}
+
+                    {/* Renderização incremental: fim do teto deste evento. */}
+                    {corte && (
+                      <tr style={{ backgroundColor: "#fafaf9", borderBottom: `1px solid ${TI.border}` }}>
+                        <td colSpan={COLS} style={{ padding: "8px 16px", textAlign: "center" }}>
+                          <button
+                            type="button"
+                            onClick={e => { e.stopPropagation(); expandirGrupo(corte.chave); }}
+                            data-testid={`button-mostrar-todas-${corte.chave}`}
+                            style={{ background: "none", border: `1px dashed ${TI.border}`, borderRadius: 8, padding: "7px 16px", fontSize: 13, fontWeight: 700, color: TI.text, cursor: "pointer" }}
+                          >
+                            Mostrar todas as {corte.total} peças deste evento (+{corte.ocultas})
+                          </button>
+                        </td>
+                      </tr>
+                    )}
                   </Fragment>
                 );
               })}
@@ -2843,13 +3137,44 @@ export default function Grafica() {
                 <>
                   {" · "}<strong style={{ color: TI.text }}>{printM2.toFixed(2)} m²</strong> a produzir
                   {reusedUn > 0 && (
-                    <span style={{ color: "#059669" }}>
+                    /* #047857 (emerald-700, 5,48:1) no lugar de #059669: 3,77:1
+                       reprova AA em 13px. Fonte: P.emerald.text de lib/status. */
+                    <span style={{ color: "#047857" }}>
                       {" "}(economia de {(totalM2 - printM2).toFixed(2)} m² · {reusedUn} un. reaproveitada{reusedUn !== 1 ? "s" : ""})
                     </span>
                   )}
                 </>
               );
             })()}
+            {/* Esconder dado sem dizer que está escondido é pior que o problema:
+                o chip de reversão é parte da feature, não um extra. */}
+            {entreguesOcultas > 0 && (
+              <>
+                {" · "}
+                <button
+                  type="button"
+                  onClick={() => patchFiltros({ entregues: true })}
+                  data-testid="chip-entregues-ocultas"
+                  title="A tela abre na fila do que falta fazer. Clique para trazer o histórico de entregas de volta."
+                  style={{ background: "none", border: "none", padding: 0, fontSize: 13, fontWeight: 700, color: "#0e7490", textDecoration: "underline", cursor: "pointer" }}
+                >
+                  {entreguesOcultas} entregue{entreguesOcultas !== 1 ? "s" : ""} oculta{entreguesOcultas !== 1 ? "s" : ""} · mostrar
+                </button>
+              </>
+            )}
+            {filtros.entregues && (
+              <>
+                {" · "}
+                <button
+                  type="button"
+                  onClick={() => patchFiltros({ entregues: false })}
+                  data-testid="chip-ocultar-entregues"
+                  style={{ background: "none", border: "none", padding: 0, fontSize: 13, fontWeight: 700, color: "#0e7490", textDecoration: "underline", cursor: "pointer" }}
+                >
+                  ocultar entregues
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -2860,7 +3185,11 @@ export default function Grafica() {
           role="toolbar"
           aria-label={bulkConferMode ? "Ações da conferência em lote" : "Ações da entrega em lote"}
           style={{
-            position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 50,
+            // A barra ancora na COLUNA DE CONTEÚDO. Com left:0 e zIndex 50 ela
+            // passava por cima da sidebar (fixed, z-10) e cobria a navegação e o
+            // bloco de usuário/Sair enquanto o operador montava o lote. No
+            // celular a sidebar não é fixa, então ali continua colada na borda.
+            position: 'fixed', bottom: 0, left: isMobile ? 0 : 'var(--sidebar-width, 16rem)', right: 0, zIndex: 50,
             background: TI.text,
             padding: '12px 16px',
             display: 'flex', alignItems: 'center', gap: 10,
@@ -3000,14 +3329,21 @@ export default function Grafica() {
 
           {/* rgba(255,255,255,0.4) media ~3.9:1 sobre o cabeçalho escuro — a
               legenda que diz o que fazer era a coisa menos legível do modal. */}
+          {/* `tint` na COR DA AÇÃO. Os três tipos recebiam TI.accent, então a
+              conferência — ciano em toda a tela — abria com um ladrilho laranja,
+              a cor da entrega: por um instante some a certeza de ter aberto a
+              coisa certa, um instante antes de uma ação irreversível.
+              O subtítulo da produção diz o contrato do campo: ele grava o TOTAL,
+              e "Continuar" é exatamente a palavra que ensina a ler ao contrário. */}
           <ModalHeader
             icon={modalType === "production" ? Play : modalType === "conference" ? CheckCircle : Truck}
-            tint={TI.accent}
+            tint={modalType === "conference" ? "#0e7490" : modalType === "delivery" ? "#c2410c" : TI.text}
             title={modalType === "production"
-              ? (selectedItem?.quantityProduced > 0 ? "Continuar produção" : "Iniciar produção")
+              ? (producedOf(selectedItem) > 0 ? "Continuar produção" : "Iniciar produção")
               : modalType === "conference" ? "Conferir peça"
               : "Confirmar entrega"}
-            subtitle={modalType === "production" ? "Registre a quantidade produzida"
+            subtitle={modalType === "production"
+              ? (producedOf(selectedItem) > 0 ? "O campo grava o TOTAL produzido" : "Registre a quantidade produzida")
               : modalType === "conference" ? "Anexe a foto da conferência"
               : "Registre a entrega do material"}
             onClose={() => { setSelectedItem(null); setModalType(null); }}
@@ -3060,13 +3396,13 @@ export default function Grafica() {
                     {modalType === "production"
                       ? <Printer style={{ width: 20, height: 20, color: TI.accent }} />
                       : modalType === "conference"
-                      ? <CheckCircle style={{ width: 20, height: 20, color: "#0891b2" }} />
+                      ? <CheckCircle style={{ width: 20, height: 20, color: "#0e7490" }} />
                       : <Truck style={{ width: 20, height: 20, color: TI.accent }} />}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, marginBottom: 3 }}>
                       <span style={{ display: "inline-flex", alignItems: "center", gap: 6, minWidth: 0 }}>
-                        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, color: selectedItem.isReuse ? '#059669' : '#c2410c' }}>{selectedItem.displayId}</span>
+                        <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, color: selectedItem.isReuse ? '#047857' : '#c2410c' }}>{selectedItem.displayId}</span>
                         {/* Produzir/conferir/entregar um complemento é registrar
                             um LOTE SEPARADO: o modal precisa dizer isso, senão
                             o operador acha que está lançando na peça original. */}
@@ -3110,21 +3446,40 @@ export default function Grafica() {
                   <div style={{ background: '#fff', borderRadius: 8, padding: '8px 10px' }}>
                     <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: TI.secondary, marginBottom: 2 }}>Quantidade</div>
                     <div style={{ fontSize: 18, fontWeight: 800, color: TI.text, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>{qtyOf(selectedItem)}<span style={{ fontSize: 11, fontWeight: 500, color: TI.secondary, marginLeft: 3 }}>un.</span></div>
-                    {selectedItem.isReuse && <div style={{ fontSize: 10, color: '#059669', marginTop: 2, fontWeight: 600 }}>Reaproveitado</div>}
+                    {selectedItem.isReuse && <div style={{ fontSize: 10, color: '#047857', marginTop: 2, fontWeight: 600 }}>Reaproveitado</div>}
                   </div>
-                  {(modalType === "conference" || modalType === "delivery") && (
-                    <div style={{ background: modalType === "conference" ? '#ecfeff' : '#fff7ed', borderRadius: 8, padding: '8px 10px', border: `1px solid ${modalType === "conference" ? '#a5f3fc' : '#fed7aa'}` }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: modalType === "conference" ? '#0e7490' : '#c2410c', marginBottom: 2 }}>
-                        {modalType === "conference" ? "A Conferir" : "A Entregar"}
+                  {/* Tile de contexto — agora nos TRÊS tipos. A produção era o
+                      único modal que nunca dizia quanto já foi produzido, e é
+                      justamente o único cujo campo é ABSOLUTO: sem este número
+                      na tela, quem digitava "o que fez hoje" apagava o resto e
+                      não havia nada, em lugar nenhum, mostrando o valor
+                      anterior. Ciano único #0e7490 (5,36:1); #0891b2 dava
+                      3,68:1 em 18px/800. */}
+                  {(modalType === "conference" || modalType === "delivery" || modalType === "production") && (
+                    <div style={{
+                      background: modalType === "conference" ? '#ecfeff' : modalType === "delivery" ? '#fff7ed' : '#f5f5f4',
+                      borderRadius: 8, padding: '8px 10px',
+                      border: `1px solid ${modalType === "conference" ? '#a5f3fc' : modalType === "delivery" ? '#fed7aa' : '#d6d3d1'}`,
+                    }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: modalType === "conference" ? '#0e7490' : modalType === "delivery" ? '#c2410c' : '#57534e', marginBottom: 2 }}>
+                        {modalType === "conference" ? "A Conferir" : modalType === "delivery" ? "A Entregar" : "A Produzir"}
                       </div>
-                      <div style={{ fontSize: 18, fontWeight: 800, color: modalType === "conference" ? '#0891b2' : '#c2410c', fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>
-                        {modalType === "conference" ? remainingConfer(selectedItem) : remainingDeliver(selectedItem)}<span style={{ fontSize: 11, fontWeight: 500, marginLeft: 3 }}>un.</span>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: modalType === "conference" ? '#0e7490' : modalType === "delivery" ? '#c2410c' : TI.text, fontFamily: "'Space Grotesk', sans-serif", lineHeight: 1 }}>
+                        {modalType === "conference" ? remainingConfer(selectedItem)
+                          : modalType === "delivery" ? remainingDeliver(selectedItem)
+                          : remainingProduce(selectedItem)}<span style={{ fontSize: 11, fontWeight: 500, marginLeft: 3 }}>un.</span>
                       </div>
                       {modalType === "conference" && conferredOf(selectedItem) > 0 && (
                         <div style={{ fontSize: 10, color: '#0e7490', marginTop: 2 }}>{conferredOf(selectedItem)} já conferida{conferredOf(selectedItem) !== 1 ? 's' : ''}</div>
                       )}
                       {modalType === "delivery" && deliveredOf(selectedItem) > 0 && (
                         <div style={{ fontSize: 10, color: '#c2410c', marginTop: 2 }}>{deliveredOf(selectedItem)} já entregue{deliveredOf(selectedItem) !== 1 ? 's' : ''}</div>
+                      )}
+                      {modalType === "production" && (
+                        <div data-testid="text-ja-produzidas" style={{ fontSize: 10, color: '#57534e', marginTop: 2 }}>
+                          {producedOf(selectedItem)} já produzida{producedOf(selectedItem) !== 1 ? 's' : ''} de {qtyOf(selectedItem)}
+                          {reusedTotalOf(selectedItem) > 0 && ` · ${reusedTotalOf(selectedItem)} reaproveitada${reusedTotalOf(selectedItem) !== 1 ? 's' : ''}`}
+                        </div>
                       )}
                     </div>
                   )}
@@ -3158,26 +3513,40 @@ export default function Grafica() {
             {selectedItem && modalType === "production" && (
               <form onSubmit={handleSubmitProduction} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
                 <div>
-                  <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 10 }}>
-                    Quantidade a Produzir
+                  {/* O rótulo era "Quantidade a Produzir", irmão de "Quantidade
+                      a conferir agora" e "Quantidade a entregar agora" — e os
+                      dois vizinhos são INCREMENTAIS enquanto este é ABSOLUTO.
+                      O nome agora diz o contrato, e a dica repete a conta com o
+                      número real, porque é o número que resolve a dúvida. */}
+                  <label htmlFor="input-quantity-produced" style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 6 }}>
+                    Total produzido até agora
                   </label>
+                  <div style={{ fontSize: 11, color: "#746e69", marginBottom: 10, lineHeight: 1.4 }} id="dica-quantidade-produzida">
+                    {producedOf(selectedItem) > 0
+                      ? `Este valor SUBSTITUI o anterior (${producedOf(selectedItem)} un.), não soma. Se produziu mais ${remainingProduce(selectedItem)} agora, lance ${producedOf(selectedItem) + remainingProduce(selectedItem)}.`
+                      : "Este campo grava o total produzido da peça."}
+                  </div>
                   <div style={{ display: "flex", gap: 8 }}>
-                    {/* Teto = quantidade − reaproveitadas (a mesma conta do
-                        openProductionModal): o reaproveitado não é produzido,
-                        e o teto antigo deixava lançar produção acima do real. */}
+                    {/* Teto = quantidade − reaproveitadas (a mesma conta de
+                        `tetoDeProducao`, espelho da validação do servidor): o
+                        reaproveitado não é produzido, e o teto antigo deixava
+                        lançar produção acima do real. */}
                     <input
+                      id="input-quantity-produced"
                       type="number"
                       min={1}
-                      max={qtyOf(selectedItem) - reusedOf(selectedItem)}
+                      max={tetoDeProducao(selectedItem)}
                       value={productionData.quantityProduced}
                       onChange={e => setProductionData({ quantityProduced: parseInt(e.target.value) || 0 })}
                       required
+                      aria-required="true"
+                      aria-describedby="dica-quantidade-produzida"
                       data-testid="input-quantity-produced"
                       style={{ flex: 1, textAlign: "center", fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: TI.text, backgroundColor: "#f4f3f0", border: "none", borderRadius: 8, padding: "16px 12px" }}
                     />
                     <button
                       type="button"
-                      onClick={() => setProductionData({ quantityProduced: qtyOf(selectedItem) - reusedOf(selectedItem) })}
+                      onClick={() => setProductionData({ quantityProduced: tetoDeProducao(selectedItem) })}
                       data-testid="button-set-total"
                       style={{ backgroundColor: "#e7e5e4", border: "none", borderRadius: 8, padding: "0 20px", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", color: "#57534e", cursor: "pointer", whiteSpace: "nowrap", transition: "background-color 0.15s" }}
                       onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#d6d3d1")}
@@ -3300,12 +3669,23 @@ export default function Grafica() {
                     style={{ flex: 1, padding: "12px 0", backgroundColor: "transparent", border: "none", color: "#746e69", fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.1em", cursor: "pointer", borderRadius: 8 }}>
                     Cancelar
                   </button>
+                  {/* Desabilitado era #a5f3fc com texto branco: 1,25:1, um
+                      retângulo azul-claro praticamente vazio — e sem dizer por
+                      que estava inativo. Mesmo par do dialog de lote
+                      (#e7e5e4/#78716c) e a frase do que falta, ligada por
+                      aria-describedby. O ativo usa o ciano único #0e7490. */}
                   <button type="submit" disabled={conferMutation.isPending || !photos.length}
                     data-testid="button-confirm-conference"
-                    style={{ flex: 2, padding: "12px 0", backgroundColor: (!photos.length) ? "#a5f3fc" : "#0891b2", border: "none", color: "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, textTransform: "uppercase", cursor: (conferMutation.isPending || !photos.length) ? "not-allowed" : "pointer", borderRadius: 8, opacity: conferMutation.isPending ? 0.7 : 1 }}>
+                    aria-describedby={!photos.length ? "aviso-foto-conferencia" : undefined}
+                    style={{ flex: 2, padding: "12px 0", backgroundColor: (!photos.length) ? "#e7e5e4" : "#0e7490", border: "none", color: (!photos.length) ? "#78716c" : "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, textTransform: "uppercase", cursor: (conferMutation.isPending || !photos.length) ? "not-allowed" : "pointer", borderRadius: 8, opacity: conferMutation.isPending ? 0.7 : 1 }}>
                     {conferMutation.isPending ? "Salvando..." : "Confirmar Conferência"}
                   </button>
                 </div>
+                {!photos.length && (
+                  <p id="aviso-foto-conferencia" style={{ margin: "-8px 0 0", fontSize: 11, color: "#746e69", textAlign: "center" }}>
+                    Anexe ao menos uma foto para confirmar a conferência.
+                  </p>
+                )}
               </form>
             )}
 

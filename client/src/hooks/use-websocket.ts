@@ -59,6 +59,16 @@ export function useWebSocket() {
       // Mesmo buraco, mesma cura, para a trilha de auditoria: enquanto o socket
       // esteve fora, toda ação de outro usuário passou sem invalidar nada.
       queryClient.invalidateQueries({ queryKey: ['/api/audit-logs'] });
+      // ...e para as três chaves que sustentam as telas de trabalho. Só
+      // '/api/prazos' era revalidado, então TODA mutação ocorrida durante a
+      // queda ficava invisível no Painel Geral ('/api/items'), na Gráfica
+      // ('/api/items/approved', prefixo próprio — ver item_updated abaixo) e no
+      // sino ('/api/notifications'). Com staleTime Infinity o cache não expira
+      // sozinho: sem estas linhas só o F5 corrigia.
+      queryClient.invalidateQueries({ queryKey: ['/api/items'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/items/approved'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/events'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
     };
 
     ws.onmessage = (event) => {
@@ -138,7 +148,41 @@ export function useWebSocket() {
               queryClient.invalidateQueries({ queryKey: ['/api/events', data.item.eventId] });
             }
             queryClient.invalidateQueries({ queryKey: ['/api/items'] });
+            // O casamento de chave do TanStack é por PREFIXO elemento a
+            // elemento: '/api/items' NÃO alcança '/api/items/approved'. Este é
+            // o broadcast de /confer, /mark-reuse e /correct-reuse — as três
+            // mutações que a Gráfica mais gera. Sem esta linha, conferência
+            // feita pelo celular do conferente jamais chegava ao computador do
+            // operador, que continuava vendo a peça como "Produzido" e tomava
+            // 409 ("Nada a conferir") ao tentar de novo.
+            queryClient.invalidateQueries({ queryKey: ['/api/items/approved'] });
             queryClient.invalidateQueries({ queryKey: ['/api/events'] });
+            break;
+
+          case 'item_delivered':
+            // Não havia case algum: a entrega caía no `default` e virava um
+            // console.log. Mesmas chaves de production_started, incluindo
+            // '/api/events' — a última entrega pode fechar o evento
+            // (updateEventStatus em routes/items.ts, rota /deliver).
+            // Sem toast de propósito: quem entregou já recebeu o feedback local
+            // da mutation, e o eco do próprio broadcast viraria aviso dobrado.
+            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/items/approved'] });
+            if (data.item?.eventId) {
+              queryClient.invalidateQueries({ queryKey: ['/api/items', data.item.eventId] });
+              queryClient.invalidateQueries({ queryKey: ['/api/events', data.item.eventId] });
+            }
+            queryClient.invalidateQueries({ queryKey: ['/api/events'] });
+            break;
+
+          case 'items_book_updated':
+            // Vínculo do book de aprovação (POST /api/events/:id/book) mudava
+            // bookUrl em N peças e nenhuma tela revalidava: a Arte continuava
+            // oferecendo "anexar book" numa peça que já tinha book.
+            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
+            if (data.eventId) {
+              queryClient.invalidateQueries({ queryKey: ['/api/items', data.eventId] });
+            }
             break;
 
           case 'item_deleted':
@@ -236,6 +280,35 @@ export function useWebSocket() {
 
           case 'standard_item_created':
             queryClient.invalidateQueries({ queryKey: ['/api/standard-items'] });
+            break;
+
+          // ── Patrocinadores ──
+          // O hook tinha 40 invalidações e NENHUMA para patrocinador: quem
+          // cadastrava um patrocinador numa aba não o encontrava no seletor da
+          // outra, e um patrocinador excluído continuava ofertado até o F5.
+          // '/api/sponsors/usage' entra junto porque é a contagem exibida ao
+          // lado de cada nome — ficar defasada é o que faz alguém excluir um
+          // patrocinador achando que ele não é usado por ninguém.
+          case 'sponsor_created':
+          case 'sponsor_updated':
+          case 'sponsor_deleted':
+            queryClient.invalidateQueries({ queryKey: ['/api/sponsors'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/sponsors/usage'] });
+            break;
+
+          // Vínculo peça↔patrocinador e cota do evento: mudam a leitura de
+          // '/api/sponsors/usage' e das listas por evento/peça.
+          case 'item_sponsor_added':
+          case 'item_sponsor_removed':
+          case 'event_sponsor_updated':
+          case 'event_sponsor_removed':
+            queryClient.invalidateQueries({ queryKey: ['/api/sponsors'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/sponsors/usage'] });
+            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
+            if (data.eventId) {
+              queryClient.invalidateQueries({ queryKey: ['/api/events', data.eventId, 'sponsors'] });
+              queryClient.invalidateQueries({ queryKey: ['/api/items', data.eventId] });
+            }
             break;
 
           case 'notification_created':

@@ -59,6 +59,7 @@ import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { ExportPdfDialog } from "@/components/export-pdf-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
+import { PrazoInline } from "@/components/prazo-inline";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 // Quantas linhas a tabela monta por vez. O resto entra por "Carregar mais".
@@ -101,6 +102,19 @@ const EVENT_CHIPS_VISIBLE = 8;
  * Em 1536 continua cabendo inteira; em 1366 com a sidebar aberta faltam ~60 a
  * 105px, que o scroller horizontal único da aba resolve. É a troca certa: um
  * cabeçalho truncado é um erro em toda largura, rolar 100px é um gesto.
+ *
+ * TERCEIRA RODADA — "Prazo" de 112 para 144. A célula deixou de empilhar data e
+ * atraso em duas linhas e passou a escrever a frase inteira numa só (ver
+ * components/prazo-inline). Medido no navegador, em Inter 11px: "29/07  16d
+ * atrasado" pede 109,6px e o pior caso real, "15/04  120d atrasado", pede
+ * 116,7px — contra 88px úteis dos 112 antigos. Em 112 a linha única só
+ * existiria abreviando a data ou a palavra "atrasado", e é a palavra que
+ * sustenta quem não distingue vermelho. 144 dá 120px úteis: cabe o pior caso.
+ *
+ * A troca é 32px de LARGURA por ~14px de ALTURA em CADA peça da fila. Numa aba
+ * com 100 linhas montadas isso é mais de mil pixels de rolagem vertical contra
+ * 32 de horizontal, num eixo que já tem scroller. A conta vai para 1138/1182:
+ * em 1536 (e nos 1568 em que a tela foi revisada) continua inteira na janela.
  */
 const ARTE_COLS: { label: string; w: number | string; right?: boolean }[] = [
   { label: 'ID',            w: 116 },
@@ -110,7 +124,7 @@ const ARTE_COLS: { label: string; w: number | string; right?: boolean }[] = [
   { label: 'M²',            w: 56 },
   { label: 'Material',      w: 132 },
   { label: 'Arte',          w: 76 },
-  { label: 'Prazo',         w: 112 },
+  { label: 'Prazo',         w: 144 },
   { label: 'Patroc.',       w: 92 },
   { label: 'Ações',         w: 180, right: true },
 ];
@@ -151,6 +165,13 @@ const TAB_THEME: Record<string, { dot: string; text: string; tint: string }> = {
  * Semáforo de prazo. Fundo sólido claro com texto escuro — o dado mais urgente
  * é o que mais precisa ser lido, e em tom claro sobre translúcido ele ficava em
  * 1,34:1 (medido no navegador). Todos os pares abaixo passam AA em 11px.
+ *
+ * ESCOPO: só os chips de marco da FAIXA DO EVENTO (a barra escura no topo de
+ * cada bloco), onde três marcos aparecem UMA vez por evento e o preenchimento é
+ * o que os separa do fundo #1c1917. A célula da coluna "Prazo" NÃO usa mais
+ * isto: lá o mesmo selo se repetia peça por peça e virava um bloco de cor por
+ * linha — ver components/prazo-inline. Preenchimento é para o que aparece uma
+ * vez; texto é para o que aparece trinta.
  */
 function semaforoPrazo(diff: number): { bg: string; border: string; text: string } {
   if (diff < 0) return { bg: '#fee2e2', border: '#fca5a5', text: '#991b1b' };
@@ -1629,23 +1650,30 @@ export default function Arte() {
     );
   };
 
-  /** Célula de prazo — o marco da fase, com semáforo. */
+  /**
+   * Célula de prazo — o marco da FASE (`phaseDeadline`), em uma linha de texto.
+   *
+   * PORQUÊ NÃO É MAIS UM SELO PREENCHIDO. Era uma caixa de fundo sólido com duas
+   * linhas dentro, e numa fila de 30 peças atrasadas isso são 30 retângulos
+   * vermelhos: o prazo, que é dado de APOIO para escolher a ordem do trabalho,
+   * pesava mais que o botão de ação primária da mesma linha. O desenho, a régua
+   * de cor e os contrastes moram em components/prazo-inline — a caixa some, a
+   * cor passa a ocupar só a área das letras e a magnitude do atraso vira peso
+   * tipográfico, que é a única coisa que muda de linha para linha.
+   *
+   * A REGRA DE DATA NÃO MUDOU: continua `phaseDeadline` (lib/arte-rules), a
+   * mesma da faixa de diagnóstico, do filtro "Prazo: atrasados" e da Gestão de
+   * Prazos, com o marco da Finalização (−10) e o ajuste de fim de semana.
+   */
   const renderPrazo = (item: any, tabId: string, hoje: Date) => {
     const p = phaseDeadline(item.event, tabId, hoje);
-    if (!p) return <span style={{ fontSize: 12, color: '#57534e' }}>—</span>;
-    const s = semaforoPrazo(p.diff);
     return (
-      <span
-        title={`${p.label}: ${p.date.toLocaleDateString('pt-BR')}`}
-        style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-start', gap: 1, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 6, padding: '3px 7px', maxWidth: '100%' }}
-      >
-        <span style={{ fontSize: 11, fontWeight: 700, color: s.text, letterSpacing: '0.02em' }}>
-          {p.date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-        </span>
-        <span style={{ fontSize: 11, fontWeight: 600, color: s.text, opacity: 0.85, whiteSpace: 'nowrap' }}>
-          {p.diff < 0 ? `${Math.abs(p.diff)}d atrasado` : p.diff === 0 ? 'hoje' : `em ${p.diff}d`}
-        </span>
-      </span>
+      <PrazoInline
+        diff={p?.diff ?? null}
+        date={p?.date ?? null}
+        label={p?.label}
+        testId={`cell-prazo-${item.id}`}
+      />
     );
   };
 

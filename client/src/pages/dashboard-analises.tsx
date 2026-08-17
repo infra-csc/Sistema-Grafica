@@ -72,8 +72,14 @@ const SP = {
    tela pela barra lateral, com o conteúdo dando um passo para dentro. O topo
    caiu de 28 para 24 porque a primeira dobra desta tela é disputada: KPIs,
    gráfico de 21 semanas e a tabela de ofensores, tudo abaixo. */
+/* O topo saiu para uma constante propria porque o cabecalho grudento da
+   tabela de ofensores desconta ELE: a pagina e o proprio scroller, e
+   `top: 0` prenderia o cabecalho na borda do CONTEUDO, deixando uma faixa
+   de `padding` acima por onde as linhas passavam aparecendo. */
+const PADDING_TOPO = (isMobile: boolean) => (isMobile ? 14 : 24);
+
 const PADDING_PAGINA = (isMobile: boolean) =>
-  isMobile ? "14px 14px 40px" : "24px 28px 56px";
+  isMobile ? `${PADDING_TOPO(true)}px 14px 40px` : `${PADDING_TOPO(false)}px 28px 56px`;
 
 /* ── Contrastes calculados (WCAG 2.1; todo texto ≤13px exige 4,5:1) ──
    Superfícies desta tela: branco #ffffff (cards), #f3f4f3 (faixa de filtros e
@@ -1176,11 +1182,11 @@ export default function DashboardAnalises() {
             aoLimpar={limparFiltros}
           />
         ) : (
-          <div style={{ overflowX: "auto" }}>
+          <div style={{ overflowX: isMobile ? "auto" : "visible" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 780 }}>
               <thead>
                 <tr style={{ backgroundColor: T.low }}>
-                  <th scope="col" style={{ padding: "11px 20px", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.14em", textAlign: "left" }}>
+                  <th scope="col" style={{ position: "sticky" as const, top: -PADDING_TOPO(isMobile), zIndex: 2, backgroundColor: T.low, padding: "11px 20px", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.14em", textAlign: "left" }}>
                     {DIMENSOES.find((d) => d.value === dim)?.label}
                   </th>
                   {ORDENS.map((o) => (
@@ -1188,7 +1194,7 @@ export default function DashboardAnalises() {
                       key={o.value}
                       scope="col"
                       aria-sort={ordem === o.value ? "descending" : "none"}
-                      style={{ padding: 0, textAlign: "right" }}
+                      style={{ position: "sticky" as const, top: -PADDING_TOPO(isMobile), zIndex: 2, backgroundColor: T.low, padding: 0, textAlign: "right" }}
                     >
                       <button
                         onClick={() => setOrdem(o.value)}
@@ -1204,10 +1210,10 @@ export default function DashboardAnalises() {
                       </button>
                     </th>
                   ))}
-                  <th scope="col" style={{ padding: "11px 20px", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.14em", textAlign: "right" }}>
+                  <th scope="col" style={{ position: "sticky" as const, top: -PADDING_TOPO(isMobile), zIndex: 2, backgroundColor: T.low, padding: "11px 20px", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.14em", textAlign: "right" }}>
                     Em aberto
                   </th>
-                  <th scope="col" style={{ width: 34 }}><span className="sr-only">Abrir</span></th>
+                  <th scope="col" style={{ position: "sticky" as const, top: -PADDING_TOPO(isMobile), zIndex: 2, backgroundColor: T.low, width: 34 }}><span className="sr-only">Abrir</span></th>
                 </tr>
               </thead>
               <tbody>

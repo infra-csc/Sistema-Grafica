@@ -166,6 +166,26 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
           border: "none",
           boxShadow: "0 32px 64px -16px rgba(0,0,0,0.28), 0 0 0 1px rgba(0,0,0,0.05)",
           overflow: "hidden",
+          // ALTURA: o teto de 85dvh existia SÓ no ramo `isMobile`; no desktop
+          // não havia teto nenhum. A conta do desktop: cabeçalho 85 (22+22 de
+          // padding + ladrilho de 40) + 1 de borda + corpo de altura FIXA 580 =
+          // 666px. Numa janela de 445 de altura (a do relato) o Radix centra e
+          // corta 110px EM CIMA e 110 EMBAIXO ao mesmo tempo — some o título e
+          // some o fim da lista de peças —, e o `overflow: hidden` daqui
+          // impedia qualquer rolagem.
+          //
+          // A CONTA é `100vh − 48`: viewport menos 24px de respiro em cima e 24
+          // embaixo, simétrico porque o modal é centrado. Com a coluna flex o
+          // cabeçalho fica parado e o corpo encolhe abaixo dos 580 quando a
+          // janela é baixa — as duas listas internas já rolam sozinhas.
+          //
+          // `dvh` no celular e `vh` no desktop: o corpo aqui tinha um teto de
+          // 85dvh justamente porque no mobile a barra de endereço do Chrome come
+          // ~60px que o `vh` finge que existem. Trocar por `vh` puro devolveria
+          // esse defeito pela outra ponta, com o rodapé da lista atrás da barra.
+          // Mesma troca de unidade que o formulário de evento faz.
+          maxHeight: isMobile ? "calc(100dvh - 48px)" : "calc(100vh - 48px)",
+          display: "flex", flexDirection: "column",
         }}
       >
         <DialogTitle className="sr-only">Exportar PDF</DialogTitle>
@@ -177,6 +197,9 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
           display: "flex", justifyContent: "space-between", alignItems: "center",
           background: "linear-gradient(135deg, #1c1917 0%, #2d2926 100%)",
           borderBottom: "1px solid rgba(255,255,255,0.06)",
+          // Não encolhe: o cabeçalho carrega o X, e é a última coisa que pode
+          // ser espremida numa janela baixa.
+          flexShrink: 0,
         }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <div style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: useBook ? "#6d28d9" : "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 0 0 1px rgba(255,255,255,0.12) inset", transition: "background-color 0.2s" }}>
@@ -207,13 +230,25 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
             filtro e a borda do modal. A altura fixa (580) não depende do
             overflow para funcionar; só o overflow:hidden do DialogContent (que
             faz a máscara dos cantos arredondados) precisa continuar como está.
-            Mobile: colunas empilhadas e o CORPO rola (maxHeight 85dvh) — a
-            altura fixa de 580 estourava telas baixas. */}
+            Mobile: colunas empilhadas e o CORPO rola — a altura fixa de 580
+            estourava telas baixas.
+
+            Desktop: os 580 continuam sendo a altura DESEJADA (é o desenho de
+            duas colunas), mas agora com `flex: 0 1 auto` + `minHeight: 0`, que
+            deixa este bloco ENCOLHER abaixo dos 580 quando o teto do
+            DialogContent (100vh − 48) não comporta. Sem o `minHeight: 0` o
+            tamanho mínimo automático de um item flex é o conteúdo dele e o
+            corpo se recusaria a encolher, voltando a estourar a viewport.
+            As duas listas internas já têm `flex: 1; minHeight: 0; overflowY:
+            auto`, então quem rola continua sendo elas.
+
+            No mobile o próprio corpo é o scrollport; o teto de 85dvh saiu
+            porque o teto agora é do DialogContent e vale nas duas larguras. */}
         <div style={{
           display: "flex",
           ...(isMobile
-            ? { flexDirection: "column" as const, maxHeight: "85dvh", overflowY: "auto" as const }
-            : { height: 580, overflow: "visible" as const }),
+            ? { flexDirection: "column" as const, flex: "1 1 auto" as const, minHeight: 0, overflowY: "auto" as const }
+            : { height: 580, flex: "0 1 auto" as const, minHeight: 0, overflow: "visible" as const }),
         }}>
 
           {/* ── Painel esquerdo — Opções do PDF ─────────────────────────── */}

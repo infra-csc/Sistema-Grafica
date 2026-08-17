@@ -1,5 +1,5 @@
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { FreezeWhileClosing } from "@/components/modal-shell";
+import { FreezeWhileClosing, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -560,7 +560,12 @@ export default function Patrocinadores() {
       <Dialog open={modalOpen} onOpenChange={o => { if (!o) requestClose(); }}>
 
         <DialogContent
-          className="p-0 gap-0 border-none"
+          // HIDE_NATIVE_CLOSE: o cabeçalho deste modal desenha o próprio X (o
+          // que chama `requestClose` e avisa sobre alterações não salvas), e o
+          // DialogContent base já renderiza um X no canto — ficavam DOIS botões
+          // de fechar sobrepostos, com o de cima descartando o formulário sem
+          // perguntar nada.
+          className={`p-0 gap-0 border-none ${HIDE_NATIVE_CLOSE}`}
           // ALTURA — a conta, porque é ela que alguém vai mexer sem entender.
           //
           // Antes aqui só havia `maxWidth`, `borderRadius` e `overflow: hidden`:
@@ -635,7 +640,15 @@ export default function Patrocinadores() {
                     {/* ─ 01 Informações Gerais ─ */}
                     <section>
                       {sectionLabel("01", "Informações Gerais")}
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                      {/* LARGURA: uma coluna no celular. Em 375 de largura o
+                          corpo do modal dá 296px úteis (96vw = 360, menos 32+32
+                          de padding); duas colunas de 1fr com 16 de gap deixam
+                          140px por campo, e um <input> tem largura mínima
+                          própria (~154px pelo tamanho do cursor + padding), que
+                          o grid NÃO consegue espremer — a diferença virava
+                          rolagem HORIZONTAL dentro do modal. `isMobile` já
+                          estava disponível na página e não era usado aqui. */}
+                      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
                         <FormField control={form.control} name="name" render={({ field }) => (
                           <FormItem>
                             <label htmlFor="sponsor-name" style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Nome do Patrocinador *</label>
@@ -665,7 +678,8 @@ export default function Patrocinadores() {
                       </div>
 
                       {/* Executivo responsável (a cota é definida por evento, em Configurar Cotas) */}
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginTop: 20 }}>
+                      {/* Uma coluna no celular, mesma conta da seção 01. */}
+                      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20, marginTop: 20 }}>
                         <FormField control={form.control} name="accountExecutiveId" render={({ field }) => (
                           <FormItem>
                             <label htmlFor="sponsor-account-executive" style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Executivo responsável (interno)</label>
@@ -746,7 +760,8 @@ export default function Patrocinadores() {
                     {/* ─ 03 Contato Executivo ─ */}
                     <section>
                       {sectionLabel("03", "Contato no Patrocinador")}
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                      {/* Uma coluna no celular, mesma conta da seção 01. */}
+                      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
                         <FormField control={form.control} name="contactPerson" render={({ field }) => (
                           <FormItem>
                             <label htmlFor="sponsor-contact-person" style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Pessoa de contato (lado do patrocinador)</label>

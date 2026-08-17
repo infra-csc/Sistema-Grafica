@@ -197,12 +197,22 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className={`max-w-none p-0 gap-0 ${HIDE_NATIVE_CLOSE}`}
-        style={{ width: "min(1040px, 94vw)", borderRadius: 16, overflow: "hidden", border: "none", boxShadow: "0 32px 64px -16px rgba(0,0,0,0.28), 0 0 0 1px rgba(0,0,0,0.05)" }}>
+        // ALTURA: cabeçalho 86 + barra de controle 57 + grade de páginas
+        // `height: min(520px, 52vh)` + rodapé 117, e NENHUM teto no Content.
+        // Numa janela de 445 os 52vh davam 231 e o total ia a 491px contra 397
+        // disponíveis: o Radix cortava 47px em cima e 47 embaixo ao mesmo tempo
+        // — sumiam o título e o botão de baixar juntos, com o `overflow:
+        // hidden` daqui impedindo qualquer rolagem. O 52vh era um desconto
+        // chutado: ele encolhe a grade, não o modal.
+        // A CONTA certa é `100vh − 48` (24px de respiro em cima e 24 embaixo,
+        // simétrico porque o Radix centra) com coluna flex — cabeçalho, barra e
+        // rodapé não encolhem e a grade fica com o que sobrar.
+        style={{ width: "min(1040px, 94vw)", borderRadius: 16, overflow: "hidden", border: "none", boxShadow: "0 32px 64px -16px rgba(0,0,0,0.28), 0 0 0 1px rgba(0,0,0,0.05)", maxHeight: "calc(100vh - 48px)", display: "flex", flexDirection: "column" }}>
         <DialogTitle className="sr-only">Extrair páginas do book</DialogTitle>
         <DialogDescription className="sr-only">Escolha as páginas do book e baixe um PDF apenas com elas</DialogDescription>
 
         {/* ══ Cabeçalho ═══════════════════════════════════════════════════ */}
-        <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "22px 32px", background: "linear-gradient(135deg, #1c1917 0%, #2d2926 100%)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "22px 32px", background: "linear-gradient(135deg, #1c1917 0%, #2d2926 100%)", borderBottom: "1px solid rgba(255,255,255,0.06)", flexShrink: 0 }}>
           <div style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: "#6d28d9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 0 0 1px rgba(255,255,255,0.12) inset" }}>
             <BookOpen style={{ width: 18, height: 18, color: "#fff" }} />
           </div>
@@ -223,7 +233,7 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
         </div>
 
         {/* ══ Barra de controle ═══════════════════════════════════════════ */}
-        <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 32px", borderBottom: "1px solid #ebe8e4", backgroundColor: "#fafaf9", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 32px", borderBottom: "1px solid #ebe8e4", backgroundColor: "#fafaf9", flexWrap: "wrap", flexShrink: 0 }}>
           {books.length > 1 && (
             <select
               value={bookUrl}
@@ -268,7 +278,11 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
         {/* ══ Páginas ═════════════════════════════════════════════════════
             min(520px, 52vh): com altura fixa o modal inteiro estourava a tela em
             notebook baixo, deixando o botão de baixar fora do alcance. */}
-        <div style={{ height: "min(520px, 52vh)", overflowY: "auto", padding: 32, backgroundColor: "#fff" }}>
+        {/* Os 520 continuam sendo o teto de DESENHO da grade; o 52vh saiu
+            porque quem limita agora é o teto do Content. `flex: 0 1 auto` +
+            `minHeight: 0` derruba o piso automático do item flex e deixa a
+            grade encolher abaixo dos 520 numa janela baixa. */}
+        <div style={{ maxHeight: 520, overflowY: "auto", padding: 32, backgroundColor: "#fff", flex: "0 1 auto", minHeight: 0 }}>
           {error && (
             <div style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: 16, borderRadius: 10, backgroundColor: "#fef2f2", border: "1px solid #fecaca" }}>
               <AlertCircle style={{ width: 16, height: 16, color: "#b91c1c", flexShrink: 0, marginTop: 1 }} />
@@ -301,7 +315,7 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
         </div>
 
         {/* ══ Rodapé ══════════════════════════════════════════════════════ */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "16px 32px", borderTop: "1px solid #ebe8e4", backgroundColor: "#fff" }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "16px 32px", borderTop: "1px solid #ebe8e4", backgroundColor: "#fff", flexShrink: 0 }}>
           <button
             onClick={extract}
             disabled={picked.size === 0 || extracting}

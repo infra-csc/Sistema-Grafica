@@ -89,11 +89,46 @@ export const HIDE_NATIVE_CLOSE = "[&>button:last-child]:hidden";
 export const MODAL_RADIUS = R.xl;
 export const MODAL_SHADOW = "0 32px 64px -16px rgba(0,0,0,0.28), 0 0 0 1px rgba(0,0,0,0.05)";
 
-/** Estilo pronto para o `style` do DialogContent. */
+/**
+ * Estilo pronto para o `style` do DialogContent.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * O TETO DE ALTURA MORA AQUI, e não em cada modal. Por quê, e a conta.
+ *
+ * Esta casca vive em ~20 DialogContent e até hoje devolvia `overflow: hidden`
+ * SEM teto de altura nenhum: cada tela dependia do próprio conteúdo ser curto.
+ * Quando não era, o modal crescia com o conteúdo, e como o Radix centra o
+ * Content com `top: 50%` + `translateY(-50%)`, o que passava da viewport era
+ * cortado METADE EM CIMA E METADE EMBAIXO AO MESMO TEMPO — sumiam o título e o
+ * botão de confirmar juntos. Pior: o `overflow: hidden` daqui impedia qualquer
+ * rolagem, e mesmo onde havia rolagem interna ela NUNCA ligava, porque sem teto
+ * nada nunca "não coube". Medido em Chrome real no cadastro de patrocinador:
+ * 1047px de modal numa janela de 445 de altura, 301px perdidos de cada lado.
+ *
+ * A CONTA é `100vh − 48`: a viewport inteira menos 24px de respiro em cima e
+ * 24 embaixo. O desconto é simétrico porque o modal é centrado.
+ *
+ * NÃO se desconta cabeçalho e rodapé por número fixo. Eles são itens flex que
+ * não rolam (`flexShrink: 0` em `ModalHeader` e `ModalFooter`), o navegador os
+ * mede sozinho, e o corpo — com `flex: 1 1 auto; minHeight: 0` — fica com
+ * exatamente o que sobrar. Um número fixo não serve para todas as telas: em 375
+ * de largura o título quebra em duas linhas e o cabeçalho engorda de 93 para
+ * ~130px. A Gestão de Prazos já tinha abandonado o desconto fixo por isso.
+ *
+ * O QUE CADA CONSUMIDOR PRECISA FAZER: o bloco do meio (o corpo) tem que ser
+ * `overflowY: "auto", flex: "1 1 auto", minHeight: 0`, e todo elo entre o
+ * DialogContent e ele precisa ser coluna flex com `minHeight: 0`. Sem
+ * `minHeight: 0` o tamanho mínimo automático do item flex é o conteúdo dele: o
+ * corpo se recusa a encolher e volta a empurrar o rodapé para fora da tela.
+ * ─────────────────────────────────────────────────────────────────────────────
+ */
 export function modalSurface(maxWidth: number): React.CSSProperties {
   return {
     maxWidth,
     width: "96vw",
+    maxHeight: "calc(100vh - 48px)",
+    display: "flex",
+    flexDirection: "column",
     padding: 0,
     borderRadius: MODAL_RADIUS,
     border: "none",
@@ -129,7 +164,10 @@ export function ModalHeader({
   return (
     <div
       style={{
-        display: "flex", alignItems: "center", gap: 14,
+        // `flexShrink: 0`: com o teto de altura no `modalSurface`, o Content é
+        // uma coluna flex — e sem isto o cabeçalho seria espremido junto com o
+        // corpo numa janela baixa, em vez de o corpo rolar.
+        display: "flex", alignItems: "center", gap: 14, flexShrink: 0,
         padding: dark ? "22px 28px" : "22px 24px 16px",
         background: dark
           ? "linear-gradient(135deg, #1c1917 0%, #2d2926 100%)"
@@ -203,7 +241,9 @@ export function ModalFooter({ children }: { children: React.ReactNode }) {
   return (
     <div
       style={{
-        display: "flex", flexDirection: "column", gap: 8,
+        // `flexShrink: 0` pelo mesmo motivo do cabeçalho: o rodapé carrega a
+        // ação primária e não pode encolher nem rolar para fora da tela.
+        display: "flex", flexDirection: "column", gap: 8, flexShrink: 0,
         padding: "16px 24px",
         borderTop: "1px solid #ebe8e4",
         backgroundColor: "#fff",

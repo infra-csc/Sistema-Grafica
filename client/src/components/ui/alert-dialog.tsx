@@ -33,8 +33,16 @@ const AlertDialogContent = React.forwardRef<
     <AlertDialogOverlay />
     <AlertDialogPrimitive.Content
       ref={ref}
+      // Mesma rede de segurança do DialogContent (a justificativa por extenso
+      // está em ui/dialog.tsx): teto de `100vh − 48` — a viewport menos 24px de
+      // respiro em cima e 24 embaixo, simétrico porque o Radix centra — e
+      // rolagem do diálogo inteiro, que é o certo para este layout de `grid`
+      // com `p-6`, onde cabeçalho e rodapé são blocos no fluxo normal.
+      // Inline vence classe, então quem já traz `maxHeight`/`overflow` no
+      // `style` fica exatamente como está; e tailwind-merge deixa o consumidor
+      // sobrescrever pela className.
       className={cn(
-        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
+        "fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg max-h-[calc(100vh-48px)] overflow-y-auto",
         className
       )}
       {...props}

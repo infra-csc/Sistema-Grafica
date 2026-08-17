@@ -340,8 +340,18 @@ function BulkActionDialog({
 
         {/* Body — rola dentro do modal (mesmo padrão do modal individual): o
             modalSurface corta com overflow hidden, e no celular com várias
-            fotos o botão Confirmar saía da tela sem caminho até ele. */}
-        <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18, background: "#fafaf9", maxHeight: "calc(88vh - 96px)", overflowY: "auto" }}>
+            fotos o botão Confirmar saía da tela sem caminho até ele.
+
+            ALTURA: era `calc(88vh - 96px)` — um desconto FIXO, com 96 chutado
+            para o cabeçalho (que mede 93). A conta ficava 93 + 88vh − 96, ou
+            seja `88vh − 3`, e isso por acaso cabia no teto de `100vh − 48`
+            sempre que a janela passava de 375px de altura: medi 389px em 445 e
+            947px em 1080, contra 397 e 1032 disponíveis. Este modal NÃO cortava.
+            Mesmo assim o desconto sai: ele acerta por coincidência aritmética e
+            quebra ao primeiro subtítulo que quebre em duas linhas. Com o teto no
+            DialogContent (via `modalSurface`), `flex: 1 1 auto` + `minHeight: 0`
+            entrega a este corpo exatamente o que sobrar do cabeçalho medido. */}
+        <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18, background: "#fafaf9", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
           {!isConfer && (
             <div>
               <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 10 }}>
@@ -3407,7 +3417,15 @@ export default function Grafica() {
           />
 
           {/* ── Corpo ── */}
-          <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 20, overflowY: "auto", maxHeight: "calc(88vh - 112px)" }}>
+          {/* ALTURA: era `calc(88vh - 112px)`, outro desconto FIXO (112 chutado
+              para um cabeçalho que mede 93). Dava `88vh − 19` de modal, que cabe
+              no teto de `100vh − 48` em qualquer janela acima de ~242px — este
+              modal NÃO cortava. O desconto sai pelo mesmo motivo do modal em
+              lote acima: acerta por coincidência e quebra assim que o subtítulo
+              ganhar uma linha. Com o teto no DialogContent (via `modalSurface`),
+              `flex: 1 1 auto` + `minHeight: 0` dá a este corpo o que sobrar do
+              cabeçalho medido pelo navegador. */}
+          <div style={{ padding: 24, display: "flex", flexDirection: "column", gap: 20, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
 
             {/* Arte aprovada em destaque — na conferência é o que a pessoa
                 compara com a peça na mão, quase sempre pelo celular. Precisa ser

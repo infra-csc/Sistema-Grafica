@@ -1709,7 +1709,13 @@ export default function Solicitacao() {
                   subtitle={`${dialogItem.displayId} · ${dialogItem.type} · ${qty} un.`}
                   onClose={() => setReuseDialogItemId(null)}
                 />
-                <div style={{ padding: "20px 24px" }}>
+                {/* ALTURA: cabeçalho 80 + as duas opções de reaproveitamento
+                    ~240 = 320px, contra 397 disponíveis numa janela de 445 —
+                    este modal NÃO cortava. O scrollport é preventivo e
+                    obrigatório: o `modalSurface` passou a trazer teto COM
+                    `overflow: hidden`, e a segunda opção só aparece quando a
+                    quantidade é maior que 1, então o corpo é elástico. */}
+                <div style={{ padding: "20px 24px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
 
               {/* Opção: reaproveitar tudo */}
               <button

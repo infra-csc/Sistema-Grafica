@@ -2315,8 +2315,13 @@ export default function EventDetail() {
               onClose={() => setSubmitConfirmOpen(false)}
             />
 
-            {/* Lista de itens */}
-            <div style={{ maxHeight: 340, overflowY: 'auto', padding: '16px 28px' }}>
+            {/* Lista de itens — ALTURA: cabeçalho 93 + lista de até 340 + bloco
+                de aviso e botões ~120 = 553px. Numa janela de 445 sobram 397, e
+                o Radix cortava 78px em cima e 78 embaixo ao mesmo tempo; os 340
+                limitavam a lista, nunca o modal. `flex: 0 1 auto` + `minHeight:
+                0` deixa a lista encolher abaixo dos 340 sob o teto do
+                `modalSurface`, e a rolagem que já existia passa a ligar. */}
+            <div style={{ maxHeight: 340, overflowY: 'auto', padding: '16px 28px', flex: '0 1 auto', minHeight: 0 }}>
               {(() => {
                 // draftItems do escopo do componente: draft + requested — a
                 // mesma população que o servidor envia.
@@ -2356,7 +2361,7 @@ export default function EventDetail() {
             </div>
 
             {/* Aviso + botões */}
-            <div style={{ padding: '14px 28px 24px', borderTop: '1px solid #e7e5e4' }}>
+            <div style={{ padding: '14px 28px 24px', borderTop: '1px solid #e7e5e4', flexShrink: 0 }}>
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 8, padding: '10px 12px', marginBottom: 16 }}>
                 <AlertCircle style={{ width: 14, height: 14, color: '#f97316', flexShrink: 0, marginTop: 1 }} />
                 <p style={{ fontSize: 13, color: '#92400e', margin: 0, lineHeight: 1.5 }}>

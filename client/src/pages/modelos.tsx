@@ -15,7 +15,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { FreezeWhileClosing } from "@/components/modal-shell";
+import { FreezeWhileClosing, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
@@ -1304,7 +1304,12 @@ export default function Modelos() {
 
       {/* ── Manage Categories Modal ── */}
       <Dialog open={manageOpen} onOpenChange={o => { if (!o) { setManageOpen(false); setMgEditingGroup(null); setMgEditingFinish(null); setMgEditingMaterial(null); } }}>
-        <DialogContent className="p-0 gap-0 border-none" style={{ maxWidth: 580, width: "96vw", borderRadius: 16, overflow: "hidden" }}>
+        {/* HIDE_NATIVE_CLOSE: o cabeçalho deste modal desenha o próprio X (o
+            que também limpa os seis estados de edição pendentes), e o
+            DialogContent base já renderiza um X no canto — ficavam DOIS botões
+            de fechar sobrepostos, e o de cima fechava sem limpar nada. Mesmo
+            defeito que o cadastro de patrocinador tinha. */}
+        <DialogContent className={`p-0 gap-0 border-none ${HIDE_NATIVE_CLOSE}`} style={{ maxWidth: 580, width: "96vw", borderRadius: 16, overflow: "hidden" }}>
           <DialogTitle className="sr-only">Gerenciar categorias</DialogTitle>
           <DialogDescription className="sr-only">Grupos, materiais e acabamentos usados nos modelos</DialogDescription>
 

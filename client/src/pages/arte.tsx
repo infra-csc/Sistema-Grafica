@@ -3207,7 +3207,14 @@ export default function Arte() {
             subtitle="Ação irreversível — a peça vai direto para produção"
             onClose={() => { setDispenseItem(null); setDispenseReason(""); }}
           />
-          <div style={{ padding: '18px 24px 24px' }}>
+          {/* ALTURA: cabeçalho 81 + este corpo 246 (tarja vermelha 75, rótulo 15,
+              textarea 72 e as margens) + rodapé 120 = 447px. Numa janela de 445
+              sobram 397 depois do respiro de 24+24, então cortava 25px em cima e
+              25 embaixo AO MESMO TEMPO — sumiam o título e o botão de dispensar
+              juntos, e não havia rolagem alguma para alcançá-los.
+              `flex: 1 1 auto` + `minHeight: 0` faz este corpo receber o que
+              sobrar do teto do `modalSurface`, e só ele rola. */}
+          <div style={{ padding: '18px 24px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
             {dispenseItem && (
               <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 14px', marginBottom: 16, display: 'flex', gap: 10 }}>
                 <Ban style={{ width: 16, height: 16, color: '#dc2626', flexShrink: 0, marginTop: 2 }} />
@@ -3272,7 +3279,7 @@ export default function Arte() {
           <DialogDescription className="sr-only">Reenvio de arte para patrocinadores</DialogDescription>
 
           {/* ── Dark header ── */}
-          <div style={{ background: 'linear-gradient(135deg, #1c0a0a 0%, #2d1010 50%, #1c1917 100%)', borderRadius: '16px 16px 0 0', padding: '22px 28px 20px', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ flexShrink: 0, background: 'linear-gradient(135deg, #1c0a0a 0%, #2d1010 50%, #1c1917 100%)', borderRadius: '16px 16px 0 0', padding: '22px 28px 20px', position:'relative', overflow: 'hidden' }}>
             {/* Subtle texture */}
             <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 80% 20%, rgba(220,38,38,0.12) 0%, transparent 60%)', pointerEvents: 'none' }} />
             {/* Close button */}
@@ -3314,8 +3321,13 @@ export default function Arte() {
             </div>
           </div>
 
-          {/* ── Body ── */}
-          <div style={{ padding: '20px 24px 0' }}>
+          {/* ── Body ──
+              `flexShrink: 0` nos três blocos: aqui quem rola é o PRÓPRIO
+              DialogContent (`overflowY: 'auto'` inline, logo acima), e agora ele
+              também é coluna flex por causa do `modalSurface`. Sem travar o
+              encolhimento, uma janela baixa espremeria cabeçalho, corpo e rodapé
+              em vez de rolar. */}
+          <div style={{ padding: '20px 24px 0', flexShrink: 0 }}>
             {correcaoItem && (
               <>
                 {/* Rejection cards */}
@@ -3496,7 +3508,7 @@ export default function Arte() {
           </div>
 
           {/* ── Footer ── */}
-          <div style={{ padding: '16px 24px 24px', borderTop: '1px solid #f0eeec' }}>
+          <div style={{ padding: '16px 24px 24px', borderTop: '1px solid #f0eeec', flexShrink: 0 }}>
             <button
               disabled={!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending}
               onClick={() => {
@@ -3910,7 +3922,13 @@ export default function Arte() {
             subtitle="Vincula um único documento a todas as peças selecionadas"
             onClose={() => { setShowBulkDialog(false); setSharedPdfUrl(""); }}
           />
-          <div style={{ padding: '24px 32px' }}>
+          {/* ALTURA: cabeçalho 93 + este corpo ~380 (a lista de itens já tem teto
+              próprio de 280 e o painel do PDF fica ao lado) + rodapé 120 = 593px.
+              Em 445 de altura cortava 98px de cada lado, com o "Enviar lote"
+              fora da tela. `flex: 1 1 auto` + `minHeight: 0` entrega a este
+              corpo o que sobrar do teto do `modalSurface`; a lista de 280 segue
+              rolando por conta própria dentro dele. */}
+          <div style={{ padding: '24px 32px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
 
             {/* 2 colunas no desktop; 1 no mobile para não espremer as listas */}
             <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 20 : 32 }}>
@@ -4070,7 +4088,16 @@ export default function Arte() {
           />
 
           {/* ── Body ── */}
-          <div style={{ padding: '22px 28px', display: 'flex', flexDirection: 'column', gap: 22, maxHeight: '62vh', overflowY: 'auto', backgroundColor: '#fafaf9' }}>
+          {/* ALTURA: o `maxHeight: '62vh'` daqui era um desconto CHUTADO — 62% da
+              viewport para o corpo, sem relação com o que cabeçalho e rodapé
+              realmente ocupam. Media 93 + 62vh + 120: em 445 de altura dava
+              489px de modal contra 397 disponíveis, e o Radix cortava 46px de
+              cada lado. É o mesmo erro estrutural que a Gestão de Prazos
+              abandonou: nenhum número fixo acerta 1080 e 445 ao mesmo tempo.
+              Agora o teto é do DialogContent (`100vh − 48`, via `modalSurface`) e
+              este corpo fica com o que sobrar depois do cabeçalho e do rodapé
+              MEDIDOS pelo navegador — `flex: 1 1 auto` + `minHeight: 0`. */}
+          <div style={{ padding: '22px 28px', display: 'flex', flexDirection: 'column', gap: 22, overflowY: 'auto', flex: '1 1 auto', minHeight: 0, backgroundColor: '#fafaf9' }}>
 
             {/* Evento */}
             <div>
@@ -4275,7 +4302,13 @@ export default function Arte() {
       <Dialog open={showBulkThumbModal} onOpenChange={(open) => { if (!open) closeBulkThumbModal(); }}>
         <DialogContent
           className={cn("p-0 gap-0", HIDE_NATIVE_CLOSE)}
-          style={modalSurface(980)}
+          // O teto e a coluna flex vêm do `modalSurface` (a conta está lá). A
+          // única coisa sobrescrita é a UNIDADE no celular: o corpo daqui tinha
+          // um teto de 85dvh porque a barra de endereço do Chrome come ~60px que
+          // o `vh` finge que existem — sem o `dvh` o rodapé com "Enviar thumbs"
+          // ficaria atrás dela. O desconto de 48 (24 em cima, 24 embaixo) é o
+          // mesmo da casa.
+          style={{ ...modalSurface(980), maxHeight: isMobile ? "calc(100dvh - 48px)" : "calc(100vh - 48px)" }}
           // 40 imagens vinculadas e conferidas sumiam com um clique no overlay.
           onInteractOutside={e => { if (bulkThumbRunning || bulkThumbPendentes > 0) e.preventDefault(); }}
         >
@@ -4290,12 +4323,21 @@ export default function Arte() {
             onClose={() => closeBulkThumbModal()}
           />
 
-          {/* ── Body — 2 colunas no desktop; empilhado e rolável no mobile ── */}
+          {/* ── Body — 2 colunas no desktop; empilhado e rolável no mobile ──
+              ALTURA: cabeçalho 93 + corpo de altura FIXA 520 no desktop = 613px,
+              sem teto nenhum acima disso. Numa janela de 445 o Radix cortava
+              108px em cima e 108 embaixo ao mesmo tempo — sumiam o título e a
+              barra com "Enviar thumbs" juntos.
+              Os 520 continuam sendo a altura DESEJADA do desenho de duas
+              colunas; `flex: 0 1 auto` + `minHeight: 0` é o que deixa este bloco
+              encolher abaixo deles quando o teto do `modalSurface` (100vh − 48)
+              aperta. As colunas internas já rolam sozinhas. */}
           <div style={{
             display: 'flex',
             flexDirection: isMobile ? 'column' : 'row',
             height: isMobile ? undefined : 520,
-            maxHeight: isMobile ? '85dvh' : undefined,
+            flex: isMobile ? '1 1 auto' : '0 1 auto',
+            minHeight: 0,
             overflow: isMobile ? 'auto' : 'visible',
           }}>
 

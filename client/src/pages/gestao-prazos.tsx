@@ -1737,11 +1737,14 @@ export default function GestaoPrazos() {
             // mínimo automático de um bloco que NÃO rola é o próprio conteúdo.
             // Isto substituiu o desconto fixo que o corpo carregava — ver o
             // comentário do corpo para o porquê da troca.
-            style={{
-              ...modalSurface(1120),
-              display: "flex", flexDirection: "column",
-              maxHeight: "calc(100vh - 48px)",
-            }}
+            // O teto e a coluna flex SAÍRAM daqui: esta tela foi a primeira a
+            // acertar a regra, e agora ela mora no `modalSurface`, que é a casca
+            // de ~20 DialogContent do app. Repetir os mesmos três valores aqui
+            // criaria duas fontes de verdade para a mesma conta — a próxima
+            // pessoa mudaria uma e não a outra. A conta continua escrita por
+            // extenso em components/modal-shell.tsx, e o comentário do corpo
+            // logo abaixo explica por que o desconto fixo foi abandonado.
+            style={modalSurface(1120)}
             // Sem isto o Radix focava o PRIMEIRO tabulável do conteúdo, que era
             // o botão de registrar cobrança: a primeira barra de espaço (gesto
             // natural de quem abriu e quer rolar) gravava um POST em nome do

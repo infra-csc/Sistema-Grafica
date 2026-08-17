@@ -200,3 +200,161 @@ describe("teto de altura dos modais", () => {
     exigirCascaComTeto(d);
   }, 40000);
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A RAIZ — o teto saiu de cada tela e passou a morar na casca compartilhada.
+//
+// POR QUE ESTE BLOCO EXISTE: os testes acima montam páginas inteiras e provam o
+// resultado em quatro telas. Eles são caros (mais de 30s cada) e, por isso, não
+// dá para escrever um por modal — são ~40 no app. O que segue mede a FONTE:
+// `modalSurface` é a casca de ~20 DialogContent, e `ModalHeader`/`ModalFooter`
+// são o cabeçalho e o rodapé desses mesmos modais. Se a regra sair daqui, sai de
+// todos eles de uma vez — e é exatamente esse o estrago que estas asserções
+// pegam antes de chegar na tela.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("a casca compartilhada carrega o teto de altura", () => {
+  it("modalSurface devolve o teto da casa e a coluna flex", async () => {
+    const { modalSurface } = await import("@/components/modal-shell");
+    const s = modalSurface(640);
+
+    // A CONTA: `100vh − 48` = viewport menos 24px de respiro em cima e 24
+    // embaixo. O desconto é simétrico porque o Radix centra o Content com
+    // `top: 50%` + `translateY(-50%)` — é essa centralização que fazia o
+    // excedente sair METADE de cada lado quando não havia teto.
+    expect(s.maxHeight, "modalSurface voltou a não ter teto de altura").toBe(TETO_DA_CASA);
+
+    // Sem a coluna flex o teto não serve de nada: com `overflow: hidden` (que
+    // esta casca traz para mascarar os cantos arredondados) o conteúdo seria
+    // recortado em silêncio em vez de virar rolagem no corpo.
+    expect(s.display).toBe("flex");
+    expect(s.flexDirection).toBe("column");
+    expect(s.overflow).toBe("hidden");
+
+    // O que já existia e não pode ser perdido na mesma mexida.
+    expect(s.maxWidth).toBe(640);
+    expect(s.width).toBe("96vw");
+  });
+
+  it("cabeçalho e rodapé da casca não encolhem", async () => {
+    const { ModalHeader, ModalFooter } = await import("@/components/modal-shell");
+
+    // `flexShrink: 0` nos dois é o outro lado da coluna flex: sem ele o
+    // navegador espreme cabeçalho e rodapé junto com o corpo numa janela baixa,
+    // em vez de deixar o corpo rolar. O rodapé é onde mora a ação primária.
+    const { container: cab } = render(h(ModalHeader as any, { title: "Título" }));
+    expect((cab.firstElementChild as HTMLElement).style.flexShrink).toBe("0");
+
+    const { container: rod } = render(h(ModalFooter as any, null, "ação"));
+    expect((rod.firstElementChild as HTMLElement).style.flexShrink).toBe("0");
+  });
+
+  it("os Content base trazem a rede de segurança, e o inline continua vencendo", async () => {
+    const { DialogContent } = await import("@/components/ui/dialog");
+    const { AlertDialogContent } = await import("@/components/ui/alert-dialog");
+
+    // A REDE: um DialogContent que não declara teto NEM overflow é o único que
+    // hoje fica sem proteção — e é esse que a classe base alcança. Ela não
+    // atropela ninguém: `style` inline vence classe, e o `cn` usa tailwind-merge,
+    // então um `max-h-[92vh]` do consumidor apaga o desta base.
+    const { Dialog } = await import("@/components/ui/dialog");
+    const { AlertDialog } = await import("@/components/ui/alert-dialog");
+
+    render(h(Dialog, { open: true } as any,
+      h(DialogContent as any, { "data-testid": "cru" },
+        h("h2", null, "t"))));
+    const cru = document.querySelector('[data-testid="cru"]') as HTMLElement;
+    expect(cru.className).toContain("max-h-[calc(100vh-48px)]");
+    expect(cru.className).toContain("overflow-y-auto");
+
+    cleanup();
+    render(h(AlertDialog, { open: true } as any,
+      h(AlertDialogContent as any, { "data-testid": "cru-alerta" },
+        h("h2", null, "t"))));
+    const cruAlerta = document.querySelector('[data-testid="cru-alerta"]') as HTMLElement;
+    expect(cruAlerta.className).toContain("max-h-[calc(100vh-48px)]");
+    expect(cruAlerta.className).toContain("overflow-y-auto");
+
+    // tailwind-merge: quem declara pela className manda. Se isto quebrar, a
+    // rede virou uma regra que atropela os modais que já se resolvem sozinhos.
+    cleanup();
+    render(h(Dialog, { open: true } as any,
+      h(DialogContent as any, { "data-testid": "proprio", className: "max-h-[92vh] overflow-hidden" },
+        h("h2", null, "t"))));
+    const proprio = document.querySelector('[data-testid="proprio"]') as HTMLElement;
+    expect(proprio.className).toContain("max-h-[92vh]");
+    expect(proprio.className).not.toContain("max-h-[calc(100vh-48px)]");
+    expect(proprio.className).not.toContain("overflow-y-auto");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// O DESCONTO FIXO NÃO PODE VOLTAR.
+//
+// O padrão errado que esta varredura removeu tem sempre a mesma cara: o corpo
+// do modal ganha um `maxHeight` com um número CHUTADO para cabeçalho e rodapé —
+// `min(62vh, calc(100vh - 300px))`, `calc(88vh - 96px)`, `56vh`, `62vh`, `75vh`.
+// Ele parece funcionar na tela de quem escreveu e erra em todas as outras: o
+// cabeçalho muda de altura quando o título quebra em duas linhas no celular, e
+// nenhuma constante acerta 1080 e 445 ao mesmo tempo. Foi assim que a Gestão de
+// Prazos descobriu o erro (192 calculado, 12px de folga real em 375×667).
+//
+// O certo é o teto no DialogContent (`100vh − 48`) e o corpo com
+// `flex: 1 1 auto; minHeight: 0`, deixando o navegador MEDIR cabeçalho e rodapé.
+//
+// Este teste lê o código-fonte porque é a única forma barata de vigiar ~40
+// modais: montar cada um custaria mais de 30s. Ele não cobre modais novos — só
+// impede que os já convertidos regridam.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("os descontos fixos de altura não voltam", () => {
+  const CONVERTIDOS: Array<[string, string[]]> = [
+    ["client/src/pages/historico.tsx", ['maxHeight: "56vh"']],
+    ["client/src/pages/arte.tsx", ["maxHeight: '62vh'"]],
+    ["client/src/pages/grafica.tsx", ['"calc(88vh - 96px)"', '"calc(88vh - 112px)"']],
+    ["client/src/pages/atendimento.tsx", ["maxHeight: '75vh'"]],
+    ["client/src/pages/registros.tsx", ['maxHeight: "72vh"']],
+    ["client/src/components/aumentar-quantidade-dialog.tsx",
+      ['"min(62vh, calc(100vh - 300px))"', '"calc(88vh - 168px)"']],
+    ["client/src/components/book-page-picker.tsx", ['height: "min(520px, 52vh)"']],
+    ["client/src/components/export-pdf-dialog.tsx", ['maxHeight: "85dvh"']],
+  ];
+
+  /**
+   * Tira comentários antes de procurar.
+   *
+   * É obrigatório: a regra da casa manda ESCREVER a conta onde ela mora, e cada
+   * um destes arquivos agora explica, por extenso, qual desconto fixo existia
+   * ali e por que saiu — citando o valor antigo. Sem descartar comentário, o
+   * guarda acusaria justamente a documentação que ele deveria proteger.
+   */
+  const semComentarios = (fonte: string) =>
+    fonte
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .split(/\r?\n/)
+      .filter((l) => !l.trim().startsWith("//"))
+      .join("\n");
+
+  it.each(CONVERTIDOS)("%s não recuperou o desconto fixo", async (arquivo, proibidos) => {
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const fonte = semComentarios(readFileSync(resolve(process.cwd(), arquivo), "utf8"));
+    for (const p of proibidos) {
+      expect(
+        fonte.includes(p),
+        `${arquivo} voltou a descontar altura por número fixo (${p}). ` +
+        `A regra da casa é teto no DialogContent e corpo com flex: 1 1 auto + minHeight: 0.`,
+      ).toBe(false);
+    }
+  });
+
+  it("a Gestão de Prazos não duplica a regra que já vem do modalSurface", async () => {
+    // Esta tela foi a primeira a acertar o teto e por isso o declarava à mão.
+    // Com a regra na casca compartilhada, repetir os mesmos valores aqui criaria
+    // duas fontes de verdade para a mesma conta — a próxima pessoa mudaria uma
+    // e não a outra.
+    const { readFileSync } = await import("node:fs");
+    const { resolve } = await import("node:path");
+    const fonte = semComentarios(readFileSync(resolve(process.cwd(), "client/src/pages/gestao-prazos.tsx"), "utf8"));
+    const trecho = fonte.slice(fonte.indexOf("modalSurface(1120)") - 400, fonte.indexOf("modalSurface(1120)") + 200);
+    expect(trecho).not.toContain('maxHeight: "calc(100vh - 48px)"');
+  });
+});

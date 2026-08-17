@@ -39,8 +39,17 @@ export function CloneItemsDialog({
 }: CloneItemsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) { onOpenChange(false); setCloneSourceId(""); } }}>
-      <DialogContent style={{ maxWidth: 520, padding: 0, gap: 0, borderRadius: 12, overflow: 'hidden' }}>
-        <div style={{ padding: '24px 28px 20px', borderBottom: '1px solid #f0efed' }}>
+      <DialogContent
+        // ALTURA: cabeçalho 90 + corpo ~200 (rótulo, o select e a tarja "O que
+        // será copiado", que só aparece depois da escolha) + rodapé 80 = ~370px,
+        // contra 397 disponíveis numa janela de 445 — este modal NÃO cortava,
+        // mas por 27px, e a lista de eventos do select não muda essa conta.
+        // O teto de `100vh − 48` (viewport menos 24 de respiro em cima e 24
+        // embaixo, simétrico porque o Radix centra) entra com a coluna flex
+        // porque o `overflow: hidden` daqui recortaria em silêncio numa janela
+        // menor: sem scrollport não há como alcançar o que passou.
+        style={{ maxWidth: 520, padding: 0, gap: 0, borderRadius: 12, overflow: 'hidden', maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ padding: '24px 28px 20px', borderBottom: '1px solid #f0efed', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
             <Copy style={{ width: 18, height: 18, color: '#6366f1' }} />
             <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 18, fontWeight: 800, letterSpacing: '-0.03em', color: '#1a1c1c', margin: 0 }}>
@@ -52,7 +61,7 @@ export function CloneItemsDialog({
           </DialogDescription>
         </div>
 
-        <div style={{ padding: '24px 28px' }}>
+        <div style={{ padding: '24px 28px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
           <label style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 8 }}>
             Selecionar evento de origem
           </label>
@@ -107,7 +116,7 @@ export function CloneItemsDialog({
           )}
         </div>
 
-        <div style={{ padding: '16px 28px 24px', borderTop: '1px solid #f0efed', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+        <div style={{ flexShrink: 0, padding: '16px 28px 24px', borderTop: '1px solid #f0efed', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
           <Button variant="outline" onClick={() => { onOpenChange(false); setCloneSourceId(""); }}>
             Cancelar
           </Button>

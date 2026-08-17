@@ -1425,7 +1425,16 @@ export default function VincularPatrocinadores() {
             onClose={() => setPreviewRefUrl(null)}
           />
           {previewRefUrl && (
-            <div style={{ backgroundColor: '#f5f5f4', display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 200, maxHeight: 480, overflow: 'hidden' }}>
+            <div style={{
+              backgroundColor: '#f5f5f4', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              // ALTURA: cabeçalho 73 + imagem de até 480 + rodapé 43 = 596px. Numa
+              // janela de 445 o Radix centrava e cortava 75px em cima e 75 embaixo
+              // ao mesmo tempo. O teto de `100vh − 48` agora vem do `modalSurface`;
+              // aqui basta a imagem PODER encolher — `flex: 0 1 auto` com o
+              // `minHeight: 200` como piso de desenho e o 480 como teto de desenho
+              // — e a `<img>` acompanhar o container com `maxHeight: 100%`.
+              minHeight: 200, maxHeight: 480, overflow: 'hidden', flex: '0 1 auto',
+            }}>
               {refImgFailed ? (
                 <p style={{ fontSize: 13, color: '#57534e', margin: 0, padding: '24px', textAlign: 'center' }}>
                   Não foi possível carregar a imagem
@@ -1434,14 +1443,14 @@ export default function VincularPatrocinadores() {
                 <img
                   src={previewRefUrl}
                   alt="Referência visual"
-                  style={{ maxWidth: '100%', maxHeight: 480, objectFit: 'contain', display: 'block' }}
+                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}
                   onError={() => setRefImgFailed(true)}
                 />
               )}
             </div>
           )}
           {previewRefUrl && (
-            <div style={{ padding: '12px 24px', borderTop: '1px solid #ebe8e4', display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ padding: '12px 24px', borderTop: '1px solid #ebe8e4', display: 'flex', justifyContent: 'flex-end', flexShrink: 0 }}>
               <a
                 href={previewRefUrl}
                 target="_blank"
@@ -1472,8 +1481,13 @@ export default function VincularPatrocinadores() {
             onClose={autoLinkConfirming ? undefined : () => { setAutoLinkOpen(false); setAutoLinkPreview(null); }}
           />
 
-          {/* Body */}
-          <div style={{ padding: '20px 24px', minHeight: 160, maxHeight: 420, overflowY: 'auto' }}>
+          {/* Body — ALTURA: cabeçalho 93 + corpo de até 420 + rodapé 65 = 578px,
+              e numa janela de 445 saíam 66px em cima e 66 embaixo ao mesmo tempo.
+              O `maxHeight: 420` sozinho nunca evitou isso: ele limita o corpo,
+              não o modal. `flex: 0 1 auto` + `minHeight: 0` deixa o corpo
+              encolher abaixo dos 420 sob o teto do `modalSurface`; a rolagem que
+              já existia aqui finalmente liga, porque agora existe um "não coube". */}
+          <div style={{ padding: '20px 24px', minHeight: 160, maxHeight: 420, overflowY: 'auto', flex: '0 1 auto' }}>
             {autoLinkLoading && (
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, height: 120, color: '#746e69', fontSize: 13 }}>
                 <svg className="animate-spin" style={{ width: 20, height: 20, color: '#4f46e5' }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -1524,7 +1538,7 @@ export default function VincularPatrocinadores() {
           </div>
 
           {/* Footer */}
-          <div style={{ padding: '14px 24px', borderTop: '1px solid #f0efed', display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+          <div style={{ padding: '14px 24px', borderTop: '1px solid #f0efed', display: 'flex', justifyContent: 'flex-end', gap: 10, flexShrink: 0 }}>
             <button
               onClick={() => { setAutoLinkOpen(false); setAutoLinkPreview(null); }}
               disabled={autoLinkConfirming}
@@ -3218,7 +3232,7 @@ export default function VincularPatrocinadores() {
             ) : undefined}
           />
 
-          <div style={{ padding: '16px 24px 0' }}>
+          <div style={{ padding: '16px 24px 0', flexShrink: 0 }}>
             {/* Barra de busca */}
             <div style={{ position: 'relative' }}>
               <Search style={{ width: 13, height: 13, color: '#a8a29e', position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
@@ -3251,8 +3265,12 @@ export default function VincularPatrocinadores() {
             </div>
           </div>
 
-          {/* Lista */}
-          <div style={{ maxHeight: 340, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+          {/* Lista — ALTURA: cabeçalho 93 + busca 52 + lista 340 + rodapé 65 =
+              550px; numa janela de 445 sumiam 52px em cima e 52 embaixo. Os 340
+              limitavam a lista, nunca o modal. Com `flex: 0 1 auto` + `minHeight:
+              0` a lista encolhe abaixo dos 340 sob o teto do `modalSurface` e a
+              rolagem que já existia passa a ligar. */}
+          <div style={{ maxHeight: 340, overflowY: 'auto', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: 6, flex: '0 1 auto', minHeight: 0 }}>
             {(() => {
               const term = sponsorModalSearch.toLowerCase();
               const filtered = (sponsors as any[]).filter((s: any) =>
@@ -3346,7 +3364,7 @@ export default function VincularPatrocinadores() {
           </div>
 
           {/* Footer */}
-          <div style={{ padding: '14px 20px', borderTop: '1px solid #f0efee', backgroundColor: '#fafaf9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ flexShrink: 0, padding: '14px 20px', borderTop: '1px solid #f0efee', backgroundColor: '#fafaf9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
                 <span style={{ fontSize: 11, fontWeight: 600, color: '#746e69' }}>
@@ -3392,7 +3410,7 @@ export default function VincularPatrocinadores() {
             onClose={() => { setBulkApplyDialogOpen(false); setBulkSponsorSearch(''); }}
           />
 
-          <div style={{ padding: '0 24px' }}>
+          <div style={{ padding: '0 24px', flexShrink: 0 }}>
             {/* Banner informativo sobre isentos */}
             {(() => {
               const exemptCount = Array.from(selectedItemIds).filter(id => {
@@ -3412,7 +3430,7 @@ export default function VincularPatrocinadores() {
           </div>
 
           {/* Campo de busca */}
-          <div style={{ padding: '16px 24px 0' }}>
+          <div style={{ padding: '16px 24px 0', flexShrink: 0 }}>
             <div style={{ position: 'relative', marginBottom: 12 }}>
               <Search style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: '#a8a29e', pointerEvents: 'none' }} />
               <input
@@ -3428,7 +3446,13 @@ export default function VincularPatrocinadores() {
             </div>
           </div>
 
-          <div style={{ padding: '12px 24px 16px', maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {/* ALTURA: cabeçalho 93 + tarja de isentos ~60 + busca 64 + lista 328 +
+              rodapé 65 = 610px com a tarja (550 sem ela). Em 445 de altura
+              cortava 82px de cada lado. Mesma correção da lista de cima: o
+              `maxHeight: 300` é teto de DESENHO, e `flex: 0 1 auto` +
+              `minHeight: 0` é o que deixa a lista encolher abaixo dele quando o
+              teto do `modalSurface` aperta. */}
+          <div style={{ padding: '12px 24px 16px', maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 8, flex: '0 1 auto', minHeight: 0 }}>
             {/* Opção: Sem Patrocinador — aparece primeiro */}
             {!bulkSponsorSearch && (
             <div
@@ -3566,7 +3590,7 @@ export default function VincularPatrocinadores() {
             })()}
           </div>
 
-          <div style={{ padding: '14px 24px', borderTop: '1px solid #eeeeed', backgroundColor: '#f3f4f3', display: 'flex', justifyContent: 'flex-end', gap: 8, borderRadius: '0 0 12px 12px' }}>
+          <div style={{ flexShrink: 0, padding: '14px 24px', borderTop: '1px solid #eeeeed', backgroundColor: '#f3f4f3', display: 'flex', justifyContent: 'flex-end', gap: 8, borderRadius: '0 0 12px 12px' }}>
             <button
               onClick={() => setBulkApplyDialogOpen(false)}
               style={{ padding: '9px 20px', background: '#ffffff', border: '1.5px solid #d6d3d1', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#44403c', cursor: 'pointer' }}
@@ -3622,7 +3646,7 @@ export default function VincularPatrocinadores() {
           <DialogDescription className="sr-only">Revise os itens e os patrocinadores antes de enviar para a Arte</DialogDescription>
 
           {/* ── Hero Header ── */}
-          <div style={{ background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', padding: '28px 32px 24px', position: 'relative', overflow: 'hidden' }}>
+          <div style={{ background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', padding: '28px 32px 24px', position: 'relative', overflow: 'hidden', flexShrink: 0 }}>
             {/* decorative circle */}
             <div style={{ position: 'absolute', top: -40, right: -40, width: 180, height: 180, borderRadius: '50%', background: 'rgba(249,115,22,0.08)', pointerEvents: 'none' }} />
             <div style={{ position: 'absolute', bottom: -30, right: 40, width: 100, height: 100, borderRadius: '50%', background: 'rgba(249,115,22,0.05)', pointerEvents: 'none' }} />
@@ -3700,8 +3724,13 @@ export default function VincularPatrocinadores() {
             })()}
           </div>
 
-          {/* ── Lista de itens ── */}
-          <ScrollArea style={{ maxHeight: 360 }}>
+          {/* ── Lista de itens ──
+              ALTURA: hero de ~150 + lista de até 360 + rodapé 77 = 587px. Em 445
+              de altura cortava 71px de cada lado — sumiam o título do hero e o
+              botão "Enviar" juntos. O `maxHeight: 360` da ScrollArea limita a
+              lista, nunca o modal; `flex: 0 1 auto` + `minHeight: 0` deixa a
+              ScrollArea encolher abaixo dos 360 sob o teto do `modalSurface`. */}
+          <ScrollArea style={{ maxHeight: 360, flex: '0 1 auto', minHeight: 0 }}>
             <div style={{ padding: '20px 32px', display: 'flex', flexDirection: 'column', gap: 8 }}>
               {sendConfirmModal?.items.map((item, idx) => {
                 const confirmed = (originalSponsorsMap[item.id] || []);
@@ -3794,7 +3823,7 @@ export default function VincularPatrocinadores() {
           </ScrollArea>
 
           {/* ── Footer ── */}
-          <div style={{ padding: '18px 32px', borderTop: '1px solid #eeeeed', backgroundColor: '#fafaf9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <div style={{ flexShrink: 0, padding: '18px 32px', borderTop: '1px solid #eeeeed', backgroundColor: '#fafaf9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <p style={{ fontSize: 11, color: '#746e69', lineHeight: 1.4, maxWidth: 260 }}>
               Após o envio, os itens entrarão na fila de revisão da equipe de Arte.
             </p>
@@ -3853,7 +3882,11 @@ export default function VincularPatrocinadores() {
             onClose={saveLinkingMutation.isPending ? undefined : () => setSaveConfirmModal(null)}
           />
           <DialogDescription className="sr-only">Revise os itens antes de salvar a vinculação</DialogDescription>
-          <div style={{ maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, padding: '16px 24px' }}>
+          {/* ALTURA: cabeçalho 80 + lista 300 + 32 de padding + rodapé 121 =
+              533px. Em 445 cortava 44px de cada lado — o botão "Salvar" saía
+              junto com o título. `flex: 0 1 auto` + `minHeight: 0` deixa a lista
+              encolher abaixo dos 300 sob o teto do `modalSurface`. */}
+          <div style={{ maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, padding: '16px 24px', flex: '0 1 auto', minHeight: 0 }}>
             {saveConfirmModal?.items.map((item: any) => {
               const ch = saveConfirmModal.payloads.find(p => p.itemId === item.id);
               const sponsorNames = (ch?.sponsorIds ?? []).map((sid: string) => {
@@ -3919,7 +3952,13 @@ export default function VincularPatrocinadores() {
             title="Devolver para Criação"
             onClose={returnToCreationMutation.isPending ? undefined : () => setReturnModal(null)}
           />
-          <div style={{ padding: '20px 24px' }}>
+          {/* ALTURA: cabeçalho 72 + este corpo 136 + rodapé 121 = 329px. Com o
+              respiro de 48 isso cabe até numa janela de 377, então este modal
+              NÃO cortava em nenhuma das alturas conferidas. A rolagem aqui é
+              preventiva e obrigatória: o `modalSurface` agora traz teto com
+              `overflow: hidden`, e sem um scrollport o texto seria recortado em
+              silêncio se algum dia crescer. */}
+          <div style={{ padding: '20px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
             <DialogDescription style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0 }}>
               A peça voltará para a equipe de Solicitação. Os patrocinadores vinculados serão
               removidos e o item precisará passar pelo fluxo novamente.

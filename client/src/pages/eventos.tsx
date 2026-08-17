@@ -1896,10 +1896,14 @@ export default function Eventos() {
           <DialogContent
             className={`${HIDE_NATIVE_CLOSE} p-0 gap-0`}
             style={{
+              // A coluna flex e o teto de `100vh − 48` já vêm do `modalSurface`
+              // (a conta está lá). O que sobra aqui é UMA troca de unidade:
+              // `dvh` em vez de `vh`, porque este é o formulário mais alto do
+              // app e no celular a barra de endereço do Chrome come ~60px que o
+              // `vh` finge que existem. Só a unidade é sobrescrita — o desconto
+              // de 48 (24 em cima, 24 embaixo) é o mesmo da casa.
               ...modalSurface(720),
               maxHeight: 'calc(100dvh - 48px)',
-              display: 'flex',
-              flexDirection: 'column',
             }}
           >
             {/* Enquanto o modal SAI, o miolo para de renderizar. É a correção
@@ -2575,8 +2579,19 @@ export default function Eventos() {
             cotas — enquanto Esc e clique-fora ficavam travados. O usuário
             aprendia que a tela era imprevisível. */}
         <AlertDialog open={confirmDiscardOpen} onOpenChange={(v) => { if (!v) setConfirmDiscardOpen(false); }}>
-          <AlertDialogContent style={{ maxWidth: 420, borderRadius: R.xl, padding: 0, border: 'none', boxShadow: SHADOW.lg, overflow: 'hidden' }}>
-            <div style={{ padding: '28px 28px 8px' }}>
+          {/* ALTURA — a conta.
+              Medido: 28+8 de padding + título 24 + texto de duas linhas 44 +
+              rodapé 82 = 186px. Este diálogo NÃO cortava em nenhuma das alturas
+              conferidas — o teto aqui é preventivo.
+              O teto é `100vh − 48`: a viewport menos 24px de respiro em cima e
+              24 embaixo, simétrico porque o Radix centra o Content com
+              `top: 50%` + translate. A rede de segurança de ui/alert-dialog.tsx
+              NÃO alcança este diálogo: ele traz `overflow: hidden` inline, e
+              inline vence classe — sem a coluna flex e sem um scrollport o teto
+              só trocaria o corte simétrico por um corte embaixo. Por isso o
+              corpo vira o único item que rola e o rodapé leva `flexShrink: 0`. */}
+          <AlertDialogContent style={{ maxWidth: 420, borderRadius: R.xl, padding: 0, border: 'none', boxShadow: SHADOW.lg, overflow: 'hidden', maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ padding: '28px 28px 8px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
               <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.title, fontWeight: '700', letterSpacing: '-0.02em', color: T.dark, margin: 0 }}>
                 Descartar alterações?
               </AlertDialogTitle>
@@ -2584,7 +2599,7 @@ export default function Eventos() {
                 O que você preencheu neste formulário será perdido — inclusive os prazos ajustados e os patrocinadores selecionados.
               </AlertDialogDescription>
             </div>
-            <AlertDialogFooter style={{ padding: '16px 28px 28px', display: 'flex', flexDirection: 'row', justifyContent: 'flex-end', gap: 10 }}>
+            <AlertDialogFooter style={{ padding: '16px 28px 28px', display: 'flex', flexDirection: 'row', justifyContent: 'flex-end', gap: 10, flexShrink: 0 }}>
               <AlertDialogCancel
                 style={{ padding: '9px 20px', backgroundColor: 'transparent', border: '1px solid #e0c0b1', borderRadius: R.sm, fontSize: FS.body, fontWeight: '700', color: '#625d5b', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.04em', fontFamily: "'Plus Jakarta Sans', sans-serif" }}
               >
@@ -2860,8 +2875,22 @@ export default function Eventos() {
 
       {/* ── EXCLUSÃO ── */}
       <AlertDialog open={!!deletingEventId} onOpenChange={(v) => { if (!v && !deleteEventMutation.isPending) { setDeletingEventId(null); setDeleteConfirmText(""); } }}>
-        <AlertDialogContent style={{ maxWidth: "460px", backgroundColor: "#ffffff", borderRadius: R.xl, padding: "0", border: "none", boxShadow: SHADOW.lg, overflow: "hidden" }}>
-          <div style={{ padding: "32px 32px 8px 32px" }}>
+        {/* ALTURA — a conta.
+              Medido no pior caso realista (evento com peças e a tarja laranja
+              cheia): 32 de padding + título 24 + tarja de até 110 + o campo de
+              confirmação por digitação (rótulo 20 + campo 40) + rodapé 86 =
+              ~430px. Numa janela de 445 sobram 397, então CORTAVA ~16px em cima
+              e 16 embaixo ao mesmo tempo — sumiam o título e o botão Excluir
+              juntos.
+              O teto é `100vh − 48`: a viewport menos 24px de respiro em cima e
+              24 embaixo, simétrico porque o Radix centra o Content com
+              `top: 50%` + translate. A rede de segurança de ui/alert-dialog.tsx
+              NÃO alcança este diálogo: ele traz `overflow: hidden` inline, e
+              inline vence classe — sem a coluna flex e sem um scrollport o teto
+              só trocaria o corte simétrico por um corte embaixo. Por isso o
+              corpo vira o único item que rola e o rodapé leva `flexShrink: 0`. */}
+          <AlertDialogContent style={{ maxWidth: "460px", backgroundColor: "#ffffff", borderRadius: R.xl, padding: "0", border: "none", boxShadow: SHADOW.lg, overflow: "hidden", maxHeight: "calc(100vh - 48px)", display: "flex", flexDirection: "column" }}>
+          <div style={{ padding: "32px 32px 8px 32px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
             <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.title, fontWeight: "700", letterSpacing: "-0.02em", color: T.dark, margin: 0 }}>
               Excluir evento
             </AlertDialogTitle>
@@ -2912,7 +2941,7 @@ export default function Eventos() {
             )}
           </div>
 
-          <AlertDialogFooter style={{ padding: "16px 32px 32px 32px", display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px" }}>
+          <AlertDialogFooter style={{ padding: "16px 32px 32px 32px", display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px", flexShrink: 0 }}>
             <AlertDialogCancel
               disabled={deleteEventMutation.isPending}
               style={{ padding: "9px 24px", backgroundColor: "transparent", border: "1px solid #e0c0b1", borderRadius: R.sm, fontSize: FS.body, fontWeight: "700", color: "#625d5b", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif", transition: "background-color 0.15s" }}
@@ -2945,8 +2974,21 @@ export default function Eventos() {
           pendentes, sendo 3 em produção" faz. E diz o que encerrar FAZ e o que
           NÃO faz — nenhuma peça muda de status, nada é apagado. */}
       <AlertDialog open={!!closingEventId} onOpenChange={(v) => { if (!v && !closeEventMutation.isPending) setClosingEventId(null); }}>
-        <AlertDialogContent style={{ maxWidth: "460px", backgroundColor: "#ffffff", borderRadius: R.xl, padding: 0, border: "none", boxShadow: SHADOW.lg, overflow: "hidden" }}>
-          <div style={{ padding: "32px 32px 8px 32px" }}>
+        {/* ALTURA — a conta.
+              Medido no pior caso (evento com peças pendentes e em produção):
+              32 de padding + título 24 + tarja âmbar ~90 + o parágrafo do que
+              encerrar faz e não faz ~130 + rodapé 86 = ~400px, contra 397
+              disponíveis numa janela de 445 — CORTAVA por pouco, e por igual
+              nos dois lados.
+              O teto é `100vh − 48`: a viewport menos 24px de respiro em cima e
+              24 embaixo, simétrico porque o Radix centra o Content com
+              `top: 50%` + translate. A rede de segurança de ui/alert-dialog.tsx
+              NÃO alcança este diálogo: ele traz `overflow: hidden` inline, e
+              inline vence classe — sem a coluna flex e sem um scrollport o teto
+              só trocaria o corte simétrico por um corte embaixo. Por isso o
+              corpo vira o único item que rola e o rodapé leva `flexShrink: 0`. */}
+          <AlertDialogContent style={{ maxWidth: "460px", backgroundColor: "#ffffff", borderRadius: R.xl, padding: 0, border: "none", boxShadow: SHADOW.lg, overflow: "hidden", maxHeight: "calc(100vh - 48px)", display: "flex", flexDirection: "column" }}>
+          <div style={{ padding: "32px 32px 8px 32px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
             <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.title, fontWeight: "700", letterSpacing: "-0.02em", color: T.dark, margin: 0 }}>
               Encerrar evento
             </AlertDialogTitle>
@@ -2977,7 +3019,7 @@ export default function Eventos() {
             </AlertDialogDescription>
           </div>
 
-          <AlertDialogFooter style={{ padding: "16px 32px 32px 32px", display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px" }}>
+          <AlertDialogFooter style={{ padding: "16px 32px 32px 32px", display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px", flexShrink: 0 }}>
             <AlertDialogCancel
               disabled={closeEventMutation.isPending}
               style={{ padding: "9px 24px", backgroundColor: "transparent", border: "1px solid #e0c0b1", borderRadius: R.sm, fontSize: FS.body, fontWeight: "700", color: "#625d5b", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
@@ -3004,8 +3046,19 @@ export default function Eventos() {
 
       {/* ── REABRIR ── */}
       <AlertDialog open={!!reopeningEventId} onOpenChange={(v) => { if (!v && !reopenEventMutation.isPending) setReopeningEventId(null); }}>
-        <AlertDialogContent style={{ maxWidth: "440px", backgroundColor: "#ffffff", borderRadius: R.xl, padding: 0, border: "none", boxShadow: SHADOW.lg, overflow: "hidden" }}>
-          <div style={{ padding: "32px 32px 8px 32px" }}>
+        {/* ALTURA — a conta.
+              Medido: 32 de padding + título 24 + texto de três linhas ~72 +
+              rodapé 86 = ~300px. NÃO cortava; o teto é preventivo, e a parte
+              elástica é o nome do evento no texto.
+              O teto é `100vh − 48`: a viewport menos 24px de respiro em cima e
+              24 embaixo, simétrico porque o Radix centra o Content com
+              `top: 50%` + translate. A rede de segurança de ui/alert-dialog.tsx
+              NÃO alcança este diálogo: ele traz `overflow: hidden` inline, e
+              inline vence classe — sem a coluna flex e sem um scrollport o teto
+              só trocaria o corte simétrico por um corte embaixo. Por isso o
+              corpo vira o único item que rola e o rodapé leva `flexShrink: 0`. */}
+          <AlertDialogContent style={{ maxWidth: "440px", backgroundColor: "#ffffff", borderRadius: R.xl, padding: 0, border: "none", boxShadow: SHADOW.lg, overflow: "hidden", maxHeight: "calc(100vh - 48px)", display: "flex", flexDirection: "column" }}>
+          <div style={{ padding: "32px 32px 8px 32px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
             <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: FS.title, fontWeight: "700", letterSpacing: "-0.02em", color: T.dark, margin: 0 }}>
               Reabrir evento
             </AlertDialogTitle>
@@ -3019,7 +3072,7 @@ export default function Eventos() {
             </AlertDialogDescription>
           </div>
 
-          <AlertDialogFooter style={{ padding: "16px 32px 32px 32px", display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px" }}>
+          <AlertDialogFooter style={{ padding: "16px 32px 32px 32px", display: "flex", flexDirection: "row", justifyContent: "flex-end", gap: "10px", flexShrink: 0 }}>
             <AlertDialogCancel
               disabled={reopenEventMutation.isPending}
               style={{ padding: "9px 24px", backgroundColor: "transparent", border: "1px solid #e0c0b1", borderRadius: R.sm, fontSize: FS.body, fontWeight: "700", color: "#625d5b", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.04em", fontFamily: "'Plus Jakarta Sans', sans-serif" }}
@@ -3061,7 +3114,13 @@ export default function Eventos() {
             onClose={() => setPriorityDialogOpen(false)}
           />
 
-          <div style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          {/* ALTURA: cabeçalho 93 + esta grade de quatro cartões em duas linhas
+              ~192 + rodapé 61 = 346px, contra 397 disponíveis numa janela de
+              445 — este modal NÃO cortava em nenhuma das alturas conferidas.
+              O scrollport é preventivo e obrigatório: o `modalSurface` passou a
+              trazer teto COM `overflow: hidden`, e sem um corpo que role o
+              conteúdo seria recortado em silêncio numa janela menor. */}
+          <div style={{ padding: '20px 24px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
             {(['baixa', 'media', 'alta', 'urgente'] as const).map((key, i) => {
               // Cores derivadas de PRIORITY (lib/status) — antes havia um mapa hex local.
               const meta = PRIORITY[key];
@@ -3112,7 +3171,7 @@ export default function Eventos() {
             })}
           </div>
 
-          <div style={{ backgroundColor: T.low, borderTop: '1px solid #e7e5e4', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10 }}>
+          <div style={{ backgroundColor: T.low, borderTop: '1px solid #e7e5e4', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexShrink: 0 }}>
             {/* Caminho de volta: sem isto, prioridade definida era para sempre. */}
             {selectedEventForPriority?.priority ? (
               <button

@@ -1992,7 +1992,19 @@ function DetailDialog({ entry, onClose, nav, onCopy, copied }: {
               onClose={onClose}
             />
 
-            <div style={{ padding: "18px 24px", display: "flex", flexDirection: "column", gap: 14, maxHeight: "56vh", overflowY: "auto" }}>
+            {/* ALTURA: o `maxHeight: "56vh"` era um desconto CHUTADO — 56% da
+                viewport para o corpo, sem relação com o que cabeçalho e rodapé
+                de fato ocupam. A conta real: cabeçalho 93 + 56vh + rodapé 120.
+                Numa janela de 445 isso dava 462px de modal contra 397
+                disponíveis, e o Radix (que centra com `top: 50%` + translate)
+                cortava 33px EM CIMA e 33 EMBAIXO ao mesmo tempo — sumiam o
+                título e o rodapé juntos. Em 1080 o mesmo 56vh sobrava.
+                Agora o teto é do DialogContent (`100vh − 48`, via
+                `modalSurface`) e este corpo fica com o que sobrar depois de
+                cabeçalho e rodapé MEDIDOS pelo navegador: `flex: 1 1 auto` +
+                `minHeight: 0`, que é o que derruba o piso automático do item
+                flex e deixa ele encolher. */}
+            <div style={{ padding: "18px 24px", display: "flex", flexDirection: "column", gap: 14, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
               <div style={linha}>
                 <span style={rotulo}>O que houve</span>
                 <span style={{ color: P.second, minWidth: 0 }}>{buildDescription(entry, nav)}</span>

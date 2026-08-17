@@ -557,7 +557,7 @@ export function AumentarQuantidadeDialog({
 
         {migracaoPendente ? (
           <>
-            <div style={{ padding: isMobile ? 16 : 24 }}>
+            <div style={{ padding: isMobile ? 16 : 24, overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
               <div style={{ ...AVISO_BASE, backgroundColor: "#fef2f2", border: "1px solid #fecaca", color: "#b91c1c" }}>
                 <Database aria-hidden="true" style={{ width: 15, height: 15, flexShrink: 0, marginTop: 1 }} />
                 <span>
@@ -579,13 +579,36 @@ export function AumentarQuantidadeDialog({
             </ModalFooter>
           </>
         ) : (
-          <form onSubmit={submeter}>
+          <form
+            onSubmit={submeter}
+            style={{
+              // Este <form> é o ELO da coluna: o teto do `modalSurface` só chega
+              // ao corpo se cada nível entre os dois for coluna flex e puder
+              // encolher (`minHeight: 0`). Sem isto o corpo devolve o tamanho
+              // mínimo automático do conteúdo e empurra o rodapé para fora da
+              // tela, que é o defeito de origem desta estrutura.
+              display: "flex", flexDirection: "column", flex: "1 1 auto", minHeight: 0,
+            }}
+          >
             <div
               style={{
                 padding: isMobile ? "16px" : "18px 24px",
                 display: "flex", flexDirection: "column", gap: isMobile ? 14 : 16,
-                maxHeight: isMobile ? "calc(88vh - 168px)" : "min(62vh, calc(100vh - 300px))",
-                overflowY: "auto",
+                // ALTURA: era `min(62vh, calc(100vh - 300px))` no desktop e
+                // `calc(88vh - 168px)` no celular — dois descontos FIXOS, e os
+                // 300 são o número que a Gestão de Prazos abandonou por não
+                // servir em todas as telas. A conta real deste modal é
+                // cabeçalho 93 + rodapé 121 = 214, mais 48 de respiro = 262:
+                // descontar 300 tirava 38px do corpo em TODA altura de janela
+                // sem motivo. Medido: em 445 de altura o modal dava 359px
+                // contra 397 disponíveis — NÃO cortava, mas o corpo ficava
+                // espremido em 145px; em 1080 sobrava.
+                // Agora o teto é do DialogContent (`100vh − 48`, via
+                // `modalSurface`) e este corpo fica com o que sobrar depois de
+                // cabeçalho e rodapé MEDIDOS pelo navegador — que é o único
+                // jeito de acertar 1080 e 445 ao mesmo tempo, porque no celular
+                // o título quebra em duas linhas e o cabeçalho engorda.
+                overflowY: "auto", flex: "1 1 auto", minHeight: 0,
               }}
             >
 

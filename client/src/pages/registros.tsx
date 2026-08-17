@@ -521,7 +521,19 @@ export default function Registros() {
       <Dialog open={zoom != null} onOpenChange={o => { if (!o) setZoomIdx(null); }}>
         <DialogContent
           className="max-w-none p-0 gap-0 border-none bg-transparent shadow-none [&>button]:hidden"
-          style={{ width: "96vw", maxWidth: 1280 }}
+          // ALTURA: a foto tinha teto de 72vh e a legenda vinha por baixo, sem
+          // teto nenhum no Content. A conta dava `72vh + 12 de gap + legenda`:
+          // 392px numa janela de 445 contra 397 disponíveis — passava raspando,
+          // e bastava o registro TER observação (a linha em itálico soma ~20px)
+          // para virar 412 e o Radix cortar 8px em cima e 8 embaixo ao mesmo
+          // tempo. Abaixo de ~428px de janela cortava sempre.
+          //
+          // A CONTA é `100vh − 48`: viewport menos 24px de respiro em cima e 24
+          // embaixo, simétrico porque o Radix centra. Aqui o teto NÃO vira
+          // rolagem: num lightbox a resposta certa é a foto encolher. Por isso a
+          // moldura da imagem é o item elástico (`flex: 1 1 auto` + `minHeight:
+          // 0`) e a legenda não encolhe — a foto acompanha com `maxHeight: 100%`.
+          style={{ width: "96vw", maxWidth: 1280, maxHeight: "calc(100vh - 48px)", display: "flex", flexDirection: "column" }}
         >
           <DialogTitle className="sr-only">
             {zoom ? altOf(zoom) : "Registro"}
@@ -531,8 +543,8 @@ export default function Registros() {
           </DialogDescription>
 
           {zoom && (
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, flex: "1 1 auto", minHeight: 0 }}>
+              <div style={{ position: "relative", display: "flex", alignItems: "center", justifyContent: "center", flex: "1 1 auto", minHeight: 0 }}>
                 {zoomLoading && (
                   <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <Loader2 className="animate-spin" style={{ width: 28, height: 28, color: "rgba(255,255,255,0.85)" }} />
@@ -544,7 +556,7 @@ export default function Registros() {
                   onLoad={() => setZoomLoading(false)}
                   onError={() => setZoomLoading(false)}
                   data-testid="img-zoom"
-                  style={{ maxWidth: "100%", maxHeight: "72vh", objectFit: "contain", borderRadius: R.md, backgroundColor: "#ffffff", boxShadow: SHADOW.lg, opacity: zoomLoading ? 0.4 : 1, transition: "opacity 0.15s" }}
+                  style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", borderRadius: R.md, backgroundColor: "#ffffff", boxShadow: SHADOW.lg, opacity: zoomLoading ? 0.4 : 1, transition: "opacity 0.15s" }}
                 />
 
                 {/* Setas dentro da moldura da imagem: fora dela, em tela larga,
@@ -567,7 +579,7 @@ export default function Registros() {
 
               {/* Legenda + ações. flexWrap porque no celular três botões e o
                   texto não cabem lado a lado. */}
-              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap", color: "#ffffff" }}>
+              <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap", color: "#ffffff", flexShrink: 0 }}>
                 <div style={{ minWidth: 0, flex: "1 1 260px" }}>
                   <p style={{ fontSize: FS.strong, fontWeight: 700, margin: 0 }}>
                     {zoom.displayId ? `${zoom.displayId} — ` : ""}{zoom.itemType || "Peça removida"}

@@ -2562,7 +2562,7 @@ export default function Atendimento() {
             return (
               <>
                 {/* Header escuro */}
-                <div style={{ padding: '20px 24px 16px', background: 'linear-gradient(135deg,#1c1917,#292524)', display: 'flex', alignItems: 'center', gap: 14 }}>
+                <div style={{ padding: '20px 24px 16px', background: 'linear-gradient(135deg,#1c1917,#292524)', display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
                   <div style={{ width: 44, height: 44, borderRadius: 12, overflow: 'hidden', flexShrink: 0, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {(di.approvalThumbUrl || di.finalPreviewUrl)
                       ? <>
@@ -2593,9 +2593,15 @@ export default function Atendimento() {
                     <X style={{ width: 16, height: 16 }} />
                   </button>
                 </div>
-                {/* Body: resumo + lista integrados, sem faixa separada */}
-                <div style={{ position: 'relative' }}>
-                <div style={{ maxHeight: 440, overflowY: 'auto' }}>
+                {/* Body: resumo + lista integrados, sem faixa separada.
+                    ALTURA: cabeçalho escuro 80 + lista de até 440 = 520px, sem
+                    rodapé. Numa janela de 445 o Radix cortava 61px em cima e 61
+                    embaixo ao mesmo tempo. Este wrapper é o ELO da coluna (o
+                    fade de rolagem depende do `position: relative` dele): sem
+                    ser coluna flex e sem `minHeight: 0` o teto do `modalSurface`
+                    não chegaria à lista. */}
+                <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', flex: '0 1 auto', minHeight: 0 }}>
+                <div style={{ maxHeight: 440, overflowY: 'auto', flex: '0 1 auto', minHeight: 0 }}>
                   {/* Resumo compacto no topo do body */}
                   <div style={{ padding: '14px 24px 12px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: `1px solid ${allApp ? '#d1fae5' : '#f0ede8'}`, background: allApp ? '#f6fef9' : '#fff' }}>
                     {/* Counter pill empilhado verticalmente */}
@@ -3330,7 +3336,13 @@ export default function Atendimento() {
             title="Confirmar aprovação"
             onClose={() => setConfirmApproveIndividual(null)}
           />
-          <div style={{ padding: '20px 24px' }}>
+          {/* ALTURA: cabeçalho 80 + este corpo 82 + rodapé 120 = 282px, e em 445
+              de altura sobram 397 — este modal NÃO cortava em nenhuma das
+              alturas conferidas. A rolagem é preventiva: com o teto e o
+              `overflow: hidden` que o `modalSurface` agora traz, um nome de
+              patrocinador longo (a única parte elástica) seria recortado em
+              silêncio se não houvesse scrollport. */}
+          <div style={{ padding: '20px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
             <DialogDescription style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0 }}>
               Aprovar a arte para o patrocinador <strong style={{ color: '#1c1917' }}>{confirmApproveIndividual?.sponsorName}</strong>?
               Somente um administrador pode reverter.
@@ -3372,7 +3384,10 @@ export default function Atendimento() {
             title="Confirmar aprovação em lote"
             onClose={() => setConfirmApproveBatch(false)}
           />
-          <div style={{ padding: '20px 24px' }}>
+          {/* Mesma conta do modal individual acima: 282px de modal contra 397
+              disponíveis em 445 de altura — NÃO cortava. Scrollport preventivo
+              pelo teto que o `modalSurface` passou a impor. */}
+          <div style={{ padding: '20px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
             <DialogDescription style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0 }}>
               Aprovar <strong style={{ color: '#1c1917' }}>{batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'item' : 'itens'}</strong> para o patrocinador selecionado?
               Somente um administrador pode reverter.
@@ -3411,12 +3426,23 @@ export default function Atendimento() {
 
       {/* Preview da arte no lote — abre pela miniatura, sem mexer na seleção */}
       <Dialog open={!!batchPreviewItem} onOpenChange={o => !o && setBatchPreviewItem(null)}>
-        <DialogContent className="p-0 gap-0" style={{ maxWidth: 900, width: '95vw', borderRadius: 12, overflow: 'hidden' }}>
+        <DialogContent
+          className="p-0 gap-0"
+          // ALTURA: cabeçalho 72 + imagem com teto de 75vh + 32 de padding.
+          // Em 445 de altura isso dava 438px de modal contra 397 disponíveis, e
+          // o Radix cortava 20px de cada lado — o `overflow: hidden` daqui
+          // impedia rolar até eles. Os 75vh eram um desconto CHUTADO: 75% da
+          // viewport para a imagem, sem relação com o cabeçalho real.
+          // A CONTA certa é `100vh − 48` no Content (24px de respiro em cima e
+          // 24 embaixo, simétrico porque o Radix centra), com coluna flex: o
+          // cabeçalho não encolhe e a área da imagem fica com o que sobrar.
+          style={{ maxWidth: 900, width: '95vw', borderRadius: 12, overflow: 'hidden', maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column' }}
+        >
           <DialogTitle className="sr-only">Arte da peça</DialogTitle>
           <DialogDescription className="sr-only">Visualização ampliada da arte enviada</DialogDescription>
           {batchPreviewItem && (
             <>
-              <div style={{ padding: '16px 20px', borderBottom: '1px solid #f0ede8', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <div style={{ padding: '16px 20px', borderBottom: '1px solid #f0ede8', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
                 <span style={{ fontFamily: 'monospace', fontSize: 11, fontWeight: 800, color: '#9a3412', background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 6, padding: '2px 6px' }}>
                   {batchPreviewItem.displayId}
                 </span>
@@ -3427,11 +3453,11 @@ export default function Atendimento() {
                   )}
                 </div>
               </div>
-              <div style={{ background: '#f7f8fa', maxHeight: '75vh', overflow: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, position: 'relative' }}>
+              <div style={{ background: '#f7f8fa', overflow: 'auto', flex: '1 1 auto', minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16, position: 'relative' }}>
                 <img
                   src={batchPreviewItem.approvalThumbUrl}
                   alt={batchPreviewItem.type}
-                  style={{ maxWidth: '100%', maxHeight: '70vh', objectFit: 'contain', display: 'block' }}
+                  style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', display: 'block' }}
                   onError={(e) => {
                     // Mesmo fallback dos demais thumbs: esconde a imagem quebrada
                     // e mostra o aviso ao lado.

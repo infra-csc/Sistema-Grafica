@@ -1369,27 +1369,16 @@ export default function Solicitacao() {
               borderTop: "1px solid #e7e5e4",
               display: "flex", justifyContent: "space-between", alignItems: "center",
             }}>
+              {/* O par de botoes que ficava aqui SAIU. Com as acoes na barra
+                  sticky, ele virou a mesma dupla duas vezes na tela — e a copia
+                  daqui era a pior das duas: contava `selectedItemIds.size` em
+                  vez das pecas que de fato vao (`selecaoLote.vivas`), entao
+                  prometia "Liberar 12" e mandava 9, e nao tinha o guard que
+                  espelha o 409 de lote inteiro do servidor. Duas versoes da
+                  mesma acao com contas diferentes e pior que nenhuma. */}
               <span style={{ fontSize: 10, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                Mostrando {filteredItems.length} de {pendingItems.length} iten{pendingItems.length !== 1 ? "s" : ""} pendente{pendingItems.length !== 1 ? "s" : ""}
+                Mostrando {filteredItems.length} de {pendingItems.length} {pendingItems.length !== 1 ? "itens pendentes" : "item pendente"}
               </span>
-              {selectedItemIds.size > 0 && (
-                <div style={{ display: "flex", gap: 8 }}>
-                  <button
-                    onClick={() => setBulkReleaseConfirmOpen(true)}
-                    data-testid="button-bulk-release-table"
-                    style={{ fontSize: 10, fontWeight: 700, padding: "5px 14px", borderRadius: 6, backgroundColor: "#1c1917", color: "#fff", border: "none", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em" }}
-                  >
-                    Liberar {selectedItemIds.size}
-                  </button>
-                  <button
-                    onClick={() => setBulkReturnConfirmOpen(true)}
-                    data-testid="button-bulk-return-table"
-                    style={{ fontSize: 10, fontWeight: 700, padding: "5px 14px", borderRadius: 6, backgroundColor: "transparent", color: "#b91c1c", border: "1px solid #b91c1c", cursor: "pointer", textTransform: "uppercase", letterSpacing: "0.06em" }}
-                  >
-                    Devolver {selectedItemIds.size}
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         )}

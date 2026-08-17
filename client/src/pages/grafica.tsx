@@ -51,7 +51,7 @@ import { compareDisplayId, splitDisplayId } from "@/lib/displayId";
 import {
   FILTROS_VAZIOS, filtrosDaURL, filtrosParaQuery, itemCasaFiltros, itemPercursos,
   contarFiltrosAtivos, temFiltroAtivo, descreverFiltros, nomeDoMes, escondeEntregues,
-  hojeEmUTC, normKey, ordemPercurso,
+  hojeEmUTC, normKey, ordemPercurso, itemMes,
   type GraficaFiltros, type FacetaGrafica,
 } from "@/lib/grafica-filtros";
 // Lançamento de produção: o único campo do app cujo contrato é ABSOLUTO ao lado
@@ -950,15 +950,53 @@ export default function Grafica() {
       .map(({ value, label, count }) => ({ value, label, count, pinned: true }));
   }, [gFacetPool]);
 
-  const months = [
-    { value: "all", label: "Todos os meses" },
-    { value: "1", label: "Janeiro" }, { value: "2", label: "Fevereiro" },
-    { value: "3", label: "Março" }, { value: "4", label: "Abril" },
-    { value: "5", label: "Maio" }, { value: "6", label: "Junho" },
-    { value: "7", label: "Julho" }, { value: "8", label: "Agosto" },
-    { value: "9", label: "Setembro" }, { value: "10", label: "Outubro" },
-    { value: "11", label: "Novembro" }, { value: "12", label: "Dezembro" },
-  ];
+  // ── STATUS e MÊS: as duas facetas que eram lista FIXA ─────────────────────
+  // Eram os dois únicos dropdowns da barra escritos à mão — seis etapas e doze
+  // meses, sempre todos, sem contagem. Ou seja, uma SEGUNDA fonte de verdade
+  // sobre o mesmo recorte: a fila só tem peça de Agosto e o menu oferecia
+  // Janeiro; ninguém entregou nada hoje e "Entregues" continuava lá. O clique
+  // devolvia lista vazia, e um menu que oferece o que não existe é
+  // indistinguível de uma tela quebrada.
+  //
+  // Agora saem do MESMO `gFacetPool` das outras cinco (ver a invariante em
+  // lib/grafica-filtros: faceta e lista saem do mesmo pool), com a contagem que
+  // o clique vai entregar.
+
+  // "pronto_para_producao" é grafia legada da MESMA etapa de
+  // "ready_for_production" — a faceta tem de somá-las numa opção só, senão a
+  // contagem mentiria por baixo (é o que `casaStatus` faz do outro lado).
+  const STATUS_DA_FILA = [
+    { value: "ready_for_production", label: "Pronto p/ Produção" },
+    { value: "approved",             label: "Liberados" },
+    { value: "inProduction",         label: "Em Produção" },
+    { value: "produced",             label: "Produzidos" },
+    { value: "conferred",            label: "Conferidos" },
+    { value: "delivered",            label: "Entregues" },
+  ] as const;
+  const statusFilterOptions = useMemo(() => {
+    const conta = new Map<string, number>();
+    gFacetPool('status').forEach((i: any) => {
+      const s = String(i.status ?? "");
+      const chave = s === "pronto_para_producao" ? "ready_for_production" : s;
+      conta.set(chave, (conta.get(chave) ?? 0) + 1);
+    });
+    return STATUS_DA_FILA
+      .filter(s => (conta.get(s.value) ?? 0) > 0)
+      .map(s => ({ value: s.value, label: s.label, count: conta.get(s.value)!, pinned: true }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gFacetPool]);
+
+  const mesFilterOptions = useMemo(() => {
+    const conta = new Map<string, number>();
+    gFacetPool('mes').forEach((i: any) => {
+      const m = itemMes(i);
+      if (!m) return;
+      conta.set(m, (conta.get(m) ?? 0) + 1);
+    });
+    return Array.from(conta.entries())
+      .sort((a, b) => Number(a[0]) - Number(b[0]))
+      .map(([m, count]) => ({ value: m, label: nomeDoMes(m), count, pinned: true }));
+  }, [gFacetPool]);
 
   // O casamento item↔recorte mora em lib/grafica-filtros.ts. A lista e o pool
   // dos KPIs usam a MESMA função; a única diferença é `ignorarStatus`, que
@@ -1910,15 +1948,8 @@ export default function Grafica() {
           showAllLabelWhenEmpty hideWhenEmpty={false}
           label="Status" allLabel="Todos os status"
           values={filtros.status} onValuesChange={v => patchFiltros({ status: v })}
-          options={[
-            { value: "ready_for_production", label: "Pronto p/ Produção", pinned: true },
-            { value: "approved", label: "Liberados", pinned: true },
-            { value: "inProduction", label: "Em Produção", pinned: true },
-            { value: "produced", label: "Produzidos", pinned: true },
-            { value: "conferred", label: "Conferidos", pinned: true },
-            { value: "delivered", label: "Entregues", pinned: true },
-          ]}
-          searchPlaceholder="Buscar status..." emptyText="Nenhum status encontrado."
+          options={statusFilterOptions}
+          searchPlaceholder="Buscar status..." emptyText="Nenhum status nesta fila."
           testId="select-status-filter"
           triggerStyle={{ backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, color: TI.text }}
         />
@@ -1950,10 +1981,10 @@ export default function Grafica() {
         {/* Mês */}
         <FilterSelect
           showAllLabelWhenEmpty hideWhenEmpty={false}
-          label="Mês" allLabel={months.find(m => m.value === "all")?.label || "Todos os meses"}
+          label="Mês" allLabel="Todos os meses"
           values={filtros.mes} onValuesChange={v => patchFiltros({ mes: v })}
-          options={months.filter(m => m.value !== "all").map(m => ({ value: m.value, label: m.label, pinned: true }))}
-          searchPlaceholder="Buscar mês..." emptyText="Nenhum mês encontrado."
+          options={mesFilterOptions}
+          searchPlaceholder="Buscar mês..." emptyText="Nenhuma saída de caminhão nesta fila."
           testId="select-month-filter"
           triggerStyle={{ backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, color: TI.text }}
         />

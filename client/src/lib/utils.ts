@@ -6,6 +6,29 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
+ * Texto pronto para COMPARAÇÃO DE BUSCA: minúscula, SEM ACENTO e com espaço
+ * colapsado.
+ *
+ * Por que existe: os menus de filtro casavam com `label.toLowerCase()
+ * .includes(termo.toLowerCase())`, que é cego a acento. Nomes de evento são
+ * escritos em caixa alta e com acento ("SÓ QUERO PEDALAR SP"), então digitar
+ * "so quero" no dropdown devolvia "Nenhum evento encontrado" — o evento existia
+ * na lista, tinha peça na tela, e mesmo assim não era oferecido. Quem digita
+ * não desconfia do acento: conclui que a opção não está lá.
+ *
+ * Fonte ÚNICA da normalização de busca do app (os dois menus de filtro e o
+ * campo de busca da Gráfica). Duas implementações divergentes disto foi
+ * exatamente como o defeito nasceu.
+ */
+export const normalizarBusca = (s: string | null | undefined): string =>
+  (s ?? "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+/**
  * Parse a YYYY-MM-DD date string as LOCAL noon to avoid UTC midnight
  * rolling back to the previous day in UTC-offset timezones (e.g. UTC-3).
  */

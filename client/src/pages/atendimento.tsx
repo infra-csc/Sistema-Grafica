@@ -5,7 +5,7 @@ import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { ExportPdfDialog } from "@/components/export-pdf-dialog";
 import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip, Plus, Pencil, Trash2, Truck, Cog, Send, Link2, Unlock, Upload, ImageIcon, ArrowRightLeft, Check } from "lucide-react";
-import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
+import { parseDateLocal, toUTCDisplayDate, normalizarBusca } from "@/lib/utils";
 // Prazo desta tela = marco de APROVAÇÃO DE LAYOUT. Regra pura e única, testada
 // em server/__tests__/atendimento-prazo.test.ts.
 import {
@@ -829,45 +829,56 @@ export default function Atendimento() {
   // independente do status atual (podem estar em produção, entregues, etc.)
   // Rótulo e cores do badge de status vêm da lib canônica (getStatusMeta) —
   // o mapa local que existia aqui divergia dos nomes usados nas outras telas.
-  const historyItems = useMemo(() => {
-    if (loadingSponsors) return [];
+  //
+  // A INVARIANTE, a mesma da fila de pendentes acima: FACETA E LISTA SAEM DO
+  // MESMO POOL. Aqui ela estava quebrada ao contrário — os dois menus desta aba
+  // (`histEventOptions`, `histSponsorOptions`) listavam TODOS os eventos e
+  // TODOS os patrocinadores do sistema, sem contagem, sobre uma lista que só
+  // tem peça com aprovação registrada. Escolher um evento sem histórico
+  // devolvia lista vazia, e não havia como saber se o evento não tinha
+  // aprovação ou se a tela tinha quebrado.
+  //
+  // `excluir` é o que sustenta a invariante: a lista chama sem ele, cada menu
+  // chama com a própria dimensão de fora.
+  const casaHistorico = (item: any, excluir?: 'evento' | 'patrocinador'): boolean => {
+    const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
+    // Aprovação registrada OU status pós-aprovação: o atalho "Aprovar
+    // Ativo" muda o status sem criar approvals e a peça sumia daqui.
+    if (!approvals.some(a => a.status === 'approved') && !isPastApproval(item)) return false;
+
+    if (excluir !== 'evento' && histEventFilter.length > 0 && !histEventFilter.includes(item.eventId)) return false;
+
+    if (excluir !== 'patrocinador' && histSponsorFilter.length > 0) {
+      const itemSps = itemSponsorsMap[item.id] || [];
+      if (!itemSps.some((s: any) => histSponsorFilter.includes(s.id))) return false;
+    }
+
     const now = new Date();
     const cutoff = histPeriodFilter === "7d"  ? new Date(now.getTime() - 7  * 86400000)
                  : histPeriodFilter === "30d" ? new Date(now.getTime() - 30 * 86400000)
                  : histPeriodFilter === "90d" ? new Date(now.getTime() - 90 * 86400000)
                  : null;
+    if (cutoff) {
+      const approvedAt = approvals
+        .filter(a => a.status === 'approved' && a.approvedAt)
+        .map(a => new Date(a.approvedAt!))
+        .sort((a, b) => b.getTime() - a.getTime())[0];
+      if (!approvedAt || approvedAt < cutoff) return false;
+    }
 
-    return (items as any[]).filter(item => {
-      const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
-      // Aprovação registrada OU status pós-aprovação: o atalho "Aprovar
-      // Ativo" muda o status sem criar approvals e a peça sumia daqui.
-      if (!approvals.some(a => a.status === 'approved') && !isPastApproval(item)) return false;
+    // Busca sem acento (`normalizarBusca`, lib/utils) — a mesma dos menus.
+    const q = normalizarBusca(histSearchTerm);
+    if (q &&
+        !normalizarBusca(item.type).includes(q) &&
+        !normalizarBusca(item.displayId).includes(q) &&
+        !normalizarBusca(item.description).includes(q)) return false;
 
-      if (histEventFilter.length > 0 && !histEventFilter.includes(item.eventId)) return false;
+    return true;
+  };
 
-      if (histSponsorFilter.length > 0) {
-        const itemSps = itemSponsorsMap[item.id] || [];
-        if (!itemSps.some((s: any) => histSponsorFilter.includes(s.id))) return false;
-      }
-
-      if (cutoff) {
-        const approvedAt = approvals
-          .filter(a => a.status === 'approved' && a.approvedAt)
-          .map(a => new Date(a.approvedAt!))
-          .sort((a, b) => b.getTime() - a.getTime())[0];
-        if (!approvedAt || approvedAt < cutoff) return false;
-      }
-
-      if (histSearchTerm.trim()) {
-        const q = histSearchTerm.trim().toLowerCase();
-        const matchType = item.type?.toLowerCase().includes(q);
-        const matchId   = item.displayId?.toLowerCase().includes(q);
-        const matchDesc = item.description?.toLowerCase().includes(q);
-        if (!matchType && !matchId && !matchDesc) return false;
-      }
-
-      return true;
-    }).sort((a: any, b: any) => {
+  const historyItems = useMemo(() => {
+    if (loadingSponsors) return [];
+    return (items as any[]).filter(item => casaHistorico(item)).sort((a: any, b: any) => {
       // Ordena pela aprovação mais recente
       const latestApproval = (item: any) => {
         const times = (itemApprovalsMap[item.id] || [])
@@ -877,7 +888,47 @@ export default function Atendimento() {
       };
       return latestApproval(b) - latestApproval(a);
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [items, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histEventFilter, histSponsorFilter, histPeriodFilter, histSearchTerm]);
+
+  // As duas facetas da aba Histórico, do MESMO pool da lista. Só o que tem
+  // linha aparece, e a contagem ao lado do nome é o número de linhas que o
+  // clique entrega.
+  const histEventOptions = useMemo(() => {
+    if (loadingSponsors) return [] as { value: string; label: string; count: number; dotColor?: string }[];
+    const C: Record<string, string> = { urgente: '#ef4444', urgent: '#ef4444', alta: '#f97316', media: '#eab308', baixa: '#3b82f6' };
+    const byId = new Map((events as any[]).map((e: any) => [e.id, e]));
+    const map = new Map<string, { value: string; label: string; count: number; dotColor?: string }>();
+    (items as any[]).filter(i => casaHistorico(i, 'evento')).forEach((i: any) => {
+      if (!i.eventId) return;
+      const cur = map.get(i.eventId);
+      if (cur) { cur.count++; return; }
+      const ev: any = byId.get(i.eventId);
+      map.set(i.eventId, { value: i.eventId, label: ev?.name || i.event?.name || 'Sem evento', count: 1, dotColor: C[ev?.priority] });
+    });
+    // Prioridade primeiro (urgente no topo), nome desempata — a mesma ordem que
+    // o seletor já tinha quando listava o sistema inteiro.
+    const P: Record<string, number> = { urgente: 0, urgent: 0, alta: 1, media: 2, baixa: 3 };
+    return Array.from(map.values()).sort((a, b) => {
+      const pa = P[byId.get(a.value)?.priority] ?? 4, pb = P[byId.get(b.value)?.priority] ?? 4;
+      return pa !== pb ? pa - pb : a.label.localeCompare(b.label, 'pt-BR');
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, events, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histSponsorFilter, histPeriodFilter, histSearchTerm]);
+
+  const histSponsorOptions = useMemo(() => {
+    if (loadingSponsors) return [] as { value: string; label: string; count: number }[];
+    const map = new Map<string, { value: string; label: string; count: number }>();
+    (items as any[]).filter(i => casaHistorico(i, 'patrocinador')).forEach((i: any) => {
+      (itemSponsorsMap[i.id] || []).forEach((s: any) => {
+        const cur = map.get(s.id);
+        if (cur) cur.count++;
+        else map.set(s.id, { value: s.id, label: s.name, count: 1 });
+      });
+    });
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histEventFilter, histPeriodFilter, histSearchTerm]);
 
   // Fila de revisão: todas as peças pendentes na MESMA ordem em que aparecem
   // na tela (agrupadas por evento). É o que permite ir para a próxima peça sem
@@ -2148,12 +2199,8 @@ export default function Atendimento() {
           { value: '30d', label: 'Últimos 30 dias' },
           { value: '90d', label: 'Últimos 90 dias' },
         ];
-        const histSponsorOptions = (sponsors as any[]).map((s: any) => ({ value: s.id, label: s.name }));
-        const histEventOptions = (() => {
-          const P: Record<string,number> = { urgente:0, alta:1, media:2, baixa:3 };
-          const C: Record<string,string> = { urgente:'#ef4444', alta:'#f97316', media:'#eab308', baixa:'#3b82f6' };
-          return [...(events as any[])].sort((a,b) => { const pa=P[a.priority]??4,pb=P[b.priority]??4; return pa!==pb?pa-pb:a.name.localeCompare(b.name,'pt-BR'); }).map((e: any) => ({ value: e.id, label: e.name, dotColor: C[e.priority] }));
-        })();
+        // As opções dos dois menus saem do MESMO pool da lista (ver
+        // `casaHistorico`, acima) — aqui elas eram o sistema inteiro.
         const hasHistFilters = histEventFilter.length > 0 || histSponsorFilter.length > 0 || histPeriodFilter !== "all";
 
         return (

@@ -19,6 +19,7 @@
 import { useMemo, useState, useRef, useEffect, useLayoutEffect } from "react";
 import { Search, ChevronDown, Check, X } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { normalizarBusca } from "@/lib/utils";
 
 export interface FilterOption {
   value: string;
@@ -247,9 +248,12 @@ export function FilterSelect({
     : undefined;
 
   // ── Busca ─────────────────────────────────────────────────────────────
-  const searchTrimmed = search.trim().toLowerCase();
+  // SEM acento (`normalizarBusca`, lib/utils): com `toLowerCase()` puro, "acao"
+  // não achava "Ação" e "so quero" não achava "SÓ QUERO PEDALAR SP". Menu que
+  // esconde a opção existente é indistinguível de menu que não a tem.
+  const searchTrimmed = normalizarBusca(search);
   const filteredSorted = searchTrimmed
-    ? sorted.filter(o => o.label.toLowerCase().includes(searchTrimmed))
+    ? sorted.filter(o => normalizarBusca(o.label).includes(searchTrimmed))
     : sorted;
 
   // ── Handlers ──────────────────────────────────────────────────────────

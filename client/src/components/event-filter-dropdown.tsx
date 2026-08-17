@@ -5,6 +5,7 @@
 import { useState, useRef, useEffect, useMemo } from "react";
 import { Search, ChevronDown, Check, X } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { normalizarBusca } from "@/lib/utils";
 
 export interface EventOption {
   value: string;
@@ -55,8 +56,14 @@ export function EventFilterDropdown({
     [options]
   );
 
-  const filtered = search.trim()
-    ? sortedOptions.filter(o => o.label.toLowerCase().includes(search.toLowerCase()))
+  // Busca SEM acento (`normalizarBusca`): nomes de evento são escritos em caixa
+  // alta e com acento, e com `toLowerCase()` puro digitar "so quero" não achava
+  // "SÓ QUERO PEDALAR SP" — o dono viu a peça do evento na lista da Gráfica,
+  // digitou aqui e leu "Nenhum evento encontrado". A opção estava lá; o acento
+  // é que não deixava chegar nela.
+  const termo = normalizarBusca(search);
+  const filtered = termo
+    ? sortedOptions.filter(o => normalizarBusca(o.label).includes(termo))
     : sortedOptions;
 
   // ── Estado ativo ──────────────────────────────────────────────────────

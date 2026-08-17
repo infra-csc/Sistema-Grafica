@@ -19,6 +19,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { isDelivered, isComplement, type SaldoItem } from "./saldo";
+import { normalizarBusca } from "./utils";
 
 /** Forma mínima de peça que o recorte enxerga (o item cru da API é `any`). */
 export interface ItemGrafica extends SaldoItem {
@@ -183,9 +184,13 @@ export function itemPercursos(item: ItemGrafica): string[] {
 /** Ordena percursos por distância ("5k" antes de "10k"; alfabética inverteria). */
 export const ordemPercurso = (p: string): number => parseFloat(p.replace(",", ".")) || 0;
 
-/** Minúscula, sem acento, espaço colapsado — mesma regra da Arte. */
-export const normKey = (s: string): string =>
-  (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+/**
+ * Minúscula, sem acento, espaço colapsado — mesma regra da Arte.
+ * Delega para `normalizarBusca` (lib/utils), a fonte única do app: os menus de
+ * filtro precisam da MESMA normalização, e duas cópias divergentes foi como o
+ * campo de busca dos dropdowns ficou cego a acento.
+ */
+export const normKey = (s: string): string => normalizarBusca(s);
 
 // ── Casamento item ↔ recorte ────────────────────────────────────────────────
 
@@ -196,8 +201,29 @@ export interface CtxFiltros {
   hojeUTC: number;
 }
 
+/**
+ * As dimensões que têm DROPDOWN com opções e contagem.
+ *
+ * A INVARIANTE DESTE ARQUIVO — a que ninguém percebe quebrando, e que é a razão
+ * de `excluir` existir: FACETA E LISTA SAEM DO MESMO POOL. As opções de um
+ * dropdown são calculadas com `itemCasaFiltros(item, f, ctx, { excluir: <esta
+ * dimensão> })` sobre EXATAMENTE o mesmo array que alimenta a lista; a lista usa
+ * a mesma função sem `excluir`. Assim o pool da faceta é, por construção, um
+ * superconjunto da lista que difere só naquele filtro — e por isso:
+ *   · a faceta nunca oferece MENOS do que a lista mostra (o operador vê a peça
+ *     do evento na tela e o evento está no dropdown), e
+ *   · a faceta nunca oferece MAIS do que a lista entrega (opção clicada nunca
+ *     devolve lista vazia, e a contagem ao lado do nome é o número de linhas
+ *     que o clique produz).
+ *
+ * `mes` entrou nesta lista depois: o dropdown de Mês era uma lista FIXA dos doze
+ * meses, sem contagem — oferecia Janeiro sobre uma fila que só tem Agosto e o
+ * clique devolvia vazio. O mesmo valia para Status, que era a lista fixa das
+ * seis etapas. Filtro novo com dropdown = um nome aqui e uma linha em
+ * `itemCasaFiltros`; sem isso ele volta a ser uma segunda fonte de verdade.
+ */
 export type FacetaGrafica =
-  | "status" | "evento" | "grupo" | "percurso" | "tipo" | "material" | "acabamento";
+  | "status" | "evento" | "grupo" | "percurso" | "tipo" | "material" | "acabamento" | "mes";
 
 export interface OpcoesCasamento {
   /**
@@ -236,12 +262,17 @@ export function itemCasaFiltros(
 ): boolean {
   const { ignorarStatus = false, excluir } = opts;
 
-  if (f.busca) {
-    const q = f.busca.toLowerCase();
-    if (!item.type?.toLowerCase().includes(q) &&
-        !item.description?.toLowerCase().includes(q) &&
-        !item.displayId?.toLowerCase().includes(q) &&
-        !item.event?.name?.toLowerCase().includes(q)) return false;
+  // Busca SEM acento e sem caixa (`normalizarBusca`, lib/utils): com
+  // `toLowerCase()` puro, digitar "so quero pedalar" não achava
+  // "SÓ QUERO PEDALAR SP" — o nome de evento é escrito em caixa alta e com
+  // acento, e quem digita não desconfia do acento, conclui que a peça não está
+  // lá. Mesma normalização do campo de busca dos dropdowns de filtro.
+  if (f.busca.trim()) {
+    const q = normalizarBusca(f.busca);
+    if (!normalizarBusca(item.type).includes(q) &&
+        !normalizarBusca(item.description).includes(q) &&
+        !normalizarBusca(item.displayId).includes(q) &&
+        !normalizarBusca(item.event?.name).includes(q)) return false;
   }
 
   // A ocultação das entregues é parte do recorte de STATUS: quem exclui o
@@ -278,13 +309,30 @@ export function itemCasaFiltros(
     if (saidaUTC === null) return false;
     if (!(saidaUTC >= ctx.hojeUTC && saidaUTC <= ctx.hojeUTC + 10 * 86400000)) return false;
   }
-  if (f.mes.length > 0) {
+  if (excluir !== "mes" && f.mes.length > 0) {
     if (saidaUTC === null) return false;
     const mes = new Date(saidaUTC).getUTCMonth() + 1;
     if (!f.mes.includes(String(mes))) return false;
   }
 
   return true;
+}
+
+/**
+ * O MÊS da peça ("8" = Agosto), pela saída do caminhão em UTC — a mesma conta do
+ * recorte de mês em `itemCasaFiltros`. `null` para peça sem data de saída: ela
+ * não pertence a mês nenhum, e é por isso que o filtro de mês a exclui.
+ *
+ * Existe para o dropdown de Mês poder listar SÓ os meses presentes no recorte,
+ * com contagem — antes ele era a lista fixa dos doze, e escolher um mês sem
+ * peça devolvia lista vazia sem explicar por quê.
+ */
+export function itemMes(item: ItemGrafica): string | null {
+  const saida = item.event?.truckDepartureDate;
+  if (!saida) return null;
+  const d = new Date(saida as any);
+  if (Number.isNaN(d.getTime())) return null;
+  return String(d.getUTCMonth() + 1);
 }
 
 /** Meia-noite de hoje em UTC — a âncora que `itemCasaFiltros` espera. */

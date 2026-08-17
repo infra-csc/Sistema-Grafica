@@ -3,7 +3,7 @@ import { CheckCircle, AlertCircle, Copy, Eye, Search, X, FileImage, Maximize2, T
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { FilePreview, isWebUrl } from "@/components/file-preview";
-import { parseDateLocal } from "@/lib/utils";
+import { parseDateLocal, normalizarBusca } from "@/lib/utils";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -404,15 +404,36 @@ export default function Solicitacao() {
   const seloDoItem = (item: any): SeloPecaEventoFinalizado | null =>
     (item ? selosPorItem.get(item.id) : undefined) ?? null;
 
-  const filteredItems = useMemo(() => pendingItems.filter(item => {
-    const matchesSearch = searchTerm === "" ||
-      item.type?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.displayId?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesEvent = eventFilter.length === 0 || eventFilter.includes(item.eventId);
-    const matchesType = itemTypeFilter.length === 0 || itemTypeFilter.includes(item.type);
-    return matchesSearch && matchesEvent && matchesType;
-  }), [pendingItems, searchTerm, eventFilter, itemTypeFilter]);
+  // ── O RECORTE, UMA FUNÇÃO SÓ ──────────────────────────────────────────────
+  // A INVARIANTE, e é ela que alguém quebra sem perceber ao acrescentar um
+  // filtro: FACETA E LISTA SAEM DO MESMO POOL. A lista chama isto sem
+  // `excluir`; cada dropdown chama com a PRÓPRIA dimensão excluída, sobre o
+  // mesmo `pendingItems`. Assim o pool da faceta é, por construção, um
+  // superconjunto da lista que difere só naquele filtro — a faceta nunca
+  // oferece menos do que a tela mostra (evento visível na lista e ausente do
+  // menu) nem mais do que ela entrega (opção que devolve lista vazia).
+  //
+  // Era exatamente aqui que estava o furo: as duas facetas ignoravam a BUSCA.
+  // Digitar "banner" encolhia a lista e os dropdowns continuavam prometendo o
+  // número de antes — "Evento X · 12" sobre uma lista de 2. É o mesmo defeito
+  // que a Gráfica já tinha corrigido em lib/grafica-filtros.
+  //
+  // Busca sem acento (`normalizarBusca`): "so quero" acha "SÓ QUERO PEDALAR SP".
+  const casaRecorte = (item: any, excluir?: 'evento' | 'tipo'): boolean => {
+    const q = normalizarBusca(searchTerm);
+    if (q &&
+        !normalizarBusca(item.type).includes(q) &&
+        !normalizarBusca(item.description).includes(q) &&
+        !normalizarBusca(item.displayId).includes(q) &&
+        !normalizarBusca(item.event?.name).includes(q)) return false;
+    if (excluir !== 'evento' && eventFilter.length > 0 && !eventFilter.includes(item.eventId)) return false;
+    if (excluir !== 'tipo' && itemTypeFilter.length > 0 && !itemTypeFilter.includes(item.type)) return false;
+    return true;
+  };
+
+  const filteredItems = useMemo(() => pendingItems.filter(item => casaRecorte(item)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pendingItems, searchTerm, eventFilter, itemTypeFilter]);
 
   // Seleção sobrevive ao filtro: quando a lista filtrada muda, mantém marcado
   // só o que continua visível — senão "Liberar Selecionadas" agiria sobre
@@ -431,15 +452,18 @@ export default function Solicitacao() {
     return events.filter(e => ids.has(e.id));
   }, [pendingItems, events]);
 
-  // Filtros facetados: cada filtro lista só o que existe aqui, aplicando o
-  // OUTRO filtro ativo, com contagem por opção.
+  // Filtros facetados: mesmo `casaRecorte` da lista, só com a própria dimensão
+  // excluída (ver a invariante logo acima). Peça de evento finalizado entra
+  // aqui como qualquer outra — ela está na lista, então o evento dela tem de
+  // estar no menu; do contrário o operador vê a peça na tela e não consegue
+  // filtrar por ela.
   const eventFilterOptions = useMemo(() => {
     // Sem dotColor aqui: o EventFilterDropdown em modo múltiplo (o desta tela)
     // não renderiza bolinha — e o mapa local divergia do PRIORITY canônico.
     const byId = new Map(events.map((e: any) => [e.id, e]));
     const map = new Map<string, { value: string; label: string; count: number }>();
     pendingItems
-      .filter(i => itemTypeFilter.length === 0 || itemTypeFilter.includes(i.type))
+      .filter(i => casaRecorte(i, 'evento'))
       .forEach((i: any) => {
         if (!i.eventId) return;
         const cur = map.get(i.eventId);
@@ -450,12 +474,13 @@ export default function Solicitacao() {
         }
       });
     return Array.from(map.values());
-  }, [pendingItems, itemTypeFilter, events]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingItems, searchTerm, itemTypeFilter, events]);
 
   const typeFilterOptions = useMemo(() => {
     const map = new Map<string, { value: string; label: string; count: number }>();
     pendingItems
-      .filter(i => eventFilter.length === 0 || eventFilter.includes(i.eventId))
+      .filter(i => casaRecorte(i, 'tipo'))
       .forEach((i: any) => {
         if (!i.type) return;
         const cur = map.get(i.type);
@@ -463,7 +488,8 @@ export default function Solicitacao() {
         else map.set(i.type, { value: i.type, label: i.type, count: 1 });
       });
     return Array.from(map.values());
-  }, [pendingItems, eventFilter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingItems, searchTerm, eventFilter]);
 
   const itemsByEvent = useMemo(() => {
     const map = new Map<string, any[]>();

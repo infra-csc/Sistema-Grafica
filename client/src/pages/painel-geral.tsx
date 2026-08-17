@@ -3,7 +3,7 @@ import { useState, useMemo, useRef, Fragment, useEffect, useCallback } from "rea
 import {
   Search, Calendar, Truck, Eye, Paperclip, Trash2, FileText, Printer, RotateCcw,
   Loader2, MessageSquare, ArrowUpRight, ChevronDown, ChevronUp, Copy, FileSpreadsheet,
-  SlidersHorizontal, Link2, Check, Lock,
+  SlidersHorizontal, Link2, Check, Lock, Pin,
 } from "lucide-react";
 import { Link } from "wouter";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
@@ -1339,6 +1339,8 @@ export default function PainelGeral() {
           filtros vivem na URL, cada visão é literalmente um link. */}
       <section aria-label="Visões salvas" style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginTop: -10 }}>
         {visoes.map(v => {
+          // 44 no toque, 36 no ponteiro — o mesmo piso do resto dos filtros.
+          const alturaVisao = isMobile ? 44 : 36;
           const ativa = visaoEstaAtiva(v, filtrosAtuais);
           const ehPadrao = visaoPadrao === v.id;
           return (
@@ -1348,7 +1350,7 @@ export default function PainelGeral() {
                 aria-pressed={ativa}
                 title={v.hint}
                 data-testid={`visao-${v.id}`}
-                style={{ background: "none", border: "none", cursor: "pointer", padding: "0 10px", height: 30, fontSize: 12, fontWeight: 700, color: ativa ? "#c2410c" : "#57534e", whiteSpace: "nowrap" }}
+                style={{ background: "none", border: "none", cursor: "pointer", padding: "0 12px", height: alturaVisao, fontSize: 12, fontWeight: 700, color: ativa ? "#c2410c" : "#57534e", whiteSpace: "nowrap" }}
               >
                 {v.label}
               </button>
@@ -1357,12 +1359,17 @@ export default function PainelGeral() {
                 aria-pressed={ehPadrao}
                 title={ehPadrao ? "Deixar de abrir o Painel nesta visão" : "Abrir o Painel nesta visão por padrão"}
                 aria-label={ehPadrao ? `Deixar de usar "${v.label}" como visão padrão` : `Usar "${v.label}" como visão padrão`}
-                style={{ background: "none", border: "none", borderLeft: `1px solid ${ativa ? "#fed7aa" : "#e7e5e4"}`, cursor: "pointer", padding: "0 7px", height: 30, display: "flex", alignItems: "center", color: ehPadrao ? "#c2410c" : "#a8a29e" }}
+                style={{ background: "none", border: "none", borderLeft: `1px solid ${ativa ? "#fed7aa" : "#e7e5e4"}`, cursor: "pointer", padding: "0 9px", height: alturaVisao, display: "flex", alignItems: "center", color: ehPadrao ? "#c2410c" : "#a8a29e" }}
               >
-                {/* Ícone (não texto): #a8a29e é proibido como cor de TEXTO pela
-                    régua; como glifo de estado inativo de controle, e com o
-                    estado real no aria-pressed, não carrega informação sozinho. */}
-                <Check style={{ width: 12, height: 12 }} aria-hidden="true" />
+                {/* PIN, não CHECK. O ✓ é o glifo que o app inteiro usa para
+                    "este recorte está ligado" — nos FilterSelect e na pílula de
+                    atalho. Aqui ele dizia outra coisa ("abrir o Painel nesta
+                    visão"), e ficava aceso nas CINCO visões ao mesmo tempo:
+                    quem aprendeu ✓ = ligado lia cinco filtros ativos numa tela
+                    sem filtro nenhum. Fixar é outra ideia e ganha outro glifo.
+                    #a8a29e sobrevive porque é ÍCONE, não texto — e o estado
+                    real vive no aria-pressed, não na cor. */}
+                <Pin style={{ width: 12, height: 12, fill: ehPadrao ? "currentColor" : "none" }} aria-hidden="true" />
               </button>
             </span>
           );

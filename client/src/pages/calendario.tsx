@@ -360,12 +360,12 @@ export default function Calendario() {
             </button>
           </div>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }}>
 
             {/* Day headers */}
             {WEEK_DAYS.map(d => (
               <div key={d} style={{
-                padding: "12px 0", textAlign: "center",
+                padding: "12px 0", textAlign: "center", minWidth: 0,
                 backgroundColor: "#f9f9f8",
                 borderBottom: "1px solid #eeeeed",
                 borderRight: d !== "SÁB" ? "1px solid #eeeeed" : undefined,
@@ -391,6 +391,7 @@ export default function Calendario() {
                 return (
                   <div key={`out-${idx}`} style={{
                     height: cellHeight, backgroundColor: "rgba(250,250,249,0.6)", padding: "8px 8px",
+                    minWidth: 0,
                     borderRight: col !== 6 ? "1px solid #eeeeed" : undefined,
                     borderBottom: "1px solid #eeeeed",
                   }}>
@@ -440,6 +441,10 @@ export default function Calendario() {
                   onClick={() => { if (hasAny) { setSelectedDate(date); setDialogOpen(true); } }}
                   style={{
                     height: cellHeight, padding: isMobile ? "5px 5px" : "7px 7px",
+                    // Ver o comentario da trilha: item de grid tambem tem
+                    // min-width automatico, e sem zera-lo a pill de nome longo
+                    // volta a esticar a coluna.
+                    minWidth: 0,
                     borderRight: col !== 6 ? "1px solid #eeeeed" : undefined,
                     borderBottom: "1px solid #eeeeed",
                     backgroundColor: P.surface,

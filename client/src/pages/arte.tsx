@@ -1787,7 +1787,7 @@ export default function Arte() {
             onClick={e => e.stopPropagation()}
             aria-label={`Mais ações para ${item.displayId}`}
             data-testid={`button-row-menu-${item.id}`}
-            style={{ width: 36, minWidth: 36, height: 36, flexShrink: 0, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid #e7e5e4', cursor: 'pointer', color: '#57534e' }}
+            style={{ width: isMobile ? 44 : 36, minWidth: isMobile ? 44 : 36, height: isMobile ? 44 : 36, flexShrink: 0, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid #e7e5e4', cursor: 'pointer', color: '#57534e' }}
           >
             <MoreHorizontal style={{ width: 15, height: 15 }} />
           </button>
@@ -1865,7 +1865,7 @@ export default function Arte() {
           // minWidth 0 + flexShrink: numa coluna estreita o botão encolhe com
           // reticências em vez de empurrar o menu "⋯" para outra linha.
           width: largura, minWidth: 0, flexShrink: 1,
-          height: 36, padding: '0 11px', borderRadius: 8,
+          height: isMobile ? 44 : 36, padding: '0 11px', borderRadius: 8,
           backgroundColor: travado ? '#d6d3d1' : acao.bg,
           color: '#ffffff', border: 'none',
           cursor: travado ? 'not-allowed' : 'pointer',

@@ -964,13 +964,23 @@ export default function Solicitacao() {
                        leitor de tela); o corpo do card segue abrindo o modal
                        por toque, Enter e Espaço. */
                     <div key={item.id} style={{position:"relative",backgroundColor:"#fff",border:"1px solid #e7e5e4",borderRadius:8,marginBottom:8}}>
-                      <input
-                        type="checkbox"
-                        checked={selectedItemIds.has(item.id)}
-                        onChange={()=>toggleItem(item.id)}
-                        aria-label={`Selecionar ${item.displayId}`}
-                        style={{position:"absolute",top:10,right:10,accentColor:"#f97316",width:20,height:20,padding:2,zIndex:1}}
-                      />
+                      {/* ALVO de 44, CAIXA de 20. Este checkbox e a unica porta
+                          para "Liberar selecionadas" / "Devolver selecionadas"
+                          no celular, e tinha 20px de lado — metade do piso de
+                          toque. Crescer a caixa deixaria o card com um quadrado
+                          enorme no canto; quem cresce e o <label>, que e
+                          transparente e encaminha o toque para o input. */}
+                      <label
+                        style={{position:"absolute",top:0,right:0,width:44,height:44,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",zIndex:1}}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedItemIds.has(item.id)}
+                          onChange={()=>toggleItem(item.id)}
+                          aria-label={`Selecionar ${item.displayId}`}
+                          style={{accentColor:"#f97316",width:20,height:20,cursor:"pointer"}}
+                        />
+                      </label>
                       <div
                         role="button"
                         tabIndex={0}
@@ -978,7 +988,7 @@ export default function Solicitacao() {
                         onKeyDown={e => { if (e.target !== e.currentTarget) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openModal(item); } }}
                         onClick={() => openModal(item)}
                         style={{padding:"12px",cursor:"pointer",display:"flex",flexDirection:"column",gap:6}}>
-                        <div style={{display:"flex",justifyContent:"flex-start",alignItems:"center",gap:6,flexWrap:"wrap",paddingRight:32}}>
+                        <div style={{display:"flex",justifyContent:"flex-start",alignItems:"center",gap:6,flexWrap:"wrap",paddingRight:44}}>
                           <span style={{fontFamily:"monospace",fontWeight:700,color:"#c2410c",fontSize:13}}>{item.displayId}</span>
                           {/* EVENTO FINALIZADO — a peça voltou para a fila (ver
                               `pendingItems`), então tem de se declarar. Aqui

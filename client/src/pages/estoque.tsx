@@ -1072,7 +1072,12 @@ export default function Estoque() {
       </div>
 
       {/* ── Stat cards ── */}
-      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, 1fr)" : "repeat(5, 1fr)", gap: 16, marginBottom: 28 }}>
+      {/* minmax(0, ...) pelo mesmo motivo do calendario: `1fr` e
+          `minmax(AUTO, 1fr)`, e o minimo automatico e o min-content do cartao.
+          Em 375px cada coluna vale ~103px, e "Disponivel no deposito" nao cabe
+          — as tres trilhas estouravam e a PAGINA inteira ganhava rolagem
+          lateral. Com o minimo em 0 o texto quebra e a grade fica na largura. */}
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "repeat(3, minmax(0, 1fr))" : "repeat(5, minmax(0, 1fr))", gap: 16, marginBottom: 28 }}>
         <StatCard
           label="Total Acervo" value={total} Icon={Package} color="#2563eb"
           subtext="Ativos cadastrados"

@@ -144,6 +144,8 @@ export default function Solicitacao() {
   const searchRef = useRef<HTMLInputElement>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const isMobile = useIsMobile();
+  /** Altura dos controles: 44 no toque, 36 no ponteiro. */
+  const alturaControle = isMobile ? 44 : 36;
   const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({ queryKey: ["/api/items"] });
   const { data: events = [], isLoading: eventsLoading, isError: eventsError, refetch: refetchEvents } = useQuery<any[]>({ queryKey: ["/api/events"] });
   // Histórico da peça: só busca com o modal aberto, já filtrado e limitado no
@@ -725,141 +727,35 @@ export default function Solicitacao() {
   return (
     <div style={{ backgroundColor: TI.bg, height: "100%", overflowY: "auto" }}>
 
-      {/* ── 1. HERO HEADER ─────────────────────────────────────────────── */}
-      <section style={{ backgroundColor: "#0c0a09", color: "#fff", padding: isMobile ? "24px 12px" : "48px 32px", position: "relative", overflow: "hidden" }}>
-        {/* Decorative icon */}
-        <div style={{ position: "absolute", right: -60, top: "50%", transform: "translateY(-50%)", opacity: 0.04, pointerEvents: "none", fontSize: 280, lineHeight: 1, userSelect: "none", color: "#fff" }}>
-          <Eye style={{ width: 280, height: 280 }} />
-        </div>
+      {/* ── 1. CABEÇALHO ───────────────────────────────────────────────
+          Era um bloco preto de 275px — 45% da primeira dobra — com titulo de
+          56px e um olho decorativo de 280px atras. Nenhuma outra tela do app
+          tem isso: Gestao de Prazos gasta 60px no mesmo trabalho e Analises,
+          78. A lista so comecava em y=434, entao a tela mostrava TRES pecas
+          antes de precisar rolar.
 
-        <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "flex-start", gap: 32, position: "relative", zIndex: 1 }}>
-          {/* Left */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 20, flex: 1 }}>
-            <span style={{
-              display: "inline-block", padding: "4px 12px",
-              backgroundColor: "#1c1917", fontSize: 10, fontWeight: 700,
-              letterSpacing: "0.18em", textTransform: "uppercase", color: "#d6d3d1",
-              borderLeft: "2px solid #f97316",
-            }}>
-              REVISÃO FINAL
-            </span>
+          O titulo virou "Revisao", o nome que a barra lateral ja usa: "Revisao
+          do Criador" era o unico lugar do app que dizia outra coisa.
+
+          Os contadores sairam daqui. "Aguardando: 74" e o "74 de 74 pecas" da
+          barra de filtros eram o MESMO numero dito duas vezes, a 200px de
+          distancia; ficou o da barra, que e onde o resto do app poe. */}
+      <section style={{ backgroundColor: TI.surface, padding: isMobile ? "16px 12px" : "20px 32px", borderBottom: `1px solid ${TI.border}` }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto", display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+          <div>
             <h1 style={{
-              fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900,
-              fontSize: isMobile ? 32 : 56, letterSpacing: "-0.04em", color: "#fff",
-              lineHeight: 1, margin: 0,
+              margin: 0, fontSize: isMobile ? 20 : 24, fontWeight: 800, color: TI.text,
+              fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em",
             }}>
-              Revisão do Criador
+              Revisão
             </h1>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              <div style={{
-                display: "flex", alignItems: "center", gap: 8,
-                backgroundColor: "#1c1917", padding: "8px 16px", borderRadius: 8,
-                border: "1px solid #292524",
-              }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#f97316", flexShrink: 0 }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#a8a29e" }}>Aguardando:</span>
-                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#fff" }}>{pendingItems.length}</span>
-              </div>
-              {/* A REGRA DOS NÚMEROS DESTA TELA, uma só: TODO contador conta o
-                  que a tela MOSTRA. "Aguardando" e o "X de Y peças" da barra de
-                  filtros voltaram a incluir as peças de evento finalizado, pelo
-                  mesmo motivo do Painel Geral — número que não bate com a lista
-                  logo abaixo é o defeito que ninguém percebe. Este contador é o
-                  que a regra deve: diz quanto do total é trabalho que ninguém
-                  vai mais fazer, para "Aguardando: 40" não virar cobrança falsa.
-                  #d6d3d1 sobre #1c1917 → 11,2:1 nos 11px. */}
-              {selosPorItem.size > 0 && (
-                <div
-                  data-testid="chip-evento-finalizado"
-                  title={"Estas peças continuam na lista porque a Revisão é onde se vê o que ficou por revisar — e porque excluir peça segue liberado."
-                    + " Liberar, devolver, reaproveitar e mexer na quantidade estão bloqueados nelas."}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 8,
-                    backgroundColor: "#1c1917", padding: "8px 16px", borderRadius: 8,
-                    border: "1px solid #292524",
-                  }}
-                >
-                  <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#78716c", flexShrink: 0 }} />
-                  <span style={{ fontSize: 11, fontWeight: 700, color: "#d6d3d1" }}>Evento finalizado:</span>
-                  <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#d6d3d1" }}>{selosPorItem.size}</span>
-                </div>
-              )}
-              <div style={{
-                display: "flex", alignItems: "center", gap: 8,
-                backgroundColor: "#1c1917", padding: "8px 16px", borderRadius: 8,
-                border: "1px solid #292524",
-              }}>
-                <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#10b981", flexShrink: 0 }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#a8a29e" }}>Selecionadas:</span>
-                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#f97316" }}>{selectedItemIds.size}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Right — quick action panel */}
-          <div style={{
-            backgroundColor: "rgba(28,25,23,0.8)", backdropFilter: "blur(12px)",
-            padding: 24, borderRadius: 12, border: "1px solid #292524",
-            width: isMobile ? "100%" : 280, display: "flex", flexDirection: "column", gap: 16, flexShrink: isMobile ? 1 : 0,
-          }}>
-            <p style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", letterSpacing: "0.18em", textTransform: "uppercase", margin: 0 }}>AÇÃO RÁPIDA</p>
-            {/* O CONTADOR DO BOTÃO é o das peças que de fato vão (`vivas`), não
-                o da seleção: prometer "Liberar (12)" e mandar 9 é a mentira que
-                o lote misto cria. Desabilita quando nenhuma sobra — espelho do
-                409 de lote inteiro do servidor —, e aí o `title` diz o motivo.
-                Ver `selecaoLote` para o critério. */}
-            <button
-              onClick={() => selecaoLote.vivas.length > 0 && setBulkReleaseConfirmOpen(true)}
-              disabled={selecaoLote.vivas.length === 0 || bulkReleaseMutation.isPending}
-              title={selecaoLote.ids.length > 0 && selecaoLote.vivas.length === 0
-                ? "Toda a seleção é de evento finalizado — liberar para produção está bloqueado nessas peças."
-                : undefined}
-              data-testid="button-bulk-release-hero"
-              style={{
-                width: "100%", padding: "12px 0", borderRadius: 6, border: "none",
-                backgroundColor: selecaoLote.vivas.length === 0 ? "#292524" : "#9d4300",
-                color: selecaoLote.vivas.length === 0 ? "rgba(255,255,255,0.45)" : "#fff",
-                fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em",
-                cursor: selecaoLote.vivas.length === 0 || bulkReleaseMutation.isPending ? "not-allowed" : "pointer",
-              }}>
-              {bulkReleaseMutation.isPending
-                ? "Processando..."
-                : `Liberar Selecionadas ${selecaoLote.vivas.length > 0 ? `(${selecaoLote.vivas.length})` : ""}`}
-            </button>
-            <button
-              onClick={() => selecaoLote.vivas.length > 0 && setBulkReturnConfirmOpen(true)}
-              disabled={selecaoLote.vivas.length === 0 || bulkReturnMutation.isPending}
-              title={selecaoLote.ids.length > 0 && selecaoLote.vivas.length === 0
-                ? "Toda a seleção é de evento finalizado — devolver para a Arte está bloqueado nessas peças."
-                : undefined}
-              data-testid="button-bulk-return-hero"
-              style={{
-                width: "100%", padding: "12px 0", borderRadius: 6,
-                border: "1px solid #44403c",
-                backgroundColor: "transparent",
-                color: selecaoLote.vivas.length === 0 ? "rgba(255,255,255,0.45)" : "#d6d3d1",
-                fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em",
-                cursor: selecaoLote.vivas.length === 0 || bulkReturnMutation.isPending ? "not-allowed" : "pointer",
-              }}>
-              {bulkReturnMutation.isPending
-                ? "Processando..."
-                : `Devolver Selecionadas ${selecaoLote.vivas.length > 0 ? `(${selecaoLote.vivas.length})` : ""}`}
-            </button>
-            {/* O que ficou de fora, dito no painel e não só no diálogo: quem
-                selecionou 40 linhas precisa ver o desconto antes de abrir a
-                confirmação. #d6d3d1 sobre #1c1917 → 11,2:1 nos 11px. */}
-            {selecaoLote.finalizadas > 0 && (
-              <p
-                role="status"
-                data-testid="aviso-lote-evento-finalizado"
-                style={{ margin: 0, fontSize: 11, lineHeight: 1.45, color: "#d6d3d1" }}
-              >
-                {avisoLoteFinalizadas()}
-              </p>
-            )}
+            <p style={{ margin: "4px 0 0", fontSize: 13, color: TI.secondary }}>
+              A última conferência antes da produção — o que passa vai para a Gráfica, o que volta vai para a Arte.
+            </p>
           </div>
         </div>
       </section>
+
 
       {/* ── 2. FILTER BAR ──────────────────────────────────────────────── */}
       <section style={{
@@ -929,11 +825,108 @@ export default function Solicitacao() {
                 Selecionar todos
               </label>
             )}
+            {/* O contador unico da tela. Herdou do hero o recado das pecas de
+                evento finalizado: elas CONTAM aqui (a regra dos numeros desta
+                tela e "todo contador conta o que a tela mostra"), mas quem le
+                "74" precisa saber quanto daquilo e trabalho que ninguem vai
+                mais fazer. #746e69 sobre branco = 5,15:1 nos 11px. */}
             <span style={{ fontSize: 11, color: TI.secondary, whiteSpace: "nowrap" }}>
               {filteredItems.length} de {pendingItems.length} peças
+              {selosPorItem.size > 0 && (
+                <span
+                  data-testid="chip-evento-finalizado"
+                  title={"Estas peças continuam na lista porque a Revisão é onde se vê o que ficou por revisar — e porque excluir peça segue liberado."
+                    + " Liberar, devolver, reaproveitar e mexer na quantidade estão bloqueados nelas."}
+                >
+                  {" · "}{selosPorItem.size} de evento finalizado
+                </span>
+              )}
             </span>
           </div>
         </div>
+
+        {/* ── Ações em lote ────────────────────────────────────────────────
+            Viviam num painel de 280px na area mais cara da tela, e passavam a
+            maior parte do tempo DESABILITADAS — porque na maior parte do tempo
+            nao ha nada selecionado. Agora entram quando existe selecao e somem
+            quando ela zera, no mesmo desenho que a Arte usa (pilula escura com
+            o × redondo). Como a barra e sticky, elas seguem alcancaveis com a
+            lista rolada — coisa que o painel do topo nao era. */}
+        {selecaoLote.ids.length > 0 && (
+          <div style={{ maxWidth: 1200, margin: "10px auto 0", display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+            <span
+              data-testid="chip-selecao"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, height: alturaControle, padding: "0 6px 0 12px", borderRadius: 999, background: "#1c1917", color: "#ffffff", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap" }}
+            >
+              {selecaoLote.ids.length} {selecaoLote.ids.length === 1 ? "selecionada" : "selecionadas"}
+              <button
+                onClick={() => setSelectedItemIds(new Set())}
+                aria-label="Limpar seleção"
+                data-testid="button-clear-selection"
+                style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(255,255,255,0.16)", border: "none", cursor: "pointer", color: "#ffffff", display: "inline-flex", alignItems: "center", justifyContent: "center" }}
+              >
+                <X style={{ width: 12, height: 12 }} />
+              </button>
+            </span>
+
+            {/* O que fica de fora, dito ANTES de abrir a confirmacao: quem
+                marcou 40 linhas precisa ver o desconto na hora. */}
+            {selecaoLote.finalizadas > 0 && (
+              <span
+                role="status"
+                data-testid="aviso-lote-evento-finalizado"
+                title={avisoLoteFinalizadas() ?? undefined}
+                style={{ fontSize: 12, color: TI.secondary }}
+              >
+                {selecaoLote.finalizadas} em evento finalizado, fora do lote
+              </span>
+            )}
+
+            <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {/* O CONTADOR DO BOTAO e o das pecas que de fato vao (`vivas`),
+                  nao o da selecao: prometer "Liberar (12)" e mandar 9 e a
+                  mentira que o lote misto cria. Desabilita quando nenhuma
+                  sobra — espelho do 409 de lote inteiro do servidor —, e ai o
+                  `title` diz o motivo. #ffffff sobre #9d4300 = 6,49:1 ✓ */}
+              <button
+                onClick={() => selecaoLote.vivas.length > 0 && setBulkReleaseConfirmOpen(true)}
+                disabled={selecaoLote.vivas.length === 0 || bulkReleaseMutation.isPending}
+                title={selecaoLote.vivas.length === 0
+                  ? "Toda a seleção é de evento finalizado — liberar para produção está bloqueado nessas peças."
+                  : undefined}
+                data-testid="button-bulk-release-hero"
+                style={{
+                  height: alturaControle, padding: "0 14px", borderRadius: 8, border: "none",
+                  backgroundColor: selecaoLote.vivas.length === 0 ? "#e7e5e4" : "#9d4300",
+                  color: selecaoLote.vivas.length === 0 ? "#78716c" : "#ffffff",
+                  fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
+                  cursor: selecaoLote.vivas.length === 0 || bulkReleaseMutation.isPending ? "not-allowed" : "pointer",
+                }}>
+                {bulkReleaseMutation.isPending
+                  ? "Processando..."
+                  : `Liberar ${selecaoLote.vivas.length}`}
+              </button>
+              <button
+                onClick={() => selecaoLote.vivas.length > 0 && setBulkReturnConfirmOpen(true)}
+                disabled={selecaoLote.vivas.length === 0 || bulkReturnMutation.isPending}
+                title={selecaoLote.vivas.length === 0
+                  ? "Toda a seleção é de evento finalizado — devolver para a Arte está bloqueado nessas peças."
+                  : undefined}
+                data-testid="button-bulk-return-hero"
+                style={{
+                  height: alturaControle, padding: "0 14px", borderRadius: 8,
+                  border: `1px solid ${TI.border}`, backgroundColor: TI.surface,
+                  color: selecaoLote.vivas.length === 0 ? "#a8a29e" : "#44403c",
+                  fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
+                  cursor: selecaoLote.vivas.length === 0 || bulkReturnMutation.isPending ? "not-allowed" : "pointer",
+                }}>
+                {bulkReturnMutation.isPending
+                  ? "Processando..."
+                  : `Devolver ${selecaoLote.vivas.length}`}
+              </button>
+            </div>
+          </div>
+        )}
       </section>
 
       {/* ── 3 & 4. HIGH-DENSITY TABLE ──────────────────────────────────── */}

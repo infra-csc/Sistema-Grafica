@@ -18,6 +18,12 @@
 //     anterior, os quatro KPIs abriam dizendo "Escolha um período para
 //     comparar" — ou seja, abria sem entregar o principal;
 //  6. o bloco "Tempo por etapa" ocupava meia dobra para dizer "— dias".
+//
+// O item 6 mudou de natureza: o bloco VOLTOU, agora com permanência medida na
+// trilha de auditoria (server/services/tempo-etapas.ts). O que continua sendo
+// testado aqui é a decisão que sobreviveu — recorte sem base suficiente não
+// ganha bloco vazio —, mais o caso novo: havendo base, o bloco aparece com
+// número e com denominador visível.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import * as React from "react";
@@ -67,6 +73,12 @@ const SPONSORS = [{ id: "sp1", name: "Alfa" }];
 const celular = vi.hoisted(() => ({ valor: false }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => celular.valor }));
 
+/* O agregado de "Tempo por etapa" NÃO sai de /api/items: ele é medido no
+   servidor sobre a trilha de auditoria. Fica num porta-valor para que o teste
+   escolha se aquele recorte tem base — que é a única coisa que decide se o
+   bloco aparece. */
+const tempo = vi.hoisted(() => ({ payload: null as unknown }));
+
 // A tela não passa queryFn (o app tem uma global). Aqui o dado é entregue
 // direto: o alvo do teste é a FAIXA, não a camada de rede.
 vi.mock("@tanstack/react-query", () => {
@@ -77,7 +89,9 @@ vi.mock("@tanstack/react-query", () => {
   };
   return {
     useQuery: ({ queryKey }: { queryKey: string[] }) => ({
-      data: porChave[queryKey[0]] ?? [],
+      data: queryKey[0]!.startsWith("/api/analises/tempo-por-etapa")
+        ? tempo.payload
+        : porChave[queryKey[0]!] ?? [],
       isLoading: false, isError: false, isFetching: false,
       dataUpdatedAt: Date.now(),
     }),
@@ -103,6 +117,9 @@ async function abrirTela() {
 
 beforeEach(() => {
   celular.valor = false;
+  // Sem base é o PADRÃO: nenhum teste desta suíte fala do bloco de tempo, e o
+  // bloco não pode aparecer por acidente no meio de quem mede a faixa.
+  tempo.payload = null;
   window.history.replaceState(null, "", "/analises");
 });
 afterEach(() => { cleanup(); });
@@ -216,14 +233,43 @@ describe("a tela abre respondendo", () => {
 });
 
 describe("blocos que não informam nada não ocupam tela", () => {
-  it("'Tempo por etapa' e o seu selo de dado indisponível saíram", async () => {
-    // O banco não registra a ENTRADA da peça em cada etapa; o bloco existia só
-    // para reservar o lugar e mostrava seis linhas de "— dias".
+  it("sem base no recorte, 'Tempo por etapa' não aparece — nem como lugar reservado", async () => {
+    // A regra que o dono estabeleceu ao reprovar o bloco vazio ("dado
+    // indisponível, não está nota 10 nunca essa tela") continua valendo depois
+    // de o número passar a existir: recorte sem base não ganha bloco.
+    tempo.payload = {
+      etapas: [],
+      etapasSemBase: [{ key: "layouts", label: "Entrega de Layouts", pecas: 2 }],
+      pecasNoRecorte: 3, pecasMedidas: 2, medicaoDesde: null, logsLidos: 4, truncado: false,
+    };
     const { queryByText, container } = await abrirTela();
     expect(queryByText(/Tempo por etapa/)).toBeNull();
     expect(queryByText(/Dado indispon/i)).toBeNull();
-    expect(container.querySelector("#h-etapa")).toBeNull();
     expect(container.textContent).not.toContain("— dias");
+  });
+
+  it("resposta ainda não carregada também não desenha bloco (nem derruba a tela)", async () => {
+    tempo.payload = undefined;
+    const { queryByText, container } = await abrirTela();
+    expect(queryByText(/Tempo por etapa/)).toBeNull();
+    expect(container.querySelector("#h-ofensores")).not.toBeNull();
+  });
+
+  it("com base, o bloco volta COM número e declara sobre quantas peças", async () => {
+    tempo.payload = {
+      etapas: [
+        { key: "layouts", label: "Entrega de Layouts", medianaDias: 9, pecas: 40, planejadoDias: 5, deltaDias: 4, emAberto: 3 },
+      ],
+      etapasSemBase: [],
+      pecasNoRecorte: 120, pecasMedidas: 44,
+      medicaoDesde: "2026-05-02T10:00:00.000Z", logsLidos: 900, truncado: false,
+    };
+    const { getByTestId, container } = await abrirTela();
+    expect(container.querySelector("#h-tempo")).not.toBeNull();
+    expect(getByTestId("tempo-etapa-layouts").textContent).toContain("9 dias");
+    // Denominador visível: a regra da tela é que nenhum número entra sozinho.
+    expect(getByTestId("tempo-cobertura").textContent).toContain("44 de 120 peças");
+    expect(getByTestId("tempo-etapa-layouts").textContent).toContain("além do plano");
   });
 
   it("o que é conteúdo real continua de pé", async () => {

@@ -30,6 +30,9 @@ import {
   computeDesempenho, computeOfensores, ordenarOfensores, rotaDoOfensor, variacao,
 } from "@/lib/analises-desempenho";
 import type { OfensorDim, OfensorOrdem, OfensorRow } from "@/lib/analises-desempenho";
+import type { TempoPorEtapa } from "@shared/tempo-etapas-contract";
+import { temBaseParaExibir } from "@shared/tempo-etapas-contract";
+import { diferencaContraPlano, etapaMaisCara, frasesDeCobertura } from "@/lib/analises-tempo";
 
 /* Laranja para TEXTO e para objeto gráfico (orange-700): o T.accent saturado
    fica em ~2,8:1 sobre branco — vale para bordas, nunca para rótulo legível
@@ -88,6 +91,18 @@ const PADDING_PAGINA = (isMobile: boolean) =>
      variação boa/ruim    #15803d / #ffffff =  5,02:1 ✓ · #b91c1c = 6,47:1 ✓
    Objeto gráfico (1.4.11 pede 3:1): média concluída #78716c / #ffffff = 4,80:1 ✓ */
 const RESUMO_APAGADO = "#57534e";
+
+/* Data por extenso para a frase de cobertura. `format()` do date-fns LANÇA em
+   data inválida e esta tela não tem error boundary — a guarda é a mesma que
+   analises-metrics.ts aplica em toda leitura de data. */
+const dataPorExtenso = (iso: string) => {
+  const d = new Date(iso);
+  return Number.isFinite(d.getTime()) ? format(d, "d 'de' MMMM 'de' yyyy", { locale: ptBR }) : "—";
+};
+
+/* Cor do juízo sobre a diferença contra o plano. "neutro" não ganha verde:
+   fechar no combinado é o esperado, não uma vitória. */
+const CORES_TOM = { bom: BOM, ruim: RUIM, neutro: T.second } as const;
 
 /* ── Recorte de período ──
    Por CICLO DO EVENTO (saída do caminhão já ocorrida), não por data de criação
@@ -295,6 +310,21 @@ export default function DashboardAnalises() {
   const evQ = useQuery<AnaliseEvent[]>({ queryKey: ["/api/events"], ...freshness });
   const itQ = useQuery<AnaliseItem[]>({ queryKey: ["/api/items"], ...freshness });
   const spQ = useQuery<AnaliseSponsor[]>({ queryKey: ["/api/sponsors"], ...freshness });
+  // Tempo por etapa é o único agregado desta tela que NÃO sai de /api/items: a
+  // permanência mora na trilha de auditoria, e baixar a trilha para o navegador
+  // custaria dezenas de MB. O recorte vai na URL porque o servidor precisa
+  // aplicar os MESMOS filtros — o rodapé do bloco declara cobertura sobre a
+  // população do recorte, e recorte diferente ali seria número honesto sobre a
+  // base errada. Falha isolada de propósito (ver `isError`): o bloco some, o
+  // resto da tela continua de pé.
+  const tempoQ = useQuery<TempoPorEtapa>({
+    queryKey: [
+      `/api/analises/tempo-por-etapa?periodo=${encodeURIComponent(period)}`
+      + `&evento=${encodeURIComponent(eventFilter)}`
+      + `&patrocinador=${encodeURIComponent(sponsorFilter)}`,
+    ],
+    ...freshness,
+  });
   const events = evQ.data ?? [];
   const items = itQ.data ?? [];
   const sponsors = spQ.data ?? [];
@@ -435,6 +465,11 @@ export default function DashboardAnalises() {
   const carga = useMemo(
     () => computeCapacidade({ items: itemsCarga, cycleDayByEvent, nowMs: agora }),
     [itemsCarga, cycleDayByEvent, agora]);
+
+  /* Tempo por etapa já chega agregado do servidor — aqui só se decide se há
+     base para o bloco existir e qual etapa lidera a perda. */
+  const tempo = temBaseParaExibir(tempoQ.data) ? tempoQ.data! : null;
+  const piorEtapa = tempo ? etapaMaisCara(tempo) : null;
 
   const ofensores = useMemo(
     () => ordenarOfensores(
@@ -1018,29 +1053,88 @@ export default function DashboardAnalises() {
         </p>
       </section>
 
-      {/* ── "Tempo por etapa" foi REMOVIDO daqui (e não esquecido) ──
-          O bloco existia como lugar reservado: título, selo "DADO
-          INDISPONÍVEL", um parágrafo explicando a limitação e seis linhas de
-          "— dias". A intenção era honesta — não inventar número —, mas o efeito
-          era meia dobra de tela ocupada para não informar nada, empurrando os
-          Ofensores (conteúdo real) para baixo. Bloco a menos é melhor que bloco
-          vazio.
+      {/* ── "Tempo por etapa" — o bloco voltou COM NÚMERO ──
+          Ele saiu daqui por ser lugar reservado: seis linhas de "— dias" e um
+          selo "DADO INDISPONÍVEL" ocupando meia dobra para não informar nada
+          ("dado indisponível, não está nota 10 nunca essa tela").
 
-          A LIMITAÇÃO CONTINUA VERDADEIRA, e é por isso que ela fica escrita
-          aqui: `items` não guarda quando a peça ENTRA em cada etapa. Existem
-          carimbos das etapas finais (`producedAt`, `conferredAt`,
-          `deliveredAt`) e nada que marque a entrada em "aguardando envio" ou
-          em "aguardando aprovação" — justamente as duas onde a operação mais
-          reclama de perder tempo. Calcular permanência mediana por etapa a
-          partir do que esta tela lê hoje só é possível INVENTANDO a data de
-          entrada; não faça isso.
+          O que destravou: `items` continua sem guardar quando a peça ENTRA em
+          cada etapa, mas a trilha de auditoria passou a gravar toda mudança de
+          status com hora, e a leitura da trilha deixou de ter teto. A diferença
+          entre dois carimbos consecutivos da mesma peça É a permanência — sem
+          coluna nova. A conta mora no servidor (`services/tempo-etapas.ts`),
+          porque a tela não pode baixar `audit_logs`.
 
-          O caminho para trazer o bloco de volta com número real existe e não
-          passa por coluna nova: o servidor grava as mudanças de status em
-          `audit_logs`, e a diferença entre carimbos consecutivos da mesma peça
-          É a permanência. Isso exige um agregado no servidor (a trilha não é
-          carregada por esta tela) e está sendo tratado à parte. Enquanto esse
-          número não existir, o espaço não volta. */}
+          A DECISÃO ANTERIOR CONTINUA VALENDO e é o `temBaseParaExibir` abaixo:
+          recorte sem base suficiente não ganha bloco vazio — ganha silêncio. */}
+      {tempo && (
+        <section aria-labelledby="h-tempo" style={{ backgroundColor: T.surface, border: `1px solid ${T.bdark}`, padding: isMobile ? "20px 16px" : "24px 28px 20px", marginBottom: SP.secao }}>
+          <div style={{ marginBottom: SP.bloco }}>
+            <h2 id="h-tempo" style={{ fontSize: FS.title, fontWeight: 700, color: T.text, margin: `0 0 ${SP.intra}px`, fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em", fontStyle: "italic" }}>
+              Tempo por etapa
+            </h2>
+            <p style={{ fontSize: FS.small, color: T.second, margin: 0, lineHeight: 1.45, maxWidth: 700 }}>
+              Quanto tempo a peça fica parada em cada etapa, pela trilha de auditoria, contra o que os
+              marcos do evento planejavam para ela. <strong style={{ fontWeight: 700 }}>Mediana</strong>, não média —
+              uma peça esquecida distorce a média da operação inteira.
+              {piorEtapa
+                ? ` Onde mais se perde tempo hoje: ${piorEtapa.label}.`
+                : " Nenhuma etapa passa do plano neste recorte."}
+            </p>
+          </div>
+
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 620 }}>
+              <caption className="sr-only">
+                Permanência mediana por etapa do funil, comparada ao prazo planejado da etapa
+              </caption>
+              <thead>
+                <tr style={{ backgroundColor: T.low }}>
+                  <th scope="col" style={{ textAlign: "left", padding: "9px 12px", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", borderBottom: `1px solid ${T.bdark}` }}>Etapa</th>
+                  <th scope="col" style={{ textAlign: "right", padding: "9px 12px", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", borderBottom: `1px solid ${T.bdark}` }}>Permanência</th>
+                  <th scope="col" style={{ textAlign: "right", padding: "9px 12px", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", borderBottom: `1px solid ${T.bdark}` }}>Planejado</th>
+                  <th scope="col" style={{ textAlign: "left", padding: "9px 12px", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", borderBottom: `1px solid ${T.bdark}` }}>Diferença</th>
+                  <th scope="col" style={{ textAlign: "right", padding: "9px 12px", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", borderBottom: `1px solid ${T.bdark}` }}>Peças medidas</th>
+                  <th scope="col" style={{ textAlign: "right", padding: "9px 12px", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.12em", borderBottom: `1px solid ${T.bdark}` }}>Paradas hoje</th>
+                </tr>
+              </thead>
+              <tbody>
+                {tempo.etapas.map((e) => {
+                  const dif = diferencaContraPlano(e);
+                  return (
+                    <tr key={e.key} data-testid={`tempo-etapa-${e.key}`} style={{ borderBottom: `1px solid ${T.border}` }}>
+                      <th scope="row" style={{ textAlign: "left", padding: "11px 12px", fontSize: FS.body, fontWeight: 700, color: T.text }}>
+                        {e.label}
+                      </th>
+                      <td style={{ textAlign: "right", padding: "11px 12px", fontSize: FS.body, fontWeight: 700, color: T.text, fontFamily: "'DM Mono', monospace" }}>
+                        {dias(e.medianaDias)}
+                      </td>
+                      <td style={{ textAlign: "right", padding: "11px 12px", fontSize: FS.body, color: T.second, fontFamily: "'DM Mono', monospace" }}>
+                        {e.planejadoDias == null ? "sem marco anterior" : dias(e.planejadoDias)}
+                      </td>
+                      <td style={{ textAlign: "left", padding: "11px 12px", fontSize: FS.small, fontWeight: 700, color: dif ? CORES_TOM[dif.tom] : T.second }}>
+                        {dif ? dif.texto : "—"}
+                      </td>
+                      <td style={{ textAlign: "right", padding: "11px 12px", fontSize: FS.small, color: T.second, fontFamily: "'DM Mono', monospace" }}>
+                        {int(e.pecas)}
+                      </td>
+                      <td style={{ textAlign: "right", padding: "11px 12px", fontSize: FS.small, color: T.second, fontFamily: "'DM Mono', monospace" }}>
+                        {int(e.emAberto)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          <p data-testid="tempo-cobertura" style={{ fontSize: FS.micro, color: T.second, margin: `${SP.junto}px 0 0`, lineHeight: 1.5, maxWidth: 900 }}>
+            {frasesDeCobertura(tempo, dataPorExtenso).join(" ")}
+            {" "}Permanência em dias-calendário no fuso de São Paulo; o planejado é a distância entre o
+            marco da etapa e o da anterior, pelos offsets do próprio evento.
+          </p>
+        </section>
+      )}
 
       <section aria-labelledby="h-ofensores" style={{ backgroundColor: T.surface, border: `1px solid ${T.bdark}` }}>
         <div style={{ padding: isMobile ? "20px 16px 16px" : "24px 28px 16px", borderBottom: `1px solid ${T.low}` }}>

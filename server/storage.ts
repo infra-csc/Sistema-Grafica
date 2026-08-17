@@ -228,6 +228,43 @@ function auditLogsBefore(cursor?: AuditLogCursor | null) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// LEITURA MAGRA DA TRILHA — só o que mede permanência por etapa.
+//
+// O bloco "Tempo por etapa" da Análises precisa das mudanças de STATUS de
+// peça, e só delas. Usar `getAuditLogs` para isso traria a trilha inteira
+// (inclusive `userName`, `userId` e `id`, que ninguém usa ali) e paginaria em
+// dezenas de idas ao banco.
+//
+// Os dois cortes que fazem o custo caber, ambos no SQL:
+//  · `created_at >= since` — usa IDX_audit_logs_created_at, o único índice que
+//    a tabela tem hoje (não há índice por entity_id: ver o comentário do
+//    schema). O `since` que a rota manda é o createdAt da peça mais antiga do
+//    recorte; nenhuma transição pode ser anterior à criação da própria peça.
+//  · o formato da frase — as linhas que NÃO carregam seta nem uma das cinco
+//    ações de rota com destino constante não descrevem transição nenhuma
+//    (comentário, troca de arquivo, conferência parcial). Filtrar isso aqui
+//    evita trazê-las pelo cabo para o Node descartar.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Linha da trilha reduzida ao que a medição de permanência lê. */
+export interface ItemTransitionLog {
+  entityId: string;
+  action: string;
+  details: string | null;
+  createdAt: Date;
+}
+
+/** Ações cujo destino de status é constante da rota (ver CATALOGO). */
+const ACOES_COM_DESTINO_FIXO = ["dispensed", "delivered", "canceled", "rejected", "approved"];
+
+/**
+ * Teto de varredura. Passar disto significa devolver número PARCIAL — a rota
+ * declara isso na tela em vez de mentir um total. 120 mil linhas de quatro
+ * colunas ficam na casa de poucos MB no Node.
+ */
+export const TRANSITION_LOGS_MAX = 120_000;
+
 export interface IStorage {
   // Events
   getEvent(id: string): Promise<Event | undefined>;
@@ -300,6 +337,7 @@ export interface IStorage {
   // Audit Logs
   getAuditLogs(entityType?: string, entityId?: string, opts?: AuditLogQuery): Promise<AuditLog[]>;
   getAuditLogsCount(entityType?: string, entityId?: string): Promise<number>;
+  getItemTransitionLogs(sinceMs: number | null, limit?: number): Promise<ItemTransitionLog[]>;
   createAuditLog(log: InsertAuditLog): Promise<AuditLog>;
   
   // Users
@@ -1339,6 +1377,41 @@ export class DatabaseStorage implements IStorage {
     const base = db.select({ total: sql<number>`count(*)::int` }).from(auditLogs);
     const [row] = conditions ? await base.where(conditions) : await base;
     return row?.total ?? 0;
+  }
+
+  /**
+   * Mudanças de status de PEÇA desde `sinceMs` (null = desde sempre), da mais
+   * recente para a mais antiga.
+   *
+   * A ordem é DESC por causa do teto: quando ele estoura, o que se perde é o
+   * passado distante, não o mês corrente — e `medicaoDesde` passa a ser o
+   * registro mais antigo REALMENTE lido, que é a data honesta a declarar.
+   */
+  async getItemTransitionLogs(
+    sinceMs: number | null,
+    limit: number = TRANSITION_LOGS_MAX,
+  ): Promise<ItemTransitionLog[]> {
+    const filtros = [
+      eq(auditLogs.entityType, "item"),
+      or(
+        like(auditLogs.details, "%→%"),
+        inArray(auditLogs.action, ACOES_COM_DESTINO_FIXO),
+      )!,
+    ];
+    if (sinceMs != null && Number.isFinite(sinceMs)) {
+      filtros.push(gte(auditLogs.createdAt, new Date(sinceMs)));
+    }
+    return await db
+      .select({
+        entityId: auditLogs.entityId,
+        action: auditLogs.action,
+        details: auditLogs.details,
+        createdAt: auditLogs.createdAt,
+      })
+      .from(auditLogs)
+      .where(and(...filtros))
+      .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id))
+      .limit(Math.min(Math.max(1, Math.floor(limit)), TRANSITION_LOGS_MAX));
   }
 
   async createAuditLog(insertLog: InsertAuditLog): Promise<AuditLog> {

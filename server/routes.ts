@@ -21,6 +21,7 @@ import { registerCommentRoutes } from "./routes/comments";
 import { registerPhotoRoutes } from "./routes/photos";
 import { registerAuditLogRoutes } from "./routes/audit-logs";
 import { registerPrazoRoutes } from "./routes/prazos";
+import { registerAnaliseRoutes } from "./routes/analises";
 import { registerObjectRoutes } from "./routes/objects";
 import { registerInventoryRoutes } from "./routes/inventory";
 import { startDeadlineAlerts } from "./services/deadlineAlerts";
@@ -57,6 +58,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerPhotoRoutes(app);
   registerAuditLogRoutes(app);
   registerPrazoRoutes(app);
+  registerAnaliseRoutes(app);
   await registerObjectRoutes(app);
 
   // ── Background jobs ──────────────────────────────────────────────────────

@@ -204,17 +204,43 @@ export interface CtxFiltros {
 /**
  * As dimensões que têm DROPDOWN com opções e contagem.
  *
- * A INVARIANTE DESTE ARQUIVO — a que ninguém percebe quebrando, e que é a razão
- * de `excluir` existir: FACETA E LISTA SAEM DO MESMO POOL. As opções de um
- * dropdown são calculadas com `itemCasaFiltros(item, f, ctx, { excluir: <esta
- * dimensão> })` sobre EXATAMENTE o mesmo array que alimenta a lista; a lista usa
- * a mesma função sem `excluir`. Assim o pool da faceta é, por construção, um
- * superconjunto da lista que difere só naquele filtro — e por isso:
- *   · a faceta nunca oferece MENOS do que a lista mostra (o operador vê a peça
- *     do evento na tela e o evento está no dropdown), e
- *   · a faceta nunca oferece MAIS do que a lista entrega (opção clicada nunca
- *     devolve lista vazia, e a contagem ao lado do nome é o número de linhas
- *     que o clique produz).
+ * ┌─ A INVARIANTE DESTE ARQUIVO, POR EXTENSO ────────────────────────────────┐
+ * │ TODA OPÇÃO OFERECIDA ENTREGA PELO MENOS UMA LINHA AO SER CLICADA, E A    │
+ * │ CONTAGEM AO LADO DELA É EXATAMENTE O NÚMERO DE LINHAS QUE O CLIQUE       │
+ * │ ENTREGA. E o caminho de volta: todo valor VISÍVEL na lista é oferecido   │
+ * │ no menu.                                                                 │
+ * └──────────────────────────────────────────────────────────────────────────┘
+ *
+ * Como isso se garante, e é a razão de `excluir` existir: FACETA E LISTA SAEM DO
+ * MESMO POOL. As opções de um dropdown são calculadas com `itemCasaFiltros(item,
+ * f, ctx, { excluir: <esta dimensão> })` sobre EXATAMENTE o mesmo array que
+ * alimenta a lista; a lista usa a mesma função sem `excluir`. Assim o pool da
+ * faceta é, por construção, um superconjunto da lista que difere só naquele
+ * filtro — a faceta nunca oferece MENOS do que a lista mostra (o operador vê a
+ * peça do evento na tela e o evento está no dropdown) nem MAIS do que ela
+ * entrega (opção clicada nunca devolve lista vazia).
+ *
+ * A REGRA UNIFORME QUE FALTAVA — a que alguém quebra ao acrescentar o próximo
+ * filtro, e o motivo de estar escrita aqui: o pool da faceta tem de ser o
+ * recorte QUE O CLIQUE PRODUZ, não o recorte de agora. Onde os dois diferem é na
+ * ocultação das entregues, que não é filtro e cede a quem pede por elas
+ * (`escondeEntregues`). Então:
+ *
+ *   SE CLICAR NAQUELA OPÇÃO REVELA AS ENTREGUES, A FACETA CONTA AS ENTREGUES E
+ *   OFERECE A OPÇÃO COM ESSE NÚMERO. SE NÃO REVELA, NÃO CONTA.
+ *
+ * Aplicada às oito facetas com o `escondeEntregues` de hoje: `status` e `evento`
+ * revelam (as duas ficam de fora da poda em `itemCasaFiltros`, e é por isso que
+ * o menu de Status oferece "Entregues" e o de Eventos oferece um evento 100%
+ * entregue); `grupo`, `percurso`, `tipo`, `material`, `acabamento` e `mes` não
+ * revelam, então uma opção cujas peças estejam todas entregues simplesmente não
+ * é oferecida — e o operador chega nela pelo chip "N entregues ocultas ·
+ * mostrar", que a tela mantém visível justamente para isso. Nos dois casos a
+ * promessa do quadro acima se cumpre.
+ *
+ * A regra não é "evento é especial". É: quem for acrescentado a
+ * `escondeEntregues` como recorte que REVELA entra também na lista de `excluir`
+ * poupados na poda de `itemCasaFiltros` — os dois lugares mudam juntos, sempre.
  *
  * `mes` entrou nesta lista depois: o dropdown de Mês era uma lista FIXA dos doze
  * meses, sem contagem — oferecia Janeiro sobre uma fila que só tem Agosto e o
@@ -245,14 +271,31 @@ const casaStatus = (statusDoItem: string, escolhido: string): boolean =>
     : statusDoItem === escolhido;
 
 /**
- * As entregues ficam ocultas por padrão — MAS não quando o operador pediu por
- * elas: escolher "Entregues" no filtro de status ou buscar uma peça pelo código
- * é pedir o arquivo explicitamente. Sem esta exceção, clicar no KPI "Entregues"
- * abriria uma lista vazia e o deep link do sino para uma peça já entregue não
- * acharia nada.
+ * As entregues ficam ocultas por padrão — MAS não quando o operador PEDIU por
+ * elas. São quatro pedidos, e os quatro são intenção explícita de ver aquilo:
+ *   · o chip "mostrar" do rodapé (`entregues`);
+ *   · "Entregues" no filtro de status — é o par do KPI Entregues; sem isto,
+ *     clicar no card abriria uma lista vazia;
+ *   · a busca livre — o deep link do sino para uma peça já entregue e quem
+ *     digita o nome do evento têm de achar;
+ *   · o EVENTO escolhido a dedo no filtro (ver REVELAÇÃO, abaixo).
+ *
+ * REVELAÇÃO — por que o evento entrou aqui (defeito do dono do NORTE, 17/08):
+ * "Primavera Manaus" tem 77 peças e as 77 estão entregues. Digitando "manaus" na
+ * busca livre o evento aparecia no menu e as peças na lista; sem digitar, o
+ * evento SUMIA do filtro de Eventos — as 77 estavam ocultas, o evento ficava com
+ * zero peça visível e caía da faceta. Duas maneiras de dizer "quero este
+ * evento", duas respostas diferentes.
+ *
+ * Escolher um evento é nomear um TRABALHO INTEIRO, com começo e fim — pedir por
+ * ele é pedir a história dele, exatamente como digitar o nome dele na busca. Não
+ * vale para grupo/percurso/tipo/material/acabamento/mês: esses são RECORTES DA
+ * FILA ("a lona que tenho para fazer"), e revelar toda lona já entregue
+ * transformaria a fila em arquivo. Mesma exceção que o Painel Geral já usa para
+ * as peças de evento finalizado (`!eventFilter.includes(item.eventId)`).
  */
 export const escondeEntregues = (f: GraficaFiltros): boolean =>
-  !f.entregues && !f.status.includes("delivered") && !f.busca.trim();
+  !f.entregues && !f.status.includes("delivered") && !f.busca.trim() && f.evento.length === 0;
 
 export function itemCasaFiltros(
   item: ItemGrafica,
@@ -275,10 +318,16 @@ export function itemCasaFiltros(
         !normalizarBusca(item.event?.name).includes(q)) return false;
   }
 
-  // A ocultação das entregues é parte do recorte de STATUS: quem exclui o
-  // filtro de status (faceta) ou o ignora (pool dos KPIs) exclui as duas.
   if (!ignorarStatus && excluir !== "status") {
     if (f.status.length > 0 && !f.status.some((s) => casaStatus(String(item.status ?? ""), s))) return false;
+  }
+  // A ocultação das entregues não é um filtro: é o padrão da tela, e ela CEDE
+  // aos recortes que pedem pelas entregues (`escondeEntregues`). Por isso a
+  // faceta de quem revela tem de enxergar ATRAVÉS dela — senão o menu ofereceria
+  // um número que o clique não entrega, ou (o defeito do NORTE) não ofereceria
+  // nada. Hoje quem revela é status e evento; quem acrescentar um terceiro
+  // recorte a `escondeEntregues` acrescenta o nome aqui na mesma linha.
+  if (!ignorarStatus && excluir !== "status" && excluir !== "evento") {
     if (escondeEntregues(f) && isDelivered(item)) return false;
   }
   if (!ignorarStatus && f.complementos && !isComplement(item)) return false;

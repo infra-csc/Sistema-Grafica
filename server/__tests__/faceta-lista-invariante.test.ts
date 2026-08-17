@@ -67,6 +67,13 @@ const EVENTOS = {
     id: "ev-realizado",
     event: { name: "SÓ QUERO PEDALAR SP", status: "active", startDate: iso(HOJE_UTC - 2 * DIA), truckDepartureDate: iso(HOJE_UTC - 9 * DIA) },
   },
+  // O evento do SEGUNDO relato (dono do NORTE, 17/08): TODAS as peças entregues.
+  // É o caso que fazia o evento sumir do filtro de Eventos enquanto a busca
+  // livre pelo nome dele o oferecia normalmente.
+  entregue: {
+    id: "ev-entregue",
+    event: { name: "PRIMAVERA MANAUS", status: "active", startDate: iso(HOJE_UTC - 5 * DIA), truckDepartureDate: iso(HOJE_UTC - 12 * DIA) },
+  },
 } as const;
 
 let seq = 0;
@@ -100,6 +107,12 @@ const BASE: ItemGrafica[] = [
   // Grafia legada da MESMA etapa — a faceta de status tem de somá-la com
   // "ready_for_production" numa opção só.
   peca("vivo", { status: "pronto_para_producao" }),
+  // PRIMAVERA MANAUS: três peças, as três entregues. Nenhuma delas aparece na
+  // fila padrão — e mesmo assim o evento tem de ser oferecido no menu, porque o
+  // clique nele revela as três.
+  peca("entregue", { status: "delivered", quantityDelivered: 10 }),
+  peca("entregue", { status: "delivered", quantityDelivered: 10, type: "Pórtico", material: "PS 2mm" }),
+  peca("entregue", { status: "delivered", quantityDelivered: 10, type: "Placa km 21,1k - km 2", finish: "Bastão" }),
 ];
 
 const f = (over: Partial<GraficaFiltros> = {}): GraficaFiltros => ({ ...FILTROS_VAZIOS, ...over });
@@ -168,24 +181,82 @@ const RECORTES: Array<[string, GraficaFiltros]> = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-describe("Gráfica — a faceta oferece EXATAMENTE o que a lista mostra", () => {
+// A INVARIANTE, NA FORMA QUE IMPORTA PARA QUEM USA A TELA.
+//
+// Ela já foi "o conjunto oferecido é exatamente o presente na lista", com a
+// faceta de Status documentada à parte como exceção deliberada — o menu segue
+// oferecendo "Entregues" mesmo com as entregues ocultas, porque o clique as
+// REVELA. Essa formulação não sobreviveu ao segundo relato: pela letra dela, um
+// evento 100% entregue não podia ser oferecido (nenhuma peça dele está na
+// lista), e era exatamente isso que fazia "Primavera Manaus" sumir do filtro de
+// Eventos enquanto a busca livre pelo nome o encontrava. A exceção não era do
+// Status: era de TODA faceta cujo clique revela.
+//
+// A promessa que o menu faz a quem clica não é sobre a lista de agora, é sobre a
+// lista DEPOIS do clique. Então a invariante é:
+//
+//   1. toda opção oferecida entrega PELO MENOS UMA linha ao ser clicada, e a
+//      contagem ao lado dela é o número de linhas que o clique entrega;
+//   2. todo valor VISÍVEL na lista é oferecido no menu (o caminho de volta: ver
+//      a peça na tela e não conseguir filtrar por ela foi o primeiro relato).
+//
+// Sem exceção nenhuma, para nenhuma faceta. A regra que decide se a faceta conta
+// as entregues está escrita por extenso em lib/grafica-filtros (FacetaGrafica):
+// se o clique revela, a faceta conta; se não revela, não conta.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("Gráfica — toda opção oferecida entrega o que promete", () => {
   it.each(RECORTES)("%s", (_nome, filtros) => {
     for (const faceta of FACETAS) {
-      // A igualdade exata vale quando a dimensão NÃO está filtrada. Com ela
-      // filtrada, o menu oferecer as outras opções é justamente o ponto do
-      // facetamento (é como se troca de evento sem limpar o filtro antes).
-      if ((filtros[CAMPO[faceta]] as string[]).length > 0) continue;
-      // A ÚNICA exceção, e é deliberada: com as entregues ocultas, o menu de
-      // Status continua oferecendo "Entregues". Não é oferecer mais do que a
-      // lista entrega — o clique REVELA as entregues (`escondeEntregues` abre
-      // exceção para quem pede por elas), então a promessa se cumpre. Sem isso
-      // o KPI "Entregues" ficaria sem par no menu, que foi o defeito anterior
-      // desta tela. A contagem dessa opção é conferida no bloco seguinte.
-      if (faceta === "status" && escondeEntregues(filtros)) continue;
-      expect(
-        ordenado(opcoesDaFaceta(faceta, filtros).keys()),
-        `faceta "${faceta}" divergiu da lista`,
-      ).toEqual(ordenado(naLista(faceta, filtros)));
+      // Faceta VAZIA é legítima e não é o que se está checando aqui: filtrar por
+      // "Banner" deixa o menu de Percurso sem nenhuma opção, e o dropdown se
+      // esconde. O que não pode existir é opção que não entrega.
+      const opcoes = opcoesDaFaceta(faceta, filtros);
+      for (const [valor, contagem] of opcoes) {
+        const aoClicar = lista({ ...filtros, [CAMPO[faceta]]: [valor] } as GraficaFiltros);
+        expect(
+          aoClicar.length,
+          `faceta "${faceta}", opção "${valor}": o menu prometeu ${contagem} e o clique entregou ${aoClicar.length}`,
+        ).toBe(contagem);
+        expect(contagem, `faceta "${faceta}", opção "${valor}" nasceu vazia`).toBeGreaterThan(0);
+      }
+    }
+  });
+
+  it("as oito facetas têm opção na fila limpa — o teste acima não passa a vazio", () => {
+    // Sem esta trava, um bug que zerasse TODOS os menus passaria pelo it.each
+    // acima sem uma única asserção executada.
+    for (const faceta of FACETAS) {
+      expect(opcoesDaFaceta(faceta, f()).size, `faceta "${faceta}"`).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("Gráfica — todo valor visível na lista é oferecido no menu", () => {
+  it.each(RECORTES)("%s", (_nome, filtros) => {
+    for (const faceta of FACETAS) {
+      const oferecidos = opcoesDaFaceta(faceta, filtros);
+      for (const valor of naLista(faceta, filtros)) {
+        expect(
+          oferecidos.has(valor),
+          `faceta "${faceta}": "${valor}" está na lista e sumiu do menu`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("a faceta só passa da lista quando o clique REVELA — status e evento", () => {
+    // O contrapositivo do teste acima, e o que separa "revelar" de "prometer o
+    // que não existe": nas seis facetas que NÃO revelam, o conjunto oferecido é
+    // exatamente o presente na lista. Nas duas que revelam, ele é maior — e cada
+    // opção a mais entrega suas linhas (bloco anterior).
+    for (const faceta of FACETAS) {
+      const oferecidos = ordenado(opcoesDaFaceta(faceta, f()).keys());
+      const visiveis = ordenado(naLista(faceta, f()));
+      if (faceta === "status" || faceta === "evento") {
+        expect(oferecidos.length, `faceta "${faceta}"`).toBeGreaterThan(visiveis.length);
+      } else {
+        expect(oferecidos, `faceta "${faceta}" passou da lista sem revelar nada`).toEqual(visiveis);
+      }
     }
   });
 
@@ -207,27 +278,112 @@ describe("Gráfica — a faceta oferece EXATAMENTE o que a lista mostra", () => 
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+describe("Gráfica — o evento 100% entregue (relato do dono do NORTE, 17/08)", () => {
+  // "Na Gráfica só aparece quando filtro na busca manual; quando vou no filtro
+  // Eventos, Primavera Manaus não aparece." As peças estavam todas entregues, e
+  // as entregues são ocultas por padrão: sem busca, o evento ficava com zero
+  // peça visível e caía da faceta. Com a busca preenchida, `escondeEntregues`
+  // abria exceção, as peças voltavam e o evento voltava ao menu junto. A faceta
+  // estava coerente com a lista — e o dono, sem caminho até o que procurava.
+  it("as peças do evento estão TODAS entregues e todas ocultas na fila padrão", () => {
+    const doEvento = BASE.filter(i => i.eventId === "ev-entregue");
+    expect(doEvento.length).toBe(3);
+    expect(doEvento.every(i => i.status === "delivered")).toBe(true);
+    expect(lista(f()).filter(i => i.eventId === "ev-entregue").length).toBe(0);
+  });
+
+  it("pela BUSCA LIVRE o evento aparece — o caminho que funcionou para o dono", () => {
+    expect(escondeEntregues(f({ busca: "manaus" }))).toBe(false);
+    expect(opcoesDaFaceta("evento", f({ busca: "manaus" })).get("ev-entregue")).toBe(3);
+    expect(lista(f({ busca: "manaus" })).length).toBe(3);
+  });
+
+  it("pelo FILTRO DE EVENTOS ele aparece igual, e com a contagem das entregues", () => {
+    // O defeito, travado: antes desta correção a chamada abaixo devolvia
+    // `undefined` — o evento não era oferecido.
+    expect(opcoesDaFaceta("evento", f()).get("ev-entregue")).toBe(3);
+  });
+
+  it("e o clique entrega as três — o menu não promete o que não pode cumprir", () => {
+    // Sem a exceção de `escondeEntregues` para o evento escolhido a dedo, este
+    // clique devolveria ZERO: oferecer a opção sem revelar seria trocar um menu
+    // que esconde por um menu que mente.
+    expect(escondeEntregues(f({ evento: ["ev-entregue"] }))).toBe(false);
+    expect(lista(f({ evento: ["ev-entregue"] })).length).toBe(3);
+  });
+
+  it("os dois caminhos até o evento dão a MESMA lista", () => {
+    // Buscar o nome e escolher no menu são duas maneiras de dizer "quero este
+    // evento". Darem respostas diferentes era o defeito por baixo do relato.
+    expect(lista(f({ busca: "primavera manaus" })).map(i => i.id))
+      .toEqual(lista(f({ evento: ["ev-entregue"] })).map(i => i.id));
+  });
+
+  it("revelar é do EVENTO escolhido, não da fila inteira", () => {
+    // A fronteira da decisão: escolher o evento revela as entregues DELE; a fila
+    // continua sendo a fila. Um recorte de atributo (material) não revela nada.
+    const so = lista(f({ evento: ["ev-entregue"] }));
+    expect(so.every(i => i.eventId === "ev-entregue")).toBe(true);
+    expect(escondeEntregues(f({ material: ["Lona 440g"] }))).toBe(true);
+    expect(lista(f({ material: ["Lona 440g"] })).some(i => i.status === "delivered")).toBe(false);
+  });
+
+  it("as facetas de ATRIBUTO não oferecem o que só existe entregue", () => {
+    // "PS 2mm" e "Bastão" existem em peça viva; "Placa km 21,1k" e o percurso
+    // "21,1k" só existem no evento 100% entregue — então não são oferecidos, e é
+    // o certo: a opção não teria uma linha para entregar. O caminho até eles é o
+    // chip "N entregues ocultas · mostrar" (ou o próprio evento).
+    expect(opcoesDaFaceta("tipo", f()).has("Placa km 21,1k - km 2")).toBe(false);
+    expect(opcoesDaFaceta("percurso", f()).has("21,1k")).toBe(false);
+    expect(opcoesDaFaceta("tipo", f({ entregues: true })).get("Placa km 21,1k - km 2")).toBe(1);
+    expect(opcoesDaFaceta("percurso", f({ entregues: true })).get("21,1k")).toBe(1);
+    // E pelo evento também se chega, porque o evento revela.
+    expect(opcoesDaFaceta("tipo", f({ evento: ["ev-entregue"] })).get("Placa km 21,1k - km 2")).toBe(1);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe("Gráfica — o atalho 'mostrar entregues' promete o que entrega", () => {
+  // A MESMA régua dos menus, aplicada ao chip do rodapé e ao botão do empty
+  // state (`entreguesOcultas` em grafica.tsx): o número é o que o CLIQUE traz,
+  // não o que está escondido. É a saída das seis facetas que não revelam — sem
+  // ela, um recorte cujas peças foram todas entregues vira beco sem saída.
+  const revelaAoMostrar = (filtros: GraficaFiltros) =>
+    escondeEntregues(filtros) ? lista({ ...filtros, entregues: true }).length - lista(filtros).length : 0;
+
+  it("na fila limpa, promete as entregues e as entrega", () => {
+    expect(revelaAoMostrar(f())).toBe(5);
+    expect(lista(f({ entregues: true })).length).toBe(lista(f()).length + 5);
+  });
+
+  it("com um STATUS escolhido, não promete o que o próprio filtro exclui", () => {
+    // Contando "as entregues do recorte" em vez do que o clique traz, o chip
+    // dizia "5 entregues ocultas · mostrar" com "Produzidos" ligado — e o clique
+    // não trazia nenhuma, porque o filtro de status segue excluindo entregue.
+    const rec = f({ status: ["produced"] });
+    expect(BASE.some(i => i.status === "delivered")).toBe(true);
+    expect(revelaAoMostrar(rec)).toBe(0);
+  });
+
+  it("num recorte de ATRIBUTO 100% entregue, o atalho é o caminho de saída", () => {
+    // "Bastão" só existe em peça entregue: a faceta de acabamento não o oferece
+    // (o clique não teria linha para entregar) e quem chegar nele por URL ou por
+    // um recorte anterior encontra o atalho, com o número certo.
+    expect(opcoesDaFaceta("acabamento", f()).has("Bastão")).toBe(false);
+    const rec = f({ acabamento: ["Bastão"] });
+    expect(lista(rec).length).toBe(0);
+    expect(revelaAoMostrar(rec)).toBe(2);
+    expect(lista({ ...rec, entregues: true }).length).toBe(2);
+  });
+
+  it("com o evento escolhido não há nada a revelar — ele já revelou", () => {
+    expect(revelaAoMostrar(f({ evento: ["ev-entregue"] }))).toBe(0);
+    expect(lista(f({ evento: ["ev-entregue"] })).length).toBe(3);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 describe("Gráfica — a contagem da opção é o que o clique entrega", () => {
-  it.each(RECORTES)("%s", (_nome, filtros) => {
-    for (const faceta of FACETAS) {
-      for (const [valor, contagem] of opcoesDaFaceta(faceta, filtros)) {
-        const aoClicar = lista({ ...filtros, [CAMPO[faceta]]: [valor] } as GraficaFiltros);
-        expect(
-          aoClicar.length,
-          `faceta "${faceta}", opção "${valor}": o menu prometeu ${contagem}`,
-        ).toBe(contagem);
-      }
-    }
-  });
-
-  it("nenhuma opção nasce com contagem zero", () => {
-    for (const faceta of FACETAS) {
-      for (const [valor, contagem] of opcoesDaFaceta(faceta, f())) {
-        expect(contagem, `faceta "${faceta}", opção "${valor}"`).toBeGreaterThan(0);
-      }
-    }
-  });
-
   it("a faceta de status soma a grafia legada na MESMA opção", () => {
     // "pronto_para_producao" e "ready_for_production" são a mesma etapa: duas
     // opções seriam duas metades da mesma fila, e cada uma mentiria por baixo.
@@ -241,8 +397,8 @@ describe("Gráfica — a contagem da opção é o que o clique entrega", () => {
     // parte do recorte de status). Sem isso, "Entregues" sumiria do menu
     // justamente por estar escondida, e o KPI Entregues não teria par.
     const opcoes = opcoesDaFaceta("status", f());
-    expect(opcoes.get("delivered")).toBe(2);
-    expect(lista(f({ status: ["delivered"] })).length).toBe(2);
+    expect(opcoes.get("delivered")).toBe(5);
+    expect(lista(f({ status: ["delivered"] })).length).toBe(5);
   });
 });
 

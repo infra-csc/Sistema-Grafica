@@ -871,6 +871,15 @@ export default function Grafica() {
   // encolhia a lista e as contagens dos dropdowns continuavam prometendo o
   // número antigo.
   //
+  // A REGRA QUE VALE PARA AS OITO FACETAS, e que alguém quebra ao acrescentar a
+  // nona (o texto por extenso e o porquê estão em lib/grafica-filtros, em
+  // FacetaGrafica): o pool de um dropdown é o recorte QUE O CLIQUE PRODUZ, não o
+  // de agora. Onde os dois diferem é na ocultação das entregues — se clicar
+  // naquela opção REVELA as entregues, a faceta as conta e oferece a opção com
+  // esse número; se não revela, não conta. Hoje revelam STATUS ("Entregues" é o
+  // par do KPI) e EVENTO (o relato do dono do NORTE: "Primavera Manaus", com as
+  // 77 peças entregues, sumia deste menu e só aparecia pela busca livre).
+  //
   // useMemo obrigatório: eram SEIS varreduras da base a cada tecla digitada,
   // sem memo nenhum, cada uma chamando `groupOf` (normalize + duas regex) e
   // `itemPercursos` (exec em laço) sobre todo o histórico.
@@ -1089,12 +1098,21 @@ export default function Grafica() {
   // ── Entregues ocultas ─────────────────────────────────────────────────────
   // A tela abre na FILA DO QUE FALTA, não no arquivo de tudo que já foi
   // liberado. Esconder dado sem dizer que está escondido, porém, é pior que o
-  // problema: este número alimenta o chip de reversão do rodapé, que é parte da
-  // feature e não um extra.
-  const entreguesOcultas = useMemo(
-    () => (escondeEntregues(filtros) ? statsPool.filter((i: any) => isDelivered(i)).length : 0),
-    [filtros, statsPool],
-  );
+  // problema: este número alimenta o chip de reversão do rodapé e o atalho do
+  // empty state, que são parte da feature e não um extra.
+  //
+  // O número é O QUE O CLIQUE TRAZ, não o que está escondido — a mesma régua dos
+  // menus de filtro (lib/grafica-filtros), aplicada a um chip. Contando "as
+  // entregues do statsPool", com o status "Em produção" escolhido o chip
+  // prometia "5 entregues ocultas · mostrar" e o clique não trazia nenhuma: o
+  // filtro de status continua excluindo as entregues depois de revelá-las.
+  // Simular o recorte pós-clique é a única conta que não pode mentir.
+  const entreguesOcultas = useMemo(() => {
+    if (!escondeEntregues(filtros)) return 0;
+    const aoMostrar = (items as any[])
+      .filter((i: any) => itemCasaFiltros(i, { ...filtros, entregues: true }, ctxFiltros)).length;
+    return Math.max(0, aoMostrar - filteredItems.length);
+  }, [items, filtros, ctxFiltros, filteredItems]);
 
   // Contagem e descrição do recorte — derivadas da tabela de campos da lib, não
   // de uma lista escrita à mão que o próximo filtro esqueceria de atualizar.
@@ -2136,11 +2154,21 @@ export default function Grafica() {
              entregues escondidas (mostrar é um clique), ou a fila vazia mesmo.
              `temFiltroAtivo` deriva da tabela de campos da lib — era essa lista
              mantida à mão que fazia a tela dizer "Nenhuma peça liberada ainda"
-             depois de filtrar por Grupo. */
+             depois de filtrar por Grupo.
+
+             OS DOIS MOTIVOS JUNTOS: filtrar por Material/Grupo/Percurso/Mês cujo
+             recorte inteiro já foi entregue caía no primeiro caso e só oferecia
+             "Limpar filtros" — as entregues do recorte ficavam escondidas SEM
+             aviso, e limpar o filtro era jogar fora justamente a pergunta que a
+             pessoa fez. É o mesmo beco do relato do NORTE, na versão das facetas
+             que NÃO revelam (evento e status revelam; ver a regra em
+             lib/grafica-filtros). Aqui ele se paga com o aviso e o atalho: o
+             botão de mostrar vira o principal, porque é o que a pessoa procura. */
           <div style={{ textAlign: "center", padding: "48px 24px", color: TI.secondary }}>
             <Package style={{ width: 40, height: 40, margin: "0 auto 12px", color: TI.secondary }} />
             <div style={{ fontSize: 15, fontWeight: 700, color: TI.secondary, marginBottom: 4 }}>
-              {haFiltro ? "Nenhuma peça encontrada"
+              {haFiltro && entreguesOcultas > 0 ? "Neste recorte, já foi tudo entregue"
+                : haFiltro ? "Nenhuma peça encontrada"
                 : entreguesOcultas > 0 ? "Tudo entregue por aqui"
                 : "Nenhuma peça liberada ainda"}
             </div>
@@ -2149,25 +2177,33 @@ export default function Grafica() {
                 : entreguesOcultas > 0 ? `${entreguesOcultas} peça${entreguesOcultas !== 1 ? "s" : ""} já entregue${entreguesOcultas !== 1 ? "s" : ""} ${entreguesOcultas !== 1 ? "estão" : "está"} fora da fila.`
                 : "Quando a Arte liberar peças para produção, elas aparecem aqui"}
             </div>
-            {haFiltro ? (
-              <button
-                type="button"
-                onClick={limparFiltros}
-                data-testid="button-limpar-filtros-vazio"
-                style={{ marginTop: 16, background: TI.text, color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 44 }}
-              >
-                Limpar filtros ({nFiltros})
-              </button>
-            ) : entreguesOcultas > 0 ? (
-              <button
-                type="button"
-                onClick={() => patchFiltros({ entregues: true })}
-                data-testid="button-mostrar-entregues-vazio"
-                style={{ marginTop: 16, background: TI.text, color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 44 }}
-              >
-                Mostrar as {entreguesOcultas} entregue{entreguesOcultas !== 1 ? "s" : ""}
-              </button>
-            ) : null}
+            {haFiltro && entreguesOcultas > 0 && (
+              <div style={{ fontSize: 13, maxWidth: 520, margin: "6px auto 0", color: TI.secondary }}>
+                {entreguesOcultas} peça{entreguesOcultas !== 1 ? "s" : ""} deste recorte {entreguesOcultas !== 1 ? "estão" : "está"} fora da fila por já ter{entreguesOcultas !== 1 ? "em" : ""} sido entregue{entreguesOcultas !== 1 ? "s" : ""}.
+              </div>
+            )}
+            <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap", marginTop: 16 }}>
+              {entreguesOcultas > 0 && (
+                <button
+                  type="button"
+                  onClick={() => patchFiltros({ entregues: true })}
+                  data-testid="button-mostrar-entregues-vazio"
+                  style={{ background: TI.text, color: "#fff", border: "none", borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 44 }}
+                >
+                  {entreguesOcultas === 1 ? "Mostrar a peça entregue" : `Mostrar as ${entreguesOcultas} entregues`}
+                </button>
+              )}
+              {haFiltro && (
+                <button
+                  type="button"
+                  onClick={limparFiltros}
+                  data-testid="button-limpar-filtros-vazio"
+                  style={{ background: entreguesOcultas > 0 ? "transparent" : TI.text, color: entreguesOcultas > 0 ? TI.text : "#fff", border: entreguesOcultas > 0 ? `1px solid ${TI.border}` : "none", borderRadius: 8, padding: "10px 20px", fontSize: 13, fontWeight: 700, cursor: "pointer", minHeight: 44 }}
+                >
+                  Limpar filtros ({nFiltros})
+                </button>
+              )}
+            </div>
           </div>
         ) : isMobile ? (
           /* ── View mobile: cards ── */
@@ -3368,6 +3404,26 @@ export default function Grafica() {
                     </span>
                   )}
                 </>
+              );
+            })()}
+            {/* O espelho da regra acima: mostrar dado sem dizer POR QUE ele
+                apareceu também confunde. Escolher um evento revela as entregues
+                DELE (lib/grafica-filtros: a faceta de evento é oferecida porque
+                o clique revela), e a fila de quem filtra por evento passa a ter
+                linhas já terminadas. Uma frase basta — quem quiser só o que
+                falta tem os cards de status logo acima. */}
+            {(() => {
+              // Conta na LISTA, não no statsPool: com um status escolhido junto
+              // (evento + "Em produção") não há entregue nenhuma na tela, e a
+              // frase seria falsa — o defeito que esta tela mais teme é número
+              // que não bate com a lista logo acima.
+              if (filtros.evento.length === 0 || filtros.entregues) return null;
+              const n = (filteredItems as any[]).filter((i: any) => isDelivered(i)).length;
+              if (n === 0) return null;
+              return (
+                <span data-testid="nota-entregues-do-evento">
+                  {" · "}inclui {n} entregue{n !== 1 ? "s" : ""} do evento escolhido
+                </span>
               );
             })()}
             {/* Esconder dado sem dizer que está escondido é pior que o problema:

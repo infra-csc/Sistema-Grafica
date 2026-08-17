@@ -18,8 +18,9 @@
 //
 // Abaixo de `DRILL_TABELA_MIN` a tabela vira CARTÃO: no celular cinco colunas
 // não cabem por mais fixas que sejam, e perder colunas é melhor que rolar.
-import { Fragment, useMemo } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { Link } from "wouter";
+import { ChevronDown } from "lucide-react";
 import { useElementSize, useIsMobile } from "@/hooks/use-mobile";
 import { getStatusLabel } from "@/lib/status";
 import type { CobrancaEntry, PrazoEvent, PrazoPendingItem } from "@shared/prazos-contract";
@@ -166,6 +167,19 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
   showCobranca?: boolean;
 }) {
   const isMobile = useIsMobile();
+  // Etapas RECOLHIDAS, por chave. Nasce vazio: o padrão continua sendo ver
+  // tudo — quem abre o drill quer o diagnóstico inteiro. O recolher serve
+  // para o caso oposto, o evento com peça parada em quatro etapas, em que
+  // achar a que interessa custava rolagem. Vive no componente e não na URL
+  // de propósito: é arrumação de leitura, não recorte compartilhável.
+  const [recolhidas, setRecolhidas] = useState<Set<string>>(new Set());
+  const alternarEtapa = (chave: string) =>
+    setRecolhidas((antes) => {
+      const proximo = new Set(antes);
+      if (proximo.has(chave)) proximo.delete(chave);
+      else proximo.add(chave);
+      return proximo;
+    });
   // Mede o CONTAINER, não a janela: o mesmo drill é montado no modal, na linha
   // da tabela desktop e no card do celular, e `window.innerWidth` responde
   // "desktop" mesmo quando sobram 300px úteis. Antes da primeira medição a
@@ -251,6 +265,7 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
       {groups.map(({ stage, items }) => {
         const sector = STAGE_SECTOR[stage.key];
         const st = STAGE_STYLE[stage.state];
+        const recolhida = recolhidas.has(stage.key);
         // Pior primeiro: a lista é de cobrança, quem espera há mais tempo abre.
         const sorted = [...items].sort((a, b) => b.waitingDays - a.waitingDays);
         const shown = sorted.slice(0, ROW_CAP);
@@ -272,11 +287,38 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
         return (
           <div key={stage.key}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
-              <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: R.pill, backgroundColor: st.dot, flexShrink: 0 }} />
-              <span style={{ fontSize: 12, fontWeight: 700, color: TI.title }}>
-                {stage.label}
-              </span>
-              <span style={{ fontSize: 12, color: stage.state === "overdue" ? TI.red : TI.secondary, fontWeight: stage.state === "overdue" ? 700 : 500 }}>
+              {/* O gatilho cobre a seta, a bolinha, o nome e a contagem — o
+                  alvo é a frase inteira, não uma setinha de 13px. O link
+                  "Resolver em" fica FORA dele: botão dentro de botão não
+                  existe, e aquele link leva para outra tela em vez de
+                  recolher nada. */}
+              <button
+                type="button"
+                onClick={() => alternarEtapa(stage.key)}
+                aria-expanded={!recolhida}
+                aria-controls={`drill-${ev.id}-${stage.key}`}
+                data-testid={`toggle-etapa-${stage.key}`}
+                title={recolhida ? "Mostrar as peças desta etapa" : "Recolher esta etapa"}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 8,
+                  background: "none", border: "none", padding: 0, margin: 0,
+                  cursor: "pointer", textAlign: "left", font: "inherit",
+                  minHeight: isMobile ? 44 : undefined,
+                }}
+              >
+                <ChevronDown
+                  aria-hidden="true"
+                  style={{
+                    width: 13, height: 13, color: TI.secondary, flexShrink: 0,
+                    transform: recolhida ? "rotate(-90deg)" : "none",
+                    transition: "transform 0.15s",
+                  }}
+                />
+                <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: R.pill, backgroundColor: st.dot, flexShrink: 0 }} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: TI.title }}>
+                  {stage.label}
+                </span>
+                <span style={{ fontSize: 12, color: stage.state === "overdue" ? TI.red : TI.secondary, fontWeight: stage.state === "overdue" ? 700 : 500 }}>
                 {/* "peças" por extenso ao lado de "5d" abreviado era a mesma
                     unidade escrita de duas formas na mesma linha. */}
                 {pecasTexto(items.length)}
@@ -285,7 +327,8 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
                   : stage.state === "overdue" ? ` · vencida há ${diasTexto(Math.abs(stage.diffDays))}`
                   : stage.state === "warning" ? (stage.diffDays === 0 ? " · vence hoje" : ` · vence em ${diasTexto(stage.diffDays)}`)
                   : ` · vence em ${fmtDayMonth(stage.deadline)}`}
-              </span>
+                </span>
+              </button>
               {/* Links de navegação recuados para peso 600 e cor secundária: a
                   cobrança é a ação primária, e antes seis caminhos disputavam
                   o mesmo laranja no mesmo peso. */}
@@ -301,6 +344,9 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
               </Link>
             </div>
 
+            {/* `hidden` e não desmontar: recolher e reabrir não pode recomeçar
+                a leitura do zero nem perder a rolagem de quem estava no meio. */}
+            <div id={`drill-${ev.id}-${stage.key}`} hidden={recolhida}>
             {emCartoes ? (
               <ul style={{ display: "flex", flexDirection: "column", gap: 6, margin: 0, padding: 0 }}>
                 {shown.map((it) => (
@@ -400,6 +446,7 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
                 +{hidden} peça{hidden !== 1 ? "s" : ""} nesta etapa — ver todas no evento →
               </Link>
             )}
+            </div>
           </div>
         );
       })}

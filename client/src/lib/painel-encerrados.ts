@@ -145,12 +145,10 @@ export const CONTAGEM_OCULTAS_ZERO: ContagemOcultas = {
 };
 
 export interface ChipOcultas {
-  /** Peças fora da lista ao todo. */
+  /** Peças fora da lista ao todo — o ÚNICO número que a tela exibe. */
   total: number;
-  /** Quantas delas ainda estão em aberto — o passivo que o dono quer ver. */
+  /** Quantas delas ainda estão em aberto. Vai por extenso na frase, sem virar algarismo solto. */
   emAberto: number;
-  /** Número em destaque no chip. */
-  numero: number;
   /** Texto ao lado do número. */
   texto: string;
   /** Rótulo da ação (o chip é o botão que reverte). */
@@ -167,12 +165,24 @@ const pecas = (n: number) => `${n} ${n === 1 ? "peça" : "peças"}`;
  * O chip "peças ocultas". `null` quando não há nada oculto — aí a tela não
  * mostra chip nenhum, porque não há o que reverter.
  *
- * O NÚMERO EM DESTAQUE é o das peças EM ABERTO quando existe alguma: é o
- * passivo, é o que o dono pediu para ver num card ("evento com pendências"), e
- * é o único dos dois números que significa trabalho que ficou para trás.
- * Quando não sobrou nada em aberto, o destaque cai para o total — senão o chip
- * anunciaria um zero e a ocultação viraria silenciosa justamente no caso em
- * que ninguém a questionaria.
+ * UM NÚMERO SÓ, E É O TOTAL. A primeira versão trazia dois — o passivo em
+ * destaque e o total dentro do rótulo da ação ("315 em aberto … mostrar as 469
+ * ocultas") — e o dono reprovou na primeira olhada: "está estranho, aparece
+ * dois números diferentes". O defeito não era o excesso de informação, era a
+ * RELAÇÃO entre os dois ficar subentendida: dois algarismos em papéis
+ * gramaticais diferentes (um como estatística, outro enfiado no verbo) leem-se
+ * como números soltos e contraditórios, não como conjunto e subconjunto. Num
+ * chip de uma linha, essa dedução não acontece.
+ *
+ * O total ganhou a disputa porque é o número que combina com o BOTÃO: o chip é
+ * uma porta, e o número tem de dizer o que a porta faz. Além disso é o mesmo
+ * número que o contador de resultados precisa exibir ("… · 469 ocultas") — com
+ * o passivo no chip, a tela mostrava 315 num canto e 469 no outro para o mesmo
+ * fato.
+ *
+ * O PASSIVO NÃO SE PERDE: ele é o que o dono pediu ao falar em "um card tipo
+ * evento com pendências", e continua na frase inteira do `title` e do leitor de
+ * tela, por extenso e com a relação DITA ("dessas, N ainda estão em aberto").
  *
  * `mostrando` inverte só a AÇÃO: com as peças reveladas o chip continua na
  * tela (é ele que devolve o recorte limpo), agora oferecendo ocultar.
@@ -190,24 +200,21 @@ export function chipOcultas(c: ContagemOcultas, mostrando: boolean): ChipOcultas
   if (c.realizado > 0) partes.push(`${pecas(c.realizado)} em evento já realizado`);
   const composicao = partes.join(" e ");
 
-  const destaqueAberto = emAberto > 0;
-  const numero = destaqueAberto ? emAberto : total;
-  const texto = destaqueAberto
-    ? "em aberto em evento encerrado ou já realizado"
-    : `${total === 1 ? "peça" : "peças"} de evento encerrado ou já realizado`;
-  const acao = mostrando
-    ? "ocultar"
-    : destaqueAberto ? `mostrar as ${total} ocultas` : "mostrar";
-
-  const title = `${composicao}. ${
-    emAberto > 0
-      ? `${emAberto} ${emAberto === 1 ? "ainda está" : "ainda estão"} em aberto — mas ninguém mais toca nesse trabalho: essas peças saíram das filas e da cobrança de prazos.`
-      : "Nenhuma delas ficou em aberto."
-  } ${mostrando ? "Clique para tirá-las da lista de novo." : "Clique para trazê-las para a lista."}`;
+  const texto = `${total === 1 ? "peça oculta" : "peças ocultas"} · evento encerrado ou já realizado`;
 
   return {
-    total, emAberto, numero, texto, acao, title,
-    srLabel: `${numero} ${texto}. ${title}`,
+    total,
+    emAberto,
+    texto,
+    acao: mostrando ? "ocultar" : "mostrar",
+    title: `${composicao}. ${
+      emAberto > 0
+        ? `Dessas, ${emAberto} ${emAberto === 1 ? "ainda está" : "ainda estão"} em aberto — mas ninguém mais toca nesse trabalho: elas saíram das filas e da cobrança de prazos.`
+        : "Nenhuma delas ficou em aberto."
+    } ${mostrando ? "Clique para tirá-las da lista de novo." : "Clique para trazê-las para a lista."}`,
+    srLabel: `${total} ${texto}. ${composicao}. ${
+      emAberto > 0 ? `Dessas, ${emAberto} ainda ${emAberto === 1 ? "está" : "estão"} em aberto.` : "Nenhuma delas ficou em aberto."
+    }`,
   };
 }
 

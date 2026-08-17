@@ -91,21 +91,44 @@ describe("chipOcultas", () => {
     expect(chipOcultas(CONTAGEM_OCULTAS_ZERO, false)).toBeNull();
   });
 
-  it("o destaque é o PASSIVO quando há peça em aberto", () => {
+  it("UM algarismo só na parte visível, e é o total", () => {
+    // O dono reprovou a primeira versão olhando o chip ao vivo: "está
+    // estranho, aparece dois números diferentes" — ele lia "315 em aberto …
+    // mostrar as 469 ocultas" e via dois valores soltos, não conjunto e
+    // subconjunto. O total ganhou a disputa porque é o número que combina com
+    // o BOTÃO: o chip é uma porta, e o algarismo tem de dizer o que a porta
+    // faz. É também o número que o contador de resultados exibe — com o
+    // passivo aqui, a tela mostrava 315 num canto e 469 no outro.
     const chip = chipOcultas(c({ encerrado: 120, encerradoAberto: 66 }), false)!;
-    expect(chip.numero).toBe(66);
     expect(chip.total).toBe(120);
-    // O total não fica escondido: ele vai no rótulo da própria ação, que é
-    // onde a pessoa lê o que vai acontecer se clicar.
-    expect(chip.acao).toBe("mostrar as 120 ocultas");
+    expect(chip.acao).toBe("mostrar");
+    // A trava de verdade: nada do que se LÊ ao lado do número pode conter
+    // outro algarismo. É esta asserção que impede o segundo número de voltar.
+    expect(chip.texto).not.toMatch(/\d/);
+    expect(chip.acao).not.toMatch(/\d/);
   });
 
-  it("sem nada em aberto o destaque cai para o total — nunca um zero", () => {
+  it("o passivo não se perde: vai por extenso e com a relação DITA", () => {
+    // O card nasceu do pedido do dono por "um card tipo evento com
+    // pendências". Tirar o passivo do rótulo não pode significar jogá-lo fora:
+    // ele continua na frase inteira, e é o "Dessas," que torna a relação
+    // explícita em vez de deixá-la para o leitor deduzir — que foi exatamente
+    // o que não aconteceu na versão reprovada.
+    const chip = chipOcultas(c({ encerrado: 120, encerradoAberto: 66 }), false)!;
+    expect(chip.emAberto).toBe(66);
+    expect(chip.title).toContain("Dessas, 66 ainda estão em aberto");
+    expect(chip.srLabel).toContain("Dessas, 66 ainda estão em aberto");
+  });
+
+  it("sem nada em aberto o chip continua anunciando o total — nunca um zero", () => {
     // É este o caso em que a ocultação viraria silenciosa: 40 peças fora da
-    // lista e um chip anunciando "0".
+    // lista e um chip anunciando "0". Com o total como número único, o caso
+    // deixa de existir por construção — mas a frase ainda precisa dizer que
+    // não sobrou passivo, senão o silêncio volta pelo outro lado.
     const chip = chipOcultas(c({ realizado: 40 }), false)!;
-    expect(chip.numero).toBe(40);
+    expect(chip.total).toBe(40);
     expect(chip.emAberto).toBe(0);
+    expect(chip.title).toContain("Nenhuma delas ficou em aberto");
     expect(chip.acao).toBe("mostrar");
   });
 
@@ -124,9 +147,12 @@ describe("chipOcultas", () => {
 
   it("singular e plural", () => {
     const um = chipOcultas(c({ realizado: 1 }), false)!;
-    expect(um.texto).toContain("peça de evento");
+    expect(um.texto).toBe("peça oculta · evento encerrado ou já realizado");
     const dois = chipOcultas(c({ realizado: 2 }), false)!;
-    expect(dois.texto).toContain("peças de evento");
+    expect(dois.texto).toBe("peças ocultas · evento encerrado ou já realizado");
+    // Concordância do passivo dentro da frase, que é onde ele passou a morar.
+    const umAberto = chipOcultas(c({ realizado: 3, realizadoAberto: 1 }), false)!;
+    expect(umAberto.title).toContain("Dessas, 1 ainda está em aberto");
   });
 });
 

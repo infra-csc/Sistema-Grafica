@@ -1212,7 +1212,15 @@ export default function PainelGeral() {
               cheia: esconder em silêncio seria pior que o problema que a
               ocultação resolve. Cinza, não âmbar nem vermelho — não é
               urgência, é registro; o alarme aqui ao lado tem de continuar
-              sendo o mais forte da faixa. */}
+              sendo o mais forte da faixa.
+
+              UM ALGARISMO SÓ, e é o total — o mesmo que o contador de
+              resultados exibe. A primeira versão mostrava o passivo aqui e o
+              total dentro do verbo ("315 em aberto … mostrar as 469
+              ocultas"), e o dono reprovou de imediato: "aparece dois números
+              diferentes". O passivo continua na frase do `title`, por extenso
+              e com a relação dita. O porquê inteiro está em lib/
+              painel-encerrados.ts. */}
           {chipOcultasDados && (
             <button
               onClick={() => setMostrarFinalizados(v => !v)}
@@ -1224,8 +1232,11 @@ export default function PainelGeral() {
                  #ffffff sobre #57534e = 7,63:1. Ambos AA com folga em 13px. */
               style={{ display: "flex", alignItems: "center", gap: 8, height: 38, padding: "0 14px", borderRadius: 999, cursor: "pointer", fontSize: 13, fontWeight: 700, backgroundColor: mostrarFinalizados ? "#57534e" : "#f5f5f4", color: mostrarFinalizados ? "#fff" : "#44403c", border: `1px solid ${mostrarFinalizados ? "#57534e" : "#e7e5e4"}` }}
             >
-              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900 }}>{chipOcultasDados.numero}</span>
+              <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900 }}>{chipOcultasDados.total}</span>
               {chipOcultasDados.texto}
+              {/* Separador só de ritmo — o nome acessível do botão vem inteiro
+                  do aria-label, então esta pontuação não é lida duas vezes. */}
+              <span aria-hidden="true" style={{ opacity: 0.55 }}>·</span>
               <span style={{ textDecoration: "underline", fontWeight: 800 }}>{chipOcultasDados.acao}</span>
             </button>
           )}
@@ -1493,7 +1504,12 @@ export default function PainelGeral() {
                 isso se disser, no mesmo fôlego, quanto ficou de fora — é aqui
                 que a contagem é lida (e anunciada pelo leitor de tela a cada
                 mudança de filtro), então é aqui que a ressalva tem de estar.
-                A porta de volta continua sendo o chip da faixa de atenção. */}
+                A porta de volta continua sendo o chip da faixa de atenção.
+
+                É o MESMO número e a MESMA palavra do chip ("ocultas"), de
+                propósito: repetir um fato em dois lugares que se leem de
+                jeitos diferentes (o chip pelo olho, este pelo leitor de tela)
+                é redundância; dizer 315 aqui e 469 ali era contradição. */}
             {chipOcultasDados && !mostrarFinalizados && ` · ${chipOcultasDados.total} ${chipOcultasDados.total === 1 ? "oculta" : "ocultas"}`}
           </span>
           {hasActiveFilters && (

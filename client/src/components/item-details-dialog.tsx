@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
-import { getStatusLabel, getStatusMeta, marcoEventoFinalizado, todayBusinessMs } from "@/lib/status";
+import { getApprovalMeta, getStatusLabel, getStatusMeta, marcoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import {
   Calendar, ClipboardList, FileText, History,
   Edit, Save, X, Link2, Palette, CheckCircle, Zap, Eye, Cog, Check,
@@ -755,10 +755,20 @@ export function ItemDetailsDialog({
                 <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                   {item.sponsors.map((s: any) => {
                     const approval = approvalsList.find((a: any) => a.sponsorId === s.id);
-                    // A tabela usa status ('pending' | 'approved' | 'rejected').
-                    // O booleano `approved` nunca existiu — por isso tudo ficava "Aguardando".
-                    const isApproved = approval?.status === "approved" || approval?.approved === true;
-                    const isRejected = approval?.status === "rejected" || approval?.approved === false;
+                    // O chip tinha TRÊS ramos (aprovado / reprovado / "Aguardando")
+                    // para os CINCO estados do vocabulário. Os dois que sobravam —
+                    // `awaiting_arte` e `new_version_pending` — caíam no "senão" e
+                    // apareciam como AGUARDANDO, que se lê "esperando o patrocinador".
+                    // Nos dois a bola está com a CASA: o patrocinador já respondeu.
+                    // Foi assim que a peça #1527 apareceu "aguardando" com um pedido
+                    // de ajuste do patrocinador escrito logo acima, em vermelho.
+                    // Agora o rótulo e as cores saem do vocabulário único
+                    // (lib/status.ts), o mesmo que o Atendimento já usa.
+                    const meta = getApprovalMeta(
+                      approval?.status
+                        ?? (approval?.approved === true ? "approved"
+                          : approval?.approved === false ? "rejected" : "pending"),
+                    ) ?? getApprovalMeta("pending")!;
                     return (
                       <div
                         key={s.id}
@@ -794,13 +804,20 @@ export function ItemDetailsDialog({
                           </div>
                         </div>
                         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          {isApproved ? (
-                            <span style={{ padding: "4px 12px", borderRadius: 999, backgroundColor: "rgba(0,99,152,0.1)", color: "#006398", fontSize: 10, fontWeight: 700, textTransform: "uppercase", whiteSpace: "nowrap" }}>Aprovado</span>
-                          ) : isRejected ? (
-                            <span style={{ padding: "4px 12px", borderRadius: 999, backgroundColor: "rgba(186,26,26,0.1)", color: "#ba1a1a", fontSize: 10, fontWeight: 700, textTransform: "uppercase", whiteSpace: "nowrap" }}>Reprovado</span>
-                          ) : (
-                            <span style={{ padding: "4px 12px", borderRadius: 999, backgroundColor: "#e2e2e2", color: "#584237", fontSize: 10, fontWeight: 700, textTransform: "uppercase", whiteSpace: "nowrap" }}>Aguardando</span>
-                          )}
+                          <span
+                            title={meta.hint}
+                            data-testid={`chip-aprovacao-${s.id}`}
+                            style={{
+                              display: "inline-flex", alignItems: "center", gap: 6,
+                              padding: "4px 12px", borderRadius: 999,
+                              backgroundColor: meta.bg, color: meta.text,
+                              border: `1px solid ${meta.border}`,
+                              fontSize: 10, fontWeight: 700, textTransform: "uppercase", whiteSpace: "nowrap",
+                            }}
+                          >
+                            <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: meta.dot, flexShrink: 0 }} />
+                            {meta.label}
+                          </span>
                           {/* Correção de admin: desfaz uma aprovação/reprovação feita por
                               engano, sem precisar mexer direto no banco. */}
                           {user?.role === "admin" && approval && approval.status !== "pending" && (
@@ -808,7 +825,7 @@ export function ItemDetailsDialog({
                               type="button"
                               onClick={() => handleRevertApproval(s.id, s.name)}
                               disabled={revertingSponsorId === s.id}
-                              title={`Reverter para pendente (admin) — estava ${isApproved ? "aprovado" : "reprovado"}`}
+                              title={`Reverter para pendente (admin) — estava ${meta.label.toLowerCase()}`}
                               data-testid={`button-revert-approval-${s.id}`}
                               style={{
                                 display: "flex", alignItems: "center", justifyContent: "center",

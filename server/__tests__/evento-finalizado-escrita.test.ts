@@ -290,7 +290,6 @@ const BARRADAS: Caso[] = [
   // ── Fluxo de aprovação ───────────────────────────────────────────────────
   { chave: "PATCH /api/items/:id/submit-for-approval", params: { id: "it-1" }, userRole: "arte", body: { approvalThumbUrl: "https://obj/t.png" }, estado: { status: "awaiting_submission" } },
   { chave: "PATCH /api/items/:id/sponsor-approve", params: { id: "it-1" }, userRole: "atendimento" },
-  { chave: "PATCH /api/items/:id/sponsor-reject", params: { id: "it-1" }, userRole: "atendimento" },
   { chave: "PATCH /api/items/:id/dispense", params: { id: "it-1" }, userRole: "arte" },
   { chave: "POST /api/items/:id/sponsor-approvals/:sponsorId/approve", params: { id: "it-1", sponsorId: "sp-1" }, userRole: "atendimento" },
   { chave: "POST /api/items/:id/sponsor-approvals/:sponsorId/reject", params: { id: "it-1", sponsorId: "sp-1" }, userRole: "atendimento", body: { rejectionReason: "logo pequena" } },

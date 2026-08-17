@@ -1676,72 +1676,14 @@ export function registerItemRoutes(app: Express): void {
     }
   });
 
-  // Sponsor rejects item (Atendimento module)
-  app.patch("/api/items/:id/sponsor-reject", requireAuth, async (req, res) => {
-    try {
-      // Validate role
-      if (req.userRole !== "atendimento" && req.userRole !== "admin") {
-        return res.status(403).json({ error: "Apenas usuários com perfil Atendimento podem reprovar pelo patrocinador" });
-      }
-      
-      // Validate current status
-      const currentItem = await storage.getItem(req.params.id);
-      if (!currentItem) {
-        return res.status(404).json({ error: "Item not found" });
-      }
-      
-      // ANDA: reprovar devolve a peça para a Arte refazer — trabalho novo,
-      // numa fila que não mostra mais essa peça.
-      if (await barraEventoFinalizado(currentItem, res)) return;
-
-      if (currentItem.status !== "awaiting_sponsor_approval") {
-        return res.status(409).json({
-          error: `Item não pode ser reprovado pelo patrocinador. Status atual: ${currentItem.status}, esperado: awaiting_sponsor_approval`
-        });
-      }
-
-      const motivo = lerMotivoDevolucao(req);
-      if (!motivo.ok) return res.status(400).json({ error: motivo.erro });
-
-      const item = await storage.updateItem(req.params.id, {
-        status: "awaiting_submission",
-        sponsorApprovedBy: null,
-        sponsorApprovedAt: null,
-        rejectedBySponsor: true, // Flag indicando que foi reprovado pelo patrocinador
-        rejectionReason: motivo.motivo,
-      });
-      
-      if (!item) {
-        return res.status(404).json({ error: "Item not found" });
-      }
-      
-      const event = await storage.getEvent(item.eventId);
-      
-      await createAuditLog(
-        req,
-        'rejected',
-        'item',
-        item.id,
-        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("awaiting_submission")} (reprovado pelo patrocinador). Motivo: ${motivo.motivo}`
-      );
-      
-      // Notifica Arte para refazer o trabalho
-      const notification = await storage.createNotification({
-        type: "itemRejected",
-        message: `Patrocinador reprovou o item. Refaça o thumb de aprovação: ${item.type} - Evento: ${event?.name}`,
-        eventId: item.eventId,
-        itemId: item.id,
-        targetRoles: ["arte"],
-      });
-      
-      broadcast({ type: "item_updated", item });
-      broadcast({ type: "notification_created", notification });
-      
-      res.json(item);
-    } catch (error: any) {
-      res.status(400).json({ error: error.message });
-    }
-  });
+  // A rota PATCH /api/items/:id/sponsor-reject FOI REMOVIDA (decisao do dono,
+  // 17/08). Ela reprovava a peca INTEIRA e a mandava para awaiting_submission,
+  // enquanto a reprovacao POR PATROCINADOR (logo abaixo) deixa a peca em
+  // awaiting_sponsor_approval com a linha do patrocinador em awaiting_arte —
+  // que e o par que alimenta a aba Correcao da Arte. Duas portas para o MESMO
+  // fato, com destinos diferentes: a peca reprovada caia no meio de 1.120
+  // pecas que nunca foram enviadas e a Arte perdia a diferenca entre
+  // retrabalho e trabalho novo. Ficou uma porta so.
 
   // ========== Individual Sponsor Approval Endpoints ==========
 

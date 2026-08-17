@@ -175,12 +175,12 @@ export default function Usuarios() {
   };
 
   /* ── Filtered + paginated ── */
-  const filtered = users.filter(u => {
+  /** A BUSCA casa? Vale para a lista E para o pool das opções do menu. */
+  const casaBusca = (u: { name: string; email: string }) => {
     const q = search.toLowerCase();
-    const matchQ = !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
-    const matchR = roleFilter === "all" || u.role === roleFilter;
-    return matchQ && matchR;
-  });
+    return !q || u.name.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+  };
+  const filtered = users.filter(u => casaBusca(u) && (roleFilter === "all" || u.role === roleFilter));
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   // Excluir o último item de uma página ou apertar um filtro pode deixar
   // `page` além do total — clampa em vez de renderizar uma página vazia.
@@ -192,6 +192,19 @@ export default function Usuarios() {
     acc[r] = users.filter(u => u.role === r).length;
     return acc;
   }, {} as Record<string, number>);
+
+  // Opções do menu de Perfil, COM contagem — e recortadas pela busca. A fileira
+  // de chips logo acima já mostrava o número de cada perfil; o menu, que faz
+  // exatamente o mesmo recorte, não mostrava nenhum. Dois controles para a
+  // mesma dimensão, um informando e o outro não. Perfis sem ninguém saem da
+  // lista: oferecê-los seria prometer um clique que devolve tabela vazia.
+  const roleFilterOptions = Object.entries(ROLE_CFG)
+    .map(([v, c]) => ({
+      value: v,
+      label: (c as any).label as string,
+      count: users.filter(u => u.role === v && casaBusca(u)).length,
+    }))
+    .filter(o => o.count > 0);
 
   return (
     <div style={{ backgroundColor: T.bg, height: "100%", overflowY: "auto", padding: isMobile ? "14px 16px 48px" : "28px 32px 64px" }}>
@@ -265,7 +278,7 @@ export default function Usuarios() {
           label="Perfil" allLabel="Todos os perfis"
           value={roleFilter}
           onChange={v => { setRoleFilter(v); setPage(1); }}
-          options={Object.entries(ROLE_CFG).map(([v, c]) => ({ value: v, label: (c as any).label }))}
+          options={roleFilterOptions}
           searchPlaceholder="Buscar perfil..." emptyText="Nenhum perfil encontrado."
           hideWhenEmpty={false} testId="select-role-filter"
           triggerStyle={filterSel}
@@ -610,15 +623,27 @@ export default function Usuarios() {
                     <FormItem>
                       <label htmlFor="user-form-role" style={{ display: "block", fontSize: 10, fontWeight: 900, color: T.second, textTransform: "uppercase", letterSpacing: "0.16em", marginBottom: 7 }}>Perfil</label>
                       <FormControl>
-                        <select {...field} id="user-form-role" data-testid="select-role"
-                          style={{ ...tiInput, appearance: "none", WebkitAppearance: "none", cursor: "pointer" }}
-                          onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
-                          onBlur={e => { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
-                        >
-                          {Object.entries(ROLE_CFG).map(([value, cfg]) => (
-                            <option key={value} value={value}>{ROLE_FORM_LABELS[value] ?? cfg.label}</option>
-                          ))}
-                        </select>
+                        {/* kind="field": campo de formulário, não filtro (ver o
+                            vocabulário em components/filter-select.tsx). O
+                            `<select>` daqui já tentava se disfarçar com
+                            `appearance: none`, mas o disfarce só pegava o
+                            gatilho — o MENU continuava sendo o do sistema
+                            operacional, dentro de um modal desenhado pela casa. */}
+                        <FilterSelect
+                          kind="field"
+                          fullWidth
+                          hideSearch
+                          hideWhenEmpty={false}
+                          label="Perfil"
+                          value={field.value}
+                          onChange={field.onChange}
+                          options={Object.entries(ROLE_CFG).map(([value, cfg]) => ({
+                            value, label: ROLE_FORM_LABELS[value] ?? cfg.label,
+                          }))}
+                          testId="select-role"
+                          triggerProps={{ id: "user-form-role", onBlur: field.onBlur }}
+                          triggerStyle={{ ...tiInput, height: "auto", padding: "14px 16px", border: "none" }}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

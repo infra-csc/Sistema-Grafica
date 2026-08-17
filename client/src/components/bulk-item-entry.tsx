@@ -4,6 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { Plus, Copy, Trash2, Loader2, ArrowRight, ChevronDown, Check, Search, X, RotateCcw } from "lucide-react";
 import { calculateM2FromStrings } from "@/lib/calculateM2";
 import { useToast } from "@/hooks/use-toast";
+import { FilterSelect, type FilterOption } from "@/components/filter-select";
+// Mesma normalização da busca dos menus: sem acento, sem caixa, sem espaço
+// sobrando. É ela que reconhece "sanett" e "Sanett" como o mesmo material.
+import { normalizarBusca } from "@/lib/utils";
 
 const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];
 const finishes = ["Dupla Face", "Ilhós", "Impressão UV", "Impresso", "Recorte", "Refile"];
@@ -97,15 +101,12 @@ const fieldStyle: React.CSSProperties = {
   transition: 'border-color 0.12s',
 };
 
-const selectStyle: React.CSSProperties = {
-  ...fieldStyle,
-  cursor: 'pointer',
-  appearance: 'none' as any,
-  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23a8a29e' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`,
-  backgroundRepeat: 'no-repeat',
-  backgroundPosition: 'right 7px center',
-  paddingRight: '24px',
-};
+// `selectStyle` saiu junto com os dois `<select>` nativos que ele vestia. Era
+// a tentativa de disfarçar o controle do sistema operacional: `appearance:
+// none` mais uma seta ▾ desenhada à mão em #a8a29e — cor que a régua da casa
+// não aceita nem como glifo (2,52:1 sobre o fundo do campo, abaixo dos 3:1 de
+// objeto gráfico). O disfarce só valia para o gatilho: o MENU continuava
+// sendo o do Windows. Ver `CampoDaGrade`, mais abaixo.
 
 function makeFocusHandlers(onNav?: () => void) {
   return {
@@ -226,6 +227,110 @@ function TipoSelect({ value, groupedOptions, onChange, rowIndex, onNavigateNext 
       )}
     </div>
   );
+}
+
+/**
+ * CampoDaGrade — Material e Acabamento da grade de lote.
+ *
+ * Eram `<select>` NATIVOS. No meio de uma grade inteiramente desenhada pela
+ * casa, eles abriam o menu do sistema operacional: fundo azul do Windows,
+ * fonte do sistema, e a lista crua com as duplicatas de grafia do cadastro
+ * visíveis lado a lado ("sanett" logo abaixo de "Sanett", "ps" abaixo de
+ * "PS"). É o controle da casa agora — ver o VOCABULÁRIO no topo de
+ * components/filter-select.tsx, job 9 (campo de escolha em formulário).
+ *
+ * O QUE NÃO PODIA REGREDIR, e não regrediu: esta grade é lançamento em lote,
+ * onde a velocidade de digitação vale mais que a beleza do menu. O `<select>`
+ * nativo dava teclado de graça; o FilterSelect ganhou o equivalente antes
+ * desta troca acontecer —
+ *   · o gatilho continua achável por `[data-nav-row][data-nav-field]`, que é
+ *     como `focusNextField` encontra o próximo campo (por isso `triggerProps`);
+ *   · digitar uma letra com o menu fechado abre JÁ na opção certa ("l" →
+ *     Lona), como o nativo fazia;
+ *   · Enter escolhe E chama `onCommit`, que avança para o campo seguinte —
+ *     exatamente o que `navHandlers` fazia no nativo;
+ *   · ↑/↓/Home/End andam pela lista, Esc fecha sem fechar o Dialog em volta.
+ * `hideSearch` de propósito: as listas têm ~6 a 15 itens e a caixa de busca
+ * roubaria metade do painel numa coluna de 84px — o typeahead cobre o caso.
+ */
+function CampoDaGrade({
+  label, value, onChange, options, invalid, ri, field, testId, onCommit,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: FilterOption[];
+  invalid: boolean;
+  ri: number;
+  field: number;
+  testId: string;
+  onCommit: () => void;
+}) {
+  return (
+    <FilterSelect
+      kind="field"
+      hideSearch
+      fullWidth
+      hideWhenEmpty={false}
+      label={label}
+      placeholder="—"
+      value={value}
+      onChange={onChange}
+      options={options}
+      invalid={invalid}
+      testId={testId}
+      onCommit={onCommit}
+      panelWidth={210}
+      emptyText="Nada cadastrado"
+      triggerProps={{ "data-nav-row": ri, "data-nav-field": String(field) }}
+      // Mesma altura, raio e fundo dos `<input>` vizinhos da linha: numa grade,
+      // um campo com métrica própria salta aos olhos como erro de alinhamento.
+      // Vazio com a linha já iniciada acende o vermelho da validação, como
+      // `errStyle` fazia. #57534e sobre #fff5f5 = 6,49:1 ✓; o placeholder "—"
+      // sobre o #f3f4f3 do campo dá 6,72:1 ✓ (o #78716c padrão daria 4,25:1 ✗
+      // em 13px, por isso a cor vem daqui e não do componente).
+      triggerStyle={{
+        ...fieldStyle,
+        height: 'auto',
+        padding: '5px 6px 5px 8px',
+        border: '1.5px solid transparent',
+        backgroundColor: invalid ? '#fff5f5' : '#f3f4f3',
+        color: value ? '#1a1c1c' : '#57534e',
+        fontWeight: 400,
+      }}
+    />
+  );
+}
+
+/**
+ * Opções de um campo da grade, AGRUPADAS POR FORMA NORMALIZADA.
+ *
+ * O cadastro tem sujeira de grafia — "sanett" e "Sanett", "ps" e "PS" são o
+ * mesmo material digitado de dois jeitos, e o menu nativo mostrava os dois
+ * como se fossem coisas diferentes. Consertar o CADASTRO não é trabalho de
+ * componente (e está registrado para o dono decidir); o que o seletor pode
+ * fazer é parar de oferecer a mesma coisa duas vezes.
+ *
+ * A regra é conservadora de propósito: entre as grafias de um mesmo valor
+ * normalizado, vence a que já está no valor GRAVADO nesta linha (para não
+ * reescrever dado de peça existente ao reabrir a grade) e, na falta dela, a
+ * primeira que apareceu — a lista chega ordenada com o catálogo oficial na
+ * frente. Nenhum valor é apagado do banco; só deixa de ter duas entradas no
+ * menu.
+ */
+function opcoesDeCampo(lista: string[], atual: string): FilterOption[] {
+  const porChave = new Map<string, string>();
+  const chave = (s: string) => normalizarBusca(s);
+  for (const v of lista) {
+    const k = chave(v);
+    if (!k) continue;
+    if (!porChave.has(k)) porChave.set(k, v);
+  }
+  // O valor já gravado manda na grafia da sua chave e entra mesmo se não
+  // estiver mais no catálogo — senão o campo abriria mostrando "—" sobre uma
+  // peça que tem material definido.
+  if (atual) porChave.set(chave(atual), atual);
+  return Array.from(porChave.values()).map(v => ({ value: v, label: v }));
 }
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
@@ -1194,40 +1299,32 @@ export function BulkItemEntry({
                   {/* 7 · Material */}
                   <td style={{ padding: '2px 4px' }}>
                     {(() => { const rhc = !!(row.type || row.description || row.visualWidth || row.fileWidth || row.finish); return (
-                    <select
+                    <CampoDaGrade
+                      label="Material"
                       value={row.material}
-                      onChange={e => { updateRow(row.id, 'material', e.target.value); setSubmitAttempted(false); }}
-                      style={errStyle(row.material, selectStyle, rhc)}
-                      data-nav-row={ri} data-nav-field="7"
-                      data-testid={`select-material-${ri}`}
-                      {...navHandlers(ri, 7)}
-                    >
-                      <option value="">— selecione —</option>
-                      {materialOptions.map(m => <option key={m} value={m}>{m}</option>)}
-                      {row.material && !materialOptions.includes(row.material) && (
-                        <option value={row.material}>{row.material}</option>
-                      )}
-                    </select>
+                      onChange={v => { updateRow(row.id, 'material', v); setSubmitAttempted(false); }}
+                      options={opcoesDeCampo(materialOptions, row.material)}
+                      invalid={submitAttempted && rhc && !row.material}
+                      ri={ri} field={7}
+                      testId={`select-material-${ri}`}
+                      onCommit={() => focusNextField(ri, 7)}
+                    />
                     ); })()}
                   </td>
 
                   {/* 8 · Acabamento */}
                   <td style={{ padding: '2px 4px' }}>
                     {(() => { const rhc2 = !!(row.type || row.description || row.visualWidth || row.fileWidth || row.material); return (
-                    <select
+                    <CampoDaGrade
+                      label="Acabamento"
                       value={row.finish}
-                      onChange={e => { updateRow(row.id, 'finish', e.target.value); setSubmitAttempted(false); }}
-                      style={errStyle(row.finish, selectStyle, rhc2)}
-                      data-nav-row={ri} data-nav-field="8"
-                      data-testid={`select-finish-${ri}`}
-                      {...navHandlers(ri, 8)}
-                    >
-                      <option value="">— selecione —</option>
-                      {finishOptions.map(f => <option key={f} value={f}>{f}</option>)}
-                      {row.finish && !finishOptions.includes(row.finish) && (
-                        <option value={row.finish}>{row.finish}</option>
-                      )}
-                    </select>
+                      onChange={v => { updateRow(row.id, 'finish', v); setSubmitAttempted(false); }}
+                      options={opcoesDeCampo(finishOptions, row.finish)}
+                      invalid={submitAttempted && rhc2 && !row.finish}
+                      ri={ri} field={8}
+                      testId={`select-finish-${ri}`}
+                      onCommit={() => focusNextField(ri, 8)}
+                    />
                     ); })()}
                   </td>
 

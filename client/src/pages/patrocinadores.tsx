@@ -12,6 +12,7 @@ import { Pencil, Trash2, Search, X, AlertTriangle, Plus, Building2, ChevronLeft,
 import type { Sponsor } from "@shared/schema";
 import { T } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { FilterSelect, type FilterOption } from "@/components/filter-select";
 
 const tiInput: React.CSSProperties = {
   width: "100%", padding: "14px 16px",
@@ -169,17 +170,58 @@ export default function Patrocinadores() {
   };
 
   /* ── Filtered + sorted + paginated ── */
+  /** A BUSCA casa? Vale para a lista E para o pool das opções do menu. */
+  const casaBusca = (s: Sponsor) => {
+    const q = search.toLowerCase();
+    return !q || s.name.toLowerCase().includes(q) || (s.company || "").toLowerCase().includes(q)
+      || (s.email || "").toLowerCase().includes(q) || (s.contactPerson || "").toLowerCase().includes(q)
+      || execName(s).toLowerCase().includes(q);
+  };
+  const casaExec = (s: Sponsor) => {
+    if (execFilter === "all") return true;
+    if (execFilter === "__none__") return !s.accountExecutiveId;
+    return s.accountExecutiveId === execFilter;
+  };
+
+  // ── Opções do menu de executivo, COM contagem ─────────────────────────
+  // O <select> nativo listava TODOS os usuários do sistema, sem contagem —
+  // inclusive quem não é executivo de patrocinador nenhum, e o clique nesses
+  // devolvia lista vazia sem dizer por quê. O pool aqui é a lista já recortada
+  // pela busca e SEM o próprio filtro de executivo aplicado (senão a opção
+  // escolhida seria a única com número). É a mesma disciplina travada em
+  // server/__tests__/faceta-lista-invariante.test.ts.
+  const execPool = sponsors.filter(casaBusca);
+  const execFilterOptions = (() => {
+    const contagem = new Map<string, number>();
+    let semExecutivo = 0;
+    execPool.forEach(s => {
+      if (!s.accountExecutiveId) { semExecutivo++; return; }
+      contagem.set(s.accountExecutiveId, (contagem.get(s.accountExecutiveId) ?? 0) + 1);
+    });
+    const opts: FilterOption[] = users
+      .filter(u => contagem.has(u.id))
+      .map(u => ({ value: u.id, label: u.name, count: contagem.get(u.id)! }));
+    // `pinned` e não `unshift`: o FilterSelect reordena a lista alfabeticamente
+    // e só respeita a posição de quem está fixado — sem isto, "Sem executivo"
+    // acabaria enterrado entre os nomes com S.
+    if (semExecutivo > 0) {
+      opts.push({ value: "__none__", label: "Sem executivo", count: semExecutivo, pinned: true });
+    }
+    return opts;
+  })();
+
+  // Opções do CAMPO do formulário — outra lista, de propósito. O filtro só
+  // oferece quem já é executivo de alguém (clicar em quem não é devolveria
+  // lista vazia); o campo tem de oferecer TODA pessoa, senão ninguém consegue
+  // atribuir o primeiro patrocinador a um executivo novo. Mesmo controle,
+  // jobs diferentes — a distinção está no vocabulário do filter-select.
+  const execFormOptions: FilterOption[] = [
+    { value: "__none__", label: "Não atribuído", pinned: true },
+    ...users.map(u => ({ value: u.id, label: u.name })),
+  ];
+
   const filtered = sponsors
-    .filter(s => {
-      const q = search.toLowerCase();
-      const matchesSearch = !q || s.name.toLowerCase().includes(q) || (s.company || "").toLowerCase().includes(q)
-        || (s.email || "").toLowerCase().includes(q) || (s.contactPerson || "").toLowerCase().includes(q)
-        || execName(s).toLowerCase().includes(q);
-      if (!matchesSearch) return false;
-      if (execFilter === "all") return true;
-      if (execFilter === "__none__") return !s.accountExecutiveId;
-      return s.accountExecutiveId === execFilter;
-    })
+    .filter(s => casaBusca(s) && casaExec(s))
     // Ordenação padrão alfabética (pt-BR, ignorando acentos/maiúsculas).
     .sort((a, b) => {
       if (sortBy === "events") {
@@ -288,20 +330,27 @@ export default function Patrocinadores() {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {/* Filtro por executivo responsável */}
-            <select
+            {/* Filtro por executivo responsável — FilterSelect, o controle da
+                casa (ver o vocabulário em components/filter-select.tsx). Era um
+                <select> NATIVO: abria o menu do sistema operacional, com o azul
+                do Windows e a fonte do sistema, dentro de uma barra desenhada
+                inteiramente pela casa — e sem busca, sem contagem e sem o × de
+                limpar que todo filtro do app tem. */}
+            <FilterSelect
+              label="Executivo"
+              allLabel="Todos os executivos"
+              showAllLabelWhenEmpty
+              hideWhenEmpty={false}
               value={execFilter}
-              onChange={e => { setExecFilter(e.target.value); setPage(1); }}
-              data-testid="filter-account-executive"
-              aria-label="Filtrar por executivo responsável"
-              style={{ ...tiInput, width: "auto", minWidth: 200, paddingTop: 10, paddingBottom: 10, cursor: "pointer" }}
-            >
-              <option value="all">Todos os executivos</option>
-              <option value="__none__">Sem executivo</option>
-              {users.map(u => (
-                <option key={u.id} value={u.id}>{u.name}</option>
-              ))}
-            </select>
+              onChange={v => { setExecFilter(v); setPage(1); }}
+              options={execFilterOptions}
+              searchPlaceholder="Buscar executivo..."
+              emptyText="Nenhum executivo"
+              panelWidth={240}
+              dropdownAlign="right"
+              testId="filter-account-executive"
+              triggerStyle={{ minWidth: 200 }}
+            />
 
             {(search || execFilter !== "all") && (
               <button onClick={() => { setSearch(""); setExecFilter("all"); setPage(1); }}
@@ -684,12 +733,28 @@ export default function Patrocinadores() {
                           <FormItem>
                             <label htmlFor="sponsor-account-executive" style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Executivo responsável (interno)</label>
                             <FormControl>
-                              <select {...field} id="sponsor-account-executive" data-testid="select-account-executive" style={{ ...tiInput, cursor: "pointer" }}>
-                                <option value="">Não atribuído</option>
-                                {users.map(u => (
-                                  <option key={u.id} value={u.id}>{u.name}</option>
-                                ))}
-                              </select>
+                              {/* kind="field": é CAMPO DE FORMULÁRIO, não filtro
+                                  — não tem "Todos", não tem × de limpar, e
+                                  preenchido não acende de laranja (ver o
+                                  vocabulário em components/filter-select.tsx).
+                                  "Não atribuído" é uma resposta válida, então
+                                  entra como opção fixa da lista, não como o
+                                  estado vazio. */}
+                              <FilterSelect
+                                kind="field"
+                                fullWidth
+                                hideWhenEmpty={false}
+                                label="Executivo responsável"
+                                placeholder="Não atribuído"
+                                value={field.value || "__none__"}
+                                onChange={v => field.onChange(v === "__none__" ? "" : v)}
+                                options={execFormOptions}
+                                searchPlaceholder="Buscar pessoa..."
+                                emptyText="Nenhuma pessoa"
+                                testId="select-account-executive"
+                                triggerProps={{ id: "sponsor-account-executive", onBlur: field.onBlur }}
+                                triggerStyle={{ ...tiInput, height: "auto", padding: "14px 16px", border: "none" }}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>

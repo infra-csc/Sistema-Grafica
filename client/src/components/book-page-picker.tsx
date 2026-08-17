@@ -21,6 +21,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { X, Download, BookOpen, Loader2, AlertCircle, FileText } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { FilterSelect } from "@/components/filter-select";
 import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { toast } from "@/hooks/use-toast";
@@ -234,17 +235,23 @@ export function BookPagePicker({ open, onOpenChange, books, fileName = "book" }:
 
         {/* ══ Barra de controle ═══════════════════════════════════════════ */}
         <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "12px 32px", borderBottom: "1px solid #ebe8e4", backgroundColor: "#fafaf9", flexWrap: "wrap", flexShrink: 0 }}>
+          {/* kind="field": escolhe QUAL book está sendo folheado — preenche o
+              escopo da tela, não recorta uma lista (vocabulário em
+              components/filter-select.tsx). A contagem de peças, que antes era
+              texto colado no rótulo da opção ("Book A — 12 peças"), passa a ser
+              o selo numérico padrão: mesma informação, no lugar em que ela
+              aparece em todo menu do app. `hideSearch` porque são poucos books. */}
           {books.length > 1 && (
-            <select
+            <FilterSelect
+              kind="field" hideSearch hideWhenEmpty={false}
+              label="Book"
               value={bookUrl}
-              onChange={e => setBookUrl(e.target.value)}
-              aria-label="Book"
-              data-testid="select-book"
-              style={{ height: 34, maxWidth: 300, borderRadius: 8, border: "1px solid #e4e0db", padding: "0 10px", fontSize: 12, fontWeight: 600, color: "#1c1917", backgroundColor: "#fff", cursor: "pointer" }}>
-              {books.map(b => (
-                <option key={b.url} value={b.url}>{b.label} — {b.count} {b.count === 1 ? "peça" : "peças"}</option>
-              ))}
-            </select>
+              onChange={setBookUrl}
+              options={books.map(b => ({ value: b.url, label: b.label, count: b.count, pinned: true }))}
+              panelWidth={280}
+              testId="select-book"
+              triggerStyle={{ height: 34, maxWidth: 300, borderRadius: 8, border: "1px solid #e4e0db", padding: "0 8px 0 10px", fontSize: 12, fontWeight: 600, color: "#1c1917", backgroundColor: "#fff" }}
+            />
           )}
 
           <span style={{ fontSize: 13, fontWeight: 700, color: "#1c1917" }} data-testid="text-book-page-count">

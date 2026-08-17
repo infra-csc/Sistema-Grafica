@@ -1,5 +1,125 @@
 /**
- * FilterSelect — componente de filtro padrão do app.
+ * FilterSelect — O CONTROLE DE ESCOLHA DA CASA. Referência única.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ * VOCABULÁRIO DE CONTROLES — qual peça serve a qual JOB
+ * ═══════════════════════════════════════════════════════════════════════════
+ * Escrito porque o dono do NORTE olhou a faixa da Arte e disse "não pode cada
+ * um ser de um jeito": no mesmo app havia `<select>` nativo (com o menu e o
+ * azul do Windows), dois dropdowns próprios quase iguais, segmentados,
+ * pílulas-atalho, faixas de período e interruptores — oito desenhos para um
+ * punhado de trabalhos. A tabela abaixo é a decisão. Ela NÃO inventa padrão:
+ * elege, entre o que já existia, o controle mais maduro para cada job e
+ * aposenta o resto. Antes de criar um nono desenho, ache aqui o job.
+ *
+ * ── 1. SELEÇÃO ÚNICA entre poucas opções fixas (≤ 5, lista que não cresce) ──
+ *   CONTROLE: FilterSelect com `hideSearch`.
+ *   POR QUÊ: um campo de busca sobre três linhas é ruído e ainda rouba o foco
+ *   de abertura de quem só queria escolher com as setas. Continua sendo o
+ *   mesmo gatilho da faixa — a faixa não pode ter um controle de cada feitio
+ *   só porque uma dimensão tem menos opções que a outra.
+ *   ATIVO: gatilho vira tint (fundo #FFF7ED, borda #FB923C, texto #c2410c,
+ *   peso 600) e o rótulo passa a dizer o RECORTE, não o nome do campo.
+ *   NÃO USE: segmentado. O segmentado com rótulo à esquerda ("Prazo
+ *   todos|atrasados") gasta a largura de três gatilhos para caber um, não tem
+ *   contagem por opção e não escala quando a terceira opção aparece.
+ *
+ * ── 2. SELEÇÃO ÚNICA entre muitas opções (evento, patrocinador, pessoa) ─────
+ *   CONTROLE: FilterSelect, busca ligada (padrão), `count` em toda opção.
+ *   POR QUÊ: é o "filtro nota 10" que o dono apontou — busca no topo,
+ *   contagem por opção, "Todos" no alto. A busca usa `normalizarBusca`: com
+ *   `toLowerCase()` puro, "so quero" não achava "SÓ QUERO PEDALAR SP", e menu
+ *   que esconde a opção existente é indistinguível de menu que não a tem.
+ *   ATIVO: idem 1, mais o × de limpar dentro do gatilho.
+ *
+ * ── 3. SELEÇÃO MÚLTIPLA ────────────────────────────────────────────────────
+ *   CONTROLE: FilterSelect em modo múltiplo (`values`/`onValuesChange`).
+ *   POR QUÊ: mesma peça, mesma faixa; o que muda é a caixa de seleção no lugar
+ *   do ponto e o rodapé "N selecionados · Limpar". Um controle diferente para
+ *   "pode escolher mais de um" obrigaria o operador a reaprender a faixa.
+ *   ATIVO: `unitLabel` faz o gatilho dizer "3 eventos" em vez de "3
+ *   selecionados"; com 2+ e sem `unitLabel`, selo numérico ao lado do texto.
+ *
+ * ── 4. BINÁRIO / LIGA-DESLIGA (um recorte que só existe ligado ou desligado) ─
+ *   CONTROLE: pílula-atalho — botão único que acende quando ligado.
+ *   POR QUÊ: é o único job em que o dropdown perde. "Próximos 10 dias" tem UM
+ *   estado interessante; embrulhá-lo num menu de duas linhas cobra dois
+ *   cliques para o que precisa de um. NÃO é um interruptor de formulário
+ *   (switch): interruptor promete gravar uma preferência, e aqui é recorte de
+ *   tela.
+ *   ATIVO: fundo #FFF7ED, borda #FB923C, texto #c2410c, peso 700 E o ✓ à
+ *   esquerda — o estado nunca depende só de cor.
+ *
+ * ── 5. FAIXA TEMPORAL (período) ────────────────────────────────────────────
+ *   CONTROLE: FilterSelect com `hideSearch` e `icon={Calendar}`.
+ *   POR QUÊ: a faixa de botões "Todos · Hoje · 7 · 15 · 30 dias" é o caso 1
+ *   disfarçado — cinco opções mutuamente exclusivas de uma dimensão só. Como
+ *   faixa, ocupa meia tela e não cabe no celular; como gatilho, ocupa um.
+ *   O ícone de calendário segura a identidade do campo quando o rótulo vira
+ *   "7 dias" e some a palavra "Período".
+ *
+ * ── 6. ORDENAÇÃO ───────────────────────────────────────────────────────────
+ *   CONTROLE: FilterSelect com `kind="sort"`.
+ *   POR QUÊ (e é o coração do pedido): ordenação NÃO É FILTRO — não tira nada
+ *   da lista, não tem "Todos", não tem o que limpar, e sempre vale alguma.
+ *   Por isso ela se distingue: paleta GRAFITE (nunca a laranja do filtro),
+ *   ícone de setas ↑↓, rótulo sempre prefixado "Ordenar: …", sem × e sem a
+ *   linha "Todos". Quem bate o olho na faixa vê "os laranjas recortam, o
+ *   cinza reordena" sem ler uma palavra. E não pode ser `<select>` nativo:
+ *   era exatamente o que abria o menu do sistema operacional, com o azul do
+ *   Windows, no meio de uma faixa inteiramente desenhada pela casa.
+ *
+ * ── 7. BUSCA LIVRE ─────────────────────────────────────────────────────────
+ *   CONTROLE: campo de texto com lupa à esquerda, altura igual à do gatilho
+ *   (36px; 44px no celular), foco com anel #FB923C. Não é este componente —
+ *   é o `<input>` da tela —, mas partilha a altura e o raio para que a faixa
+ *   fique alinhada.
+ *   POR QUÊ: busca livre não tem conjunto de opções para oferecer; embrulhá-la
+ *   num menu esconderia justamente o que ela precisa expor, que é o cursor.
+ *   ATIVO: × para limpar dentro do campo.
+ *
+ * ── 8. ATALHO DE RECORTE PRONTO ("Atrasados", "Sai em 7 dias") ─────────────
+ *   CONTROLE: pílula-atalho (mesma peça do job 4), agrupada numa fileira
+ *   separada dos gatilhos, acima ou abaixo deles.
+ *   POR QUÊ: um atalho é uma COMBINAÇÃO de recortes com nome próprio, não uma
+ *   dimensão. Se virasse opção de um menu, teria de morar dentro de um campo
+ *   ao qual ele não pertence. Fica ao lado, e ao ser ligado ele acende os
+ *   gatilhos que de fato mexeu — senão o operador não sabe o que foi filtrado.
+ *
+ * ── 9. CAMPO DE ESCOLHA EM FORMULÁRIO (não é filtro) ───────────────────────
+ *   CONTROLE: FilterSelect com `kind="field"`.
+ *   POR QUÊ: filtro RECORTA uma lista (pode não ter valor, tem "Todos", tem o
+ *   que limpar); campo de formulário PREENCHE UM DADO (é obrigatório ou não,
+ *   nunca tem "Todos", e vazio é ausência de resposta, não "tudo"). São jobs
+ *   diferentes, então `kind="field"` remove a linha "Todos" e o ×, mostra um
+ *   placeholder em vez do nome do campo e aceita `invalid` para o anel
+ *   vermelho da validação.
+ *   O CUSTO QUE PRECISOU SER PAGO: num formulário de lançamento em lote a
+ *   VELOCIDADE DE DIGITAÇÃO importa mais do que num filtro, e o `<select>`
+ *   nativo é rápido justamente porque dá teclado de graça. Trocá-lo por um
+ *   controle mais bonito e mais lento seria uma piora real. Por isso este
+ *   componente ganhou teclado de primeira classe (vale para TODOS os jobs,
+ *   não só o 9): ↓/↑ andam pelas opções, Home/End vão às pontas, Enter abre
+ *   e escolhe, Esc fecha, digitar filtra (ou, com `hideSearch`, faz
+ *   typeahead), e `onCommit` devolve o foco para quem chamou — é o que
+ *   mantém o "Enter avança para o próximo campo" da grade em lote.
+ *
+ * ── O QUE FOI APOSENTADO ───────────────────────────────────────────────────
+ *   · `<select>` NATIVO para filtrar, ordenar ou escolher em formulário. Ele
+ *     desenha o menu do sistema operacional, com fonte, cor de seleção e
+ *     ordem que não são da casa, e não tem contagem, nem busca, nem grupo.
+ *   · `EventFilterDropdown` — era uma segunda cópia deste menu, só para
+ *     evento, sem ícone, sem selo de ativo, sem virada na borda da janela, e
+ *     com a linha "Todos" ainda em #F97316 sólido com texto branco (2,90:1,
+ *     reprovado). Virou casca fina sobre este componente.
+ *
+ * ── A REGRA QUE VALE PARA TODOS ────────────────────────────────────────────
+ *   O menu oferece o que a lista tem, e a contagem de cada opção é o número
+ *   de linhas que aquele clique entrega. Travada em
+ *   `server/__tests__/faceta-lista-invariante.test.ts`.
+ *
+ * ═══════════════════════════════════════════════════════════════════════════
+ *
  * Suporta seleção simples (value/onChange) e múltipla (values/onValuesChange).
  * accent="orange" (padrão) ou "violet" para contextos com tema violeta.
  *
@@ -15,9 +135,17 @@
  * #F5F3FF = 8,19:1 ✓). E o "Limpar" do rodapé usava #F97316 como cor de
  * TEXTO, o que a régua da casa proíbe: agora é C.text (#c2410c sobre branco
  * = 5,18:1 ✓).
+ *
+ * Paleta GRAFITE, nova, do kind="sort" (calculada pela mesma fórmula WCAG):
+ *   texto     #44403c sobre #ffffff = 10,27:1 ✓
+ *   ativo     #44403c sobre #f5f5f4 =  9,41:1 ✓
+ *   selo      #ffffff sobre #44403c = 10,27:1 ✓
+ * Placeholder do kind="field": #78716c sobre #ffffff = 4,80:1 ✓; sobre fundo
+ * de campo tingido (#f0efee, a grade do lote) cairia para 4,18:1 ✗ em 13px —
+ * por isso ali o placeholder é #57534e sobre #f0efee = 6,64:1 ✓.
  */
 import { useMemo, useState, useRef, useEffect, useLayoutEffect } from "react";
-import { Search, ChevronDown, Check, X } from "lucide-react";
+import { Search, ChevronDown, Check, X, ArrowUpDown } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { normalizarBusca } from "@/lib/utils";
 
@@ -82,6 +210,33 @@ interface FilterSelectProps {
    * ainda rouba o foco de abertura de quem só queria escolher com as setas.
    */
   hideSearch?: boolean;
+  /**
+   * O JOB deste controle — ver o vocabulário no topo do arquivo.
+   * "filter" (padrão) recorta uma lista: tem "Todos", tem × de limpar, acende
+   * em laranja. "sort" REORDENA: não tira nada, então não tem "Todos" nem ×, e
+   * usa a paleta grafite para não se confundir com filtro na mesma faixa.
+   * "field" PREENCHE UM DADO de formulário: também sem "Todos" (vazio ali é
+   * ausência de resposta, não "tudo"), com placeholder e estado inválido.
+   */
+  kind?: "filter" | "sort" | "field";
+  /** Texto do gatilho vazio no kind="field". Sem isto, cai no `label`. */
+  placeholder?: string;
+  /** Anel vermelho de validação (kind="field"). */
+  invalid?: boolean;
+  /**
+   * Atributos extras no <button> do gatilho. Existe para a grade de lançamento
+   * em lote, cuja navegação por teclado acha o próximo campo por
+   * `[data-nav-row][data-nav-field]` — sem repassar esses data-*, trocar o
+   * <select> nativo pelo controle da casa QUEBRARIA o Enter que avança.
+   */
+  triggerProps?: React.ButtonHTMLAttributes<HTMLButtonElement> & Record<string, unknown>;
+  /**
+   * Chamado depois que uma escolha foi confirmada PELO TECLADO (Enter). É o
+   * que devolve o comando a quem chamou — na grade em lote, mover o foco para
+   * o próximo campo. Não dispara no clique de mouse: ali o operador já está
+   * com a mão no ponteiro e roubar o foco atrapalha.
+   */
+  onCommit?: () => void;
 }
 
 export function FilterSelect({
@@ -110,8 +265,17 @@ export function FilterSelect({
   activeAppearance = "tint",
   unitLabel,
   hideSearch = false,
+  kind = "filter",
+  placeholder,
+  invalid = false,
+  triggerProps,
+  onCommit,
 }: FilterSelectProps) {
   const multiple = values !== undefined && onValuesChange !== undefined;
+  // Ordenação e campo de formulário SEMPRE valem alguma coisa: não existe
+  // "todas as ordens" nem "todo material". Some a linha "Todos" e o × de
+  // limpar — oferecer os dois seria prometer um estado que não existe.
+  const isFilterKind = kind === "filter";
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -136,17 +300,38 @@ export function FilterSelect({
   const [focusRing, setFocusRing] = useState(false);
   const pointerRef = useRef(false);
 
-  // Esc fecha o menu e devolve o foco ao gatilho. Fica no onKeyDown do container
-  // (não em document): dentro de um Dialog — o export-pdf usa este componente lá
-  // —, um listener global fecharia o modal inteiro junto. Parando a propagação
-  // no próprio React, o Esc de "fechar menu" nunca vira Esc de "fechar modal".
-  const handleEsc = (e: React.KeyboardEvent) => {
-    if (e.key !== "Escape" || !open) return;
-    e.stopPropagation();
-    setOpen(false);
-    setSearch("");
-    triggerRef.current?.focus();
-  };
+  // ── Teclado ───────────────────────────────────────────────────────────
+  // Este menu era operável só com o mouse: abria, e daí em diante quem não
+  // tinha ponteiro não tinha como escolher. Isso já era um defeito de
+  // acessibilidade, mas virou bloqueio de PRODUTO quando o padrão passou a
+  // valer também para campo de formulário: numa grade de lançamento em lote,
+  // um `<select>` nativo dá teclado de graça, e trocá-lo por um controle
+  // bonito e mais lento seria uma piora real para quem digita o dia inteiro.
+  // `activeIdx` é a opção sob o cursor do teclado (-1 = nenhuma ainda).
+  const [activeIdx, setActiveIdx] = useState(-1);
+  const listRef = useRef<HTMLDivElement>(null);
+  // Buffer do typeahead: com `hideSearch` não há caixa de busca para digitar,
+  // então as letras vão para cá e saltam até a opção que começa por elas —
+  // é o comportamento que o `<select>` nativo tinha e que não podia sumir.
+  const typeaheadRef = useRef({ buffer: "", at: 0 });
+
+  // FECHAR zera o cursor (e não "abrir"): ao abrir, o caminho que abriu já
+  // pode ter escolhido onde o cursor deve parar — digitar "l" com o menu
+  // fechado abre JÁ em "Lona". Um reset no `open` apagaria esse salto logo
+  // depois de ele acontecer.
+  useEffect(() => { if (!open) setActiveIdx(-1); }, [open]);
+  // Digitar na busca zera: o cursor apontaria para a posição de uma lista que
+  // acabou de mudar embaixo dele.
+  useEffect(() => { setActiveIdx(-1); }, [search]);
+
+  // A opção sob o cursor tem de estar VISÍVEL — descer com ↓ numa lista de 40
+  // eventos sem isto rola o cursor para fora do painel e a tela fica parada.
+  useEffect(() => {
+    if (!open || activeIdx < 0) return;
+    listRef.current
+      ?.querySelector<HTMLElement>(`[data-opt-idx="${activeIdx}"]`)
+      ?.scrollIntoView({ block: "nearest" });
+  }, [activeIdx, open]);
 
   // Lado efetivo do painel: começa na preferência do chamador (dropdownAlign)
   // e só vira para o outro lado quando a medição real mostra que ele não cabe
@@ -181,7 +366,20 @@ export function FilterSelect({
   // brancos, e é justamente onde não cabe: quem precisa carregar branco por
   // cima usa `text` (o 700), que passa AA. Sem a chave, ninguém reintroduz o
   // problema sem perceber. `border` e `badge` seguem sendo só moldura e selo.
-  const C = accent === "violet" ? {
+  // Ordenação usa GRAFITE, não laranja. É a distinção que o vocabulário do
+  // topo pede: numa faixa onde tudo acende laranja, o controle que NÃO tira
+  // linha nenhuma da lista não pode acender igual aos que tiram.
+  // O contorno/glifo grafite é #78716c (4,80:1 sobre branco ✓) e não o
+  // #a8a29e do resto da escala: em 2,52:1 a seta ▾ não alcançava nem os 3:1
+  // que a WCAG pede para objeto gráfico — e no kind="sort" ela está SEMPRE no
+  // estado ativo, então seria o contraste permanente do controle.
+  const C = kind === "sort" ? {
+    bg50:    "#f5f5f4",
+    border:  "#78716c",
+    badge:   "#44403c",
+    text:    "#44403c",
+    focus:   "rgba(68,64,60,0.15)",
+  } : accent === "violet" ? {
     bg50:    "#F5F3FF",
     border:  "#A78BFA",
     badge:   "#7C3AED",
@@ -205,23 +403,19 @@ export function FilterSelect({
   }, [options]);
 
   const hasGroups = sorted.some(o => o.group);
-  const groupedEntries = useMemo(() => {
-    if (!hasGroups) return [];
-    const map = new Map<string, FilterOption[]>();
-    sorted.forEach(o => {
-      const g = o.group || "";
-      if (!map.has(g)) map.set(g, []);
-      map.get(g)!.push(o);
-    });
-    return Array.from(map.entries());
-  }, [sorted, hasGroups]);
 
   if (hideWhenEmpty && sorted.length === 0) return null;
 
   // ── Estado activo ─────────────────────────────────────────────────────
   const isActive = multiple
     ? (values!.length > 0)
-    : (value !== undefined && value !== "all");
+    : (value !== undefined && value !== "all" && value !== "");
+
+  // Um campo de formulário PREENCHIDO é o estado normal dele, não um recorte
+  // aceso: se acendesse igual a um filtro ativo, uma grade com dez linhas
+  // preenchidas ficaria toda pintada de laranja sem que nada estivesse
+  // filtrado. Só filtro e ordenação vestem a pele de ativo.
+  const wearsActiveSkin = isActive && kind !== "field";
 
   // ── Label do trigger ──────────────────────────────────────────────────
   const allLabelText = allLabel || `Todos — ${label.toLowerCase()}`;
@@ -236,6 +430,15 @@ export function FilterSelect({
       // o texto genérico de sempre.
       triggerText = unitLabel ? `${values!.length} ${unitLabel.many}` : `${values!.length} selecionados`;
     }
+  } else if (kind === "sort") {
+    // "Ordenar: Mais recentes" e não só "Mais recentes": lido isolado no meio
+    // da faixa, o nome do critério parece mais um recorte. O prefixo é o que
+    // diz, em uma palavra, que este controle reordena em vez de tirar linhas.
+    const selected = sorted.find(o => o.value === value);
+    triggerText = `Ordenar: ${selected?.label ?? sorted[0]?.label ?? label}`;
+  } else if (kind === "field") {
+    const selected = sorted.find(o => o.value === value);
+    triggerText = selected?.label ?? placeholder ?? label;
   } else {
     const selected = sorted.find(o => o.value === value);
     const emptyText_ = showAllLabelWhenEmpty ? allLabelText : label;
@@ -256,6 +459,36 @@ export function FilterSelect({
     ? sorted.filter(o => normalizarBusca(o.label).includes(searchTrimmed))
     : sorted;
 
+  // Os grupos saem de `filteredSorted`, não de `sorted`. Saíam de `sorted`, e o
+  // efeito era: num menu AGRUPADO (o de Ação do Histórico, o de Prioridade dos
+  // Eventos), digitar na busca encolhia a contagem e a lista continuava
+  // mostrando as 24 opções — a busca só funcionava nos menus sem grupo.
+  const groupedEntries: Array<[string, FilterOption[]]> = [];
+  if (hasGroups) {
+    const map = new Map<string, FilterOption[]>();
+    filteredSorted.forEach(o => {
+      const g = o.group || "";
+      if (!map.has(g)) map.set(g, []);
+      map.get(g)!.push(o);
+    });
+    groupedEntries.push(...Array.from(map.entries()));
+  }
+
+  // ── Ordem de navegação do teclado ─────────────────────────────────────
+  // A MESMA ordem em que as opções são pintadas — inclusive a linha "Todos",
+  // que é a primeira quando existe. Se ↓ andasse pela ordem de `options` e a
+  // tela pintasse por grupo, o cursor pularia pela lista sem sentido nenhum.
+  const navOptions: FilterOption[] = hasGroups
+    ? groupedEntries.flatMap(([, opts]) => opts)
+    : filteredSorted;
+  const showAllRow = isFilterKind && !searchTrimmed;
+  const ALL_ROW = " all";
+  const navValues: string[] = showAllRow
+    ? [ALL_ROW, ...navOptions.map(o => o.value)]
+    : navOptions.map(o => o.value);
+  /** Índice de navegação de uma opção — o mesmo `data-opt-idx` do DOM. */
+  const navIndexOf = (v: string) => navValues.indexOf(v);
+
   // ── Handlers ──────────────────────────────────────────────────────────
   const handleSelectSingle = (v: string) => {
     onChange?.(v);
@@ -271,6 +504,143 @@ export function FilterSelect({
 
   const handleClearMultiple = () => {
     onValuesChange!([]);
+  };
+
+  /** Aplica a opção do índice `i` da ordem de navegação. */
+  const commitIndex = (i: number) => {
+    const v = navValues[i];
+    if (v === undefined) return;
+    if (v === ALL_ROW) {
+      if (multiple) handleClearMultiple();
+      else handleSelectSingle("all");
+      return;
+    }
+    if (multiple) {
+      // Múltipla escolha: Enter marca e o menu FICA ABERTO — quem está
+      // escolhendo três eventos não quer reabrir o menu duas vezes.
+      handleToggleMultiple(v);
+      return;
+    }
+    handleSelectSingle(v);
+    // Escolheu pelo teclado: o foco volta ao gatilho (senão ficaria num botão
+    // que acabou de ser desmontado, e o Tab seguinte recomeçaria do topo da
+    // página) e `onCommit` deixa quem chamou seguir — na grade em lote, pular
+    // para o próximo campo, que é o que o `<select>` nativo fazia.
+    requestAnimationFrame(() => triggerRef.current?.focus());
+    onCommit?.();
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (disabled) return;
+
+    // Esc fecha o menu e devolve o foco ao gatilho. Fica aqui, no onKeyDown do
+    // container (não em document): dentro de um Dialog — o export-pdf usa este
+    // componente lá —, um listener global fecharia o modal inteiro junto.
+    // Parando a propagação no próprio React, o Esc de "fechar menu" nunca vira
+    // Esc de "fechar modal".
+    if (e.key === "Escape") {
+      if (!open) return;
+      e.stopPropagation();
+      setOpen(false);
+      setSearch("");
+      triggerRef.current?.focus();
+      return;
+    }
+
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      if (!open) {
+        setOpen(true);
+        return;
+      }
+      if (navValues.length === 0) return;
+      const passo = e.key === "ArrowDown" ? 1 : -1;
+      setActiveIdx(i => {
+        // Sem cursor ainda: ↓ começa no primeiro, ↑ no último. Com cursor,
+        // dá a volta — numa lista de seis status, chegar ao fim e travar é
+        // pior do que voltar ao começo.
+        if (i < 0) return passo === 1 ? 0 : navValues.length - 1;
+        return (i + passo + navValues.length) % navValues.length;
+      });
+      return;
+    }
+
+    if (e.key === "Home" || e.key === "End") {
+      if (!open) return;
+      e.preventDefault();
+      setActiveIdx(e.key === "Home" ? 0 : navValues.length - 1);
+      return;
+    }
+
+    if (e.key === "Enter" || (e.key === " " && !open)) {
+      // Espaço só ABRE. Com o menu aberto ele pertence à caixa de busca —
+      // roubá-lo impediria de digitar "placa km" ali dentro.
+      e.preventDefault();
+      // Enter propagando para cima fecha/submete o Dialog ou o formulário que
+      // contém o menu; aqui ele significa "escolhi", e para nada mais.
+      e.stopPropagation();
+      if (!open) { setOpen(true); return; }
+      if (activeIdx >= 0) { commitIndex(activeIdx); return; }
+      // Sem cursor, mas a busca deixou UMA opção de pé: Enter escolhe ela.
+      // É o caminho rápido de quem digita "lona" e aperta Enter sem olhar.
+      if (searchTrimmed && navOptions.length === 1) {
+        commitIndex(navIndexOf(navOptions[0].value));
+        return;
+      }
+      setOpen(false);
+      triggerRef.current?.focus();
+      return;
+    }
+
+    if (e.key === "Tab" && open) {
+      // Tab sai do controle: fecha para o painel não ficar pairando sobre a
+      // tela enquanto o foco já está três campos adiante.
+      setOpen(false);
+      setSearch("");
+      return;
+    }
+
+    // Teclas imprimíveis (letra, dígito) daqui para baixo.
+    if (e.key.length !== 1 || e.ctrlKey || e.altKey || e.metaKey) return;
+
+    // DIGITAR COM O MENU FECHADO ABRE E JÁ PROCURA. No `<select>` nativo,
+    // parar no campo e teclar "l" salta para "Lona" sem clique nenhum; quem
+    // preenche uma grade de lançamento em lote depende disso para não tirar a
+    // mão do teclado. Sem esta linha a primeira letra sumiria — o operador
+    // digitaria "lona" e o campo receberia "ona".
+    if (!open) {
+      e.preventDefault();
+      setOpen(true);
+      if (hideSearch) {
+        typeaheadRef.current = { buffer: e.key, at: Date.now() };
+        // As opções não dependem de `open`, então o salto já pode ser
+        // calculado agora: o menu abre com o cursor JÁ na opção certa, e um
+        // Enter em seguida a escolhe. "l" + Enter = "Lona", dois toques.
+        const alvo = normalizarBusca(e.key);
+        const achou = navOptions.findIndex(o => normalizarBusca(o.label).startsWith(alvo));
+        if (achou >= 0) setActiveIdx(navIndexOf(navOptions[achou].value));
+      } else {
+        setSearch(e.key);
+      }
+      return;
+    }
+
+    // Typeahead — só onde não há caixa de busca (`hideSearch`). Com a caixa
+    // presente, ela tem o foco e recebe as letras sozinha. Digitar "lo" salta
+    // para "Lona 440g". O buffer expira em 800ms, senão a segunda palavra
+    // digitada minutos depois continuaria a primeira.
+    if (hideSearch) {
+      const agora = Date.now();
+      const t = typeaheadRef.current;
+      t.buffer = agora - t.at > 800 ? e.key : t.buffer + e.key;
+      t.at = agora;
+      const alvo = normalizarBusca(t.buffer);
+      const achou = navOptions.findIndex(o => normalizarBusca(o.label).startsWith(alvo));
+      if (achou >= 0) {
+        e.preventDefault();
+        setActiveIdx(navIndexOf(navOptions[achou].value));
+      }
+    }
   };
 
   // ── Estilos ───────────────────────────────────────────────────────────
@@ -291,19 +661,27 @@ export function FilterSelect({
   // Selo cheio: só quando o chamador pede E o filtro está de fato ativo.
   // #ffffff sobre #c2410c = 5,18:1 ✓ (violeta #5B21B6 = 8,19:1 ✓) — passa AA
   // como texto normal, não só como texto grande.
-  const solidActive = isActive && activeAppearance === "solid";
+  const solidActive = wearsActiveSkin && activeAppearance === "solid";
+
+  // Campo de formulário: preenchido escreve em quase-preto (#1c1917 sobre
+  // branco = 16,10:1 ✓); vazio escreve o placeholder em #78716c (4,80:1 ✓) —
+  // e quem tinge o fundo do campo passa a cor mais escura por triggerStyle,
+  // porque sobre #f0efee o #78716c cai para 4,18:1 ✗.
+  const fieldTextColor = kind === "field" && !isActive ? "#78716c" : "#1c1917";
 
   const pillTrigger: React.CSSProperties = {
     display: "flex", alignItems: "center",
     gap: 6, height: isMobile ? 44 : 36,
     padding: "0 10px 0 12px",
-    backgroundColor: solidActive ? C.text : open || isActive ? C.bg50 : "#ffffff",
-    border: solidActive ? `1.5px solid ${C.text}` : isActive || open ? `1.5px solid ${C.border}` : "1px solid #e7e5e4",
+    backgroundColor: solidActive ? C.text : open || wearsActiveSkin ? C.bg50 : "#ffffff",
+    border: invalid
+      ? "1.5px solid #ef4444"
+      : solidActive ? `1.5px solid ${C.text}` : wearsActiveSkin || open ? `1.5px solid ${C.border}` : "1px solid #e7e5e4",
     borderRadius: 7,
     cursor: disabled ? "not-allowed" : "pointer",
     opacity: disabled ? 0.6 : 1,
-    fontSize: 13, fontWeight: isActive ? 600 : 400,
-    color: solidActive ? "#ffffff" : isActive ? C.text : "#1c1917",
+    fontSize: 13, fontWeight: wearsActiveSkin ? 600 : 400,
+    color: solidActive ? "#ffffff" : wearsActiveSkin ? C.text : fieldTextColor,
     transition: "background 0.15s, border 0.15s, color 0.15s",
     outline: "none", whiteSpace: "nowrap",
     ...(fullWidth ? { width: "100%", justifyContent: "space-between" } : { maxWidth: 260 }),
@@ -314,8 +692,8 @@ export function FilterSelect({
     display: "flex", alignItems: "center",
     gap: 8, padding: "12px 16px",
     border: "none", borderRadius: 8,
-    backgroundColor: solidActive ? C.text : isActive ? C.bg50 : "#ffffff",
-    color: solidActive ? "#ffffff" : isActive ? C.text : "#1c1917",
+    backgroundColor: solidActive ? C.text : wearsActiveSkin ? C.bg50 : "#ffffff",
+    color: solidActive ? "#ffffff" : wearsActiveSkin ? C.text : fieldTextColor,
     fontSize: 14, fontWeight: 600,
     cursor: disabled ? "not-allowed" : "pointer",
     opacity: disabled ? 0.6 : 1,
@@ -331,13 +709,28 @@ export function FilterSelect({
   // ── Render opção ──────────────────────────────────────────────────────
   const renderOption = (opt: FilterOption) => {
     const isSel = multiple ? values!.includes(opt.value) : value === opt.value;
+    const idx = navIndexOf(opt.value);
+    // Opção sob o CURSOR DO TECLADO. Não é "selecionada" — é "onde as setas
+    // pararam". Por isso não pode se pintar como a selecionada (o operador
+    // pensaria que já escolheu): a marca é uma barra de 3px na borda esquerda
+    // mais um fundo cinza claro, dois sinais que ninguém confunde com o tint
+    // laranja de "esta é a que vale".
+    const isCursor = idx >= 0 && idx === activeIdx;
+    const bgDe = (sel: boolean, cursor: boolean) =>
+      sel ? C.bg50 : cursor ? "#F3F4F6" : "transparent";
     return (
       <button
         key={opt.value}
+        data-opt-idx={idx}
         // aria-pressed: o estado ativo passa a ser ANUNCIADO ("pressionado"),
         // não só pintado — quem usa leitor de tela não via diferença nenhuma
         // entre uma opção marcada e uma opção qualquer.
         aria-pressed={isSel}
+        // O foco fica no gatilho (é ele que ouve as setas); `aria-current` é o
+        // que conta ao leitor de tela onde o cursor do teclado parou.
+        aria-current={isCursor ? "true" : undefined}
+        tabIndex={-1}
+        onMouseMove={() => { if (idx >= 0 && idx !== activeIdx) setActiveIdx(idx); }}
         onClick={() => {
           if (disabled) return;
           if (multiple) {
@@ -349,11 +742,12 @@ export function FilterSelect({
         style={{
           width: "100%", display: "flex", alignItems: "center", gap: 9,
           padding: "8px 14px", border: "none", cursor: "pointer", textAlign: "left",
-          backgroundColor: isSel ? C.bg50 : "transparent",
+          backgroundColor: bgDe(isSel, isCursor),
+          boxShadow: isCursor ? `inset 3px 0 0 ${C.text}` : "none",
           transition: "background 0.1s",
         }}
         onMouseEnter={e => { if (!isSel) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F9FAFB"; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = isSel ? C.bg50 : "transparent"; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = bgDe(isSel, isCursor); }}
       >
         {/* Checkbox (multi) ou dot (single) */}
         {multiple ? (
@@ -407,7 +801,7 @@ export function FilterSelect({
   return (
     <div
       ref={ref}
-      onKeyDown={handleEsc}
+      onKeyDown={handleKeyDown}
       style={{ position: "relative", flexShrink: fullWidth ? 0 : undefined, width: fullWidth ? "100%" : undefined }}
     >
       {/* ── Trigger ── */}
@@ -429,13 +823,18 @@ export function FilterSelect({
         onFocus={() => { if (!pointerRef.current) setFocusRing(true); pointerRef.current = false; }}
         onBlur={() => setFocusRing(false)}
         onClick={() => { if (!disabled) setOpen(v => !v); }}
+        {...triggerProps}
         style={focusRing
           ? { ...resolvedTrigger, outline: "2px solid #1c1917", outlineOffset: 2 }
           : resolvedTrigger}
       >
-        {Icon && (
-          <Icon aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0, opacity: isActive ? 1 : 0.75 }} />
-        )}
+        {/* Ordenação ganha o ícone de setas ↑↓ mesmo sem o chamador pedir: é
+            metade do sinal de "isto reordena, não recorta" (a outra metade é a
+            paleta grafite). Quem passar `icon` explicitamente manda. */}
+        {(Icon || kind === "sort") && (() => {
+          const Glifo = Icon ?? ArrowUpDown;
+          return <Glifo aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0, opacity: isActive ? 1 : 0.75 }} />;
+        })()}
         {triggerDot && (
           <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: triggerDot, flexShrink: 0 }} />
         )}
@@ -455,8 +854,10 @@ export function FilterSelect({
           </span>
         )}
 
-        {/* Botão X — limpar */}
-        {isActive && !hideClear && (
+        {/* Botão X — limpar. Só no job de FILTRO: em ordenação e em campo de
+            formulário não existe estado "sem valor" para voltar, então o × não
+            teria o que fazer — e um × que não limpa nada é pior que × nenhum. */}
+        {isActive && !hideClear && isFilterKind && (
           <span
             role="button"
             // tabIndex + Enter/Espaço: o × fica dentro do <button> do trigger
@@ -487,7 +888,7 @@ export function FilterSelect({
         <ChevronDown aria-hidden="true" style={{
           width: variant === "bare" ? 14 : 13, height: variant === "bare" ? 14 : 13,
           flexShrink: 0, marginLeft: 2,
-          color: solidActive ? "rgba(255,255,255,0.9)" : isActive ? C.border : "#78716c",
+          color: solidActive ? "rgba(255,255,255,0.9)" : wearsActiveSkin ? C.border : "#78716c",
           transition: "transform 0.2s",
           transform: open ? "rotate(180deg)" : "rotate(0deg)",
         }} />
@@ -528,15 +929,22 @@ export function FilterSelect({
 
           {/* List. Sem a caixa de busca, o menu abre com uma folga mínima no
               topo para o primeiro item não colar na borda do painel. */}
-          <div style={{ maxHeight: 280, overflowY: "auto", paddingTop: hideSearch ? 6 : 0, scrollbarWidth: "thin", scrollbarColor: "#E5E7EB transparent" }}>
-            {/* "Todos" row */}
-            {!searchTrimmed && (
+          <div ref={listRef} style={{ maxHeight: 280, overflowY: "auto", paddingTop: hideSearch ? 6 : 0, scrollbarWidth: "thin", scrollbarColor: "#E5E7EB transparent" }}>
+            {/* "Todos" row — só no job de FILTRO. Ordenação e campo de
+                formulário não têm "todos": não existe "toda ordem" nem "todo
+                material", e oferecer a linha seria oferecer um estado que o
+                controle não sabe representar. */}
+            {showAllRow && (
               // "Todos" é o item MAIS NEUTRO da lista e virava a barra mais
               // pesada dela (fundo #F97316 sólido de ponta a ponta, branco de
               // 12px em 2,90:1). Agora é um tint discreto — o realce fica com
               // quem carrega informação, que são as opções escolhidas.
               <button
+                data-opt-idx={0}
+                tabIndex={-1}
                 aria-pressed={!isActive}
+                aria-current={activeIdx === 0 ? "true" : undefined}
+                onMouseMove={() => { if (activeIdx !== 0) setActiveIdx(0); }}
                 onClick={() => {
                   if (multiple) {
                     handleClearMultiple();
@@ -547,14 +955,15 @@ export function FilterSelect({
                 style={{
                   width: "100%", display: "flex", alignItems: "center", gap: 8,
                   padding: "9px 14px", border: "none", cursor: "pointer", textAlign: "left",
-                  backgroundColor: !isActive ? C.bg50 : "transparent",
+                  backgroundColor: !isActive ? C.bg50 : activeIdx === 0 ? "#F3F4F6" : "transparent",
+                  boxShadow: activeIdx === 0 ? `inset 3px 0 0 ${C.text}` : "none",
                   color: !isActive ? C.text : "#44403c",
                   fontWeight: 700, fontSize: 12,
                   transition: "background 0.1s",
                   borderBottom: "1px solid #F3F4F6",
                 }}
                 onMouseEnter={e => { if (isActive) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#F9FAFB"; }}
-                onMouseLeave={e => { if (isActive) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; }}
+                onMouseLeave={e => { if (isActive) (e.currentTarget as HTMLButtonElement).style.backgroundColor = activeIdx === 0 ? "#F3F4F6" : "transparent"; }}
               >
                 {multiple && (
                   <span style={{

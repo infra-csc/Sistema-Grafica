@@ -120,10 +120,39 @@ export default function LogsSistema() {
   };
 
   /* ── Derived filter options ── */
-  const allActions = useMemo(() =>
-    Array.from(new Set(logs.map(l => l.action))).sort(), [logs]);
-  const allEntities = useMemo(() =>
-    Array.from(new Set(logs.map(l => l.entityType))).sort(), [logs]);
+  // Cada menu conta sobre a lista recortada pelos OUTROS dois campos, nunca
+  // por si mesmo — senão a opção escolhida seria a única com número. Os dois
+  // menus não tinham contagem nenhuma: numa trilha de 500 registros, escolher
+  // "Tipo de ação" às cegas e cair numa tabela vazia era rotina. É a mesma
+  // disciplina travada em server/__tests__/faceta-lista-invariante.test.ts.
+  const casaBusca = (l: AuditLog) => {
+    const q = search.toLowerCase();
+    return !q || l.userName.toLowerCase().includes(q)
+      || (l.details ?? "").toLowerCase().includes(q)
+      || l.entityType.toLowerCase().includes(q);
+  };
+
+  const actionFilterOptions = useMemo(() => {
+    const conta = new Map<string, number>();
+    logs.forEach(l => {
+      if (!casaBusca(l)) return;
+      if (entityFilter !== "all" && l.entityType !== entityFilter) return;
+      conta.set(l.action, (conta.get(l.action) ?? 0) + 1);
+    });
+    return Array.from(conta.entries())
+      .map(([a, count]) => ({ value: a, label: getActionCfg(a).label, count }));
+  }, [logs, search, entityFilter]);
+
+  const entityFilterOptions = useMemo(() => {
+    const conta = new Map<string, number>();
+    logs.forEach(l => {
+      if (!casaBusca(l)) return;
+      if (actionFilter !== "all" && l.action !== actionFilter) return;
+      conta.set(l.entityType, (conta.get(l.entityType) ?? 0) + 1);
+    });
+    return Array.from(conta.entries())
+      .map(([e, count]) => ({ value: e, label: ENTITY_LABELS[e] ?? e, count }));
+  }, [logs, search, actionFilter]);
 
   /* ── Filtered + paginated ── */
   const filtered = useMemo(() => {
@@ -251,7 +280,7 @@ export default function LogsSistema() {
             label="Tipo de ação" allLabel="Todos os tipos de ação"
             value={actionFilter}
             onChange={v => { setActionFilter(v); setPage(1); }}
-            options={allActions.map(a => ({ value: a, label: getActionCfg(a).label }))}
+            options={actionFilterOptions}
             searchPlaceholder="Buscar ação..." emptyText="Nenhuma ação encontrada."
             hideWhenEmpty={false} testId="select-action-filter"
             triggerStyle={{ ...filterSel, minWidth: 160 }}
@@ -264,7 +293,7 @@ export default function LogsSistema() {
             label="Entidade" allLabel="Todas as entidades"
             value={entityFilter}
             onChange={v => { setEntityFilter(v); setPage(1); }}
-            options={allEntities.map(e => ({ value: e, label: ENTITY_LABELS[e] ?? e }))}
+            options={entityFilterOptions}
             searchPlaceholder="Buscar entidade..." emptyText="Nenhuma entidade encontrada."
             hideWhenEmpty={false} testId="select-entity-filter"
             triggerStyle={{ ...filterSel, minWidth: 140 }}

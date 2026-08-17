@@ -568,10 +568,9 @@ export default function PainelGeral() {
     onError: (error: any) => toast({ title: "Erro ao excluir", description: error.message, variant: "destructive" }),
   });
 
-  const uniqueTypes = useMemo(
-    () => Array.from(new Set(items.map((i: any) => i.type))).sort(),
-    [items],
-  );
+  // `uniqueTypes` saiu: era a lista de tipos do BANCO INTEIRO alimentando o
+  // menu de Tipo, sem contagem e sem relação com o recorte da tela. Quem faz
+  // isso agora é `typeFilterOptions`, que sai do mesmo pool da lista.
 
   const typeToGroup = useMemo(() => {
     const map: Record<string, string> = {};
@@ -582,7 +581,8 @@ export default function PainelGeral() {
   // Filtragem, ordenação, agrupamento e KPIs são recomputados SÓ quando os
   // dados ou filtros mudam — sem o useMemo, cada render (ex.: abrir um modal)
   // refazia filter+sort da lista inteira.
-  const { filteredItems, sortedGroupEntries, stats, eventMeta, atencao, ocultas } = useMemo(() => {
+  const { filteredItems, sortedGroupEntries, stats, eventMeta, atencao, ocultas,
+          eventFilterOptions, typeFilterOptions, sponsorFilterOptions, dateFilterOptions } = useMemo(() => {
   // Hoje à meia-noite — calculado UMA vez por recomputação (antes era um
   // new Date por item dentro do filtro).
   const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -684,7 +684,16 @@ export default function PainelGeral() {
     && !eventFilter.includes(item.eventId);
   const ocultoPorEvento = (item: any) => !mostrarFinalizados && seriaOculto(item);
 
-  const applyBaseFilters = (item: any) => {
+  /**
+   * O recorte base da tela. `exceto` desliga UMA dimensão — é assim que o
+   * pool das opções de um menu sai da MESMA lista que a tela mostra, sem o
+   * próprio filtro dele (senão a opção escolhida seria a única com número).
+   * Mesma assinatura de `casaRecorte(item, 'evento')` na Revisão Final e de
+   * `casaHistorico(i, 'evento')` no Atendimento — a disciplina travada em
+   * server/__tests__/faceta-lista-invariante.test.ts.
+   */
+  type DimBase = "evento" | "tipo" | "patrocinador" | "data";
+  const applyBaseFilters = (item: any, exceto?: DimBase) => {
     const matchesSearch =
       item.type?.toLowerCase().includes(q) ||
       (item.event?.name || "").toLowerCase().includes(q) ||
@@ -693,11 +702,11 @@ export default function PainelGeral() {
       // Patrocinador: a tela exibe chips de patrocinador em toda linha, então
       // "buscar Ambev" é tentativa natural — e devolvia zero.
       (Array.isArray(item.sponsors) && item.sponsors.some((s: any) => (s?.name || "").toLowerCase().includes(q)));
-    const matchesEvent   = eventFilter.length === 0   || eventFilter.includes(item.eventId);
-    const matchesType    = typeFilter.length === 0    || typeFilter.includes(item.type);
-    const matchesSponsor = sponsorFilter.length === 0 ||
+    const matchesEvent   = exceto === "evento"        || eventFilter.length === 0   || eventFilter.includes(item.eventId);
+    const matchesType    = exceto === "tipo"          || typeFilter.length === 0    || typeFilter.includes(item.type);
+    const matchesSponsor = exceto === "patrocinador"  || sponsorFilter.length === 0 ||
       (item.sponsors && Array.isArray(item.sponsors) && item.sponsors.some((s: any) => sponsorFilter.includes(s.id)));
-    const matchesDate = dateFilter.length === 0 || (() => {
+    const matchesDate = exceto === "data" || dateFilter.length === 0 || (() => {
       // Âncora: SAÍDA DO CAMINHÃO (decisão de negócio) — é o prazo operacional
       // que os chips e alertas usam. Antes filtrava pelo início do evento, que
       // podia dizer "no prazo" com o caminhão já atrasado.
@@ -748,7 +757,7 @@ export default function PainelGeral() {
   // justamente para contar o que os outros deixaram de contar, e é a porta de
   // volta. Metade dos números seguindo uma regra e metade outra seria pior que
   // qualquer das duas.
-  const baseCompleta = (items as any[]).filter(applyBaseFilters);
+  const baseCompleta = (items as any[]).filter(i => applyBaseFilters(i));
   const baseItems = baseCompleta.filter(i => !ocultoPorEvento(i));
   const atencao = {
     reprovadas: baseItems.filter(temReprovacao).length,
@@ -770,6 +779,86 @@ export default function PainelGeral() {
 
   const statsItems = baseItems.filter(matchesFoco);
 
+  // ── Opções dos menus, COM contagem ─────────────────────────────────────
+  // Os seis menus desta tela eram os únicos do app sem número nenhum: os
+  // cards de status contavam, os chips de atenção contavam, e os menus logo
+  // ao lado ofereciam listas mudas. Pior no de Evento, que varria a query
+  // `events` INTEIRA — oferecia evento do sistema todo sobre uma fila podada
+  // por evento finalizado, e clicar num deles devolvia lista vazia sem dizer
+  // por quê. É exatamente o defeito que o teste de invariante trava nas
+  // outras telas.
+  //
+  // Cada pool exclui o próprio filtro (`exceto`) e respeita a ocultação de
+  // evento finalizado — menos o de EVENTO, que a ignora de propósito: é
+  // clicando no evento oculto que o operador o revela (`seriaOculto` já não
+  // esconde evento escolhido à mão), então esconder a opção fecharia a única
+  // porta de entrada. Mesma decisão da Gráfica com as peças entregues.
+  const poolDe = (dim: DimBase, respeitarOcultacao = true) => {
+    const base = (items as any[]).filter(i => applyBaseFilters(i, dim));
+    return respeitarOcultacao ? base.filter(i => !ocultoPorEvento(i)) : base;
+  };
+
+  const PRIO_ORDEM: Record<string, number> = { urgente: 0, alta: 1, media: 2, baixa: 3 };
+  const PRIO_COR: Record<string, string> = { urgente: "#ef4444", alta: "#f97316", media: "#eab308", baixa: "#3b82f6" };
+  const eventoPorId = new Map((events as any[]).map(e => [e.id, e]));
+
+  const eventFilterOptions = (() => {
+    const conta = new Map<string, number>();
+    poolDe("evento", false).forEach(i => {
+      if (!i.eventId) return;
+      conta.set(i.eventId, (conta.get(i.eventId) ?? 0) + 1);
+    });
+    return Array.from(conta.entries())
+      .map(([id, count]) => {
+        // `events` entra só para buscar NOME e prioridade de um id que já veio
+        // da lista — nunca como fonte do conjunto de opções.
+        const ev = eventoPorId.get(id);
+        return { value: id, label: ev?.name ?? "Evento sem nome", count, dotColor: PRIO_COR[ev?.priority ?? ""], _p: PRIO_ORDEM[ev?.priority ?? ""] ?? 4 };
+      })
+      // `pinned` em todas para o FilterSelect preservar esta ordem: por
+      // prioridade e, dentro dela, alfabética — era a ordem que a tela já
+      // tinha e que a ordenação alfabética padrão do menu desmontaria.
+      .sort((a, b) => a._p !== b._p ? a._p - b._p : a.label.localeCompare(b.label, "pt-BR"))
+      .map(({ _p, ...o }) => ({ ...o, pinned: true }));
+  })();
+
+  const typeFilterOptions = (() => {
+    const conta = new Map<string, number>();
+    poolDe("tipo").forEach(i => { if (i.type) conta.set(i.type, (conta.get(i.type) ?? 0) + 1); });
+    return Array.from(conta.entries()).map(([t, count]) => ({ value: t, label: t, count }));
+  })();
+
+  const sponsorFilterOptions = (() => {
+    const conta = new Map<string, number>();
+    poolDe("patrocinador").forEach(i => {
+      if (!Array.isArray(i.sponsors)) return;
+      // Set por peça: uma peça com o mesmo patrocinador repetido não pode
+      // contar duas vezes — o clique nele devolveria UMA linha.
+      new Set(i.sponsors.map((s: any) => s?.id).filter(Boolean)).forEach((id: any) => {
+        conta.set(id, (conta.get(id) ?? 0) + 1);
+      });
+    });
+    const nomePorId = new Map((sponsors as any[]).map(s => [s.id, s.name]));
+    return Array.from(conta.entries())
+      .map(([id, count]) => ({ value: id, label: nomePorId.get(id) ?? "Patrocinador", count }));
+  })();
+
+  const dateFilterOptions = (() => {
+    const pool = poolDe("data");
+    return DATE_FILTER_VALUES.map((value) => ({
+      value,
+      label: DATE_FILTER_LABELS[value],
+      count: pool.filter(i => {
+        const truckDayMs = eventMeta.get(i.eventId || "no-event")?.truckDayMs ?? null;
+        if (truckDayMs == null) return value === "no_departure";
+        if (value === "no_departure") return false;
+        const diff = dayDiff(todayMs, truckDayMs);
+        return DATE_RANGE_MAP[value] ? DATE_RANGE_MAP[value](diff) : true;
+      }).length,
+      pinned: true,
+    }));
+  })();
+
   const areaDe = (i: any) => {
     const fw = Number(i.fileWidth), fh = Number(i.fileHeight);
     if (Number.isFinite(fw) && Number.isFinite(fh) && fw > 0 && fh > 0) return fw * fh;
@@ -780,7 +869,7 @@ export default function PainelGeral() {
 
   const dir = sortDir === "asc" ? 1 : -1;
   const filteredItems = allDisplayItems
-    .filter(applyBaseFilters)
+    .filter((i: any) => applyBaseFilters(i))
     .filter((i: any) => !ocultoPorEvento(i))
     .filter(matchesFoco)
     .filter((i) => matchesStatus(i, statusFilter))
@@ -841,8 +930,9 @@ export default function PainelGeral() {
     return diff !== 0 ? diff : a.eventName.localeCompare(b.eventName, "pt-BR");
   });
 
-  return { filteredItems, sortedGroupEntries, stats, eventMeta, atencao, ocultas };
-  }, [items, deletedItems, showDeleted, searchTerm, statusFilter, eventFilter, sponsorFilter, typeFilter, dateFilter, focoFilter, mostrarFinalizados, typeToGroup, sortBy, sortDir]);
+  return { filteredItems, sortedGroupEntries, stats, eventMeta, atencao, ocultas,
+           eventFilterOptions, typeFilterOptions, sponsorFilterOptions, dateFilterOptions };
+  }, [items, deletedItems, showDeleted, searchTerm, statusFilter, eventFilter, sponsorFilter, typeFilter, dateFilter, focoFilter, mostrarFinalizados, typeToGroup, sortBy, sortDir, events, sponsors]);
 
   // O chip de reversão. Fora do memo de propósito: ele depende de `ocultas`
   // (que vem de lá) mas também do estado do botão, e nada mais.
@@ -1404,14 +1494,14 @@ export default function PainelGeral() {
           <>
             {/* Evento */}
             <div style={{ flexShrink: 1, minWidth: 120, ...(useCards && { flex: "1 1 calc(50% - 4px)", minWidth: 0 }) }}>
+              {/* As opções saem de `eventFilterOptions` — o pool da LISTA —
+                  e não mais da query `events` inteira. Antes o menu oferecia
+                  todo evento do sistema sobre uma fila podada, e o clique num
+                  evento sem peça aqui devolvia lista vazia sem explicação. */}
               <EventFilterDropdown
                 values={eventFilter}
                 onValuesChange={setEventFilter}
-                options={(() => {
-                  const P: Record<string,number> = { urgente:0, alta:1, media:2, baixa:3 };
-                  const C: Record<string,string> = { urgente:'#ef4444', alta:'#f97316', media:'#eab308', baixa:'#3b82f6' };
-                  return [...events].sort((a,b) => { const pa=P[a.priority ?? '']??4,pb=P[b.priority ?? '']??4; return pa!==pb?pa-pb:a.name.localeCompare(b.name,'pt-BR'); }).map((e) => ({ value: e.id, label: e.name, dotColor: C[e.priority ?? ''] }));
-                })()}
+                options={eventFilterOptions}
               />
             </div>
 
@@ -1421,7 +1511,7 @@ export default function PainelGeral() {
                 label="Tipo" allLabel="Todos os tipos"
                 values={typeFilter} onValuesChange={setTypeFilter}
                 hideWhenEmpty={false}
-                options={uniqueTypes.map((t: string) => ({ value: t, label: t }))}
+                options={typeFilterOptions}
                 testId="select-type-filter"
                 fullWidth
               />
@@ -1433,7 +1523,7 @@ export default function PainelGeral() {
                 label="Patrocinador" allLabel="Todos os patrocinadores"
                 values={sponsorFilter} onValuesChange={setSponsorFilter}
                 hideWhenEmpty={false}
-                options={sponsors.map((s) => ({ value: s.id, label: s.name }))}
+                options={sponsorFilterOptions}
                 testId="select-sponsor-filter"
                 fullWidth
               />
@@ -1465,7 +1555,7 @@ export default function PainelGeral() {
                 label="Saída do caminhão" allLabel="Saída: qualquer data"
                 values={dateFilter} onValuesChange={setDateFilter}
                 hideWhenEmpty={false}
-                options={DATE_FILTER_VALUES.map((value) => ({ value, label: DATE_FILTER_LABELS[value], pinned: true }))}
+                options={dateFilterOptions}
                 testId="select-date-filter"
                 fullWidth
               />

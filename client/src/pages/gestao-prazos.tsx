@@ -1615,27 +1615,27 @@ export default function GestaoPrazos() {
             {/* Mesma razão do "Só com atraso": a lista de peças tem uma ordem
                 só (pior atraso primeiro) e ordenar por "próxima saída" um
                 conjunto de peças de eventos diferentes não é uma pergunta que
-                alguém faça. O critério fica escrito na legenda. */}
+                alguém faça. O critério fica escrito na legenda.
+
+                kind="sort" — o job 6 do vocabulário (components/filter-select.tsx).
+                Esta tela já tinha chegado sozinha à conclusão certa e remendado
+                o filtro à mão: `hideClear` mais um triggerStyle neutro. O
+                `kind` faz as três coisas de uma vez e para todo o app: paleta
+                grafite (nunca a laranja dos filtros vizinhos), ícone ↑↓ e o
+                prefixo "Ordenar:" no rótulo. Some também a linha "Todos", que
+                aqui era uma opção fantasma: devolvia "all" para um controle
+                onde "nenhuma ordenação" não existe. */}
             {visao !== "atrasadas" && (
             <FilterSelect
+              kind="sort"
+              hideSearch
               label="Ordenar"
-              allLabel="Ordenar: mais atrasado"
               value={ordem}
-              // A linha "Todos" do painel devolve "all"; aqui isso significa
-              // voltar à ordenação padrão da tela, que é por pior atraso.
               onChange={(v) => setOrdem(v === "saida" ? "saida" : "atraso")}
-              hideClear
-              // Ordenação SEMPRE tem valor, então o realce de "filtro ativo"
-              // do FilterSelect ficaria aceso o tempo todo e competiria com os
-              // filtros que de fato estão ligados. Aqui o controle fica neutro.
-              triggerStyle={{
-                backgroundColor: TI.card, border: `1px solid ${TI.border}`,
-                color: TI.title, fontWeight: 600,
-              }}
               testId="select-ordem-prazos"
               options={[
-                { value: "atraso", label: "Ordenar: mais atrasado" },
-                { value: "saida", label: "Ordenar: próxima saída" },
+                { value: "atraso", label: "Mais atrasado" },
+                { value: "saida", label: "Próxima saída" },
               ]}
             />
             )}

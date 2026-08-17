@@ -1708,20 +1708,36 @@ export default function Historico() {
             </span>
 
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <label style={{ fontSize: 12, color: P.second, display: "flex", alignItems: "center", gap: 6 }}>
-                Por página
-                <select
-                  value={pageSize}
-                  onChange={e => { setPageSize(Number(e.target.value)); setPage(1); }}
-                  data-testid="select-page-size"
-                  style={{
+              {/* "Por página" é CAMPO DE ESCOLHA, não filtro: não recorta nada
+                  da lista, só decide quantas linhas cabem por vez. Daí
+                  kind="field" — sem "Todos", sem × de limpar, sem acender de
+                  laranja. Era o único <select> NATIVO desta tela: abria com o
+                  menu do sistema operacional no rodapé de uma tabela inteira
+                  desenhada pela casa. `hideSearch` porque são três opções — uma
+                  caixa de busca sobre 25/50/100 é ruído puro. */}
+              <div style={{ fontSize: 12, color: P.second, display: "flex", alignItems: "center", gap: 6 }}>
+                {/* O gatilho já se anuncia como "Por página: 50" (o
+                    `aria-label` do FilterSelect junta dimensão e valor), então
+                    este rótulo visível não precisa de amarração extra. */}
+                <span>Por página</span>
+                <FilterSelect
+                  kind="field"
+                  hideSearch
+                  hideWhenEmpty={false}
+                  label="Por página"
+                  value={String(pageSize)}
+                  onChange={v => { setPageSize(Number(v)); setPage(1); }}
+                  options={PAGE_SIZES.map(n => ({ value: String(n), label: String(n) }))}
+                  panelWidth={110}
+                  dropdownAlign="right"
+                  testId="select-page-size"
+                  triggerStyle={{
                     height: isMobile ? 44 : 30, borderRadius: 6, border: `1px solid ${P.border}`,
-                    backgroundColor: "#fff", fontSize: 12, fontWeight: 700, color: P.text, padding: "0 6px",
+                    backgroundColor: "#fff", fontSize: 12, fontWeight: 700, color: P.text,
+                    padding: "0 6px 0 10px", minWidth: 62,
                   }}
-                >
-                  {PAGE_SIZES.map(n => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </label>
+                />
+              </div>
 
               {/* Com uma página só, dois botões desabilitados e um "1" inútil
                   não informam nada — some tudo e fica só a contagem. */}

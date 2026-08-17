@@ -789,10 +789,21 @@ function AssetModal({ asset, onClose, onSaved }: {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div>
               <label htmlFor="asset-condition" style={LBL}>Condição</label>
-              <select id="asset-condition" data-testid="select-asset-condition" style={{ ...INP, cursor: "pointer" }}
-                value={form.condition} onChange={e => setForm(f => ({ ...f, condition: e.target.value as Condition }))}>
-                {CONDITIONS.map(c => <option key={c} value={c}>{CONDITION_META[c].label}</option>)}
-              </select>
+              {/* kind="field" — campo de formulário, não filtro (vocabulário em
+                  components/filter-select.tsx). Era `<select>` NATIVO num modal
+                  onde os seis filtros da tela atrás já eram FilterSelect: o
+                  mesmo gesto abria dois menus diferentes conforme o lado do
+                  modal. `hideSearch` porque a lista é curta e fixa. */}
+              <FilterSelect
+                kind="field" hideSearch fullWidth hideWhenEmpty={false}
+                label="Condição"
+                value={form.condition}
+                onChange={v => setForm(f => ({ ...f, condition: v as Condition }))}
+                options={CONDITIONS.map(c => ({ value: c, label: CONDITION_META[c].label }))}
+                testId="select-asset-condition"
+                triggerProps={{ id: "asset-condition" }}
+                triggerStyle={{ ...INP, height: "auto" }}
+              />
             </div>
             <div>
               <label htmlFor="asset-status" style={LBL}>Status</label>
@@ -806,10 +817,16 @@ function AssetModal({ asset, onClose, onSaved }: {
                   </p>
                 </div>
               ) : (
-                <select id="asset-status" data-testid="select-asset-status" style={{ ...INP, cursor: "pointer" }}
-                  value={form.trackingStatus} onChange={e => setForm(f => ({ ...f, trackingStatus: e.target.value as TrackingStatus }))}>
-                  {MANUAL_STATUSES.map(s => <option key={s} value={s}>{STATUS_META[s].label}</option>)}
-                </select>
+                <FilterSelect
+                  kind="field" hideSearch fullWidth hideWhenEmpty={false}
+                  label="Status"
+                  value={form.trackingStatus}
+                  onChange={v => setForm(f => ({ ...f, trackingStatus: v as TrackingStatus }))}
+                  options={MANUAL_STATUSES.map(s => ({ value: s, label: STATUS_META[s].label }))}
+                  testId="select-asset-status"
+                  triggerProps={{ id: "asset-status" }}
+                  triggerStyle={{ ...INP, height: "auto" }}
+                />
               )}
             </div>
           </div>

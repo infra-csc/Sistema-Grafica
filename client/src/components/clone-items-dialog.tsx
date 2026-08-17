@@ -1,4 +1,5 @@
-import { ChevronDown, Copy, Loader2 } from "lucide-react";
+import { Copy, Loader2 } from "lucide-react";
+import { FilterSelect } from "@/components/filter-select";
 import { getStatusLabel } from "@/lib/status";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,6 +38,19 @@ export function CloneItemsDialog({
   isCloning,
   onConfirmClone,
 }: CloneItemsDialogProps) {
+  // A ordem escrita aqui é a que vale — do evento mais recente para o mais
+  // antigo, que é a ordem em que alguém procura o que clonar. `pinned` em
+  // todas porque o FilterSelect reordena alfabeticamente quem não está fixado.
+  const cloneSourceOptions = allEvents
+    .filter((e: any) => e.id !== eventId)
+    .slice()
+    .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .map((e: any) => ({
+      value: e.id,
+      label: `${e.name}${e.startDate ? ` (${new Date(e.startDate).toLocaleDateString('pt-BR')})` : ''}`,
+      pinned: true,
+    }));
+
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) { onOpenChange(false); setCloneSourceId(""); } }}>
       <DialogContent
@@ -65,40 +79,37 @@ export function CloneItemsDialog({
           <label style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: 8 }}>
             Selecionar evento de origem
           </label>
-          {/* Wrapper relativo para a seta: o appearance:none tirou o chevron
-              nativo e o select parecia um input travado. */}
+          {/* kind="field" — escolher o evento de ORIGEM preenche um dado da
+              operação, não recorta uma lista (vocabulário em
+              components/filter-select.tsx). Era `<select>` NATIVO com
+              `appearance:none` e um chevron desenhado por fora: o disfarce
+              cobria o gatilho, mas o menu aberto continuava sendo o do sistema
+              operacional — e dentro de um Dialog, onde o Esc do menu nativo
+              fechava o modal inteiro junto. Aqui o Esc fecha só o menu.
+              A busca fica LIGADA: a lista de eventos é longa e o operador sabe
+              o nome do que quer copiar. */}
           <div style={{ position: 'relative' }}>
-            <select
-              value={cloneSourceId}
-              onChange={e => setCloneSourceId(e.target.value)}
+            <FilterSelect
+              kind="field" fullWidth hideWhenEmpty={false}
+              label="Evento de origem"
+              placeholder={eventsLoading ? 'Carregando eventos…' : '— Escolha um evento —'}
               disabled={eventsLoading}
-              data-testid="select-clone-source"
-              style={{
-                width: '100%', padding: '10px 36px 10px 14px', borderRadius: 8, border: '1.5px solid #e7e5e4',
-                fontSize: 15, fontFamily: "'Space Grotesk', sans-serif", color: eventsLoading ? '#746e69' : '#1a1c1c',
-                backgroundColor: '#ffffff', appearance: 'none', cursor: eventsLoading ? 'wait' : 'pointer',
+              value={cloneSourceId}
+              onChange={setCloneSourceId}
+              options={cloneSourceOptions}
+              searchPlaceholder="Buscar evento..."
+              emptyText="Nenhum evento encontrado"
+              panelWidth={320}
+              testId="select-clone-source"
+              triggerStyle={{
+                width: '100%', padding: '10px 12px 10px 14px', height: 'auto', borderRadius: 8,
+                border: '1.5px solid #e7e5e4',
+                fontSize: 15, fontFamily: "'Space Grotesk', sans-serif",
+                backgroundColor: '#ffffff', cursor: eventsLoading ? 'wait' : 'pointer',
               }}
-            >
-              {eventsLoading ? (
-                <option value="">Carregando eventos…</option>
-              ) : (
-                <>
-                  <option value="">— Escolha um evento —</option>
-                  {allEvents
-                    .filter((e: any) => e.id !== eventId)
-                    .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-                    .map((e: any) => (
-                      <option key={e.id} value={e.id}>
-                        {e.name} {e.startDate ? `(${new Date(e.startDate).toLocaleDateString('pt-BR')})` : ''}
-                      </option>
-                    ))}
-                </>
-              )}
-            </select>
-            {eventsLoading ? (
-              <Loader2 className="animate-spin" style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: '#746e69', pointerEvents: 'none' }} />
-            ) : (
-              <ChevronDown style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: '#746e69', pointerEvents: 'none' }} />
+            />
+            {eventsLoading && (
+              <Loader2 className="animate-spin" style={{ position: 'absolute', right: 34, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: '#746e69', pointerEvents: 'none' }} />
             )}
           </div>
 

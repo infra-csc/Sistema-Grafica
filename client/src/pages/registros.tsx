@@ -3,7 +3,7 @@
 // a ela, e este acervo interessa a todo mundo.
 import { useMemo, useState, useEffect, useRef, useDeferredValue } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Camera, Truck, FileCheck, Search, X, ExternalLink, ChevronLeft, ChevronRight, ZoomIn, Download, Loader2 } from "lucide-react";
+import { Camera, Truck, FileCheck, Search, X, ExternalLink, ChevronLeft, ChevronRight, ZoomIn, Download, Loader2, CalendarDays } from "lucide-react";
 import { Link } from "wouter";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { FilterSelect } from "@/components/filter-select";
@@ -145,6 +145,34 @@ export default function Registros() {
       else map.set(id, { value: id, label: p.eventName || "Sem evento", count: 1 });
     });
     return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
+  }, [photos, passes]);
+
+  // Período com CONTAGEM — a faixa de botões que este menu substituiu não
+  // tinha nenhuma: as cinco janelas apareciam iguais, e "Hoje" num dia sem
+  // registro nenhum era indistinguível de "Hoje" com quarenta. O pool exclui o
+  // próprio período (a regra das facetas) e as janelas são cumulativas, então
+  // cada uma conta desde a sua data de corte até agora — 7 dias inclui hoje,
+  // como o predicado `passes.period` já fazia.
+  const periodOptions = useMemo(() => {
+    const pool = photos.filter(p => passes.kind(p) && passes.event(p) && passes.search(p));
+    const desde = (dias: number) => {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      d.setDate(d.getDate() - dias);
+      return d;
+    };
+    return PERIODS.filter(p => p !== "Todos").map(p => {
+      const from = desde(PERIOD_DAYS[p]);
+      return {
+        value: p as string,
+        label: p as string,
+        count: pool.filter(x => !!x.createdAt && new Date(x.createdAt) >= from).length,
+        // `pinned` mantém a ordem cronológica escrita aqui (Hoje → 30 dias); o
+        // FilterSelect ordena alfabeticamente, e sem isto a lista sairia
+        // "15 dias, 30 dias, 7 dias, Hoje".
+        pinned: true,
+      };
+    });
   }, [photos, passes]);
 
   // Contadores sobre o recorte atual (menos o filtro de tipo, que eles próprios
@@ -303,43 +331,32 @@ export default function Registros() {
               values={eventFilter}
               onValuesChange={v => { setEventFilter(v); setVisible(PAGE_SIZE); }}
             />
-            {/* Período — mesmo padrão das outras telas. radiogroup: é uma
-                escolha exclusiva, e o papel certo deixa o leitor de tela
-                anunciar "3 de 5" em vez de cinco botões soltos. Roving
-                tabindex (WAI-ARIA): o Tab entra no grupo pelo item ativo e
-                as setas / Home / End movem a SELEÇÃO — cinco tabs para
-                atravessar um "radio" é o custo de fingir o papel sem o
-                comportamento. */}
-            <div role="radiogroup" aria-label="Período" style={{ display: "flex", border: `1px solid ${T.border}`, borderRadius: R.md, overflow: "hidden", backgroundColor: T.surface }}>
-              {PERIODS.map((p, i) => (
-                <button key={p}
-                  role="radio"
-                  aria-checked={period === p}
-                  tabIndex={period === p ? 0 : -1}
-                  onClick={() => { setPeriod(p); setVisible(PAGE_SIZE); }}
-                  onKeyDown={e => {
-                    const dir = e.key === "ArrowRight" ? 1 : e.key === "ArrowLeft" ? -1 : 0;
-                    const next = dir !== 0
-                      ? (i + dir + PERIODS.length) % PERIODS.length
-                      : e.key === "Home" ? 0 : e.key === "End" ? PERIODS.length - 1 : -1;
-                    if (next < 0) return;
-                    e.preventDefault();
-                    setPeriod(PERIODS[next]);
-                    setVisible(PAGE_SIZE);
-                    (e.currentTarget.parentElement?.children[next] as HTMLElement | undefined)?.focus();
-                  }}
-                  data-testid={`button-period-${p}`}
-                  className={period === p ? undefined : "hover:bg-black/[0.04]"}
-                  style={{
-                    padding: "0 12px", height: controlHeight, border: "none", cursor: "pointer",
-                    backgroundColor: period === p ? T.text : "transparent",
-                    color: period === p ? "#ffffff" : T.second,
-                    fontSize: FS.small, fontWeight: 700, whiteSpace: "nowrap", transition: "background-color 0.15s",
-                  }}>
-                  {p}
-                </button>
-              ))}
-            </div>
+            {/* Período — job 5 do vocabulário (components/filter-select.tsx).
+                Era uma faixa de cinco botões: uma dimensão só, com opções
+                mutuamente exclusivas, gastando a largura de três gatilhos ao
+                lado de dois menus que fazem exatamente a mesma pergunta. No
+                celular ela era a peça que estourava a barra.
+
+                O que a faixa tinha e NÃO se perdeu: as setas ←/→ e Home/End
+                continuam andando pelas opções (agora dentro do menu, junto com
+                ↑/↓, Enter e Esc, que a faixa não tinha), e a contagem por opção
+                — que a faixa não tinha — passa a existir. `hideSearch` porque
+                são cinco linhas fixas. */}
+            <FilterSelect
+              label="Período"
+              allLabel="Todos os períodos"
+              showAllLabelWhenEmpty
+              hideWhenEmpty={false}
+              hideSearch
+              icon={CalendarDays}
+              value={period === "Todos" ? "all" : period}
+              onChange={v => { setPeriod(v === "all" ? "Todos" : (v as Period)); setVisible(PAGE_SIZE); }}
+              options={periodOptions}
+              panelWidth={190}
+              dropdownAlign="right"
+              testId="select-period-filter"
+              triggerStyle={{ height: controlHeight }}
+            />
             {hasFilters && (
               <button onClick={clearAll} data-testid="button-clear-filters" className="hover:bg-black/[0.03]"
                 style={{ display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 34, fontSize: FS.small, fontWeight: 600, color: T.second, background: "none", border: `1px solid ${T.border}`, borderRadius: R.pill, cursor: "pointer", padding: "0 14px", transition: "background-color 0.15s" }}>

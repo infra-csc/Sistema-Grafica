@@ -425,12 +425,9 @@ export default function VincularPatrocinadores() {
     return grouped;
   }, [visibleItems]);
 
-  // Lista de tipos únicos de items
-  const itemTypes = useMemo(() => {
-    const types = new Set<string>();
-    visibleItems.forEach(item => types.add(item.type));
-    return Array.from(types).sort();
-  }, [visibleItems]);
+  // `itemTypes` saiu: era a lista de tipos de TODA a fila visível alimentando o
+  // menu de Peça sem contagem e sem respeitar os outros filtros. Quem faz isso
+  // agora é `itemFilterOptions`, mais abaixo, junto com `statusFilterOptions`.
 
   // Estado para armazenar sponsors originais (do banco de dados) - DEVE VIR ANTES DE filterItems
   const [originalSponsorsMap, setOriginalSponsorsMap] = useState<Record<string, string[]>>({});
@@ -588,6 +585,55 @@ export default function VincularPatrocinadores() {
       }
       return true;
     });
+  }, [contextVisibleItems, eventById, searchQuery, itemFilter, sponsorFilter, statusFilter, originalSponsorsMap, pendingChanges]);
+
+  // Opções de Peça e de Status, COM contagem. Eram os dois únicos menus desta
+  // tela sem número — ao lado de Evento e Patrocinador, que já tinham —, e
+  // ainda por cima com lista fixa no caso do Status: as quatro situações
+  // apareciam sempre, mesmo quando nenhuma peça da fila estava naquela. O pool
+  // de cada um exclui o próprio filtro e aplica todos os outros, como manda a
+  // invariante de server/__tests__/faceta-lista-invariante.test.ts.
+  const poolSemDimensao = (ignorar: "tipo" | "status") =>
+    contextVisibleItems.filter(item => {
+      const event = eventById.get(item.eventId);
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        if (!item.type.toLowerCase().includes(q) &&
+            !(item.description?.toLowerCase().includes(q)) &&
+            !(event?.name?.toLowerCase().includes(q))) return false;
+      }
+      if (ignorar !== "tipo" && itemFilter.length > 0 && !itemFilter.includes(item.type)) return false;
+      if (sponsorFilter.length > 0) {
+        const saved = originalSponsorsMap[item.id] || [];
+        if (!sponsorFilter.some(sf => saved.includes(sf))) return false;
+      }
+      if (ignorar !== "status" && statusFilter.length > 0) {
+        const orig = originalSponsorsMap[item.id] || [];
+        const pc = pendingChanges[item.id];
+        if (!statusFilter.includes(getItemUIStatus(item, orig, pc))) return false;
+      }
+      return true;
+    });
+
+  const itemFilterOptions = useMemo(() => {
+    const conta = new Map<string, number>();
+    poolSemDimensao("tipo").forEach(i => conta.set(i.type, (conta.get(i.type) ?? 0) + 1));
+    return Array.from(conta.entries()).map(([t, count]) => ({ value: t, label: t, count }));
+  }, [contextVisibleItems, eventById, searchQuery, sponsorFilter, statusFilter, originalSponsorsMap, pendingChanges]);
+
+  const statusFilterOptions = useMemo(() => {
+    const ROTULO: Record<string, string> = { PENDENTE: "Pendente", RASCUNHO: "Rascunho", PRONTO: "Pronto", ENVIADO: "Enviado" };
+    const conta = new Map<string, number>();
+    poolSemDimensao("status").forEach(i => {
+      const st = getItemUIStatus(i, originalSponsorsMap[i.id] || [], pendingChanges[i.id]);
+      conta.set(st, (conta.get(st) ?? 0) + 1);
+    });
+    // A ordem é a do FLUXO (Pendente → Rascunho → Pronto → Enviado), não a
+    // alfabética; `pinned` é o que faz o FilterSelect respeitá-la. Situações
+    // sem nenhuma peça saem da lista — o clique nelas devolveria vazio.
+    return ["PENDENTE", "RASCUNHO", "PRONTO", "ENVIADO"]
+      .filter(v => (conta.get(v) ?? 0) > 0 || statusFilter.includes(v))
+      .map(v => ({ value: v, label: ROTULO[v], count: conta.get(v) ?? 0, pinned: true }));
   }, [contextVisibleItems, eventById, searchQuery, itemFilter, sponsorFilter, statusFilter, originalSponsorsMap, pendingChanges]);
 
   // Contadores de contexto: sobre fullyFilteredItems (TODOS os filtros ativos).
@@ -1924,7 +1970,7 @@ export default function VincularPatrocinadores() {
                 label="Peça" allLabel="Todas as peças"
                 values={itemFilter} onValuesChange={setItemFilter}
                 hideWhenEmpty={false} showAllLabelWhenEmpty
-                options={itemTypes.map(t => ({ value: t, label: t }))}
+                options={itemFilterOptions}
                 testId="select-item-filter"
               />
             </div>
@@ -1936,12 +1982,7 @@ export default function VincularPatrocinadores() {
                 label="Status" allLabel="Todos os status"
                 values={statusFilter} onValuesChange={setStatusFilter}
                 hideWhenEmpty={false} showAllLabelWhenEmpty
-                options={[
-                  { value: "PENDENTE", label: "Pendente" },
-                  { value: "RASCUNHO", label: "Rascunho" },
-                  { value: "PRONTO", label: "Pronto" },
-                  { value: "ENVIADO", label: "Enviado" },
-                ]}
+                options={statusFilterOptions}
                 testId="select-status-filter"
               />
             </div>

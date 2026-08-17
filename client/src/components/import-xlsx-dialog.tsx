@@ -10,6 +10,7 @@ import {
   Search,
   X,
 } from "lucide-react";
+import { FilterSelect } from "@/components/filter-select";
 import {
   Dialog,
   DialogContent,
@@ -226,23 +227,33 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
               </span>
             );
           })}
-          {/* Add sponsor dropdown */}
+          {/* Add sponsor dropdown — kind="field". Não é filtro: cada escolha
+              ACRESCENTA um patrocinador à linha (por isso o gatilho volta a
+              "+ Adicionar" e o valor fica sempre vazio). Era `<select>` NATIVO
+              dentro de uma célula editável, e o menu do sistema operacional
+              abrindo por cima da grade era o único elemento da tela que não
+              tinha o desenho da casa. #746e69 sobre o fundo branco da célula =
+              5,29:1 ✓ em 10px (a régua pede 4,5:1). */}
           {(row.suggestedSponsorIds ?? []).length < eventSponsorsList.length && (
-            <select
-              value=""
-              onChange={e => {
-                const v = e.target.value;
-                if (v && !(row.suggestedSponsorIds ?? []).includes(v))
-                  onChange({ ...row, suggestedSponsorIds: [...(row.suggestedSponsorIds ?? []), v] });
-              }}
-              onClick={e => e.stopPropagation()}
-              style={{ fontSize: 10, borderRadius: 6, border: '1px dashed #d0cdc9', backgroundColor: 'transparent', color: '#746e69', cursor: 'pointer', padding: '2px 5px', maxWidth: 100 }}
-            >
-              <option value="">+ Adicionar</option>
-              {eventSponsorsList.filter(s => !(row.suggestedSponsorIds ?? []).includes(s.sponsorId)).map(s => (
-                <option key={s.sponsorId} value={s.sponsorId}>{s.name}</option>
-              ))}
-            </select>
+            <div onClick={e => e.stopPropagation()} style={{ display: 'inline-flex' }}>
+              <FilterSelect
+                kind="field" hideWhenEmpty={false}
+                label="Adicionar patrocinador"
+                placeholder="+ Adicionar"
+                value=""
+                onChange={v => {
+                  if (v && !(row.suggestedSponsorIds ?? []).includes(v))
+                    onChange({ ...row, suggestedSponsorIds: [...(row.suggestedSponsorIds ?? []), v] });
+                }}
+                options={eventSponsorsList
+                  .filter(s => !(row.suggestedSponsorIds ?? []).includes(s.sponsorId))
+                  .map(s => ({ value: s.sponsorId, label: s.name }))}
+                searchPlaceholder="Buscar patrocinador..."
+                emptyText="Nenhum patrocinador"
+                panelWidth={220}
+                triggerStyle={{ fontSize: 10, height: 'auto', borderRadius: 6, border: '1px dashed #d0cdc9', backgroundColor: 'transparent', color: '#746e69', padding: '2px 4px 2px 5px', maxWidth: 110 }}
+              />
+            </div>
           )}
           {/* Select all event sponsors */}
           {eventSponsorsList.length > 0 && (row.suggestedSponsorIds ?? []).length < eventSponsorsList.length && (

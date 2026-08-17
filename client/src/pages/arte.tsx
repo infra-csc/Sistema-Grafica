@@ -3177,6 +3177,14 @@ export default function Arte() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap', borderTop: '1px solid #f0efee', paddingTop: 8 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Mostrar:</span>
 
+            {/* SEGMENTADOS, e nao menus: decisao do dono (17/08) depois de ver
+                os quatro como FilterSelect. O resto do vocabulario continua
+                valendo na tela — ORDENAR POR, a faixa de periodo e o seletor
+                de fase do celular seguem padronizados; sao ESTES quatro que
+                ficam segmentados, porque aqui a opcao visivel sem abrir menu
+                vale mais que a uniformidade.
+                Por isso nao ha contagem por opcao: um segmentado mostra os
+                estados, nao quantas linhas cada um entrega. */}
             {/* Prazo — o recorte que o dono pediu. "Atrasada" é medida contra o
                 marco da FASE (Entrega de Layouts −20 / Aprovação de Layout −12 /
                 Finalização −10, os mesmos do funil da Gestão de Prazos),
@@ -3185,61 +3193,78 @@ export default function Arte() {
                 da coluna Prazo — o filtro entrega o conjunto dos selos "Nd
                 atrasado" que já estão na tela. Ver lib/arte-rules.
                 Em Finalizados o marco É a saída, que numa peça pronta já passou
-                por definição: lá o recorte não existe em vez de mentir — o
-                gatilho fica desabilitado com o porquê no título, e não sumindo,
-                para que quem chegou ali com o recorte LIGADO ainda consiga
-                desligá-lo. O selo de atrasadas virou a `count` da opção: é o
-                mesmo número, no lugar onde todos os outros menus da casa o
-                põem. */}
-            <FilterSelect
-              hideSearch hideWhenEmpty={false}
-              label="Prazo da fase" allLabel="Qualquer prazo"
-              value={atrasadoFilter ? "atrasados" : "all"}
-              onChange={v => setAtrasadoFilter(v === "atrasados")}
-              options={prazoFilterOptions}
-              disabled={prazoBloqueado}
-              panelWidth={210}
-              testId="select-atrasado-filter"
-              triggerProps={prazoBloqueado
-                ? { title: "Em Finalizados o marco é a própria saída do caminhão, que numa peça pronta já passou — não há atraso a apontar" }
-                : undefined}
-            />
+                por definição: lá o recorte não existe em vez de mentir. */}
+            <div role="group" aria-label="Prazo da fase" data-testid="segment-atrasado"
+              style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 999, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', padding: '0 6px 0 8px' }}>Prazo</span>
+              {([
+                { on: false, label: 'todos' },
+                { on: true, label: 'atrasados' },
+              ] as { on: boolean; label: string }[]).map(({ on, label }) => {
+                const bloqueado = on && activeTab === "finalizados";
+                const ativo = atrasadoFilter === on;
+                return (
+                  <button key={label} onClick={() => { if (!bloqueado) setAtrasadoFilter(on); }}
+                    aria-pressed={ativo} disabled={bloqueado}
+                    data-testid={`button-atrasado-${on ? 'sim' : 'nao'}`}
+                    title={bloqueado
+                      ? "Em Finalizados o marco é a própria saída do caminhão, que numa peça pronta já passou — não há atraso a apontar"
+                      : on ? "Só peças que já passaram do marco desta fase" : undefined}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 22, padding: '0 10px', borderRadius: 999, border: 'none', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.5 : 1, fontSize: 11, fontWeight: ativo ? 700 : 500, background: ativo ? '#ffffff' : 'transparent', color: ativo ? '#1c1917' : '#57534e', boxShadow: ativo ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.12s' }}>
+                    {label}
+                    {on && !bloqueado && (
+                      // A contagem vive no controle: o recorte diz QUANTOS são
+                      // antes de ser clicado, como as abas e os dropdowns fazem.
+                      <span data-testid="badge-atrasadas-count"
+                        // Contrastes (texto ≤13px exige 4,5:1):
+                        // #991b1b sobre #fef2f2 = 7,60:1 ✓ · #57534e sobre
+                        // #e7e5e4 = 6,00:1 ✓
+                        style={{ padding: '0 6px', borderRadius: 999, fontSize: 11, fontWeight: 700, lineHeight: '16px', background: atrasadasNaAba > 0 ? '#fef2f2' : '#e7e5e4', color: atrasadasNaAba > 0 ? '#991b1b' : '#57534e' }}>
+                        {atrasadasNaAba}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
 
-            <FilterSelect
-              hideSearch hideWhenEmpty={false}
-              label="Prioridade" allLabel="Qualquer prioridade"
-              value={urgenteFilter ? "urgentes" : "all"}
-              onChange={v => setUrgenteFilter(v === "urgentes")}
-              options={prioridadeFilterOptions}
-              panelWidth={210}
-              testId="select-urgente-filter"
-            />
+            <div role="group" aria-label="Prioridade" data-testid="segment-urgente"
+              style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 999, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', padding: '0 6px 0 8px' }}>Prioridade</span>
+              {([
+                { on: false, label: 'todas' },
+                { on: true, label: 'urgentes' },
+              ] as { on: boolean; label: string }[]).map(({ on, label }) => (
+                <button key={label} onClick={() => setUrgenteFilter(on)} aria-pressed={urgenteFilter === on}
+                  data-testid={`button-urgente-${on ? 'sim' : 'nao'}`}
+                  style={{ height: 22, padding: '0 10px', borderRadius: 999, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: urgenteFilter === on ? 700 : 500, background: urgenteFilter === on ? '#ffffff' : 'transparent', color: urgenteFilter === on ? '#1c1917' : '#57534e', boxShadow: urgenteFilter === on ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.12s' }}>
+                  {label}
+                </button>
+              ))}
+            </div>
 
             {/* "Sem thumb" e "Com thumb" eram dois booleanos independentes:
                 ligados juntos descartavam TUDO por construção e a lista ficava
-                vazia com o texto genérico de "2 filtros ativos". O tri-estado
-                consertou isso; aqui ele só troca de roupa — o "todos" é a linha
-                "Todos" que o próprio menu desenha, e por isso o estado neutro
-                viaja como "all" e volta como "todos". */}
-            <FilterSelect
-              hideSearch hideWhenEmpty={false}
-              label="Thumb" allLabel="Com e sem thumb"
-              value={thumbFilter === "todos" ? "all" : thumbFilter}
-              onChange={v => setThumbFilter(v === "all" ? "todos" : (v as TriState))}
-              options={thumbFilterOptions}
-              panelWidth={210}
-              testId="select-thumb-filter"
-            />
-
-            <FilterSelect
-              hideSearch hideWhenEmpty={false}
-              label="Arquivo final" allLabel="Com e sem arquivo final"
-              value={finalFilter === "todos" ? "all" : finalFilter}
-              onChange={v => setFinalFilter(v === "all" ? "todos" : (v as TriState))}
-              options={finalFilterOptions}
-              panelWidth={230}
-              testId="select-final-filter"
-            />
+                vazia com o texto genérico de "2 filtros ativos". */}
+            {([
+              { rotulo: 'Thumb', value: thumbFilter, set: setThumbFilter, testId: 'segment-thumb' },
+              { rotulo: 'Arquivo final', value: finalFilter, set: setFinalFilter, testId: 'segment-final' },
+            ] as { rotulo: string; value: TriState; set: (v: TriState) => void; testId: string }[]).map(({ rotulo, value, set, testId }) => (
+              <div key={testId} role="group" aria-label={rotulo} data-testid={testId}
+                style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 999, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', padding: '0 6px 0 8px' }}>{rotulo}</span>
+                {([
+                  { v: 'todos', label: 'todos' },
+                  { v: 'com', label: 'com' },
+                  { v: 'sem', label: 'sem' },
+                ] as { v: TriState; label: string }[]).map(({ v, label }) => (
+                  <button key={v} onClick={() => set(v)} aria-pressed={value === v}
+                    style={{ height: 22, padding: '0 10px', borderRadius: 999, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: value === v ? 700 : 500, background: value === v ? '#ffffff' : 'transparent', color: value === v ? '#1c1917' : '#57534e', boxShadow: value === v ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.12s' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+            ))}
 
             {/* Ordenação — a regra de negócio inteira é ancorada na saída do
                 caminhão e a lista só sabia ordenar por nome de evento. */}

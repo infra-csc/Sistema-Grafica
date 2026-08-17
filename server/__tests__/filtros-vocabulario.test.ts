@@ -171,43 +171,52 @@ describe("Arte — `?mes=` deixou de ser um recorte sem porta de entrada", () =>
   });
 });
 
-describe("Arte — as contagens que os segmentados mudos não tinham", () => {
-  it.each([
-    "periodFilterOptions", "monthFilterOptions", "prioridadeFilterOptions",
-    "thumbFilterOptions", "finalFilterOptions", "prazoFilterOptions",
-  ])("%s existe e alimenta um menu", (nome) => {
-    expect(ARTE).toContain(`const ${nome} =`);
-    expect(ARTE).toContain(`options={${nome}}`);
+describe("Arte — o que ficou padronizado, e os quatro que o dono manteve segmentados", () => {
+  // Decisão do dono (17/08), depois de ver os quatro como menu: "o filtro
+  // antigo estava bom, não precisa mudar esses — neste caso apenas".
+  // Prazo da fase, Prioridade, Thumb e Arquivo final voltam a ser
+  // segmentados; o resto do vocabulário segue valendo na tela. Este teste
+  // trava a EXCEÇÃO para que a próxima onda de padronização não a desfaça
+  // sem querer — foi por não estar escrita que ela virou trabalho refeito.
+  it.each(["segment-atrasado", "segment-urgente"])(
+    "%s continua segmentado, com os estados à vista sem abrir menu",
+    (testId) => {
+      expect(ARTE).toContain(`data-testid="${testId}"`);
+      expect(ARTE).toContain('role="group"');
+    },
+  );
+
+  it("Thumb e Arquivo final saem do mesmo .map, e seguem segmentados", () => {
+    // Estes dois nao trazem o testId literal no JSX: nascem de uma lista, e o
+    // `data-testid` vem do item. Procurar a string literal daria falso negativo.
+    expect(ARTE).toContain("testId: 'segment-thumb'");
+    expect(ARTE).toContain("testId: 'segment-final'");
+    expect(ARTE).toContain("data-testid={testId}");
   });
 
-  it("toda contagem sai do MESMO pool da lista, com a própria dimensão de fora", () => {
-    // A regra que vale para todos (vocabulário do componente): a contagem de
-    // cada opção é o número de linhas que AQUELE CLIQUE entrega. `poolSemDimensao`
-    // refaz o recorte inteiro com um campo trocado — inclusive o que mora fora
-    // de `matchesArteFilters` (a janela de 90 dias dos Finalizados e o recorte
-    // de atrasadas).
-    const i = ARTE.indexOf("const poolSemDimensao =");
-    expect(i, "poolSemDimensao não foi encontrado em arte.tsx").toBeGreaterThan(-1);
-    const corpo = ARTE.slice(i, ARTE.indexOf("\n  const periodFilterOptions"));
-    expect(corpo).toContain("tabPoolItems.filter");
-    expect(corpo).toContain("matchesArteFilters");
-    expect(corpo).toContain("dentroDaJanelaFinalizados");
-    expect(corpo).toContain("filtrarAtrasadasDaFase");
+  it("os quatro segmentados NÃO viraram FilterSelect", () => {
+    for (const nome of ["prioridadeFilterOptions", "thumbFilterOptions", "finalFilterOptions", "prazoFilterOptions"]) {
+      expect(ARTE, `${nome} voltou a alimentar um menu`).not.toContain(`options={${nome}}`);
+    }
   });
 
-  it("o selo de atrasadas virou a contagem da opção, e é o mesmo número", () => {
-    expect(ARTE).toContain('label: "Só atrasadas", count: atrasadasNaAba');
-    // O número sai da BASE (sem o recorte de atraso aplicado), senão mudaria
-    // ao ser clicado — o controle prometeria um total e entregaria outro.
-    expect(ARTE).toContain("const atrasadasNaAba = useMemo");
+  it("o resto do vocabulário segue padronizado na Arte", () => {
+    // A exceção é dos QUATRO, não da tela: ordenação, faixa de período e o
+    // seletor de fase do celular continuam no padrão da casa, e nenhum
+    // <select> nativo voltou.
+    expect(ARTE).toContain('kind="sort"');
+    expect(ARTE).toContain('kind="field"');
+    expect(ARTE).toContain("options={periodFilterOptions}");
+    expect(ARTE).toContain("options={monthFilterOptions}");
+    expect(ARTE.replace(/\{\/\*[\s\S]*?\*\/\}/g, "")).not.toContain("<select");
   });
 
   it("Finalizados continua sem prometer atraso que não existe", () => {
-    // Ali o marco É a própria saída do caminhão, que numa peça pronta já passou
-    // por definição. O gatilho fica DESABILITADO (e não sumindo), para que quem
-    // chegou na aba com o recorte ligado ainda consiga desligá-lo.
-    expect(ARTE).toContain('const prazoBloqueado = activeTab === "finalizados" && !atrasadoFilter');
-    expect(ARTE).toContain("disabled={prazoBloqueado}");
+    // Ali o marco É a própria saída do caminhão, que numa peça pronta já
+    // passou por definição — o recorte não existe em vez de mentir. O
+    // comentário do bloco é o contrato escrito; o que se trava aqui é que o
+    // segmentado de Prazo continua existindo para as outras abas.
+    expect(ARTE).toContain('aria-label="Prazo da fase" data-testid="segment-atrasado"');
   });
 });
 

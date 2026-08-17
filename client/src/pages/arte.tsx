@@ -2949,7 +2949,18 @@ export default function Arte() {
   // deixava a fase sem nenhuma porta de entrada.)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
+    /* ALTURA: era `height: 100%` + `overflow: hidden`, e mesmo medindo
+       exatamente a altura da casca (610 = 610, sem exceder um pixel) o <main>
+       continuava com scrollHeight de 10479 — ou seja, a casca rolava TAMBEM.
+       Dois scrollers verticais sobre a mesma lista: o da casca e o do
+       #painel-arte. Dava para rolar um sem o outro, e o resultado era a lista
+       parada no meio de uma linha com a tela em branco embaixo — o "as vezes
+       corta" do dono, que dependia de qual dos dois o mouse pegava.
+       `position: absolute; inset: 0` prende a tela na casca em vez de pedir
+       que ela caiba: medido depois, main.scrollHeight = clientHeight = 610 e
+       so o painel rola. (Testei antes tirar o `sticky` do cabecalho, suspeito
+       obvio: nao era — o scrollHeight nao se mexeu.) */
+    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* ── STICKY HEADER ─────────────────────────────────────────────────── */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 40,

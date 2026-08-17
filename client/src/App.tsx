@@ -471,7 +471,10 @@ function AuthenticatedLayout() {
             </DropdownMenu>
           </div>
         </header>
-        <SidebarInset className="flex-1 overflow-y-auto min-h-0" style={{ minWidth: 0 }}>
+        {/* `position: relative` e o bloco de contencao das telas que se fixam
+            na casca em vez de crescer dentro dela (hoje a Arte). Nao muda o
+            layout de ninguem: so da um ancestral posicionado a quem pedir. */}
+        <SidebarInset className="flex-1 overflow-y-auto min-h-0" style={{ minWidth: 0, position: "relative" }}>
           <Router />
         </SidebarInset>
       </div>

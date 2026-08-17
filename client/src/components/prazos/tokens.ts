@@ -129,7 +129,7 @@ export const STAGE_SECTOR: Record<string, {
 // por isso o link é específico agora e não só depois:
 //   • `fase=<aba>`        — Arte (`parseArteFilters`, lib/arte-rules.ts)
 //   • `busca=<displayId>` — Arte e Revisão casam displayId na busca
-//   • `evento=<id>`       — Arte e Gráfica (CSV de ids)
+//   • `evento=<id>`       — Arte, Gráfica e Revisão (CSV de ids)
 //   • `atrasados=1`       — Atendimento (recorte "passou do marco de Aprovação")
 //
 // A GRÁFICA RECEBE `item` SOZINHO, de propósito: o efeito dela resolve o uuid
@@ -217,7 +217,12 @@ export function urlSetorDoEvento(
   if (!alvo?.base) return `/eventos/${eventId}`;
   const p = new URLSearchParams();
   if (alvo.fase) p.set("fase", alvo.fase);
-  if (alvo.base === "/arte" || alvo.base === "/grafica") p.set("evento", eventId);
+  // A Revisão entrou nesta lista quando passou a ler `?evento=` (CSV de ids,
+  // as mesmas chaves da Arte e da Gráfica). Antes dela o link daqui era um
+  // href honesto para a fila inteira; agora seria estreitar de menos.
+  if (alvo.base === "/arte" || alvo.base === "/grafica" || alvo.base === "/solicitacao") {
+    p.set("evento", eventId);
+  }
   if (alvo.base === "/atendimento" && opts.atrasada) p.set("atrasados", "1");
   const qs = p.toString();
   return qs ? `${alvo.base}?${qs}` : alvo.base;

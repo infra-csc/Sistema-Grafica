@@ -160,11 +160,11 @@ describe("urlSetorDoEvento — link de EVENTO + ETAPA leva ao recorte do evento"
     expect(urlSetorDoEvento("listaImagens", "ev-1")).toBe("/eventos/ev-1");
   });
 
-  it("Revisão ainda não tem recorte próprio e por isso vai sem query", () => {
-    // Documenta o buraco em vez de escondê-lo: enquanto `solicitacao.tsx` não
-    // ler nada da URL, este é o único href honesto — e este teste é o que vai
-    // falhar (de propósito) no dia em que a Revisão ganhar `?evento=`.
-    expect(urlSetorDoEvento("revisao", "ev-1")).toBe("/solicitacao");
+  it("Revisão abre recortada no evento", () => {
+    // Este teste existia ao contrário — travava o href SEM query e dizia, ele
+    // mesmo, que deveria falhar no dia em que `solicitacao.tsx` lesse a URL.
+    // Esse dia chegou (`busca`/`evento`/`tipo`), então o buraco virou contrato.
+    expect(params(urlSetorDoEvento("revisao", "ev-1"))).toEqual({ evento: "ev-1" });
   });
 });
 

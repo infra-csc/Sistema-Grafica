@@ -34,7 +34,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Link, useLocation } from "wouter";
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import type { Sponsor } from "@shared/schema";
-import { FilterSelect } from "@/components/filter-select";
+import { FilterSelect, ShortcutPill } from "@/components/filter-select";
 import { SponsorChips } from "@/components/sponsor-chips";
 import {
   PRIORITY, getPriorityMeta, getStatusMeta, PRODUCTION_STATUSES,
@@ -2677,23 +2677,18 @@ export default function Eventos() {
           testId="select-month-filter"
         />
 
-        <button
+        {/* O MESMO atalho existe aqui, na Arte e na Gráfica — e aqui ele
+            acendia PRETO enquanto os outros dois acendem laranja. Mesma
+            pergunta ("o caminhão sai nos próximos 10 dias?"), mesma resposta
+            visual: job 4 do vocabulário (components/filter-select.tsx). */}
+        <ShortcutPill
+          label="Próximos 10 dias"
+          icon={Truck}
+          active={next10DaysFilter}
           onClick={() => setNext10DaysFilter(!next10DaysFilter)}
-          aria-pressed={next10DaysFilter}
-          data-testid="button-next-10-days-filter"
-          style={{
-            display: 'flex', alignItems: 'center', gap: '6px',
-            padding: '5px 13px', borderRadius: R.pill,
-            fontSize: FS.body, fontWeight: '700', cursor: 'pointer',
-            border: 'none',
-            backgroundColor: next10DaysFilter ? T.dark : '#e2e2e2',
-            color: next10DaysFilter ? '#ffffff' : '#57534e',
-            transition: 'all 0.15s',
-          }}
-        >
-          <Truck style={{ width: '13px', height: '13px' }} />
-          Próximos 10 dias
-        </button>
+          testId="button-next-10-days-filter"
+          title="Só eventos cujo caminhão sai nos próximos 10 dias"
+        />
 
         {/* "Ocultar concluídos" nasce ligado: a grade padrão mostra o que ainda
             tem trabalho. Esconde o concluído e o encerrado à mão; NUNCA esconde

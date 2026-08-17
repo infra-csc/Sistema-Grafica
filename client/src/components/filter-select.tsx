@@ -482,7 +482,7 @@ export function FilterSelect({
     ? groupedEntries.flatMap(([, opts]) => opts)
     : filteredSorted;
   const showAllRow = isFilterKind && !searchTrimmed;
-  const ALL_ROW = " all";
+  const ALL_ROW = "\u0000all";
   const navValues: string[] = showAllRow
     ? [ALL_ROW, ...navOptions.map(o => o.value)]
     : navOptions.map(o => o.value);

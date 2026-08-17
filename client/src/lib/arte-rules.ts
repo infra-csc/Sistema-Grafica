@@ -116,6 +116,20 @@ export type TriState = "todos" | "com" | "sem";
 export const PERIOD_FILTERS = ["Todos", "Hoje", "7 dias", "15 dias", "30 dias"] as const;
 export type PeriodFilter = (typeof PERIOD_FILTERS)[number];
 
+/**
+ * A ORDEM da lista. Mora FORA de `ArteFilters` de propósito: ordenação não é
+ * filtro (job 6 do vocabulário em components/filter-select.tsx) — não tira
+ * linha nenhuma, sempre vale alguma e não tem o que limpar. Se entrasse no
+ * objeto de filtros, viraria +1 em `countActiveFilters`, ganharia chip de
+ * "Ativos:" com um × que não teria o que apagar, e mudaria `filtersKey`,
+ * reiniciando a paginação de quem só quis reordenar o que já estava vendo.
+ * Ela viaja na URL mesmo assim porque a URL da Arte é mandada entre colegas:
+ * "a fila por prazo" é metade do que se está mostrando quando se manda o link.
+ */
+export const ARTE_SORT_MODES = ["evento", "prazo"] as const;
+export type ArteSortMode = (typeof ARTE_SORT_MODES)[number];
+export const ARTE_SORT_PADRAO: ArteSortMode = "evento";
+
 export const EMPTY_ARTE_FILTERS: ArteFilters = {
   search: "",
   eventIds: [],
@@ -249,9 +263,16 @@ export function filtersKey(f: ArteFilters, tab: string): string {
 // Só os valores fora do padrão entram, para que o estado limpo continue sendo
 // uma URL limpa. Nomes em pt-BR: a URL é compartilhada entre colegas.
 
-export function serializeArteFilters(f: ArteFilters, tab: string): string {
+export function serializeArteFilters(
+  f: ArteFilters,
+  tab: string,
+  sort: ArteSortMode = ARTE_SORT_PADRAO,
+): string {
   const p = new URLSearchParams();
   if (tab && tab !== "criar-aprovacoes") p.set("fase", tab);
+  // Só a ordem NÃO-padrão entra, pela mesma regra dos filtros: estado limpo
+  // continua sendo URL limpa.
+  if (sort !== ARTE_SORT_PADRAO) p.set("ordem", sort);
   if (f.search) p.set("busca", f.search);
   if (f.eventIds.length) p.set("evento", f.eventIds.join(","));
   if (f.sponsorIds.length) p.set("patrocinador", f.sponsorIds.join(","));
@@ -276,11 +297,17 @@ function tri(p: URLSearchParams, key: string): TriState {
   return v === "com" || v === "sem" ? v : "todos";
 }
 
-export function parseArteFilters(search: string): { filters: ArteFilters; tab: ArteTabId | null } {
+export function parseArteFilters(
+  search: string,
+): { filters: ArteFilters; tab: ArteTabId | null; sort: ArteSortMode } {
   const p = new URLSearchParams(search);
   const period = p.get("periodo");
+  const ordem = p.get("ordem");
   return {
     tab: isArteTabId(p.get("fase")) ? (p.get("fase") as ArteTabId) : null,
+    sort: (ARTE_SORT_MODES as readonly string[]).includes(ordem ?? "")
+      ? (ordem as ArteSortMode)
+      : ARTE_SORT_PADRAO,
     filters: {
       search: p.get("busca") ?? "",
       eventIds: list(p, "evento"),

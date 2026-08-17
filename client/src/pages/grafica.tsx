@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { FilterSelect } from "@/components/filter-select";
+import { FilterSelect, ShortcutPill } from "@/components/filter-select";
 import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, ImagePlus, FileSpreadsheet, ListChecks, PlusCircle, Trash2 } from "lucide-react";
 import { Fragment, useState, useMemo, useEffect, useRef } from "react";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
@@ -2007,28 +2007,23 @@ export default function Grafica() {
           triggerStyle={{ backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, color: TI.text }}
         />
 
-        {/* Toggle Próximos 10 dias — rótulo + trilho num único alvo de toque
-            (≥44px): antes só o trilho de 38×20 era clicável. */}
+        {/* Próximos 10 dias — job 4 do vocabulário (components/filter-select.tsx).
+            Era o ÚNICO `role="switch"` de filtro do app: o mesmo recorte, com o
+            mesmo nome, que a Arte e os Eventos oferecem como pílula. E o
+            interruptor mentia sobre o que é: switch promete gravar uma
+            preferência ("notificações ligadas"), e isto é recorte de tela — sai
+            no F5 de quem não estiver com ele na URL.
+            O trilho de 38×20 também dependia SÓ DA COR para dizer o estado;
+            a pílula acende com tint, peso 700 e o ✓ à esquerda. */}
         <div style={{ borderLeft: `1px solid ${TI.border}`, paddingLeft: 12, marginLeft: 4 }}>
-          <button
-            role="switch"
-            aria-checked={filtros.proximos10}
+          <ShortcutPill
+            label="Próximos 10 dias"
+            icon={Truck}
+            active={filtros.proximos10}
             onClick={() => patchFiltros({ proximos10: !filtros.proximos10 })}
-            data-testid="button-next-10-days-filter"
-            style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 44, background: "none", border: "none", padding: 0, cursor: "pointer" }}
-          >
-            <span style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: TI.secondary, whiteSpace: "nowrap" }}>Próximos 10 dias</span>
-            <span style={{
-              width: 38, height: 20, borderRadius: 999, position: "relative", flexShrink: 0, display: "inline-block",
-              backgroundColor: filtros.proximos10 ? TI.accent : "#d6d3d1", transition: "background-color 0.2s",
-            }}>
-              <span style={{
-                position: "absolute", top: 3, width: 14, height: 14, borderRadius: "50%",
-                backgroundColor: "#ffffff", transition: "left 0.2s",
-                left: filtros.proximos10 ? 20 : 3,
-              }} />
-            </span>
-          </button>
+            testId="button-next-10-days-filter"
+            title="Só peças de evento cujo caminhão sai nos próximos 10 dias"
+          />
         </div>
 
         {/* Filtros Avançados */}

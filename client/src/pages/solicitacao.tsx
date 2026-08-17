@@ -75,6 +75,42 @@ function getLogCfg(log: any): { label: string; dot: string; text: string } {
   return { label: action?.replace(/_/g, " ") ?? log?.details ?? "Ação", dot: "#a8a29e", text: "#746e69" };
 }
 
+// ── O recorte na URL ────────────────────────────────────────────────────────
+// Esta era a ÚNICA tela com filtros do app que não persistia nada: o recorte
+// "evento X + banner" era remontado a cada F5, não sobrevivia a abrir uma peça
+// e voltar, e não dava para mandar para um colega. Pior, `urlSetorDaPeca`
+// (components/prazos/tokens.ts) já mandava gente para cá com `?busca=<ID>` a
+// partir do drill da Gestão de Prazos — o link existia e caía numa tela que
+// ignorava o parâmetro, entregando a fila inteira em vez da peça pedida.
+//
+// Nomes em pt-BR e IGUAIS aos das outras telas (`busca`, `evento`, `tipo`):
+// a URL é compartilhada entre colegas, e o mesmo recorte não pode ter um nome
+// em cada tela. Só o que está fora do padrão entra — estado limpo, URL limpa.
+interface FiltrosRevisao { busca: string; eventos: string[]; tipos: string[] }
+
+const FILTROS_REVISAO_VAZIOS: FiltrosRevisao = { busca: "", eventos: [], tipos: [] };
+
+function filtrosRevisaoDaURL(search: string): FiltrosRevisao {
+  const p = new URLSearchParams(search);
+  const lista = (k: string) => (p.get(k) ?? "").split(",").filter(Boolean);
+  return { busca: p.get("busca") ?? "", eventos: lista("evento"), tipos: lista("tipo") };
+}
+
+/**
+ * Parte da query ATUAL e sobrescreve só as três chaves gerenciadas — o
+ * `?item=` do deep link de peça (e qualquer param alheio) sobrevive, em vez de
+ * ser apagado pelo primeiro espelhamento do recorte. Mesma disciplina de
+ * `filtrosParaQuery` na Gráfica.
+ */
+function filtrosRevisaoParaQuery(searchAtual: string, f: FiltrosRevisao): string {
+  const p = new URLSearchParams(searchAtual);
+  const por = (k: string, v: string) => (v ? p.set(k, v) : p.delete(k));
+  por("busca", f.busca);
+  por("evento", f.eventos.join(","));
+  por("tipo", f.tipos.join(","));
+  return p.toString();
+}
+
 export default function Solicitacao() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -100,9 +136,12 @@ export default function Solicitacao() {
   const [returnConfirmOpen, setReturnConfirmOpen] = useState(false);
   const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null);
 
-  const [searchTerm, setSearchTerm] = useState("");
-  const [eventFilter, setEventFilter] = useState<string[]>([]);
-  const [itemTypeFilter, setItemTypeFilter] = useState<string[]>([]);
+  // Estado inicial vindo da URL — ver o bloco de comentário acima do componente.
+  const urlInicial = useMemo(() => filtrosRevisaoDaURL(window.location.search), []);
+  const [searchTerm, setSearchTerm] = useState(urlInicial.busca);
+  const [eventFilter, setEventFilter] = useState<string[]>(urlInicial.eventos);
+  const [itemTypeFilter, setItemTypeFilter] = useState<string[]>(urlInicial.tipos);
+  const searchRef = useRef<HTMLInputElement>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const isMobile = useIsMobile();
   const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({ queryKey: ["/api/items"] });
@@ -305,6 +344,55 @@ export default function Solicitacao() {
   // Diálogo de reaproveitamento (total ou parcial)
   const [reuseDialogItemId, setReuseDialogItemId] = useState<string | null>(null);
   const [partialReuseQty, setPartialReuseQty] = useState(1);
+
+  // URL espelhando o recorte, com 300ms de atraso (a régua da casa pede ≥200):
+  // sem o debounce, cada tecla da busca escreveria um replaceState — o padrão
+  // que já derrubou a árvore React no Safari em outra tela. `replaceState` e
+  // não `pushState`: filtrar não é navegar, e o Voltar tem de sair da tela em
+  // vez de desfazer letra por letra.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const qs = filtrosRevisaoParaQuery(
+        window.location.search,
+        { busca: searchTerm, eventos: eventFilter, tipos: itemTypeFilter },
+      );
+      window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchTerm, eventFilter, itemTypeFilter]);
+
+  // Voltar/avançar do navegador reidrata o recorte. Sem isto o back trocava a
+  // URL e a tela continuava com os filtros novos — a URL passaria a mentir.
+  useEffect(() => {
+    const onPop = () => {
+      const f = filtrosRevisaoDaURL(window.location.search);
+      setSearchTerm(f.busca);
+      setEventFilter(f.eventos);
+      setItemTypeFilter(f.tipos);
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  // Atalho "/" foca a busca (paridade com eventos, calendário, histórico,
+  // registros, painel e gestão de prazos — era a tela que faltava).
+  // Com um diálogo aberto o atalho SE CALA: o FocusScope do Radix puxaria o
+  // foco de volta na hora e o efeito visível seria só um pisca-pisca.
+  const algumDialogoAberto = modalOpen || releaseConfirmOpen || returnConfirmOpen
+    || bulkReleaseConfirmOpen || bulkReturnConfirmOpen
+    || deleteConfirmItemId !== null || complementItem !== null || reuseDialogItemId !== null;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "/" || algumDialogoAberto) return;
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [algumDialogoAberto]);
 
   const toggleReuseMutation = useMutation({
     mutationFn: async ({ itemId, isReuse }: { itemId: string; isReuse: boolean }) => {
@@ -785,8 +873,10 @@ export default function Solicitacao() {
           <div style={{ position: "relative", flex: "1 1 240px", minWidth: 200 }}>
             <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: TI.muted, pointerEvents: "none" }} />
             <input
+              ref={searchRef}
               placeholder="Filtrar por ID ou descrição..."
               aria-label="Filtrar por ID ou descrição"
+              aria-keyshortcuts="/"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
               data-testid="input-search"

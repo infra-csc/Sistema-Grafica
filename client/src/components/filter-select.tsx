@@ -1025,3 +1025,87 @@ export function FilterSelect({
     </div>
   );
 }
+
+/**
+ * ShortcutPill — o CONTROLE DOS JOBS 4 e 8 do vocabulário do topo.
+ *
+ * Existia como desenho e como decisão escrita, mas não como peça: cada tela
+ * escrevia o seu. "Próximos 10 dias" era um `role="switch"` com trilho e
+ * botãozinho na Gráfica e um botão preto de `aria-pressed` na Arte — o MESMO
+ * recorte, com o mesmo nome, em duas linguagens. Pior: o `switch` promete
+ * gravar uma preferência, e aqui é recorte de tela (job 4 explica).
+ *
+ * O ATIVO NUNCA DEPENDE SÓ DE COR: além do tint, o glifo da esquerda vira "✓".
+ * Quem não distingue laranja de cinza (e quem imprime a tela) continua lendo o
+ * estado. Por isso o ícone da dimensão só aparece DESLIGADO — ligado, o lugar
+ * dele é do ✓, e a largura não pula porque os dois glifos medem 12px.
+ *
+ * Contrastes (texto ≤13px exige 4,5:1 — mesma fórmula WCAG 2.1 do resto do
+ * arquivo):
+ *   ligado    #c2410c sobre #fff7ed = 4,88:1 ✓
+ *   desligado #57534e sobre #ffffff = 7,03:1 ✓
+ * Nem #f97316 nem #a8a29e aparecem como cor de texto, nos dois estados.
+ */
+export function ShortcutPill({
+  label,
+  active,
+  onClick,
+  icon: Icon,
+  count,
+  testId,
+  title,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+  /** Ícone da DIMENSÃO. Só é desenhado DESLIGADO — ligado, o glifo é o ✓. */
+  icon?: React.ComponentType<{ style?: React.CSSProperties; "aria-hidden"?: boolean | "true" | "false" }>;
+  /** Quantas linhas este atalho entrega (a regra que vale para todos). */
+  count?: number;
+  testId?: string;
+  title?: string;
+}) {
+  const isMobile = useIsMobile();
+  const [focusRing, setFocusRing] = useState(false);
+  const pointerRef = useRef(false);
+  const base: React.CSSProperties = {
+    display: "inline-flex", alignItems: "center", gap: 6,
+    height: isMobile ? 44 : 36, padding: "0 12px",
+    borderRadius: 999,
+    border: active ? "1.5px solid #FB923C" : "1px solid #d6d3d1",
+    background: active ? "#FFF7ED" : "transparent",
+    color: active ? "#c2410c" : "#57534e",
+    fontSize: 12, fontWeight: active ? 700 : 600,
+    cursor: "pointer", whiteSpace: "nowrap",
+    transition: "background 0.15s, border 0.15s, color 0.15s",
+    outline: "none",
+  };
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      data-testid={testId}
+      title={title}
+      onMouseDown={() => { pointerRef.current = true; }}
+      onFocus={() => { if (!pointerRef.current) setFocusRing(true); pointerRef.current = false; }}
+      onBlur={() => setFocusRing(false)}
+      style={focusRing ? { ...base, outline: "2px solid #1c1917", outlineOffset: 2 } : base}
+    >
+      {active
+        ? <Check aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />
+        : Icon && <Icon aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />}
+      {label}
+      {count !== undefined && (
+        // #57534e sobre #e7e5e4 = 6,00:1 ✓ · #ffffff sobre #c2410c = 5,18:1 ✓
+        <span style={{
+          fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 99, flexShrink: 0,
+          backgroundColor: active ? "#c2410c" : "#e7e5e4",
+          color: active ? "#ffffff" : "#57534e",
+        }}>
+          {count}
+        </span>
+      )}
+    </button>
+  );
+}

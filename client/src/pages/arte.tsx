@@ -3,7 +3,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, CheckSquare, Palette, ExternalLink, RefreshCw, MoreHorizontal, Lock, WifiOff, Zap, ArrowUpDown } from "lucide-react";
+import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, CheckSquare, Palette, ExternalLink, RefreshCw, MoreHorizontal, Lock, WifiOff, Zap } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -52,6 +52,7 @@ import {
   type ArteFilters,
   type TriState,
   type PeriodFilter,
+  type ArteSortMode,
 } from "@/lib/arte-rules";
 import {
   Dialog,
@@ -61,7 +62,7 @@ import {
 } from "@/components/ui/dialog";
 import { Fragment, useState, useMemo, useEffect, useRef, useCallback, useDeferredValue } from "react";
 import { FileUploader } from "@/components/FileUploader";
-import { FilterSelect } from "@/components/filter-select";
+import { FilterSelect, ShortcutPill } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { ExportPdfDialog } from "@/components/export-pdf-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -367,6 +368,14 @@ const months = [
   { value: "11", label: "Novembro" }, { value: "12", label: "Dezembro" },
 ];
 
+// Critérios de ordenação. Fora do componente pela mesma razão de `months`, e
+// `pinned` porque a ordem aqui é DELIBERADA: "Evento" é o padrão e vem
+// primeiro. Alfabética poria "Prazo da fase" antes.
+const ARTE_SORT_OPTIONS = [
+  { value: "evento", label: "Evento", pinned: true },
+  { value: "prazo", label: "Prazo da fase", pinned: true },
+];
+
 export default function Arte() {
   const { toast } = useToast();
   const { user } = useAuth();
@@ -442,7 +451,10 @@ export default function Arte() {
   // Ordenação dos blocos: por evento (A→Z) ou pela urgência do marco da fase.
   // A regra de negócio inteira gira em torno da saída do caminhão e a lista só
   // sabia ordenar por nome de evento.
-  const [sortMode, setSortMode] = useState<"evento" | "prazo">("evento");
+  // Vem da URL como o resto do recorte: quem manda "a fila por prazo" para um
+  // colega está mandando a ORDEM junto — sem isto o link abria em A→Z e a
+  // primeira linha do print não era a primeira linha da tela do outro.
+  const [sortMode, setSortMode] = useState<ArteSortMode>(urlInicial.sort);
   // A aba Finalizados acumula todo o histórico e nunca para de crescer.
   const [finalizadosTudo, setFinalizadosTudo] = useState(false);
 
@@ -1333,11 +1345,11 @@ export default function Arte() {
   // árvore React no Safari em outra tela.
   useEffect(() => {
     const timer = setTimeout(() => {
-      const qs = serializeArteFilters(filters, activeTab);
+      const qs = serializeArteFilters(filters, activeTab, sortMode);
       window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
     }, 300);
     return () => clearTimeout(timer);
-  }, [filters, activeTab]);
+  }, [filters, activeTab, sortMode]);
 
   // Aplica os filtros uma única vez e separa por aba. As contagens saem do
   // .length de cada balde; só a aba aberta paga o custo da ordenação.
@@ -1456,6 +1468,108 @@ export default function Arte() {
     const base = activeTab === "correcao" ? correcaoBase : (itemsByTabBase[activeTab] ?? []);
     return filtrarAtrasadasDaFase(base, activeTab, hoje).length;
   }, [itemsByTabBase, correcaoBase, activeTab, hoje]);
+
+  // ── OPÇÕES DOS RECORTES DE UMA DIMENSÃO SÓ ────────────────────────────────
+  // Período, mês, prazo, prioridade, thumb e arquivo final eram faixa de botões
+  // e segmentados MUDOS: nenhum dizia quantas peças cada opção entrega. "Hoje"
+  // num dia sem saída nenhuma era indistinguível de "Hoje" com quarenta, e "sem
+  // arquivo final" só revelava o tamanho do problema depois de clicado.
+  //
+  // `poolSemDimensao` é o mesmo desenho do `facetPool` de evento/tipo/material,
+  // estendido ao que mora FORA de `matchesArteFilters`: o balde da aba, a
+  // janela de 90 dias dos Finalizados e o recorte de atrasadas. Com isso a
+  // contagem de cada opção é, por construção, o número de linhas que aquele
+  // clique entrega — a regra travada em faceta-lista-invariante.
+  //
+  // `filtrarAtrasadasDaFase` é item a item, então comuta com os demais e pode
+  // ser aplicado antes de contar.
+  const poolSemDimensao = useCallback((patch: Partial<ArteFilters>): any[] => {
+    const f = { ...filters, ...patch };
+    let lista = tabPoolItems.filter((i: any) => matchesArteFilters(i, f, dateBounds));
+    if (activeTab === "finalizados" && !finalizadosTudo) {
+      lista = lista.filter((i: any) => dentroDaJanelaFinalizados(i, hoje));
+    }
+    if (f.atrasado) lista = filtrarAtrasadasDaFase(lista, activeTab, hoje);
+    return lista;
+  }, [filters, tabPoolItems, dateBounds, activeTab, finalizadosTudo, hoje]);
+
+  // Uma passada POR JANELA, e não um agrupamento único: as janelas são
+  // cumulativas e se contêm ("7 dias" inclui "Hoje"), então não existe balde
+  // que sirva para todas. Mesmo desenho do Período dos Registros.
+  // `pinned` segura a ordem cronológica de PERIOD_FILTERS — o FilterSelect
+  // ordena alfabeticamente e sem isto sairia "15 dias, 30 dias, 7 dias, Hoje".
+  const periodFilterOptions = useMemo(
+    () => PERIOD_FILTERS.filter(p => p !== "Todos").map(p => ({
+      value: p as string,
+      label: p as string,
+      count: poolSemDimensao({ period: p }).length,
+      pinned: true,
+    })),
+    [poolSemDimensao],
+  );
+
+  // Mês da SAÍDA DO CAMINHÃO. `?mes=` existia na URL e no chip desde sempre e
+  // não tinha gatilho nenhum na tela: só entrava por link e só saía pelo X do
+  // chip. Aqui o menu é uma passada só — os meses são baldes exclusivos — e
+  // mês sem peça nenhuma não é oferecido (a não ser que já esteja escolhido,
+  // senão o próprio recorte ativo sumiria da lista).
+  const monthFilterOptions = useMemo(() => {
+    const contagem = new Map<string, number>();
+    poolSemDimensao({ months: [] }).forEach((i: any) => {
+      const dep = i.event?.truckDepartureDate;
+      if (!dep) return;
+      const m = (toUTCDisplayDate(dep).getMonth() + 1).toString();
+      contagem.set(m, (contagem.get(m) ?? 0) + 1);
+    });
+    return months
+      .filter(m => m.value !== "all")
+      .map(m => ({ value: m.value, label: m.label, count: contagem.get(m.value) ?? 0, pinned: true }))
+      .filter(o => o.count > 0 || monthFilter.includes(o.value));
+  }, [poolSemDimensao, monthFilter]);
+
+  // Prazo tem UMA opção só ("Só atrasadas") porque o estado neutro é a linha
+  // "Todos" que o próprio menu desenha — oferecer "todas" duas vezes seria
+  // duas maneiras de dizer a mesma coisa no mesmo painel.
+  const prazoFilterOptions = useMemo(
+    () => [{ value: "atrasados", label: "Só atrasadas", count: atrasadasNaAba }],
+    [atrasadasNaAba],
+  );
+  const prazoBloqueado = activeTab === "finalizados" && !atrasadoFilter;
+
+  const prioridadeFilterOptions = useMemo(
+    () => [{
+      value: "urgentes",
+      label: "Só urgentes",
+      count: poolSemDimensao({ urgente: true }).length,
+    }],
+    [poolSemDimensao],
+  );
+
+  // Thumb e arquivo final: um pool só por dimensão, dois recortes contados dele.
+  const thumbFilterOptions = useMemo(() => {
+    const pool = poolSemDimensao({ thumb: "todos" });
+    const com = pool.filter((i: any) => !!i.approvalThumbUrl).length;
+    return [
+      { value: "com", label: "Só com thumb", count: com },
+      { value: "sem", label: "Só sem thumb", count: pool.length - com },
+    ];
+  }, [poolSemDimensao]);
+
+  const finalFilterOptions = useMemo(() => {
+    const pool = poolSemDimensao({ final: "todos" });
+    const com = pool.filter((i: any) => !!i.finalFileUrl).length;
+    return [
+      { value: "com", label: "Só com arquivo final", count: com },
+      { value: "sem", label: "Só sem arquivo final", count: pool.length - com },
+    ];
+  }, [poolSemDimensao]);
+
+  // O atalho também diz quantas peças entrega antes de ser clicado — ele é um
+  // recorte como os outros, só que com nome próprio (job 8 do vocabulário).
+  const saida10Count = useMemo(
+    () => poolSemDimensao({ next10Days: true }).length,
+    [poolSemDimensao],
+  );
 
   const handleViewDetails = (item: any) => {
     setSelectedItemId(item.id);
@@ -1601,6 +1715,15 @@ export default function Arte() {
     { id: "finalizados", label: "Finalizados", count: finalizadosCount, Icon: CheckCircle, testId: "tab-finalizados" },
   ];
 
+  // As MESMAS cinco abas, para o seletor de fase do celular. `pinned` mantém a
+  // ordem do fluxo (aguardando envio → finalizados), que é a ordem em que a
+  // peça anda; alfabética começaria por "Aguardando patrocinador" e terminaria
+  // em "Finalizar arte", uma sequência que não existe no trabalho de ninguém.
+  const faseFilterOptions = tabs.map(tab => ({
+    value: tab.id, label: tab.label, count: tab.count, pinned: true,
+  }));
+  const faseAtualCount = tabs.find(t => t.id === activeTab)?.count ?? 0;
+
   // OS CINCO STAT CARDS SAÍRAM DAQUI — e este é o conserto do "conteúdo
   // cortado" reportado pelo dono.
   //
@@ -1623,8 +1746,8 @@ export default function Arte() {
   // diagnóstico dentro da área rolável — ver renderGroupedTable.
   //
   // No celular a perda seria a "segunda porta de entrada" para as fases, mas
-  // ela já não depende dos cards: a fileira de abas virou um <select> de fase
-  // que lista as cinco.
+  // ela já não depende dos cards: a fileira de abas virou um seletor de fase
+  // que lista as cinco com a contagem de cada uma.
 
   // ─── LINHA DA TABELA E CARD DO MOBILE ──────────────────────────────────────
 
@@ -2934,36 +3057,66 @@ export default function Arte() {
               testId="select-material-filter"
             />
 
-            <div role="group" aria-label="Período de saída" style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 8, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
-              {PERIOD_FILTERS.map(p => (
-                <button key={p} onClick={() => setPeriodFilter(p)} aria-pressed={periodFilter === p}
-                  style={{ height: 30, padding: '0 11px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: periodFilter === p ? 700 : 500, background: periodFilter === p ? '#ffffff' : 'transparent', color: periodFilter === p ? '#1c1917' : '#57534e', boxShadow: periodFilter === p ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.12s' }}>
-                  {p}
-                </button>
-              ))}
-            </div>
+            {/* Mês da saída — `?mes=` era o único recorte da tela SEM controle:
+                chegava por link, aparecia no chip "Mês: Agosto" e não tinha
+                onde ser escolhido nem reescolhido. A Gráfica já oferece a mesma
+                dimensão sobre a mesma data; tirá-la daqui quebraria a paridade
+                entre as duas telas e apagaria em silêncio os links já
+                compartilhados que carregam `?mes=`. */}
+            <FilterSelect
+              hideSearch hideWhenEmpty={false}
+              label="Mês" allLabel="Todos os meses"
+              values={monthFilter} onValuesChange={setMonthFilter}
+              options={monthFilterOptions}
+              emptyText="Nenhuma saída de caminhão nesta fila."
+              unitLabel={{ one: "mês", many: "meses" }}
+              panelWidth={210}
+              testId="select-month-filter"
+            />
 
-            <button
+            {/* Período — job 5 do vocabulário (components/filter-select.tsx).
+                Eram cinco botões de uma dimensão só, mutuamente exclusivos,
+                gastando a largura de três gatilhos ao lado dos menus que fazem
+                a mesma pergunta. Como faixa não tinha contagem nenhuma; como
+                gatilho, cada janela diz quantas peças entrega. Mesmo desenho do
+                Período dos Registros. */}
+            <FilterSelect
+              hideSearch hideWhenEmpty={false} showAllLabelWhenEmpty
+              label="Período" allLabel="Todos os períodos"
+              icon={Calendar}
+              value={periodFilter === "Todos" ? "all" : periodFilter}
+              onChange={v => setPeriodFilter(v === "all" ? "Todos" : (v as PeriodFilter))}
+              options={periodFilterOptions}
+              panelWidth={190}
+              testId="select-period-filter"
+            />
+
+            <ShortcutPill
+              label="Saída 10 dias"
+              icon={Truck}
+              count={saida10Count}
+              active={next10DaysFilter}
               onClick={() => setNext10DaysFilter(!next10DaysFilter)}
-              aria-pressed={next10DaysFilter}
-              data-testid="button-next-10-days-filter"
-              style={{ display: 'flex', alignItems: 'center', gap: 5, height: 36, padding: '0 12px', borderRadius: 999, border: next10DaysFilter ? 'none' : '1px solid #d6d3d1', background: next10DaysFilter ? '#1c1917' : 'transparent', color: next10DaysFilter ? '#ffffff' : '#57534e', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.15s' }}
-            >
-              <Truck style={{ width: 12, height: 12 }} /> Saída 10 dias
-            </button>
+              testId="button-next-10-days-filter"
+              title="Só peças de evento cujo caminhão sai nos próximos 10 dias"
+            />
           </div>
 
           {/* ── Filter Row 2 ── */}
           {/* UM idioma para filtro, OUTRO para ordenação.
-              A faixa falava três: chip arredondado ligado/desligado (Urgente),
-              segmentado de três estados (Thumb, Arquivo final) e um terceiro
-              segmentado que NÃO filtra nada (Ordenar) mas tinha exatamente a
-              mesma cara dos que filtram — três formas para duas funções, e a
-              única diferença real (filtrar × ordenar) era a que não aparecia.
-              Agora todo filtro é segmentado com rótulo à esquerda, inclusive
-              "Prioridade" (todas | urgentes), e a ordenação saiu do vocabulário
-              de filtro: é um <select> rotulado, encostado à direita e separado
-              por um divisor. */}
+              A faixa falava QUATRO: chip ligado/desligado, segmentado de dois
+              estados, segmentado de três estados e um <select> NATIVO — que
+              abria o menu do Windows, com a fonte e o azul do sistema, no meio
+              de uma faixa inteiramente desenhada pela casa. Quatro formas para
+              duas funções, e a única diferença que importa (filtrar × ordenar)
+              era a que não aparecia.
+              Agora os quatro recortes são o mesmo gatilho do job 1 do
+              vocabulário (components/filter-select.tsx) — o segmentado com
+              rótulo à esquerda gastava a largura de três gatilhos para caber
+              um, não tinha contagem por opção e não escalava quando a terceira
+              opção aparecia. E a ordenação é o job 6: mesma peça, paleta
+              GRAFITE, prefixo "Ordenar:" e sem × — quem bate o olho lê "os
+              laranjas recortam, o cinza reordena" sem ler uma palavra. */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, flexWrap: 'wrap', borderTop: '1px solid #f0efee', paddingTop: 8 }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 2 }}>Mostrar:</span>
 
@@ -2975,78 +3128,61 @@ export default function Arte() {
                 da coluna Prazo — o filtro entrega o conjunto dos selos "Nd
                 atrasado" que já estão na tela. Ver lib/arte-rules.
                 Em Finalizados o marco É a saída, que numa peça pronta já passou
-                por definição: lá o recorte não existe em vez de mentir. */}
-            <div role="group" aria-label="Prazo da fase" data-testid="segment-atrasado"
-              style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 999, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', padding: '0 6px 0 8px' }}>Prazo</span>
-              {([
-                { on: false, label: 'todos' },
-                { on: true, label: 'atrasados' },
-              ] as { on: boolean; label: string }[]).map(({ on, label }) => {
-                const bloqueado = on && activeTab === "finalizados";
-                const ativo = atrasadoFilter === on;
-                return (
-                  <button key={label} onClick={() => { if (!bloqueado) setAtrasadoFilter(on); }}
-                    aria-pressed={ativo} disabled={bloqueado}
-                    data-testid={`button-atrasado-${on ? 'sim' : 'nao'}`}
-                    title={bloqueado
-                      ? "Em Finalizados o marco é a própria saída do caminhão, que numa peça pronta já passou — não há atraso a apontar"
-                      : on ? "Só peças que já passaram do marco desta fase" : undefined}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 22, padding: '0 10px', borderRadius: 999, border: 'none', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.5 : 1, fontSize: 11, fontWeight: ativo ? 700 : 500, background: ativo ? '#ffffff' : 'transparent', color: ativo ? '#1c1917' : '#57534e', boxShadow: ativo ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.12s' }}>
-                    {label}
-                    {on && !bloqueado && (
-                      // A contagem vive no controle: o recorte diz QUANTOS são
-                      // antes de ser clicado, como as abas e os dropdowns fazem.
-                      <span data-testid="badge-atrasadas-count"
-                        // Contrastes (texto ≤13px exige 4,5:1):
-                        // #991b1b sobre #fef2f2 = 7,60:1 ✓ · #57534e sobre
-                        // #e7e5e4 = 6,00:1 ✓
-                        style={{ padding: '0 6px', borderRadius: 999, fontSize: 11, fontWeight: 700, lineHeight: '16px', background: atrasadasNaAba > 0 ? '#fef2f2' : '#e7e5e4', color: atrasadasNaAba > 0 ? '#991b1b' : '#57534e' }}>
-                        {atrasadasNaAba}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+                por definição: lá o recorte não existe em vez de mentir — o
+                gatilho fica desabilitado com o porquê no título, e não sumindo,
+                para que quem chegou ali com o recorte LIGADO ainda consiga
+                desligá-lo. O selo de atrasadas virou a `count` da opção: é o
+                mesmo número, no lugar onde todos os outros menus da casa o
+                põem. */}
+            <FilterSelect
+              hideSearch hideWhenEmpty={false}
+              label="Prazo da fase" allLabel="Qualquer prazo"
+              value={atrasadoFilter ? "atrasados" : "all"}
+              onChange={v => setAtrasadoFilter(v === "atrasados")}
+              options={prazoFilterOptions}
+              disabled={prazoBloqueado}
+              panelWidth={210}
+              testId="select-atrasado-filter"
+              triggerProps={prazoBloqueado
+                ? { title: "Em Finalizados o marco é a própria saída do caminhão, que numa peça pronta já passou — não há atraso a apontar" }
+                : undefined}
+            />
 
-            <div role="group" aria-label="Prioridade" data-testid="segment-urgente"
-              style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 999, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', padding: '0 6px 0 8px' }}>Prioridade</span>
-              {([
-                { on: false, label: 'todas' },
-                { on: true, label: 'urgentes' },
-              ] as { on: boolean; label: string }[]).map(({ on, label }) => (
-                <button key={label} onClick={() => setUrgenteFilter(on)} aria-pressed={urgenteFilter === on}
-                  data-testid={`button-urgente-${on ? 'sim' : 'nao'}`}
-                  style={{ height: 22, padding: '0 10px', borderRadius: 999, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: urgenteFilter === on ? 700 : 500, background: urgenteFilter === on ? '#ffffff' : 'transparent', color: urgenteFilter === on ? '#1c1917' : '#57534e', boxShadow: urgenteFilter === on ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.12s' }}>
-                  {label}
-                </button>
-              ))}
-            </div>
+            <FilterSelect
+              hideSearch hideWhenEmpty={false}
+              label="Prioridade" allLabel="Qualquer prioridade"
+              value={urgenteFilter ? "urgentes" : "all"}
+              onChange={v => setUrgenteFilter(v === "urgentes")}
+              options={prioridadeFilterOptions}
+              panelWidth={210}
+              testId="select-urgente-filter"
+            />
 
             {/* "Sem thumb" e "Com thumb" eram dois booleanos independentes:
                 ligados juntos descartavam TUDO por construção e a lista ficava
-                vazia com o texto genérico de "2 filtros ativos". */}
-            {([
-              { rotulo: 'Thumb', value: thumbFilter, set: setThumbFilter, testId: 'segment-thumb' },
-              { rotulo: 'Arquivo final', value: finalFilter, set: setFinalFilter, testId: 'segment-final' },
-            ] as { rotulo: string; value: TriState; set: (v: TriState) => void; testId: string }[]).map(({ rotulo, value, set, testId }) => (
-              <div key={testId} role="group" aria-label={rotulo} data-testid={testId}
-                style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 999, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', padding: '0 6px 0 8px' }}>{rotulo}</span>
-                {([
-                  { v: 'todos', label: 'todos' },
-                  { v: 'com', label: 'com' },
-                  { v: 'sem', label: 'sem' },
-                ] as { v: TriState; label: string }[]).map(({ v, label }) => (
-                  <button key={v} onClick={() => set(v)} aria-pressed={value === v}
-                    style={{ height: 22, padding: '0 10px', borderRadius: 999, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: value === v ? 700 : 500, background: value === v ? '#ffffff' : 'transparent', color: value === v ? '#1c1917' : '#57534e', boxShadow: value === v ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.12s' }}>
-                    {label}
-                  </button>
-                ))}
-              </div>
-            ))}
+                vazia com o texto genérico de "2 filtros ativos". O tri-estado
+                consertou isso; aqui ele só troca de roupa — o "todos" é a linha
+                "Todos" que o próprio menu desenha, e por isso o estado neutro
+                viaja como "all" e volta como "todos". */}
+            <FilterSelect
+              hideSearch hideWhenEmpty={false}
+              label="Thumb" allLabel="Com e sem thumb"
+              value={thumbFilter === "todos" ? "all" : thumbFilter}
+              onChange={v => setThumbFilter(v === "all" ? "todos" : (v as TriState))}
+              options={thumbFilterOptions}
+              panelWidth={210}
+              testId="select-thumb-filter"
+            />
+
+            <FilterSelect
+              hideSearch hideWhenEmpty={false}
+              label="Arquivo final" allLabel="Com e sem arquivo final"
+              value={finalFilter === "todos" ? "all" : finalFilter}
+              onChange={v => setFinalFilter(v === "all" ? "todos" : (v as TriState))}
+              options={finalFilterOptions}
+              panelWidth={230}
+              testId="select-final-filter"
+            />
 
             {/* Ordenação — a regra de negócio inteira é ancorada na saída do
                 caminhão e a lista só sabia ordenar por nome de evento. */}
@@ -3055,19 +3191,16 @@ export default function Arte() {
                 nada de nada. */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: isMobile ? undefined : 'auto' }}>
               {!isMobile && <span aria-hidden="true" style={{ width: 1, height: 20, background: '#e7e5e4' }} />}
-              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                <ArrowUpDown style={{ width: 12, height: 12, color: '#57534e', flexShrink: 0 }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Ordenar por</span>
-                <select
-                  value={sortMode}
-                  onChange={e => setSortMode(e.target.value as 'evento' | 'prazo')}
-                  data-testid="select-ordenar"
-                  style={{ height: 28, padding: '0 8px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#1c1917', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                >
-                  <option value="evento">Evento</option>
-                  <option value="prazo">Prazo da fase</option>
-                </select>
-              </label>
+              <FilterSelect
+                kind="sort" hideSearch hideWhenEmpty={false}
+                label="Ordenar"
+                value={sortMode}
+                onChange={v => setSortMode(v as ArteSortMode)}
+                options={ARTE_SORT_OPTIONS}
+                panelWidth={190}
+                dropdownAlign="right"
+                testId="select-ordenar"
+              />
             </div>
           </div>
 
@@ -3104,19 +3237,32 @@ export default function Arte() {
               // simplesmente deixavam de existir. Cinco abas com contador nunca
               // vão caber em 375px; um seletor cabe sempre e é alcançável por
               // teclado e leitor de tela sem truque nenhum.
-              <label style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 8 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Fase</span>
-                <select
+              // `kind="field"` e não filtro: a fase não RECORTA a lista, ela
+              // ESCOLHE qual lista está aberta — é o mesmo que as abas fazem no
+              // desktop. Por isso não tem "Todos" (não existe "todas as fases"
+              // nesta tela) nem × de limpar. A contagem saiu de dentro do
+              // rótulo — "Aguardando envio (12)" era texto colado, que o leitor
+              // de tela lia junto e que nenhum outro menu da casa escreve
+              // assim — e virou a `count` da opção, como em todos os demais.
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 4, paddingBottom: 8 }}>
+                {/* A contagem da fase ABERTA sobe para a legenda. Ela morava
+                    dentro do rótulo da opção ("Aguardando envio (12)") e, com a
+                    contagem virando `count` do menu, só apareceria com o menu
+                    aberto — no celular esta é a única porta para as fases, e o
+                    tamanho da fila aberta é o número que o operador olha antes
+                    de qualquer outro. */}
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                  Fase · {faseAtualCount} {faseAtualCount === 1 ? 'peça' : 'peças'}
+                </span>
+                <FilterSelect
+                  kind="field" hideSearch hideWhenEmpty={false} fullWidth
+                  label="Fase"
                   value={activeTab}
-                  onChange={e => changeTab(e.target.value)}
-                  data-testid="select-fase-mobile"
-                  style={{ width: '100%', height: 40, padding: '0 10px', borderRadius: 8, border: '1px solid #d6d3d1', background: '#ffffff', color: '#1c1917', fontSize: 14, fontWeight: 600 }}
-                >
-                  {tabs.map(tab => (
-                    <option key={tab.id} value={tab.id}>{tab.label} ({tab.count})</option>
-                  ))}
-                </select>
-              </label>
+                  onChange={changeTab}
+                  options={faseFilterOptions}
+                  testId="select-fase-mobile"
+                />
+              </div>
             ) : (
               <div
                 ref={tablistRef}

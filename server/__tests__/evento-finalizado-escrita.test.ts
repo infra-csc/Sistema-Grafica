@@ -308,7 +308,7 @@ const BARRADAS: Caso[] = [
   { chave: "PATCH /api/items/:id/creator-reject", params: { id: "it-1" }, userRole: "solicitacao", estado: { status: "awaiting_final_review" } },
   { chave: "PATCH /api/items/:id/return-to-arte", params: { id: "it-1" }, userRole: "solicitacao", body: { notes: "trocar cor" }, estado: { status: "awaiting_final_review" } },
   { chave: "PATCH /api/items/bulk-return-to-arte", body: { itemIds: ["it-1"], notes: "trocar cor" }, userRole: "solicitacao", estado: { status: "awaiting_final_review" } },
-  { chave: "PATCH /api/items/bulk-creator-reject", body: { itemIds: ["it-1"] }, userRole: "solicitacao", estado: { status: "awaiting_final_review" } },
+  { chave: "PATCH /api/items/bulk-creator-reject", body: { itemIds: ["it-1"], notes: "refazer o layout" }, userRole: "solicitacao", estado: { status: "awaiting_final_review" } },
 
   // ── Cancelamento (caso duvidoso — barrado por decisão, ver a rota) ───────
   { chave: "PATCH /api/items/:id/cancel", params: { id: "it-1" }, userRole: "solicitacao", body: { notes: "cliente desistiu" } },
@@ -494,7 +494,7 @@ describe("rotas de lote: item barrado entra na lista de erros, não derruba o en
     mundo.itens["it-morto"] = peca({ id: "it-morto", eventId: "ev-morto", status: "awaiting_final_review" });
 
     const r = await chamar("PATCH /api/items/bulk-return-to-arte", {
-      body: { itemIds: ["it-vivo", "it-morto"], notes: "ajustar" }, userRole: "solicitacao",
+      body: { itemIds: ["it-vivo", "it-morto"], notes: "ajustar a cor do fundo" }, userRole: "solicitacao",
     });
 
     expect(r.status).toBe(200);
@@ -509,7 +509,7 @@ describe("rotas de lote: item barrado entra na lista de erros, não derruba o en
     mundo.eventos["ev-1"] = evento({ status: "closed" });
 
     const r = await chamar("PATCH /api/items/bulk-return-to-arte", {
-      body: { itemIds: ["it-1"] }, userRole: "solicitacao",
+      body: { itemIds: ["it-1"], notes: "refazer o layout" }, userRole: "solicitacao",
     });
 
     expect(r.status).toBe(409);

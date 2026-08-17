@@ -216,6 +216,10 @@ export default function Atendimento() {
   const [batchEventId, setBatchEventId]               = useState<string>("");
   const [batchRejectReason, setBatchRejectReason]     = useState<string>("");
   const [batchShowRejectForm, setBatchShowRejectForm] = useState<boolean>(false);
+  // Reprovar a peca INTEIRA agora tambem pede motivo — era a unica porta de
+  // devolucao do app que mandava corpo vazio, e foi por ela que a peca #1527
+  // voltou para "Aguardando Envio" sem ninguem saber por que.
+  const [itemShowRejectForm, setItemShowRejectForm] = useState<boolean>(false);
   const [batchSelectedItemIds, setBatchSelectedItemIds] = useState<Set<string>>(new Set());
   // Painel de lote recolhido por padrão: quem entra para revisar peça a peça
   // não precisa do painel ocupando meia tela. A escolha persiste na sessão.
@@ -240,6 +244,9 @@ export default function Atendimento() {
   const [sponsorApprovals, setSponsorApprovals] = useState<SponsorApproval[]>([]);
   const [loadingSponsorApprovals, setLoadingSponsorApprovals] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
+  /** Mesma regua do servidor: 10 caracteres. "nao" nao diz a Arte o que mudar. */
+  const MOTIVO_MIN = 10;
+  const motivoCurto = (t: string) => t.trim().replace(/s+/g, " ").length < MOTIVO_MIN;
   const [rejectingSponsorId, setRejectingSponsorId] = useState<string | null>(null);
 
   // Confirmação de aprovação
@@ -550,9 +557,11 @@ export default function Atendimento() {
   });
 
   const sponsorRejectMutation = useMutation({
-    mutationFn: async (itemId: string) => {
+    mutationFn: async ({ itemId, reason }: { itemId: string; reason: string }) => {
       // O endpoint devolve o item atualizado — dá para remendar o cache.
-      const response = await apiRequest("PATCH", `/api/items/${itemId}/sponsor-reject`, {});
+      const response = await apiRequest("PATCH", `/api/items/${itemId}/sponsor-reject`, {
+        rejectionReason: reason,
+      });
       return response.json();
     },
     onSuccess: (item) => {
@@ -1699,8 +1708,9 @@ export default function Atendimento() {
                         </button>
                         <button
                           onClick={() => batchSponsorMutation.mutate({ sponsorId: batchSponsorId, eventId: batchEventId, action: "reject", reason: batchRejectReason })}
-                          disabled={batchSponsorMutation.isPending || batchRejectReason.trim() === "" || !canDecide}
-                          title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : undefined}
+                          disabled={batchSponsorMutation.isPending || motivoCurto(batchRejectReason) || !canDecide}
+                          title={!canDecide ? "Somente Atendimento e administradores decidem aprovações"
+                            : motivoCurto(batchRejectReason) ? `Explique em pelo menos ${MOTIVO_MIN} caracteres — a Arte precisa saber o que refazer.` : undefined}
                           data-testid="button-batch-confirm-reject"
                           style={{
                             display: 'flex', alignItems: 'center', gap: 6,
@@ -3209,7 +3219,8 @@ export default function Atendimento() {
                                       </button>
                                       <button
                                         onClick={() => individualRejectMutation.mutate({ itemId: selectedItem.id, sponsorId: sponsor.id, reason: rejectionReason })}
-                                        disabled={individualRejectMutation.isPending || rejectionReason.trim() === ""}
+                                        disabled={individualRejectMutation.isPending || motivoCurto(rejectionReason)}
+                                        title={motivoCurto(rejectionReason) ? `Explique em pelo menos ${MOTIVO_MIN} caracteres — a Arte precisa saber o que refazer.` : undefined}
                                         data-testid={`button-confirm-reject-${sponsor.id}`}
                                         style={{
                                           flex: 2, height: 36, borderRadius: 8, border: 'none',
@@ -3301,6 +3312,42 @@ export default function Atendimento() {
                   </div>
                 </div>
 
+                {/* O motivo da reprovação da peça INTEIRA. Aparece só depois
+                    do primeiro clique em "Reprovar Ativo" (mesmo desenho de
+                    dois passos do lote), porque a maioria das aberturas deste
+                    modal termina em aprovação e o campo seria ruído. */}
+                {itemShowRejectForm && (
+                  <div style={{ padding: '14px 24px 0', backgroundColor: '#ffffff' }}>
+                    <label
+                      htmlFor="motivo-reprovacao-item"
+                      style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69', marginBottom: 6 }}
+                    >
+                      Motivo da reprovação <span style={{ color: '#b91c1c' }}>*</span>
+                    </label>
+                    <textarea
+                      id="motivo-reprovacao-item"
+                      autoFocus
+                      value={rejectionReason}
+                      onChange={e => setRejectionReason(e.target.value)}
+                      rows={2}
+                      placeholder="O que precisa mudar? A Arte lê isto para refazer."
+                      data-testid="textarea-item-reject-reason"
+                      style={{
+                        width: '100%', padding: '10px 12px', borderRadius: 8,
+                        border: `1px solid ${motivoCurto(rejectionReason) ? '#e7e5e4' : '#16a34a'}`,
+                        fontSize: 13, fontFamily: 'inherit', color: '#1c1917',
+                        resize: 'vertical', boxSizing: 'border-box', lineHeight: 1.5,
+                      }}
+                    />
+                    {/* #b45309 sobre branco = 4,88:1 ✓ nos 11px */}
+                    {motivoCurto(rejectionReason) && (
+                      <p style={{ margin: '6px 0 0', fontSize: 11, color: '#b45309' }}>
+                        Faltam {Math.max(0, MOTIVO_MIN - rejectionReason.trim().replace(/s+/g, " ").length)} caracteres — a peça volta para a Arte e ela precisa saber o que refazer.
+                      </p>
+                    )}
+                  </div>
+                )}
+
                 {/* Modal Footer */}
                 <div style={{
                   padding: '16px 24px', borderTop: '1px solid #f1f0ef',
@@ -3329,9 +3376,15 @@ export default function Atendimento() {
                   {dialogSponsors.length > 0 && !allApproved && !allDecided && (
                     <>
                       <button
-                        onClick={() => sponsorRejectMutation.mutate(selectedItem.id)}
-                        disabled={sponsorRejectMutation.isPending || !canDecide}
-                        title={!canDecide ? "Somente Atendimento e administradores decidem aprovações" : undefined}
+                        onClick={() => {
+                          if (!itemShowRejectForm) { setItemShowRejectForm(true); return; }
+                          sponsorRejectMutation.mutate({ itemId: selectedItem.id, reason: rejectionReason });
+                        }}
+                        disabled={sponsorRejectMutation.isPending || !canDecide || (itemShowRejectForm && motivoCurto(rejectionReason))}
+                        title={!canDecide ? "Somente Atendimento e administradores decidem aprovações"
+                          : itemShowRejectForm && motivoCurto(rejectionReason)
+                            ? `Explique em pelo menos ${MOTIVO_MIN} caracteres — a Arte precisa saber o que refazer.`
+                            : undefined}
                         data-testid="button-reject-item"
                         style={{
                           padding: '10px 20px', borderRadius: 8, border: 'none',
@@ -3343,7 +3396,7 @@ export default function Atendimento() {
                         }}
                       >
                         {sponsorRejectMutation.isPending ? <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" /> : <XCircle style={{ width: 14, height: 14 }} />}
-                        Reprovar Ativo
+                        {itemShowRejectForm ? "Confirmar reprovação" : "Reprovar Ativo"}
                       </button>
                       <button
                         onClick={() => sponsorApproveMutation.mutate(selectedItem.id)}

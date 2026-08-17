@@ -146,6 +146,12 @@ export default function Solicitacao() {
   const isMobile = useIsMobile();
   /** Altura dos controles: 44 no toque, 36 no ponteiro. */
   const alturaControle = isMobile ? 44 : 36;
+  // A tela ja exigia motivo NAO VAZIO; o servidor agora exige 10 caracteres em
+  // TODAS as portas de devolucao (lerMotivoDevolucao, routes/items.ts). Uma
+  // regua so, nos dois lados: senao o botao habilita e a requisicao volta 400.
+  const MOTIVO_MIN = 10;
+  const motivoCurto = (t: string) => t.trim().replace(/s+/g, " ").length < MOTIVO_MIN;
+  const avisoMotivoCurto = `Explique o motivo em pelo menos ${MOTIVO_MIN} caracteres — a Arte precisa saber o que corrigir.`;
   const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({ queryKey: ["/api/items"] });
   const { data: events = [], isLoading: eventsLoading, isError: eventsError, refetch: refetchEvents } = useQuery<any[]>({ queryKey: ["/api/events"] });
   // Histórico da peça: só busca com o modal aberto, já filtrado e limitado no
@@ -1895,8 +1901,8 @@ export default function Solicitacao() {
             <AlertDialogCancel data-testid="button-return-cancel" onClick={() => { setReturnObservations(""); }}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => selectedItem && returnToArteMutation.mutate({ itemId: selectedItem.id, notes: returnObservations })}
-              disabled={returnToArteMutation.isPending || !returnObservations.trim()}
-              title={!returnObservations.trim() ? "Descreva o motivo da devolução — a Arte precisa saber o que corrigir" : undefined}
+              disabled={returnToArteMutation.isPending || motivoCurto(returnObservations)}
+              title={motivoCurto(returnObservations) ? avisoMotivoCurto : undefined}
               style={{ backgroundColor: TI.text, color: "#fff" }}
               data-testid="button-return-confirm"
             >
@@ -1978,8 +1984,8 @@ export default function Solicitacao() {
                 e.preventDefault(); // a mutation controla o fechamento (mantém aberto em erro)
                 bulkReturnMutation.mutate({ ids: selecaoLote.vivas, notes: bulkReturnObservations });
               }}
-              disabled={bulkReturnMutation.isPending || !bulkReturnObservations.trim() || selecaoLote.vivas.length === 0}
-              title={!bulkReturnObservations.trim() ? "Descreva o motivo da devolução — a Arte precisa saber o que corrigir" : undefined}
+              disabled={bulkReturnMutation.isPending || motivoCurto(bulkReturnObservations) || selecaoLote.vivas.length === 0}
+              title={motivoCurto(bulkReturnObservations) ? avisoMotivoCurto : undefined}
               style={{ backgroundColor: TI.text, color: "#fff" }}
               data-testid="button-bulk-return-confirm"
             >

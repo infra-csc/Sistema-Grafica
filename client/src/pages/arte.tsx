@@ -494,6 +494,19 @@ export default function Arte() {
   const isMobile = useIsMobile();
   const [dispenseItem, setDispenseItem] = useState<any>(null);
   const [dispenseReason, setDispenseReason] = useState<string>("");
+  // Devolver ao solicitante: a peça volta para RASCUNHO e quem a criou decide
+  // se continua ou descarta (regra do dono). É o oposto de "dispensar", que
+  // empurra a peça para frente — esta a manda para o começo do fluxo.
+  const [devolverItem, setDevolverItem] = useState<any>(null);
+  const [devolverMotivo, setDevolverMotivo] = useState<string>("");
+  /** Mesma régua do servidor (lerMotivoDevolucao, routes/items.ts). */
+  const MOTIVO_MIN = 10;
+  const motivoCurto = (t: string) => t.trim().replace(/\s+/g, " ").length < MOTIVO_MIN;
+  /** Antes da produção — depois disso a peça já existe no mundo. */
+  const DEVOLVIVEIS = new Set([
+    "awaiting_submission", "awaiting_approval", "awaiting_sponsor_approval",
+    "awaiting_finalization", "awaiting_final_review",
+  ]);
   // Trava só a linha em curso: o estado da mutação é compartilhado, então
   // enquanto um envio direto corria TODAS as linhas ficavam desabilitadas.
   const [sendingId, setSendingId] = useState<string | null>(null);
@@ -811,6 +824,21 @@ export default function Arte() {
     },
     onError: (error: Error) => {
       toast({ title: "Erro ao dispensar", description: mensagemDeErro(error), variant: "destructive" });
+    },
+  });
+
+  const devolverMutation = useMutation({
+    mutationFn: async ({ itemId, motivo }: { itemId: string; motivo: string }) =>
+      await apiRequest("PATCH", `/api/items/${itemId}/arte-reject`, { rejectionReason: motivo }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      setDevolverItem(null);
+      setDevolverMotivo("");
+      toast({ title: "Peça devolvida", description: "Voltou para rascunho — quem a criou decide se continua ou descarta." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao devolver", description: mensagemDeErro(error), variant: "destructive" });
     },
   });
 
@@ -1780,6 +1808,7 @@ export default function Arte() {
   /** Menu "⋯": ver detalhes, exportar prova e dispensar. */
   const renderMenuAcoes = (item: any) => {
     const podeDispensar = podeEditar && DISPENSAVEIS_STATUSES.includes(item.status);
+    const podeDevolver = podeEditar && DEVOLVIVEIS.has(item.status);
     return (
       <Popover>
         <PopoverTrigger asChild>
@@ -1825,6 +1854,23 @@ export default function Arte() {
                 onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
               >
                 <Ban style={{ width: 14, height: 14, flexShrink: 0 }} /> Dispensar peça
+              </button>
+            </>
+          )}
+          {podeDevolver && (
+            <>
+              {!podeDispensar && <div style={{ height: 1, background: '#f0efee', margin: '4px 0' }} />}
+              {/* Vizinha de "dispensar" e o oposto dela: dispensar empurra a
+                  peça para produção, devolver a manda para o começo. As duas
+                  tiram a peça da fila da Arte, e por isso moram juntas. */}
+              <button
+                onClick={() => { setDevolverItem(item); setDevolverMotivo(""); }}
+                data-testid={`button-devolver-${item.id}`}
+                style={menuItemStyle('#b45309')}
+                onMouseEnter={e => { e.currentTarget.style.background = '#fffbeb'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+              >
+                <RotateCcw style={{ width: 14, height: 14, flexShrink: 0 }} /> Devolver ao solicitante
               </button>
             </>
           )}
@@ -3468,6 +3514,78 @@ export default function Arte() {
                 style={{ height: 40, padding: '0 18px', borderRadius: 8, backgroundColor: '#b91c1c', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: dispenseMutation.isPending ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: dispenseMutation.isPending ? 0.7 : 1 }}
               >
                 {dispenseMutation.isPending ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Dispensando…</> : <><Ban style={{ width: 14, height: 14 }} />Dispensar peça</>}
+              </button>
+            </div>
+          </ModalFooter>
+          </FreezeWhileClosing>
+        </DialogContent>
+      </Dialog>
+
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      {/* MODAL — DEVOLVER AO SOLICITANTE                                     */}
+      {/* ═══════════════════════════════════════════════════════════════════ */}
+      <Dialog open={!!devolverItem} onOpenChange={(open) => { if (!open) { setDevolverItem(null); setDevolverMotivo(""); } }}>
+        <DialogContent className={cn("p-0 gap-0", HIDE_NATIVE_CLOSE)} style={modalSurface(440)}>
+          {/* Congela pelo mesmo motivo da dispensa: o onSuccess zera
+              `devolverItem` e `devolverMotivo` no mesmo commit em que fecha. */}
+          <FreezeWhileClosing open={!!devolverItem}>
+          <DialogTitle className="sr-only">Devolver peça ao solicitante</DialogTitle>
+          <DialogDescription className="sr-only">A peça volta para rascunho com um motivo</DialogDescription>
+          <ModalHeader
+            icon={RotateCcw}
+            variant="confirm"
+            tint="#b45309"
+            title="Devolver ao solicitante"
+            subtitle="A peça volta para rascunho — quem a criou decide se continua ou descarta"
+            onClose={() => { setDevolverItem(null); setDevolverMotivo(""); }}
+          />
+          <div style={{ padding: '18px 24px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
+            {devolverItem && (
+              <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '12px 14px', marginBottom: 16, display: 'flex', gap: 10 }}>
+                <RotateCcw style={{ width: 16, height: 16, color: '#b45309', flexShrink: 0, marginTop: 2 }} />
+                <div>
+                  {/* #78350f sobre #fffbeb = 9,7:1 ✓ · #92400e = 6,5:1 ✓ */}
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#78350f', margin: '0 0 2px' }}>{devolverItem.displayId} — {devolverItem.type}</p>
+                  <p style={{ fontSize: 11, color: '#92400e', margin: 0 }}>Ela sai da fila da Arte e reaparece como rascunho no evento. O thumb e o arquivo final que você já subiu ficam guardados.</p>
+                </div>
+              </div>
+            )}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
+              <label htmlFor="motivo-devolucao-arte" style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e' }}>
+                Motivo <span style={{ color: '#b91c1c' }}>*</span>
+              </label>
+              <textarea
+                id="motivo-devolucao-arte"
+                autoFocus
+                value={devolverMotivo}
+                onChange={e => setDevolverMotivo(e.target.value)}
+                placeholder="Ex: a medida não fecha com o layout enviado — confirmar largura antes de refazer."
+                data-testid="textarea-devolver-motivo"
+                style={{ width: '100%', backgroundColor: '#fafaf9', border: `1px solid ${motivoCurto(devolverMotivo) ? '#e7e5e4' : '#16a34a'}`, borderRadius: 8, padding: '10px 12px', fontSize: 12, resize: 'none', height: 84, fontFamily: 'inherit', color: '#1c1917', boxSizing: 'border-box' }}
+              />
+              {/* #b45309 sobre #fafaf9 = 4,79:1 ✓ nos 11px */}
+              {motivoCurto(devolverMotivo) && (
+                <p style={{ margin: 0, fontSize: 11, color: '#b45309' }}>
+                  Faltam {Math.max(0, MOTIVO_MIN - devolverMotivo.trim().replace(/\s+/g, " ").length)} caracteres — sem motivo, quem recebe a peça de volta não sabe o que fazer com ela.
+                </p>
+              )}
+            </div>
+          </div>
+          <ModalFooter>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
+              <button onClick={() => { setDevolverItem(null); setDevolverMotivo(""); }} style={{ height: 40, padding: '0 16px', borderRadius: 8, backgroundColor: 'transparent', border: 'none', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                Cancelar
+              </button>
+              <button
+                onClick={() => devolverItem && devolverMutation.mutate({ itemId: devolverItem.id, motivo: devolverMotivo })}
+                disabled={devolverMutation.isPending || motivoCurto(devolverMotivo)}
+                title={motivoCurto(devolverMotivo) ? `Explique em pelo menos ${MOTIVO_MIN} caracteres.` : undefined}
+                data-testid="button-confirm-devolver"
+                style={{ height: 40, padding: '0 18px', borderRadius: 8, backgroundColor: motivoCurto(devolverMotivo) ? '#e7e5e4' : '#b45309', border: 'none', color: motivoCurto(devolverMotivo) ? '#78716c' : '#ffffff', fontSize: 13, fontWeight: 700, cursor: devolverMutation.isPending || motivoCurto(devolverMotivo) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: devolverMutation.isPending ? 0.7 : 1 }}
+              >
+                {devolverMutation.isPending
+                  ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Devolvendo…</>
+                  : <><RotateCcw style={{ width: 14, height: 14 }} />Devolver ao solicitante</>}
               </button>
             </div>
           </ModalFooter>

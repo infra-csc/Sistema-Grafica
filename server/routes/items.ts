@@ -26,6 +26,42 @@ import { runInventoryCron } from "../services/inventoryLifecycle";
 import { handlePreviewXlsx, handleConfirmImport } from "../services/xlsxImport";
 import { handleExportItemsXlsx, handleExportSelectedItemsXlsx } from "../services/xlsxExport";
 
+// ─── MOTIVO das devoluções ──────────────────────────────────────────────────
+//
+// Existiam CINCO portas que devolvem peça — sponsor-reject, o reject por
+// patrocinador individual, creator-reject, bulk-creator-reject e
+// return-to-arte — e nenhuma guardava POR QUÊ. A peça #1527 voltou de
+// "Aguardando Aprovação" para "Aguardando Envio" e o registro inteiro dizia
+// só a troca de status: quem a recebeu de volta não tinha como saber o que
+// refazer, e quem abrisse dali a uma semana também não.
+//
+// A régua é a mesma do complemento (`complementReason`): 10 caracteres. Não é
+// burocracia — "não" e "ruim" não dizem à Arte o que mudar, e uma devolução
+// sem instrução é uma ida e volta garantida.
+const MOTIVO_MIN = 10;
+
+/**
+ * Lê o motivo do corpo aceitando os três nomes que as telas já usam
+ * (`rejectionReason`, `notes`, `observations`) — o contrato novo é um só,
+ * mas quebrar as quatro telas antigas de uma vez seria pior que aceitar os
+ * nomes que elas já mandam.
+ */
+function lerMotivoDevolucao(req: any): { ok: true; motivo: string } | { ok: false; erro: string } {
+  const bruto =
+    typeof req.body?.rejectionReason === "string" ? req.body.rejectionReason
+    : typeof req.body?.notes === "string" ? req.body.notes
+    : typeof req.body?.observations === "string" ? req.body.observations
+    : "";
+  const motivo = String(bruto).trim().replace(/s+/g, " ");
+  if (motivo.length < MOTIVO_MIN) {
+    return {
+      ok: false,
+      erro: `Explique o motivo da devolução em pelo menos ${MOTIVO_MIN} caracteres — quem recebe a peça de volta precisa saber o que refazer.`,
+    };
+  }
+  return { ok: true, motivo };
+}
+
 // Allow-list dos campos que o PATCH genérico /api/items/:id pode alterar.
 // É uma lista deliberada e restritiva: `status` e TODOS os campos de fluxo
 // (aprovação, produção, entrega, timestamps, flags de rejeição, quantidades
@@ -1663,12 +1699,16 @@ export function registerItemRoutes(app: Express): void {
           error: `Item não pode ser reprovado pelo patrocinador. Status atual: ${currentItem.status}, esperado: awaiting_sponsor_approval`
         });
       }
-      
+
+      const motivo = lerMotivoDevolucao(req);
+      if (!motivo.ok) return res.status(400).json({ error: motivo.erro });
+
       const item = await storage.updateItem(req.params.id, {
         status: "awaiting_submission",
         sponsorApprovedBy: null,
         sponsorApprovedAt: null,
         rejectedBySponsor: true, // Flag indicando que foi reprovado pelo patrocinador
+        rejectionReason: motivo.motivo,
       });
       
       if (!item) {
@@ -1682,7 +1722,7 @@ export function registerItemRoutes(app: Express): void {
         'rejected',
         'item',
         item.id,
-        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("awaiting_submission")} (reprovado pelo patrocinador)`
+        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("awaiting_submission")} (reprovado pelo patrocinador). Motivo: ${motivo.motivo}`
       );
       
       // Notifica Arte para refazer o trabalho
@@ -1855,7 +1895,12 @@ export function registerItemRoutes(app: Express): void {
       }
       
       const { id: itemId, sponsorId } = req.params;
-      const { rejectionReason } = req.body;
+      // Era `rejectionReason || null`: o Atendimento podia reprovar em nome do
+      // patrocinador sem dizer nada, e a Arte recebia a peça de volta sem
+      // instrução. Agora vale a mesma régua das outras portas.
+      const motivo = lerMotivoDevolucao(req);
+      if (!motivo.ok) return res.status(400).json({ error: motivo.erro });
+      const rejectionReason = motivo.motivo;
       
       // Validate item exists and status
       const currentItem = await storage.getItem(itemId);
@@ -2515,6 +2560,9 @@ export function registerItemRoutes(app: Express): void {
         });
       }
 
+      const motivo = lerMotivoDevolucao(req);
+      if (!motivo.ok) return res.status(400).json({ error: motivo.erro });
+
       const item = await storage.updateItem(req.params.id, {
         status: "awaiting_submission",
         creatorReviewedAt: null,
@@ -2522,6 +2570,7 @@ export function registerItemRoutes(app: Express): void {
         approvalThumbUrl: null,
         // Mantém sponsorApprovedBy/sponsorApprovedAt para preservar o contexto da aprovação anterior
         rejectedByCreator: true, // Flag indicando que foi reprovado pelo criador
+        rejectionReason: motivo.motivo,
       });
       
       if (!item) {
@@ -2535,7 +2584,7 @@ export function registerItemRoutes(app: Express): void {
         'rejected',
         'item',
         item.id,
-        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("awaiting_submission")} (reprovado pelo criador)`
+        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("awaiting_submission")} (reprovado pelo criador). Motivo: ${motivo.motivo}`
       );
       
       // Notifica Arte para refazer o trabalho
@@ -2556,6 +2605,94 @@ export function registerItemRoutes(app: Express): void {
     }
   });
 
+  // ─── Arte devolve a peça para o COMEÇO do fluxo ──────────────────────────
+  //
+  // As outras cinco portas devolvem a peça para "Aguardando Envio", ou seja,
+  // para a própria Arte refazer. Esta é a única que devolve para QUEM PEDIU.
+  // Regra do dono: "ela entra como rascunho e a pessoa que cria a peça decide
+  // se continua ou descarta o item" — por isso `draft` e não `requested`:
+  // rascunho é o único estado em que o solicitante pode mexer em tudo e do
+  // qual pode simplesmente desistir.
+  //
+  // O thumb e o arquivo final NÃO são apagados. A peça pode voltar igual, e
+  // jogar fora o trabalho da Arte por precaução obrigaria a refazê-lo à toa;
+  // se o solicitante mudar tipo ou medida, o fluxo normal já pede arte nova.
+  app.patch("/api/items/:id/arte-reject", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "arte" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas usuários com perfil Arte podem devolver a peça para o solicitante" });
+      }
+
+      const currentItem = await storage.getItem(req.params.id);
+      if (!currentItem) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+
+      // ANDA: devolver para o começo do fluxo é criar trabalho novo para o
+      // solicitante, numa fila que não mostra mais essa peça.
+      if (await barraEventoFinalizado(currentItem, res)) return;
+
+      // Só antes da produção. Depois que a Gráfica encostou na peça, "volta
+      // para rascunho" apagaria da tela um trabalho que já existe no mundo.
+      const ANTES_DA_PRODUCAO = new Set([
+        "awaiting_submission",
+        "awaiting_approval",
+        "awaiting_sponsor_approval",
+        "awaiting_finalization",
+        "awaiting_final_review",
+      ]);
+      if (!ANTES_DA_PRODUCAO.has(currentItem.status)) {
+        return res.status(409).json({
+          error: `Esta peça já passou da Arte (status: ${translateStatus(currentItem.status)}) — devolver para rascunho só vale antes da produção.`,
+        });
+      }
+
+      const motivo = lerMotivoDevolucao(req);
+      if (!motivo.ok) return res.status(400).json({ error: motivo.erro });
+
+      const item = await storage.updateItem(req.params.id, {
+        status: "draft",
+        rejectionReason: motivo.motivo,
+        // Zera o estado de aprovação/revisão: se a peça voltar a andar, ela
+        // recomeça o trâmite em vez de herdar um "aprovado" de outra versão.
+        sponsorApprovedBy: null,
+        sponsorApprovedAt: null,
+        creatorReviewedAt: null,
+        rejectedBySponsor: false,
+        rejectedByCreator: false,
+      });
+
+      if (!item) {
+        return res.status(404).json({ error: "Item not found" });
+      }
+
+      const event = await storage.getEvent(item.eventId);
+
+      await createAuditLog(
+        req,
+        'rejected',
+        'item',
+        item.id,
+        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("draft")} (devolvida pela Arte ao solicitante). Motivo: ${motivo.motivo}`
+      );
+
+      const notification = await storage.createNotification({
+        type: "itemRejected",
+        message: `A Arte devolveu a peça para rascunho: ${item.type} — Evento: ${event?.name}. Motivo: ${motivo.motivo}`,
+        eventId: item.eventId,
+        itemId: item.id,
+        targetRoles: ["solicitacao"],
+      });
+
+      broadcast({ type: "item_updated", item });
+      broadcast({ type: "notification_created", notification });
+
+      res.json(item);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   // Creator returns item to Arte with modification notes (Solicitação module)
   app.patch("/api/items/:id/return-to-arte", requireAuth, async (req, res) => {
     try {
@@ -2563,7 +2700,9 @@ export function registerItemRoutes(app: Express): void {
         return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem devolver itens" });
       }
       
-      const { notes } = req.body;
+      const motivo = lerMotivoDevolucao(req);
+      if (!motivo.ok) return res.status(400).json({ error: motivo.erro });
+      const notes = motivo.motivo;
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
         return res.status(404).json({ error: "Item not found" });
@@ -2584,7 +2723,9 @@ export function registerItemRoutes(app: Express): void {
         rejectedByCreator: true,
         // O motivo da devolução SUBSTITUI a observação: motivo vazio não pode
         // herdar a observação antiga como se fosse o feedback desta devolução.
-        observations: notes ?? "",
+        // (Hoje "vazio" nem chega aqui — `lerMotivoDevolucao` barra antes.)
+        observations: notes,
+        rejectionReason: notes,
         hasModifiedData: true, // Flag: Arte precisa revisar dados modificados
       });
       
@@ -2627,11 +2768,15 @@ export function registerItemRoutes(app: Express): void {
         return res.status(403).json({ error: "Apenas usuários com perfil Solicitação podem devolver itens" });
       }
       
-      const { itemIds, notes } = req.body;
+      const { itemIds } = req.body;
       if (!Array.isArray(itemIds) || itemIds.length === 0) {
         return res.status(400).json({ error: "itemIds deve ser um array não vazio" });
       }
-      
+
+      const motivoLote = lerMotivoDevolucao(req);
+      if (!motivoLote.ok) return res.status(400).json({ error: motivoLote.erro });
+      const notes = motivoLote.motivo;
+
       const results = [];
       const errors = [];
       // ANDA: mesma devolução do individual, multiplicada.
@@ -2661,9 +2806,10 @@ export function registerItemRoutes(app: Express): void {
           finalFileUrl: null,
           approvalThumbUrl: null,
           rejectedByCreator: true,
-          // `?? ""` (e não `|| currentItem.observations`): o return individual
+          // (e não `|| currentItem.observations`): o return individual
           // substitui a observação — o lote herdava a antiga silenciosamente.
-          observations: notes ?? "",
+          observations: notes,
+          rejectionReason: notes,
         });
 
         if (item) {
@@ -2878,6 +3024,11 @@ export function registerItemRoutes(app: Express): void {
       if (!Array.isArray(itemIds) || itemIds.length === 0) {
         return res.status(400).json({ error: "itemIds deve ser um array não vazio" });
       }
+
+      // Um motivo para o LOTE inteiro: quem devolve 20 peças de uma vez está
+      // devolvendo por um motivo só. Se fossem 20 motivos, seriam 20 cliques.
+      const motivo = lerMotivoDevolucao(req);
+      if (!motivo.ok) return res.status(400).json({ error: motivo.erro });
       
       const results = [];
       const errors = [];
@@ -2909,6 +3060,7 @@ export function registerItemRoutes(app: Express): void {
           approvalThumbUrl: null,
           // Mantém sponsorApprovedBy/sponsorApprovedAt para preservar o contexto da aprovação anterior
           rejectedByCreator: true,
+          rejectionReason: motivo.motivo,
         });
         
         if (item) {
@@ -2921,7 +3073,7 @@ export function registerItemRoutes(app: Express): void {
             'rejected',
             'item',
             item.id,
-            `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("awaiting_submission")} (reprovado pelo criador em lote)`
+            `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("awaiting_submission")} (reprovado pelo criador em lote). Motivo: ${motivo.motivo}`
           );
           
           broadcast({ type: "item_updated", item });

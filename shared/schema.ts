@@ -187,6 +187,14 @@ export const items = pgTable("items", {
   creatorReviewedAt: timestamp("creator_reviewed_at"), // Quando criador do evento revisou
   rejectedBySponsor: boolean("rejected_by_sponsor").notNull().default(false), // Flag: reprovado pelo patrocinador (Atendimento)
   rejectedByCreator: boolean("rejected_by_creator").notNull().default(false), // Flag: reprovado pelo criador (Solicitação)
+  // MOTIVO da última reprovação — obrigatório em TODAS as rotas que devolvem
+  // peça (mín. 10 caracteres, mesma régua de complementReason). Existiam cinco
+  // portas de devolução e nenhuma guardava por quê: a peça #1527 voltou de
+  // "Aguardando Aprovação" para "Aguardando Envio" e o único registro dizia a
+  // troca de status, nada mais. Fica NA PEÇA, e não só no audit log, porque
+  // quem recebe a peça de volta precisa ler o motivo onde ela está — o
+  // histórico completo continua na trilha (mesmo padrão de conferenceNotes).
+  rejectionReason: text("rejection_reason"),
   approvedAt: timestamp("approved_at"), // Timestamp quando foi liberado pela Arte
   productionStartedAt: timestamp("production_started_at"), // Timestamp quando produção iniciou
   producedAt: timestamp("produced_at"), // Timestamp quando foi produzido

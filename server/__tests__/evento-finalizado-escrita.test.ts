@@ -11,6 +11,12 @@
 // Geral e o Detalhe do Evento continuam mostrando a peça de propósito (regra do
 // dono: registro não perde o passado), e era por ali que a ação acontecia.
 //
+// SEGUNDA RODADA: a primeira só cobriu items.ts e sponsors.ts (39 rotas). A
+// rede de (5) não olhava para server/routes/events.ts, e POST
+// /api/events/:id/items/submit — que promove peças em LOTE de rascunho para
+// aguardando vinculação — escapou por não estar em nenhuma das duas listas.
+// events.ts entrou em FONTES para que isso não se repita.
+//
 // O CRITÉRIO que este arquivo trava, e é ELE que alguém vai questionar depois:
 //   BARRA o que faz o trabalho ANDAR. PERMITE o que ARRUMA A CASA.
 //
@@ -59,6 +65,12 @@ vi.mock("../routes/shared", async () => {
     updateEventStatus: (...a: any[]) => H.updateEventStatus(...a),
   };
 });
+vi.mock("../cache", () => ({
+  eventsCache: null,
+  setEventsCache: vi.fn(),
+  invalidateEventsCache: vi.fn(),
+  invalidateAllCaches: vi.fn(),
+}));
 vi.mock("../services/inventoryLifecycle", () => ({ runInventoryCron: vi.fn() }));
 vi.mock("../services/xlsxImport", () => ({
   handlePreviewXlsx: vi.fn(),
@@ -78,6 +90,7 @@ vi.mock("../objectStorage", () => ({
 const { registerItemRoutes, EVENTO_ENCERRADO_ERRO, EVENTO_REALIZADO_ERRO } =
   await import("../routes/items");
 const { registerSponsorRoutes } = await import("../routes/sponsors");
+const { registerEventRoutes } = await import("../routes/events");
 
 // ── Harness: um "Express" que só guarda handlers ─────────────────────────────
 type Handler = (req: any, res: any, next: any) => any;
@@ -91,6 +104,7 @@ for (const verbo of ["get", "post", "patch", "put", "delete"]) {
 }
 registerItemRoutes(appFalso);
 registerSponsorRoutes(appFalso);
+registerEventRoutes(appFalso);
 
 async function chamar(
   chave: string,
@@ -222,6 +236,12 @@ beforeEach(() => {
   s.createInventoryAssets = vi.fn(async () => []);
   s.copyItemSponsorApprovals = vi.fn(async () => {});
   s.createComplementItemTx = vi.fn(async () => ({ id: "c-1", displayId: "#0062-C1" }));
+  // POST /api/events/:id/items/submit (server/routes/events.ts): promove em
+  // lote, sem passar por storage.updateItem.
+  s.updateItemWithStatusCheck = vi.fn(async (id: string, _de: string, para: string) => {
+    mundo.itens[id] = { ...mundo.itens[id], status: para };
+    return mundo.itens[id];
+  });
 });
 
 /** As duas origens da finalização, com a frase que cada uma deve devolver. */
@@ -310,6 +330,11 @@ const BARRADAS: Caso[] = [
   { chave: "POST /api/items/send-to-arte", body: { itemIds: ["it-1"] }, estado: { status: "awaiting_linking" } },
   { chave: "POST /api/items/:id/sponsors", params: { id: "it-1" }, body: { sponsorId: "sp-1" } },
   { chave: "DELETE /api/items/:itemId/sponsors/:sponsorId", params: { itemId: "it-1", sponsorId: "sp-1" } },
+
+  // ── Envio em lote de rascunhos (server/routes/events.ts) ─────────────────
+  // A ÚNICA escrita de peça deste arquivo — o commit que barrou as outras 39
+  // rotas não tocou em events.ts, e esta ficou de fora.
+  { chave: "POST /api/events/:id/items/submit", params: { id: "ev-1" }, userRole: "solicitacao", estado: { status: "draft" } },
 ];
 
 describe.each(MOTIVOS)("evento $nome — nada faz o trabalho andar", (motivo) => {
@@ -325,6 +350,7 @@ describe.each(MOTIVOS)("evento $nome — nada faz o trabalho andar", (motivo) =>
     expect(H.storage.updateItem).not.toHaveBeenCalled();
     expect(H.storage.createItem).not.toHaveBeenCalled();
     expect(H.storage.createBulkItems).not.toHaveBeenCalled();
+    expect(H.storage.updateItemWithStatusCheck).not.toHaveBeenCalled();
     expect(H.db.transaction).not.toHaveBeenCalled();
   });
 });
@@ -434,6 +460,19 @@ describe("evento VIVO — a guarda não pega nada de quem ainda tem trabalho", (
     expect(mundo.itens["it-1"].status).toBe("sponsor_approved");
   });
 
+  it("POST /api/events/:id/items/submit com evento vivo promove o rascunho de verdade (200)", async () => {
+    mundo.itens["it-1"] = peca({ status: "draft" });
+
+    const r = await chamar("POST /api/events/:id/items/submit", {
+      params: { id: "ev-1" }, userRole: "solicitacao",
+    });
+
+    expect(r.status).toBe(200);
+    expect(r.body.success).toBe(true);
+    expect(r.body.count).toBe(1);
+    expect(H.storage.updateItemWithStatusCheck).toHaveBeenCalledWith("it-1", "draft", "awaiting_linking");
+  });
+
   it("evento SEM data de início nunca é finalizado pela data — cadastro ruim não vira bloqueio", async () => {
     mundo.eventos["ev-1"] = evento({ startDate: null });
 
@@ -513,10 +552,20 @@ const SEM_GUARDA_POR_DESENHO: Record<string, string> = {
   "PATCH /api/events/:eventId/sponsors/:sponsorId": "cota do patrocinador NO EVENTO, não estado de peça",
   "POST /api/events/:id/sponsors": "vínculo patrocinador↔EVENTO, não estado de peça",
   "DELETE /api/events/:eventId/sponsors/:sponsorId": "vínculo patrocinador↔EVENTO, não estado de peça",
+
+  // events.ts — nenhuma delas mexe em peça nem no CAMPO `status` do evento
+  // (o único jeito de mudar `status` é close/reopen, abaixo). "Estado do
+  // evento" aqui é literal: as duas rotas que gravam `status` no banco.
+  "POST /api/events": "cria evento NOVO — não existe evento anterior para checar finalização",
+  "PATCH /api/events/:id": "edita dados do evento (datas, nome, prazos) e explicitamente NÃO grava `status` (ver _statusIgnorado); é também o único caminho para corrigir um cadastro ruim (ex.: ano digitado errado) que tornou o evento 'realizado' por engano — barrar aqui fecharia a única saída de correção, já que 'realizado' não tem reabrir",
+  "PATCH /api/events/:id/priority": "só reordena a fila de prioridade; evento finalizado já saiu das filas de trabalho por outro caminho (lifecycle), então não faz nenhum trabalho andar",
+  "DELETE /api/events/:id": "exclusão do evento é limpeza (mesma categoria de excluir peça, que esta guarda já libera de propósito) — admin only",
+  "POST /api/events/:id/close": "é a própria trava manual — precisa funcionar mesmo num evento já 'realizado' pela data, para alguém poder fechá-lo formalmente",
+  "POST /api/events/:id/reopen": "é a válvula que desfaz o bloqueio; por definição nunca é barrada",
 };
 
 const RAIZ = path.resolve(__dirname, "..", "..");
-const FONTES = ["server/routes/items.ts", "server/routes/sponsors.ts"];
+const FONTES = ["server/routes/items.ts", "server/routes/sponsors.ts", "server/routes/events.ts"];
 
 type RotaFonte = { chave: string; corpo: string };
 

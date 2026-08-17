@@ -19,6 +19,14 @@ import {
 } from "./shared";
 
 import { eventsCache, setEventsCache } from "../cache";
+// Mesmo predicado e mesma frase que server/routes/items.ts usa em toda
+// escrita de peça (ver o bloco "EVENTO FINALIZADO × ESCRITA DE PEÇA" em
+// ./eventoFinalizado). Importada de lá — não de "./items" — de propósito:
+// items.ts carrega os serviços de planilha (→ pacote `exceljs`), e este
+// arquivo precisa continuar importável sem essa árvore (ver o porquê no topo
+// de eventoFinalizado.ts). É o único lugar deste arquivo que precisa da
+// checagem (ver comentário na rota POST /api/events/:id/items/submit).
+import { motivoEventoFechado, erroEventoFechado } from "./eventoFinalizado";
 
 // Normaliza startDate/truckDepartureDate (string "YYYY-MM-DD[THH:MM...]" ou Date
 // vindo do storage) para a data-calendário "YYYY-MM-DD", sem envolver timezone
@@ -961,6 +969,24 @@ export function registerEventRoutes(app: Express): void {
 
       if (!isAdmin && !isSolicitacao) {
         return res.status(403).json({ error: "Acesso negado. Apenas perfis de Solicitação ou Admin podem enviar itens para vinculação" });
+      }
+
+      // Evento fechado (à mão OU já realizado): esta rota promove TODAS as
+      // peças em rascunho do evento para "aguardando vinculação" de uma vez —
+      // é a mesma classe de "fazer o trabalho andar" que motivou a guarda em
+      // server/routes/items.ts (ver o bloco "EVENTO FINALIZADO × ESCRITA DE
+      // PEÇA" lá), só que faltava aqui: o commit que barrou as 39 rotas de
+      // peça não tocou em events.ts, e esta era a única escrita de peça deste
+      // arquivo. Sem isto, o Detalhe do Evento continuava oferecendo "Enviar
+      // para vinculação" e o servidor aceitava — o mesmo buraco relatado em
+      // produção, por uma porta diferente.
+      const fechadoSubmit = motivoEventoFechado(event);
+      if (fechadoSubmit) {
+        return res.status(409).json({
+          error: erroEventoFechado(fechadoSubmit),
+          code: "EVENT_FINALIZED",
+          reason: fechadoSubmit,
+        });
       }
 
       // Buscar todos os itens em rascunho deste evento (draft = novo, requested = legado)

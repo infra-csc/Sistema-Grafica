@@ -267,7 +267,10 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
             </button>
           )}
           {(row.suggestedSponsorIds ?? []).length === 0 && (
-            <span style={{ fontSize: 11, color: '#a8a29e', fontStyle: 'italic' }}>sem patrocinador</span>
+            // #78716c sobre branco = 4,80:1 ✓ (#a8a29e dava 2,32:1). Aqui a
+            // frase não é enfeite: é o aviso de que a linha vai entrar SEM
+            // patrocinador, e era o texto mais apagado da tabela.
+            <span style={{ fontSize: 11, color: '#78716c', fontStyle: 'italic' }}>sem patrocinador</span>
           )}
         </div>
       </td>

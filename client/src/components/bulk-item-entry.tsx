@@ -394,7 +394,10 @@ function ExistingItemsPanel({ items, standardItems = [] }: ExistingItemsPanelPro
       >
         {/* ID */}
         <span style={{
-          fontSize: '10px', fontWeight: '700', color: '#f97316',
+          // #c2410c sobre branco = 5,18:1 e sobre o #fff7ed do hover = 4,88:1 ✓
+          // (#f97316 dava 2,94:1 — reprovado, e num ID de 10px que se lê para
+          // digitar em outra tela.)
+          fontSize: '10px', fontWeight: '700', color: '#c2410c',
           fontFamily: "'DM Mono', 'JetBrains Mono', monospace",
           minWidth: '52px', flexShrink: 0,
         }}>

@@ -196,7 +196,8 @@ export function TriagemModal({
                   <ClipboardCheck size={11} color="#f97316" />
                 </div>
                 <div style={{ paddingTop: 3, paddingLeft: 8 }}>
-                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 700, fontSize: 12, color: "#f97316" }}>
+                  {/* #c2410c sobre branco = 5,18:1 ✓ (#f97316 = 2,94:1). */}
+                  <div style={{ fontFamily: "Plus Jakarta Sans, sans-serif", fontWeight: 700, fontSize: 12, color: "#c2410c" }}>
                     Aguardando Triagem
                   </div>
                   <div style={{ fontFamily: "DM Mono, monospace", fontSize: 9, color: "#6b7280", marginTop: 3, textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -603,7 +604,10 @@ export function TriagemModal({
                     style={{
                       marginLeft: "auto",
                       fontFamily: "Space Grotesk, sans-serif", fontWeight: 700,
-                      fontSize: 10, color: "#f97316", textDecoration: "none",
+                      // #c2410c sobre a tarja (rgba(249,115,22,.12) no branco
+                      // = #feeee3) dá 4,58:1 ✓. O laranja puro dava 2,60:1 —
+                      // pior ainda que no branco, porque a tarja é do mesmo tom.
+                      fontSize: 10, color: "#c2410c", textDecoration: "none",
                       background: "rgba(249,115,22,0.12)", border: "1px solid rgba(249,115,22,0.3)",
                       padding: "5px 12px", borderRadius: 6,
                     }}

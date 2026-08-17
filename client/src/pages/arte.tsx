@@ -155,7 +155,9 @@ const EVENT_CHIPS_VISIBLE = 8;
  * inteiro na janela, e em 1366 o scroller horizontal da aba resolve, como já
  * resolvia. Em 1848 (a tela do dono) sobra tudo para "Peça".
  */
-const ARTE_COLS: { label: string; w: number | string; right?: boolean; sep?: boolean }[] = [
+type ArteCol = { label: string; w: number | string; right?: boolean; sep?: boolean };
+
+const ARTE_COLS: ArteCol[] = [
   { label: 'ID',            w: 116 },
   { label: 'Qtd',           w: 58 },
   { label: 'Peça',          w: 'auto' },
@@ -168,17 +170,68 @@ const ARTE_COLS: { label: string; w: number | string; right?: boolean; sep?: boo
   { label: 'Ações',         w: 180, right: true },
 ];
 
+/**
+ * QUINTA RODADA — o selo de status pintando por cima da QUANTIDADE.
+ *
+ * O MESMO mecanismo das rodadas anteriores, na única aba que tem um selo de
+ * status na célula de ID: `tableLayout: fixed` não alarga coluna, e o selo é
+ * `whiteSpace: nowrap` (status-badge.tsx), então o que não cabe VAZA sobre a
+ * vizinha. Medido no navegador, no DOM real, com Inter carregada:
+ *
+ *   coluna ID .................. 116px  (92 úteis, descontados os 12+12 de padding)
+ *   "Pronto para Produção" ..... 153,6  → vaza 49,6px, direto sobre o "1" de Qtd
+ *   "Aguardando Revisão Final" . 175,9  → vaza 71,9px, chega na coluna Peça
+ *   "Em Produção" .............. 108,4  → vaza 4,4px
+ *   o resto (Liberado, Produzido, Conferido, Entregue) .. 84,6 a 92,2 → cabe
+ *
+ * O rótulo CURTO não resolveria: o pior curto é "Em Produção" (108,4 — ele não
+ * tem forma abreviada) e "Pronto Prod." pede 104,2, ambos acima dos 92 úteis.
+ * Abreviar custaria a informação e ainda deixaria a sobreposição de pé.
+ *
+ * POR QUE UM CONJUNTO DE COLUNAS SÓ DESTA ABA. As cinco abas dividiam o mesmo
+ * `ARTE_COLS`, mas têm necessidades opostas nas duas pontas da linha:
+ *  · só Finalizados desenha o selo (nas outras a fase é dada pela aba), e por
+ *    isso só ela precisa de uma coluna de ID grande;
+ *  · só Finalizados NÃO tem botão de ação primária (`acaoPrimaria` devolve null
+ *    fora de "criar-aprovações" e "finalizar-layouts"), então a coluna "Ações"
+ *    dela carrega apenas o "⋯" de 36px e desperdiça 120 dos 156 úteis.
+ * Uma paga a outra. Alargar ID para todas roubaria de "Peça" nas quatro abas
+ * que não têm selo nenhum ali.
+ *
+ * A CONTA (Finalizados). ID 116 → 208: 184 úteis contra os 175,9 do pior selo,
+ * 8,1px de folga — e o cabeçalho vira "ID / Status" (71,1px + 24 de padding),
+ * porque uma coluna de 208px chamada só "ID" mentiria sobre o que carrega.
+ * "Ações" 180 → 76: 52 úteis contra 41,5 do cabeçalho "AÇÕES" e 36 do botão
+ * "⋯", que é tudo o que sobra na célula. Os 12px que sobram da troca vão para
+ * "Patroc." (92 → 104), a outra coluna apertada da varredura: 80 úteis em vez
+ * de 68 fazem caber "Prefeitura" (76,9) e "Bradesco" (75), que antes vazavam.
+ * +92, −104 e +12: o TOTAL NÃO MUDA, fica nos mesmos 1170/1214 de antes. Isso é
+ * requisito, não coincidência — em 1568 (1568 − 256 de sidebar − 64 de padding
+ * = 1248 úteis) a tabela mede 1246: há 2px de sobra, e qualquer coluna que
+ * crescesse sem devolver criaria rolagem horizontal NOVA nessa largura.
+ */
+const ARTE_COLS_FINALIZADOS: ArteCol[] = ARTE_COLS.map(c =>
+  c.label === 'ID'      ? { ...c, label: 'ID / Status', w: 208 }
+  : c.label === 'Ações'   ? { ...c, w: 76 }
+  : c.label === 'Patroc.' ? { ...c, w: 104 }
+  : c);
+
+const colunasDaAba = (tabId: string): ArteCol[] =>
+  tabId === "finalizados" ? ARTE_COLS_FINALIZADOS : ARTE_COLS;
+
 // Colunas fixas + um mínimo para "Peça" (largura 'auto'). Derivado, não
 // hardcoded: a largura de "Ações" já mudou três vezes enquanto o número ficava
-// parado, e foi isso que causou a sobreposição de colunas.
+// parado, e foi isso que causou a sobreposição de colunas. Agora recebe o
+// conjunto de colunas da aba pelo mesmo motivo — duas listas de largura e um
+// número fixo divergiriam no primeiro ajuste.
 const ARTE_PECA_MIN_WIDTH = 148;
-const ARTE_COLS_WIDTH = ARTE_PECA_MIN_WIDTH
-  + ARTE_COLS.reduce((sum, c) => sum + (typeof c.w === 'number' ? c.w : 0), 0);
+const arteColsWidth = (cols: ArteCol[]) => ARTE_PECA_MIN_WIDTH
+  + cols.reduce((sum, c) => sum + (typeof c.w === 'number' ? c.w : 0), 0);
 // A coluna de seleção só existe em duas das quatro abas de tabela; somá-la
 // sempre deixava as outras duas 44px mais largas que o necessário.
 const ARTE_CHECKBOX_WIDTH = 44;
-const tableMinWidth = (withCheckbox: boolean) =>
-  ARTE_COLS_WIDTH + (withCheckbox ? ARTE_CHECKBOX_WIDTH : 0);
+const tableMinWidth = (withCheckbox: boolean, cols: ArteCol[]) =>
+  arteColsWidth(cols) + (withCheckbox ? ARTE_CHECKBOX_WIDTH : 0);
 
 /**
  * Cor de cada fase. Um par por aba: `dot` (tom 500, saturado) só entra em
@@ -1783,10 +1836,18 @@ export default function Arte() {
           />
         </td>
       )}
-      {/* ID — whiteSpace normal e alignItems flex-start: com tableLayout fixed
-          o selo de status precisa poder quebrar dentro da coluna em vez de
-          vazar sobre a vizinha. */}
-      <td style={{ padding: '9px 12px' }}>
+      {/* ID (em Finalizados, "ID / Status" — ver ARTE_COLS_FINALIZADOS).
+          `overflow: hidden` é a GARANTIA ESTRUTURAL, a largura é o ajuste: o
+          selo é `whiteSpace: nowrap` (status-badge.tsx) e numa tabela
+          `tableLayout: fixed` o que não cabe PINTA POR CIMA da célula vizinha —
+          era assim que "Pronto para Produção" (153,6px) aparecia por baixo do
+          número da quantidade. Com a coluna em 208px o recorte nunca chega a
+          agir com a fonte real (184 úteis contra 175,9 do pior selo); ele existe
+          para que um rótulo novo, ou um fallback de fonte mais largo, sejam
+          cortados dentro da própria coluna em vez de invadirem Qtd de novo.
+          alignItems flex-start: num flex column o padrão é stretch, e o selo
+          seria esticado na largura inteira da célula. */}
+      <td style={{ padding: '9px 12px', overflow: 'hidden' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 3, alignItems: 'flex-start' }}>
           <span style={{ fontFamily: '"DM Mono", monospace', fontSize: 12, color: '#57534e', fontWeight: 600 }} data-testid={`text-display-id-${item.id}`}>
             {item.displayId}
@@ -1911,8 +1972,16 @@ export default function Arte() {
       </td>
       {/* Prazo */}
       <td style={{ padding: '9px 12px' }}>{renderPrazo(item, tabId, hoje)}</td>
-      {/* Patrocinadores */}
-      <td style={{ padding: '9px 12px' }}>
+      {/* Patrocinadores — a segunda colisão da varredura, mesmo mecanismo do
+          selo: o chip é `whiteSpace: nowrap` (sponsor-chips.tsx) e não cabia na
+          coluna. Medido: "Prefeitura Municipal" pede 131,6px contra 68 úteis e
+          vazava 52 — e isso NÃO é hipótese, é colisão de hoje nas abas que têm
+          botão de ação primária: o chip pintava 21,9px POR CIMA do "Enviar
+          direto". `overflow: hidden` mantém o excesso dentro da coluna; o nome
+          inteiro continua no `title` do contêiner, que já lista todos. As
+          reticências DENTRO do chip dependem de sponsor-chips.tsx, componente
+          compartilhado com outras telas — fica para quem for dono dele. */}
+      <td style={{ padding: '9px 12px', overflow: 'hidden' }}>
         <SponsorChips sponsors={item.sponsors ?? []} variant="orange" size="sm" />
       </td>
       {/* Ações */}
@@ -1972,8 +2041,12 @@ export default function Arte() {
     // A coluna de seleção só existe nestas duas abas — nas outras a tabela não
     // deve pagar os 44px dela.
     const comSelecao = tabId === "criar-aprovacoes" || tabId === "finalizados";
-    const minW = tableMinWidth(comSelecao);
-    const totalColunas = ARTE_COLS.length + (comSelecao ? 1 : 0);
+    // Um conjunto de colunas por aba: só Finalizados desenha o selo de status
+    // na célula de ID e só ela fica sem botão de ação primária. As outras
+    // quatro continuam com ARTE_COLS, letra por letra (ver ARTE_COLS_FINALIZADOS).
+    const cols = colunasDaAba(tabId);
+    const minW = tableMinWidth(comSelecao, cols);
+    const totalColunas = cols.length + (comSelecao ? 1 : 0);
 
     if (items.length === 0) {
       const porFiltro = activeFilterCount > 0;
@@ -2315,12 +2388,12 @@ export default function Arte() {
                     <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', textAlign: 'left' }}>
                       <colgroup>
                         {comSelecao && <col style={{ width: ARTE_CHECKBOX_WIDTH }} />}
-                        {ARTE_COLS.map((c, i) => <col key={i} style={{ width: c.w }} />)}
+                        {cols.map((c, i) => <col key={i} style={{ width: c.w }} />)}
                       </colgroup>
                       <thead>
                         <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4', boxShadow: '0 1px 0 #e7e5e4' }}>
                           {comSelecao && <th style={{ padding: '10px 12px' }}><span className="sr-only">Selecionar</span></th>}
-                          {ARTE_COLS.map((col, ci) => <th key={ci} style={thStyle(col)}>{col.label}</th>)}
+                          {cols.map((col, ci) => <th key={ci} style={thStyle(col)}>{col.label}</th>)}
                         </tr>
                       </thead>
                       {bloco.grupos.map((grupo, gi) => {

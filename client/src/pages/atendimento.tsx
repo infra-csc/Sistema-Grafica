@@ -79,6 +79,39 @@ const approvalVisual = (status?: string | null) => {
   };
 };
 
+// ── SITUAÇÃO da peça: a leitura que o Atendimento faz antes de agir ────────
+//
+// Uma peça tem N patrocinadores, cada um com seu próprio estado. A pergunta
+// que a tela responde é outra: "o que eu faço com ESTA peça agora?". Por isso
+// a situação é UMA só por peça e as chaves são EXCLUSIVAS — assim a soma das
+// contagens do filtro é o total da lista, e nenhuma peça conta duas vezes.
+//
+// A ordem é a da urgência de quem olha: 'nova versão' primeiro porque é a
+// única em que a bola está com o ATENDIMENTO (a Arte já corrigiu e o arquivo
+// está parado esperando ser reenviado ao patrocinador). Era exatamente esse
+// caso que se escondia — o chip dizia "Aguardando", que se lê como "esperando
+// o patrocinador", e o arquivo corrigido ficava semanas sem sair.
+const SITUACAO_ORDEM = ["nova_versao", "aguardando_arte", "reprovado", "aguardando", "aprovado"] as const;
+type SituacaoPeca = (typeof SITUACAO_ORDEM)[number];
+
+const SITUACAO_META: Record<SituacaoPeca, { label: string; hint: string }> = {
+  nova_versao:     { label: "Nova versão para reenviar", hint: "A Arte corrigiu e o arquivo está esperando VOCÊ reenviar ao patrocinador" },
+  aguardando_arte: { label: "Reprovado · Arte refazendo", hint: "O patrocinador reprovou e a Arte está refazendo — nada a fazer aqui por enquanto" },
+  reprovado:       { label: "Reprovado", hint: "Reprovado pelo patrocinador" },
+  aguardando:      { label: "Aguardando patrocinador", hint: "Enviado, sem resposta do patrocinador até agora" },
+  aprovado:        { label: "Aprovado", hint: "Todos os patrocinadores aprovaram" },
+};
+
+/** A situação da peça a partir das aprovações dela. Primeira que casar vence. */
+function situacaoDaPeca(aprovacoes: { status?: string | null }[] | undefined): SituacaoPeca {
+  const st = (aprovacoes ?? []).map(a => a?.status);
+  if (st.includes("new_version_pending")) return "nova_versao";
+  if (st.includes("awaiting_arte")) return "aguardando_arte";
+  if (st.includes("rejected")) return "reprovado";
+  if (st.length > 0 && st.every(x => x === "approved")) return "aprovado";
+  return "aguardando";
+}
+
 // ── Pipeline de fluxo do cartão de histórico (10 etapas) ───────────────────
 // Const de módulo: antes era recriado a cada card renderizado. As etapas de
 // produção/entrega derivam da lista canônica PRODUCTION_STATUSES da lib de
@@ -157,6 +190,7 @@ export default function Atendimento() {
   const [eventFilter, setEventFilter] = useState<string[]>(() => { try { return JSON.parse(sessionStorage.getItem("atendimento:eventFilter") || "[]"); } catch { return []; } });
   useEffect(() => { sessionStorage.setItem("atendimento:eventFilter", JSON.stringify(eventFilter)); }, [eventFilter]);
   const [itemTypeFilter, setItemTypeFilter] = useState<string[]>([]);
+  const [situacaoFilter, setSituacaoFilter] = useState<string[]>([]);
   // ?patrocinador=<id> — deep-link da Gestão de Prazos ("Cobrar no
   // Atendimento"): a tela abre já filtrada no patrocinador da cobrança.
   const [sponsorFilter, setSponsorFilter] = useState<string[]>(() => {
@@ -636,10 +670,12 @@ export default function Atendimento() {
       const matchesType = itemTypeFilter.length === 0 || itemTypeFilter.includes(item.type);
       const matchesSponsor = sponsorFilter.length === 0 ||
         itemSponsorsMap[item.id]?.some(sponsor => sponsorFilter.includes(sponsor.id));
+      const matchesSituacao = situacaoFilter.length === 0 ||
+        situacaoFilter.includes(situacaoDaPeca(itemApprovalsMap[item.id]));
 
-      return matchesSearch && matchesEvent && matchesType && matchesSponsor;
+      return matchesSearch && matchesEvent && matchesType && matchesSponsor && matchesSituacao;
     });
-  }, [pendingItems, deferredSearchTerm, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors]);
+  }, [pendingItems, deferredSearchTerm, eventFilter, itemTypeFilter, sponsorFilter, situacaoFilter, itemApprovalsMap, itemSponsorsMap, loadingSponsors]);
 
   // UMA passada, memoizada na âncora estável — nada de recalcular data por card.
   const atrasadosNaBase = useMemo(
@@ -651,7 +687,7 @@ export default function Atendimento() {
 
   // Filtros facetados: cada filtro lista só o que existe na página, aplicando
   // os OUTROS filtros ativos (escolher um evento reduz tipos e patrocinadores).
-  const facetPool = (exclude: 'event' | 'type' | 'sponsor') =>
+  const facetPool = (exclude: 'event' | 'type' | 'sponsor' | 'situacao') =>
     pendingItems.filter((item: any) => {
       if (!(itemSponsorsMap[item.id]?.length > 0) && !loadingSponsors) return false;
       // O recorte de atrasados também é faceta: sem ele aqui, o dropdown
@@ -660,6 +696,7 @@ export default function Atendimento() {
       if (exclude !== 'event' && eventFilter.length > 0 && !eventFilter.includes(item.eventId)) return false;
       if (exclude !== 'type' && itemTypeFilter.length > 0 && !itemTypeFilter.includes(item.type)) return false;
       if (exclude !== 'sponsor' && sponsorFilter.length > 0 && !itemSponsorsMap[item.id]?.some(s => sponsorFilter.includes(s.id))) return false;
+      if (exclude !== 'situacao' && situacaoFilter.length > 0 && !situacaoFilter.includes(situacaoDaPeca(itemApprovalsMap[item.id]))) return false;
       return true;
     });
 
@@ -678,6 +715,19 @@ export default function Atendimento() {
     });
     return Array.from(map.values());
   }, [pendingItems, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors, events, atrasadosFilter, eventoPorId, hoje]);
+
+  const situacaoFilterOptions = useMemo(() => {
+    const conta = new Map<string, number>();
+    facetPool('situacao').forEach((i: any) => {
+      const k = situacaoDaPeca(itemApprovalsMap[i.id]);
+      conta.set(k, (conta.get(k) ?? 0) + 1);
+    });
+    // `pinned`: a ordem é a da urgência, e alfabética poria "Aprovado" antes de
+    // "Nova versão para reenviar" — o oposto de onde o olho precisa cair.
+    return SITUACAO_ORDEM
+      .filter(k => (conta.get(k) ?? 0) > 0)
+      .map(k => ({ value: k, label: SITUACAO_META[k].label, count: conta.get(k)!, pinned: true }));
+  }, [pendingItems, eventFilter, itemTypeFilter, sponsorFilter, situacaoFilter, itemApprovalsMap, itemSponsorsMap, loadingSponsors, atrasadosFilter, eventoPorId, hoje]);
 
   const typeFilterOptions = useMemo(() => {
     const map = new Map<string, { value: string; label: string; count: number }>();
@@ -1192,6 +1242,17 @@ export default function Atendimento() {
             options={typeFilterOptions} showAllLabelWhenEmpty
             searchPlaceholder="Buscar tipo..." emptyText="Nenhum tipo encontrado."
             testId="select-type-filter"
+          />
+
+          {/* SITUAÇÃO — a dimensão que faltava. Sem ela não havia como
+              perguntar "o que já voltou corrigido e está esperando por mim?",
+              que é a pergunta que atrasou a peça #1527 por semanas. */}
+          <FilterSelect
+            label="Situação" allLabel="Todas as situações"
+            values={situacaoFilter} onValuesChange={setSituacaoFilter}
+            options={situacaoFilterOptions} hideSearch showAllLabelWhenEmpty
+            panelWidth={260}
+            testId="select-situacao-filter"
           />
 
           <FilterSelect
@@ -2422,6 +2483,31 @@ export default function Atendimento() {
                                 backgroundColor: statusCfg.bg, color: statusCfg.text, border: `1px solid ${statusCfg.border}`,
                                 padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap', lineHeight: 1.5,
                               }}>{isMobile ? getStatusShort(item.status) : getStatusLabel(item.status)}</span>
+                              {/* ARQUIVO CORRIGIDO. O estado "nova versão" é o único
+                                  em que a bola está com o ATENDIMENTO: a Arte já
+                                  refez e o arquivo está parado esperando ser
+                                  reenviado ao patrocinador. Vinha escrito só dentro
+                                  da linha de cada patrocinador, e do lado de fora o
+                                  cartão era idêntico ao de uma peça que nunca tinha
+                                  saído — foi assim que a #1527 ficou semanas parada.
+                                  Vem em ÂMBAR e não em vermelho: não é alarme, é
+                                  trabalho pronto para sair.
+                                  #92400e sobre #fffbeb = 7,4:1 ✓ nos 11px. */}
+                              {situacaoDaPeca(itemApprovalsMap[item.id]) === 'nova_versao' && (
+                                <span
+                                  data-testid={`selo-nova-versao-${item.id}`}
+                                  title={SITUACAO_META.nova_versao.hint}
+                                  style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 4,
+                                    fontSize: 11, fontWeight: 700,
+                                    backgroundColor: '#fffbeb', color: '#92400e', border: '1px solid #fde68a',
+                                    padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap', lineHeight: 1.5,
+                                  }}
+                                >
+                                  <RotateCcw aria-hidden="true" style={{ width: 11, height: 11 }} />
+                                  Arte corrigida · reenviar
+                                </span>
+                              )}
                             </div>
                           </div>
 

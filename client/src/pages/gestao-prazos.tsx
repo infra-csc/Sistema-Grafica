@@ -53,7 +53,7 @@ import { PecasAtrasadas } from "@/components/prazos/pecas-atrasadas";
 import {
   computePecasAtrasadas, contarPecasAtrasadas, filtrarPecasAtrasadas,
 } from "@/components/prazos/atrasadas";
-import { computeEventosPorEtapa, computeSectorSummary } from "@/components/prazos/gargalos";
+import { computeEventosPorEtapa, computeSectorSummary, eventoNaEtapa } from "@/components/prazos/gargalos";
 
 /**
  * As três visões do MESMO conjunto filtrado.
@@ -960,7 +960,9 @@ export default function GestaoPrazos() {
         gap: 10, alignItems: "start", overflowX: "auto", paddingBottom: 4,
       }}>
         {stageMeta.map((m, i) => {
-          const colEvents = filtered.filter((ev) => currentStageIdx(ev) === i);
+          // MESMO predicado do cabeçalho (ver eventoNaEtapa): o evento aparece
+          // em toda etapa em que tem peça parada, e não só na do gargalo.
+          const colEvents = filtered.filter((ev) => eventoNaEtapa(ev, i));
           return (
             <QuadroColuna
               key={m.key}

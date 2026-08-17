@@ -15,12 +15,15 @@
 //     produzidas (`producedCount`, vocabulário PRODUCED_LIKE do contrato);
 //   • o selo de gargalo com a regra do empate (2 empatados destacam os dois;
 //     3+ é dia distribuído, ninguém destaca);
-//   • eventos por etapa seguindo `currentStageIdx` (sem peças → etapa 0).
+//   • eventos por etapa: o evento aparece em TODA etapa em que tem peça
+//     travada (regra do dono, 17/08), com `currentStageIdx` de fallback para
+//     quem não tem peça travada em lugar nenhum.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import {
   computeEventosPorEtapa,
   computeSectorSummary,
+  eventoNaEtapa,
 } from "@/components/prazos/gargalos";
 import type {
   PrazoEvent,
@@ -219,3 +222,55 @@ describe("computeEventosPorEtapa — a conta da coluna do quadro", () => {
     expect(m.get("listaImagens")).toBe(1);
   });
 });
+
+describe("eventoNaEtapa — o evento aparece onde há trabalho, não só no gargalo", () => {
+  /** Constrói `stages` com o directCount de cada etapa, na ordem do STAGE_META. */
+  function comTravadas(diretas: number[]): PrazoEvent {
+    const base = evento({ pendingItems: [item({ stageIndex: 0 })] });
+    return {
+      ...base,
+      stages: STAGE_META.map((m, i) => ({
+        key: m.key, label: m.label, deadline: "2026-08-20", diffDays: 7,
+        // pendingCount acumulado da direita para a esquerda não importa aqui:
+        // o predicado lê directCount. Mantido coerente para não confundir.
+        pendingCount: diretas.slice(i).reduce((a, b) => a + b, 0),
+        directCount: diretas[i] ?? 0,
+        state: (diretas[i] ?? 0) > 0 ? "upcoming" : "done",
+      })),
+    };
+  }
+
+  it("evento com peça em duas etapas aparece nas DUAS", () => {
+    // 9 paradas em Layouts e 2 em Produção: antes existia só em Layouts, e
+    // quem abria a coluna da Gráfica não via que ali havia trabalho.
+    const ev = comTravadas([0, 9, 0, 0, 2]);
+    expect(eventoNaEtapa(ev, 1)).toBe(true);
+    expect(eventoNaEtapa(ev, 4)).toBe(true);
+    expect(eventoNaEtapa(ev, 0)).toBe(false);
+    expect(eventoNaEtapa(ev, 2)).toBe(false);
+  });
+
+  it("a etapa VAZIA entre duas cheias continua vazia", () => {
+    // É a diferença entre directCount e pendingCount: o acumulado poria o
+    // evento também em Aprovação, que não tem peça nenhuma parada.
+    const ev = comTravadas([0, 9, 0, 0, 2]);
+    expect(eventoNaEtapa(ev, 3)).toBe(false);
+  });
+
+  it("evento sem peça travada em lugar nenhum não some do quadro", () => {
+    const ev = comTravadas([0, 0, 0, 0, 0]);
+    const colunas = STAGE_META.map((_, i) => eventoNaEtapa(ev, i));
+    expect(colunas.filter(Boolean).length, "deveria aparecer em exatamente uma").toBe(1);
+  });
+
+  it("a contagem do cabeçalho usa o MESMO predicado da coluna", () => {
+    const a = comTravadas([0, 3, 0, 0, 1]);
+    const b = comTravadas([0, 0, 0, 0, 5]);
+    const m = computeEventosPorEtapa([a, b], STAGE_META);
+    expect(m.get("layouts")).toBe(1);
+    expect(m.get("producao")).toBe(2);
+    // A soma PASSA do número de eventos, de propósito: 'a' conta duas vezes.
+    expect([...m.values()].reduce((x, y) => x + y, 0)).toBe(3);
+  });
+});
+

@@ -97,10 +97,37 @@ export function computeSectorSummary(
 }
 
 /**
- * Quantos EVENTOS estão parados em cada etapa — a mesma conta da coluna do
- * quadro. NÃO é o mesmo número do resumo por setor: aquele conta PEÇAS pelo
- * dono real da bola, este conta EVENTOS pela etapa atual — por isso o botão
- * do card de setor fala em eventos e não repete o número de peças.
+ * O evento aparece NESTA etapa? Regra do dono (17/08): "o evento deve
+ * aparecer em todas as etapas em que há uma peça".
+ *
+ * Antes o quadro punha cada evento numa coluna só — a do gargalo — e um
+ * evento com 9 peças paradas em Layouts e 2 em Produção existia apenas em
+ * Layouts. Quem abria a coluna da Gráfica não via que aquele evento tinha
+ * trabalho ali: o funil mostrava o pior ponto, não onde o trabalho está.
+ *
+ * `directCount` (peças travadas EXATAMENTE aqui) e não `pendingCount`: o
+ * acumulado poria o evento em todas as etapas do gargalo para a frente,
+ * inclusive nas que não têm peça nenhuma parada — a coluna encheria de
+ * evento sem trabalho.
+ *
+ * FALLBACK: um evento sem peça travada em lugar nenhum (tudo entregue, ou
+ * sem peças) sumiria do quadro inteiro. Ele continua na coluna do
+ * `currentStageIdx`, que é onde estava antes desta regra.
+ */
+export function eventoNaEtapa(ev: PrazoEvent, i: number): boolean {
+  const algumaTravada = ev.stages.some((s) => s.directCount > 0);
+  if (!algumaTravada) return currentStageIdx(ev) === i;
+  return (ev.stages[i]?.directCount ?? 0) > 0;
+}
+
+/**
+ * Quantos EVENTOS têm peça parada em cada etapa — a MESMA conta da coluna do
+ * quadro, e por isso pelo mesmo predicado: cabeçalho e conteúdo discordarem é
+ * o defeito que ninguém percebe. Um evento pode contar em várias etapas, então
+ * a soma das colunas passa do total de eventos — de propósito.
+ *
+ * NÃO é o mesmo número do resumo por setor: aquele conta PEÇAS pelo dono real
+ * da bola, este conta EVENTOS.
  */
 export function computeEventosPorEtapa(
   events: PrazoEvent[],
@@ -108,8 +135,9 @@ export function computeEventosPorEtapa(
 ): Map<string, number> {
   const m = new Map<string, number>();
   for (const ev of events) {
-    const k = stageMeta[currentStageIdx(ev)]?.key;
-    if (k) m.set(k, (m.get(k) ?? 0) + 1);
+    stageMeta.forEach((meta, i) => {
+      if (eventoNaEtapa(ev, i)) m.set(meta.key, (m.get(meta.key) ?? 0) + 1);
+    });
   }
   return m;
 }

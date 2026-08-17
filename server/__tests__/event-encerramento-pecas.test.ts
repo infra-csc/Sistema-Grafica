@@ -259,7 +259,10 @@ describe("evento NÃO encerrado segue exatamente como antes", () => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // O MESMO gate, do lado do cliente: é ele que tira o evento encerrado das filas
-// de Arte/Atendimento/Gráfica e do calendário (client/src/lib/status.ts).
+// de Arte e Atendimento e o marca no calendário (client/src/lib/status.ts).
+// A Gráfica e a Revisão Final saíram desta lista em 17/08 — lá o evento
+// finalizado voltou a APARECER, com selo e botões barrados desabilitados (ver
+// evento-finalizado-telas.test.ts).
 describe("isEventoEncerrado — o gate das filas no cliente", () => {
   it("lê a coluna CRUA: é a única coisa que `item.event` traz nas listas de peça", () => {
     // `item.event` vem direto do storage, sem passar por enrichEvent — não há

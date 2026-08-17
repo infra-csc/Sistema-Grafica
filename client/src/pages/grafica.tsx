@@ -18,8 +18,9 @@ import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
   getStatusMeta, getStatusLabel, getPriorityMeta,
-  isEventoFinalizado, motivoEventoFinalizado, avisoPecasOcultas, todayBusinessMs,
+  seloPecaEventoFinalizado, motivoAcaoBloqueada, todayBusinessMs,
 } from "@/lib/status";
+import type { SeloPecaEventoFinalizado } from "@/lib/status";
 import { StatusPill } from "@/components/status-pill";
 import { useAuth } from "@/contexts/auth-context";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
@@ -597,44 +598,42 @@ export default function Grafica() {
     refetchOnWindowFocus: true,
     refetchInterval: 60_000,
   });
-  // ── Evento FINALIZADO sai da fila ─────────────────────────────────────────
-  // Duas origens, um gate só (`motivoEventoFinalizado`, @shared/prazo-dates):
-  //   · "encerrado" → um admin clicou em Encerrar evento; a confirmação promete,
-  //     em voz alta, que o evento "sai da Gestão de Prazos e das filas".
-  //   · "realizado" → a DATA DO EVENTO (events.startDate — NÃO a saída do
-  //     caminhão, que acontece dias antes) já passou. Regra do dono: não se
-  //     imprime mais material para um evento que já aconteceu. Durante o DIA do
-  //     evento a peça ainda aparece (a virada é no fim do dia, fuso de São
-  //     Paulo); evento SEM data de início nunca sai por esta regra.
+  // ── Evento FINALIZADO CONTINUA NA FILA ────────────────────────────────────
+  // Regra do dono (17/08): "os eventos finalizados devem aparecer ainda na
+  // Revisão e Gráfica". Esta tela filtrava as peças de evento encerrado à mão
+  // ou já realizado; não filtra mais.
   //
-  // Filtramos AQUI, no cliente, e não em /api/items/approved: o Detalhe do
-  // Evento e o Painel Geral leem essas mesmas chaves e a lista de peças precisa
-  // continuar aparecendo lá — a Gráfica é tela de AÇÃO, aqueles são registro.
+  // POR QUE AQUI VOLTA E EM ARTE/ATENDIMENTO/VINCULAR CONTINUA ESCONDIDO — é a
+  // pergunta óbvia de quem olhar as cinco filas. A guarda do servidor
+  // (server/routes/eventoFinalizado.ts) barra o que faz o trabalho ANDAR e
+  // permite o que ARRUMA A CASA; das ações que ela permite, CONFERIR e
+  // REGISTRAR ENTREGA são desta tela. E não são caso raro: a papelada da
+  // entrega chega no dia seguinte ao evento, exatamente quando ele vira
+  // "realizado". Esconder a peça tornava impossível executar o que o servidor
+  // autoriza — o material saiu, o canhoto chegou, e não havia linha onde
+  // clicar. Nas outras três filas nada de permitido sobrou, então lá esconder
+  // continua certo: a peça visível só ofereceria 409.
+  //
+  // A contrapartida está logo abaixo e é obrigatória: `seloDoItem` declara a
+  // peça na linha e no card, e os botões barrados (produzir, reaproveitar,
+  // corrigir reaproveitamento, aumentar quantidade) vêm DESABILITADOS com o
+  // motivo no `title`. Peça de evento morto sem sinal, com botão que só
+  // devolve 409, seria pior do que escondê-la.
   //
   // `item.event` vem CRU do storage (nunca passa por enrichEvent): traz
   // `status` ("closed") e `startDate` — as duas colunas que o predicado lê.
   const hojeBusinessMs = todayBusinessMs();
-  const items = useMemo(
-    () => (pecasDoServidor as any[]).filter((i: any) => !isEventoFinalizado(i.event, hojeBusinessMs)),
-    [pecasDoServidor, hojeBusinessMs],
-  );
-  // Esconder sem dizer que escondeu é pior que o problema: com a fila vazia, a
-  // tela diria "Nenhuma peça liberada ainda" para um operador cujo trabalho
-  // saiu de pauta. Contamos por MOTIVO porque as duas frases são diferentes —
-  // "encerrado" tem volta (reabrir), "realizado" não tem.
-  const pecasOcultas = useMemo(() => {
-    let encerrado = 0, realizado = 0;
-    for (const i of pecasDoServidor as any[]) {
-      const motivo = motivoEventoFinalizado(i.event, hojeBusinessMs);
-      if (motivo === "encerrado") encerrado++;
-      else if (motivo === "realizado") realizado++;
+  const items = pecasDoServidor as any[];
+  // Um selo por peça, calculado uma vez. `null` = evento em jogo, linha normal.
+  const selosPorItem = useMemo(() => {
+    const m = new Map<string, SeloPecaEventoFinalizado>();
+    for (const i of items) {
+      const s = seloPecaEventoFinalizado(i.event, hojeBusinessMs);
+      if (s) m.set(i.id, s);
     }
-    return { encerrado, realizado };
-  }, [pecasDoServidor, hojeBusinessMs]);
-  const avisoOcultas = useMemo(
-    () => avisoPecasOcultas(pecasOcultas, "desta fila"),
-    [pecasOcultas],
-  );
+    return m;
+  }, [items, hojeBusinessMs]);
+  const seloDoItem = (item: any): SeloPecaEventoFinalizado | null => selosPorItem.get(item.id) ?? null;
 
   // Sem botão "Atualizar" (regra do dono): a tela se atualiza sozinha. O selo
   // "Atualizado há X" é a promessa de veracidade e o spinner ao lado é o único
@@ -996,6 +995,17 @@ export default function Grafica() {
   const statsPool = useMemo(() =>
     (items as any[]).filter((item: any) => itemCasaFiltros(item, filtros, ctxFiltros, { ignorarStatus: true })),
     [items, filtros, ctxFiltros]);
+  // A REGRA DOS NÚMEROS DESTA TELA, uma só: TODO contador conta o que a tela
+  // MOSTRA. Com as peças de evento finalizado de volta à fila, elas entram nos
+  // seis cards, no "N peças" do recorte e no rodapé de m² — pelo mesmo motivo
+  // que o Painel Geral adotou ao revelar as dele: número que não bate com a
+  // lista logo abaixo é o defeito mais caro de todos, porque não dá para
+  // perceber. Quem quiser o recorte "só trabalho vivo" tem os filtros; o que
+  // não pode existir é um KPI dizendo 12 sobre uma lista de 15.
+  //
+  // O QUE ESSA REGRA DEVE, e o chip abaixo paga: sozinho, "18 A PRODUZIR"
+  // esconde que 6 são de evento que já aconteceu. O número segue a lista, e o
+  // chip diz quanto dele é trabalho morto.
   const stats = {
     liberados:  statsPool.filter((i: any) => i.status === 'approved' || i.status === 'ready_for_production' || i.status === 'pronto_para_producao').length,
     emProducao: statsPool.filter((i: any) => i.status === 'inProduction').length,
@@ -1004,6 +1014,19 @@ export default function Grafica() {
     entregues:  statsPool.filter((i: any) => i.status === 'delivered').length,
     total:      statsPool.length,
   };
+
+  // Quanto do recorte é peça de evento finalizado — o contrapeso do parágrafo
+  // acima. Sai do MESMO `statsPool` dos cards, senão o chip contaria uma
+  // população e os KPIs outra.
+  const finalizadasNoRecorte = useMemo(() => {
+    let encerrado = 0, realizado = 0;
+    for (const i of statsPool) {
+      const s = selosPorItem.get(i.id);
+      if (s?.motivo === "encerrado") encerrado++;
+      else if (s?.motivo === "realizado") realizado++;
+    }
+    return { encerrado, realizado, total: encerrado + realizado };
+  }, [statsPool, selosPorItem]);
 
   // ── Complementos no recorte atual (alimenta o chip do cabeçalho) ──
   // Em ABERTO = ainda não entregues: é o trabalho que apareceu depois e ainda
@@ -1344,6 +1367,16 @@ export default function Grafica() {
   const expandirGrupo = (chave: string) =>
     setGruposExpandidos(prev => { const n = new Set(prev); n.add(chave); return n; });
 
+  // ── LOTE E EVENTO FINALIZADO: aqui não há o que separar ───────────────────
+  // As duas ações em lote desta tela são CONFERIR (POST /api/items/:id/confer)
+  // e REGISTRAR ENTREGA (PATCH /api/items/:id/deliver) — as duas rotas que a
+  // guarda de evento finalizado deixa passar de propósito. Logo, um lote misto
+  // (peça viva + peça de evento acabado) roda inteiro, sem 409 e sem falha
+  // silenciosa: não existe caso a separar, e um filtro aqui só REMOVERIA da
+  // conferência em lote justamente as peças cuja papelada chega depois do
+  // evento. A separação de lote misto que a Revisão Final precisa fazer
+  // (solicitacao.tsx) não tem paralelo nesta tela.
+  //
   // Items que podem ser entregues no filtro atual
   const deliverableInFilter = useMemo(
     () => (filteredItems as any[]).filter(i => canDeliver(i)),
@@ -1644,6 +1677,40 @@ export default function Grafica() {
               <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: CO.stripe, display: "inline-block", flexShrink: 0 }} />
               {complementoChipLabel}
             </button>
+          )}
+          {/* Quanto do recorte é evento que já acabou. NÃO é botão: não há o
+              que alternar — a regra do dono é que estas peças aparecem, e um
+              chip que as escondesse desfaria a decisão num clique. É o
+              contrapeso da regra dos contadores (ver `stats`): os números
+              seguem a lista, e este chip diz quanto da lista é trabalho morto
+              que só aceita conferência e entrega.
+              #44403c sobre #f5f5f4 → 9,42:1 nos 11px. */}
+          {finalizadasNoRecorte.total > 0 && (
+            <span
+              data-testid="chip-evento-finalizado"
+              title={
+                [
+                  finalizadasNoRecorte.encerrado > 0
+                    ? `${finalizadasNoRecorte.encerrado} em evento encerrado por um administrador (reabrir o evento traz o trabalho de volta)`
+                    : null,
+                  finalizadasNoRecorte.realizado > 0
+                    ? `${finalizadasNoRecorte.realizado} em evento cuja data já passou (não há volta)`
+                    : null,
+                ].filter(Boolean).join(" e ")
+                + ". Elas continuam na fila porque conferir e registrar entrega seguem liberados;"
+                + " produzir, reaproveitar e aumentar quantidade estão bloqueados nelas."
+              }
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                backgroundColor: "#f5f5f4", color: "#44403c",
+                border: `1px solid ${TI.border}`,
+                borderRadius: 999, padding: isMobile ? "7px 12px" : "5px 11px",
+                fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
+              }}
+            >
+              <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: "#78716c", display: "inline-block", flexShrink: 0 }} />
+              {finalizadasNoRecorte.total} de evento finalizado
+            </span>
           )}
           {!isMobile && stats.liberados > 0 && (
             <span style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: "#fff7ed", color: "#c2410c", border: "1px solid #fed7aa", borderRadius: 6, padding: "6px 12px", fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em" }}>
@@ -2016,21 +2083,6 @@ export default function Grafica() {
             </button>
           </div>
         )}
-        {/* Peça de evento finalizado — encerrado à mão OU já realizado — não
-            entra na fila (ver `items` acima). Sem este aviso a tela mentiria
-            pelo silêncio: "Nenhuma peça liberada ainda" para um operador cujo
-            trabalho saiu de pauta. Fica visível com a lista cheia também — o
-            operador que procura uma peça específica precisa saber por que ela
-            sumiu. */}
-        {avisoOcultas && (
-          <div
-            role="status"
-            data-testid="aviso-eventos-encerrados"
-            style={{ background: "#f5f5f4", border: `1px solid ${TI.border}`, borderRadius: 10, padding: "10px 12px", margin: "12px 12px 0", fontSize: 12, color: "#44403c", lineHeight: 1.45 }}
-          >
-            <strong>{avisoOcultas.destaque}</strong>{" "}{avisoOcultas.texto}
-          </div>
-        )}
         {isLoading ? (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 48 }}>
             <div style={{ width: 32, height: 32, border: `3px solid ${TI.border}`, borderTopColor: TI.accent, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
@@ -2109,6 +2161,12 @@ export default function Grafica() {
               const mostraAumentar = !bulkOn && podeAumentarQuantidade(item, podeMexerQtd);
               const podeProduzirAqui = canProduce && coAberto && !isProduced(item) && !isConferred(item) && !item.isReuse && remainingProduce(item) > 0;
               const podeCancelarCompl = podeMexerQtd && ehComplemento && complementUntouched(item);
+              // Evento finalizado: o botão continua na tela, DESABILITADO com o
+              // motivo — sumir devolveria o buraco que esconder a peça criava
+              // (nada explica por que aquela linha não faz o que as vizinhas
+              // fazem). Espelha as rotas: produzir e aumentar quantidade são
+              // 409; conferir, entregar e cancelar complemento passam.
+              const selo = seloDoItem(item);
               const temGrupoFluxo = podeProduzirAqui || canDeliverItem || (canProduce && canConferItem) || isDelivered(item);
               const temGrupoContrato = mostraAumentar || podeCancelarCompl;
 
@@ -2266,6 +2324,22 @@ export default function Grafica() {
                             TEM +{complQty}
                           </span>
                         )}
+                        {/* EVENTO FINALIZADO — o selo que paga a volta destas
+                            peças à fila. Sem ele o operador não tem como saber
+                            que o evento acabou, e é essa informação que muda a
+                            decisão dele: nesta linha só conferência e entrega
+                            funcionam. Fica na MESMA faixa do status, porque é
+                            do mesmo tipo de fato. */}
+                        {selo && (
+                          <span
+                            data-testid={`badge-evento-finalizado-mobile-${item.id}`}
+                            title={selo.hint}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 9, fontWeight: 800, color: selo.text, background: selo.bg, border: `1px solid ${selo.border}`, borderRadius: 6, padding: '1px 5px', letterSpacing: '0.06em', whiteSpace: 'nowrap', textTransform: 'uppercase' }}
+                          >
+                            <span aria-hidden="true" style={{ width: 5, height: 5, borderRadius: '50%', background: selo.dot, flexShrink: 0 }} />
+                            {selo.label}
+                          </span>
+                        )}
                       </div>
                       <div style={{ fontSize: 15, fontWeight: 700, color: TI.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.type}</div>
                       {/* Identidade permanente: de quem este lote é complemento,
@@ -2354,9 +2428,14 @@ export default function Grafica() {
                             papel do desktop, que o servidor também valida. */}
                         {podeProduzirAqui && (
                           <button
-                            onClick={e => { e.stopPropagation(); openProductionModal(item); }}
+                            onClick={e => { e.stopPropagation(); if (!selo) openProductionModal(item); }}
+                            disabled={!!selo}
+                            title={selo ? motivoAcaoBloqueada(selo.motivo, "produzir") : undefined}
                             data-testid={`button-production-mobile-${item.id}`}
-                            style={{ width: '100%', minHeight: 44, padding: '0 12px', borderRadius: 8, background: CO.solidBg, border: 'none', color: '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: 'pointer', whiteSpace: 'nowrap' }}
+                            /* Desabilitado: #78716c sobre #f5f5f4 → 4,84:1 nos
+                               13px/800 (o cinza claro do padrão do navegador
+                               reprovaria AA). */
+                            style={{ width: '100%', minHeight: 44, padding: '0 12px', borderRadius: 8, background: selo ? '#f5f5f4' : CO.solidBg, border: selo ? `1px solid ${TI.border}` : 'none', color: selo ? '#78716c' : '#fff', fontSize: 13, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, cursor: selo ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap' }}
                           >
                             <Play aria-hidden="true" style={{ width: 13, height: 13 }} />
                             Produzir {remainingProduce(item)}
@@ -2403,19 +2482,24 @@ export default function Grafica() {
                             de contrato. Papel admin|solicitacao. */}
                         {mostraAumentar && (
                           <button
-                            onClick={e => { e.stopPropagation(); abrirComplemento(item); }}
+                            onClick={e => { e.stopPropagation(); if (!selo) abrirComplemento(item); }}
+                            disabled={!!selo}
                             aria-label={`Aumentar a quantidade de ${item.displayId} — cria uma peça complementar`}
                             data-testid={`button-aumentar-quantidade-mobile-${item.id}`}
-                            title="Aumentar quantidade"
+                            /* POST /api/items/:id/complement passa pela guarda:
+                               criar peça complementar é trabalho novo. */
+                            title={selo ? motivoAcaoBloqueada(selo.motivo, "aumentar a quantidade") : "Aumentar quantidade"}
                             style={{
                               width: 44, minHeight: 44, padding: 0, borderRadius: 8,
-                              background: CO.bg, border: `1.5px solid ${CO.border}`, color: CO.text,
+                              background: selo ? '#f5f5f4' : CO.bg,
+                              border: `1.5px solid ${selo ? TI.border : CO.border}`,
+                              color: selo ? '#78716c' : CO.text,
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              cursor: 'pointer', flexShrink: 0,
+                              cursor: selo ? 'not-allowed' : 'pointer', flexShrink: 0,
                             }}
-                            onPointerDown={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = CO.hoverBg; b.style.color = CO.suffix; }}
-                            onPointerUp={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = CO.bg; b.style.color = CO.text; }}
-                            onPointerLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.background = CO.bg; b.style.color = CO.text; }}
+                            onPointerDown={e => { if (selo) return; const b = e.currentTarget as HTMLButtonElement; b.style.background = CO.hoverBg; b.style.color = CO.suffix; }}
+                            onPointerUp={e => { if (selo) return; const b = e.currentTarget as HTMLButtonElement; b.style.background = CO.bg; b.style.color = CO.text; }}
+                            onPointerLeave={e => { if (selo) return; const b = e.currentTarget as HTMLButtonElement; b.style.background = CO.bg; b.style.color = CO.text; }}
                           >
                             {/* Só o ícone (decisão do dono). O aria-label acima
                                 carrega o significado para quem usa leitor de
@@ -2520,6 +2604,9 @@ export default function Grafica() {
                 // O gatilho de AUMENTAR. Some em qualquer modo de lote: o
                 // complemento exige quantidade e justificativa POR PEÇA.
                 const mostraAumentar = !bulkOn && podeAumentarQuantidade(item, podeMexerQtd);
+                // Evento finalizado: selo na linha e botões barrados
+                // desabilitados. Ver o comentário de `items`, no topo.
+                const selo = seloDoItem(item);
 
                 return (
                   <Fragment key={item.id}>
@@ -2674,6 +2761,21 @@ export default function Grafica() {
                             Tem complemento (+{complQty})
                           </div>
                         )}
+                        {/* EVENTO FINALIZADO — a peça voltou para a fila (ver
+                            `items`), então ela tem de se declarar. Sem este
+                            selo o operador vê "Produzir" apagado e conclui que
+                            o sistema quebrou; com ele, sabe que o evento acabou
+                            e que só restam conferência e entrega. */}
+                        {selo && (
+                          <div
+                            data-testid={`badge-evento-finalizado-${item.id}`}
+                            title={selo.hint}
+                            style={{ display: "inline-flex", alignItems: "center", gap: 5, backgroundColor: selo.bg, color: selo.text, border: `1px solid ${selo.border}`, borderRadius: 6, padding: "2px 8px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5, marginRight: 5, whiteSpace: "nowrap" }}
+                          >
+                            <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: selo.dot, flexShrink: 0 }} />
+                            {selo.label}
+                          </div>
+                        )}
                         {/* A cor verde da linha sozinha não diz o que é: o rótulo
                             precisa aparecer sempre que houver reaproveitamento,
                             inclusive nas peças marcadas antes de reuseQty existir. */}
@@ -2747,18 +2849,23 @@ export default function Grafica() {
                           {mostraAumentar && (
                             <button
                               type="button"
-                              onClick={e => { e.stopPropagation(); abrirComplemento(item); }}
+                              onClick={e => { e.stopPropagation(); if (!selo) abrirComplemento(item); }}
+                              disabled={!!selo}
                               aria-label={`Aumentar a quantidade de ${item.displayId} — cria uma peça complementar`}
-                              title={`Aumentar quantidade — cria uma peça complementar ligada a ${item.displayId}`}
+                              title={selo
+                                ? motivoAcaoBloqueada(selo.motivo, "aumentar a quantidade")
+                                : `Aumentar quantidade — cria uma peça complementar ligada a ${item.displayId}`}
                               data-testid={`button-aumentar-quantidade-${item.id}`}
                               style={{
                                 marginTop: 6, width: 26, height: 26, padding: 0, borderRadius: 6,
                                 display: "inline-flex", alignItems: "center", justifyContent: "center",
-                                background: CO.bg, border: `1px solid ${CO.border}`, color: CO.text,
-                                cursor: "pointer", transition: "background-color 0.15s",
+                                background: selo ? "#f5f5f4" : CO.bg,
+                                border: `1px solid ${selo ? TI.border : CO.border}`,
+                                color: selo ? "#78716c" : CO.text,
+                                cursor: selo ? "not-allowed" : "pointer", transition: "background-color 0.15s",
                               }}
-                              onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = CO.hoverBg)}
-                              onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = CO.bg)}
+                              onMouseEnter={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.backgroundColor = CO.hoverBg; }}
+                              onMouseLeave={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.backgroundColor = CO.bg; }}
                               onFocus={e => { const b = e.currentTarget as HTMLButtonElement; b.style.outline = `2px solid ${CO.stripe}`; b.style.outlineOffset = "2px"; }}
                               onBlur={e => { (e.currentTarget as HTMLButtonElement).style.outline = "none"; }}
                             >
@@ -2913,12 +3020,20 @@ export default function Grafica() {
                               Depois de conferida, a peça só tem a entrega pela frente. */}
                           {!bulkOn && canProduce && !isDelivered(item) && !isProduced(item) && !isConferred(item) && !item.isReuse && (
                             <button
-                              onClick={() => openProductionModal(item)}
-                              title={isInProd(item) ? "Continuar Produção" : "Iniciar Produção"}
+                              onClick={() => { if (!selo) openProductionModal(item); }}
+                              disabled={!!selo}
+                              /* PATCH /api/items/:id/start-production tem a
+                                 guarda de evento finalizado: clicar aqui só
+                                 renderia 409. */
+                              title={selo
+                                ? motivoAcaoBloqueada(selo.motivo, "produzir")
+                                : isInProd(item) ? "Continuar Produção" : "Iniciar Produção"}
                               data-testid={`button-production-${item.id}`}
-                              style={{ backgroundColor: TI.text, color: "#ffffff", border: "none", borderRadius: 6, height: 30, padding: "0 12px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, transition: "background-color 0.15s" }}
-                              onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.accent)}
-                              onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.text)}
+                              /* Desabilitado: #78716c sobre #f5f5f4 → 4,84:1
+                                 nos 11px/700. */
+                              style={{ backgroundColor: selo ? "#f5f5f4" : TI.text, color: selo ? "#78716c" : "#ffffff", border: selo ? `1px solid ${TI.border}` : "none", borderRadius: 6, height: 30, padding: "0 12px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", cursor: selo ? "not-allowed" : "pointer", display: "flex", alignItems: "center", gap: 4, transition: "background-color 0.15s" }}
+                              onMouseEnter={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.accent; }}
+                              onMouseLeave={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.text; }}
                             >
                               <Play style={{ width: 11, height: 11 }} />
                               {isInProd(item) ? "Continuar" : "Produzir"}
@@ -2926,7 +3041,11 @@ export default function Grafica() {
                           )}
 
                           {/* Reaproveitar — total ou parcial, enquanto ainda há
-                              unidades sem produzir nem reaproveitar */}
+                              unidades sem produzir nem reaproveitar.
+                              Em evento finalizado o gatilho vem DESABILITADO
+                              (POST /api/items/:id/mark-reuse é barrado): marcar
+                              reaproveitamento é decidir o que entra na fila de
+                              produção, ou seja, faz o trabalho andar. */}
                           {!bulkOn && !isDelivered(item) && !isProduced(item) && !isConferred(item) && remainingReuse(item) > 0 && (
                             reuseConfirmItemId === item.id ? (
                               <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>
@@ -2960,12 +3079,16 @@ export default function Grafica() {
                               </div>
                             ) : (
                               <button
-                                onClick={e => { e.stopPropagation(); setReuseConfirmItemId(item.id); setReuseQty(remainingReuse(item)); }}
-                                title={`Reaproveitar (pula produção) — até ${remainingReuse(item)} un.`}
+                                onClick={e => { e.stopPropagation(); if (selo) return; setReuseConfirmItemId(item.id); setReuseQty(remainingReuse(item)); }}
+                                disabled={!!selo}
+                                aria-label={`Reaproveitar ${item.displayId}`}
+                                title={selo
+                                  ? motivoAcaoBloqueada(selo.motivo, "marcar reaproveitamento")
+                                  : `Reaproveitar (pula produção) — até ${remainingReuse(item)} un.`}
                                 data-testid={`button-reuse-${item.id}`}
-                                style={{ background: "none", border: "none", cursor: "pointer", color: "#059669", padding: 4, borderRadius: 6, display: "flex", alignItems: "center", transition: "color 0.15s" }}
-                                onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.color = "#065f46")}
-                                onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.color = "#059669")}
+                                style={{ background: "none", border: "none", cursor: selo ? "not-allowed" : "pointer", color: selo ? "#78716c" : "#059669", padding: 4, borderRadius: 6, display: "flex", alignItems: "center", transition: "color 0.15s" }}
+                                onMouseEnter={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.color = "#065f46"; }}
+                                onMouseLeave={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.color = "#059669"; }}
                               >
                                 <RotateCcw style={{ width: 15, height: 15 }} />
                               </button>
@@ -3031,13 +3154,16 @@ export default function Grafica() {
                                  não com quantidade-1 — quem corrige parte do
                                  valor que está lá, não de um chute. */
                               <button
-                                onClick={e => { e.stopPropagation(); setCorrectReuseItemId(item.id); setCorrectReuseQty(reusedTotalOf(item)); }}
-                                title="Corrigir a quantidade reaproveitada desta peça"
+                                onClick={e => { e.stopPropagation(); if (selo) return; setCorrectReuseItemId(item.id); setCorrectReuseQty(reusedTotalOf(item)); }}
+                                disabled={!!selo}
+                                title={selo
+                                  ? motivoAcaoBloqueada(selo.motivo, "corrigir o reaproveitamento")
+                                  : "Corrigir a quantidade reaproveitada desta peça"}
                                 aria-label={`Corrigir reaproveitamento de ${item.displayId}`}
                                 data-testid={`button-correct-reuse-${item.id}`}
-                                style={{ background: "#fff7ed", border: "1px solid #fed7aa", cursor: "pointer", color: "#b45309", height: 26, padding: "0 9px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", transition: "background-color 0.15s" }}
-                                onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#ffedd5")}
-                                onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#fff7ed")}
+                                style={{ background: selo ? "#f5f5f4" : "#fff7ed", border: `1px solid ${selo ? TI.border : "#fed7aa"}`, cursor: selo ? "not-allowed" : "pointer", color: selo ? "#78716c" : "#b45309", height: 26, padding: "0 9px", borderRadius: 6, display: "inline-flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", transition: "background-color 0.15s" }}
+                                onMouseEnter={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#ffedd5"; }}
+                                onMouseLeave={e => { if (!selo) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#fff7ed"; }}
                               >
                                 <RotateCcw style={{ width: 12, height: 12 }} />
                                 Corrigir reaprov.
@@ -3364,7 +3490,13 @@ export default function Grafica() {
             <ComplementoDaFicha
               item={viewDetailsItem}
               canEditLists={podeMexerQtd}
-              onAumentar={abrirComplemento}
+              /* Terceira porta para POST /api/items/:id/complement, que a
+                 guarda de evento finalizado barra. Sem `onAumentar` o
+                 ComplementoDaFicha não desenha o botão — e aqui HIDE em vez de
+                 disable é o certo: a ficha é uma sobreposição, e quem chegou
+                 nela veio da linha, onde o selo e o botão desabilitado com o
+                 motivo já contaram a história. */
+              onAumentar={seloPecaEventoFinalizado(viewDetailsItem?.event, hojeBusinessMs) ? undefined : abrirComplemento}
               onAbrirPeca={(id) => setViewDetailsItem((items as any[]).find((i: any) => i.id === id) ?? viewDetailsItem)}
             />
           )

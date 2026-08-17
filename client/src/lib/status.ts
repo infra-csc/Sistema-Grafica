@@ -155,12 +155,35 @@ export function isEventoEncerrado(
 // em tela de ações e nem de gestão."
 //
 // Ou seja, quem filtra é só quem MANDA TRABALHAR ou COBRA:
-//   FILTRA  → Arte, Atendimento, Gráfica, Revisão Final, Vincular
-//             Patrocinadores (filas de ação) e Gestão de Prazos (cobrança,
-//             filtrada no servidor por `isPrazoCandidate`).
-//   NÃO FILTRA → Painel Geral, Histórico, Registros, lista de Eventos, Detalhe
-//             do Evento, Consulta, Análises e Calendário — são registro, e
+//   FILTRA  → Arte, Atendimento e Vincular Patrocinadores (filas de ação) e
+//             Gestão de Prazos (cobrança, filtrada no servidor por
+//             `isPrazoCandidate`).
+//   NÃO FILTRA → Gráfica e Revisão Final (ver o parágrafo abaixo), Painel
+//             Geral, Histórico, Registros, lista de Eventos, Detalhe do
+//             Evento, Consulta, Análises e Calendário — são registro, e
 //             registro não perde o passado.
+//
+// POR QUE A GRÁFICA E A REVISÃO FINAL VOLTARAM A MOSTRAR (regra do dono,
+// 17/08: "os eventos finalizados devem aparecer ainda na Revisão e Gráfica").
+// Esta é A pergunta que alguém vai fazer olhando cinco filas e vendo só três
+// filtrarem, então a resposta fica aqui, ao lado do predicado:
+//
+//   A guarda de escrita (server/routes/eventoFinalizado.ts) barra o que faz o
+//   trabalho ANDAR e PERMITE o que ARRUMA A CASA. Das ações que sobreviveram,
+//   duas são de peça em fluxo: CONFERIR e REGISTRAR ENTREGA — e as duas moram
+//   exatamente nestas duas telas. A conferência e a entrega de um evento que já
+//   aconteceu são o caso NORMAL, não a exceção: a papelada chega no dia
+//   seguinte, que é justamente quando o evento vira "realizado".
+//
+//   Esconder a peça tornava impossível executar o que o servidor permite: o
+//   material saiu, o canhoto chegou, e não havia linha nenhuma onde clicar.
+//   Nas outras três filas nada sobrou de permitido, então esconder continua
+//   sendo a resposta certa — lá a peça visível só ofereceria 409.
+//
+// A contrapartida obrigatória, e é o que `seloPecaEventoFinalizado` existe para
+// servir: a peça que volta TEM de se declarar, e as ações barradas TÊM de vir
+// desabilitadas com o motivo. Peça de evento morto misturada às vivas, sem
+// sinal e com os botões todos ativos, é pior que escondê-la.
 //
 // O predicado em si mora em @shared/prazo-dates (servidor e cliente precisam da
 // MESMA virada de dia). Aqui ficam só os apetrechos de UI: a âncora de "hoje" e
@@ -170,9 +193,10 @@ export { motivoEventoFinalizado, isEventoFinalizado, todayBusinessMs };
 export type { EventoFinalizadoMotivo, EventoFinalizavel };
 
 /**
- * Contagem de peças escondidas, por origem. Toda fila monta uma destas e
- * entrega para `avisoPecasOcultas` — assim as cinco telas contam a mesma
- * história com as mesmas palavras.
+ * Contagem de peças escondidas, por origem. Toda fila que ESCONDE monta uma
+ * destas e entrega para `avisoPecasOcultas` — assim as três telas contam a
+ * mesma história com as mesmas palavras. A Gráfica e a Revisão Final não
+ * escondem mais (ver o bloco do gate acima) e por isso não passam por aqui.
  */
 export interface PecasOcultasPorMotivo {
   /** Peças fora da fila porque um admin encerrou o evento. */
@@ -189,7 +213,8 @@ export interface AvisoPecasOcultas {
 }
 
 /**
- * A frase do aviso de peças ocultas — FONTE ÚNICA das cinco filas.
+ * A frase do aviso de peças ocultas — FONTE ÚNICA das filas que ESCONDEM
+ * (Arte, Atendimento e Vincular Patrocinadores).
  *
  * PORQUÊ existe: esconder em silêncio é o pior desfecho possível desta regra.
  * "Nenhuma peça aguardando envio" lido como "nada a fazer" por quem, na
@@ -322,6 +347,83 @@ export function marcoEventoFinalizado(
     dot: P.amber.dot,
     text: P.amber.text,   // #b45309 — 5,02:1 sobre #fff, 4,77:1 sobre #f9f9f8
   };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// O SELO NA LINHA — para as duas filas que voltaram a mostrar estas peças.
+//
+// A Gráfica e a Revisão Final listam peça de evento finalizado no meio das
+// vivas (ver o bloco "POR QUE A GRÁFICA E A REVISÃO FINAL VOLTARAM A MOSTRAR",
+// acima). Sem um selo na linha, o operador não tem como saber que aquele evento
+// acabou — e isso MUDA a decisão dele: um "Produzir" desabilitado sem motivo
+// visível lê-se como sistema quebrado, e uma peça que só aceita conferência
+// lê-se como fila normal.
+//
+// NADA DE VOCABULÁRIO NOVO: o rótulo e a frase saem inteiros de
+// `marcoEventoFinalizado` — a MESMA fonte que a trilha da ficha e o selo de
+// peça do Painel Geral (lib/painel-encerrados) já usam. Este helper só
+// acrescenta o `bg`/`border` que um badge precisa e que o marco (feito para
+// bolinha de timeline) não tem, tirados do mesmo mapa `P` de onde o marco tira
+// `dot` e `text` — por construção não há como divergir do Painel.
+//
+// CONTRASTE nos 10px do selo (o texto mais apertado desta tela):
+//   encerrado #44403c sobre #f5f5f4 → 9,42:1
+//   realizado #b45309 sobre #fffbeb → 4,84:1
+// Os dois passam AA 4,5:1. Nenhuma cor proibida da casa (#f97316 / #a8a29e)
+// entra como cor de texto.
+// ─────────────────────────────────────────────────────────────────────────────
+export interface SeloPecaEventoFinalizado {
+  motivo: EventoFinalizadoMotivo;
+  /** Rótulo do badge. Começa em "Evento" — o que acabou não foi a peça. */
+  label: string;
+  /** Frase inteira — `title` e leitor de tela. */
+  hint: string;
+  bg: string;
+  border: string;
+  text: string;
+  dot: string;
+}
+
+const SELO_PECA_BG: Record<EventoFinalizadoMotivo, { bg: string; border: string }> = {
+  encerrado: { bg: P.neutral.bg, border: P.neutral.border },
+  realizado: { bg: P.amber.bg, border: P.amber.border },
+};
+
+/** O selo da linha/card de UMA peça. `null` enquanto o evento dela está em jogo. */
+export function seloPecaEventoFinalizado(
+  event: EventoFinalizavel | null | undefined,
+  hojeMs: number,
+): SeloPecaEventoFinalizado | null {
+  const marco = marcoEventoFinalizado(event, hojeMs);
+  if (!marco) return null;
+  return {
+    motivo: marco.motivo,
+    label: marco.label,
+    hint: marco.hint,
+    text: marco.text,
+    dot: marco.dot,
+    ...SELO_PECA_BG[marco.motivo],
+  };
+}
+
+/**
+ * O `title` de um botão DESABILITADO por evento finalizado.
+ *
+ * Não basta o botão apagar: quem chega na linha precisa ler POR QUE aquela ação
+ * específica não está disponível, e a frase tem de casar com o 409 que o
+ * servidor devolveria se o clique passasse (`erroEventoFechado`, em
+ * server/routes/eventoFinalizado.ts). "encerrado" oferece a volta (reabrir);
+ * "realizado" não oferece nada, porque não há nada a oferecer.
+ *
+ * `acao` é a ação no infinitivo, minúscula ("produzir", "liberar para
+ * produção") — a tela sabe qual botão está desenhando, este módulo não.
+ */
+export function motivoAcaoBloqueada(motivo: EventoFinalizadoMotivo, acao: string): string {
+  return motivo === "encerrado"
+    ? `Não dá para ${acao}: um administrador encerrou este evento.`
+      + " Reabrir o evento traz o trabalho de volta. Conferência e entrega continuam liberadas."
+    : `Não dá para ${acao}: a data deste evento já passou.`
+      + " Não há volta — quem decide aqui é a data. Conferência e entrega continuam liberadas.";
 }
 
 // ── Prioridade de EVENTO — mesma disciplina do StatusMeta (text escuro AA

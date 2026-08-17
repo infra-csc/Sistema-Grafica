@@ -21,6 +21,12 @@
 // A quarta coisa protegida é o AVISO: nada some em silêncio, e a frase precisa
 // distinguir as duas origens — "encerrado" tem volta (reabrir o evento),
 // "realizado" não tem.
+//
+// QUEM AINDA USA O AVISO (17/08): só Arte, Atendimento e Vincular
+// Patrocinadores. A Gráfica e a Revisão Final voltaram a MOSTRAR essas peças —
+// as ações que a guarda do servidor permite (conferir, entregar, excluir) moram
+// nelas, e esconder tornava impossível executá-las. Lá o sinal é um selo na
+// linha, não um aviso de ausência; ver evento-finalizado-telas.test.ts.
 import { describe, it, expect } from "vitest";
 import {
   motivoEventoFinalizado,

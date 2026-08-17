@@ -27,8 +27,9 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
 import {
   STATUS, getStatusMeta,
-  isEventoFinalizado, motivoEventoFinalizado, avisoPecasOcultas, todayBusinessMs,
+  seloPecaEventoFinalizado, motivoAcaoBloqueada, todayBusinessMs,
 } from "@/lib/status";
+import type { SeloPecaEventoFinalizado } from "@/lib/status";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { AumentarQuantidadeDialog, parseApiError } from "@/components/aumentar-quantidade-dialog";
 
@@ -217,13 +218,20 @@ export default function Solicitacao() {
       const failedIds = itemIds.filter((_, i) => results[i].status === "rejected");
       return { total: itemIds.length, released: itemIds.length - failedIds.length, failed: failedIds.length, failedIds };
     },
-    onSuccess: ({ total, released, failed, failedIds }) => {
+    onSuccess: ({ total, released, failed, failedIds }, enviados) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       // Falha parcial: mantém selecionado só o que falhou, para a pessoa
-      // tentar de novo sem re-marcar tudo.
-      setSelectedItemIds(new Set(failedIds)); setBulkReleaseConfirmOpen(false);
+      // tentar de novo sem re-marcar tudo. As peças de evento finalizado, que
+      // nem chegaram a ser enviadas (ver `selecaoLote`), CONTINUAM marcadas —
+      // desmarcá-las em silêncio daria a entender que foram processadas.
+      setSelectedItemIds(prev => {
+        const foi = new Set(enviados);
+        const falhou = new Set(failedIds);
+        return new Set(Array.from(prev).filter(id => falhou.has(id) || !foi.has(id)));
+      });
+      setBulkReleaseConfirmOpen(false);
       if (failed > 0) {
         toast({
           title: "Liberação parcial",
@@ -261,12 +269,18 @@ export default function Solicitacao() {
       const result: { success: number; errors: number; failedItemIds?: string[] } = await res.json();
       return { total: payload.ids.length, failed: result.errors, failedIds: result.failedItemIds ?? [] };
     },
-    onSuccess: ({ total, failed, failedIds }) => {
+    onSuccess: ({ total, failed, failedIds }, { ids: enviados }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       // Falha parcial: mantém selecionado só o que falhou, para a pessoa
-      // tentar de novo sem re-marcar tudo.
-      setSelectedItemIds(new Set(failedIds)); setBulkReturnConfirmOpen(false); setBulkReturnObservations("");
+      // tentar de novo sem re-marcar tudo — e mantém também as de evento
+      // finalizado, que nem chegaram a ser enviadas (ver `selecaoLote`).
+      setSelectedItemIds(prev => {
+        const foi = new Set(enviados);
+        const falhou = new Set(failedIds);
+        return new Set(Array.from(prev).filter(id => falhou.has(id) || !foi.has(id)));
+      });
+      setBulkReturnConfirmOpen(false); setBulkReturnObservations("");
       const ok = total - failed;
       if (failed > 0) {
         toast({ title: "Devolução parcial", description: `${ok} devolvida(s), ${failed} com erro.`, variant: "destructive" });
@@ -350,41 +364,45 @@ export default function Solicitacao() {
     onError: (error: any) => toast({ title: "Erro ao salvar", description: error.message, variant: "destructive" }),
   });
 
-  // A Revisão Final é a QUARTA fila de trabalho — mesma regra das de
-  // Arte/Atendimento/Gráfica: evento FINALIZADO sai daqui, por qualquer das
-  // duas origens (`motivoEventoFinalizado`, @shared/prazo-dates):
-  //   · "encerrado" → um admin encerrou o evento.
-  //   · "realizado" → a DATA DO EVENTO (events.startDate, não a saída do
-  //     caminhão) já passou — revisar lista de um evento que já aconteceu não
-  //     libera mais nada para produção. Durante o DIA do evento a peça ainda
-  //     conta; evento SEM data de início nunca sai por esta regra.
+  // ── Evento FINALIZADO CONTINUA NESTA FILA ─────────────────────────────────
+  // Regra do dono (17/08): "os eventos finalizados devem aparecer ainda na
+  // Revisão e Gráfica". Esta tela filtrava as peças de evento encerrado à mão
+  // ou já realizado; não filtra mais.
   //
-  // O filtro é do cliente; /api/items continua devolvendo tudo para o Detalhe
-  // do Evento e o Painel Geral, que são telas de registro. `item.event` vem cru
-  // do storage: traz `status` ("closed") e `startDate`.
+  // POR QUE AQUI VOLTA E EM ARTE/ATENDIMENTO/VINCULAR CONTINUA ESCONDIDO — a
+  // pergunta que alguém vai fazer olhando as cinco filas. A guarda do servidor
+  // (server/routes/eventoFinalizado.ts) barra o que faz o trabalho ANDAR e
+  // permite o que ARRUMA A CASA; das exceções que ela abriu, CONFERIR e
+  // REGISTRAR ENTREGA são da Gráfica e EXCLUIR PEÇA é daqui. Esconder a peça
+  // tornava impossível executar o que o servidor autoriza: a lista de um evento
+  // acabado ficava com lixo preso, sem tela nenhuma onde apagá-lo. E há a razão
+  // de leitura, que vale tanto quanto: a Revisão é onde se vê o que ficou por
+  // revisar, e um pendente que some não vira resolvido — vira invisível.
+  //
+  // A CONTRAPARTIDA, obrigatória: aqui quase TUDO é barrado. Liberar, devolver,
+  // reaproveitar, mexer na quantidade e salvar observação passam todos pela
+  // guarda. Por isso o selo na linha é ainda mais necessário do que na Gráfica
+  // — e por isso o lote precisa separar peça viva de peça morta (ver
+  // `selecaoLote`, abaixo) em vez de mandar tudo e colher erro.
+  //
+  // `item.event` vem CRU do storage: traz `status` ("closed") e `startDate`.
   const hojeBusinessMs = todayBusinessMs();
   const pendingItems = useMemo(
-    () => items.filter(item =>
-      item.status === REVIEW_STATUS && !isEventoFinalizado(item.event, hojeBusinessMs)),
-    [items, hojeBusinessMs],
+    () => items.filter(item => item.status === REVIEW_STATUS),
+    [items],
   );
 
-  // Esconder sem dizer que escondeu faria "Tudo revisado!" mentir para quem, na
-  // verdade, teve o trabalho retirado. Por MOTIVO: só "encerrado" tem volta.
-  const pecasOcultas = useMemo(() => {
-    let encerrado = 0, realizado = 0;
-    for (const item of items) {
-      if (item.status !== REVIEW_STATUS) continue;
-      const motivo = motivoEventoFinalizado(item.event, hojeBusinessMs);
-      if (motivo === "encerrado") encerrado++;
-      else if (motivo === "realizado") realizado++;
+  // Um selo por peça, calculado uma vez. `null` = evento em jogo, linha normal.
+  const selosPorItem = useMemo(() => {
+    const m = new Map<string, SeloPecaEventoFinalizado>();
+    for (const item of pendingItems) {
+      const s = seloPecaEventoFinalizado(item.event, hojeBusinessMs);
+      if (s) m.set(item.id, s);
     }
-    return { encerrado, realizado };
-  }, [items, hojeBusinessMs]);
-  const avisoOcultas = useMemo(
-    () => avisoPecasOcultas(pecasOcultas, "desta fila"),
-    [pecasOcultas],
-  );
+    return m;
+  }, [pendingItems, hojeBusinessMs]);
+  const seloDoItem = (item: any): SeloPecaEventoFinalizado | null =>
+    (item ? selosPorItem.get(item.id) : undefined) ?? null;
 
   const filteredItems = useMemo(() => pendingItems.filter(item => {
     const matchesSearch = searchTerm === "" ||
@@ -473,6 +491,57 @@ export default function Solicitacao() {
     return new Map(entries);
   }, [filteredItems, typeToGroup, events]);
 
+  // ── LOTE MISTO: a tela conta a história que o servidor conta ──────────────
+  // As duas ações em lote (liberar e devolver) são barradas em evento
+  // finalizado, e o servidor já sabe lidar com mistura:
+  //   · PATCH /api/items/bulk-return-to-arte roda item a item — o barrado entra
+  //     na lista de `errors`, os outros passam. 409 do lote inteiro só quando
+  //     NADA passou e tudo o que caiu caiu por esta regra (`contadorDeBloqueio`
+  //     em server/routes/eventoFinalizado.ts).
+  //   · "Liberar" não tem rota de lote: são N chamadas individuais de
+  //     creator-review, cada peça de evento acabado devolvendo o seu 409.
+  //
+  // O que a tela faz com isso: NÃO manda o que já se sabe que vai voltar. As
+  // duas alternativas eram piores. Mandar tudo e mostrar "3 com erro" põe a
+  // culpa nas peças boas e não diz o motivo (a resposta do lote traz o número
+  // de erros, não o texto de cada um). Bloquear o lote inteiro por causa de uma
+  // peça pune a seleção grande, que é justamente para o que o lote existe.
+  //
+  // Então a seleção é SEPARADA em duas: `vivas` seguem, `finalizadas` ficam —
+  // e o diálogo de confirmação diz as duas metades ANTES do clique, com o
+  // motivo. Só quando a seleção inteira é de evento acabado o botão desabilita,
+  // que é o espelho exato do 409 de lote inteiro do servidor.
+  const selecaoLote = useMemo(() => {
+    const ids = Array.from(selectedItemIds);
+    const vivas: string[] = [];
+    let encerrado = 0, realizado = 0;
+    for (const id of ids) {
+      const motivo = selosPorItem.get(id)?.motivo;
+      if (motivo === "encerrado") encerrado++;
+      else if (motivo === "realizado") realizado++;
+      else vivas.push(id);
+    }
+    return { ids, vivas, encerrado, realizado, finalizadas: encerrado + realizado };
+  }, [selectedItemIds, selosPorItem]);
+
+  /** A frase do "ficam de fora" — uma só, para os dois diálogos de lote. */
+  const avisoLoteFinalizadas = (): string | null => {
+    const { finalizadas, encerrado, realizado } = selecaoLote;
+    if (finalizadas <= 0) return null;
+    const partes: string[] = [];
+    if (encerrado > 0) partes.push(`${encerrado} em evento encerrado por um administrador`);
+    if (realizado > 0) partes.push(`${realizado} em evento cuja data já passou`);
+    return `${finalizadas} ${finalizadas === 1 ? "peça fica" : "peças ficam"} de fora`
+      + ` (${partes.join(" e ")}): o servidor recusa qualquer ação que faça o trabalho andar num evento finalizado.`;
+  };
+
+  // O selo da peça ABERTA no modal. Vem do mesmo mapa da lista — a ficha não
+  // pode discordar da linha de onde foi aberta. Deriva de `selectedItem.event`
+  // como reserva: o modal sobrevive a uma invalidação que tire a peça da lista.
+  const seloSelecionado = selectedItem
+    ? (selosPorItem.get(selectedItem.id) ?? seloPecaEventoFinalizado(selectedItem.event, hojeBusinessMs))
+    : null;
+
   const getEventInfo = (eventId: string) => events.find(e => e.id === eventId);
 
   const toggleItem = (id: string) => setSelectedItemIds(prev => {
@@ -508,9 +577,11 @@ export default function Solicitacao() {
       // Com um AlertDialog de confirmação aberto por cima, Enter/Esc são dele
       // (o Radix cuida); agir aqui fechava as duas camadas de uma vez.
       if (releaseConfirmOpen || returnConfirmOpen) return;
-      // Mesma checagem do botão "Liberar para Produção": sem arquivo final,
-      // o atalho não pode driblar o botão desabilitado.
-      if (e.key === "Enter" && selectedItem?.finalFileUrl) setReleaseConfirmOpen(true);
+      // Mesma checagem do botão "Liberar para Produção": sem arquivo final —
+      // ou com o evento finalizado, que o servidor recusa com 409 — o atalho
+      // não pode driblar o botão desabilitado.
+      if (e.key === "Enter" && selectedItem?.finalFileUrl
+        && !seloPecaEventoFinalizado(selectedItem?.event, hojeBusinessMs)) setReleaseConfirmOpen(true);
       if (e.key === "Escape") setModalOpen(false);
     };
     window.addEventListener("keydown", handler);
@@ -575,6 +646,30 @@ export default function Solicitacao() {
                 <span style={{ fontSize: 11, fontWeight: 700, color: "#a8a29e" }}>Aguardando:</span>
                 <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#fff" }}>{pendingItems.length}</span>
               </div>
+              {/* A REGRA DOS NÚMEROS DESTA TELA, uma só: TODO contador conta o
+                  que a tela MOSTRA. "Aguardando" e o "X de Y peças" da barra de
+                  filtros voltaram a incluir as peças de evento finalizado, pelo
+                  mesmo motivo do Painel Geral — número que não bate com a lista
+                  logo abaixo é o defeito que ninguém percebe. Este contador é o
+                  que a regra deve: diz quanto do total é trabalho que ninguém
+                  vai mais fazer, para "Aguardando: 40" não virar cobrança falsa.
+                  #d6d3d1 sobre #1c1917 → 11,2:1 nos 11px. */}
+              {selosPorItem.size > 0 && (
+                <div
+                  data-testid="chip-evento-finalizado"
+                  title={"Estas peças continuam na lista porque a Revisão é onde se vê o que ficou por revisar — e porque excluir peça segue liberado."
+                    + " Liberar, devolver, reaproveitar e mexer na quantidade estão bloqueados nelas."}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 8,
+                    backgroundColor: "#1c1917", padding: "8px 16px", borderRadius: 8,
+                    border: "1px solid #292524",
+                  }}
+                >
+                  <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: "#78716c", flexShrink: 0 }} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#d6d3d1" }}>Evento finalizado:</span>
+                  <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 18, color: "#d6d3d1" }}>{selosPorItem.size}</span>
+                </div>
+              )}
               <div style={{
                 display: "flex", alignItems: "center", gap: 8,
                 backgroundColor: "#1c1917", padding: "8px 16px", borderRadius: 8,
@@ -594,37 +689,60 @@ export default function Solicitacao() {
             width: isMobile ? "100%" : 280, display: "flex", flexDirection: "column", gap: 16, flexShrink: isMobile ? 1 : 0,
           }}>
             <p style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e", letterSpacing: "0.18em", textTransform: "uppercase", margin: 0 }}>AÇÃO RÁPIDA</p>
+            {/* O CONTADOR DO BOTÃO é o das peças que de fato vão (`vivas`), não
+                o da seleção: prometer "Liberar (12)" e mandar 9 é a mentira que
+                o lote misto cria. Desabilita quando nenhuma sobra — espelho do
+                409 de lote inteiro do servidor —, e aí o `title` diz o motivo.
+                Ver `selecaoLote` para o critério. */}
             <button
-              onClick={() => selectedItemIds.size > 0 && setBulkReleaseConfirmOpen(true)}
-              disabled={selectedItemIds.size === 0 || bulkReleaseMutation.isPending}
+              onClick={() => selecaoLote.vivas.length > 0 && setBulkReleaseConfirmOpen(true)}
+              disabled={selecaoLote.vivas.length === 0 || bulkReleaseMutation.isPending}
+              title={selecaoLote.ids.length > 0 && selecaoLote.vivas.length === 0
+                ? "Toda a seleção é de evento finalizado — liberar para produção está bloqueado nessas peças."
+                : undefined}
               data-testid="button-bulk-release-hero"
               style={{
                 width: "100%", padding: "12px 0", borderRadius: 6, border: "none",
-                backgroundColor: selectedItemIds.size === 0 ? "#292524" : "#9d4300",
-                color: selectedItemIds.size === 0 ? "rgba(255,255,255,0.45)" : "#fff",
+                backgroundColor: selecaoLote.vivas.length === 0 ? "#292524" : "#9d4300",
+                color: selecaoLote.vivas.length === 0 ? "rgba(255,255,255,0.45)" : "#fff",
                 fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em",
-                cursor: selectedItemIds.size === 0 || bulkReleaseMutation.isPending ? "not-allowed" : "pointer",
+                cursor: selecaoLote.vivas.length === 0 || bulkReleaseMutation.isPending ? "not-allowed" : "pointer",
               }}>
               {bulkReleaseMutation.isPending
                 ? "Processando..."
-                : `Liberar Selecionadas ${selectedItemIds.size > 0 ? `(${selectedItemIds.size})` : ""}`}
+                : `Liberar Selecionadas ${selecaoLote.vivas.length > 0 ? `(${selecaoLote.vivas.length})` : ""}`}
             </button>
             <button
-              onClick={() => selectedItemIds.size > 0 && setBulkReturnConfirmOpen(true)}
-              disabled={selectedItemIds.size === 0 || bulkReturnMutation.isPending}
+              onClick={() => selecaoLote.vivas.length > 0 && setBulkReturnConfirmOpen(true)}
+              disabled={selecaoLote.vivas.length === 0 || bulkReturnMutation.isPending}
+              title={selecaoLote.ids.length > 0 && selecaoLote.vivas.length === 0
+                ? "Toda a seleção é de evento finalizado — devolver para a Arte está bloqueado nessas peças."
+                : undefined}
               data-testid="button-bulk-return-hero"
               style={{
                 width: "100%", padding: "12px 0", borderRadius: 6,
                 border: "1px solid #44403c",
                 backgroundColor: "transparent",
-                color: selectedItemIds.size === 0 ? "rgba(255,255,255,0.45)" : "#d6d3d1",
+                color: selecaoLote.vivas.length === 0 ? "rgba(255,255,255,0.45)" : "#d6d3d1",
                 fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em",
-                cursor: selectedItemIds.size === 0 || bulkReturnMutation.isPending ? "not-allowed" : "pointer",
+                cursor: selecaoLote.vivas.length === 0 || bulkReturnMutation.isPending ? "not-allowed" : "pointer",
               }}>
               {bulkReturnMutation.isPending
                 ? "Processando..."
-                : `Devolver Selecionadas ${selectedItemIds.size > 0 ? `(${selectedItemIds.size})` : ""}`}
+                : `Devolver Selecionadas ${selecaoLote.vivas.length > 0 ? `(${selecaoLote.vivas.length})` : ""}`}
             </button>
+            {/* O que ficou de fora, dito no painel e não só no diálogo: quem
+                selecionou 40 linhas precisa ver o desconto antes de abrir a
+                confirmação. #d6d3d1 sobre #1c1917 → 11,2:1 nos 11px. */}
+            {selecaoLote.finalizadas > 0 && (
+              <p
+                role="status"
+                data-testid="aviso-lote-evento-finalizado"
+                style={{ margin: 0, fontSize: 11, lineHeight: 1.45, color: "#d6d3d1" }}
+              >
+                {avisoLoteFinalizadas()}
+              </p>
+            )}
           </div>
         </div>
       </section>
@@ -704,19 +822,6 @@ export default function Solicitacao() {
 
       {/* ── 3 & 4. HIGH-DENSITY TABLE ──────────────────────────────────── */}
       <section style={{ padding: isMobile ? "12px 12px" : "32px", maxWidth: 1200, margin: "0 auto", paddingBottom: isMobile ? 20 : 80 }}>
-        {/* Peça de evento finalizado — encerrado à mão OU já realizado — não
-            entra nesta fila (ver `pendingItems`). Sem este aviso "Tudo
-            revisado!" leria como "nada a fazer" para quem teve o trabalho
-            retirado. */}
-        {avisoOcultas && (
-          <div
-            role="status"
-            data-testid="aviso-eventos-encerrados"
-            style={{ background: "#f5f5f4", border: "1px solid #e7e5e4", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 13, color: "#44403c", lineHeight: 1.5 }}
-          >
-            <strong>{avisoOcultas.destaque}</strong>{" "}{avisoOcultas.texto}
-          </div>
-        )}
         {filteredItems.length === 0 ? (
           <div style={{ backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 8, textAlign: "center", padding: "80px 24px" }}>
             <CheckCircle style={{ width: 48, height: 48, color: "#d1cfce", margin: "0 auto 16px" }} />
@@ -757,8 +862,24 @@ export default function Solicitacao() {
                         onKeyDown={e => { if (e.target !== e.currentTarget) return; if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openModal(item); } }}
                         onClick={() => openModal(item)}
                         style={{padding:"12px",cursor:"pointer",display:"flex",flexDirection:"column",gap:6}}>
-                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingRight:32}}>
+                        <div style={{display:"flex",justifyContent:"flex-start",alignItems:"center",gap:6,flexWrap:"wrap",paddingRight:32}}>
                           <span style={{fontFamily:"monospace",fontWeight:700,color:"#c2410c",fontSize:13}}>{item.displayId}</span>
+                          {/* EVENTO FINALIZADO — a peça voltou para a fila (ver
+                              `pendingItems`), então tem de se declarar. Aqui
+                              quase nada funciona: só excluir. */}
+                          {seloDoItem(item) && (() => {
+                            const selo = seloDoItem(item)!;
+                            return (
+                              <span
+                                data-testid={`badge-evento-finalizado-mobile-${item.id}`}
+                                title={selo.hint}
+                                style={{display:"inline-flex",alignItems:"center",gap:4,fontSize:9,fontWeight:800,color:selo.text,background:selo.bg,border:`1px solid ${selo.border}`,borderRadius:6,padding:"1px 5px",letterSpacing:"0.06em",whiteSpace:"nowrap",textTransform:"uppercase"}}
+                              >
+                                <span aria-hidden="true" style={{width:5,height:5,borderRadius:"50%",background:selo.dot,flexShrink:0}} />
+                                {selo.label}
+                              </span>
+                            );
+                          })()}
                         </div>
                         <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}>
                           <div style={{flex:1}}>
@@ -907,6 +1028,9 @@ export default function Solicitacao() {
                       {/* ── Item rows ── */}
                       {eventItems.map((item, idx) => {
                         const isSelected = selectedItemIds.has(item.id);
+                        // Evento finalizado: selo na linha e ações barradas
+                        // desabilitadas. Ver `pendingItems`, no topo.
+                        const selo = seloDoItem(item);
                         const isLast = idx === eventItems.length - 1;
                         const prevItem = idx > 0 ? eventItems[idx - 1] : null;
                         const showTypeHeader = !prevItem || prevItem.type !== item.type;
@@ -974,6 +1098,19 @@ export default function Solicitacao() {
                                     Reaproveit.
                                   </span>
                                 )}
+                                {/* EVENTO FINALIZADO — sem este selo, a linha
+                                    mostra "Revisar" e dois botões apagados sem
+                                    dizer por quê. */}
+                                {selo && (
+                                  <span
+                                    data-testid={`badge-evento-finalizado-${item.id}`}
+                                    title={selo.hint}
+                                    style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: selo.bg, color: selo.text, border: `1px solid ${selo.border}`, borderRadius: 999, padding: "2px 7px", whiteSpace: "nowrap" }}
+                                  >
+                                    <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: selo.dot, flexShrink: 0 }} />
+                                    {selo.label}
+                                  </span>
+                                )}
                               </div>
                             </td>
 
@@ -1030,8 +1167,12 @@ export default function Solicitacao() {
                                 >
                                   Revisar
                                 </button>
+                                {/* Reaproveitamento passa por PATCH /api/items/:id
+                                    (isReuse) e por creator-review: as duas rotas
+                                    são barradas em evento finalizado. */}
                                 <button
                                   onClick={() => {
+                                    if (selo) return;
                                     if (item.isReuse) {
                                       // Se já está marcado como reaproveitamento total, desfaz
                                       toggleReuseMutation.mutate({ itemId: item.id, isReuse: false });
@@ -1041,25 +1182,29 @@ export default function Solicitacao() {
                                       setReuseDialogItemId(item.id);
                                     }
                                   }}
+                                  disabled={!!selo}
                                   data-testid={`button-reuse-${item.id}`}
-                                  title={item.isReuse ? "Remover marcação de reaproveitamento" : "Marcar para reaproveitamento"}
+                                  aria-label={`Reaproveitamento de ${item.displayId}`}
+                                  title={selo
+                                    ? motivoAcaoBloqueada(selo.motivo, "marcar reaproveitamento")
+                                    : item.isReuse ? "Remover marcação de reaproveitamento" : "Marcar para reaproveitamento"}
                                   style={{
-                                    background: item.isReuse ? "#dcfce7" : "none",
-                                    border: item.isReuse ? "1px solid #86efac" : "1px solid transparent",
-                                    cursor: "pointer",
-                                    color: item.isReuse ? "#15803d" : "#746e69",
+                                    background: selo ? "#f5f5f4" : item.isReuse ? "#dcfce7" : "none",
+                                    border: selo ? "1px solid #e7e5e4" : item.isReuse ? "1px solid #86efac" : "1px solid transparent",
+                                    cursor: selo ? "not-allowed" : "pointer",
+                                    color: selo ? "#78716c" : item.isReuse ? "#15803d" : "#746e69",
                                     padding: 6,
                                     display: "flex", alignItems: "center",
                                     borderRadius: 6, transition: "all 0.15s",
                                   }}
                                   onMouseEnter={e => {
-                                    if (!item.isReuse) {
+                                    if (!selo && !item.isReuse) {
                                       (e.currentTarget as HTMLButtonElement).style.color = "#15803d";
                                       (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f0fdf4";
                                     }
                                   }}
                                   onMouseLeave={e => {
-                                    if (!item.isReuse) {
+                                    if (!selo && !item.isReuse) {
                                       (e.currentTarget as HTMLButtonElement).style.color = "#746e69";
                                       (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
                                     }
@@ -1265,30 +1410,38 @@ export default function Solicitacao() {
                       Era um <div> com onClick: editar a quantidade só existia
                       para quem usa mouse, e o "· editar" a 8px era o menor
                       texto do app. */}
+                  {/* Em evento finalizado o cartão deixa de ser botão: PATCH
+                      /api/items/:id passa pela guarda, então abrir o campo só
+                      levaria a um 409 depois de digitar. O rótulo "· editar"
+                      sai junto — oferecer e negar é pior do que não oferecer. */}
                   <div
-                    role={editingQuantity ? undefined : "button"}
-                    tabIndex={editingQuantity ? undefined : 0}
-                    aria-label="Editar quantidade"
-                    style={{ backgroundColor: "#fff", padding: "10px 12px", borderRadius: 8, border: "1px solid #e7e5e4", cursor: "pointer", position: "relative" }}
+                    role={editingQuantity || seloSelecionado ? undefined : "button"}
+                    tabIndex={editingQuantity || seloSelecionado ? undefined : 0}
+                    aria-label={seloSelecionado ? undefined : "Editar quantidade"}
+                    style={{ backgroundColor: "#fff", padding: "10px 12px", borderRadius: 8, border: "1px solid #e7e5e4", cursor: seloSelecionado ? "default" : "pointer", position: "relative" }}
                     onClick={() => {
-                      if (!editingQuantity) {
+                      if (!editingQuantity && !seloSelecionado) {
                         setEditingQuantity(true);
                         setTimeout(() => quantityInputRef.current?.select(), 50);
                       }
                     }}
                     onKeyDown={e => {
-                      if (editingQuantity) return;
+                      if (editingQuantity || seloSelecionado) return;
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
                         setEditingQuantity(true);
                         setTimeout(() => quantityInputRef.current?.select(), 50);
                       }
                     }}
-                    title="Clique para editar a quantidade"
+                    title={seloSelecionado
+                      ? motivoAcaoBloqueada(seloSelecionado.motivo, "mudar a quantidade")
+                      : "Clique para editar a quantidade"}
                   >
                     <p style={{ fontSize: 10, color: "#746e69", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
                       Quantidade
-                      <span style={{ fontSize: 10, color: "#c2410c", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em" }}>· editar</span>
+                      {!seloSelecionado && (
+                        <span style={{ fontSize: 10, color: "#c2410c", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em" }}>· editar</span>
+                      )}
                     </p>
                     {editingQuantity ? (
                       <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }} onClick={e => e.stopPropagation()}>
@@ -1378,35 +1531,70 @@ export default function Solicitacao() {
 
                 {/* Action card (dark) */}
                 <div style={{ backgroundColor: "#1c1917", border: "1px solid #292524", padding: isMobile ? 18 : 24, borderRadius: 12, display: "flex", flexDirection: "column", gap: 18, boxShadow: "0 8px 20px rgba(12,10,9,.10)" }}>
+                  {/* PATCH creator-review (liberar) e PATCH return-to-arte
+                      (devolver) são as duas rotas mais claramente barradas pela
+                      guarda de evento finalizado: liberar manda imprimir e
+                      devolver manda a Arte trabalhar de novo. Ficam visíveis e
+                      DESABILITADAS, com o motivo — some-las deixaria a ficha
+                      sem explicação nenhuma para a ausência. */}
                   <div style={{ display: "flex", gap: 12 }}>
                     <button
-                      onClick={() => setReleaseConfirmOpen(true)}
-                      disabled={creatorReviewMutation.isPending || !selectedItem?.finalFileUrl}
+                      onClick={() => { if (!seloSelecionado) setReleaseConfirmOpen(true); }}
+                      disabled={!!seloSelecionado || creatorReviewMutation.isPending || !selectedItem?.finalFileUrl}
                       data-testid="button-release-modal"
-                      title={!selectedItem?.finalFileUrl ? "Arquivo final não enviado" : ""}
+                      title={seloSelecionado
+                        ? motivoAcaoBloqueada(seloSelecionado.motivo, "liberar para produção")
+                        : !selectedItem?.finalFileUrl ? "Arquivo final não enviado" : ""}
                       style={{
                         flex: 1, padding: "14px 0", borderRadius: 6, border: "none",
-                        backgroundColor: !selectedItem?.finalFileUrl ? "#292524" : "#9d4300",
-                        color: !selectedItem?.finalFileUrl ? "#57534e" : "#fff",
+                        backgroundColor: seloSelecionado || !selectedItem?.finalFileUrl ? "#292524" : "#9d4300",
+                        /* Desabilitado por evento finalizado é o único estado
+                           "off" desta tela que carrega INFORMAÇÃO NOVA, então
+                           tem de continuar legível: #d6d3d1 sobre #292524 →
+                           10,18:1. (#a8a29e é proibido como cor de texto na
+                           casa, e #57534e — o "off" de arquivo faltando —
+                           reprovaria AA aqui.) O que sinaliza o estado é o
+                           fundo apagado, o cursor e o parágrafo logo abaixo. */
+                        color: seloSelecionado ? "#d6d3d1" : !selectedItem?.finalFileUrl ? "#57534e" : "#fff",
                         fontSize: 13, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em",
-                        cursor: !selectedItem?.finalFileUrl || creatorReviewMutation.isPending ? "not-allowed" : "pointer",
+                        cursor: seloSelecionado || !selectedItem?.finalFileUrl || creatorReviewMutation.isPending ? "not-allowed" : "pointer",
                       }}
                     >
                       {creatorReviewMutation.isPending ? "Liberando..." : "Liberar para Produção"}
                     </button>
                     <button
-                      onClick={() => setReturnConfirmOpen(true)}
+                      onClick={() => { if (!seloSelecionado) setReturnConfirmOpen(true); }}
+                      disabled={!!seloSelecionado}
+                      title={seloSelecionado ? motivoAcaoBloqueada(seloSelecionado.motivo, "devolver para a Arte") : undefined}
                       data-testid="button-return-toggle"
                       style={{
                         flex: 1, padding: "14px 0", borderRadius: 6,
-                        border: "1px solid #44403c", backgroundColor: "transparent",
+                        /* Este botão é outline: sem fundo, "desabilitado" não
+                           se vê. Ganha o mesmo #292524 do Liberar apagado, para
+                           os dois lerem como o mesmo estado. O texto continua
+                           #d6d3d1 (10,18:1) — ver o comentário ali. */
+                        border: "1px solid #44403c",
+                        backgroundColor: seloSelecionado ? "#292524" : "transparent",
                         color: "#d6d3d1", fontSize: 13, fontWeight: 900,
-                        textTransform: "uppercase", letterSpacing: "0.12em", cursor: "pointer",
+                        textTransform: "uppercase", letterSpacing: "0.12em",
+                        cursor: seloSelecionado ? "not-allowed" : "pointer",
                       }}
                     >
                       Devolver para Arte
                     </button>
                   </div>
+                  {seloSelecionado && (
+                    <p
+                      role="status"
+                      data-testid="aviso-ficha-evento-finalizado"
+                      /* #d6d3d1 sobre #1c1917 → 11,2:1 nos 12px. */
+                      style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "#d6d3d1" }}
+                    >
+                      <strong style={{ color: "#fff" }}>{seloSelecionado.label}.</strong>{" "}
+                      {seloSelecionado.hint}{" "}
+                      Nesta peça continua liberado apenas excluir.
+                    </p>
+                  )}
                 </div>
 
                 {/* Observações do item — campo próprio, sempre editável.
@@ -1433,14 +1621,19 @@ export default function Solicitacao() {
                     />
                     {cardObservations !== (selectedItem?.observations || "") && (
                       <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                        {/* Salvar observação é PATCH /api/items/:id, a mesma
+                            rota (e a mesma guarda) da edição de quantidade. */}
                         <button
-                          onClick={() => selectedItem && updateObservationsMutation.mutate({ itemId: selectedItem.id, observations: cardObservations })}
-                          disabled={updateObservationsMutation.isPending}
+                          onClick={() => { if (!seloSelecionado && selectedItem) updateObservationsMutation.mutate({ itemId: selectedItem.id, observations: cardObservations }); }}
+                          disabled={!!seloSelecionado || updateObservationsMutation.isPending}
+                          title={seloSelecionado ? motivoAcaoBloqueada(seloSelecionado.motivo, "salvar a observação") : undefined}
                           data-testid="button-save-observations"
                           style={{
-                            padding: "6px 14px", borderRadius: 6, border: "none",
-                            backgroundColor: "#d97706", color: "#fff",
-                            fontSize: 12, fontWeight: 700, cursor: updateObservationsMutation.isPending ? "not-allowed" : "pointer",
+                            padding: "6px 14px", borderRadius: 6,
+                            border: seloSelecionado ? "1px solid #e7e5e4" : "none",
+                            backgroundColor: seloSelecionado ? "#f5f5f4" : "#d97706",
+                            color: seloSelecionado ? "#78716c" : "#fff",
+                            fontSize: 12, fontWeight: 700, cursor: seloSelecionado || updateObservationsMutation.isPending ? "not-allowed" : "pointer",
                           }}
                         >
                           {updateObservationsMutation.isPending ? "Salvando..." : "Salvar observação"}
@@ -1615,20 +1808,27 @@ export default function Solicitacao() {
               virava "Liberar 0 itens" enquanto a caixa saía de cena. */}
           <FreezeWhileClosing open={bulkReleaseConfirmOpen}>
           <AlertDialogHeader>
-            <AlertDialogTitle>Liberar {selectedItemIds.size} iten{selectedItemIds.size !== 1 ? "s" : ""}</AlertDialogTitle>
+            <AlertDialogTitle>Liberar {selecaoLote.vivas.length} iten{selecaoLote.vivas.length !== 1 ? "s" : ""}</AlertDialogTitle>
             <AlertDialogDescription>
-              Deseja liberar {selectedItemIds.size} {selectedItemIds.size === 1 ? "item" : "itens"} para produção?
+              Deseja liberar {selecaoLote.vivas.length} {selecaoLote.vivas.length === 1 ? "item" : "itens"} para produção?
+              {selecaoLote.finalizadas > 0 && (
+                <span data-testid="aviso-bulk-release-finalizadas" style={{ display: "block", marginTop: 8 }}>
+                  {avisoLoteFinalizadas()}
+                </span>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-bulk-release-cancel">Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => bulkReleaseMutation.mutate(Array.from(selectedItemIds))}
-              disabled={bulkReleaseMutation.isPending}
+              onClick={() => bulkReleaseMutation.mutate(selecaoLote.vivas)}
+              disabled={bulkReleaseMutation.isPending || selecaoLote.vivas.length === 0}
               style={{ backgroundColor: TI.text, color: "#fff" }}
               data-testid="button-bulk-release-confirm"
             >
-              {bulkReleaseMutation.isPending ? "Liberando..." : "Liberar Todos"}
+              {bulkReleaseMutation.isPending
+                ? "Liberando..."
+                : selecaoLote.finalizadas > 0 ? `Liberar as ${selecaoLote.vivas.length}` : "Liberar Todos"}
             </AlertDialogAction>
           </AlertDialogFooter>
           </FreezeWhileClosing>
@@ -1644,9 +1844,14 @@ export default function Solicitacao() {
               commit — dois campos visíveis apagando durante o fade. */}
           <FreezeWhileClosing open={bulkReturnConfirmOpen}>
           <AlertDialogHeader>
-            <AlertDialogTitle>Devolver {selectedItemIds.size} iten{selectedItemIds.size !== 1 ? "s" : ""} para Arte</AlertDialogTitle>
+            <AlertDialogTitle>Devolver {selecaoLote.vivas.length} iten{selecaoLote.vivas.length !== 1 ? "s" : ""} para Arte</AlertDialogTitle>
             <AlertDialogDescription>
-              Deseja devolver {selectedItemIds.size} {selectedItemIds.size === 1 ? "item" : "itens"} para a Arte?
+              Deseja devolver {selecaoLote.vivas.length} {selecaoLote.vivas.length === 1 ? "item" : "itens"} para a Arte?
+              {selecaoLote.finalizadas > 0 && (
+                <span data-testid="aviso-bulk-return-finalizadas" style={{ display: "block", marginTop: 8 }}>
+                  {avisoLoteFinalizadas()}
+                </span>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div style={{ padding: 0 }}>
@@ -1663,9 +1868,9 @@ export default function Solicitacao() {
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault(); // a mutation controla o fechamento (mantém aberto em erro)
-                bulkReturnMutation.mutate({ ids: Array.from(selectedItemIds), notes: bulkReturnObservations });
+                bulkReturnMutation.mutate({ ids: selecaoLote.vivas, notes: bulkReturnObservations });
               }}
-              disabled={bulkReturnMutation.isPending || !bulkReturnObservations.trim()}
+              disabled={bulkReturnMutation.isPending || !bulkReturnObservations.trim() || selecaoLote.vivas.length === 0}
               title={!bulkReturnObservations.trim() ? "Descreva o motivo da devolução — a Arte precisa saber o que corrigir" : undefined}
               style={{ backgroundColor: TI.text, color: "#fff" }}
               data-testid="button-bulk-return-confirm"

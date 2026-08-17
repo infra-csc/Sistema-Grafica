@@ -335,13 +335,26 @@ beforeEach(() => {
 // ═════════════════════════════════════════════════════════════════════════════
 // Gate de papel — a tela é do DIRETOR
 // ═════════════════════════════════════════════════════════════════════════════
-describe("gate admin-only", () => {
-  it("sem sessão devolve 401 e sem papel de admin devolve 403, nas duas rotas", async () => {
+describe("gate: leitura aberta, escrita do admin", () => {
+  // Decisão do dono (17/08): a Gestão de Prazos aparece para TODOS, e quem não
+  // é admin "só visualiza". A assimetria vive aqui, no servidor — a tela
+  // esconder o botão é conforto, não trava.
+  it("as duas rotas exigem sessão", async () => {
     for (const rota of [GET, POST]) {
       expect((await chamar(rota, { userId: null })).status).toBe(401);
-      expect((await chamar(rota, { userRole: "operador" })).status).toBe(403);
-      expect((await chamar(rota, { userRole: "arte" })).status).toBe(403);
     }
+  });
+
+  it("GET responde para qualquer papel autenticado", async () => {
+    for (const papel of ["operador", "arte", "grafica", "solicitacao", "atendimento", "admin"]) {
+      expect((await chamar(GET, { userRole: papel })).status, papel).not.toBe(403);
+    }
+  });
+
+  it("POST de cobrança continua só do admin", async () => {
+    expect((await chamar(POST, { userRole: "operador" })).status).toBe(403);
+    expect((await chamar(POST, { userRole: "arte" })).status).toBe(403);
+    expect((await chamar(POST, { userRole: "atendimento" })).status).toBe(403);
   });
 });
 

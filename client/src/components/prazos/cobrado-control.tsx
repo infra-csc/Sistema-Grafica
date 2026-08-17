@@ -19,6 +19,7 @@ import { Megaphone, ChevronDown } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/contexts/auth-context";
 import type { CobrancaEntry } from "@shared/prazos-contract";
 import { addDaysStr, apiErrorMessage, diasTexto, fmtDiaSemana, R, TI } from "./tokens";
 
@@ -118,6 +119,13 @@ export function CobradoControl({
   variant = "secondary", showForm = false, showHistorico = false, layout = "inline",
 }: CobradoControlProps) {
   const { toast } = useToast();
+  // "So visualizar" (decisao do dono, 17/08): a Gestao de Prazos passou a
+  // aparecer para todos, e quem nao e admin le tudo e nao registra nada. A
+  // trava mora AQUI, e nao em cada chamada, porque um call site novo nasceria
+  // sem ela — e o servidor devolveria 403 num botao que a tela ofereceu.
+  // Espelha o POST /api/prazos/cobrancas, que segue requireRole("admin").
+  const { user } = useAuth();
+  const podeCobrar = user?.role === "admin";
   const isMobile = useIsMobile();
   const [formAberto, setFormAberto] = useState(false);
   const [histAberto, setHistAberto] = useState(false);
@@ -276,7 +284,7 @@ export function CobradoControl({
         </div>
       ) : null}
 
-      {showForm && (
+      {showForm && podeCobrar && (
         <div>
           <button
             type="button"
@@ -349,9 +357,11 @@ export function CobradoControl({
         </div>
       )}
 
-      <div style={{ display: "flex", justifyContent: layout === "bloco" ? "flex-end" : "flex-start" }}>
-        {botao}
-      </div>
+      {podeCobrar && (
+        <div style={{ display: "flex", justifyContent: layout === "bloco" ? "flex-end" : "flex-start" }}>
+          {botao}
+        </div>
+      )}
     </div>
   );
 }

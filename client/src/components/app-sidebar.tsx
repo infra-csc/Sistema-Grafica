@@ -45,13 +45,17 @@ const productionItems: MenuItem[] = [
   // não acessa a Gráfica e este acervo interessa a todos.
   { title: "Registros",               url: "/registros",               icon: Camera },
   { title: "Análises",                url: "/analises",                icon: BarChart3,      roles: ["admin"] },
-  { title: "Gestão de Prazos",        url: "/prazos",                  icon: Timer,          roles: ["admin"] },
+  // Sem `roles`: a tela passa a aparecer para TODOS (decisão do dono, 17/08).
+  // Quem não é admin vê e não mexe — o registro de cobrança se desabilita
+  // sozinho (ver CobradoControl), e o POST /api/prazos/cobrancas segue admin.
+  { title: "Gestão de Prazos",        url: "/prazos",                  icon: Timer },
 ];
 
 // Patrocinadores: visível p/ solicitação, atendimento e admin
 const sponsorItems: MenuItem[] = [
   { title: "Patrocinadores",   url: "/patrocinadores",   icon: Building2,  roles: ["solicitacao", "atendimento", "admin"] },
-  { title: "Configurar Cotas", url: "/configurar-cotas", icon: Settings2,  roles: ["atendimento", "admin"] }, // PUT global de cotas é admin+atendimento — arte via a tela e levava 403 ao salvar
+  // Só admin (decisão do dono, 17/08). Antes o Atendimento também via.
+  { title: "Configurar Cotas", url: "/configurar-cotas", icon: Settings2,  roles: ["admin"] },
 ];
 
 // Estoque: apenas admin

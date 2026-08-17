@@ -120,7 +120,8 @@ const ROLES_ATENDIMENTO = ["atendimento", "arte", "admin"];
 const ROLES_SOLICITACAO = ["solicitacao", "admin"];
 const ROLES_GRAFICA = ["grafica", "solicitacao", "admin"];
 const ROLES_PATROCINADORES = ["solicitacao", "atendimento", "admin"];
-const ROLES_COTAS = ["atendimento", "admin"];
+// Cotas voltou a ser só do admin (decisão do dono, 17/08).
+const ROLES_COTAS = ["admin"];
 
 // Atalho real do sidebar no Mac é ⌘B — o title dizia Ctrl+B para todo mundo.
 const IS_MAC = typeof navigator !== "undefined" && /mac/i.test(navigator.platform);
@@ -205,7 +206,9 @@ function Router() {
         {() => <RoleProtectedRoute component={DashboardAnalises} allowedRoles={ROLES_ADMIN} />}
       </Route>
       <Route path="/prazos">
-        {() => <RoleProtectedRoute component={GestaoPrazos} allowedRoles={ROLES_ADMIN} />}
+        {/* Aberta a todo usuário autenticado: o recorte de quem PODE AGIR
+            mora nos controles de escrita, não na porta da tela. */}
+        {() => <ProtectedRoute component={GestaoPrazos} />}
       </Route>
       <Route path="/eventos">
         {() => <ProtectedRoute component={Eventos} />}

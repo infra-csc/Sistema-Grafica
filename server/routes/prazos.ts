@@ -18,7 +18,7 @@ import { db } from "../db";
 import { prazoCobrancas, prazoSnapshots, prazoEventSnapshots } from "@shared/schema";
 import type { Item, ItemSponsorApproval } from "@shared/schema";
 import { storage } from "../storage";
-import { requireRole, createAuditLog, broadcast } from "./shared";
+import { requireRole, requireAuth, createAuditLog, broadcast } from "./shared";
 import {
   STAGE_META,
   buildEventPrazo,
@@ -69,7 +69,10 @@ function isRealDay(day: string): boolean {
 }
 
 export function registerPrazoRoutes(app: Express): void {
-  app.get("/api/prazos", requireRole("admin"), async (_req, res) => {
+  // Leitura aberta a todo usuario autenticado (decisao do dono, 17/08): a
+  // Gestao de Prazos passa a aparecer para todos. O POST de cobranca logo
+  // abaixo CONTINUA sendo admin — quem nao e admin ve e nao mexe.
+  app.get("/api/prazos", requireAuth, async (_req, res) => {
     try {
       const today = todayBusinessMs();
       const todayStr = todayBusinessStr();

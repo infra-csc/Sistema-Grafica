@@ -509,8 +509,23 @@
 }
 
 /* ── Focus visible – acessibilidade ─────────────────────────── */
+/* O ANEL USA O LARANJA PROFUNDO, e nao o da marca.
+
+   Indicador de foco e informacao visual que identifica um estado de
+   componente, entao a WCAG 1.4.11 cobra 3:1 contra o fundo adjacente. O
+   --orange-brand (#f97316) nao chega la em NENHUM dos fundos do app:
+
+     sobre #ffffff ... 2,80      sobre #fafaf9 ... 2,68
+     sobre #f5f5f4 ... 2,57
+
+   E o mesmo motivo pelo qual a regua da casa ja proibe esse laranja como
+   cor de texto — so que aqui ele estava no anel que serve justamente quem
+   navega por teclado e precisa enxergar onde esta.
+
+   --orange-deep (#ea580c) da 3,56 / 3,41 / 3,26: passa nos tres, e mantem
+   a familia de cor do foco identica a que o app ja usa. */
 :focus-visible {
-  outline: 2px solid var(--orange-brand);
+  outline: 2px solid var(--orange-deep);
   outline-offset: 2px;
   border-radius: 4px;
 }

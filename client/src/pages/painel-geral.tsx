@@ -1257,10 +1257,10 @@ export default function PainelGeral() {
             <div
               title={`${frescor.srLabel}. Esta tela se atualiza sozinha a cada minuto e ao voltar para a aba.`}
               data-testid="painel-frescor"
-              style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "#78716c", whiteSpace: "nowrap" }}
+              style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 700, color: "#746e69", whiteSpace: "nowrap" }}
             >
               {isFetching
-                ? <Loader2 className="animate-spin" style={{ width: 11, height: 11, color: "#78716c" }} aria-hidden="true" />
+                ? <Loader2 className="animate-spin" style={{ width: 11, height: 11, color: "#746e69" }} aria-hidden="true" />
                 : <span style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: frescor.tone === "fresco" ? "#15803d" : "#b45309", flexShrink: 0 }} />}
               {/* Sem aria-live aqui de propósito: quem anuncia mudança é o
                   contador de resultados. Duas regiões vivas competindo fazem o
@@ -1285,18 +1285,18 @@ export default function PainelGeral() {
                 ? <Loader2 className="animate-spin" style={{ width: 14, height: 14 }} />
                 : <Printer style={{ width: 14, height: 14 }} />}
               {!useCards && "Exportar"}
-              <ChevronDown style={{ width: 13, height: 13, color: "#78716c" }} />
+              <ChevronDown style={{ width: 13, height: 13, color: "#746e69" }} />
             </button>
             {exportMenuOpen && (
               <div role="menu" style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 20, minWidth: 232, backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 10, boxShadow: "0 8px 24px rgba(28,25,23,.12)", padding: 6 }}>
-                <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".08em", color: "#78716c", margin: "6px 8px 6px" }}>
+                <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".08em", color: "#746e69", margin: "6px 8px 6px" }}>
                   {selecionadas.length > 0 ? `${selecionadas.length} selecionada${selecionadas.length > 1 ? "s" : ""}` : `${itensParaExportar.length} ${itensParaExportar.length === 1 ? "peça na tela" : "peças na tela"}`}
                 </p>
                 <button role="menuitem" onClick={() => { setExportMenuOpen(false); setShowExportPDFModal(true); }} data-testid="button-export-pdf-painel" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 8px", background: "none", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#1c1917", textAlign: "left" }}>
-                  <Printer style={{ width: 14, height: 14, color: "#78716c" }} /> Exportar PDF
+                  <Printer style={{ width: 14, height: 14, color: "#746e69" }} /> Exportar PDF
                 </button>
                 <button role="menuitem" onClick={exportarXlsx} disabled={isExportingXlsx || itensParaExportar.length === 0} data-testid="button-export-xlsx-painel" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 8px", background: "none", border: "none", borderRadius: 6, cursor: itensParaExportar.length === 0 ? "not-allowed" : "pointer", fontSize: 13, fontWeight: 600, color: itensParaExportar.length === 0 ? "#a8a29e" : "#1c1917", textAlign: "left" }}>
-                  <FileSpreadsheet style={{ width: 14, height: 14, color: "#78716c" }} /> Exportar Excel
+                  <FileSpreadsheet style={{ width: 14, height: 14, color: "#746e69" }} /> Exportar Excel
                 </button>
               </div>
             )}
@@ -1310,7 +1310,7 @@ export default function PainelGeral() {
           valem mais que as outras dez juntas. Só aparece quando há o que dizer. */}
       {(atencao.reprovadas > 0 || atencao.atrasadas > 0 || chipOcultasDados) && (
         <section aria-label="Precisa de atenção" style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-          <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#78716c" }}>Precisa de atenção</span>
+          <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69" }}>Precisa de atenção</span>
           {atencao.reprovadas > 0 && (
             <button
               onClick={() => toggleFoco("reprovadas")}
@@ -1558,7 +1558,7 @@ export default function PainelGeral() {
         <div style={{ position: "relative", flexShrink: 0, width: useCards ? "100%" : 180 }}>
           {/* #78716c (4,8:1), não #a8a29e (2,52:1): a lupa é a única marcação
               visual do campo e reprovava o mínimo de 3:1 da WCAG 1.4.11. */}
-          <Search style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "#78716c", pointerEvents: "none" }} />
+          <Search style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "#746e69", pointerEvents: "none" }} />
           <input
             ref={searchRef}
             type="text"
@@ -1580,7 +1580,7 @@ export default function PainelGeral() {
             data-testid="button-toggle-filtros-mobile"
             style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", height: 44, borderRadius: 6, border: "1px solid #e7e5e4", background: "#fafaf9", fontSize: 13, fontWeight: 700, color: "#1c1917", cursor: "pointer" }}
           >
-            <SlidersHorizontal style={{ width: 14, height: 14, color: "#78716c" }} />
+            <SlidersHorizontal style={{ width: 14, height: 14, color: "#746e69" }} />
             Filtros{activeFilterCount > 0 ? ` (${activeFilterCount})` : ""}
             {mobileFiltersOpen ? <ChevronUp style={{ width: 14, height: 14 }} /> : <ChevronDown style={{ width: 14, height: 14 }} />}
           </button>
@@ -2336,13 +2336,19 @@ export default function PainelGeral() {
                                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                                   {group && (
                                     <>
-                                      {/* #78716c sobre #f5f5f4 = 4,7:1 ✓ nos 11px.
+                                      {/* #746e69 sobre #f5f5f4 = 4,61:1 ✓ nos 11px.
+                                          O comentario anterior dizia "#78716c = 4,7:1"
+                                          e estava ERRADO: aquele cinza da 4,40 sobre
+                                          este fundo e REPROVA AA. Os dois cinzas ficam
+                                          a 6 unidades de distancia — indistinguiveis —
+                                          entao o que passa substitui o que falha, sem
+                                          custo visual nenhum.
                                           O pai vem em peso e cor MENORES que o
                                           tipo: ele é contexto, o tipo é o rótulo. */}
                                       <span style={{
                                         fontSize: 11, fontWeight: 600,
                                         textTransform: "uppercase", letterSpacing: "0.08em",
-                                        color: "#78716c",
+                                        color: "#746e69",
                                         fontFamily: "'Space Grotesk', sans-serif",
                                       }}>
                                         {group}
@@ -2713,7 +2719,7 @@ export default function PainelGeral() {
                 href={`/eventos/${selectedItem.eventId}`}
                 style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 34, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", color: "#1c1917", fontSize: 12, fontWeight: 700, textDecoration: "none" }}
               >
-                <Link2 style={{ width: 13, height: 13, color: "#78716c" }} />
+                <Link2 style={{ width: 13, height: 13, color: "#746e69" }} />
                 Abrir evento
               </Link>
             )}
@@ -2734,7 +2740,7 @@ export default function PainelGeral() {
                     data-testid="aviso-evento-finalizado-ficha"
                     style={{ display: "inline-flex", alignItems: "center", gap: 6, minHeight: 34, padding: "6px 12px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#fafaf9", color: "#57534e", fontSize: 12, fontWeight: 600, maxWidth: 360, lineHeight: 1.4 }}
                   >
-                    <Lock style={{ width: 13, height: 13, flexShrink: 0, color: "#78716c" }} />
+                    <Lock style={{ width: 13, height: 13, flexShrink: 0, color: "#746e69" }} />
                     {motivoFim === "encerrado"
                       ? "Evento encerrado — esta peça não avança no fluxo. Reabra o evento para voltar a trabalhar nela."
                       : "Evento já realizado — esta peça não avança no fluxo. Conferência e entrega seguem liberadas na Gráfica."}
@@ -2757,7 +2763,7 @@ export default function PainelGeral() {
               onClick={() => copiarLinkDaPeca(selectedItem)}
               style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 34, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", color: "#1c1917", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
             >
-              <Copy style={{ width: 13, height: 13, color: "#78716c" }} />
+              <Copy style={{ width: 13, height: 13, color: "#746e69" }} />
               Copiar link da peça
             </button>
           </div>

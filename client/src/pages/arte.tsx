@@ -68,6 +68,7 @@ import { ExportPdfDialog } from "@/components/export-pdf-dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { PrazoInline } from "@/components/prazo-inline";
+import { Link } from "wouter";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 // Quantas linhas a tabela monta por vez. O resto entra por "Carregar mais".
@@ -2850,6 +2851,33 @@ export default function Arte() {
 
                   {/* Rejection reasons */}
                   <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {/* Peça devolvida SEM patrocinador identificado: veio pelo
+                        antigo "Reprovar Ativo" (removido em 17/08), que baixava
+                        a peça inteira sem marcar quem pediu a mudança. Sem este
+                        bloco o cartão apareceria mudo — na fila de correção e
+                        sem uma linha dizendo por quê.
+                        Diz o que se sabe e para onde ir buscar o resto, em vez
+                        de inventar um patrocinador para preencher a coluna. */}
+                    {approvalsToShow.length === 0 && (
+                      <div
+                        data-testid={`correcao-sem-patrocinador-${item.id}`}
+                        style={{ borderRadius: 12, border: '1px solid #fecaca', background: '#fff1f1', padding: '10px 12px' }}
+                      >
+                        {/* #991b1b sobre #fff1f1 = 8,1:1 ✓ · #7f1d1d = 10,3:1 ✓ */}
+                        <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#991b1b' }}>
+                          Reprovada por um patrocinador
+                        </p>
+                        <p style={{ margin: '3px 0 0', fontSize: 11, color: '#7f1d1d', lineHeight: 1.45 }}>
+                          O registro desta devolução não guardou qual patrocinador pediu a mudança nem o motivo — ela veio pelo caminho antigo, que não perguntava. Quem devolveu e quando está no Histórico da peça.
+                        </p>
+                        <Link
+                          href={`/historico?busca=${item.displayId?.replace('#','')}`}
+                          style={{ display: 'inline-block', marginTop: 6, fontSize: 11, fontWeight: 700, color: '#991b1b', textDecoration: 'underline', textUnderlineOffset: 2 }}
+                        >
+                          Ver no Histórico →
+                        </Link>
+                      </div>
+                    )}
                     {approvalsToShow.map((approval: any) => (
                       <div key={approval.id} style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #fecaca' }}>
                         {/* Sponsor bar */}

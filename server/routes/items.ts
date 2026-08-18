@@ -418,7 +418,30 @@ export function registerItemRoutes(app: Express): void {
         storage.getAllItemSponsorApprovals(),
       ]);
 
+      // A fila da Correção responde UMA pergunta: "o que voltou e precisa ser
+      // refeito?". Ela tinha DOIS pré-requisitos para responder — a peça em
+      // `awaiting_sponsor_approval` E uma linha de patrocinador em
+      // `awaiting_arte` —, e o segundo era mecânica de UM dos caminhos de
+      // reprovação, não parte da pergunta.
+      //
+      // Consequência: peça reprovada pelo caminho que devolvia a peça INTEIRA
+      // (o antigo "Reprovar Ativo", removido em 17/08) caía em
+      // `awaiting_submission` sem marcar patrocinador nenhum, e sumia da
+      // Correção — ia para o meio das 1.120 que nunca tinham sido enviadas.
+      // A #3042 é o caso: a trilha registra "Kakau Faria · reprovado pelo
+      // patrocinador", e mesmo assim ela não estava aqui.
+      //
+      // `rejectedBySponsor` é a marca canônica de "isto voltou de um
+      // patrocinador" e não depende de saber QUAL deles — que é uma informação
+      // que aquele caminho nunca gravou. A peça sai daqui sozinha quando a
+      // Arte reenvia: o status muda para `awaiting_sponsor_approval` e ela
+      // deixa de casar (a flag continua ligada de propósito até a aprovação —
+      // ver o comentário em /submit-for-approval —, então é o STATUS que a
+      // tira da fila, não a flag).
       const awaitingItems = allItems.filter(i => i.status === "awaiting_sponsor_approval");
+      const devolvidasSemDono = allItems.filter(
+        i => i.status === "awaiting_submission" && i.rejectedBySponsor === true,
+      );
       const eventById = new Map(allEvents.map(e => [e.id, e]));
       const sponsorById = new Map(allSponsors.map(s => [s.id, s]));
 
@@ -442,6 +465,19 @@ export function registerItemRoutes(app: Express): void {
             ...a,
             sponsor: sponsorById.get(a.sponsorId) || null,
           })),
+        });
+      }
+
+      // As devolvidas sem patrocinador identificado entram com
+      // `awaitingArteApprovals` VAZIO — e vazio é a resposta honesta: não há
+      // linha de patrocinador para mostrar porque nunca houve. A tela lida
+      // com o array vazio; inventar um patrocinador para preencher a coluna
+      // seria pior do que deixá-la em branco.
+      for (const item of devolvidasSemDono) {
+        result.push({
+          ...item,
+          event: eventById.get(item.eventId) || null,
+          awaitingArteApprovals: [],
         });
       }
 

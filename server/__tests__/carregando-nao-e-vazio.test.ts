@@ -57,3 +57,25 @@ describe("Painel Geral: carga e vazio são estados distintos", () => {
     expect(painel).toContain("{!isLoading && (escondidos > 0 || showAllKpis) && (");
   });
 });
+
+describe("os cards de status não afirmam zero durante a carga", () => {
+  it("o número dá lugar a um travessão", () => {
+    // Zero é uma AFIRMAÇÃO, e durante a carga a tela não tem como fazê-la.
+    // Com 3.187 peças a caminho os cards exibiam "0" e o TOTAL anunciava
+    // "0 TOTAL" com selo BASELINE — a manchete dizendo que não havia nada.
+    expect(painel).toContain('{carregando ? "—" : value}');
+  });
+
+  it("os dois pontos de chamada passam o estado de carga", () => {
+    // O card de status (um por grupo) e o card TOTAL. Passar em só um deixa
+    // metade da faixa mentindo.
+    expect(painel).toContain("value={stats.byGroup[key]} carregando={isLoading}");
+    expect(painel).toContain('label="Total" value={stats.total} carregando={isLoading}');
+  });
+
+  it("o leitor de tela também deixa de ouvir o zero falso", () => {
+    // O card é role=button com aria-label: sem isto ele anunciava
+    // "Filtrar por X, 0 peças" durante a carga.
+    expect(painel).toContain("aria-label={carregando");
+  });
+});

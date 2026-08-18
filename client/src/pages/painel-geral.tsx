@@ -155,11 +155,13 @@ const PG_CSS = `
 // reagem ao mouse, o único que serve de "limpar status" parecia quebrado.
 function StatusCard({
   label, value, dot, color, filterKey, sub, subActionLabel, onSubAction,
-  isActive, onToggle, dark, badge, title,
+  isActive, onToggle, dark, badge, title, carregando,
 }: {
   label: string; value: number; dot: string; color: string;
   filterKey: string; sub?: string; subActionLabel?: string; onSubAction?: () => void;
   isActive: boolean; onToggle: () => void; dark?: boolean; badge?: string; title?: string;
+  /** Enquanto os dados nao chegaram, o card nao sabe o numero — e nao deve chutar zero. */
+  carregando?: boolean;
 }) {
   // Cards zerados são informação de baixo valor no escaneamento ("onde está
   // o gargalo?") — ficam esmaecidos, mas continuam clicáveis/filtráveis.
@@ -175,7 +177,11 @@ function StatusCard({
       role="button"
       tabIndex={0}
       aria-pressed={isActive}
-      aria-label={`${dark ? "Mostrar todas as peças" : `Filtrar por ${label}`}, ${value} ${plural}`}
+      /* Sem isto o leitor de tela anunciava "Filtrar por X, 0 peças" durante
+         a carga — o mesmo zero falso, dito em voz alta. */
+      aria-label={carregando
+        ? `${dark ? "Mostrar todas as peças" : `Filtrar por ${label}`}, carregando`
+        : `${dark ? "Mostrar todas as peças" : `Filtrar por ${label}`}, ${value} ${plural}`}
       title={title}
       onClick={onToggle}
       onKeyDown={e => {
@@ -233,7 +239,12 @@ function StatusCard({
       <div>
         {/* #f97316 como cor do NÚMERO no card escuro dá 6,3:1 sobre #1c1917 —
             exceção legítima à régua da casa, que foi escrita para fundo claro. */}
-        <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: dark ? "#f97316" : (isActive ? color : "#1c1917"), lineHeight: 1, margin: 0, letterSpacing: "-.05em" }}>{value}</p>
+        {/* ZERO É UMA AFIRMAÇÃO, e durante a carga a tela não tem como
+            fazê-la. Com 3.187 peças a caminho, os cards exibiam "0" e o
+            TOTAL anunciava "0 TOTAL" com selo BASELINE enquanto o skeleton
+            rodava logo abaixo — a manchete da tela dizia que não havia nada.
+            Um travessão diz a verdade: ainda não sei. */}
+        <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: dark ? "#f97316" : (isActive ? color : "#1c1917"), lineHeight: 1, margin: 0, letterSpacing: "-.05em" }}>{carregando ? "—" : value}</p>
         <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: dark ? "rgba(255,255,255,0.75)" : "#746e69", marginTop: 4, lineHeight: 1.2 }}>{label}</p>
         {sub && (
           onSubAction ? (
@@ -1186,7 +1197,7 @@ export default function PainelGeral() {
         // no card e "Status: Aguardando Vinculação" no chip logo abaixo davam
         // dois nomes à mesma peça na mesma tela.
         label={useCards ? m.short : m.label}
-        value={stats.byGroup[key]}
+        value={stats.byGroup[key]} carregando={isLoading}
         dot={m.dot} color={m.text} filterKey={key}
         isActive={statusFilter.includes(key)}
         onToggle={() => toggleStatusCard(key)}
@@ -1200,7 +1211,7 @@ export default function PainelGeral() {
   const canceladas = stats.byGroup.canceled;
   const totalCard = (
     <StatusCard
-      label="Total" value={stats.total}
+      label="Total" value={stats.total} carregando={isLoading}
       dot="#f97316" color="#f97316" filterKey="total" dark badge="BASELINE"
       isActive={statusFilter.length === 0}
       onToggle={() => setStatusFilter([])}
@@ -1801,17 +1812,33 @@ export default function PainelGeral() {
       {/* ── Grouped table ── */}
       <section style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {isLoading ? (
-          /* Skeleton com a mesma silhueta da tabela real (cabeçalho do evento +
-             header escuro + linhas zebradas) — em vez do spinner central, que
-             causava layout shift e não dizia o que estava carregando. */
+          /* O SKELETON TEM DE SER O RETRATO DA TABELA QUE VAI CHEGAR.
+
+             A ideia estava certa — silhueta em vez de spinner central, que
+             causava layout shift —, mas o retrato ficou desatualizado. Ele
+             desenhava uma FAIXA PRETA de 40px porque o cabeçalho da tabela
+             era escuro; o cabeçalho virou claro (#fafaf9 com texto #57534e)
+             numa passada anterior e ninguém voltou aqui. Resultado: durante o
+             carregamento a tela mostrava uma tarja preta larga — que ainda por
+             cima lê como erro ou censura — e ela sumia quando os dados
+             chegavam. Um piscar de um design que não existe mais.
+
+             Os outros dois números também haviam se soltado do real, medidos
+             no DOM: a linha da tabela tem 63px e o skeleton fazia ~38; a zebra
+             é #f6f4f1 e o skeleton usava #fafaf9. Skeleton que não bate com o
+             conteúdo entrega justamente o layout shift que ele existe para
+             evitar.
+
+             Os valores abaixo são os MEDIDOS da tabela real: thead 44px em
+             #fafaf9 com filete #e7e5e4, linha 63px, zebra #ffffff/#f6f4f1. */
           <div style={{ backgroundColor: "#ffffff", border: "1px solid #e7e5e4", borderRadius: 10, overflow: "hidden" }} aria-busy="true" aria-label="Carregando peças">
             <div style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div className="animate-pulse" style={{ width: 180, height: 16, borderRadius: 4, backgroundColor: "#e7e5e4" }} />
               <div className="animate-pulse" style={{ width: 70, height: 20, borderRadius: 999, backgroundColor: "#f5f5f4" }} />
             </div>
-            <div style={{ height: 40, backgroundColor: "#1c1917" }} />
+            <div style={{ height: 44, backgroundColor: "#fafaf9", borderBottom: "1px solid #e7e5e4" }} />
             {[0, 1, 2, 3, 4, 5].map((i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 24, padding: "13px 16px", backgroundColor: i % 2 ? "#fafaf9" : "#ffffff" }}>
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 24, height: 63, boxSizing: "border-box", padding: "0 16px", backgroundColor: i % 2 ? "#f6f4f1" : "#ffffff" }}>
                 <div className="animate-pulse" style={{ width: 48, height: 12, borderRadius: 4, backgroundColor: "#e7e5e4" }} />
                 <div className="animate-pulse" style={{ width: `${34 - i * 3}%`, height: 12, borderRadius: 4, backgroundColor: "#e7e5e4" }} />
                 <div className="animate-pulse" style={{ width: 60, height: 12, borderRadius: 4, backgroundColor: "#f0efee", marginLeft: "auto" }} />

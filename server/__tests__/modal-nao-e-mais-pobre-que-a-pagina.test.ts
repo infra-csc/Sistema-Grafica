@@ -42,10 +42,16 @@ describe("a confirmação de exclusão tem superfície própria", () => {
 
   it("usa a mesma linguagem de superfície dos outros diálogos do app", () => {
     const b = blocoDoDialogo();
-    expect(b).toContain("borderRadius: 16");
-    expect(b).toContain("padding: 32");
+    // TOKENS do modal-shell, nao numeros escritos aqui. Copiar os
+    // numeros de outra tela foi o primeiro erro: aquela tela tambem
+    // estava fora do sistema, e a copia so criaria mais uma superficie
+    // artesanal.
+    expect(b).toContain("borderRadius: MODAL_RADIUS");
+    expect(b).toContain("boxShadow: MODAL_SHADOW");
     expect(b).toContain('border: "none"');
-    expect(b).toContain("boxShadow:");
+    // Sem teto de altura o Radix centra o modal e corta em CIMA e
+    // EMBAIXO ao mesmo tempo: some o titulo junto com o confirmar.
+    expect(b).toContain('maxHeight: "calc(100vh - 48px)"');
   });
 
   it("o título e a descrição têm tipografia declarada", () => {

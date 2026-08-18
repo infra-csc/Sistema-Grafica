@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { compareDisplayId } from "@/lib/displayId";
+import { MODAL_RADIUS, MODAL_SHADOW } from "@/components/modal-shell";
 import { FilterSelect } from "@/components/filter-select";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import {
@@ -2801,19 +2802,29 @@ export default function PainelGeral() {
 
       {/* ── Delete confirmation (Admin ou Solicitação, em qualquer status) ── */}
       <AlertDialog open={!!deleteConfirmItemId} onOpenChange={open => { if (!open) setDeleteConfirmItemId(null); }}>
-        {/* A SUPERFÍCIE É A MESMA DOS OUTROS DIÁLOGOS DO APP.
+        {/* A SUPERFÍCIE VEM DO SISTEMA DE MODAL DO APP, e não de números
+            escritos aqui.
 
             Este era o único modal do Painel Geral e vinha com o shadcn CRU —
-            nenhum estilo. Os três diálogos do Detalhe do Evento já tinham
-            superfície própria (raio 16, padding 32, sem borda, sombra
-            larga), e o Estoque também. O resultado é o que mais denuncia uma
-            tela pela metade: a página refinada e, ao confirmar uma exclusão,
-            um modal com cara de biblioteca instalada ontem.
+            nenhum estilo — enquanto o resto do app já tinha acabamento. É o
+            que mais denuncia uma tela feita pela metade: a página refinada e,
+            ao confirmar uma exclusão, um modal com cara de biblioteca
+            instalada ontem. E confirmar exclusão é o momento de MAIOR atrito
+            da tela: é onde a pessoa para para ler.
 
-            Confirmar exclusão é o momento de MAIOR atrito da tela — é onde a
-            pessoa para para ler. Ser o componente menos acabado justo aí é o
-            pior lugar possível. */}
-        <AlertDialogContent style={{ width: "96vw", maxWidth: 460, backgroundColor: "#ffffff", borderRadius: 16, padding: 32, border: "none", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
+            A primeira correção copiou os números do Detalhe do Evento (raio
+            16, sombra 0 20px 60px). Estava errado por um motivo que só
+            apareceu ao ler o modal-shell: aquele arquivo TAMBÉM está fora do
+            sistema. Copiar de quem está fora não conserta — só cria a quarta
+            superfície artesanal. `modalSurface` é usado por dez telas, e os
+            tokens dele são MODAL_RADIUS e MODAL_SHADOW.
+
+            O maxHeight não é detalhe: sem teto, um modal que cresce além da
+            janela é cortado EM CIMA E EMBAIXO AO MESMO TEMPO — o Radix centra
+            o conteúdo — e some o título junto com o botão de confirmar. Aqui
+            o texto é curto, mas ele carrega o nome e o tipo da peça, que numa
+            janela baixa quebram em várias linhas. */}
+        <AlertDialogContent style={{ width: "96vw", maxWidth: 460, backgroundColor: "#ffffff", borderRadius: MODAL_RADIUS, padding: 32, border: "none", boxShadow: MODAL_SHADOW, maxHeight: "calc(100vh - 48px)", overflowY: "auto" }}>
           <AlertDialogHeader>
             <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 19, fontWeight: 800, letterSpacing: "-0.02em", color: "#1c1917" }}>Excluir peça?</AlertDialogTitle>
             {/* #57534e sobre #ffffff = 7,63:1 ✓ — o mesmo cinza de leitura

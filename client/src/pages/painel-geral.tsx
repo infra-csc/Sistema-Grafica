@@ -139,6 +139,19 @@ const PG_CSS = `
 .pg-rail { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .pg-rail > * { scroll-snap-align: start; flex: 0 0 150px; }
 .pg-sortable { cursor: pointer; user-select: none; }
+/* ALVO DA CAIXA DE SELEÇÃO.
+
+   A caixa é um input type="checkbox" de 15×15 — a WCAG 2.5.8 pede 24×24
+   no nível AA e a régua da casa pede 36 de ponteiro. Não há conserto
+   CSS-only no próprio input: padding não se aplica a elemento substituído,
+   transform não muda a caixa de layout e ::before não renderiza nele.
+
+   Quem cresce é o label em volta: 36×36 de área clicável, com margem
+   negativa de 10px para devolver ao layout o espaço que ele tomou. A caixa
+   continua desenhada com 15px no mesmo lugar; o que mudou é onde o clique
+   é aceito. Envolver no label também dispensa o for/id — clicar no
+   rótulo alterna o input por definição do HTML. */
+.pg-check { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin: -10px; cursor: pointer; }
 /* #c2410c sobre o #fafaf9 do cabecalho = 4,96:1 AA. Era #fdba74, escolhido
    quando o thead era ESCURO; ao clarear o cabecalho eu nao revisei esta cor e
    ela virou 1,61:1 — o hover de ordenacao ficou praticamente invisivel. */
@@ -2326,14 +2339,16 @@ export default function PainelGeral() {
                           const seta = (campo: string) => sortBy === campo ? (sortDir === "asc" ? " ↑" : " ↓") : "";
                           const cols: React.ReactNode[] = [
                             <th key="sel" scope="col" style={{ ...thBase, padding: "12px 0 12px 12px" }}>
-                              <input
-                                type="checkbox"
-                                checked={todasSelecionadas}
-                                onChange={(e) => toggleSelecaoDoEvento(visibleItems, e.target.checked)}
-                                aria-label={`Selecionar as peças visíveis do evento ${gd.eventName}`}
-                                data-testid={`checkbox-all-${eventKey}`}
-                                style={{ width: 15, height: 15, cursor: "pointer", accentColor: "#c2410c" }}
-                              />
+                              <label className="pg-check">
+                                <input
+                                  type="checkbox"
+                                  checked={todasSelecionadas}
+                                  onChange={(e) => toggleSelecaoDoEvento(visibleItems, e.target.checked)}
+                                  aria-label={`Selecionar as peças visíveis do evento ${gd.eventName}`}
+                                  data-testid={`checkbox-all-${eventKey}`}
+                                  style={{ width: 15, height: 15, cursor: "pointer", accentColor: "#c2410c" }}
+                                />
+                              </label>
                             </th>,
                             <th key="id" scope="col" aria-sort={ariaSort("displayId")} style={thBase}>
                               <span className="pg-sortable" role="button" tabIndex={0} onClick={() => toggleSort("displayId")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSort("displayId"); } }} title="Ordenar por ID">
@@ -2467,15 +2482,21 @@ export default function PainelGeral() {
                                   {/* Seleção */}
                                   <td style={{ padding: "10px 0 10px 12px" }}>
                                     {!isDeleted && (
-                                      <input
-                                        type="checkbox"
-                                        checked={selecionado}
-                                        onClick={(e) => e.stopPropagation()}
-                                        onChange={() => toggleSelecionado(item.id)}
-                                        aria-label={`Selecionar a peça ${item.displayId}`}
-                                        data-testid={`checkbox-${item.id}`}
-                                        style={{ width: 15, height: 15, cursor: "pointer", accentColor: "#c2410c" }}
-                                      />
+                                      /* stopPropagation no LABEL, e não só no input:
+                                         a linha inteira abre a peça no clique, e a área
+                                         nova do alvo fica fora do input. Sem isto, mirar
+                                         a borda do alvo marcaria a peça E abriria o
+                                         modal — o alvo maior viraria uma armadilha. */
+                                      <label className="pg-check" onClick={(e) => e.stopPropagation()}>
+                                        <input
+                                          type="checkbox"
+                                          checked={selecionado}
+                                          onChange={() => toggleSelecionado(item.id)}
+                                          aria-label={`Selecionar a peça ${item.displayId}`}
+                                          data-testid={`checkbox-${item.id}`}
+                                          style={{ width: 15, height: 15, cursor: "pointer", accentColor: "#c2410c" }}
+                                        />
+                                      </label>
                                     )}
                                   </td>
 

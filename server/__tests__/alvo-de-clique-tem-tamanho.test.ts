@@ -61,22 +61,30 @@ describe("nenhum alvo interativo abaixo do mínimo", () => {
     for (const h of alturas) expect(h).toBeGreaterThanOrEqual(MIN_PONTEIRO);
   });
 
-  it("AINDA PENDENTE: as caixas de seleção são 15×15", () => {
-    // Este teste NÃO celebra o estado atual — ele o mantém visível.
+  it("as caixas de seleção têm alvo de 36px", () => {
+    // ESTE TESTE SUBSTITUI UMA PENDÊNCIA. A versão anterior dele existia só
+    // para manter visível que as caixas eram 15×15 — abaixo dos 24×24 do AA
+    // e dos 36 de ponteiro da casa — e foi escrita para FALHAR quando o
+    // conserto chegasse. Chegou.
     //
-    // As caixas de seleção da tabela são <input type="checkbox"> de 15×15. A
-    // WCAG 2.5.8 pede 24×24 no nível AA, e a régua da casa pede 36 de
-    // ponteiro. Não há correção CSS-only: `padding` não se aplica a input,
-    // `transform` não muda a caixa de layout, e `::before` não renderiza em
-    // elemento substituído. O conserto certo é envolver num <label> com
-    // padding e margem negativa, em mais de um ponto (cabeçalho do grupo,
-    // linha da tabela) — reestruturação de linha, que pede passada própria e
-    // verificação ao vivo.
-    //
-    // Quando isso for feito, este teste DEVE falhar. É o sinal de que a
-    // pendência acabou e a hora de trocá-lo pela regra de verdade.
-    const caixas = painel.split(/\r?\n/).filter(l => l.includes("accentColor"));
-    expect(caixas.length).toBe(2);
-    for (const l of caixas) expect(l).toContain("height: 15,");
+    // Não há conserto CSS-only no próprio input: padding não se aplica a
+    // elemento substituído, transform não muda a caixa de layout e ::before
+    // não renderiza nele. Quem cresce é o label em volta — 36×36 de área
+    // clicável, com margem negativa de 10px devolvendo ao layout o espaço
+    // tomado. A caixa continua desenhada com 15px no mesmo lugar.
+    expect(painel).toContain(".pg-check { display: inline-flex;");
+    expect(painel).toContain("width: 36px; height: 36px; margin: -10px;");
+  });
+
+  it("as duas caixas usam o alvo — cabeçalho do grupo e linha da peça", () => {
+    const labels = painel.split('<label className="pg-check"').length - 1;
+    expect(labels).toBe(2);
+  });
+
+  it("o alvo da linha não abre a peça por engano", () => {
+    // A linha inteira abre a peça no clique, e a área NOVA do alvo fica fora
+    // do input. Sem stopPropagation no label, mirar a borda do alvo marcaria
+    // a peça E abriria o modal: o alvo maior viraria uma armadilha.
+    expect(painel).toContain('<label className="pg-check" onClick={(e) => e.stopPropagation()}>');
   });
 });

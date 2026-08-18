@@ -1209,7 +1209,19 @@ export default function PainelGeral() {
   return (
     <div
       ref={rootRef}
-      style={{ position: "relative", display: "flex", flexDirection: "column", gap: 22, padding: useCards ? "0 12px 20px" : "0 28px 34px", minHeight: "100%", background: "#fafaf9" }}
+      /* alignSelf FLEX-START, e nao o stretch padrao.
+         Esta raiz e flex ITEM do <main>, que e display:flex. Com o stretch
+         padrao a altura dela era FORCADA a do container (610px, a do
+         scrollport) e o conteudo transbordava por fora da caixa — o
+         minHeight:100% nao faz a caixa crescer nesse cenario.
+         Consequencia medida: a barra de filtros e position:sticky, e sticky so
+         gruda DENTRO da caixa do pai. Com a caixa do tamanho da janela ela nao
+         tinha alcance nenhum: rolando a lista a barra saia da tela (medida em
+         y -64) e quem estava no meio de 3.187 pecas perdia busca, filtros e
+         visoes salvas justamente quando mais precisa deles.
+         Com flex-start a altura passa a ser a do CONTEUDO, e o minHeight:100%
+         continua garantindo o piso quando a lista e curta. */
+      style={{ position: "relative", display: "flex", flexDirection: "column", alignSelf: "flex-start", width: "100%", gap: 22, padding: useCards ? "0 12px 20px" : "0 28px 34px", minHeight: "100%", background: "#fafaf9" }}
     >
       {/* SEM overflowY no wrapper: quem rola é o <main> do layout. Um
           overflow:auto aqui criava um scroll-container que NÃO rola

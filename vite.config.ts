@@ -31,6 +31,13 @@ export default defineConfig({
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
   },
+  esbuild: {
+    // Workaround for Vite HMR bug: path.extname('file.tsx?t=0.1234') returns
+    // '.1234' (the decimal timestamp), which esbuild rejects as an invalid
+    // loader. Restricting include to paths without '?' prevents esbuild from
+    // processing HMR-stamped files — @vitejs/plugin-react already handles them.
+    include: /^[^?]*\.[cm]?[jt]sx?$/,
+  },
   server: {
     allowedHosts: true,
     fs: {

@@ -2246,8 +2246,20 @@ export default function VincularPatrocinadores() {
                             const groupBorder = allSent ? '#86efac' : allReady ? '#22c55e' : '#f97316';
                             const groupTextColor = allSent ? '#15803d' : allReady ? '#166534' : '#c2410c';
 
+                            // KEY PELA IDENTIDADE, NAO PELO CONTEUDO.
+                            // A key trazia `item.type` — o campo que o usuario
+                            // RENOMEIA. Renomear mudava a key, e mudar a key
+                            // nao e re-render: e desmontar a linha e montar
+                            // outra no lugar. Esta linha carrega um Checkbox do
+                            // Radix, que compoe refs; remontagem forcada troca o
+                            // no sob o ref e realimenta o ciclo de render — a
+                            // familia de falha do "Maximum update depth
+                            // exceeded" que derrubou a tela ao renomear.
+                            // O agrupador pertence a PRIMEIRA peca do tipo,
+                            // entao o id dela identifica a linha de forma
+                            // estavel e unica, e sobrevive ao rename.
                             return (
-                              <tr key={`type-${item.type}-${itemIndex}`} style={{ borderLeft: `4px solid ${groupBorder}` }}>
+                              <tr key={`type-${item.id}`} style={{ borderLeft: `4px solid ${groupBorder}` }}>
                                 <td colSpan={6} style={{ padding: 0 }}>
                                   <div style={{ backgroundColor: groupBg, display: 'flex', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
                                     {/* Coluna do checkbox — mesma largura do td de item (50px) */}

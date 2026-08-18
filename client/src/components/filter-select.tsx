@@ -341,7 +341,24 @@ export function FilterSelect({
   // senão o usuário vê o painel "pular" de lado no primeiro open. Medido no
   // open E a cada resize — o gatilho pode ter mudado de lugar (sidebar,
   // rotação de tela) desde a última medição.
-  const [effectiveAlign, setEffectiveAlign] = useState<"left" | "right">(dropdownAlign);
+  /**
+   * ONDE O PAINEL ABRE — em coordenadas de JANELA, e o painel é `fixed`.
+   *
+   * Ele era `position: absolute` dentro do controle. Absoluto ESTENDE a área
+   * rolável do documento: o menu do último filtro da faixa abria para fora da
+   * janela, a página inteira ganhava rolagem horizontal e o conteúdo da
+   * esquerda — a barra lateral, o começo da tabela — saía de vista. O painel
+   * não empurrava só a si mesmo; empurrava a tela.
+   *
+   * E a escolha do lado tinha um buraco: quando NENHUM dos dois cabia, o
+   * código voltava para o lado original, que é justamente o que transborda.
+   *
+   * `fixed` não participa do fluxo nem do scroll do documento, então não há
+   * como empurrar nada; e a posição é GRAMPEADA na janela, com 8px de respiro,
+   * de modo que o painel sempre aparece inteiro mesmo quando não cabe de
+   * nenhum dos dois lados. Mesma solução que a prévia de thumb da Arte já usa.
+   */
+  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
   useLayoutEffect(() => {
     if (!open) return;
     const measure = () => {
@@ -349,15 +366,21 @@ export function FilterSelect({
       if (!el) return;
       const rect = el.getBoundingClientRect();
       const width = Math.min(panelWidth ?? (fullWidth ? rect.width : 280), 360);
-      const fits = (align: "left" | "right") =>
-        align === "right" ? rect.right - width >= 0 : rect.left + width <= window.innerWidth;
-      if (fits(dropdownAlign)) { setEffectiveAlign(dropdownAlign); return; }
-      const opposite = dropdownAlign === "right" ? "left" : "right";
-      setEffectiveAlign(fits(opposite) ? opposite : dropdownAlign);
+      const RESPIRO = 8;
+      const preferido = dropdownAlign === "right" ? rect.right - width : rect.left;
+      const maximo = window.innerWidth - width - RESPIRO;
+      const left = Math.max(RESPIRO, Math.min(preferido, maximo));
+      setPos({ top: rect.bottom + 6, left, width });
     };
     measure();
     window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
+    // `true` para pegar a fase de captura: a barra de filtros é sticky dentro
+    // de um scroller próprio, e um listener no window não veria esse scroll.
+    window.addEventListener("scroll", measure, true);
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("scroll", measure, true);
+    };
   }, [open, dropdownAlign, panelWidth, fullWidth]);
 
   // ── Paleta de cor baseada no accent ───────────────────────────────────
@@ -796,7 +819,6 @@ export function FilterSelect({
     );
   };
 
-  const panelW = panelWidth ?? (fullWidth ? undefined : 280);
 
   return (
     <div
@@ -842,17 +864,15 @@ export function FilterSelect({
           {triggerText}
         </span>
 
-        {/* Badge de contagem (multi, 2+) — some quando unitLabel já colocou o
-            número dentro do texto: "3 ações ③" é a mesma informação duas vezes. */}
-        {multiple && values!.length > 1 && !unitLabel && (
-          <span style={{
-            fontSize: 11, fontWeight: 700, padding: "1px 7px", borderRadius: 99,
-            backgroundColor: solidActive ? "#ffffff" : C.badge,
-            color: solidActive ? C.text : "#fff", flexShrink: 0, marginLeft: 2,
-          }}>
-            {values!.length}
-          </span>
-        )}
+        {/* O SELO DE CONTAGEM SAIU. O comentário antigo já tinha visto a
+            duplicação — "3 ações ③" é a mesma informação duas vezes — mas
+            suprimia o selo só no ramo com `unitLabel`. Sem ela o texto é
+            "4 selecionados", que TAMBÉM carrega o número: o gatilho aparecia
+            como "4 selecionados ④". Com 2+ escolhidos o texto sempre diz
+            quantos são, então o selo nunca acrescenta — só ocupa largura numa
+            faixa onde ela é disputada.
+            (Com 1 escolhido o texto é o RÓTULO da opção e não há número
+            nenhum; mas aí `values.length > 1` já era falso.) */}
 
         {/* Botão X — limpar. Só no job de FILTRO: em ordenação e em campo de
             formulário não existe estado "sem valor" para voltar, então o × não
@@ -897,10 +917,16 @@ export function FilterSelect({
       {/* ── Dropdown panel ── */}
       {open && (
         <div style={{
-          position: "absolute", top: "calc(100% + 6px)", ...(effectiveAlign === "right" ? { right: 0 } : { left: 0 }), zIndex: 9999,
+          position: "fixed",
+          top: pos?.top ?? 0,
+          left: pos?.left ?? 0,
+          width: pos?.width,
+          // Enquanto a primeira medição não chega, o painel fica invisível em
+          // vez de aparecer no canto superior esquerdo e saltar para o lugar.
+          visibility: pos ? "visible" : "hidden",
+          zIndex: 9999,
           backgroundColor: "#fff", border: "1px solid #E5E7EB",
           borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.10)",
-          ...(panelW ? { width: panelW } : { minWidth: "100%" }),
           maxWidth: 360, overflow: "hidden",
         }}>
           {/* Search */}

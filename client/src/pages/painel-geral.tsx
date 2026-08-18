@@ -1646,6 +1646,9 @@ export default function PainelGeral() {
               <FilterSelect
                 label="Foco" allLabel="Sem foco"
                 values={focoFilter} onValuesChange={setFocoFilter}
+                // TRÊS opções: uma caixa de busca sobre elas é ruído puro. É a
+                // mesma decisão que o Histórico tomou com os seus 25/50/100.
+                hideSearch
                 hideWhenEmpty={false}
                 options={Object.keys(FOCO_LABELS).map((value) => ({ value, label: FOCO_LABELS[value], pinned: true }))}
                 testId="select-foco-filter"

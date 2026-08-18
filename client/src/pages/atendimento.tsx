@@ -661,10 +661,24 @@ export default function Atendimento() {
       const hasSponsors = itemSponsorsMap[item.id]?.length > 0;
       if (!hasSponsors && !loadingSponsors) return false;
 
-      const matchesSearch = deferredSearchTerm === "" ||
-        item.type?.toLowerCase().includes(deferredSearchTerm.toLowerCase()) ||
-        item.description?.toLowerCase().includes(deferredSearchTerm.toLowerCase()) ||
-        item.name?.toLowerCase().includes(deferredSearchTerm.toLowerCase());
+      // A busca desta aba tinha DOIS defeitos, e o campo prometia os dois:
+      // o placeholder diz "ID, tipo ou descrição".
+      //
+       // 1. Nunca olhava o `displayId`. Digitar "2229" devolvia zero, sempre —
+      //    e o ID é justamente como se procura uma peça quando alguém liga
+      //    perguntando por ela.
+      // 2. Usava `toLowerCase()` cru, que não tira acento: "São" e "sao" eram
+      //    buscas diferentes. É o mesmo defeito que a Gráfica teve com
+      //    "SÓ QUERO PEDALAR SP".
+      //
+      // O conserto já existia 240 linhas abaixo, na aba Histórico: mesma
+      // `normalizarBusca` dos menus, sobre os mesmos três campos. Duas buscas
+      // na mesma tela com regras diferentes era a origem de tudo.
+      const q = normalizarBusca(deferredSearchTerm);
+      const matchesSearch = q === "" ||
+        normalizarBusca(item.displayId).includes(q) ||
+        normalizarBusca(item.type).includes(q) ||
+        normalizarBusca(item.description).includes(q);
 
       const matchesEvent = eventFilter.length === 0 || eventFilter.includes(item.eventId);
       const matchesType = itemTypeFilter.length === 0 || itemTypeFilter.includes(item.type);

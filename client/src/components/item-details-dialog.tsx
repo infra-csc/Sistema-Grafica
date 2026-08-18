@@ -605,10 +605,10 @@ export function ItemDetailsDialog({
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, flexShrink: 0 }}>
                     <div style={{
                       width: 24, height: 24, borderRadius: "50%",
-                      backgroundColor: done ? "#fd761a" : current ? "rgba(253,118,26,0.25)" : "rgba(255,255,255,0.08)",
-                      border: current ? "2px solid #fd761a" : "none",
+                      backgroundColor: done ? "#c2410c" : current ? "rgba(253,118,26,0.25)" : "rgba(255,255,255,0.08)",
+                      border: current ? "2px solid #c2410c" : "none",
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      color: done ? "#fff" : current ? "#fd761a" : "rgba(255,255,255,0.3)",
+                      color: done ? "#fff" : current ? "#c2410c" : "rgba(255,255,255,0.3)",
                       fontWeight: 800, fontSize: 10,
                       transition: "all 0.2s",
                       flexShrink: 0,
@@ -636,7 +636,7 @@ export function ItemDetailsDialog({
             BANNER DESCRIPTION
         ══════════════════════════════════════════════════════ */}
         {item.description && (
-          <div style={{ padding: "14px 32px", backgroundColor: "#fdf8f5", borderLeft: "3px solid #fd761a", borderBottom: "1px solid #f0ede9" }}>
+          <div style={{ padding: "14px 32px", backgroundColor: "#fdf8f5", borderLeft: "3px solid #c2410c", borderBottom: "1px solid #f0ede9" }}>
             <p style={{ color: "#57534e", lineHeight: 1.6, maxWidth: 800, margin: 0, fontSize: 13, fontWeight: 500 }}>
               {item.description}
             </p>
@@ -668,7 +668,7 @@ export function ItemDetailsDialog({
                 href={item.referenceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 700, color: "#f97316", textDecoration: "none", padding: "5px 12px", backgroundColor: "rgba(249,115,22,0.08)", borderRadius: 6, border: "1px solid rgba(249,115,22,0.2)" }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 700, color: "#c2410c", textDecoration: "none", padding: "5px 12px", backgroundColor: "rgba(249,115,22,0.08)", borderRadius: 6, border: "1px solid rgba(249,115,22,0.2)" }}
               >
                 <ExternalLink style={{ width: 12, height: 12 }} />
                 Ver imagem completa
@@ -694,7 +694,7 @@ export function ItemDetailsDialog({
                 textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 18px 0",
                 display: "flex", alignItems: "center", gap: 6, color: "#746e69",
               }}>
-                <Calendar style={{ width: 13, height: 13, color: "#fd761a" }} />
+                <Calendar style={{ width: 13, height: 13, color: "#c2410c" }} />
                 Informações do Evento
               </h3>
 
@@ -704,7 +704,7 @@ export function ItemDetailsDialog({
                   <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#8c7164", display: "block", marginBottom: 4 }}>
                     Data de Início
                   </label>
-                  <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, color: "#1a1c1c", fontWeight: 500, margin: 0 }}>
+                  <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, color: "#1c1917", fontWeight: 500, margin: 0 }}>
                     {item.event?.startDate
                       ? format(parseDateLocal(item.event.startDate), "dd MMM yyyy", { locale: ptBR }).toUpperCase()
                       : "—"}
@@ -714,7 +714,7 @@ export function ItemDetailsDialog({
                   <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#8c7164", display: "block", marginBottom: 4 }}>
                     Saída do Caminhão
                   </label>
-                  <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, color: "#fd761a", fontWeight: 700, margin: 0 }}>
+                  <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, color: "#c2410c", fontWeight: 700, margin: 0 }}>
                     {item.event?.truckDepartureDate
                       ? format(toUTCDisplayDate(item.event.truckDepartureDate), "dd MMM yyyy 'às' HH:mm", { locale: ptBR }).toUpperCase()
                       : "—"}
@@ -731,7 +731,7 @@ export function ItemDetailsDialog({
                   {!editMode && onEditSave && (
                     <button
                       onClick={() => { setEditedItem(item); setEditMode(true); }}
-                      style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, color: "#fd761a", textTransform: "uppercase", padding: 0 }}
+                      style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, color: "#c2410c", textTransform: "uppercase", padding: 0 }}
                     >
                       <Edit style={{ width: 11, height: 11 }} /> EDITAR
                     </button>
@@ -781,7 +781,7 @@ export function ItemDetailsDialog({
                       <div key={label} style={{ backgroundColor: "#ffffff", padding: "11px 14px", minWidth: 0 }}>
                         {/* #8c7164 sobre branco = 5,3:1 ✓ nos 10px */}
                         <p style={{ fontSize: 10, fontWeight: 700, color: "#8c7164", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 3px 0" }}>{label}</p>
-                        <p title={String(value)} style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 15, color: "#1a1c1c", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</p>
+                        <p title={String(value)} style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 15, color: "#1c1917", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</p>
                       </div>
                     ))}
                   </div>
@@ -797,7 +797,7 @@ export function ItemDetailsDialog({
                   textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 16px 0",
                   display: "flex", alignItems: "center", gap: 6, color: "#746e69",
                 }}>
-                  <ShieldCheck style={{ width: 13, height: 13, color: "#fd761a" }} />
+                  <ShieldCheck style={{ width: 13, height: 13, color: "#c2410c" }} />
                   Patrocinadores Vinculados
                 </h3>
 
@@ -837,7 +837,7 @@ export function ItemDetailsDialog({
                             </span>
                           </div>
                           <div>
-                            <span style={{ fontWeight: 700, fontSize: 15, color: "#1a1c1c", display: "block" }}>{s.name}</span>
+                            <span style={{ fontWeight: 700, fontSize: 15, color: "#1c1917", display: "block" }}>{s.name}</span>
                             {approval?.approvedAt ? (
                               <span style={{ fontSize: 10, color: "#746e69", fontFamily: "'DM Mono', monospace" }}>
                                 {format(new Date(approval.approvedAt), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}
@@ -1089,7 +1089,7 @@ export function ItemDetailsDialog({
           {/* ── Dados de Produção ── */}
           <section>
             <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 14px 0", display: "flex", alignItems: "center", gap: 6, color: "#746e69" }}>
-              <Package style={{ width: 13, height: 13, color: "#fd761a" }} />
+              <Package style={{ width: 13, height: 13, color: "#c2410c" }} />
               Dados de Produção
             </h3>
             <div style={{ overflow: "hidden", borderRadius: 12, border: "1px solid #f0ede9", backgroundColor: "#ffffff" }}>
@@ -1103,7 +1103,7 @@ export function ItemDetailsDialog({
                 </thead>
                 <tbody>
                   <tr style={{ borderTop: "1px solid #eeeeed" }}>
-                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 15, fontWeight: 700, color: "#1a1c1c" }}>{item.quantity || 0} un.</td>
+                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 15, fontWeight: 700, color: "#1c1917" }}>{item.quantity || 0} un.</td>
                     <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 15, color: "#57534e" }}>{item.calculatedM2 ?? "—"} m²</td>
                     <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 15, color: "#57534e" }}>
                       {item.visualWidth && item.visualHeight ? `${item.visualWidth} × ${item.visualHeight}` : "—"}
@@ -1139,7 +1139,7 @@ export function ItemDetailsDialog({
                           {item.receivedBy && (
                             <div>
                               <span style={{ fontSize: 10, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.07em" }}>Recebido por</span>
-                              <p style={{ fontSize: 15, fontWeight: 700, color: "#1a1c1c", margin: "2px 0 0 0" }}>{item.receivedBy}</p>
+                              <p style={{ fontSize: 15, fontWeight: 700, color: "#1c1917", margin: "2px 0 0 0" }}>{item.receivedBy}</p>
                             </div>
                           )}
                         </div>
@@ -1161,7 +1161,7 @@ export function ItemDetailsDialog({
               {hasFlowPhotos && (
                 <section>
                   <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 14px 0", display: "flex", alignItems: "center", gap: 6, color: "#746e69" }}>
-                    <Camera style={{ width: 13, height: 13, color: "#fd761a" }} />
+                    <Camera style={{ width: 13, height: 13, color: "#c2410c" }} />
                     Registros da Gráfica
                   </h3>
 
@@ -1209,7 +1209,7 @@ export function ItemDetailsDialog({
               {hasObservations && (
                 <section>
                   <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 14px 0", display: "flex", alignItems: "center", gap: 6, color: "#746e69" }}>
-                    <FileText style={{ width: 13, height: 13, color: "#fd761a" }} />
+                    <FileText style={{ width: 13, height: 13, color: "#c2410c" }} />
                     Observações
                   </h3>
                   <div style={{ backgroundColor: "#fafaf9", padding: "14px 16px", borderRadius: 12, border: "1px solid #f0ede9" }}>
@@ -1230,7 +1230,7 @@ export function ItemDetailsDialog({
               {hasTimestamps && (
                 <div>
                   <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 16px 0", display: "flex", alignItems: "center", gap: 6, color: "#746e69" }}>
-                    <Clock style={{ width: 13, height: 13, color: "#fd761a" }} />
+                    <Clock style={{ width: 13, height: 13, color: "#c2410c" }} />
                     Rastreabilidade Temporal
                   </h3>
                   {/* minWidth no mobile: sem ele as três colunas se esmagavam
@@ -1247,7 +1247,7 @@ export function ItemDetailsDialog({
                       <tbody style={{ borderCollapse: "collapse" }}>
                         {traceRows.map((row, i) => (
                           <tr key={row.label} style={{ borderBottom: i < traceRows.length - 1 ? "1px solid rgba(238,238,237,0.6)" : "none" }}>
-                            <td style={{ padding: "12px 0", fontSize: 13, fontWeight: 700, color: "#1a1c1c", display: "flex", alignItems: "center", gap: 8 }}>
+                            <td style={{ padding: "12px 0", fontSize: 13, fontWeight: 700, color: "#1c1917", display: "flex", alignItems: "center", gap: 8 }}>
                               <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: row.dot, display: "inline-block", flexShrink: 0 }} />
                               {row.label}
                             </td>
@@ -1268,7 +1268,7 @@ export function ItemDetailsDialog({
               {/* Histórico / Audit */}
               <div>
                 <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 16px 0", display: "flex", alignItems: "center", gap: 6, color: "#746e69" }}>
-                  <History style={{ width: 13, height: 13, color: "#fd761a" }} />
+                  <History style={{ width: 13, height: 13, color: "#c2410c" }} />
                   Histórico
                 </h3>
                 <div style={{ position: "relative", paddingLeft: 28 }}>
@@ -1296,7 +1296,7 @@ export function ItemDetailsDialog({
                             boxShadow: `0 0 0 4px ${cor}22`,
                           }} />
                           {/* #1a1c1c sobre branco = 16,4:1 ✓ · #8c7164 = 5,3:1 ✓ */}
-                          <p style={{ fontSize: 12, fontWeight: 600, color: "#1a1c1c", margin: "0 0 2px 0", lineHeight: 1.45 }}>
+                          <p style={{ fontSize: 12, fontWeight: 600, color: "#1c1917", margin: "0 0 2px 0", lineHeight: 1.45 }}>
                             {textoDoLog(log)}
                           </p>
                           <p style={{ fontSize: 10, color: "#8c7164", margin: 0, fontFamily: "'DM Mono', monospace" }}>

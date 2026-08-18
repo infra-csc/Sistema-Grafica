@@ -138,7 +138,10 @@ const PG_CSS = `
 .pg-rail { display: flex; gap: 10px; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
 .pg-rail > * { scroll-snap-align: start; flex: 0 0 150px; }
 .pg-sortable { cursor: pointer; user-select: none; }
-.pg-sortable:hover { color: #fdba74; }
+/* #c2410c sobre o #fafaf9 do cabecalho = 4,96:1 AA. Era #fdba74, escolhido
+   quando o thead era ESCURO; ao clarear o cabecalho eu nao revisei esta cor e
+   ela virou 1,61:1 — o hover de ordenacao ficou praticamente invisivel. */
+.pg-sortable:hover { color: #c2410c; }
 `;
 
 // ─── Status card ────────────────────────────────────────────────────────────

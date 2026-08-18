@@ -627,3 +627,21 @@
   60%  { transform: scale(1.02); opacity: 1; }
   100% { transform: scale(1);    opacity: 1; }
 }
+
+/* ── MOVIMENTO É OPCIONAL ──────────────────────────────────────────────────
+   O app não tinha NENHUMA regra de prefers-reduced-motion, e o Painel Geral
+   move cada linha da tabela (translateY no hover) numa lista que pode ter
+   milhares. Para quem tem sensibilidade vestibular, é exatamente o gesto que
+   o sistema operacional já pediu para desligar — e ninguém estava ouvindo.
+
+   Duração de 0.01ms em vez de `none` de propósito: assim o evento
+   `transitionend` continua disparando e nada que dependa dele trava. É a
+   receita padrão justamente por isso. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

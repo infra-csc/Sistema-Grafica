@@ -2393,6 +2393,29 @@ export default function PainelGeral() {
                                           status, marcoEventoFinalizado), para
                                           que ninguém entenda que foi a PEÇA
                                           que acabou. */}
+                                      {/* OS SELOS DEITAM, e não empilham.
+
+                                          Esta célula era uma coluna vertical com
+                                          até OITO filhos — ID, tipo, selo do
+                                          evento, data de exclusão, medidas,
+                                          "Reaproveit.", "Ref. visual" e "Book" —
+                                          cada um numa linha própria com gap 4.
+                                          Como quase todos são condicionais, a
+                                          altura da linha passava a depender de
+                                          QUANTOS selos aquela peça tivesse.
+
+                                          Medido em produção, 150 linhas: 55% em
+                                          63px e o resto espalhado até 93px. E a
+                                          coluna de ID era a única causa — as
+                                          outras seis colunas cabem em 24px. A
+                                          lista lia irregular porque a identidade
+                                          da peça crescia para baixo.
+
+                                          Selo é etiqueta, e etiqueta deita ao lado
+                                          da outra. Numa fileira que quebra só
+                                          quando precisa, quatro selos ocupam UMA
+                                          linha em vez de quatro. */}
+                                      <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 4, minWidth: 0 }}>
                                       {selo && !isDeleted && (
                                         <span
                                           title={selo.hintPeca}
@@ -2431,6 +2454,7 @@ export default function PainelGeral() {
                                           Book
                                         </a>
                                       )}
+                                      </div>
                                     </div>
                                   </td>
 

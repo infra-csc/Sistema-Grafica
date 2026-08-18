@@ -756,7 +756,20 @@ export function ItemDetailsDialog({
                     </div>
                   </div>
                 ) : (
-                  <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr 1fr", gap: 10 }}>
+                  /* SEIS mini-cards para seis pares rótulo/valor era card demais
+                     para o que é uma ficha técnica: seis fundos, seis bordas e
+                     seis raios competindo com o conteúdo que carregam. Vira uma
+                     grade sem moldura, separada por hairlines — o dado ganha o
+                     peso e a moldura desaparece, que é o objetivo dela. */
+                  <div style={{
+                    display: "grid",
+                    gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, minmax(0,1fr))",
+                    gap: "1px",
+                    backgroundColor: "#f0ede9",
+                    border: "1px solid #f0ede9",
+                    borderRadius: 10,
+                    overflow: "hidden",
+                  }}>
                     {[
                       { label: "Tipo",       value: item.type },
                       { label: "Material",   value: item.material },
@@ -765,9 +778,10 @@ export function ItemDetailsDialog({
                       { label: "M²",         value: item.calculatedM2 ? `${item.calculatedM2} m²` : null },
                       { label: "Medida",     value: item.measurement },
                     ].filter(x => x.value).map(({ label, value }) => (
-                      <div key={label} style={{ backgroundColor: "#fafaf9", padding: "12px 14px", borderRadius: 8, border: "1px solid #f0ede9" }}>
-                        <p style={{ fontSize: 10, fontWeight: 700, color: "#8c7164", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px 0" }}>{label}</p>
-                        <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 15, color: "#1a1c1c", margin: 0 }}>{value}</p>
+                      <div key={label} style={{ backgroundColor: "#ffffff", padding: "11px 14px", minWidth: 0 }}>
+                        {/* #8c7164 sobre branco = 5,3:1 ✓ nos 10px */}
+                        <p style={{ fontSize: 10, fontWeight: 700, color: "#8c7164", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 3px 0" }}>{label}</p>
+                        <p title={String(value)} style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 15, color: "#1a1c1c", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</p>
                       </div>
                     ))}
                   </div>
@@ -896,7 +910,12 @@ export function ItemDetailsDialog({
             {/* Aprovação de Arte — glass-purple/orange */}
             <section style={{
               background: "#ffffff",
-              border: "1px solid #f0ede9", borderTop: "3px solid #fd761a",
+              // A BORDA SUPERIOR COLORIDA SAIU. Os painéis da direita tinham
+              // uma tarja de 3px (laranja aqui, azul no Arquivo Final) que os
+              // painéis da esquerda não têm — dois sistemas de moldura no mesmo
+              // modal. O ícone do canto e o título já dizem de que bloco se
+              // trata; a tarja era ênfase sobre algo que não estava em disputa.
+              border: "1px solid #f0ede9",
               padding: 24, borderRadius: 12,
             }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
@@ -989,7 +1008,7 @@ export function ItemDetailsDialog({
             {/* Arquivo Final — glass-green/blue */}
             <section style={{
               background: "#ffffff",
-              border: "1px solid #e8f4fb", borderTop: "3px solid #006398",
+              border: "1px solid #e8f4fb",
               padding: 24, borderRadius: 12,
             }}>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>

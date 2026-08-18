@@ -1419,7 +1419,7 @@ export default function PainelGeral() {
             </div>
             <button
               onClick={() => setShowAllKpis(v => !v)}
-              style={{ alignSelf: "flex-start", background: "none", border: "none", padding: "2px 2px", fontSize: 11, fontWeight: 700, color: "#c2410c", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2 }}
+              style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", minHeight: 36, background: "none", border: "none", padding: "0 2px", fontSize: 11, fontWeight: 700, color: "#c2410c", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2 }}
             >
               {showAllKpis ? "Mostrar só os status com peças" : "Mostrar todos os status"}
             </button>
@@ -1484,7 +1484,7 @@ export default function PainelGeral() {
                 /* Alinhado com a BASE dos cards, não solto embaixo de tudo:
                    `alignSelf: flex-end` o encosta na linha inferior da faixa,
                    onde ele se lê como a continuação dela. */
-                style={{ alignSelf: "flex-end", marginBottom: 10, background: "none", border: "none", padding: "2px 2px", fontSize: 11, fontWeight: 700, color: "#c2410c", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2, whiteSpace: "nowrap" }}
+                style={{ alignSelf: "flex-end", display: "inline-flex", alignItems: "center", minHeight: 36, background: "none", border: "none", padding: "0 2px", fontSize: 11, fontWeight: 700, color: "#c2410c", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2, whiteSpace: "nowrap" }}
               >
                 {showAllKpis
                   ? "Mostrar só os status com peças"
@@ -2764,7 +2764,7 @@ export default function PainelGeral() {
             {selectedItem.eventId && (
               <Link
                 href={`/eventos/${selectedItem.eventId}`}
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 34, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", color: "#1c1917", fontSize: 12, fontWeight: 700, textDecoration: "none" }}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", color: "#1c1917", fontSize: 12, fontWeight: 700, textDecoration: "none" }}
               >
                 <Link2 style={{ width: 13, height: 13, color: "#746e69" }} />
                 Abrir evento
@@ -2799,7 +2799,7 @@ export default function PainelGeral() {
               return (
                 <Link
                   href={tela.path}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 34, padding: "0 12px", borderRadius: 8, border: "1px solid #fed7aa", background: "#fff7ed", color: "#c2410c", fontSize: 12, fontWeight: 800, textDecoration: "none" }}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px", borderRadius: 8, border: "1px solid #fed7aa", background: "#fff7ed", color: "#c2410c", fontSize: 12, fontWeight: 800, textDecoration: "none" }}
                 >
                   <ArrowUpRight style={{ width: 13, height: 13 }} />
                   Continuar em {tela.label}
@@ -2808,7 +2808,7 @@ export default function PainelGeral() {
             })()}
             <button
               onClick={() => copiarLinkDaPeca(selectedItem)}
-              style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 34, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", color: "#1c1917", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 36, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", color: "#1c1917", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
             >
               <Copy style={{ width: 13, height: 13, color: "#746e69" }} />
               Copiar link da peça

@@ -72,9 +72,27 @@ export function useElementSize<T extends HTMLElement>() {
       setSize((prev) =>
         Math.abs(prev.width - w) < 1 && Math.abs(prev.height - h) < 1 ? prev : { width: w, height: h },
       )
+    // BORDER-BOX, e nao content-box.
+    //
+    // Este hook se contradizia: a semente (logo abaixo) usa
+    // getBoundingClientRect, que e BORDER-box; o observer usava contentRect,
+    // que e CONTENT-box. Em elemento com padding o valor ENCOLHIA sozinho no
+    // primeiro callback, silenciosamente, pela soma do padding.
+    //
+    // Quem paga: a barra de filtros do Painel Geral mede 103px de fora a fora,
+    // mas o hook passava a reportar 81,59 depois da montagem. Como o
+    // deslocamento das camadas sticky abaixo dela e derivado dessa altura, o
+    // cabecalho do evento grudava 21,4px ALTO DEMAIS e a barra (z-index maior)
+    // pintava por cima dele — o nome do evento aparecia cortado ao meio ao
+    // rolar. A largura tinha o mesmo erro, e ela alimenta densityFromWidth.
     const ro = new ResizeObserver((entries) => {
-      const r = entries[0]?.contentRect
-      if (r) apply(r.width, r.height)
+      const e = entries[0]
+      if (!e) return
+      // borderBoxSize e o dado certo e evita um reflow; o rect e o retorno
+      // para navegador que nao o exponha.
+      const bb = e.borderBoxSize && e.borderBoxSize[0]
+      if (bb) apply(bb.inlineSize, bb.blockSize)
+      else { const r = e.target.getBoundingClientRect(); apply(r.width, r.height) }
     })
     ro.observe(el)
     const r0 = el.getBoundingClientRect()

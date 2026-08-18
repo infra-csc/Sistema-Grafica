@@ -36,27 +36,44 @@ function estiloDoPainel(): string {
   return fs_.slice(i, fs_.indexOf("}}>", i));
 }
 
-describe("o painel portado continua clicável", () => {
-  it("declara pointerEvents auto", () => {
-    // Sem isto ele herda o `pointer-events: none` que o Radix põe no <body>
-    // enquanto há Dialog aberto.
-    expect(estiloDoPainel()).toContain('pointerEvents: "auto"');
+describe("o painel escolhe o destino conforme o ambiente", () => {
+  it("dentro de um modal, o painel fica DENTRO do modal", () => {
+    // O Radix isola o modal de TRÊS maneiras — pointer-events no body,
+    // foco preso na subárvore e roda do mouse bloqueada fora dela. Um
+    // painel morando no body herda as três: abre, mostra as opções e não
+    // deixa clicar, digitar nem rolar.
+    expect(fs_).toContain('ref.current?.closest<HTMLElement>(\'[role="dialog"]\')');
+    expect(fs_).toContain("), dentroDeModal ?? document.body)}");
   });
 
-  it("continua sendo portado para o body", () => {
-    // O portal resolve o empurrão lateral e a armadilha do ancestral
-    // transformado; a correção não pode ter sido desfazê-lo.
+  it("fora de modal, continua indo para o body", () => {
+    // É o portal para o body que impede o menu de estender a área rolável
+    // da página — o defeito que empurrava a tela para o lado — e que o
+    // livra da armadilha do ancestral com transform.
     expect(fs_).toContain("createPortal");
-    expect(fs_).toContain("), document.body)}");
+    expect(fs_).toContain("document.body");
   });
 
-  it("continua fixed, para não estender a área rolável", () => {
-    expect(estiloDoPainel()).toContain('position: "fixed"');
+  it("o posicionamento acompanha o destino", () => {
+    // Dentro do modal o referencial é a caixa dele, e `fixed` ali seria
+    // capturado pelo transform do Radix. Fora, `fixed` é o que evita
+    // estender a rolagem do documento.
+    expect(fs_).toContain('position: dentroDeModal ? "absolute" : "fixed"');
+  });
+
+  it("o grampo passa a grampear contra a caixa certa", () => {
+    expect(fs_).toContain("const caixa = dentroDeModal");
+    expect(fs_).toContain("const maximo = caixa.right - width - RESPIRO;");
+  });
+
+  it("o painel continua clicável mesmo quando vai para o body", () => {
+    // Cinto e suspensório: fora de modal o bloqueio não existe, mas se um
+    // dia outro overlay puser pointer-events: none no body, o painel não
+    // volta a morrer em silêncio.
+    expect(fs_).toContain('pointerEvents: "auto"');
   });
 
   it("o clique dentro do painel ainda não conta como clique fora", () => {
-    // As três coisas se sustentam juntas: portal + pointer-events + a guarda
-    // do clique-fora. Perder qualquer uma quebra o menu de um jeito diferente.
     expect(fs_).toContain("painelRef.current?.contains(alvo)");
   });
 });

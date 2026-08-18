@@ -43,20 +43,23 @@ const fonte = readFileSync(
 
 describe("menu de filtro: não empurra a tela", () => {
   it("o painel é fixed, e não absolute", () => {
-    expect(fonte).toContain('position: "fixed"');
+    // Dentro de modal ele vira `absolute` de propósito: `fixed` ali seria
+    // capturado pelo transform do Radix, e o painel precisa ficar na
+    // subárvore do modal para receber clique, foco e roda do mouse.
+    expect(fonte).toContain('position: dentroDeModal ? "absolute" : "fixed"');
   });
 
   it("o painel mora no <body>, fora do alcance de ancestral transformado", () => {
     expect(fonte).toContain("createPortal");
-    expect(fonte).toContain("), document.body)}");
+    expect(fonte).toContain("), dentroDeModal ?? document.body)}");
   });
 
   it("a posição é grampeada na janela, e não apenas escolhida entre dois lados", () => {
     // O grampo tem de existir nos DOIS sentidos: teto pela direita e piso pela
     // esquerda. Só um dos dois deixa o menu sair pelo outro lado.
     expect(fonte).toMatch(/Math\.min\(preferido, maximo\)/);
-    expect(fonte).toMatch(/Math\.max\(RESPIRO, /);
-    expect(fonte).toMatch(/window\.innerWidth - width - RESPIRO/);
+    expect(fonte).toMatch(/Math\.max\(caixa\.left \+ RESPIRO, /);
+    expect(fonte).toMatch(/caixa\.right - width - RESPIRO/);
   });
 
   it("não sobrou o fallback que devolvia o lado que transborda", () => {

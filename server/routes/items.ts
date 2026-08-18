@@ -519,16 +519,28 @@ export function registerItemRoutes(app: Express): void {
         });
       }
 
-      // As devolvidas sem patrocinador identificado entram com
-      // `awaitingArteApprovals` VAZIO — e vazio é a resposta honesta: não há
-      // linha de patrocinador para mostrar porque nunca houve. A tela lida
-      // com o array vazio; inventar um patrocinador para preencher a coluna
-      // seria pior do que deixá-la em branco.
+      // A DEVOLVIDA LEVA AS APROVAÇÕES QUE ELA TEM — e não um array vazio.
+      //
+      // Aqui havia `awaitingArteApprovals: []` fixo, com um comentário meu
+      // afirmando que "vazio é a resposta honesta, nunca houve linha de
+      // patrocinador". Estava errado: uma peça pode ter sido devolvida INTEIRA
+      // (status awaiting_submission, rejectedBySponsor) e AINDA ASSIM ter um
+      // patrocinador em awaiting_arte. A #3027 tinha — Atlas Schindler, com
+      // motivo escrito. O `[]` jogava esse dado fora.
+      //
+      // E o estrago não era cosmético: o seletor do modal de correção é
+      // alimentado por esta lista, e sem linha nenhuma para marcar o botão
+      // "Confirmar Re-envio" nunca saía de desabilitado. A pessoa subia a arte
+      // nova e ficava sem saída.
       for (const item of devolvidasSemDono) {
+        const awaitingArte = approvalsByItem.get(item.id) ?? [];
         result.push({
           ...item,
           event: eventById.get(item.eventId) || null,
-          awaitingArteApprovals: [],
+          awaitingArteApprovals: awaitingArte.map((a: any) => ({
+            ...a,
+            sponsor: sponsorById.get(a.sponsorId) || null,
+          })),
         });
       }
 

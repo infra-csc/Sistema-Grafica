@@ -839,6 +839,43 @@ export default function Arte() {
     },
   });
 
+  /**
+   * RE-ENVIO DA PEÇA DEVOLVIDA INTEIRA.
+   *
+   * `sponsor-approvals/resubmit` exige `awaiting_sponsor_approval` e devolve
+   * 409 em qualquer outro status. A peça devolvida inteira está em
+   * `awaiting_submission` — então, mesmo com o botão liberado, aquele caminho
+   * respondia erro. Quem serve este status é `submit-for-approval`, que aceita
+   * `awaiting_submission`, devolve as aprovações reprovadas para `pending` e
+   * reabre a peça para todos os patrocinadores dela. É o gesto certo: foi a
+   * peça inteira que voltou, não a linha de um patrocinador.
+   *
+   * Mutação própria, e não a `submitForApprovalMutation`: aquela limpa o
+   * estado do modal de ENVIO (selectedItemId/approvalThumbUrl); esta precisa
+   * limpar o do modal de CORREÇÃO, senão ele fica aberto com dado velho.
+   */
+  const reenvioInteiroMutation = useMutation({
+    mutationFn: async ({ itemId, approvalThumbUrl }: { itemId: string; approvalThumbUrl: string }) => {
+      return await apiRequest("PATCH", `/api/items/${itemId}/submit-for-approval`, { approvalThumbUrl });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items/resubmission-needed"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items/pending"] });
+      setCorrecaoItem(null);
+      setCorrecaoThumbUrl("");
+      setCorrecaoFileName("");
+      setCorrecaoSelectedSponsorIds(new Set());
+      toast({
+        title: "Nova arte enviada",
+        description: "A peça voltou para a aprovação dos patrocinadores",
+      });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao enviar", description: mensagemDeErro(error), variant: "destructive" });
+    },
+  });
+
   const dispenseMutation = useMutation({
     mutationFn: async ({ itemId, reason }: { itemId: string; reason: string }) => {
       return await apiRequest("PATCH", `/api/items/${itemId}/dispense`, { reason });
@@ -3887,6 +3924,16 @@ export default function Arte() {
                   <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#57534e', marginBottom: 8 }}>
                     Re-enviar para aprovação
                   </label>
+                  {/* Sem esta linha a seção aparecia VAZIA: um título e nada
+                      embaixo, com o botão morto logo abaixo e nenhuma pista do
+                      porquê. Agora diz o que está acontecendo e o que o envio
+                      vai fazer. #57534e sobre #fff = 7,4:1 ✓ */}
+                  {correcaoItem.awaitingArteApprovals.length === 0 && (
+                    <p style={{ fontSize: 12, color: '#57534e', margin: '0 0 4px', lineHeight: 1.45 }}>
+                      Nenhum patrocinador reprovou individualmente — esta peça foi devolvida inteira.
+                      O re-envio manda a arte nova para a aprovação de <strong>todos</strong> os patrocinadores dela.
+                    </p>
+                  )}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     {correcaoItem.awaitingArteApprovals.map((approval: any) => {
                       const isSelected = correcaoSelectedSponsorIds.has(approval.sponsorId);
@@ -3941,13 +3988,44 @@ export default function Arte() {
           </div>
 
           {/* ── Footer ── */}
+          {(() => {
+          /**
+           * DUAS DEVOLUÇÕES DIFERENTES, DOIS CAMINHOS DE VOLTA.
+           *
+           * A peça chega à Correção de dois jeitos, e eles não têm o mesmo
+           * gesto de saída:
+           *
+           * 1. UM PATROCINADOR reprovou a linha dele. A peça segue em
+           *    `awaiting_sponsor_approval` e o re-envio é por patrocinador —
+           *    escolhe-se quem revê. Rota: sponsor-approvals/resubmit.
+           *
+           * 2. A PEÇA INTEIRA voltou (status `awaiting_submission`). Aquela
+           *    rota recusa este status com 409, então o caminho é
+           *    submit-for-approval, que o aceita, devolve as aprovações
+           *    reprovadas para `pending` e reabre a peça para todos os
+           *    patrocinadores dela.
+           *
+           * O botão exigia patrocinador selecionado nos DOIS casos. No caso 2
+           * podia não haver nenhum para selecionar — e aí ele nascia
+           * desabilitado e nunca saía disso: subia-se a arte nova e o modal
+           * virava um beco sem saída. Eram 3 peças em produção nesse estado.
+           */
+          const devolvidaInteira = correcaoItem.status === "awaiting_submission";
+          const enviando = resubmitMutation.isPending || reenvioInteiroMutation.isPending;
+          // Sem patrocinador para escolher, exigir escolha é exigir o impossível.
+          const faltaPatrocinador = !devolvidaInteira && correcaoSelectedSponsorIds.size === 0;
+          const travado = !correcaoThumbUrl || faltaPatrocinador || enviando;
+          return (
           <div style={{ padding: '16px 24px 24px', borderTop: '1px solid #f0eeec', flexShrink: 0 }}>
             <button
-              disabled={!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending}
+              disabled={travado}
               onClick={() => {
-                if (correcaoItem) {
-                  resubmitMutation.mutate({ itemId: correcaoItem.id, newThumbUrl: correcaoThumbUrl, sponsorIds: Array.from(correcaoSelectedSponsorIds) });
+                if (!correcaoItem) return;
+                if (devolvidaInteira) {
+                  reenvioInteiroMutation.mutate({ itemId: correcaoItem.id, approvalThumbUrl: correcaoThumbUrl });
+                  return;
                 }
+                resubmitMutation.mutate({ itemId: correcaoItem.id, newThumbUrl: correcaoThumbUrl, sponsorIds: Array.from(correcaoSelectedSponsorIds) });
               }}
               data-testid="button-submit-correcao"
               style={{
@@ -3957,29 +4035,31 @@ export default function Arte() {
                 // de ação do app — o mesmo dos outros botões primários da tela.
                 // Desabilitado em rosa claro com texto branco dava ~2:1; agora usa
                 // o cinza padrão, legível.
-                background: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending)
+                background: travado
                   ? '#e7e5e4'
                   : 'linear-gradient(135deg, #ea580c, #c2410c)',
-                color: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) ? '#57534e' : '#ffffff',
+                color: travado ? '#57534e' : '#ffffff',
                 fontWeight: 700, fontSize: 15,
                 fontFamily: '"Space Grotesk", sans-serif', letterSpacing: '-0.02em',
-                cursor: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) ? 'not-allowed' : 'pointer',
-                boxShadow: (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) ? 'none' : '0 4px 16px rgba(194,65,12,0.28)',
+                cursor: travado ? 'not-allowed' : 'pointer',
+                boxShadow: travado ? 'none' : '0 4px 16px rgba(194,65,12,0.28)',
                 transition: 'filter 0.15s, transform 0.1s, box-shadow 0.15s',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
               }}
-              onMouseEnter={e => { if (!correcaoThumbUrl || correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending) return; e.currentTarget.style.filter = 'brightness(0.93)'; }}
+              onMouseEnter={e => { if (travado) return; e.currentTarget.style.filter = 'brightness(0.93)'; }}
               onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
               onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.985)'; }}
               onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
             >
-              {resubmitMutation.isPending ? (
+              {enviando ? (
                 <><div style={{ width: 15, height: 15, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Enviando...</>
               ) : (
                 <><Send style={{ width: 15, height: 15 }} />Confirmar Re-envio</>
               )}
             </button>
           </div>
+          );
+          })()}
           </FreezeWhileClosing>
         </DialogContent>
       </Dialog>

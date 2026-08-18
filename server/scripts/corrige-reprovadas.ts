@@ -1,28 +1,32 @@
 /**
- * CORREÇÃO PONTUAL — peças de retrabalho presas em "Aguardando envio".
+ * CORREÇÃO PONTUAL — peças devolvidas pelo CRIADOR, presas em "Aguardando envio".
  *
- * Contexto: até 17/08 existiam DUAS portas de reprovação (ver o comentário no
- * lugar da antiga rota `sponsor-reject`, em server/routes/items.ts). A que
- * reprovava a peça inteira mandava para `awaiting_submission`, no meio das
- * peças que nunca foram enviadas, em vez de deixá-la no par que alimenta a aba
- * Correção da Arte (`awaiting_sponsor_approval` + linha do patrocinador em
- * `awaiting_arte`). A porta foi removida; este script arruma o que ela deixou.
+ * Contexto. Até 17/08 as quatro rotas de devolução do criador (creator-reject,
+ * bulk-creator-reject, return-to-arte, bulk-return-to-arte) mandavam a peça
+ * para `awaiting_submission`: o começo do fluxo, a fila de quem NUNCA foi
+ * enviado — 1.120 peças na produção. Mas a devolução da Revisão acontece
+ * DEPOIS de o patrocinador ter aprovado o layout: o que falhou foi o arquivo
+ * final, não a arte.
+ *
+ * A regra do dono (17/08) é que ela volte para a FINALIZAÇÃO. As rotas já
+ * fazem isso — mandam para `sponsor_approved`, o status que alimenta a aba
+ * "Finalizar arte". Este script arruma as peças que ficaram para trás.
+ *
+ * (As devolvidas por PATROCINADOR não precisam de script: a aba Correção
+ * passou a pescá-las pelo `rejectedBySponsor`, sem escrever no banco.)
  *
  * O QUE ELE MEXE — e só isso:
- *   peças com status `awaiting_submission`, `rejected_by_sponsor = true` E que
- *   JÁ TENHAM pelo menos uma aprovação em `awaiting_arte`.
+ *   peças em `awaiting_submission`, com `rejected_by_creator = true`, QUE JÁ
+ *   TENHAM PASSADO pela aprovação do patrocinador.
  *
- * Por que essa terceira condição: é ela que diz QUEM pediu a mudança. Sem
- * nenhuma linha em `awaiting_arte` não há como saber qual patrocinador
- * reprovou, e inventar um seria pior do que deixar a peça onde está. As peças
- * nesse caso são LISTADAS no fim para decisão humana, não tocadas.
- *
- * Não mexe em peça reprovada pelo CRIADOR (`rejected_by_creator`): aquele é o
- * caminho Revisão → Arte, que não passa por patrocinador nenhum.
+ * Por que a terceira condição: `sponsor_approved` afirma que o patrocinador
+ * aprovou. Numa peça que nunca chegou lá isso seria mentira gravada no banco —
+ * ela pularia a aprovação inteira e cairia na Gráfica sem ninguém ter dito sim.
+ * Essas ficam INTOCADAS e são listadas no fim para decisão humana.
  *
  * Uso:
- *   npx tsx server/scripts/corrige-reprovadas.ts          (simulação, padrão)
- *   npx tsx server/scripts/corrige-reprovadas.ts --gravar (aplica)
+ *   npx tsx server/scripts/corrige-reprovadas.ts           (simulação, padrão)
+ *   npx tsx server/scripts/corrige-reprovadas.ts --gravar  (aplica)
  */
 import { db } from "../db";
 import { items, itemSponsorApprovals, auditLogs } from "@shared/schema";
@@ -34,35 +38,46 @@ async function main() {
   const candidatas = await db
     .select()
     .from(items)
-    .where(and(eq(items.status, "awaiting_submission"), eq(items.rejectedBySponsor, true)));
+    .where(and(eq(items.status, "awaiting_submission"), eq(items.rejectedByCreator, true)));
 
   const paraCorrigir: typeof candidatas = [];
-  const semDono: typeof candidatas = [];
+  const semAprovacao: typeof candidatas = [];
 
   for (const peca of candidatas) {
     const aprovacoes = await db
       .select()
       .from(itemSponsorApprovals)
       .where(eq(itemSponsorApprovals.itemId, peca.id));
-    const temAwaitingArte = aprovacoes.some((a) => a.status === "awaiting_arte");
-    (temAwaitingArte ? paraCorrigir : semDono).push(peca);
+
+    // "Passou pela aprovação" tem três formas legítimas, e basta uma:
+    //   · o carimbo do fluxo (sponsorApprovedAt),
+    //   · todas as linhas de patrocinador aprovadas,
+    //   · a peça ser isenta de aprovação (skipApproval) — nesse caso o fluxo
+    //     manda `awaiting_submission` direto para a revisão, sem passar por
+    //     patrocinador nenhum, e a finalização é o lugar certo mesmo assim.
+    const passou =
+      peca.sponsorApprovedAt != null ||
+      (peca as any).skipApproval === true ||
+      (aprovacoes.length > 0 && aprovacoes.every((a) => a.status === "approved"));
+
+    (passou ? paraCorrigir : semAprovacao).push(peca);
   }
 
-  console.log(`\nCandidatas (awaiting_submission + reprovada por patrocinador): ${candidatas.length}`);
-  console.log(`  · com patrocinador identificado (serão corrigidas): ${paraCorrigir.length}`);
-  console.log(`  · sem patrocinador identificado (ficam como estão):  ${semDono.length}\n`);
+  console.log(`\nCandidatas (awaiting_submission + devolvida pelo criador): ${candidatas.length}`);
+  console.log(`  · já passaram pela aprovação (serão corrigidas): ${paraCorrigir.length}`);
+  console.log(`  · nunca chegaram à aprovação (ficam como estão): ${semAprovacao.length}\n`);
 
   for (const peca of paraCorrigir) {
-    console.log(`  ${GRAVAR ? "CORRIGINDO" : "simulação"}  ${peca.displayId} — awaiting_submission → awaiting_sponsor_approval`);
+    console.log(`  ${GRAVAR ? "CORRIGINDO" : "simulação"}  ${peca.displayId} — awaiting_submission → sponsor_approved`);
     if (!GRAVAR) continue;
 
     await db
       .update(items)
-      .set({ status: "awaiting_sponsor_approval", rejectedBySponsor: false })
+      .set({ status: "sponsor_approved" })
       .where(eq(items.id, peca.id));
 
-    // A trilha registra a correção como qualquer outra escrita — uma peça que
-    // muda de status sem linha no histórico é a próxima investigação de alguém.
+    // Uma peça que muda de status sem linha no histórico é a próxima
+    // investigação de alguém — a correção se registra como qualquer escrita.
     await db.insert(auditLogs).values({
       userId: null,
       userName: "Sistema",
@@ -70,15 +85,16 @@ async function main() {
       entityType: "item",
       entityId: peca.id,
       details:
-        "Correção pontual: peça de retrabalho estava em Aguardando Envio por causa da antiga " +
-        "reprovação de peça inteira. Devolvida para Aguardando Aprovação, onde a linha do " +
-        "patrocinador em awaiting_arte a coloca na aba Correção da Arte.",
+        "Correção pontual: peça devolvida pela Revisão estava em Aguardando Envio por causa do " +
+        "comportamento antigo das rotas de devolução. Movida para Aguardando Finalização, que é " +
+        "onde ela precisa ser refeita — a aprovação do patrocinador segue valendo.",
     });
   }
 
-  if (semDono.length > 0) {
-    console.log(`\n  Estas ficaram INTOCADAS — nenhuma aprovação em awaiting_arte diz quem pediu a mudança:`);
-    for (const peca of semDono) console.log(`    ${peca.displayId}`);
+  if (semAprovacao.length > 0) {
+    console.log(`\n  Estas ficaram INTOCADAS — nunca passaram pela aprovação do patrocinador,`);
+    console.log(`  e marcá-las como aprovadas seria gravar uma mentira no banco:`);
+    for (const peca of semAprovacao) console.log(`    ${peca.displayId}`);
   }
 
   console.log(GRAVAR ? "\nFeito.\n" : "\nNada foi gravado. Rode com --gravar para aplicar.\n");

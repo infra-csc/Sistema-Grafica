@@ -95,7 +95,11 @@ const SITUACAO_ORDEM = ["nova_versao", "aguardando_arte", "reprovado", "aguardan
 type SituacaoPeca = (typeof SITUACAO_ORDEM)[number];
 
 const SITUACAO_META: Record<SituacaoPeca, { label: string; hint: string }> = {
-  nova_versao:     { label: "Nova versão para reenviar", hint: "A Arte corrigiu e o arquivo está esperando VOCÊ reenviar ao patrocinador" },
+  // "reenviar" descrevia o gesto administrativo e escondia a DECISÃO. Quem lia
+  // entendia que não havia nada a fazer — o dono disse isso com todas as
+  // letras: "eu acho que o atendimento não precisa fazer nada, mas eles
+  // precisam aprovar". O rótulo agora nomeia a ação que trava a peça.
+  nova_versao:     { label: "Nova versão para aprovar", hint: "A Arte corrigiu — a peça está parada esperando a SUA decisão de aprovar ou reprovar" },
   aguardando_arte: { label: "Reprovado · Arte refazendo", hint: "O patrocinador reprovou e a Arte está refazendo — nada a fazer aqui por enquanto" },
   reprovado:       { label: "Reprovado", hint: "Reprovado pelo patrocinador" },
   aguardando:      { label: "Aguardando patrocinador", hint: "Enviado, sem resposta do patrocinador até agora" },
@@ -737,7 +741,7 @@ export default function Atendimento() {
       conta.set(k, (conta.get(k) ?? 0) + 1);
     });
     // `pinned`: a ordem é a da urgência, e alfabética poria "Aprovado" antes de
-    // "Nova versão para reenviar" — o oposto de onde o olho precisa cair.
+    // "Nova versão para aprovar" — o oposto de onde o olho precisa cair.
     return SITUACAO_ORDEM
       .filter(k => (conta.get(k) ?? 0) > 0)
       .map(k => ({ value: k, label: SITUACAO_META[k].label, count: conta.get(k)!, pinned: true }));
@@ -2114,7 +2118,7 @@ export default function Atendimento() {
                                    #92400e sobre #fffbeb = 7,4:1 ✓ */
                                 <span
                                   title={SITUACAO_META.nova_versao.hint}
-                                  data-testid={`chip-reenviar-${item.id}`}
+                                  data-testid={`chip-aprovar-nova-versao-${item.id}`}
                                   style={{
                                     display: 'inline-flex', alignItems: 'center', gap: 6,
                                     padding: '4px 10px', borderRadius: 6,
@@ -2122,7 +2126,7 @@ export default function Atendimento() {
                                     fontSize: 11, fontWeight: 700,
                                   }}>
                                   <RotateCcw style={{ width: 12, height: 12 }} />
-                                  NOVA VERSÃO · REENVIAR
+                                  NOVA VERSÃO · APROVAR
                                 </span>
                               ) : (
                                 <span style={{
@@ -2556,7 +2560,7 @@ export default function Atendimento() {
                                   }}
                                 >
                                   <RotateCcw aria-hidden="true" style={{ width: 11, height: 11 }} />
-                                  Arte corrigida · reenviar
+                                  Arte corrigida · aprovar
                                 </span>
                               )}
                             </div>

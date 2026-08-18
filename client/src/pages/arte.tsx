@@ -192,7 +192,20 @@ const ARTE_COLS: ArteCol[] = [
   { label: 'Qtd',           w: 44 },
   { label: 'Peça',          w: 'auto' },
   { label: 'Dimensões',     w: 152 },
-  { label: 'M²',            w: 60, right: true, sep: true },
+  // M² VOLTOU PARA 72. Eu tinha apertado de 72 para 60 numa passada de
+  // orçamento de colunas, contra a medição que uma rodada ANTERIOR já tinha
+  // feito e registrado logo acima. 60 deixa 36 úteis (descontados os 12+12 de
+  // padding) e o maior valor real da base pede exatamente 36 — "86.40",
+  // "44.46", "40.09", medidos em Space Grotesk 600 13px sobre os 3.187 itens
+  // de produção. Empate não cabe: a elipse dispara e a metragem virava
+  // "11...." em TODAS as abas da Arte, porque Finalizados não sobrescreve
+  // esta coluna. 72 devolve 48 úteis, os mesmos que a rodada anterior tinha
+  // dimensionado para "252.34" (45px).
+  //
+  // Não precisa tirar de ninguém: `arteColsWidth` é DERIVADO da soma das
+  // fixas mais o mínimo de "Peça". O mínimo da tabela vai de 1214 para 1226,
+  // ainda abaixo dos 1246 disponíveis.
+  { label: 'M²',            w: 72, right: true, sep: true },
   { label: 'Material',      w: 132 },
   { label: 'Arte',          w: 76 },
   { label: 'Prazo',         w: 144 },

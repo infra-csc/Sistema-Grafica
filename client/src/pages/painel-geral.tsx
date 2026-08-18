@@ -1334,9 +1334,24 @@ export default function PainelGeral() {
           Os 13 estados têm o mesmo peso visual, mas a operação não é simétrica:
           reprovação de patrocinador e caminhão que já saiu com peça pendente
           valem mais que as outras dez juntas. Só aparece quando há o que dizer. */}
-      {(atencao.reprovadas > 0 || atencao.atrasadas > 0 || chipOcultasDados) && (
-        <section aria-label="Precisa de atenção" style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
-          <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69" }}>Precisa de atenção</span>
+      {(atencao.reprovadas > 0 || atencao.atrasadas > 0 || chipOcultasDados) && (() => {
+        /* O RÓTULO DIZ O QUE A FAIXA REALMENTE CARREGA.
+
+           Ele era fixo em "Precisa de atenção", mas a faixa aparece por três
+           motivos e um deles NÃO é alerta: peça oculta porque o evento já foi
+           encerrado ou realizado é informação de recorte, não pendência. E
+           esse é o caso mais COMUM — em produção são 147 peças ocultas com
+           zero reprovadas e zero atrasadas, ou seja, na maior parte do tempo
+           a faixa anunciava urgência e entregava uma nota de rodapé.
+
+           Rótulo que promete o que não cumpre custa caro duas vezes: gasta a
+           atenção de quem lê agora e ensina a ignorar a faixa da próxima vez
+           — inclusive quando ela estiver certa. */
+        const temAlerta = atencao.reprovadas > 0 || atencao.atrasadas > 0;
+        const rotulo = temAlerta ? "Precisa de atenção" : "Fora da lista";
+        return (
+        <section aria-label={rotulo} style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center" }}>
+          <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69" }}>{rotulo}</span>
           {atencao.reprovadas > 0 && (
             <button
               onClick={() => toggleFoco("reprovadas")}
@@ -1399,7 +1414,8 @@ export default function PainelGeral() {
             </button>
           )}
         </section>
-      )}
+        );
+      })()}
 
 
       {/* ── Status cards — agrupados nas 3 fases do fluxo ─────────────────
@@ -2007,7 +2023,7 @@ export default function PainelGeral() {
                           <span
                             title={selo.hint}
                             data-testid={`selo-evento-${eventKey}`}
-                            style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}`, borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap", flexShrink: 0 }}
+                            style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}`, borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap", flexShrink: 0 }}
                           >
                             <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: selo.dot, flexShrink: 0 }} aria-hidden="true" />
                             {isCompact || useCards ? selo.short : selo.label}
@@ -2536,13 +2552,13 @@ export default function PainelGeral() {
                                         </span>
                                       )}
                                       {!isDeleted && item.referenceUrl && (
-                                        <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 700, color: "#2563eb", textDecoration: "none", backgroundColor: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "2px 6px", width: "fit-content" }} data-testid={`link-reference-painel-${item.id}`}>
+                                        <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, color: "#2563eb", textDecoration: "none", backgroundColor: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 6, padding: "2px 6px", width: "fit-content" }} data-testid={`link-reference-painel-${item.id}`}>
                                           <Paperclip style={{ width: 9, height: 9 }} />
                                           Ref. visual
                                         </a>
                                       )}
                                       {!isDeleted && item.bookUrl && (
-                                        <a href={item.bookUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Abrir book de aprovação (PDF) enviado pela Arte" style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 700, color: "#6d28d9", textDecoration: "none", backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 6, padding: "2px 6px", width: "fit-content" }} data-testid={`link-book-painel-${item.id}`}>
+                                        <a href={item.bookUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Abrir book de aprovação (PDF) enviado pela Arte" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, color: "#6d28d9", textDecoration: "none", backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 6, padding: "2px 6px", width: "fit-content" }} data-testid={`link-book-painel-${item.id}`}>
                                           <FileText style={{ width: 9, height: 9 }} />
                                           Book
                                         </a>
@@ -2570,7 +2586,7 @@ export default function PainelGeral() {
                                            virou ícone com rótulo. */
                                         <span
                                           title={item.observations}
-                                          style={{ display: "inline-flex", alignItems: "center", gap: 3, flexShrink: 1, minWidth: 0, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#57534e", backgroundColor: "#f0ede9", border: "1px solid #e2ddd8", borderRadius: 6, padding: "2px 6px" }}
+                                          style={{ display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 1, minWidth: 0, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#57534e", backgroundColor: "#f0ede9", border: "1px solid #e2ddd8", borderRadius: 6, padding: "2px 6px" }}
                                         >
                                           <MessageSquare style={{ width: 9, height: 9, flexShrink: 0 }} aria-label="Observação" />
                                           <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{item.observations}</span>

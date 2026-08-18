@@ -41,11 +41,42 @@ function semComentarios(src: string): string {
 const CODIGO = semComentarios(ITEMS);
 
 describe("nenhuma rota devolve peça para o começo do fluxo", () => {
-  it('nenhuma escrita usa status: "awaiting_submission"', () => {
-    // É a fila de quem NUNCA foi enviado. Uma peça que já andou e voltou não
-    // pertence a ela: quem devolve manda para a etapa que precisa ser refeita.
+  it('"awaiting_submission" só é escrito por uma ESCOLHA explícita de destino', () => {
+    // A invariante mudou de forma em 17/08, e é importante entender por quê.
+    //
+    // Antes: nenhuma rota podia mandar peça para "Aguardando envio" — a fila de
+    // quem NUNCA foi enviado. Era simples e pegava o defeito original.
+    //
+    // Depois o dono pediu que QUEM DEVOLVE decida: se a arte inteira está
+    // errada, a peça volta mesmo para o começo; se só o arquivo final falhou,
+    // volta para a Finalização. Os dois destinos são legítimos.
+    //
+    // O que continua proibido é o SISTEMA escolher em silêncio. Por isso a
+    // única escrita permitida vive em `camposDoDestino`, alimentada por uma
+    // opção que a pessoa marcou na tela. Qualquer outra rota que volte a
+    // gravar esse status direto derruba este teste.
     const escritas = CODIGO.match(/status:\s*"awaiting_submission"/g) ?? [];
-    expect(escritas, `${escritas.length} escrita(s) mandando peça para "Aguardando envio"`).toHaveLength(0);
+    expect(
+      escritas.length,
+      "só `camposDoDestino` pode escrever awaiting_submission — apareceu escrita nova",
+    ).toBe(1);
+
+    const helper = CODIGO.slice(
+      CODIGO.indexOf("function camposDoDestino"),
+      CODIGO.indexOf("function textoDoDestino"),
+    );
+    expect(helper, "a escrita saiu de camposDoDestino").toContain('"awaiting_submission"');
+  });
+
+  it("o destino padrão é o menos destrutivo", () => {
+    // Sem escolha explícita a peça vai para a Finalização: preservar a
+    // aprovação do patrocinador não custa nada se a arte for refeita depois,
+    // mas jogar fora uma aprovação que valia obriga a pedir tudo de novo.
+    const leitor = CODIGO.slice(
+      CODIGO.indexOf("function lerDestinoDevolucao"),
+      CODIGO.indexOf("function camposDoDestino"),
+    );
+    expect(leitor).toContain('=== "arte" ? "arte" : "finalizacao"');
   });
 
   it("a devolução do criador manda para a finalização, com a aprovação preservada", () => {
@@ -54,12 +85,19 @@ describe("nenhuma rota devolve peça para o começo do fluxo", () => {
     for (const rota of ["creator-reject", "bulk-creator-reject", "return-to-arte", "bulk-return-to-arte"]) {
       expect(CODIGO, `rota ${rota} sumiu`).toContain(rota);
     }
-    // E nenhuma delas pode apagar o thumb: ele já passou pelo patrocinador.
-    const apagaThumb = CODIGO.match(/approvalThumbUrl:\s*null/g) ?? [];
+    // O thumb só é apagado no destino "arte" — lá a arte inteira será refeita,
+    // então manter o "aprovado" de uma versão que não existe mais seria
+    // carimbar um sim que ninguém deu. No destino "finalizacao" ele fica.
+    const helper = CODIGO.slice(
+      CODIGO.indexOf("function camposDoDestino"),
+      CODIGO.indexOf("function textoDoDestino"),
+    );
+    const antesDoReturnFinal = helper.slice(0, helper.lastIndexOf("return {"));
+    expect(antesDoReturnFinal, "o ramo `arte` deve limpar o thumb").toContain("approvalThumbUrl: null");
     expect(
-      apagaThumb.length,
-      "alguma devolução voltou a apagar o thumb já aprovado",
-    ).toBeLessThanOrEqual(1); // o único legítimo é o da correção de arte
+      helper.slice(helper.lastIndexOf("return {")),
+      "o ramo `finalizacao` NÃO pode apagar o thumb aprovado",
+    ).not.toContain("approvalThumbUrl");
   });
 });
 

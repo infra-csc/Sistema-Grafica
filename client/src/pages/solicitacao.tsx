@@ -117,6 +117,11 @@ export default function Solicitacao() {
   const [selectedItem, setSelectedItem] = useState<any>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [returnObservations, setReturnObservations] = useState("");
+  // PARA ONDE a peça volta — escolha de quem devolve (regra do dono, 17/08).
+  // "finalizacao" é o padrão porque é o caso comum e o menos destrutivo:
+  // preservar a aprovação do patrocinador não custa nada se a arte for refeita
+  // depois, mas jogar fora uma aprovação que valia obriga a pedir tudo de novo.
+  const [destinoDevolucao, setDestinoDevolucao] = useState<"finalizacao" | "arte">("finalizacao");
   const [editingQuantity, setEditingQuantity] = useState(false);
   const [quantityValue, setQuantityValue] = useState<number>(1);
   // Complemento: peça-mãe e a diferença sugerida pelo servidor quando o
@@ -144,6 +149,60 @@ export default function Solicitacao() {
   const searchRef = useRef<HTMLInputElement>(null);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const isMobile = useIsMobile();
+  /* PARA ONDE A PEÇA VOLTA — as duas opções lado a lado, com a consequência
+     escrita em cada uma. Não é um <select>: são duas escolhas e a diferença
+     entre elas custa caro (uma joga fora a aprovação do patrocinador), então
+     as duas ficam à vista sem precisar abrir nada.
+     A opção destrutiva NÃO é a padrão e avisa o que perde. */
+  const seletorDestino = (
+    <div style={{ marginBottom: 12 }}>
+      <p style={{ margin: "0 0 6px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#57534e" }}>
+        O que a Arte precisa refazer?
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {([
+          { valor: "finalizacao" as const, titulo: "Só o arquivo final",
+            desc: "A arte está certa — a peça volta para a Finalização e a aprovação do patrocinador continua valendo." },
+          { valor: "arte" as const, titulo: "A arte inteira",
+            desc: "Volta para o começo da Arte. O thumb aprovado é descartado e o patrocinador terá de aprovar de novo." },
+        ]).map(op => {
+          const ativo = destinoDevolucao === op.valor;
+          return (
+            <button
+              key={op.valor}
+              type="button"
+              onClick={() => setDestinoDevolucao(op.valor)}
+              aria-pressed={ativo}
+              data-testid={`destino-${op.valor}`}
+              style={{
+                textAlign: "left", cursor: "pointer", borderRadius: 8, padding: "9px 11px",
+                border: `1.5px solid ${ativo ? "#c2410c" : "#e7e5e4"}`,
+                background: ativo ? "#fff7ed" : "#ffffff",
+                display: "flex", gap: 9, alignItems: "flex-start", font: "inherit",
+              }}
+            >
+              <span aria-hidden="true" style={{
+                width: 14, height: 14, borderRadius: "50%", flexShrink: 0, marginTop: 2,
+                border: `1.5px solid ${ativo ? "#c2410c" : "#d6d3d1"}`,
+                background: ativo ? "#c2410c" : "transparent",
+                boxShadow: ativo ? "inset 0 0 0 2.5px #ffffff" : "none",
+              }} />
+              <span style={{ minWidth: 0 }}>
+                {/* #c2410c sobre #fff7ed = 4,88:1 ✓ · #57534e sobre branco = 7,03:1 ✓ */}
+                <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: ativo ? "#c2410c" : "#1c1917" }}>
+                  {op.titulo}
+                </span>
+                <span style={{ display: "block", fontSize: 11, color: "#57534e", lineHeight: 1.4, marginTop: 1 }}>
+                  {op.desc}
+                </span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+
   /** Altura dos controles: 44 no toque, 36 no ponteiro. */
   const alturaControle = isMobile ? 44 : 36;
   // A tela ja exigia motivo NAO VAZIO; o servidor agora exige 10 caracteres em
@@ -293,11 +352,11 @@ export default function Solicitacao() {
   });
 
   const returnToArteMutation = useMutation({
-    mutationFn: async (payload: { itemId: string; notes: string }) =>
+    mutationFn: async (payload: { itemId: string; notes: string; destino: string }) =>
       // PATCH, não POST: a rota é PATCH e o método errado caía no fallback do
       // SPA, que responde 200 com HTML. A tela dava "devolvida com sucesso" e o
       // servidor nunca recebia nada — a peça continuava na fila de revisão.
-      await apiRequest("PATCH", `/api/items/${payload.itemId}/return-to-arte`, { notes: payload.notes }),
+      await apiRequest("PATCH", `/api/items/${payload.itemId}/return-to-arte`, { notes: payload.notes, destino: payload.destino }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
@@ -311,8 +370,8 @@ export default function Solicitacao() {
   const bulkReturnMutation = useMutation({
     // Uma chamada só: a rota de lote existe (PATCH /api/items/bulk-return-to-arte)
     // e responde { success, errors, items, failedItemIds }.
-    mutationFn: async (payload: { ids: string[]; notes: string }) => {
-      const res = await apiRequest("PATCH", "/api/items/bulk-return-to-arte", { itemIds: payload.ids, notes: payload.notes });
+    mutationFn: async (payload: { ids: string[]; notes: string; destino: string }) => {
+      const res = await apiRequest("PATCH", "/api/items/bulk-return-to-arte", { itemIds: payload.ids, notes: payload.notes, destino: payload.destino });
       const result: { success: number; errors: number; failedItemIds?: string[] } = await res.json();
       return { total: payload.ids.length, failed: result.errors, failedIds: result.failedItemIds ?? [] };
     },
@@ -1889,6 +1948,7 @@ export default function Solicitacao() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div style={{ padding: 0 }}>
+            {seletorDestino}
             <textarea
               placeholder="Descreva as alterações necessárias..."
               value={returnObservations}
@@ -1900,7 +1960,7 @@ export default function Solicitacao() {
           <AlertDialogFooter>
             <AlertDialogCancel data-testid="button-return-cancel" onClick={() => { setReturnObservations(""); }}>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => selectedItem && returnToArteMutation.mutate({ itemId: selectedItem.id, notes: returnObservations })}
+              onClick={() => selectedItem && returnToArteMutation.mutate({ itemId: selectedItem.id, notes: returnObservations, destino: destinoDevolucao })}
               disabled={returnToArteMutation.isPending || motivoCurto(returnObservations)}
               title={motivoCurto(returnObservations) ? avisoMotivoCurto : undefined}
               style={{ backgroundColor: TI.text, color: "#fff" }}
@@ -1969,6 +2029,7 @@ export default function Solicitacao() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div style={{ padding: 0 }}>
+            {seletorDestino}
             <textarea
               placeholder="Descreva o motivo da devolução..."
               value={bulkReturnObservations}
@@ -1982,7 +2043,7 @@ export default function Solicitacao() {
             <AlertDialogAction
               onClick={(e) => {
                 e.preventDefault(); // a mutation controla o fechamento (mantém aberto em erro)
-                bulkReturnMutation.mutate({ ids: selecaoLote.vivas, notes: bulkReturnObservations });
+                bulkReturnMutation.mutate({ ids: selecaoLote.vivas, notes: bulkReturnObservations, destino: destinoDevolucao });
               }}
               disabled={bulkReturnMutation.isPending || motivoCurto(bulkReturnObservations) || selecaoLote.vivas.length === 0}
               title={motivoCurto(bulkReturnObservations) ? avisoMotivoCurto : undefined}

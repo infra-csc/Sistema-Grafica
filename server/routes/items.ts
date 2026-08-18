@@ -62,6 +62,57 @@ function lerMotivoDevolucao(req: any): { ok: true; motivo: string } | { ok: fals
   return { ok: true, motivo };
 }
 
+// ─── DESTINO da devolucao da Revisao ────────────────────────────────────────
+//
+// Regra do dono (17/08): quem devolve DECIDE se a peca volta para o comeco da
+// Arte (a arte inteira esta errada, refaz e passa pelo patrocinador de novo) ou
+// so para a Finalizacao (a arte esta certa, o que veio errado foi o arquivo
+// final). Os dois destinos existem no fluxo; o que nao pode e o sistema
+// escolher em silencio — foi assim que peca de retrabalho foi parar no meio
+// de 1.120 que nunca tinham sido enviadas.
+//
+// O padrao e `finalizacao` porque e o caso comum e o menos destrutivo: manter
+// a aprovacao do patrocinador nao custa nada se a arte for refeita depois, mas
+// jogar fora uma aprovacao que valia obriga a pedir tudo de novo.
+type DestinoDevolucao = "arte" | "finalizacao";
+
+function lerDestinoDevolucao(req: any): DestinoDevolucao {
+  return req.body?.destino === "arte" ? "arte" : "finalizacao";
+}
+
+/**
+ * Os campos que cada destino grava.
+ *
+ * `arte` REFAZ do zero: apaga o thumb e o arquivo final e devolve a peca para
+ * "Aguardando envio", zerando a aprovacao do patrocinador — arte nova precisa
+ * de aprovacao nova, e manter o "aprovado" de uma versao que nao existe mais
+ * seria carimbar um sim que ninguem deu.
+ *
+ * `finalizacao` mantem o thumb JA APROVADO e so limpa o arquivo final.
+ */
+function camposDoDestino(destino: DestinoDevolucao) {
+  if (destino === "arte") {
+    return {
+      status: "awaiting_submission",
+      approvalThumbUrl: null,
+      finalFileUrl: null,
+      sponsorApprovedBy: null,
+      sponsorApprovedAt: null,
+    };
+  }
+  return {
+    status: "sponsor_approved",
+    finalFileUrl: null,
+  };
+}
+
+/** A frase da auditoria — o destino escolhido precisa ficar no registro. */
+function textoDoDestino(destino: DestinoDevolucao): string {
+  return destino === "arte"
+    ? "volta para o comeco da Arte (refazer a arte)"
+    : "volta para a finalizacao (trocar o arquivo final)";
+}
+
 // Allow-list dos campos que o PATCH genérico /api/items/:id pode alterar.
 // É uma lista deliberada e restritiva: `status` e TODOS os campos de fluxo
 // (aprovação, produção, entrega, timestamps, flags de rejeição, quantidades
@@ -1878,6 +1929,7 @@ export function registerItemRoutes(app: Express): void {
       // instrução. Agora vale a mesma régua das outras portas.
       const motivo = lerMotivoDevolucao(req);
       if (!motivo.ok) return res.status(400).json({ error: motivo.erro });
+      const destino = lerDestinoDevolucao(req);
       const rejectionReason = motivo.motivo;
       
       // Validate item exists and status
@@ -2540,6 +2592,7 @@ export function registerItemRoutes(app: Express): void {
 
       const motivo = lerMotivoDevolucao(req);
       if (!motivo.ok) return res.status(400).json({ error: motivo.erro });
+      const destino = lerDestinoDevolucao(req);
 
       const item = await storage.updateItem(req.params.id, {
         // VOLTA PARA A FINALIZACAO, nao para o comeco (regra do dono, 17/08).
@@ -2552,11 +2605,10 @@ export function registerItemRoutes(app: Express): void {
         // `sponsor_approved` e o status que alimenta a aba "Finalizar arte"
         // (TAB_STATUSES em lib/arte-rules): a peca reaparece exatamente na
         // etapa que precisa ser refeita, com a aprovacao preservada.
-        status: "sponsor_approved",
+        // O DESTINO e escolha de quem devolve (ver lerDestinoDevolucao):
+        // "arte" refaz do zero, "finalizacao" so troca o arquivo final.
+        ...camposDoDestino(destino),
         creatorReviewedAt: null,
-        finalFileUrl: null,
-        // O thumb NAO e apagado: ele ja passou pelo patrocinador.
-        // sponsorApprovedBy/At preservados pelo mesmo motivo.
         rejectedByCreator: true, // Flag indicando que foi reprovado pelo criador
         rejectionReason: motivo.motivo,
       });
@@ -2572,7 +2624,7 @@ export function registerItemRoutes(app: Express): void {
         'rejected',
         'item',
         item.id,
-        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("sponsor_approved")} (reprovado pelo criador — volta para a finalização). Motivo: ${motivo.motivo}`
+        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(camposDoDestino(destino).status)} (reprovado pelo criador — ${textoDoDestino(destino)}). Motivo: ${motivo.motivo}`
       );
       
       // Notifica Arte para refazer o trabalho
@@ -2637,6 +2689,7 @@ export function registerItemRoutes(app: Express): void {
 
       const motivo = lerMotivoDevolucao(req);
       if (!motivo.ok) return res.status(400).json({ error: motivo.erro });
+      const destino = lerDestinoDevolucao(req);
 
       const item = await storage.updateItem(req.params.id, {
         status: "draft",
@@ -2690,6 +2743,7 @@ export function registerItemRoutes(app: Express): void {
       
       const motivo = lerMotivoDevolucao(req);
       if (!motivo.ok) return res.status(400).json({ error: motivo.erro });
+      const destino = lerDestinoDevolucao(req);
       const notes = motivo.motivo;
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
@@ -2714,9 +2768,10 @@ export function registerItemRoutes(app: Express): void {
         // `sponsor_approved` e o status que alimenta a aba "Finalizar arte"
         // (TAB_STATUSES em lib/arte-rules): a peca reaparece exatamente na
         // etapa que precisa ser refeita, com a aprovacao preservada.
-        status: "sponsor_approved",
+        // O DESTINO e escolha de quem devolve (ver lerDestinoDevolucao):
+        // "arte" refaz do zero, "finalizacao" so troca o arquivo final.
+        ...camposDoDestino(destino),
         creatorReviewedAt: null,
-        finalFileUrl: null,
         rejectedByCreator: true,
         // O motivo da devolução SUBSTITUI a observação: motivo vazio não pode
         // herdar a observação antiga como se fosse o feedback desta devolução.
@@ -2772,6 +2827,7 @@ export function registerItemRoutes(app: Express): void {
 
       const motivoLote = lerMotivoDevolucao(req);
       if (!motivoLote.ok) return res.status(400).json({ error: motivoLote.erro });
+      const destino = lerDestinoDevolucao(req);
       const notes = motivoLote.motivo;
 
       const results = [];
@@ -2808,9 +2864,10 @@ export function registerItemRoutes(app: Express): void {
           // `sponsor_approved` e o status que alimenta a aba "Finalizar arte"
           // (TAB_STATUSES em lib/arte-rules): a peca reaparece exatamente na
           // etapa que precisa ser refeita, com a aprovacao preservada.
-          status: "sponsor_approved",
+          // O DESTINO e escolha de quem devolve (ver lerDestinoDevolucao):
+          // "arte" refaz do zero, "finalizacao" so troca o arquivo final.
+          ...camposDoDestino(destino),
           creatorReviewedAt: null,
-          finalFileUrl: null,
           rejectedByCreator: true,
           // (e não `|| currentItem.observations`): o return individual
           // substitui a observação — o lote herdava a antiga silenciosamente.
@@ -3035,6 +3092,7 @@ export function registerItemRoutes(app: Express): void {
       // devolvendo por um motivo só. Se fossem 20 motivos, seriam 20 cliques.
       const motivo = lerMotivoDevolucao(req);
       if (!motivo.ok) return res.status(400).json({ error: motivo.erro });
+      const destino = lerDestinoDevolucao(req);
       
       const results = [];
       const errors = [];
@@ -3070,9 +3128,10 @@ export function registerItemRoutes(app: Express): void {
           // `sponsor_approved` e o status que alimenta a aba "Finalizar arte"
           // (TAB_STATUSES em lib/arte-rules): a peca reaparece exatamente na
           // etapa que precisa ser refeita, com a aprovacao preservada.
-          status: "sponsor_approved",
+          // O DESTINO e escolha de quem devolve (ver lerDestinoDevolucao):
+          // "arte" refaz do zero, "finalizacao" so troca o arquivo final.
+          ...camposDoDestino(destino),
           creatorReviewedAt: null,
-          finalFileUrl: null,
           rejectedByCreator: true,
           rejectionReason: motivo.motivo,
         });
@@ -3087,7 +3146,7 @@ export function registerItemRoutes(app: Express): void {
             'rejected',
             'item',
             item.id,
-            `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("sponsor_approved")} (reprovado pelo criador em lote — volta para a finalização). Motivo: ${motivo.motivo}`
+            `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(camposDoDestino(destino).status)} (reprovado pelo criador em lote — ${textoDoDestino(destino)}). Motivo: ${motivo.motivo}`
           );
           
           broadcast({ type: "item_updated", item });

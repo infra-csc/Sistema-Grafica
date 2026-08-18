@@ -182,12 +182,35 @@ export function SponsorChips({
               ...sz,
             }}
           >
+            {/* A MARCA TEM FORMA, e não só cor.
+
+                Simulei deuteranopia sobre os três estados e os FUNDOS dos
+                chips colapsam: #f0fdf4 (aprovado), #fef2f2 (reprovado) e
+                #fff7ed (pendente) viram #f5f4f7, #fafaf2 e #fcfdf0 — quase-
+                brancos indistinguíveis, com 0,014 de diferença de luminância
+                entre dois deles. Sobrava esta marca de 5px carregando a
+                distinção inteira, e ela era um círculo nos três casos: ou
+                seja, a única pista visual era a MATIZ.
+
+                Forma sobrevive a qualquer deficiência de cor e custa zero
+                largura — o que importa aqui, porque 51% dos nomes de
+                patrocinador já truncam na coluna. Três formas, três famílias:
+
+                  ● cheia e redonda ... decidido a favor (aprovado)
+                  ■ cheia e quadrada .. decidido contra (reprovado/retrabalho)
+                  ○ vazada ............ ainda sem decisão (pendente)
+
+                A marca vai de 5 para 6px porque a 5 a diferença entre redondo
+                e quadrado não se lê. Um pixel é o preço da segunda pista. */}
             <span style={{
-              width: 5, height: 5, borderRadius: "50%", flexShrink: 0, display: "inline-block",
-              // A bolinha carrega o tom saturado (500) do estado; no
-              // `awaiting_arte` ela é ÂMBAR sobre campo vermelho — reprovado,
-              // porém já em retrabalho.
-              background: ap ? ap.dot : (useColor ? c! : "transparent"),
+              width: 6, height: 6, flexShrink: 0, display: "inline-block",
+              borderRadius: ap?.tone === "rejected" || ap?.tone === "rework" ? 1 : "50%",
+              // O tom saturado (500) do estado continua sendo a cor; no
+              // `awaiting_arte` a marca é ÂMBAR sobre campo vermelho —
+              // reprovado, porém já em retrabalho.
+              background: ap?.tone === "waiting" ? "transparent" : (ap ? ap.dot : (useColor ? c! : "transparent")),
+              border: ap?.tone === "waiting" ? `1.5px solid ${ap.dot}` : undefined,
+              boxSizing: "border-box" as const,
             }} />
             {s.name}
             {ap && <span style={SR_ONLY}>{` — ${ap.label}`}</span>}

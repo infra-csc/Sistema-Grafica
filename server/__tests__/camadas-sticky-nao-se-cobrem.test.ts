@@ -81,3 +81,26 @@ describe("Painel Geral: o deslocamento das camadas é derivado", () => {
     expect(painel).toContain('position: "sticky", top: topOffset + EVENT_HEADER_H, zIndex: 5');
   });
 });
+
+describe("a raiz da página não encolhe, para o sticky ter alcance", () => {
+  it("a raiz declara flexShrink 0", () => {
+    // `sticky` só gruda DENTRO da caixa do pai. A raiz é flex item de um
+    // <main> `flex-direction: column`; com o `flex: 0 1 auto` padrão, o
+    // flex-shrink de 1 deixava o navegador comprimi-la a 609,6px enquanto o
+    // conteúdo pedia 1224 — e a barra de filtros saía da tela ao rolar.
+    expect(painel).toContain("flexShrink: 0");
+  });
+
+  it("não sobrou o alignSelf, que governava o eixo errado", () => {
+    // Em container `column` o align-self controla o eixo CRUZADO, que ali é a
+    // LARGURA. A primeira tentativa mexeu nisso e não teve efeito nenhum sobre
+    // a altura — medido: raiz continuou em 610.
+    expect(painel).not.toContain('alignSelf: "flex-start", width: "100%"');
+  });
+
+  it("o minHeight continua garantindo o piso de tela curta", () => {
+    // Com pouca coisa na lista a raiz ainda tem de preencher o scrollport,
+    // senão o fundo #fafaf9 termina no meio da tela.
+    expect(painel).toContain('minHeight: "100%"');
+  });
+});

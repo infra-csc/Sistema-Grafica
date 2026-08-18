@@ -1227,19 +1227,27 @@ export default function PainelGeral() {
   return (
     <div
       ref={rootRef}
-      /* alignSelf FLEX-START, e nao o stretch padrao.
-         Esta raiz e flex ITEM do <main>, que e display:flex. Com o stretch
-         padrao a altura dela era FORCADA a do container (610px, a do
-         scrollport) e o conteudo transbordava por fora da caixa — o
-         minHeight:100% nao faz a caixa crescer nesse cenario.
-         Consequencia medida: a barra de filtros e position:sticky, e sticky so
-         gruda DENTRO da caixa do pai. Com a caixa do tamanho da janela ela nao
-         tinha alcance nenhum: rolando a lista a barra saia da tela (medida em
-         y -64) e quem estava no meio de 3.187 pecas perdia busca, filtros e
-         visoes salvas justamente quando mais precisa deles.
-         Com flex-start a altura passa a ser a do CONTEUDO, e o minHeight:100%
-         continua garantindo o piso quando a lista e curta. */
-      style={{ position: "relative", display: "flex", flexDirection: "column", alignSelf: "flex-start", width: "100%", gap: 22, padding: useCards ? "0 12px 20px" : "0 28px 34px", minHeight: "100%", background: "#fafaf9" }}
+      /* flexShrink 0 — e a raiz PRECISA disso, senao ela encolhe.
+
+         Esta raiz e flex ITEM do <main>, que e `flex-direction: column`. Com
+         `flex: 0 1 auto` (o padrao), o flex-SHRINK de 1 autoriza o navegador
+         a comprimi-la ate o tamanho do container quando o conteudo e maior.
+         Medido: a caixa ficava em 609,6px enquanto o conteudo pedia 1224.
+         `minHeight: 100%` nao salva — ele resolve contra a altura do <main>,
+         que e justamente 610.
+
+         Quem paga e a barra de filtros: `sticky` so gruda DENTRO da caixa do
+         pai, e com a caixa do tamanho da janela ela nao tinha alcance nenhum.
+         Rolando a lista a barra saia da tela (medida em y -78), e quem estava
+         no meio de 3.187 pecas perdia busca, filtros e visoes salvas
+         justamente quando mais precisa deles.
+
+         Tentei antes com `alignSelf: flex-start` e NAO funcionou, por um
+         motivo que so a medicao mostrou: em container `column` o align-self
+         governa o eixo CRUZADO, que ali e a largura. Estava mexendo no eixo
+         errado. Com flexShrink 0 a raiz vai a 1262px e a barra fica em y 68 —
+         os dois numeros medidos no navegador antes deste commit. */
+      style={{ position: "relative", display: "flex", flexDirection: "column", flexShrink: 0, gap: 22, padding: useCards ? "0 12px 20px" : "0 28px 34px", minHeight: "100%", background: "#fafaf9" }}
     >
       {/* SEM overflowY no wrapper: quem rola é o <main> do layout. Um
           overflow:auto aqui criava um scroll-container que NÃO rola

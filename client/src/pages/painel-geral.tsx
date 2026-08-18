@@ -1136,6 +1136,28 @@ export default function PainelGeral() {
   const bannerExcluidosVisivel = showDeleted && (!canDeleteAny || deletedLoading || deletedError);
 
   const colCount = isCompact ? 5 : 7;
+  /**
+   * QUAIS CARDS APARECEM. Um card com 0 ocupava a mesma largura e o mesmo peso
+   * de um com 1102 — e a primeira dobra da tela gastava treze deles, sendo que
+   * tres costumam estar zerados. "Onde esta o gargalo?" e uma pergunta sobre
+   * onde HA peca, e cards vazios so competem com a resposta.
+   *
+   * A regra ja existia e valia so no celular; agora vale nos dois. O status
+   * FILTRADO nunca some, mesmo zerado: quem clicou nele precisa do caminho de
+   * volta, e um controle que desaparece ao ser usado e uma armadilha.
+   */
+  const kpiVisivelPorChave = (k: GroupKey) =>
+    showAllKpis || (stats.byGroup[k] ?? 0) > 0 || statusFilter.includes(k);
+
+  const entradaVisivel   = ZONA_ENTRADA.filter(kpiVisivelPorChave);
+  const aprovacaoVisivel = ZONA_APROVACAO.filter(kpiVisivelPorChave);
+  const producaoVisivel  = ZONA_PRODUCAO.filter(kpiVisivelPorChave);
+  /** Quantos o corte tirou — o número que o gatilho promete devolver. */
+  const escondidos =
+    (ZONA_ENTRADA.length - entradaVisivel.length) +
+    (ZONA_APROVACAO.length - aprovacaoVisivel.length) +
+    (ZONA_PRODUCAO.length - producaoVisivel.length);
+
   const kpiCards: Array<{ key: GroupKey; value: number }> = [...ZONA_ENTRADA, ...ZONA_APROVACAO, ...ZONA_PRODUCAO]
     .map(k => ({ key: k, value: stats.byGroup[k] }));
 
@@ -1389,7 +1411,7 @@ export default function PainelGeral() {
           <>
             <div className="pg-rail">
               {totalCard}
-              {kpiCards.filter(c => showAllKpis || c.value > 0 || statusFilter.includes(c.key)).map(c => renderStatusCard(c.key))}
+              {kpiCards.filter(c => kpiVisivelPorChave(c.key)).map(c => renderStatusCard(c.key))}
               {stats.outros > 0 && (
                 <StatusCard
                   label="Outros" value={stats.outros} dot="#78716c" color="#44403c" filterKey="outros"
@@ -1408,25 +1430,28 @@ export default function PainelGeral() {
           </>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "3fr 4fr", gap: 14 }}>
+            {/* As colunas de cada zona saem do que SOBROU depois do corte dos
+                zerados. Com `repeat(3,1fr)` fixo, esconder um card deixava um
+                buraco do tamanho dele — o alívio viraria desalinhamento. */}
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69", paddingLeft: 2 }}>Entrada</span>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10, flex: 1 }}>
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${1 + entradaVisivel.length},minmax(0,1fr))`, gap: 10, flex: 1 }}>
                 {totalCard}
-                {ZONA_ENTRADA.map(renderStatusCard)}
+                {entradaVisivel.map(renderStatusCard)}
               </div>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69", paddingLeft: 2 }}>Aprovação</span>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, flex: 1 }}>
-                {ZONA_APROVACAO.map(renderStatusCard)}
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(1, aprovacaoVisivel.length)},minmax(0,1fr))`, gap: 10, flex: 1 }}>
+                {aprovacaoVisivel.map(renderStatusCard)}
               </div>
             </div>
 
             <div style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: "1 / -1" }}>
               <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69", paddingLeft: 2 }}>Produção &amp; Entrega</span>
-              <div style={{ display: "grid", gridTemplateColumns: `repeat(${stats.outros > 0 ? 7 : 6},1fr)`, gap: 10, flex: 1 }}>
-                {ZONA_PRODUCAO.map(renderStatusCard)}
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(1, producaoVisivel.length + (stats.outros > 0 ? 1 : 0))},minmax(0,1fr))`, gap: 10, flex: 1 }}>
+                {producaoVisivel.map(renderStatusCard)}
                 {/* Card "Outros": qualquer status fora do mapa aparece aqui, com
                     o valor cru no title. É o que faz a soma dos cards fechar
                     SEMPRE com o Total — antes esses itens somavam no Total e em
@@ -1441,6 +1466,21 @@ export default function PainelGeral() {
                 )}
               </div>
             </div>
+
+            {/* O caminho de volta para os escondidos. Discreto de proposito:
+                e uma porta, nao um alarme — e so aparece quando ha o que
+                mostrar, senao viraria um botao que nao faz nada. */}
+            {(escondidos > 0 || showAllKpis) && (
+              <button
+                onClick={() => setShowAllKpis(v => !v)}
+                data-testid="button-toggle-kpis"
+                style={{ gridColumn: "1 / -1", justifySelf: "start", background: "none", border: "none", padding: "2px 2px", fontSize: 11, fontWeight: 700, color: "#c2410c", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2 }}
+              >
+                {showAllKpis
+                  ? "Mostrar só os status com peças"
+                  : `Mostrar os ${escondidos} status sem peça`}
+              </button>
+            )}
           </div>
         )}
       </section>

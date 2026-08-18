@@ -1944,6 +1944,9 @@ export default function Atendimento() {
                     const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
                     const isFullyApproved = isItemFullyApproved(item);
                     const hasArteBlock = approvals.some(a => a.status === 'awaiting_arte');
+                    // A Arte JÁ devolveu e o arquivo espera reenvio — o oposto
+                    // de `hasArteBlock`, e o único estado em que a bola é daqui.
+                    const temNovaVersao = approvals.some(a => a.status === 'new_version_pending');
                     const hasThumb = !!item.approvalThumbUrl;
                     const prevItem = idx > 0 ? eventItems[idx - 1] : null;
                     const showTypeHeader = !prevItem || prevItem.type !== item.type;
@@ -2076,16 +2079,50 @@ export default function Atendimento() {
                                   APROVADO
                                 </span>
                               ) : hasArteBlock ? (
+                                /* Dizia NOVA VERSÃO, que se lê "a versão nova
+                                   chegou" — e `hasArteBlock` é exatamente o
+                                   contrário: o patrocinador reprovou e a Arte
+                                   AINDA está refazendo. O `title` já contava a
+                                   verdade; o rótulo dizia o oposto dela, em
+                                   cinza, do lado de fora. Agora o chip nomeia
+                                   quem está com a bola, e sai do cinza: houve
+                                   reprovação de fato (campo vermelho) e o
+                                   retrabalho está em curso (bolinha âmbar) —
+                                   a mesma dupla de famílias do vocabulário.
+                                   #b91c1c sobre #fffbeb = 6,6:1 ✓ nos 11px. */
                                 <span
-                                  title="A arte está em correção — você será notificado quando a nova versão estiver pronta"
+                                  title="O patrocinador reprovou e a Arte está refazendo — você será avisado quando a nova versão chegar"
+                                  data-testid={`chip-arte-refazendo-${item.id}`}
                                   style={{
                                     display: 'inline-flex', alignItems: 'center', gap: 6,
                                     padding: '4px 10px', borderRadius: 6,
-                                    backgroundColor: '#f5f5f4', color: '#57534e',
+                                    backgroundColor: '#fffbeb', border: '1px solid #fde68a', color: '#b91c1c',
+                                    fontSize: 11, fontWeight: 700,
+                                  }}>
+                                  <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#f59e0b', flexShrink: 0 }} />
+                                  <RotateCcw style={{ width: 12, height: 12 }} />
+                                  ARTE REFAZENDO
+                                </span>
+                              ) : temNovaVersao ? (
+                                /* O estado OPOSTO, e o único da tela em que a
+                                   bola é do Atendimento: a Arte já mandou e o
+                                   arquivo espera ser reenviado ao patrocinador.
+                                   Não existia nesta linha — caía no "Ag.
+                                   Revisão" genérico, e o trabalho pronto para
+                                   sair ficava indistinguível do que ainda
+                                   depende de outra pessoa.
+                                   #92400e sobre #fffbeb = 7,4:1 ✓ */
+                                <span
+                                  title={SITUACAO_META.nova_versao.hint}
+                                  data-testid={`chip-reenviar-${item.id}`}
+                                  style={{
+                                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                                    padding: '4px 10px', borderRadius: 6,
+                                    backgroundColor: '#fffbeb', border: '1px solid #fde68a', color: '#92400e',
                                     fontSize: 11, fontWeight: 700,
                                   }}>
                                   <RotateCcw style={{ width: 12, height: 12 }} />
-                                  NOVA VERSÃO
+                                  NOVA VERSÃO · REENVIAR
                                 </span>
                               ) : (
                                 <span style={{

@@ -145,6 +145,7 @@
  * por isso ali o placeholder é #57534e sobre #f0efee = 6,64:1 ✓.
  */
 import { useMemo, useState, useRef, useEffect, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { Search, ChevronDown, Check, X, ArrowUpDown } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { normalizarBusca } from "@/lib/utils";
@@ -287,7 +288,13 @@ export function FilterSelect({
   useEffect(() => {
     if (!open) return;
     const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      const alvo = e.target as Node;
+      // O painel mora no <body> via portal, e portanto NÃO está dentro de
+      // `ref`. Sem checá-lo à parte, o primeiro clique numa opção contaria
+      // como clique fora e fecharia o menu antes de a opção ser marcada.
+      const dentro = (ref.current?.contains(alvo) ?? false)
+        || (painelRef.current?.contains(alvo) ?? false);
+      if (!dentro) setOpen(false);
     };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
@@ -938,7 +945,19 @@ export function FilterSelect({
       </button>
 
       {/* ── Dropdown panel ── */}
-      {open && (
+      {/* O PAINEL É PORTADO PARA O <body>.
+          Ele é `position: fixed` para não estender a área rolável da página
+          (era isso que empurrava a tela para o lado). Só que `fixed` tem uma
+          armadilha: qualquer ancestral com `transform`, `filter` ou
+          `will-change` vira o bloco de contenção dele, e aí o menu deixa de
+          se posicionar pela janela — medi um painel parar em left: 2710 num
+          ancestral deslocado em 300px. Como este controle é usado em 15 telas,
+          dentro de containers que não controlamos, não dá para depender de
+          nenhum ancestral ser limpo.
+          No <body> não há ancestral nenhum: o `fixed` é sempre relativo à
+          janela, e o `z-index` deixa de disputar contexto de empilhamento com
+          quem quer que envolva o controle. */}
+      {open && createPortal((
         <div ref={painelRef} style={{
           position: "fixed",
           top: pos?.top ?? 0,
@@ -1070,7 +1089,7 @@ export function FilterSelect({
             </div>
           )}
         </div>
-      )}
+      ), document.body)}
     </div>
   );
 }

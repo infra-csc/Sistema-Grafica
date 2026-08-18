@@ -231,7 +231,7 @@ function StatusCard({
           <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: dot, boxShadow: `0 0 0 4px ${dot}18` }} />
         )}
         {isActive && (
-          <span style={{ fontSize: 10, fontWeight: 900, letterSpacing: ".08em", color: dark ? "#f97316" : color, textTransform: "uppercase" }}>
+          <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: "0.08em", color: dark ? "#f97316" : color, textTransform: "uppercase" }}>
             {badge ?? "Filtrado"}
           </span>
         )}
@@ -245,7 +245,7 @@ function StatusCard({
             rodava logo abaixo — a manchete da tela dizia que não havia nada.
             Um travessão diz a verdade: ainda não sei. */}
         <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: dark ? "#f97316" : (isActive ? color : "#1c1917"), lineHeight: 1, margin: 0, letterSpacing: "-.05em" }}>{carregando ? "—" : value}</p>
-        <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: dark ? "rgba(255,255,255,0.75)" : "#746e69", marginTop: 4, lineHeight: 1.2 }}>{label}</p>
+        <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: dark ? "rgba(255,255,255,0.75)" : "#746e69", marginTop: 4, lineHeight: 1.2 }}>{label}</p>
         {sub && (
           onSubAction ? (
             /* O subtexto era um beco sem saída: dizia "inclui 7 rascunhos" e
@@ -1307,7 +1307,7 @@ export default function PainelGeral() {
             </button>
             {exportMenuOpen && (
               <div role="menu" style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 20, minWidth: 232, backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 10, boxShadow: "0 8px 24px rgba(28,25,23,.12)", padding: 6 }}>
-                <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: ".08em", color: "#746e69", margin: "6px 8px 6px" }}>
+                <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#746e69", margin: "6px 8px 6px" }}>
                   {selecionadas.length > 0 ? `${selecionadas.length} selecionada${selecionadas.length > 1 ? "s" : ""}` : `${itensParaExportar.length} ${itensParaExportar.length === 1 ? "peça na tela" : "peças na tela"}`}
                 </p>
                 <button role="menuitem" onClick={() => { setExportMenuOpen(false); setShowExportPDFModal(true); }} data-testid="button-export-pdf-painel" style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "9px 8px", background: "none", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#1c1917", textAlign: "left" }}>
@@ -1999,7 +1999,7 @@ export default function PainelGeral() {
                           <span
                             title={selo.hint}
                             data-testid={`selo-evento-${eventKey}`}
-                            style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}`, borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap", flexShrink: 0 }}
+                            style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}`, borderRadius: 999, padding: "2px 8px", whiteSpace: "nowrap", flexShrink: 0 }}
                           >
                             <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: selo.dot, flexShrink: 0 }} aria-hidden="true" />
                             {isCompact || useCards ? selo.short : selo.label}
@@ -2039,7 +2039,7 @@ export default function PainelGeral() {
                       padding: "4px 11px", borderRadius: 999,
                       backgroundColor: "#f5f5f4", color: "#57534e",
                       border: "1px solid #e7e5e4",
-                      fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em",
+                      fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em",
                       whiteSpace: "nowrap",
                     }}>
                       {gd.items.length} {gd.items.length === 1 ? "peça" : "peças"}
@@ -2147,7 +2147,7 @@ export default function PainelGeral() {
                                           <span
                                             title={selo.hintPeca}
                                             data-testid={`selo-peca-${item.id}`}
-                                            style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}`, borderRadius: 999, padding: "2px 7px", whiteSpace: "nowrap" }}
+                                            style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}`, borderRadius: 999, padding: "2px 7px", whiteSpace: "nowrap" }}
                                           >
                                             {selo.labelPeca}
                                           </span>
@@ -2505,7 +2505,7 @@ export default function PainelGeral() {
                                         <span
                                           title={selo.hintPeca}
                                           data-testid={`selo-peca-${item.id}`}
-                                          style={{ display: "inline-block", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}`, borderRadius: 999, padding: "2px 7px", width: "fit-content", whiteSpace: "nowrap" }}
+                                          style={{ display: "inline-block", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: selo.text, backgroundColor: selo.bg, border: `1px solid ${selo.border}`, borderRadius: 999, padding: "2px 7px", width: "fit-content", whiteSpace: "nowrap" }}
                                         >
                                           {selo.labelPeca}
                                         </span>
@@ -2562,7 +2562,7 @@ export default function PainelGeral() {
                                            virou ícone com rótulo. */
                                         <span
                                           title={item.observations}
-                                          style={{ display: "inline-flex", alignItems: "center", gap: 3, flexShrink: 1, minWidth: 0, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", color: "#57534e", backgroundColor: "#f0ede9", border: "1px solid #e2ddd8", borderRadius: 6, padding: "2px 6px" }}
+                                          style={{ display: "inline-flex", alignItems: "center", gap: 3, flexShrink: 1, minWidth: 0, maxWidth: 180, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#57534e", backgroundColor: "#f0ede9", border: "1px solid #e2ddd8", borderRadius: 6, padding: "2px 6px" }}
                                         >
                                           <MessageSquare style={{ width: 9, height: 9, flexShrink: 0 }} aria-label="Observação" />
                                           <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>{item.observations}</span>

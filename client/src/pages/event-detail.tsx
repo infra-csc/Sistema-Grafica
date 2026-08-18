@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
+import { faseDaArte } from "@/components/prazos/tokens";
 import { getStatusLabel, getStatusMeta, FINAL_STATUSES, PRODUCTION_STATUSES, motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -2771,9 +2772,39 @@ export default function EventDetail() {
                           </td>
                           {/* Status — rótulo curto: com tableLayout fixed o
                               rótulo completo ("Aguardando Vinculação") vazava
-                              por baixo dos ícones de Ações. */}
+                              por baixo dos ícones de Ações.
+
+                              E o selo virou ATALHO para a Arte (regra do dono):
+                              quem lê "Aguardando Envio" aqui está a um clique de
+                              onde a peça se resolve, em vez de abrir a Arte e
+                              refazer o filtro à mão.
+
+                              `faseDaArte` deriva de TAB_STATUSES (lib/arte-rules),
+                              que é A definição do que cada aba da Arte atende —
+                              não um segundo mapa escrito aqui. Quando ela devolve
+                              `null` a Arte não trata aquele status (peça entregue,
+                              cancelada, em produção) e o selo continua sendo só um
+                              selo: link que abre a tela errada é pior que nenhum.
+
+                              Os três parâmetros são os que a Arte já lê: a ABA, o
+                              EVENTO e a BUSCA pelo código da peça — o recorte mais
+                              estreito que ela sabe aplicar. */}
                           <td style={{ padding: '14px 14px' }}>
-                            <StatusBadge status={item.status} short />
+                            {(() => {
+                              const fase = faseDaArte(item.status);
+                              if (!fase) return <StatusBadge status={item.status} short />;
+                              const alvo = `/arte?fase=${fase}&evento=${item.eventId}&busca=${String(item.displayId ?? "").replace("#", "")}`;
+                              return (
+                                <Link
+                                  href={alvo}
+                                  title={`Abrir esta peça na Arte, já na aba e no evento dela`}
+                                  data-testid={`link-arte-${item.id}`}
+                                  style={{ textDecoration: "none", display: "inline-block", borderRadius: 999 }}
+                                >
+                                  <StatusBadge status={item.status} short />
+                                </Link>
+                              );
+                            })()}
                           </td>
                           {/* Ações — sempre visíveis (hover esconderia; no toque
                               não há hover), mas SÓ para quem edita a lista: o

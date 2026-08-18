@@ -1146,6 +1146,11 @@ export default function PainelGeral() {
    * FILTRADO nunca some, mesmo zerado: quem clicou nele precisa do caminho de
    * volta, e um controle que desaparece ao ser usado e uma armadilha.
    */
+  /** Largura de um card de status. Fixa de proposito: ver o comentario das
+   *  zonas — card que estica para preencher a linha vira um retangulo de
+   *  1500px anunciando o numero 1. */
+  const LARG_CARD = useCards ? "minmax(0,1fr)" : "minmax(150px, 196px)";
+
   const kpiVisivelPorChave = (k: GroupKey) =>
     showAllKpis || (stats.byGroup[k] ?? 0) > 0 || statusFilter.includes(k);
 
@@ -1387,13 +1392,21 @@ export default function PainelGeral() {
             </button>
           </>
         ) : (
-          <div style={{ display: "grid", gridTemplateColumns: "3fr 4fr", gap: 14 }}>
+          /* AS ZONAS FLUEM, e não mais num grid 3fr/4fr fixo.
+             Com o corte dos zerados o número de cards por zona virou variável,
+             e proporções fixas passaram a produzir dois defeitos que só o ao
+             vivo mostrou: uma zona com UM card esticava esse card por 1500px,
+             e cards de zonas diferentes ficavam com larguras diferentes na
+             mesma tela. Card de status é uma peça de tamanho conhecido — ele
+             não deve crescer para preencher espaço, deve terminar e deixar o
+             resto vazio. */
+          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-start", gap: 18 }}>
             {/* As colunas de cada zona saem do que SOBROU depois do corte dos
                 zerados. Com `repeat(3,1fr)` fixo, esconder um card deixava um
                 buraco do tamanho dele — o alívio viraria desalinhamento. */}
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69", paddingLeft: 2 }}>Entrada</span>
-              <div style={{ display: "grid", gridTemplateColumns: `repeat(${1 + entradaVisivel.length},minmax(0,1fr))`, gap: 10, flex: 1 }}>
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${1 + entradaVisivel.length}, ${LARG_CARD})`, gap: 10 }}>
                 {totalCard}
                 {entradaVisivel.map(renderStatusCard)}
               </div>
@@ -1401,14 +1414,14 @@ export default function PainelGeral() {
 
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69", paddingLeft: 2 }}>Aprovação</span>
-              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(1, aprovacaoVisivel.length)},minmax(0,1fr))`, gap: 10, flex: 1 }}>
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(1, aprovacaoVisivel.length)}, ${LARG_CARD})`, gap: 10 }}>
                 {aprovacaoVisivel.map(renderStatusCard)}
               </div>
             </div>
 
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, gridColumn: "1 / -1" }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69", paddingLeft: 2 }}>Produção &amp; Entrega</span>
-              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(1, producaoVisivel.length + (stats.outros > 0 ? 1 : 0))},minmax(0,1fr))`, gap: 10, flex: 1 }}>
+              <div style={{ display: "grid", gridTemplateColumns: `repeat(${Math.max(1, producaoVisivel.length + (stats.outros > 0 ? 1 : 0))}, ${LARG_CARD})`, gap: 10 }}>
                 {producaoVisivel.map(renderStatusCard)}
                 {/* Card "Outros": qualquer status fora do mapa aparece aqui, com
                     o valor cru no title. É o que faz a soma dos cards fechar
@@ -1432,7 +1445,10 @@ export default function PainelGeral() {
               <button
                 onClick={() => setShowAllKpis(v => !v)}
                 data-testid="button-toggle-kpis"
-                style={{ gridColumn: "1 / -1", justifySelf: "start", background: "none", border: "none", padding: "2px 2px", fontSize: 11, fontWeight: 700, color: "#c2410c", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2 }}
+                /* Alinhado com a BASE dos cards, não solto embaixo de tudo:
+                   `alignSelf: flex-end` o encosta na linha inferior da faixa,
+                   onde ele se lê como a continuação dela. */
+                style={{ alignSelf: "flex-end", marginBottom: 10, background: "none", border: "none", padding: "2px 2px", fontSize: 11, fontWeight: 700, color: "#c2410c", cursor: "pointer", textDecoration: "underline", textUnderlineOffset: 2, whiteSpace: "nowrap" }}
               >
                 {showAllKpis
                   ? "Mostrar só os status com peças"
@@ -1453,11 +1469,16 @@ export default function PainelGeral() {
         ref={toolbarRef}
         style={{
           ...(stickyToolbar ? { position: "sticky" as const, top: 4, zIndex: 8 } : null),
-          display: "flex", alignItems: useCards ? "stretch" : "center", flexWrap: "wrap", gap: 8,
+          // DUAS LINHAS DECLARADAS, e nao uma linha que quebra sozinha.
+          // Com as visoes salvas aqui dentro sao ate 12 controles; deixados
+          // num `wrap` livre eles se reorganizavam a cada largura e cortavam o
+          // ultimo select ao meio. Agora e uma grade de duas faixas: as visoes
+          // em cima (o recorte pronto), os filtros embaixo (o recorte a mao).
+          display: "grid", gridTemplateColumns: "1fr", gap: 8,
           backgroundColor: "#ffffff",
-          borderRadius: 8,
+          borderRadius: 10,
           border: "1px solid #e7e5e4",
-          padding: "8px 10px",
+          padding: "10px 12px",
           boxShadow: "0 1px 3px rgba(28,25,23,0.05)",
         }}
       >
@@ -1511,10 +1532,10 @@ export default function PainelGeral() {
                   );
                 })}
               </div>
-        {visoes.length > 0 && !useCards && (
-          <span aria-hidden="true" style={{ width: 1, alignSelf: "stretch", margin: "2px 2px", background: "#e7e5e4", flexShrink: 0 }} />
-        )}
 
+        {/* FAIXA 2 — o recorte a mao. Separada da faixa das visoes para os
+            controles pararem de se reorganizar a cada largura. */}
+        <div style={{ display: "flex", alignItems: useCards ? "stretch" : "center", flexWrap: "wrap", gap: 8 }}>
         {/* Search — full width row on mobile */}
         <div style={{ position: "relative", flexShrink: 0, width: useCards ? "100%" : 180 }}>
           {/* #78716c (4,8:1), não #a8a29e (2,52:1): a lupa é a única marcação
@@ -1671,6 +1692,7 @@ export default function PainelGeral() {
               × Limpar
             </button>
           )}
+        </div>
         </div>
       </div>
 

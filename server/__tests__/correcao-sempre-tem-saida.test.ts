@@ -85,3 +85,24 @@ describe("Correção: a seção de patrocinadores nunca fica muda", () => {
     expect(arte).toContain("esta peça foi devolvida inteira");
   });
 });
+
+describe("Correção: o rodapé não derruba a tela quando não há peça", () => {
+  it("o rodapé sai antes de ler qualquer campo da peça", () => {
+    // O corpo do modal vive dentro de `{correcaoItem && (...)}`; este rodapé
+    // ficou fora dela. Como o FreezeWhileClosing mantém a subárvore montada
+    // mesmo com o modal fechado, ler `.status` de null derrubava a Arte
+    // INTEIRA no boundary de render — e `correcaoItem` nulo é o estado normal
+    // ao abrir a tela, então quebrava já no carregamento.
+    const i = arte.indexOf("if (!correcaoItem) return null;");
+    const j = arte.indexOf('const devolvidaInteira = correcaoItem.status');
+    expect(i).toBeGreaterThan(-1);
+    expect(j).toBeGreaterThan(-1);
+    expect(i).toBeLessThan(j);
+  });
+
+  it("nenhum acesso cru a correcaoItem.status fora da guarda", () => {
+    const trecho = arte.slice(arte.indexOf("{(() => {"), arte.indexOf("})()}") + 5);
+    const antes = trecho.slice(0, trecho.indexOf("if (!correcaoItem) return null;"));
+    expect(antes).not.toMatch(/correcaoItem\.\w/);
+  });
+});

@@ -4010,6 +4010,14 @@ export default function Arte() {
            * desabilitado e nunca saía disso: subia-se a arte nova e o modal
            * virava um beco sem saída. Eram 3 peças em produção nesse estado.
            */
+          // SEM PEÇA, SEM RODAPÉ — e esta guarda não é defensiva por gosto.
+          // O corpo do modal já vive dentro de `{correcaoItem && (...)}`, mas
+          // este rodapé ficou FORA dela, e o FreezeWhileClosing mantém a
+          // subárvore renderizada mesmo com o modal fechado. Resultado: com
+          // `correcaoItem` nulo — que é o estado normal ao abrir a tela — ler
+          // `.status` derrubava a Arte INTEIRA no boundary de render, não só o
+          // modal. Devolver null aqui é o mesmo que o corpo já faz.
+          if (!correcaoItem) return null;
           const devolvidaInteira = correcaoItem.status === "awaiting_submission";
           const enviando = resubmitMutation.isPending || reenvioInteiroMutation.isPending;
           // Sem patrocinador para escolher, exigir escolha é exigir o impossível.

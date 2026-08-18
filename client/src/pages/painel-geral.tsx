@@ -1355,48 +1355,6 @@ export default function PainelGeral() {
         </section>
       )}
 
-      {/* ── Visões salvas ─────────────────────────────────────────────────────
-          Cada usuário remontava todo dia a mesma combinação de 2-3 filtros, e a
-          home era idêntica para 5 papéis com trabalhos diferentes. Como os
-          filtros vivem na URL, cada visão é literalmente um link. */}
-      <section aria-label="Visões salvas" style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginTop: -10 }}>
-        {visoes.map(v => {
-          // 44 no toque, 36 no ponteiro — o mesmo piso do resto dos filtros.
-          const alturaVisao = isMobile ? 44 : 36;
-          const ativa = visaoEstaAtiva(v, filtrosAtuais);
-          const ehPadrao = visaoPadrao === v.id;
-          return (
-            <span key={v.id} style={{ display: "inline-flex", alignItems: "center", borderRadius: 999, border: `1px solid ${ativa ? "#c2410c" : "#e7e5e4"}`, backgroundColor: ativa ? "#fff7ed" : "#ffffff", overflow: "hidden" }}>
-              <button
-                onClick={() => aplicarVisao(v)}
-                aria-pressed={ativa}
-                title={v.hint}
-                data-testid={`visao-${v.id}`}
-                style={{ background: "none", border: "none", cursor: "pointer", padding: "0 12px", height: alturaVisao, fontSize: 12, fontWeight: 700, color: ativa ? "#c2410c" : "#57534e", whiteSpace: "nowrap" }}
-              >
-                {v.label}
-              </button>
-              <button
-                onClick={() => fixarVisaoPadrao(v)}
-                aria-pressed={ehPadrao}
-                title={ehPadrao ? "Deixar de abrir o Painel nesta visão" : "Abrir o Painel nesta visão por padrão"}
-                aria-label={ehPadrao ? `Deixar de usar "${v.label}" como visão padrão` : `Usar "${v.label}" como visão padrão`}
-                style={{ background: "none", border: "none", borderLeft: `1px solid ${ativa ? "#fed7aa" : "#e7e5e4"}`, cursor: "pointer", padding: "0 9px", height: alturaVisao, display: "flex", alignItems: "center", color: ehPadrao ? "#c2410c" : "#a8a29e" }}
-              >
-                {/* PIN, não CHECK. O ✓ é o glifo que o app inteiro usa para
-                    "este recorte está ligado" — nos FilterSelect e na pílula de
-                    atalho. Aqui ele dizia outra coisa ("abrir o Painel nesta
-                    visão"), e ficava aceso nas CINCO visões ao mesmo tempo:
-                    quem aprendeu ✓ = ligado lia cinco filtros ativos numa tela
-                    sem filtro nenhum. Fixar é outra ideia e ganha outro glifo.
-                    #a8a29e sobrevive porque é ÍCONE, não texto — e o estado
-                    real vive no aria-pressed, não na cor. */}
-                <Pin style={{ width: 12, height: 12, fill: ehPadrao ? "currentColor" : "none" }} aria-hidden="true" />
-              </button>
-            </span>
-          );
-        })}
-      </section>
 
       {/* ── Status cards — agrupados nas 3 fases do fluxo ─────────────────
           12 cards iguais obrigavam o usuário a escanear um a um para achar o
@@ -1503,6 +1461,60 @@ export default function PainelGeral() {
           boxShadow: "0 1px 3px rgba(28,25,23,0.05)",
         }}
       >
+        {/* AS VISÕES MORAM AQUI, e não numa terceira fileira acima.
+            A tela tinha três faixas de controle empilhadas antes da primeira
+            peça — atenção, visões e filtros —, três gramáticas visuais para
+            duas funções. Visão salva É um conjunto de filtros (cada uma é
+            literalmente um link com os parâmetros), então ela pertence à
+            barra de filtros e não a uma linha própria.
+            De quebra herda o `sticky` da barra: antes, para trocar de visão
+            com a lista rolada era preciso voltar ao topo. */}
+              {/* ── Visões salvas ─────────────────────────────────────────────────────
+                  Cada usuário remontava todo dia a mesma combinação de 2-3 filtros, e a
+                  home era idêntica para 5 papéis com trabalhos diferentes. Como os
+                  filtros vivem na URL, cada visão é literalmente um link. */}
+              <div aria-label="Visões salvas" role="group" style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
+                {visoes.map(v => {
+                  // 44 no toque, 36 no ponteiro — o mesmo piso do resto dos filtros.
+                  const alturaVisao = isMobile ? 44 : 36;
+                  const ativa = visaoEstaAtiva(v, filtrosAtuais);
+                  const ehPadrao = visaoPadrao === v.id;
+                  return (
+                    <span key={v.id} style={{ display: "inline-flex", alignItems: "center", borderRadius: 999, border: `1px solid ${ativa ? "#c2410c" : "#e7e5e4"}`, backgroundColor: ativa ? "#fff7ed" : "#ffffff", overflow: "hidden" }}>
+                      <button
+                        onClick={() => aplicarVisao(v)}
+                        aria-pressed={ativa}
+                        title={v.hint}
+                        data-testid={`visao-${v.id}`}
+                        style={{ background: "none", border: "none", cursor: "pointer", padding: "0 12px", height: alturaVisao, fontSize: 12, fontWeight: 700, color: ativa ? "#c2410c" : "#57534e", whiteSpace: "nowrap" }}
+                      >
+                        {v.label}
+                      </button>
+                      <button
+                        onClick={() => fixarVisaoPadrao(v)}
+                        aria-pressed={ehPadrao}
+                        title={ehPadrao ? "Deixar de abrir o Painel nesta visão" : "Abrir o Painel nesta visão por padrão"}
+                        aria-label={ehPadrao ? `Deixar de usar "${v.label}" como visão padrão` : `Usar "${v.label}" como visão padrão`}
+                        style={{ background: "none", border: "none", borderLeft: `1px solid ${ativa ? "#fed7aa" : "#e7e5e4"}`, cursor: "pointer", padding: "0 9px", height: alturaVisao, display: "flex", alignItems: "center", color: ehPadrao ? "#c2410c" : "#a8a29e" }}
+                      >
+                        {/* PIN, não CHECK. O ✓ é o glifo que o app inteiro usa para
+                            "este recorte está ligado" — nos FilterSelect e na pílula de
+                            atalho. Aqui ele dizia outra coisa ("abrir o Painel nesta
+                            visão"), e ficava aceso nas CINCO visões ao mesmo tempo:
+                            quem aprendeu ✓ = ligado lia cinco filtros ativos numa tela
+                            sem filtro nenhum. Fixar é outra ideia e ganha outro glifo.
+                            #a8a29e sobrevive porque é ÍCONE, não texto — e o estado
+                            real vive no aria-pressed, não na cor. */}
+                        <Pin style={{ width: 12, height: 12, fill: ehPadrao ? "currentColor" : "none" }} aria-hidden="true" />
+                      </button>
+                    </span>
+                  );
+                })}
+              </div>
+        {visoes.length > 0 && !useCards && (
+          <span aria-hidden="true" style={{ width: 1, alignSelf: "stretch", margin: "2px 2px", background: "#e7e5e4", flexShrink: 0 }} />
+        )}
+
         {/* Search — full width row on mobile */}
         <div style={{ position: "relative", flexShrink: 0, width: useCards ? "100%" : 180 }}>
           {/* #78716c (4,8:1), não #a8a29e (2,52:1): a lupa é a única marcação
@@ -2168,10 +2180,18 @@ export default function PainelGeral() {
                                sob o header sticky do evento, que por sua vez está
                                sob a toolbar sticky (altura medida). */
                             position: "sticky", top: topOffset + EVENT_HEADER_H, zIndex: 5,
-                            backgroundColor: "#1c1917",
-                            padding: "12px 20px",
-                            fontSize: 11, fontWeight: 900, textTransform: "uppercase",
-                            letterSpacing: "0.1em", color: "#ffffff",
+                            // CABEÇALHO CLARO. Era #1c1917 sólido — e com 38
+                            // eventos abertos a tela desenhava 38 barras pretas
+                            // de ponta a ponta, o elemento mais pesado do painel
+                            // repetido dezenas de vezes. O cabeçalho de tabela
+                            // não é conteúdo: é régua. A Arte e o Detalhe do
+                            // Evento já usam este tratamento claro.
+                            // #57534e sobre #fafaf9 = 6,9:1 ✓ nos 11px.
+                            backgroundColor: "#fafaf9",
+                            borderBottom: "1px solid #e7e5e4",
+                            padding: "11px 20px",
+                            fontSize: 11, fontWeight: 800, textTransform: "uppercase",
+                            letterSpacing: "0.08em", color: "#57534e",
                             textAlign: "left",
                             whiteSpace: "nowrap",
                           };
@@ -2210,7 +2230,7 @@ export default function PainelGeral() {
                                 Status{seta("status")}
                               </span>
                             </th>,
-                            <th key="ac" scope="col" style={{ ...thBase, textAlign: "right" }}><span className="sr-only">Ações</span></th>,
+                            <th key="ac" scope="col" style={{ ...thBase, textAlign: "right" }}>Ações</th>,
                           );
                           return cols;
                         })()}
@@ -2234,27 +2254,45 @@ export default function PainelGeral() {
                         let globalIdx = 0;
                         return sortedGroups.map(group => (
                           <Fragment key={group || '__nogroup'}>
-                            {/* ── Grupo Pai header (only when group exists) ── */}
-                            {group && (
-                              <tr>
-                                <td colSpan={colCount} style={{ padding: "7px 20px", backgroundColor: "#e7f0fb", borderTop: "1px solid #c9ddf5", borderBottom: "1px solid #c9ddf5", borderLeft: "3px solid #3b82f6" }}>
-                                  <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#1d4ed8", fontFamily: "'Space Grotesk', sans-serif" }}>
-                                    {group}
-                                  </span>
-                                </td>
-                              </tr>
-                            )}
+                            {/* A FAIXA AZUL DO GRUPO PAI SAIU. Eram DUAS linhas
+                                inteiras empilhadas para rotular a mesma coisa —
+                                uma azul com "2X1" e outra cinza com "2×1 PADRÃO
+                                · 10" — em duas famílias de cor que não se
+                                repetem em lugar nenhum da tela.
+                                O pai virou PREFIXO da linha de tipo. Além de
+                                devolver uma linha por grupo, informa mais: antes
+                                o pai aparecia uma vez e some ao rolar; agora ele
+                                acompanha cada tipo. */}
                             {Object.entries(groupMap[group]).map(([type, typeItems]) => (
                           <Fragment key={type}>
                             {/* ── Type sub-header ── */}
                             <tr>
                               <td colSpan={colCount} style={{
                                 padding: "6px 18px 6px 20px",
-                                backgroundColor: "#fafaf9",
-                                borderTop: "2px solid #e7e5e4",
+                                // #f5f5f4 e não #fafaf9: o cabeçalho da tabela
+                                // passou a ser claro nesta rodada, e os dois no
+                                // mesmo tom viravam a mesma faixa repetida.
+                                backgroundColor: "#f5f5f4",
+                                borderTop: "1px solid #e7e5e4",
                                 borderBottom: "1px solid #e7e5e4",
                               }}>
                                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                  {group && (
+                                    <>
+                                      {/* #78716c sobre #f5f5f4 = 4,7:1 ✓ nos 11px.
+                                          O pai vem em peso e cor MENORES que o
+                                          tipo: ele é contexto, o tipo é o rótulo. */}
+                                      <span style={{
+                                        fontSize: 11, fontWeight: 600,
+                                        textTransform: "uppercase", letterSpacing: "0.08em",
+                                        color: "#78716c",
+                                        fontFamily: "'Space Grotesk', sans-serif",
+                                      }}>
+                                        {group}
+                                      </span>
+                                      <span aria-hidden="true" style={{ color: "#a8a29e", fontSize: 11 }}>/</span>
+                                    </>
+                                  )}
                                   <span style={{
                                     fontSize: 11, fontWeight: 800,
                                     textTransform: "uppercase", letterSpacing: "0.08em",

@@ -159,8 +159,27 @@ const EVENT_CHIPS_VISIBLE = 8;
  */
 type ArteCol = { label: string; w: number | string; right?: boolean; sep?: boolean };
 
+// A LARGURA DE 'Patroc.' — a conta, e o que ela NÃO resolve.
+//
+// A coluna tinha 92px (68 úteis, descontados os 12+12 de padding) e 73 dos
+// 142 patrocinadores cadastrados não cabem nisso. A rodada anterior já tinha
+// visto o problema e alargado para 104, mas SÓ na aba Finalizados — as outras
+// quatro ficaram como estavam, e é nelas que o dono viu "Banco do Br".
+//
+// De onde vem o espaço: 'ID' tem 116px porque em Finalizados a célula carrega
+// o selo de status (ver ARTE_COLS_FINALIZADOS). Nas outras quatro abas ela
+// carrega só o "#0503" — cerca de 45px de texto —, então 84 sobram de folga.
+// Os 32px vão inteiros para 'Patroc.': 92 → 124, ou 100 úteis.
+// O TOTAL NÃO MUDA, e isso é requisito e não coincidência: em 1568px a tabela
+// mede 1246 contra 1248 disponíveis, e qualquer coluna que crescesse sem
+// devolver criaria rolagem horizontal nova nessa largura.
+//
+// 100 úteis cobrem a maioria, não todos: o P95 pede 120 e o pior, 175. Por
+// isso o conserto tem DUAS metades, e esta é a menor — a que importa é o chip
+// passar a truncar com reticências (sponsor-chips.tsx), para que o que não
+// couber se anuncie em vez de ser decepado em silêncio.
 const ARTE_COLS: ArteCol[] = [
-  { label: 'ID',            w: 116 },
+  { label: 'ID',            w: 84 },
   { label: 'Qtd',           w: 58 },
   { label: 'Peça',          w: 'auto' },
   { label: 'Dimensões',     w: 152 },
@@ -168,7 +187,7 @@ const ARTE_COLS: ArteCol[] = [
   { label: 'Material',      w: 132 },
   { label: 'Arte',          w: 76 },
   { label: 'Prazo',         w: 144 },
-  { label: 'Patroc.',       w: 92 },
+  { label: 'Patroc.',       w: 124 },
   { label: 'Ações',         w: 180, right: true },
 ];
 
@@ -212,6 +231,10 @@ const ARTE_COLS: ArteCol[] = [
  * = 1248 úteis) a tabela mede 1246: há 2px de sobra, e qualquer coluna que
  * crescesse sem devolver criaria rolagem horizontal NOVA nessa largura.
  */
+// Finalizados mantém o total: ID vai a 208 (o selo mora lá), 'Ações' cai para
+// 76 (sem botão primário, só o "⋯") e 'Patroc.' devolve 20 dos 32 que ganhou
+// na base — 124 → 104 — porque ali o ID precisa de mais. +124 −104 −20 = 0:
+// as duas abas somam o MESMO 1214 de sempre.
 const ARTE_COLS_FINALIZADOS: ArteCol[] = ARTE_COLS.map(c =>
   c.label === 'ID'      ? { ...c, label: 'ID / Status', w: 208 }
   : c.label === 'Ações'   ? { ...c, w: 76 }

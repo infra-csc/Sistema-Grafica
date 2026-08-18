@@ -166,6 +166,19 @@ export function SponsorChips({
               border: ap ? `1px solid ${ap.border}` : border,
               borderRadius: chip.borderRadius,
               whiteSpace: "nowrap",
+              // TRUNCAR, e não ser cortado pela célula. O chip tinha `nowrap`
+              // sem `ellipsis`: o que não coubesse era decepado pela borda da
+              // coluna, sem reticências e sem nenhum sinal de que havia mais
+              // texto. "Banco do Brasil" virava "Banco do Br" e parecia o nome
+              // inteiro. Medido nos 142 patrocinadores cadastrados: 73 deles
+              // (51%) pedem mais que os 68px úteis da coluna, e o pior,
+              // "Shopping Bosque Grão Pará", pede 175. Alargar para caber todos
+              // custaria 107px que a tabela não tem.
+              // O `title` já existia — o que faltava era o aviso visual de que
+              // vale a pena passar o mouse.
+              maxWidth: "100%",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
               ...sz,
             }}
           >

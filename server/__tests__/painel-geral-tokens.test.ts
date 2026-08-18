@@ -61,12 +61,22 @@ describe("um cinza de texto só", () => {
 });
 
 describe("o contraste declarado bate com o calculado", () => {
-  it("a faixa de tipo declara o número certo", () => {
-    // O comentário anterior dizia 4,7:1 para um par que dá 4,40. Se alguém
-    // reescrever o valor, este teste força o cálculo em vez do chute.
-    const i = painel.indexOf("#746e69 sobre #f5f5f4");
-    expect(i).toBeGreaterThan(-1);
-    const declarado = painel.slice(i, i + 60).match(/=\s*([\d,]+):1/)?.[1]?.replace(",", ".");
-    expect(Number(declarado)).toBeCloseTo(contraste("#746e69", "#f5f5f4"), 1);
+  // Varre TODOS os comentarios do arquivo no formato
+  //   #aabbcc sobre #ddeeff = 4,61:1
+  // e confere cada um contra a conta. Escrever o numero de cabeca ja falhou
+  // duas vezes nesta tela: um "4,7:1" que era 4,40 (e reprovava AA) e um
+  // "6,17:1" que era 6,47. Um teste que so olha UM par nao pega o proximo.
+  const declaracoes = [...painel.matchAll(/(#[0-9a-fA-F]{6})\s+sobre\s+(#[0-9a-fA-F]{6})\s*=\s*(\d+[.,]\d+)/g)];
+
+  it("a tela declara contrastes em comentario", () => {
+    expect(declaracoes.length).toBeGreaterThan(0);
   });
+
+  it.each(declaracoes.map(m => [m[1], m[2], m[3]]))(
+    "%s sobre %s declarado como %s bate com o calculado",
+    (fg, bg, declarado) => {
+      const real = contraste(fg, bg);
+      expect(real).toBeCloseTo(Number(String(declarado).replace(",", ".")), 1);
+    },
+  );
 });

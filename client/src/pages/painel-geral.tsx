@@ -3,7 +3,7 @@ import { useState, useMemo, useRef, Fragment, useEffect, useCallback } from "rea
 import {
   Search, Calendar, Truck, Eye, Paperclip, Trash2, FileText, Printer, RotateCcw,
   Loader2, MessageSquare, ArrowUpRight, ChevronDown, ChevronUp, Copy, FileSpreadsheet,
-  SlidersHorizontal, Link2, Check, Lock, Pin,
+  SlidersHorizontal, Link2, Check, Lock, Pin, AlertTriangle,
 } from "lucide-react";
 import { Link } from "wouter";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
@@ -245,16 +245,22 @@ function StatusCard({
               onKeyDown={(e) => e.stopPropagation()}
               title={subActionLabel}
               style={{
-                background: "none", border: "none", padding: 0, marginTop: 2,
-                fontSize: 9, fontWeight: 700, lineHeight: 1.2, cursor: "pointer",
-                color: dark ? "rgba(255,255,255,0.75)" : "#78716c",
+                /* 9px era o menor texto da tela INTEIRA — e num elemento
+                   CLICÁVEL, que é onde tamanho pequeno custa mais caro: além
+                   de ler mal, dava um alvo de ~11px de altura. Vai a 10px (o
+                   piso que o resto da tela já usa) e ganha 3px de padding em
+                   cima e embaixo: o alvo passa a ~22px sem deslocar nada,
+                   porque o fundo é transparente. */
+                background: "none", border: "none", padding: "3px 0", marginTop: 0,
+                fontSize: 10, fontWeight: 700, lineHeight: 1.2, cursor: "pointer",
+                color: dark ? "rgba(255,255,255,0.75)" : "#746e69",
                 textDecoration: "underline", textUnderlineOffset: 2, textAlign: "left",
               }}
             >
               {sub}
             </button>
           ) : (
-            <p style={{ fontSize: 9, fontWeight: 600, color: dark ? "rgba(255,255,255,0.75)" : "#746e69", marginTop: 2, lineHeight: 1.2 }}>{sub}</p>
+            <p style={{ fontSize: 10, fontWeight: 600, color: dark ? "rgba(255,255,255,0.75)" : "#746e69", marginTop: 2, lineHeight: 1.2 }}>{sub}</p>
           )
         )}
       </div>
@@ -1800,7 +1806,7 @@ export default function PainelGeral() {
           <div style={{ backgroundColor: "#ffffff", border: "1px solid #e7e5e4", borderRadius: 10, overflow: "hidden" }} aria-busy="true" aria-label="Carregando peças">
             <div style={{ padding: "14px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div className="animate-pulse" style={{ width: 180, height: 16, borderRadius: 4, backgroundColor: "#e7e5e4" }} />
-              <div className="animate-pulse" style={{ width: 70, height: 20, borderRadius: 99, backgroundColor: "#f5f5f4" }} />
+              <div className="animate-pulse" style={{ width: 70, height: 20, borderRadius: 999, backgroundColor: "#f5f5f4" }} />
             </div>
             <div style={{ height: 40, backgroundColor: "#1c1917" }} />
             {[0, 1, 2, 3, 4, 5].map((i) => (
@@ -1808,15 +1814,28 @@ export default function PainelGeral() {
                 <div className="animate-pulse" style={{ width: 48, height: 12, borderRadius: 4, backgroundColor: "#e7e5e4" }} />
                 <div className="animate-pulse" style={{ width: `${34 - i * 3}%`, height: 12, borderRadius: 4, backgroundColor: "#e7e5e4" }} />
                 <div className="animate-pulse" style={{ width: 60, height: 12, borderRadius: 4, backgroundColor: "#f0efee", marginLeft: "auto" }} />
-                <div className="animate-pulse" style={{ width: 90, height: 22, borderRadius: 99, backgroundColor: "#f0efee" }} />
+                <div className="animate-pulse" style={{ width: 90, height: 22, borderRadius: 999, backgroundColor: "#f0efee" }} />
               </div>
             ))}
           </div>
         ) : isError ? (
-          <div style={{ backgroundColor: "#ffffff", border: "1px solid #fecaca", padding: 48, textAlign: "center" }}>
-            <p style={{ color: "#b91c1c", fontSize: 15, fontWeight: 600, margin: "0 0 4px" }}>Não foi possível carregar as peças</p>
+          /* O ERRO É IRMÃO DO VAZIO, e estava mal-acabado ao lado dele.
+             Os dois ocupam o mesmo lugar da tela e aparecem pelo mesmo
+             motivo — não há lista para mostrar —, mas só um tinha sido
+             desenhado: o vazio vinha com raio 10, ícone, título 700 e botão
+             de 9/20; o erro vinha QUADRADO (sem raio nenhum, único caso na
+             tela), sem ícone, com título 600 e botão de 8/18.
+             Ninguém compara os dois lado a lado, e é justamente por isso que
+             a diferença passa: cada um é visto sozinho, e o erro parecia uma
+             tela mais velha do mesmo produto. Agora os dois têm a mesma
+             composição — só muda a cor da borda e do ícone, que é o que de
+             fato distingue "deu errado" de "não tem nada". */
+          <div style={{ backgroundColor: "#ffffff", border: "1px solid #fecaca", borderRadius: 10, padding: "56px 24px", textAlign: "center" }}>
+            <AlertTriangle style={{ width: 28, height: 28, color: "#fca5a5", margin: "0 auto 12px" }} />
+            {/* #b91c1c sobre #ffffff = 6,47:1 ✓ (calculado, nao estimado) */}
+            <p style={{ color: "#b91c1c", fontSize: 15, fontWeight: 700, margin: "0 0 4px" }}>Não foi possível carregar as peças</p>
             <p style={{ color: "#746e69", fontSize: 13, margin: "0 0 16px" }}>Verifique sua conexão e tente novamente.</p>
-            <button onClick={() => refetch()} style={{ fontSize: 13, fontWeight: 600, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "8px 18px", cursor: "pointer" }}>Tentar novamente</button>
+            <button onClick={() => refetch()} style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}>Tentar novamente</button>
           </div>
         ) : filteredItems.length === 0 ? (
           /* Empty state com contexto e ação: diz POR QUE está vazio (filtros
@@ -2243,7 +2262,7 @@ export default function PainelGeral() {
                             // repetido dezenas de vezes. O cabeçalho de tabela
                             // não é conteúdo: é régua. A Arte e o Detalhe do
                             // Evento já usam este tratamento claro.
-                            // #57534e sobre #fafaf9 = 6,9:1 ✓ nos 11px.
+                            // #57534e sobre #fafaf9 = 7,30:1 ✓ nos 11px.
                             backgroundColor: "#fafaf9",
                             borderBottom: "1px solid #e7e5e4",
                             padding: "11px 20px",

@@ -967,6 +967,18 @@ export function FilterSelect({
           // vez de aparecer no canto superior esquerdo e saltar para o lugar.
           visibility: pos ? "visible" : "hidden",
           zIndex: 9999,
+          /* pointerEvents EXPLICITO — o portal exige isto.
+
+             O Radix, com um Dialog aberto, poe pointer-events: none no <body>
+             para bloquear tudo que esta FORA do modal. O painel e portado
+             justamente para o body, entao ele herdava esse bloqueio: dentro de
+             qualquer modal do app a lista abria, mostrava as opcoes e NAO
+             aceitava clique. Foi assim que o campo Executivo Responsavel do
+             cadastro de patrocinador parou de funcionar.
+
+             Reativar aqui e seguro porque o painel so existe enquanto `open` e
+             verdadeiro, e o clique-fora continua fechando-o. */
+          pointerEvents: "auto",
           backgroundColor: "#fff", border: "1px solid #E5E7EB",
           borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.10)",
           maxWidth: TETO_PAINEL, overflow: "hidden",

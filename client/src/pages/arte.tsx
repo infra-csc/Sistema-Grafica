@@ -174,20 +174,29 @@ type ArteCol = { label: string; w: number | string; right?: boolean; sep?: boole
 // mede 1246 contra 1248 disponíveis, e qualquer coluna que crescesse sem
 // devolver criaria rolagem horizontal nova nessa largura.
 //
-// 100 úteis cobrem a maioria, não todos: o P95 pede 120 e o pior, 175. Por
+// SEGUNDA RODADA (o dono viu o corte tambem em Finalizados). Sobraram 26px de
+// folga REAL medida no DOM: 'Qtd' tinha 58 para mostrar "25" e 'M²' tinha 72
+// para "42.75". Foram para 'Patroc.' nas duas abas — 124 → 150 na base e
+// 104 → 130 em Finalizados —, e o total continua o mesmo.
+//
+// Em Finalizados nao ha mais de onde tirar: os 208 do ID sao pedidos por
+// "Aguardando Revisao Final" (175,9), que E um status daquela aba. Entao la o
+// nome longo ainda trunca — com reticencias e `title`, que e o ponto.
+//
+// 126 uteis cobrem a maioria, nao todos: o P95 pede 120 e o pior, 175. Por
 // isso o conserto tem DUAS metades, e esta é a menor — a que importa é o chip
 // passar a truncar com reticências (sponsor-chips.tsx), para que o que não
 // couber se anuncie em vez de ser decepado em silêncio.
 const ARTE_COLS: ArteCol[] = [
   { label: 'ID',            w: 84 },
-  { label: 'Qtd',           w: 58 },
+  { label: 'Qtd',           w: 44 },
   { label: 'Peça',          w: 'auto' },
   { label: 'Dimensões',     w: 152 },
-  { label: 'M²',            w: 72, right: true, sep: true },
+  { label: 'M²',            w: 60, right: true, sep: true },
   { label: 'Material',      w: 132 },
   { label: 'Arte',          w: 76 },
   { label: 'Prazo',         w: 144 },
-  { label: 'Patroc.',       w: 124 },
+  { label: 'Patroc.',       w: 150 },
   { label: 'Ações',         w: 180, right: true },
 ];
 
@@ -238,7 +247,7 @@ const ARTE_COLS: ArteCol[] = [
 const ARTE_COLS_FINALIZADOS: ArteCol[] = ARTE_COLS.map(c =>
   c.label === 'ID'      ? { ...c, label: 'ID / Status', w: 208 }
   : c.label === 'Ações'   ? { ...c, w: 76 }
-  : c.label === 'Patroc.' ? { ...c, w: 104 }
+  : c.label === 'Patroc.' ? { ...c, w: 130 }
   : c);
 
 const colunasDaAba = (tabId: string): ArteCol[] =>

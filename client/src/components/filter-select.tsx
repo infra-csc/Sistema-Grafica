@@ -358,19 +358,42 @@ export function FilterSelect({
    * de modo que o painel sempre aparece inteiro mesmo quando não cabe de
    * nenhum dos dois lados. Mesma solução que a prévia de thumb da Arte já usa.
    */
-  const [pos, setPos] = useState<{ top: number; left: number; width: number } | null>(null);
+  /** Teto de largura do painel. Acima disso um menu de filtro deixa de ser um
+   *  menu e vira um segundo painel competindo com a tela. */
+  const TETO_PAINEL = 360;
+  /** Piso de largura do painel. O rótulo da opção é `flex:1` com elipse, ou
+   *  seja: ele NUNCA empurra a largura do painel — encolhe até virar
+   *  reticências. Então um gatilho estreito (o Foco tem 120px) produzia um
+   *  menu de 120px com "Reprovad…", "Em event…". A largura útil do menu tem
+   *  de vir de um piso próprio, não da largura de quem o abriu. 220px comporta
+   *  o maior rótulo do app com a caixa e a contagem; a elipse continua ali
+   *  como último recurso, para nomes de patrocinador realmente longos. */
+  const PISO_PAINEL = 220;
+  const painelRef = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; minWidth: number } | null>(null);
   useLayoutEffect(() => {
     if (!open) return;
     const measure = () => {
       const el = ref.current;
       if (!el) return;
       const rect = el.getBoundingClientRect();
-      const width = Math.min(panelWidth ?? (fullWidth ? rect.width : 280), 360);
+      /**
+       * O painel NÃO tem largura fixa — ele cresce com o conteúdo, a partir de
+       * um piso e até um teto. Fixá-lo na largura do gatilho cortava os rótulos
+       * ("Reprovad…", "Em event…") num gatilho estreito como o do Foco.
+       * Por isso o grampo mede a largura REAL do painel já renderizado, e não
+       * uma largura suposta: `painelRef` existe quando este efeito roda, porque
+       * efeito de layout roda depois do DOM comitado. O `max` com o piso cobre
+       * a primeira passada, em que o painel ainda não recebeu o `minWidth`.
+       */
+      const piso = Math.max(panelWidth ?? (fullWidth ? rect.width : 280), PISO_PAINEL);
+      const real = painelRef.current?.getBoundingClientRect().width ?? 0;
+      const width = Math.min(Math.max(piso, real), TETO_PAINEL);
       const RESPIRO = 8;
       const preferido = dropdownAlign === "right" ? rect.right - width : rect.left;
       const maximo = window.innerWidth - width - RESPIRO;
       const left = Math.max(RESPIRO, Math.min(preferido, maximo));
-      setPos({ top: rect.bottom + 6, left, width });
+      setPos({ top: rect.bottom + 6, left, minWidth: piso });
     };
     measure();
     window.addEventListener("resize", measure);
@@ -916,18 +939,18 @@ export function FilterSelect({
 
       {/* ── Dropdown panel ── */}
       {open && (
-        <div style={{
+        <div ref={painelRef} style={{
           position: "fixed",
           top: pos?.top ?? 0,
           left: pos?.left ?? 0,
-          width: pos?.width,
+          minWidth: pos?.minWidth,
           // Enquanto a primeira medição não chega, o painel fica invisível em
           // vez de aparecer no canto superior esquerdo e saltar para o lugar.
           visibility: pos ? "visible" : "hidden",
           zIndex: 9999,
           backgroundColor: "#fff", border: "1px solid #E5E7EB",
           borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.10)",
-          maxWidth: 360, overflow: "hidden",
+          maxWidth: TETO_PAINEL, overflow: "hidden",
         }}>
           {/* Search */}
           {!hideSearch && (

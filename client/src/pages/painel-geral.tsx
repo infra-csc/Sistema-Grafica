@@ -2801,10 +2801,24 @@ export default function PainelGeral() {
 
       {/* ── Delete confirmation (Admin ou Solicitação, em qualquer status) ── */}
       <AlertDialog open={!!deleteConfirmItemId} onOpenChange={open => { if (!open) setDeleteConfirmItemId(null); }}>
-        <AlertDialogContent>
+        {/* A SUPERFÍCIE É A MESMA DOS OUTROS DIÁLOGOS DO APP.
+
+            Este era o único modal do Painel Geral e vinha com o shadcn CRU —
+            nenhum estilo. Os três diálogos do Detalhe do Evento já tinham
+            superfície própria (raio 16, padding 32, sem borda, sombra
+            larga), e o Estoque também. O resultado é o que mais denuncia uma
+            tela pela metade: a página refinada e, ao confirmar uma exclusão,
+            um modal com cara de biblioteca instalada ontem.
+
+            Confirmar exclusão é o momento de MAIOR atrito da tela — é onde a
+            pessoa para para ler. Ser o componente menos acabado justo aí é o
+            pior lugar possível. */}
+        <AlertDialogContent style={{ width: "96vw", maxWidth: 460, backgroundColor: "#ffffff", borderRadius: 16, padding: 32, border: "none", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
           <AlertDialogHeader>
-            <AlertDialogTitle>Excluir peça?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 19, fontWeight: 800, letterSpacing: "-0.02em", color: "#1c1917" }}>Excluir peça?</AlertDialogTitle>
+            {/* #57534e sobre #ffffff = 7,63:1 ✓ — o mesmo cinza de leitura
+                que a tela usa em texto de apoio. */}
+            <AlertDialogDescription style={{ fontSize: 13, lineHeight: 1.55, color: "#57534e" }}>
               {/* O texto antigo ("permanece no histórico de auditoria")
                   descrevia o LOG, não a peça — e escondia que a ação é
                   reversível. O que acontece é soft delete, com rota de restore. */}
@@ -2826,7 +2840,13 @@ export default function PainelGeral() {
                 if (deleteConfirmItemId) deleteItemMutation.mutate(deleteConfirmItemId);
               }}
               disabled={deleteItemMutation.isPending}
-              style={{ backgroundColor: "#dc2626", color: "#fff" }}
+              /* #b91c1c, e não #dc2626. Os dois passam AA com texto branco
+                 (6,47 e 4,83), então isto não é correção de contraste — é
+                 consistência: #b91c1c é o vermelho destrutivo que este
+                 arquivo já usa em outros oito lugares, e ainda por cima o
+                 mais legível dos dois. Um app não tem dois vermelhos de
+                 "apagar". */
+              style={{ backgroundColor: "#b91c1c", color: "#fff", fontWeight: 700 }}
               data-testid="button-confirm-delete"
             >
               {deleteItemMutation.isPending ? "Excluindo..." : "Excluir Peça"}

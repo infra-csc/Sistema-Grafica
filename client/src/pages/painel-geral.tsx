@@ -1444,7 +1444,10 @@ export default function PainelGeral() {
             {/* O caminho de volta para os escondidos. Discreto de proposito:
                 e uma porta, nao um alarme — e so aparece quando ha o que
                 mostrar, senao viraria um botao que nao faz nada. */}
-            {(escondidos > 0 || showAllKpis) && (
+            {/* Sem a guarda de isLoading, durante a carga TODOS os status
+                estao zerados e o link oferecia "mostrar os 13 status sem peca"
+                — um convite para revelar um vazio que e temporario. */}
+            {!isLoading && (escondidos > 0 || showAllKpis) && (
               <button
                 onClick={() => setShowAllKpis(v => !v)}
                 data-testid="button-toggle-kpis"
@@ -1673,9 +1676,23 @@ export default function PainelGeral() {
             data-testid="painel-contador"
             style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: "#746e69", whiteSpace: "nowrap" }}
           >
-            <span style={{ color: "#1c1917", fontWeight: 900 }}>{filteredItems.length}</span>
-            {" "}{filteredItems.length === 1 ? "peça encontrada" : "peças encontradas"}
-            {activeFilterCount > 0 && ` · ${activeFilterCount} ${activeFilterCount === 1 ? "filtro ativo" : "filtros ativos"}`}
+            {/* ENQUANTO CARREGA, O CONTADOR NÃO PODE DIZER ZERO.
+                Ele lia `filteredItems.length` sem guarda de isLoading, então
+                durante a carga (3.187 peças em produção) a tela afirmava
+                "0 peças encontradas" com os skeletons rodando logo abaixo —
+                "não achei nada" no lugar de "estou buscando".
+                E este span é role=status aria-live: o leitor de tela ANUNCIAVA
+                o zero. Quem não vê o skeleton recebia a informação errada, sem
+                nada que a contradissesse. */}
+            {isLoading ? (
+              <span style={{ color: "#1c1917", fontWeight: 900 }}>Carregando peças…</span>
+            ) : (
+              <>
+                <span style={{ color: "#1c1917", fontWeight: 900 }}>{filteredItems.length}</span>
+                {" "}{filteredItems.length === 1 ? "peça encontrada" : "peças encontradas"}
+                {activeFilterCount > 0 && ` · ${activeFilterCount} ${activeFilterCount === 1 ? "filtro ativo" : "filtros ativos"}`}
+              </>
+            )}
             {/* O número desta tela conta o que está VISÍVEL. Ele só pode dizer
                 isso se disser, no mesmo fôlego, quanto ficou de fora — é aqui
                 que a contagem é lida (e anunciada pelo leitor de tela a cada

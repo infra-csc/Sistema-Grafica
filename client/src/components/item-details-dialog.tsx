@@ -338,8 +338,6 @@ export function ItemDetailsDialog({
   const isExtraAction = (l: any) => EXTRA_ACTIONS.includes(String(l.action ?? ""));
   const itemLogsFlow = itemLogs.filter((l: any) => !isExtraAction(l));
   const itemLogsInclusiveFlow = itemLogsInclusive.filter((l: any) => !isExtraAction(l));
-  /** Complemento criado/cancelado nesta peça — trilha, não etapa. */
-  const extraLogs = itemLogs.filter(isExtraAction);
 
   const fmtShort = (d: string) => {
     const dt = new Date(d);
@@ -418,6 +416,43 @@ export function ItemDetailsDialog({
   const stageLogs = resolveStages(historyStages);
 
   const deliveryLog = itemLogs.find((l: any) => l.action === "delivered");
+
+  // ── A TRILHA COMPLETA da peça ────────────────────────────────────────────
+  //
+  // O painel do Histórico montava ONZE ETAPAS FIXAS e procurava, em cada uma,
+  // o log que casasse por palavra-chave. Quem não estava na lista não existia:
+  // reprovação do patrocinador, devolução para a Arte, troca do arquivo final,
+  // edição de dados, exclusão e restauração — todos deixam registro e nenhum
+  // aparecia. E cada etapa mostrava só o PRIMEIRO log que casou, então uma
+  // peça que passou por aprovação duas vezes (porque voltou no meio) mostrava
+  // uma data só. O painel desenhava sempre um caminho linear, mesmo quando a
+  // peça foi e voltou três vezes.
+  //
+  // Agora a trilha é a LISTA DE LOGS, na ordem em que aconteceram. O texto de
+  // cada linha é o `details` que a própria rota escreveu — em português, já
+  // com o motivo quando existe. Nada é resumido e nada é descartado.
+  //
+  // As etapas fixas continuam à esquerda, na Rastreabilidade Temporal: lá elas
+  // respondem "onde a peça está", que é uma pergunta diferente de "o que
+  // aconteceu com ela".
+  const CORES_ACAO: Record<string, string> = {
+    created: "#3b82f6",
+    rejected: "#dc2626",
+    deleted: "#dc2626",
+    approved: "#16a34a",
+    delivered: "#10b981",
+    produced: "#a855f7",
+    production: "#eab308",
+    restored: "#0ea5e9",
+    complement_created: "#f97316",
+    complement_canceled: "#f97316",
+  };
+  /** Cinza para o que não tem família própria — updated é a maioria. */
+  const corDaAcao = (a: string) => CORES_ACAO[a] ?? "#a8a29e";
+
+  /** Fallback de texto: log antigo sem `details` ainda precisa dizer algo. */
+  const textoDoLog = (l: any) =>
+    String(l.details ?? "").trim() || getStatusLabel(String(l.action ?? "")) || String(l.action ?? "registro");
 
   const thumbUrl = item.approvalThumbUrl;
   const isThumbImage = thumbUrl && (isImageUrl(thumbUrl) && !isPdf(thumbUrl));
@@ -1220,68 +1255,38 @@ export function ItemDetailsDialog({
                 <div style={{ position: "relative", paddingLeft: 28 }}>
                   <div style={{ position: "absolute", left: 5, top: 6, bottom: 6, width: 1, backgroundColor: "#e8e8e7" }} />
                   <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                    {historyStages.map((stage, idx) => {
-                      const logEntry = stageLogs.get(stage.label) ?? null;
+                    {/* Uma linha por REGISTRO, na ordem em que aconteceram.
+                        Os blocos que existiam aqui — as onze etapas fixas, a
+                        entrega e os complementos — eram recortes desta mesma
+                        lista, e por isso sumiam com ela. */}
+                    {itemLogs.length === 0 && (
+                      <p style={{ fontSize: 11, color: "#8b8580", margin: 0 }}>
+                        Sem registros para esta peça.
+                      </p>
+                    )}
+                    {itemLogs.map((log: any, idx: number) => {
+                      const acao = String(log.action ?? "");
+                      const cor = corDaAcao(acao);
+                      const autor = log.userName ?? log.user_name;
                       return (
-                        <div key={idx} style={{ position: "relative" }}>
+                        <div key={log.id ?? `${acao}-${log.createdAt ?? log.created_at}-${idx}`} style={{ position: "relative" }}>
                           <div style={{
                             position: "absolute", left: -23, top: 4,
                             width: 12, height: 12, borderRadius: "50%",
-                            backgroundColor: logEntry ? "#fd761a" : "#e2e2e2",
-                            boxShadow: logEntry ? "0 0 0 4px rgba(253,118,26,0.1)" : "none",
+                            backgroundColor: cor,
+                            boxShadow: `0 0 0 4px ${cor}22`,
                           }} />
-                          <p style={{ fontSize: logEntry ? 12 : 11, fontWeight: logEntry ? 700 : 400, textTransform: "uppercase", letterSpacing: logEntry ? "-0.04em" : "0.01em", color: logEntry ? "#1a1c1c" : "#8b8580", margin: "0 0 2px 0" }}>
-                            {stage.label}
+                          {/* #1a1c1c sobre branco = 16,4:1 ✓ · #8c7164 = 5,3:1 ✓ */}
+                          <p style={{ fontSize: 12, fontWeight: 600, color: "#1a1c1c", margin: "0 0 2px 0", lineHeight: 1.45 }}>
+                            {textoDoLog(log)}
                           </p>
-                          {logEntry && (
-                            <p style={{ fontSize: 10, color: "#8c7164", margin: 0, fontFamily: "'DM Mono', monospace" }}>
-                              {logEntry.date}{logEntry.user ? ` · @${logEntry.user}` : ""}
-                            </p>
-                          )}
+                          <p style={{ fontSize: 10, color: "#8c7164", margin: 0, fontFamily: "'DM Mono', monospace" }}>
+                            {fmtShort(log.createdAt ?? log.created_at)}
+                            {autor ? ` · @${autor}` : ""}
+                          </p>
                         </div>
                       );
                     })}
-                    {deliveryLog && (
-                      <div style={{ position: "relative" }}>
-                        <div style={{
-                          position: "absolute", left: -23, top: 4,
-                          width: 12, height: 12, borderRadius: "50%",
-                          backgroundColor: "#10b981",
-                          boxShadow: "0 0 0 4px rgba(16,185,129,0.15)",
-                        }} />
-                        <p style={{ fontSize: 13, fontWeight: 700, textTransform: "uppercase", letterSpacing: "-0.04em", color: "#1a1c1c", margin: "0 0 2px 0" }}>
-                          {deliveryLog.details || "Entregue"}
-                        </p>
-                        <p style={{ fontSize: 10, color: "#8c7164", margin: 0, fontFamily: "'DM Mono', monospace" }}>
-                          {fmtShort(deliveryLog.createdAt ?? deliveryLog.created_at)}
-                          {(deliveryLog.userName ?? deliveryLog.user_name) ? ` · @${deliveryLog.userName ?? deliveryLog.user_name}` : ""}
-                        </p>
-                      </div>
-                    )}
-                    {/* Eventos que NÃO são etapas do fluxo (complemento criado /
-                        cancelado). Entram no mesmo molde das etapas, com bolinha
-                        laranja, porque o texto do próprio audit log já conta a
-                        história inteira — quantas unidades, o motivo, quem pediu.
-                        Sem isto, o aumento de quantidade não aparecia em lugar
-                        nenhum da trilha, justamente na peça onde quem presta
-                        contas vai procurar. */}
-                    {extraLogs.map((log: any) => (
-                      <div key={log.id ?? `${log.action}-${log.createdAt ?? log.created_at}`} style={{ position: "relative" }}>
-                        <div style={{
-                          position: "absolute", left: -23, top: 4,
-                          width: 12, height: 12, borderRadius: "50%",
-                          backgroundColor: "#f97316",
-                          boxShadow: "0 0 0 4px rgba(249,115,22,0.15)",
-                        }} />
-                        <p style={{ fontSize: 12, fontWeight: 700, color: "#7c2d12", margin: "0 0 2px 0", lineHeight: 1.4 }}>
-                          {log.details || (log.action === "complement_canceled" ? "Complemento cancelado" : "Complemento criado")}
-                        </p>
-                        <p style={{ fontSize: 10, color: "#8c7164", margin: 0, fontFamily: "'DM Mono', monospace" }}>
-                          {fmtShort(log.createdAt ?? log.created_at)}
-                          {(log.userName ?? log.user_name) ? ` · @${log.userName ?? log.user_name}` : ""}
-                        </p>
-                      </div>
-                    ))}
                     {/* ÚLTIMO NÓ — o evento acabou. Sempre por último porque é o
                         fim da história: depois dele nada mais acontece com esta
                         peça enquanto o evento não for reaberto (e "reaberto" só

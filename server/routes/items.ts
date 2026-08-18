@@ -2542,11 +2542,21 @@ export function registerItemRoutes(app: Express): void {
       if (!motivo.ok) return res.status(400).json({ error: motivo.erro });
 
       const item = await storage.updateItem(req.params.id, {
-        status: "awaiting_submission",
+        // VOLTA PARA A FINALIZACAO, nao para o comeco (regra do dono, 17/08).
+        // A devolucao da Revisao acontece DEPOIS de o patrocinador ter
+        // aprovado o layout: o que falhou foi o arquivo final, nao a arte.
+        // Mandar para `awaiting_submission` jogava a peca na fila de
+        // "Aguardando envio" — o comeco de tudo, no meio de 1.120 pecas que
+        // nunca sairam — e ainda apagava o thumb JA APROVADO, obrigando a
+        // refazer aprovacao que ninguem pediu para refazer.
+        // `sponsor_approved` e o status que alimenta a aba "Finalizar arte"
+        // (TAB_STATUSES em lib/arte-rules): a peca reaparece exatamente na
+        // etapa que precisa ser refeita, com a aprovacao preservada.
+        status: "sponsor_approved",
         creatorReviewedAt: null,
         finalFileUrl: null,
-        approvalThumbUrl: null,
-        // Mantém sponsorApprovedBy/sponsorApprovedAt para preservar o contexto da aprovação anterior
+        // O thumb NAO e apagado: ele ja passou pelo patrocinador.
+        // sponsorApprovedBy/At preservados pelo mesmo motivo.
         rejectedByCreator: true, // Flag indicando que foi reprovado pelo criador
         rejectionReason: motivo.motivo,
       });
@@ -2562,7 +2572,7 @@ export function registerItemRoutes(app: Express): void {
         'rejected',
         'item',
         item.id,
-        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("awaiting_submission")} (reprovado pelo criador). Motivo: ${motivo.motivo}`
+        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("sponsor_approved")} (reprovado pelo criador — volta para a finalização). Motivo: ${motivo.motivo}`
       );
       
       // Notifica Arte para refazer o trabalho
@@ -2694,10 +2704,19 @@ export function registerItemRoutes(app: Express): void {
       }
       
       const item = await storage.updateItem(req.params.id, {
-        status: "awaiting_submission",
+        // VOLTA PARA A FINALIZACAO, nao para o comeco (regra do dono, 17/08).
+        // A devolucao da Revisao acontece DEPOIS de o patrocinador ter
+        // aprovado o layout: o que falhou foi o arquivo final, nao a arte.
+        // Mandar para `awaiting_submission` jogava a peca na fila de
+        // "Aguardando envio" — o comeco de tudo, no meio de 1.120 pecas que
+        // nunca sairam — e ainda apagava o thumb JA APROVADO, obrigando a
+        // refazer aprovacao que ninguem pediu para refazer.
+        // `sponsor_approved` e o status que alimenta a aba "Finalizar arte"
+        // (TAB_STATUSES em lib/arte-rules): a peca reaparece exatamente na
+        // etapa que precisa ser refeita, com a aprovacao preservada.
+        status: "sponsor_approved",
         creatorReviewedAt: null,
         finalFileUrl: null,
-        approvalThumbUrl: null,
         rejectedByCreator: true,
         // O motivo da devolução SUBSTITUI a observação: motivo vazio não pode
         // herdar a observação antiga como se fosse o feedback desta devolução.
@@ -2779,10 +2798,19 @@ export function registerItemRoutes(app: Express): void {
         }
 
         const item = await storage.updateItem(itemId, {
-          status: "awaiting_submission",
+          // VOLTA PARA A FINALIZACAO, nao para o comeco (regra do dono, 17/08).
+          // A devolucao da Revisao acontece DEPOIS de o patrocinador ter
+          // aprovado o layout: o que falhou foi o arquivo final, nao a arte.
+          // Mandar para `awaiting_submission` jogava a peca na fila de
+          // "Aguardando envio" — o comeco de tudo, no meio de 1.120 pecas que
+          // nunca sairam — e ainda apagava o thumb JA APROVADO, obrigando a
+          // refazer aprovacao que ninguem pediu para refazer.
+          // `sponsor_approved` e o status que alimenta a aba "Finalizar arte"
+          // (TAB_STATUSES em lib/arte-rules): a peca reaparece exatamente na
+          // etapa que precisa ser refeita, com a aprovacao preservada.
+          status: "sponsor_approved",
           creatorReviewedAt: null,
           finalFileUrl: null,
-          approvalThumbUrl: null,
           rejectedByCreator: true,
           // (e não `|| currentItem.observations`): o return individual
           // substitui a observação — o lote herdava a antiga silenciosamente.
@@ -3032,11 +3060,19 @@ export function registerItemRoutes(app: Express): void {
         }
 
         const item = await storage.updateItem(itemId, {
-          status: "awaiting_submission",
+          // VOLTA PARA A FINALIZACAO, nao para o comeco (regra do dono, 17/08).
+          // A devolucao da Revisao acontece DEPOIS de o patrocinador ter
+          // aprovado o layout: o que falhou foi o arquivo final, nao a arte.
+          // Mandar para `awaiting_submission` jogava a peca na fila de
+          // "Aguardando envio" — o comeco de tudo, no meio de 1.120 pecas que
+          // nunca sairam — e ainda apagava o thumb JA APROVADO, obrigando a
+          // refazer aprovacao que ninguem pediu para refazer.
+          // `sponsor_approved` e o status que alimenta a aba "Finalizar arte"
+          // (TAB_STATUSES em lib/arte-rules): a peca reaparece exatamente na
+          // etapa que precisa ser refeita, com a aprovacao preservada.
+          status: "sponsor_approved",
           creatorReviewedAt: null,
           finalFileUrl: null,
-          approvalThumbUrl: null,
-          // Mantém sponsorApprovedBy/sponsorApprovedAt para preservar o contexto da aprovação anterior
           rejectedByCreator: true,
           rejectionReason: motivo.motivo,
         });
@@ -3051,7 +3087,7 @@ export function registerItemRoutes(app: Express): void {
             'rejected',
             'item',
             item.id,
-            `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("awaiting_submission")} (reprovado pelo criador em lote). Motivo: ${motivo.motivo}`
+            `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("sponsor_approved")} (reprovado pelo criador em lote — volta para a finalização). Motivo: ${motivo.motivo}`
           );
           
           broadcast({ type: "item_updated", item });

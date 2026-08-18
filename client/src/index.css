@@ -501,6 +501,106 @@
    --orange-brand : #f97316  ações primárias, ícones (orange-500)
    --orange-deep  : #ea580c  gradientes, pressed (orange-600)
 ──────────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════════════
+   ESCALA DA INTERFACE — os degraus que faltavam.
+
+   O que JÁ existia e continua sendo a fonte da verdade:
+     • tokens do shadcn (--background, --foreground, --primary…) e o bloco .dark
+     • --orange-* : a marca
+     • lib/status.ts : as cores de STATUS DE PEÇA, em JS, com chaves canônicas
+
+   O que NÃO existia, e é o que este bloco cria: a escala. Neutros, tipografia,
+   espaçamento, raio, altura de controle e sombra. Sem eles a tela escrevia 300
+   valores literais no JSX — medido — e nenhum deles respondia a troca de tema.
+
+   NOTA sobre os --status-* que existem mais acima neste arquivo: eles têm
+   classes geradas mas NENHUM .tsx os consome. São tokens mortos, de uma
+   tentativa anterior. Não construí sobre eles de propósito — a fonte viva é
+   lib/status.ts, e duplicar a verdade em dois lugares é como ela se perde.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* ── Neutros: 9 degraus, do papel ao texto ──────────────────────────────
+     A escada é a paleta stone que a tela já usava; o que mudou é ela ter
+     nome e ordem. n5 é o último tom legível como TEXTO em fundo claro:
+     #a8a29e dá 2,52:1 e serve para desabilitado e ícone decorativo, nunca
+     para conteúdo. */
+  --n0: #ffffff;   /* superfície pura: card, linha par da tabela          */
+  --n1: #fafaf9;   /* fundo da página e do cabeçalho de tabela            */
+  --n2: #f5f5f4;   /* superfície sutil: faixa de tipo, linha ímpar        */
+  --n3: #e7e5e4;   /* borda padrão, hairline                              */
+  --n4: #d6d3d1;   /* borda forte, ícone de estado vazio                  */
+  --n5: #a8a29e;   /* desabilitado — NÃO usar como texto de conteúdo      */
+  --n6: #746e69;   /* texto secundário            (5,03:1 sobre n0)       */
+  --n7: #57534e;   /* texto de apoio              (7,63:1 sobre n0)       */
+  --n8: #1c1917;   /* texto principal            (16,10:1 sobre n0)       */
+
+  /* ── Tipografia: 5 tamanhos ────────────────────────────────────────────
+     Cinco degraus cobrem os oito tamanhos que a tela usava. O salto de
+     fs-4 para fs-5 é grande de propósito: número de KPI não compete com
+     texto, ele domina. */
+  --fs-1: 10px;    /* micro-rótulo em caixa-alta                          */
+  --fs-2: 11px;    /* metadado, contagem                                  */
+  --fs-3: 13px;    /* corpo — o tamanho de leitura da tela                */
+  --fs-4: 15px;    /* título de bloco, texto de destaque                  */
+  --fs-5: 26px;    /* número de KPI                                       */
+
+  /* ── Três estilos de texto, não três pesos soltos ──────────────────────
+     O peso é REFORÇO, nunca o único diferenciador: o rótulo de seção já se
+     separa por caixa-alta, tracking, tamanho e cor. Se um dia estes três
+     valores colapsarem, a hierarquia continua de pé sem eles. */
+  --fw-body: 600;    /* corpo e metadado                                  */
+  --fw-strong: 700;  /* dado que carrega a linha, título                  */
+  --fw-label: 800;   /* rótulo em CAIXA-ALTA, sempre com tracking         */
+
+  --lh-tight: 1.2;   /* números e títulos: linha curta, sem ar            */
+  --lh-body: 1.5;    /* texto corrido                                     */
+  --tr-label: 0.08em; /* tracking do micro-rótulo                         */
+  --tr-band: 0.12em;  /* tracking da faixa de seção — lida de longe       */
+
+  /* ── Espaçamento: grade de 4 ───────────────────────────────────────────*/
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+
+  /* ── Raio ──────────────────────────────────────────────────────────────*/
+  --r-sm: 6px;      /* chip, botão pequeno                                */
+  --r-md: 10px;     /* card, painel                                       */
+  --r-pill: 999px;  /* pílula de status                                   */
+
+  /* ── Altura de controle: UMA ───────────────────────────────────────────
+     A tela tinha 32, 36, 38 e 40 convivendo — medido. 36 é o mínimo de
+     ponteiro da casa; 44 entra abaixo de 768px, onde o dedo é o ponteiro. */
+  --ctl-h: 36px;
+  --ctl-h-touch: 44px;
+
+  /* ── Sombra: UM nível ──────────────────────────────────────────────────
+     Superfície plana com hairline de 1px é o padrão; sombra fica reservada
+     ao que FLUTUA (menu, popover). A tela tinha quatro níveis diferentes. */
+  --sh-1: 0 8px 24px rgba(28,25,23,.12);
+
+  /* ── Linha da tabela ───────────────────────────────────────────────────
+     Altura ÚNICA. A tela tinha 63 e 82 convivendo, porque a altura era
+     consequência do conteúdo mais alto de cada linha em vez de uma decisão. */
+  --row-h: 64px;
+}
+
+/* Os mesmos tokens no tema escuro: a escada inverte, os nomes não mudam.
+   É isso que permite a tela ser escrita uma vez só. */
+.dark {
+  --n0: #1c1917;
+  --n1: #16130f;
+  --n2: #292524;
+  --n3: #44403c;
+  --n4: #57534e;
+  --n5: #746e69;
+  --n6: #a8a29e;
+  --n7: #d6d3d1;
+  --n8: #fafaf9;
+  --sh-1: 0 8px 24px rgba(0,0,0,.45);
+}
 :root {
   --orange-soft   : #fff7ed;
   --orange-border : #fb923c;

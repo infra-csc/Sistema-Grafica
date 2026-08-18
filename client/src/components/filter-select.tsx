@@ -377,6 +377,33 @@ export function FilterSelect({
    *  como último recurso, para nomes de patrocinador realmente longos. */
   const PISO_PAINEL = 220;
   const painelRef = useRef<HTMLDivElement>(null);
+  /**
+   * ONDE O PAINEL É PORTADO — e por que não é sempre o <body>.
+   *
+   * O portal para o body resolve dois problemas reais: o menu deixa de
+   * estender a área rolável da página (era isso que empurrava a tela para o
+   * lado) e escapa da armadilha do ancestral com `transform`, que rouba o
+   * bloco de contenção de um `position: fixed`.
+   *
+   * Só que DENTRO DE UM MODAL isso vira o oposto de um conserto. O Radix, com
+   * um Dialog aberto, isola o modal do resto: põe `pointer-events: none` no
+   * body, PRENDE O FOCO na subárvore dele e BLOQUEIA A RODA do mouse fora
+   * dali. Um painel morando no body herda os três — abria a lista, mostrava
+   * as opções e não deixava clicar, digitar nem rolar. Foi assim que o campo
+   * "Executivo responsável" do cadastro de patrocinador parou de funcionar.
+   *
+   * Dentro de um modal, então, o painel fica DENTRO do modal. Os dois motivos
+   * que justificam o portal somem ali: o modal não é a página que rola, e o
+   * `transform` do Radix passa a ser exatamente o bloco de contenção que a
+   * gente quer — por isso o posicionamento vira `absolute`, relativo ao
+   * próprio modal, em vez de `fixed` relativo à janela.
+   */
+  const [dentroDeModal, setDentroDeModal] = useState<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    if (!open) { setDentroDeModal(null); return; }
+    setDentroDeModal(ref.current?.closest<HTMLElement>('[role="dialog"]') ?? null);
+  }, [open]);
+
   const [pos, setPos] = useState<{ top: number; left: number; minWidth: number } | null>(null);
   useLayoutEffect(() => {
     if (!open) return;
@@ -397,10 +424,21 @@ export function FilterSelect({
       const real = painelRef.current?.getBoundingClientRect().width ?? 0;
       const width = Math.min(Math.max(piso, real), TETO_PAINEL);
       const RESPIRO = 8;
+      // Dentro de um modal o referencial é a caixa do modal; fora dele, a
+      // janela. O grampo é o mesmo, muda só contra o que ele grampeia.
+      const caixa = dentroDeModal
+        ? dentroDeModal.getBoundingClientRect()
+        : { left: 0, right: window.innerWidth, top: 0, bottom: window.innerHeight } as DOMRect;
       const preferido = dropdownAlign === "right" ? rect.right - width : rect.left;
-      const maximo = window.innerWidth - width - RESPIRO;
-      const left = Math.max(RESPIRO, Math.min(preferido, maximo));
-      setPos({ top: rect.bottom + 6, left, minWidth: piso });
+      const maximo = caixa.right - width - RESPIRO;
+      const left = Math.max(caixa.left + RESPIRO, Math.min(preferido, maximo));
+      // Coordenadas do MODAL quando estamos dentro dele (o painel é absolute
+      // ali), e da janela quando estamos fora (o painel é fixed).
+      setPos({
+        top: rect.bottom + 6 - (dentroDeModal ? caixa.top : 0),
+        left: left - (dentroDeModal ? caixa.left : 0),
+        minWidth: piso,
+      });
     };
     measure();
     window.addEventListener("resize", measure);
@@ -411,7 +449,7 @@ export function FilterSelect({
       window.removeEventListener("resize", measure);
       window.removeEventListener("scroll", measure, true);
     };
-  }, [open, dropdownAlign, panelWidth, fullWidth]);
+  }, [open, dropdownAlign, panelWidth, fullWidth, dentroDeModal]);
 
   // ── Paleta de cor baseada no accent ───────────────────────────────────
   // `main` (o 500 saturado: #F97316 / #7C3AED) saiu da paleta em vez de ficar
@@ -959,7 +997,7 @@ export function FilterSelect({
           quem quer que envolva o controle. */}
       {open && createPortal((
         <div ref={painelRef} style={{
-          position: "fixed",
+          position: dentroDeModal ? "absolute" : "fixed",
           top: pos?.top ?? 0,
           left: pos?.left ?? 0,
           minWidth: pos?.minWidth,
@@ -1101,7 +1139,7 @@ export function FilterSelect({
             </div>
           )}
         </div>
-      ), document.body)}
+      ), dentroDeModal ?? document.body)}
     </div>
   );
 }

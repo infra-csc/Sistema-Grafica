@@ -35,11 +35,12 @@ const soCodigo = (fonte: string) => fonte
   .replace(/^[ \t]*\/\/.*$/gm, "");
 
 describe("1. a estrutura do menu não mudou", () => {
-  it("continuam 19 itens", () => {
-    // DEZENOVE, contados. O prompt do refino dizia 18 — errou por um, e o
-    // número certo só aparece quando alguém conta em vez de repetir.
+  it("continuam 20 itens", () => {
+    // VINTE. Eram 19 quando este teste nasceu (o prompt do refino dizia 18);
+    // o vigésimo é "Correção de textos", a tela de reparo dos motivos, que
+    // entrou depois. O teste existe para a mudança ser DECLARADA, não impedida.
     const itens = (sidebar.match(/\{ title: "/g) ?? []).length;
-    expect(itens).toBe(19);
+    expect(itens).toBe(20);
   });
 
   it("e o controle de permissão segue de pé", () => {

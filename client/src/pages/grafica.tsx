@@ -320,7 +320,15 @@ function BulkActionDialog({
 }) {
   const isConfer = mode === "confer";
   const tint = isConfer ? "#0e7490" : TI.accent;
-  const canSubmit = isConfer ? photos.length > 0 : receivedBy.trim().length > 0;
+  // A FOTO LIBERA O BOTAO NOS DOIS MODOS.
+  //
+  // A entrega em lote exigia o NOME para habilitar o confirmar. Eu havia
+  // invertido a regra em handleBulkDelivery — foto obrigatoria, nome opcional
+  // — mas o botao trava ANTES: ele nem chega a chamar a funcao. Consertar a
+  // validacao e deixar o gate do botao para tras e nao consertar nada.
+  const canSubmit = photos.length > 0;
+  // A dica do campo de foto tambem dizia "opcional" para a entrega — texto da
+  // regra antiga, que contradizia o asterisco do proprio rotulo ao lado.
   const confirmBg = isConfer ? "#0e7490" : "#15803d";
   const confirmHover = isConfer ? "#155e75" : "#166534";
   const HeaderIcon = isConfer ? CheckCircle : Truck;
@@ -382,7 +390,7 @@ function BulkActionDialog({
             onRemove={onRemovePhoto}
             onError={onPhotoError}
             label={isConfer ? "Foto da conferência *" : "Foto da entrega *"}
-            hint={isConfer ? "· mesma para todas as peças" : "· opcional · mesmo para todas as peças"}
+            hint={isConfer ? "· mesma para todas as peças" : "· obrigatória, mesma para todas as peças"}
           />
 
           {/* Observações */}

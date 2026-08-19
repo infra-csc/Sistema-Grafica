@@ -85,3 +85,25 @@ describe("a tela DIZ qual campo é obrigatório", () => {
     expect(grafica).toContain('"Foto da conferência *"');
   });
 });
+
+describe("o BOTÃO do lote também obedece à regra", () => {
+  it("o confirmar do lote é liberado pela FOTO, não pelo nome", () => {
+    // Este é o buraco que a primeira correção deixou. Eu inverti a regra em
+    // `handleBulkDelivery` — foto obrigatória, nome opcional — mas o botão
+    // trava ANTES dela: `canSubmit` exigia `receivedBy.trim().length > 0`, e a
+    // função nem chegava a ser chamada. Consertar a validação e deixar o gate
+    // do botão para trás não conserta nada; quem usa o app encontra o gate.
+    expect(grafica).toContain("const canSubmit = photos.length > 0;");
+  });
+
+  it("o gate do botão não olha mais o nome de quem recebeu", () => {
+    expect(grafica).not.toContain("receivedBy.trim().length > 0");
+  });
+
+  it("a dica do campo de foto não diz mais 'opcional' na entrega", () => {
+    // O texto contradizia o asterisco do próprio rótulo ao lado — a tela
+    // pedindo e dispensando a mesma coisa em dois lugares vizinhos.
+    expect(grafica).not.toContain('"· opcional · mesmo para todas as peças"');
+    expect(grafica).toContain('"· obrigatória, mesma para todas as peças"');
+  });
+});

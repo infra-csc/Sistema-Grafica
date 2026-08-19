@@ -3592,9 +3592,26 @@ export function registerItemRoutes(app: Express): void {
         return res.status(400).json({ error: "Foto da conferência é obrigatória" });
       }
       // Conferência acontece a partir de Produzido (e continua enquanto parcial).
+      /**
+       * DISPONÍVEL PARA CONFERIR = produzido + reaproveitado.
+       *
+       * O gate era `status !== "produced"` → 409. Peça vinda do acervo nunca
+       * chega a esse status (não há o que imprimir), então nunca podia ser
+       * conferida — e, sem conferência, nunca entregue. 72 peças presas assim
+       * em produção.
+       *
+       * A validação vive aqui e não só na tela porque a mesma rota atende a
+       * conferência em LOTE: regra de negócio validada só no botão é regra que
+       * o próximo caller ignora.
+       */
+      const reusedTotal = current.reuseQty || 0;
       const alreadyConferred = current.conferredQty || 0;
       const remaining = current.quantity - alreadyConferred;
-      if (current.status !== "produced" || remaining <= 0) {
+      // `produced` continua liberando o caminho normal; o reuso abre o dele.
+      // Sem este "ou", a peça de acervo levava 409 para sempre — 72 delas em
+      // produção. O saldo (`remaining`) continua sendo quem limita quantas.
+      const podeConferir = current.status === "produced" || reusedTotal > 0;
+      if (!podeConferir || remaining <= 0) {
         return res.status(409).json({ error: `Nada a conferir. Status: ${translateStatus(current.status)} (${alreadyConferred}/${current.quantity})` });
       }
       // Quantidade desta conferência (padrão: o que falta). Limita ao restante.

@@ -117,3 +117,26 @@ describe("4. o sino", () => {
     expect(codigo).toContain("fontWeight: !n.isRead ? 700 : 500");
   });
 });
+
+describe("5. a rolagem da sidebar não pula", () => {
+  const css = readFileSync(path.resolve(__dirname, "../../client/src/index.css"), "utf8");
+
+  it("a largura da barra é constante — só a cor muda no hover", () => {
+    // Antes ela era escondida em repouso e passava a 8px no hover: a lista
+    // inteira se deslocava quando o ponteiro entrava na sidebar, e voltava
+    // quando saía. Com 19 itens, que já obrigam a rolar, era um pula-pula a
+    // cada passada do mouse.
+    expect(css).toContain(".sidebar-scroll::-webkit-scrollbar {");
+    expect(css).not.toContain(".sidebar-no-scroll");
+  });
+
+  it("e o polegar é discreto parado, firme sob o ponteiro", () => {
+    expect(css).toContain("scrollbar-color: #e7e5e4 transparent;");
+    expect(css).toContain("scrollbar-color: #a8a29e #f5f5f4;");
+  });
+
+  it("o hover saiu do React — era render para trocar classe", () => {
+    expect(soCodigo(sidebar)).not.toContain("contentHover");
+    expect(soCodigo(sidebar)).toContain('className="sidebar-scroll"');
+  });
+});

@@ -222,9 +222,9 @@ export function AppSidebar() {
   const logoutMutation = useLogout();
   const isMobileCasca = useIsMobile();
 
-  // 18 itens rolam sem nenhuma pista visual: no hover do container a
-  // scrollbar fina aparece (.scrollbar-visible já existe no index.css).
-  const [contentHover, setContentHover] = useState(false);
+  // 19 itens nao cabem numa tela de 768: a lista rola, e a barra fica sempre
+  // com a mesma largura para nada se mover quando o ponteiro entra — o que
+  // muda no hover e a COR do polegar (.sidebar-scroll no index.css).
 
   const role = (user?.role || "") as UserRole;
   const filterByRole = (items: MenuItem[]) =>
@@ -292,16 +292,16 @@ export function AppSidebar() {
       </SidebarHeader>
 
       {/* ── Content ── */}
+      {/* O hover da barra de rolagem saiu do React e foi para o CSS: era
+          estado que redesenhava a sidebar inteira a cada entrada e saída do
+          ponteiro, para trocar uma classe. `:hover` faz o mesmo sem render. */}
       <SidebarContent
-        className={contentHover ? "scrollbar-visible" : "sidebar-no-scroll"}
-        onMouseEnter={() => setContentHover(true)}
-        onMouseLeave={() => setContentHover(false)}
+        className="sidebar-scroll"
         style={{
           padding: "0 0 8px",
           display: "flex",
           flexDirection: "column",
           gap: 0,
-          overflowY: "auto",
         }}
       >
         {/* display:contents mantém os grupos como filhos diretos do flex

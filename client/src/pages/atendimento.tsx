@@ -2066,18 +2066,25 @@ export default function Atendimento() {
                       width: 8, height: 8, borderRadius: '50%',
                       backgroundColor: '#f97316', flexShrink: 0,
                     }} />
-                  <h4 style={{
+                  {/* <h2> e não <h4>: a página tem um <h1> e pulava direto para
+                      o nível 4, o que faz o leitor de tela anunciar dois níveis
+                      que não existem. O card da peça abaixo é <h3>. */}
+                  <h2 title={ev?.name || undefined} style={{
                     fontFamily: "'Space Grotesk', sans-serif",
-                    fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em',
-                    color: '#1c1917', margin: 0,
+                    // 16/700: o nome do evento estava em 18/800, mais pesado
+                    // que o próprio <h1> da tela em peso e a um ponto dele em
+                    // tamanho — e ele se repete a cada grupo da lista.
+                    fontSize: 16, fontWeight: 700, letterSpacing: '-0.02em',
+                    color: '#1c1917', margin: 0, minWidth: 0,
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                   }}>
                     {ev?.name || 'Sem Evento'}
                     {ev?.startDate && (
-                      <span style={{ color: '#746e69', fontWeight: 500, marginLeft: 12, fontSize: 15 }}>
+                      <span style={{ color: '#746e69', fontWeight: 500, marginLeft: 10, fontSize: 12 }}>
                         {format(parseDateLocal(ev.startDate), "MMMM yyyy", { locale: ptBR })}
                       </span>
                     )}
-                  </h4>
+                  </h2>
                   {(() => {
                     // Marco de Aprovação de Layout — regra única em
                     // lib/atendimento-prazo, a mesma do filtro "Atrasados" e do
@@ -2093,19 +2100,47 @@ export default function Atendimento() {
                       : diff <= 3
                       ? { bg: '#FDF0E8', border: '#FDDBC4', text: '#C97B4B' }
                       : { bg: '#F3F2F0', border: '#E7E3DC', text: '#6F6A63' };
+                    // POR EXTENSO. O selo dizia "Aprovação de Layout · 06/08
+                    // (13d)" e deixava a leitura mais importante — se já venceu
+                    // ou ainda falta — só no TOM DA COR. Quem não distingue o
+                    // vermelho do âmbar lia a mesma frase nos dois casos
+                    // (WCAG 1.4.1). O "(13d)" entre parênteses e com opacidade
+                    // 0.7 também não dizia se eram dias passados ou futuros.
+                    const dias = Math.abs(diff);
+                    const plural = dias === 1 ? 'dia' : 'dias';
+                    const texto = diff < 0
+                      ? `Aprovação de Layout venceu ${ds} · há ${dias} ${plural}`
+                      : diff === 0
+                        ? `Aprovação de Layout vence hoje · ${ds}`
+                        : `Aprovação de Layout vence ${ds} · em ${dias} ${plural}`;
                     return (
-                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 999, padding: '3px 10px', fontSize: 11, fontWeight: 700, color: s.text, whiteSpace: 'nowrap' }}>
-                        Aprovação de Layout · {ds}{diff >= 0 && diff <= 14 && <span title={`Prazo em ${diff} ${diff === 1 ? 'dia' : 'dias'}`} style={{ opacity: 0.7, fontWeight: 500 }}> ({diff}d)</span>}
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, flexShrink: 0, backgroundColor: s.bg, border: `1px solid ${s.border}`, borderRadius: 999, padding: '3px 10px', fontSize: 11, fontWeight: 700, color: s.text, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                        {texto}
                       </span>
                     );
                   })()}
-                  <span style={{
-                    marginLeft: 'auto',
-                    backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4',
-                    color: '#746e69', borderRadius: 999,
-                    fontSize: 11, fontWeight: 600, padding: '3px 10px',
-                  }}>
-                    {eventItems.length} {eventItems.length === 1 ? 'peça' : 'peças'}
+                  {/* "3 NA SUA MESA" — o número que decide por onde começar.
+
+                      O grupo dizia só quantas peças tem, e uma pilha de 14 é
+                      indistinguível de outra pilha de 14 quando o que importa
+                      é quantas dependem de VOCÊ agora. É a mesma conta da
+                      primeira célula do placar, no grão do evento. */}
+                  <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'baseline', gap: 6, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: 12, color: '#746e69', fontVariantNumeric: 'tabular-nums' }}>
+                      {eventItems.length} {eventItems.length === 1 ? 'peça' : 'peças'}
+                    </span>
+                    {(() => {
+                      const naMesa = eventItems.filter((i: any) => situacaoDaPeca(itemApprovalsMap[i.id]) === "nova_versao").length;
+                      if (naMesa === 0) return null;
+                      return (
+                        <span
+                          data-testid={`grupo-na-sua-mesa-${eventId}`}
+                          style={{ fontSize: 12, fontWeight: 700, color: '#92400e', fontVariantNumeric: 'tabular-nums' }}
+                        >
+                          · {naMesa} na sua mesa
+                        </span>
+                      );
+                    })()}
                   </span>
                 </div>
 
@@ -2128,41 +2163,57 @@ export default function Atendimento() {
 
                     return (
                       <Fragment key={item.id}>
-                        {showGroupHeader && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0 4px', marginTop: 4 }}>
-                            <div style={{ width: 3, height: 16, borderRadius: 999, background: '#f97316', flexShrink: 0 }} />
-                            <span style={{ fontSize: 11, fontWeight: 800, color: '#1c1917', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{itemGroupName}</span>
-                            <div style={{ flex: 1, height: 1, background: '#f0ede8' }} />
-                          </div>
-                        )}
+                        {/* GRUPO e TIPO num rótulo só.
+
+                            Eram duas linhas com régua, uma com barrinha laranja
+                            e outra prefixada por "Tipo:", empilhadas — quatro
+                            elementos gráficos e 30px de altura para dizer
+                            "COMUNICAÇÃO VISUAL · BACKDROP". Numa lista de 40
+                            peças isso se repete dezenas de vezes.
+
+                            `showGroupHeader` implica `showTypeHeader`, então a
+                            condição do tipo cobre as duas. */}
                         {showTypeHeader && (
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0 2px' }}>
-                            <span style={{ fontSize: 11, fontWeight: 600, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>Tipo:</span>
-                            <span style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{item.type}</span>
-                            <div style={{ flex: 1, height: 1, background: '#f0ede8' }} />
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0 2px' }}>
+                            <span style={{ fontSize: 10, fontWeight: 800, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.12em', whiteSpace: 'nowrap' }}>
+                              {[itemGroupName, item.type].filter(Boolean).join(" · ")}
+                            </span>
+                            <div style={{ flex: 1, height: 1, background: '#f1f0ef' }} />
                           </div>
                         )}
+                      {/* O CARD.
+
+                          Fora: `inset 4px 0 0` fazia o trilho de estado, e a
+                          sombra dupla no hover redesenhava o trilho junto —
+                          duas declarações da mesma coisa em três lugares. Aqui
+                          o card tem borda de 1px e um `borderLeft` de 3px no
+                          tom da SITUAÇÃO, o mesmo vocabulário do card da
+                          Gestão de Prazos.
+
+                          `opacity: 0.75` saiu dos aprovados: quem está
+                          resolvido perde a COR, não a legibilidade — o texto
+                          cinza sobre branco a 75% reprovava contraste. */}
                       <div
                         key={`card-${item.id}`}
                         data-testid={`row-item-${item.id}`}
                         className="group"
                         style={{
-                          backgroundColor: '#ffffff', borderRadius: 12,
-                          boxShadow: `0 1px 3px rgba(0,0,0,0.06), inset 4px 0 0 ${isFullyApproved ? '#d6d3d1' : hasArteBlock ? '#746e69' : '#f97316'}`,
+                          backgroundColor: hasArteBlock ? '#fafaf9' : '#ffffff',
+                          borderRadius: 12,
+                          border: '1px solid #e7e5e4',
+                          borderLeft: `3px solid ${isFullyApproved ? "#d6d3d1" : hasArteBlock ? "#a8a29e" : temNovaVersao ? "#b45309" : "#f97316"}`,
                           overflow: 'hidden',
-                          opacity: isFullyApproved ? 0.75 : 1,
-                          transition: 'box-shadow 0.2s',
                         }}
-                        onMouseEnter={e => { if (!isFullyApproved) (e.currentTarget as HTMLDivElement).style.boxShadow = `0 4px 12px rgba(0,0,0,0.1), inset 4px 0 0 ${hasArteBlock ? '#746e69' : '#f97316'}`; }}
-                        onMouseLeave={e => { (e.currentTarget as HTMLDivElement).style.boxShadow = `0 1px 3px rgba(0,0,0,0.06), inset 4px 0 0 ${isFullyApproved ? '#d6d3d1' : hasArteBlock ? '#746e69' : '#f97316'}`; }}
                       >
-                        <div style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', padding: isMobile ? 14 : 20, gap: isMobile ? 12 : 24, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+                        <div style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', padding: isMobile ? 14 : 18, gap: isMobile ? 12 : 20, flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
 
-                          {/* Thumbnail */}
+                          {/* Thumb 72 e não 80: o card ganhou uma terceira
+                              linha de texto e a miniatura passou a ser o
+                              elemento mais alto dele. */}
                           <div style={{
-                            width: isMobile ? 52 : 80, height: isMobile ? 52 : 80, flexShrink: 0, borderRadius: 12,
+                            width: isMobile ? 52 : 72, height: isMobile ? 52 : 72, flexShrink: 0, borderRadius: 10,
                             overflow: 'hidden', backgroundColor: '#f5f5f4', position: 'relative',
-                            border: '1px solid #ede9e4',
+                            border: '1px solid #e7e5e4',
                           }}>
                             {hasThumb ? (
                               <>
@@ -2172,16 +2223,16 @@ export default function Atendimento() {
                                   style={{
                                     width: '100%', height: '100%', objectFit: 'cover',
                                     filter: isFullyApproved ? 'grayscale(1)' : 'grayscale(0)',
-                                    transition: 'filter 0.4s',
                                   }}
                                   onError={(e) => {
-                                    (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                    (e.currentTarget as HTMLImageElement).style.display = "none";
                                     const fb = (e.currentTarget as HTMLImageElement).nextElementSibling as HTMLElement | null;
-                                    if (fb?.dataset.fallback) fb.style.display = 'flex';
+                                    if (fb?.dataset.fallback) fb.style.display = "flex";
                                   }}
                                 />
-                                <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', background: '#f5f5f4' }}>
-                                  <FileText style={{ width: 24, height: 24, color: '#a8a29e' }} />
+                                <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3, background: '#f5f5f4' }}>
+                                  <ImageIcon aria-hidden="true" style={{ width: 18, height: 18, color: '#a8a29e' }} />
+                                  <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: '#746e69' }}>SEM ARTE</span>
                                 </div>
                                 {!isFullyApproved && (
                                   <div style={{
@@ -2197,162 +2248,159 @@ export default function Atendimento() {
                                 )}
                               </>
                             ) : (
-                              <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <FileText style={{ width: 24, height: 24, color: '#a8a29e' }} />
+                              // O vazio era um ícone de documento e mais nada:
+                              // não dava para saber se a arte não existe ou se
+                              // a imagem falhou ao carregar. Agora ele diz.
+                              <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+                                <ImageIcon aria-hidden="true" style={{ width: 18, height: 18, color: '#a8a29e' }} />
+                                <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '0.06em', color: '#746e69' }}>SEM ARTE</span>
                               </div>
                             )}
                           </div>
 
-                          {/* Grid de info */}
-                          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr 1fr auto', gap: isMobile ? 10 : 16, alignItems: isMobile ? 'stretch' : 'center', minWidth: 0 }}>
+                          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(0,2fr) minmax(0,1.4fr) auto', gap: isMobile ? 10 : 18, alignItems: isMobile ? 'stretch' : 'center', minWidth: 0 }}>
 
-                            {/* Col 1: Título e ID */}
-                            <div>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                                <h5 style={{ fontSize: 15, fontWeight: 700, color: isFullyApproved ? '#746e69' : '#1c1917', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {/* IDENTIDADE em três linhas: o que é, o que diz o
+                                pedido, e quem tem de aprovar. Antes o código e
+                                a descrição dividiam UMA linha de 11px em caixa
+                                alta — "#3524 • BACKDROP FUNDO PALCO" lido como
+                                um rótulo só. */}
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
+                                <span style={{
+                                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+                                  fontSize: 12, fontWeight: 700, color: '#746e69',
+                                  fontVariantNumeric: 'tabular-nums', flexShrink: 0,
+                                }}>
+                                  {item.displayId}
+                                </span>
+                                <h3 title={item.type} style={{ fontSize: 14, fontWeight: 700, color: '#1c1917', margin: 0, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {item.type}
-                                </h5>
+                                </h3>
                                 {item.isReuse && (
-                                  <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', backgroundColor: '#dcfce7', color: '#166534', borderRadius: 999, padding: '2px 8px', flexShrink: 0 }}>
+                                  <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', backgroundColor: '#dcfce7', color: '#166534', borderRadius: 999, padding: '2px 8px', flexShrink: 0 }}>
                                     Reaproveit.
                                   </span>
                                 )}
                               </div>
-                              <p style={{ fontSize: 11, fontWeight: 600, color: '#746e69', textTransform: 'uppercase', margin: '3px 0 0', letterSpacing: '0.04em' }}>
-                                {item.displayId}{item.description ? ` • ${item.description}` : ''}
+                              <p title={item.description || undefined} style={{ fontSize: 12, color: '#746e69', margin: '3px 0 0', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {item.description || 'Sem descrição'}
+                                {item.quantity != null && (
+                                  <span style={{ fontVariantNumeric: 'tabular-nums' }}>{' · '}{item.quantity} un.</span>
+                                )}
+                                {item.referenceUrl && (
+                                  // Link INLINE: era um chip azul com moldura,
+                                  // a única coisa azul da tela inteira, do
+                                  // tamanho de um selo de status ao lado de
+                                  // selos de status — e não é status nenhum.
+                                  <>
+                                    {' · '}
+                                    <a
+                                      href={item.referenceUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      onClick={e => e.stopPropagation()}
+                                      title="Ver referência visual do solicitante"
+                                      data-testid={`link-reference-atendimento-${item.id}`}
+                                      style={{ color: '#c2410c', fontWeight: 600, textDecoration: 'underline' }}
+                                    >
+                                      ref. visual
+                                    </a>
+                                  </>
+                                )}
                               </p>
-                              {item.referenceUrl && (
-                                <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600, color: '#2563eb', textDecoration: 'none', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '2px 7px', marginTop: 4 }} data-testid={`link-reference-atendimento-${item.id}`}>
-                                  <Paperclip style={{ width: 10, height: 10 }} />
-                                  Ref. visual
-                                </a>
-                              )}
+                              <div style={{ marginTop: 6, minWidth: 0, overflow: 'hidden' }}>
+                                {loadingSponsors ? (
+                                  <span style={{ fontSize: 12, color: '#746e69' }}>carregando patrocinadores…</span>
+                                ) : (
+                                  <SponsorChips sponsors={sponsorsWithStatus(item)} variant="colored" size="sm" max={2} />
+                                )}
+                              </div>
                             </div>
 
-                            {/* Col 2: Patrocinadores */}
-                            <div style={{ minWidth: 0, overflow: 'hidden' }}>
-                              {loadingSponsors ? (
-                                <span style={{ fontSize: 13, color: '#746e69' }}>...</span>
-                              ) : (
-                                <SponsorChips sponsors={sponsorsWithStatus(item)} variant="colored" size="sm" max={2} />
-                              )}
+                            {/* SITUAÇÃO em duas linhas: o rótulo e o RELÓGIO.
+
+                                O selo sozinho dizia o estado e escondia a idade
+                                dele — "Ag. Revisão" com uma bolinha pulsando é
+                                igual no dia 1 e no dia 40. A segunda linha diz
+                                há quanto tempo e quem falta.
+
+                                A idade vem de `approvalThumbUpdatedAt`, que o
+                                schema define como "quando o thumb foi trocado
+                                pela Arte": no primeiro envio é quando a peça
+                                ficou disponível para o patrocinador; num
+                                reenvio é quando a Arte devolveu corrigida. As
+                                duas leituras são o mesmo campo, cada uma no seu
+                                contexto — e nenhuma delas é inventada. */}
+                            <div style={{ minWidth: 0 }}>
+                              {(() => {
+                                const sit = situacaoDaPeca(approvals);
+                                const tom = isFullyApproved ? "#57534e"
+                                  : sit === "nova_versao" ? "#92400e"
+                                  : sit === "aguardando_arte" ? "#57534e"
+                                  : sit === "reprovado" ? "#b91c1c"
+                                  : "#c2410c";
+                                const desde = item.approvalThumbUpdatedAt
+                                  ? fmtRelative(new Date(item.approvalThumbUpdatedAt).toISOString(), agora)
+                                  : null;
+                                const responderam = approvals.filter(a => a.status !== "pending").length;
+                                const relogio = isFullyApproved
+                                  ? "todos os patrocinadores aprovaram"
+                                  : sit === "nova_versao"
+                                    ? (desde ? `a Arte corrigiu ${desde} — a peça espera sua decisão` : "a Arte corrigiu — a peça espera sua decisão")
+                                  : sit === "aguardando_arte"
+                                    ? "nada a fazer aqui — você é avisado quando voltar"
+                                  : `${desde ? `enviada ${desde} · ` : ""}${responderam} de ${approvals.length} responderam`;
+                                return (
+                                  <>
+                                    <span
+                                      data-testid={`situacao-${item.id}`}
+                                      style={{ display: "block", fontSize: 12, fontWeight: 700, color: tom, lineHeight: 1.3 }}
+                                    >
+                                      {isFullyApproved ? "Aprovado" : SITUACAO_META[sit].label}
+                                    </span>
+                                    <span style={{ display: "block", marginTop: 3, fontSize: 12, color: "#746e69", lineHeight: 1.4 }}>
+                                      {relogio}
+                                    </span>
+                                  </>
+                                );
+                              })()}
                             </div>
 
-                            {/* Col 3: Status Badge */}
-                            <div>
-                              {isFullyApproved ? (
-                                <span style={{
-                                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                                  padding: '4px 10px', borderRadius: 6,
-                                  backgroundColor: '#f5f5f4', color: '#57534e',
-                                  fontSize: 11, fontWeight: 700,
-                                }}>
-                                  <CheckCircle style={{ width: 12, height: 12 }} />
-                                  APROVADO
-                                </span>
-                              ) : hasArteBlock ? (
-                                /* Dizia NOVA VERSÃO, que se lê "a versão nova
-                                   chegou" — e `hasArteBlock` é exatamente o
-                                   contrário: o patrocinador reprovou e a Arte
-                                   AINDA está refazendo. O `title` já contava a
-                                   verdade; o rótulo dizia o oposto dela, em
-                                   cinza, do lado de fora. Agora o chip nomeia
-                                   quem está com a bola, e sai do cinza: houve
-                                   reprovação de fato (campo vermelho) e o
-                                   retrabalho está em curso (bolinha âmbar) —
-                                   a mesma dupla de famílias do vocabulário.
-                                   #b91c1c sobre #fffbeb = 6,6:1 ✓ nos 11px. */
-                                <span
-                                  title="O patrocinador reprovou e a Arte está refazendo — você será avisado quando a nova versão chegar"
-                                  data-testid={`chip-arte-refazendo-${item.id}`}
-                                  style={{
-                                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                                    padding: '4px 10px', borderRadius: 6,
-                                    backgroundColor: '#fffbeb', border: '1px solid #fde68a', color: '#b91c1c',
-                                    fontSize: 11, fontWeight: 700,
-                                  }}>
-                                  <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#f59e0b', flexShrink: 0 }} />
-                                  <RotateCcw style={{ width: 12, height: 12 }} />
-                                  ARTE REFAZENDO
-                                </span>
-                              ) : temNovaVersao ? (
-                                /* O estado OPOSTO, e o único da tela em que a
-                                   bola é do Atendimento: a Arte já mandou e o
-                                   arquivo espera ser reenviado ao patrocinador.
-                                   Não existia nesta linha — caía no "Ag.
-                                   Revisão" genérico, e o trabalho pronto para
-                                   sair ficava indistinguível do que ainda
-                                   depende de outra pessoa.
-                                   #92400e sobre #fffbeb = 7,4:1 ✓ */
-                                <span
-                                  title={SITUACAO_META.nova_versao.hint}
-                                  data-testid={`chip-aprovar-nova-versao-${item.id}`}
-                                  style={{
-                                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                                    padding: '4px 10px', borderRadius: 6,
-                                    backgroundColor: '#fffbeb', border: '1px solid #fde68a', color: '#92400e',
-                                    fontSize: 11, fontWeight: 700,
-                                  }}>
-                                  <RotateCcw style={{ width: 12, height: 12 }} />
-                                  NOVA VERSÃO · APROVAR
-                                </span>
-                              ) : (
-                                <span style={{
-                                  display: 'inline-flex', alignItems: 'center', gap: 6,
-                                  padding: '5px 10px', borderRadius: 6,
-                                  backgroundColor: '#fff7ed', border: '1px solid #fed7aa', color: '#c2410c',
-                                  fontSize: 11, fontWeight: 700,
-                                }}>
-                                  <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#f97316', flexShrink: 0, animation: 'pulse 2s infinite' }} />
-                                  Ag. Revisão
-                                </span>
-                              )}
-                            </div>
+                            {/* A AÇÃO. Tinta sólida SÓ quando a bola é sua.
 
-                            {/* Col 4: Botão de ação */}
+                                Todos os cards traziam o mesmo botão cinza que
+                                virava LARANJA INTEIRO no hover — a peça que
+                                espera você e a peça que não depende de você
+                                convidavam com a mesma força, e a força era a de
+                                uma ação primária. */}
                             <div style={{ display: 'flex', justifyContent: isMobile ? 'stretch' : 'flex-end' }}>
-                              {isFullyApproved ? (
-                                <button
-                                  onClick={() => handleViewDetails(item)}
-                                  data-testid={`button-history-${item.id}`}
-                                  style={{
-                                    padding: '8px 20px', borderRadius: 8,
-                                    backgroundColor: '#f5f5f4', border: 'none', color: '#57534e',
-                                    fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-                                    cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5,
-                                    transition: 'background-color 0.15s',
-                                    minHeight: isMobile ? 44 : undefined,
-                                    width: isMobile ? '100%' : undefined,
-                                    justifyContent: isMobile ? 'center' : undefined,
-                                  }}
-                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#e7e5e4'; }}
-                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; }}
-                                >
-                                  <Eye style={{ width: 12, height: 12 }} />
-                                  Histórico
-                                </button>
-                              ) : (
-                                <button
-                                  onClick={() => handleViewDetails(item)}
-                                  data-testid={`button-view-${item.id}`}
-                                  style={{
-                                    padding: '8px 20px', borderRadius: 8,
-                                    backgroundColor: '#f5f5f4', color: '#1c1917',
-                                    border: '1px solid transparent', cursor: 'pointer',
-                                    fontSize: 11, fontWeight: 700,
-                                    display: 'flex', alignItems: 'center', gap: 6,
-                                    transition: 'all 0.2s',
-                                    minHeight: isMobile ? 44 : undefined,
-                                    width: isMobile ? '100%' : undefined,
-                                    justifyContent: isMobile ? 'center' : undefined,
-                                  }}
-                                  onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f97316'; e.currentTarget.style.color = '#ffffff'; e.currentTarget.style.border = '1px solid #f97316'; }}
-                                  onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.color = '#1c1917'; e.currentTarget.style.border = '1px solid transparent'; }}
-                                >
-                                  Revisar
-                                  <Eye style={{ width: 14, height: 14 }} />
-                                </button>
-                              )}
+                              {(() => {
+                                const primaria = temNovaVersao && !isFullyApproved;
+                                const rotulo = isFullyApproved ? "Ver histórico"
+                                  : hasArteBlock ? "Ver histórico"
+                                  : primaria ? "Revisar agora" : "Revisar";
+                                return (
+                                  <button
+                                    onClick={() => handleViewDetails(item)}
+                                    data-testid={isFullyApproved ? `button-history-${item.id}` : `button-view-${item.id}`}
+                                    style={{
+                                      height: isMobile ? 44 : 36, padding: "0 16px", borderRadius: 9,
+                                      backgroundColor: primaria ? "#1c1917" : "#ffffff",
+                                      border: primaria ? "1px solid #1c1917" : "1px solid #e7e5e4",
+                                      color: primaria ? "#ffffff" : "#1c1917",
+                                      fontSize: 12, fontWeight: 700, cursor: "pointer",
+                                      display: "flex", alignItems: "center", gap: 6,
+                                      width: isMobile ? "100%" : undefined,
+                                      justifyContent: isMobile ? "center" : undefined,
+                                      whiteSpace: "nowrap",
+                                    }}
+                                  >
+                                    {rotulo}
+                                    <Eye aria-hidden="true" style={{ width: 13, height: 13 }} />
+                                  </button>
+                                );
+                              })()}
                             </div>
                           </div>
                         </div>

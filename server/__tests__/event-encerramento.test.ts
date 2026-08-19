@@ -256,9 +256,29 @@ describe("reversibilidade", () => {
   });
 
   it("reabrir o que não está encerrado é 409", async () => {
+    // O fixture nasce com data de MARÇO, que já passou — e desde que a
+    // reabertura passou a valer também para a trava por data, um evento
+    // passado é legitimamente reabrível. Para medir o que este teste mede
+    // ("não há o que reabrir"), o evento precisa estar de fato em jogo.
+    mundo.eventos["ev-1"].startDate = new Date("2027-01-01T00:00:00.000Z");
     const r = await chamar("POST /api/events/:id/reopen", { params: { id: "ev-1" }, userRole: "admin" });
 
     expect(r.status).toBe(409);
+  });
+
+  it("reabrir evento travado pela DATA agora é permitido", async () => {
+    // A regra mudou por decisão do dono: a data continua encerrando sozinha,
+    // mas a reabertura à mão vence. Antes esta chamada devolvia 409 e a única
+    // saída era encerrar o evento só para poder reabri-lo — a dança que o
+    // dono executou antes de reclamar.
+    mundo.eventos["ev-1"].startDate = new Date("2026-03-15T00:00:00.000Z");
+    mundo.eventos["ev-1"].status = "created";
+
+    const r = await chamar("POST /api/events/:id/reopen", { params: { id: "ev-1" }, userRole: "admin" });
+
+    expect(r.status).toBe(200);
+    // A licença fica gravada: é ela que a regra compara com o dia do evento.
+    expect(mundo.eventos["ev-1"].reopenedAt).toBeInstanceOf(Date);
   });
 
   it("404 quando o evento não existe", async () => {

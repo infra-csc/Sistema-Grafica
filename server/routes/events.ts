@@ -882,7 +882,11 @@ export function registerEventRoutes(app: Express): void {
       const items = await storage.getItemsByEvent(req.params.id);
       const work = countOpenWork(items);
 
-      const updated = await storage.updateEvent(req.params.id, { status: EVENT_CLOSED_STATUS } as any);
+      // `reopenedAt: null` junto: encerrar REVOGA a licença que a reabertura
+      // deu. Sem isto, um evento reaberto e encerrado de novo voltaria a ficar
+      // destravado assim que alguém reabrisse pela segunda vez — a licença
+      // antiga ainda estaria lá, com data posterior ao dia do evento.
+      const updated = await storage.updateEvent(req.params.id, { status: EVENT_CLOSED_STATUS, reopenedAt: null } as any);
       if (!updated) {
         return res.status(404).json({ error: "Evento não encontrado" });
       }
@@ -918,15 +922,31 @@ export function registerEventRoutes(app: Express): void {
       if (!event) {
         return res.status(404).json({ error: "Evento não encontrado" });
       }
-      if (event.status !== EVENT_CLOSED_STATUS) {
-        return res.status(409).json({ error: "Este evento não está encerrado" });
+      /**
+       * REABRIR VALE PARA AS DUAS ORIGENS, e antes valia só para uma.
+       *
+       * A rota exigia `status === closed`, ou seja, só aceitava desfazer o
+       * encerramento HUMANO. Um evento travado porque a data passou devolvia
+       * 409 — e a única saída era encerrar primeiro para poder reabrir, uma
+       * dança sem sentido que o dono de fato executou antes de reclamar.
+       *
+       * Agora a pergunta é a mesma que trava a edição: o evento está
+       * finalizado por ALGUM motivo? Se não está, não há o que reabrir.
+       */
+      const motivo = motivoEventoFinalizado(event, todayBusinessMs());
+      if (motivo === null) {
+        return res.status(409).json({ error: "Este evento não está encerrado nem já aconteceu" });
       }
 
       // Volta para "created" e não para "completed": a partir daqui quem manda
       // é a derivação de novo, e a primeira mexida numa peça (updateEventStatus)
       // recarimba o valor certo. Carimbar "completed" aqui seria a mentira que
       // esta base já corrigiu uma vez.
-      const updated = await storage.updateEvent(req.params.id, { status: "created" } as any);
+      // `reopenedAt` é a licença: a partir daqui a data deixa de travar este
+      // evento. Gravada AGORA (e não como booleano) porque a regra compara a
+      // reabertura com o dia do evento — reabrir antes da data não pode valer
+      // como licença para depois que ela vencer.
+      const updated = await storage.updateEvent(req.params.id, { status: "created", reopenedAt: new Date() } as any);
       if (!updated) {
         return res.status(404).json({ error: "Evento não encontrado" });
       }
@@ -939,7 +959,7 @@ export function registerEventRoutes(app: Express): void {
         "updated",
         "event",
         updated.id,
-        `Evento "${updated.name}" REABERTO — volta para a Gestão de Prazos e para as filas de trabalho com ${work.openCount} ${work.openCount === 1 ? "peça em aberto" : "peças em aberto"} (${work.inProductionCount} em produção).`
+        `Evento "${updated.name}" REABERTO (estava ${motivo === "encerrado" ? "encerrado à mão" : "fora de jogo porque a data já passou"}) — volta para a Gestão de Prazos e para as filas de trabalho com ${work.openCount} ${work.openCount === 1 ? "peça em aberto" : "peças em aberto"} (${work.inProductionCount} em produção).`
       );
 
       broadcast({ type: "event_reopened", eventId: updated.id, event: updated });

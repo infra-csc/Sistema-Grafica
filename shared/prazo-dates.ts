@@ -136,6 +136,8 @@ export interface EventoFinalizavel {
   status?: string | null;
   manuallyClosed?: boolean | null;
   startDate?: Date | string | null;
+  /** Quando alguem reabriu a mao. Vence a trava por data — ver motivoEventoFinalizado. */
+  reopenedAt?: Date | string | null;
 }
 
 /**
@@ -155,7 +157,27 @@ export function motivoEventoFinalizado(
   if (event.manuallyClosed === true || event.status === EVENT_CLOSED_STATUS) return "encerrado";
   const dia = eventDayMs(event.startDate);
   if (dia === null) return null; // sem data (ou data absurda) → nunca finalizado
-  return hojeMs > dia ? "realizado" : null;
+  if (hojeMs <= dia) return null; // ainda não aconteceu
+
+  /**
+   * A REABERTURA À MÃO VENCE A DATA.
+   *
+   * Antes esta função dizia que "realizado" não tinha volta — a data é fato,
+   * e fato não se desfaz. A regra mudou por decisão do dono: se uma pessoa
+   * reabre um evento SABENDO que a data passou, ela está afirmando que ainda
+   * há trabalho ali, e o sistema obedece.
+   *
+   * A comparação é com o DIA DO EVENTO, não com "existe reopenedAt": reabrir
+   * antes da data não pode valer como licença para depois que ela vencer.
+   * Sem isso, um evento reaberto em janeiro ficaria destravado para sempre.
+   *
+   * Encerrar de novo limpa a marca (ver POST /close), então a licença é
+   * revogável pelo mesmo gesto que a concedeu.
+   */
+  const reaberto = event.reopenedAt ? new Date(event.reopenedAt).getTime() : null;
+  if (reaberto !== null && reaberto > dia) return null;
+
+  return "realizado";
 }
 
 /** O evento saiu de circulação (por encerramento manual OU por já ter acontecido). */

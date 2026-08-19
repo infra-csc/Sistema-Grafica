@@ -28,6 +28,24 @@ export const events = pgTable("events", {
   // gravada só por POST /api/events/:id/close e desfeita só por /reopen.
   // Coluna text livre: o terceiro valor não exige migração.
   status: text("status").notNull().default("created"), // created, completed, closed
+  /**
+   * QUANDO alguém reabriu o evento à mão. NULL = nunca reaberto.
+   *
+   * Existe porque "encerrado" e "realizado" são coisas diferentes e só uma
+   * tinha volta. Encerrar é decisão de gente e some com `status`; a data ter
+   * passado não some com nada — e o dono precisa poder dizer "eu sei que
+   * passou, e ainda tem trabalho aqui".
+   *
+   * Não dava para usar `status` para isso: evento nunca encerrado e evento
+   * reaberto ficam os DOIS em "created". Sem uma marca própria, "reabriu logo
+   * libera" liberaria também todo evento passado que ninguém tocou — e a trava
+   * de data deixaria de existir.
+   *
+   * É TIMESTAMP e não booleano porque a reabertura precisa ser comparada com
+   * o dia do evento: reabrir ANTES da data não deve valer como licença para
+   * depois que ela passar.
+   */
+  reopenedAt: timestamp("reopened_at"),
   priority: text("priority"), // baixa, media, alta, urgente
   franchise: text("franchise"), // Franquia (ex: "Night Run", "Circuito Estações")
   approvalBookUrl: text("approval_book_url"), // URL do PDF com book de aprovação

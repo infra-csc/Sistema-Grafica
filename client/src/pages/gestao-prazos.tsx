@@ -1127,7 +1127,12 @@ export default function GestaoPrazos() {
                   href={urlSetorAqui}
                   data-testid={`comece-setor-${ev.id}`}
                   title={`${setor} — já no recorte das peças deste evento nesta etapa`}
-                  style={{ fontSize: 12, fontWeight: 600, color: TI.secondary, textDecoration: "none", whiteSpace: "nowrap" }}
+                  /* ALVO DE 36px. O link tinha 18 — metade do mínimo de
+                     ponteiro da casa — e é a AÇÃO PRINCIPAL desta lista: o
+                     caminho que leva de "achei o gargalo" para "vou resolver".
+                     `inline-flex` com minHeight cresce a área de clique sem
+                     desenhar caixa nenhuma, porque o fundo é transparente. */
+                  style={{ display: "inline-flex", alignItems: "center", minHeight: 36, fontSize: 12, fontWeight: 600, color: TI.secondary, textDecoration: "none", whiteSpace: "nowrap" }}
                 >
                   Resolver em {setor} →
                 </Link>

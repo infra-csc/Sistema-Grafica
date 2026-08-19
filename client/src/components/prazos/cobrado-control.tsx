@@ -299,9 +299,13 @@ export function CobradoControl({
             }}
             aria-expanded={formAberto}
             aria-controls={formAberto ? `combinado-${targetType}-${targetId}` : undefined}
+            /* ALVO DE 36px: com padding 4px o botao dava 26 de altura, abaixo
+               do minimo de ponteiro da casa. minHeight em vez de mais padding
+               para o traco nao mudar de lugar — o fundo e transparente, entao
+               o que cresce e so a area de clique. */
             style={{
-              display: "inline-flex", alignItems: "center", gap: 5,
-              background: "none", border: "none", padding: "4px 0",
+              display: "inline-flex", alignItems: "center", gap: 5, minHeight: 36,
+              background: "none", border: "none", padding: "0",
               fontSize: 12, fontWeight: 600, color: TI.secondary, cursor: "pointer",
             }}
           >

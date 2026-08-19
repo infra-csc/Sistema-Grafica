@@ -245,7 +245,10 @@ export const STAGE_HEADERS = [
   { key: "listaImagens", short: "Lista", full: "Lista de Imagens" },
   { key: "layouts", short: "Layouts", full: "Entrega de Layouts" },
   { key: "aprovacao", short: "Aprovação", full: "Aprovação de Layout" },
-  { key: "finalizacao", short: "Final.", full: "Finalização" },
+  // "Final." era a UNICA coluna abreviada com ponto, ao lado de "Aprovacao"
+  // e "Producao" inteiras — lia como erro de digitacao, nao como abreviacao.
+  // "Final" sem ponto e uma palavra de verdade e cabe no mesmo espaco.
+  { key: "finalizacao", short: "Final", full: "Finalização" },
   { key: "revisao", short: "Revisão", full: "Revisão de Lista" },
   { key: "producao", short: "Produção", full: "Produção Gráfica" },
 ];

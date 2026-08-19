@@ -103,8 +103,15 @@ export function KpiCard({
         {value}
         <TrendArrow delta={trend} goodWhenUp={goodWhenUp} />
       </span>
+      {/* 12px, e não 11: isto é FRASE, não rótulo.
+          "com pelo menos uma etapa já vencida", "o caminhão sai de hoje até
+          daqui a 7 dias" — são as linhas que explicam o que o número grande
+          significa, e são o texto mais lido do topo da tela. 11px é tamanho de
+          micro-rótulo (o selo, o cabeçalho de coluna); frase pede o degrau de
+          leitura. O lineHeight sobe junto: 1.35 aperta linha que quebra em
+          duas. */}
       {hint && (
-        <span style={{ display: "block", marginTop: 6, fontSize: 11, lineHeight: 1.35, color: TI.label }}>
+        <span style={{ display: "block", marginTop: 6, fontSize: 12, lineHeight: 1.45, color: TI.label }}>
           {hint}
         </span>
       )}

@@ -191,7 +191,11 @@ function LinkSetor({ p, empilhado, style }: {
       href={p.url}
       title={`${p.setor} — a tela que destrava ${p.item.displayId}, já no recorte desta peça`}
       data-testid={`resolver-${p.item.id}`}
+      /* ALVO DE 36px — ver a mesma nota no bloco "Comece por aqui". Este
+         link é o mesmo gesto, e é usado na lista de peças atrasadas e no
+         drilldown do evento: três lugares, um alvo só. */
       style={{
+        display: "inline-flex", alignItems: "center", minHeight: 36,
         fontSize: 12, fontWeight: 600, color: TI.secondary, textDecoration: "none",
         whiteSpace: empilhado ? "normal" : "nowrap", ...style,
       }}

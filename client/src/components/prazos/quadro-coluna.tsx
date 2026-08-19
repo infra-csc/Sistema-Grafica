@@ -97,7 +97,18 @@ export function QuadroColuna({ stageKey, label, stageIdx, eventos, temFiltro, re
         }}>
           {STAGE_SHORT[stageKey] ?? label}
         </h2>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 2 }}>
+        {/* ALTURA RESERVADA PARA DUAS LINHAS, em TODAS as colunas.
+
+            O subtitulo e o selo dividem esta linha com flexWrap. Quando o
+            subtitulo e longo — "Atendimento · 30 eventos · 1353 pecas", medido
+            em producao — ele quebra e empurra o selo para baixo. Resultado: a
+            coluna Aprovacao ficava 17px fora da linha de base das outras cinco.
+
+            Reservar a altura e melhor que truncar: os numeros do subtitulo sao
+            o conteudo da coluna, e cortar "1353 pecas" para alinhar seria
+            trocar dado por estetica. O custo e 17px de respiro no cabecalho das
+            colunas curtas — que alias a tela ganha, nao perde. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 2, minHeight: 34 }}>
           <span style={{ fontSize: 11, color: TI.secondary, minWidth: 0 }}>
             {setor ? `${setor} · ` : ""}
             {eventos.length} evento{eventos.length !== 1 ? "s" : ""}

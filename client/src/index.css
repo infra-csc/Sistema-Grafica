@@ -638,11 +638,23 @@
 }
 
 /* ── Modal de revisão – responsivo ──────────────────────────── */
+/* DUAS colunas, não três.
+
+   Eram 1fr 2fr 1fr: metadados | arte | histórico, com a DECISÃO espremida
+   embaixo da arte na coluna do meio. A arte — a única coisa que a pessoa
+   precisa realmente OLHAR para decidir — ficava com metade da largura, e as
+   duas colunas laterais eram texto de apoio que ninguém lê antes de ver a
+   imagem.
+
+   Agora: tudo o que se LÊ à esquerda (arte, especificações, arquivos,
+   histórico) e tudo o que se DECIDE à direita. A arte quase dobra de área e
+   a coluna de decisão ganha um piso de 320px, que é onde vivem os botões e
+   o formulário de reprovação. */
 .review-modal-body {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
   display: grid;
-  grid-template-columns: 1fr 2fr 1fr;
+  grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr);
 }
 
 /* NORTE review surfaces — intentionally local to the creator-review flow */

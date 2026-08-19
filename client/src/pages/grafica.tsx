@@ -3299,21 +3299,31 @@ export default function Grafica() {
                           {/* DEVOLVER — contorno, não preenchido: é a saída de
                               exceção ao lado de "Produzir", que é o caminho
                               normal. Só antes de produzir; depois disso o botão
-                              some, porque não há estorno do que já foi impresso. */}
+                              some, porque não há estorno do que já foi impresso.
+
+                              SÓ O ÍCONE, e por um motivo mecânico além do peso
+                              visual: a coluna de Ações é `sticky right`, então
+                              tudo o que ela ganha de largura ela TIRA das colunas
+                              de baixo — com o rótulo escrito, o selo de status da
+                              linha aparecia cortado ao meio ("PRONTO PROD…").
+                              Um botão de exceção não paga esse preço.
+
+                              O que o rótulo dizia está no `title` e no
+                              `aria-label`, que já eram a fonte do leitor de tela. */}
                           {!bulkOn && canProduce && podeDevolverParaRevisao(item) && (
                             <button
                               onClick={() => { setDevolverItem(item); setDevolverMotivo(""); }}
                               title="Devolver para a Revisão — a peça sai da fila da Gráfica"
+                              aria-label={`Devolver ${item.displayId} para a Revisão`}
                               data-testid={`button-devolver-revisao-${item.id}`}
                               style={{
                                 backgroundColor: "#ffffff", color: "#b91c1c",
-                                border: "1px solid #fca5a5", borderRadius: 6, height: 30, padding: "0 10px",
-                                fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
-                                cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+                                border: "1px solid #fca5a5", borderRadius: 6,
+                                width: 30, height: 30, padding: 0, flexShrink: 0,
+                                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
                               }}
                             >
-                              <Undo2 style={{ width: 11, height: 11 }} />
-                              Devolver
+                              <Undo2 aria-hidden="true" style={{ width: 13, height: 13 }} />
                             </button>
                           )}
 

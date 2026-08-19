@@ -2616,8 +2616,18 @@ export default function Atendimento() {
                 </p>
               </div>
             ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                {historyItems.slice(0, histVisible).map((item: any) => {
+              // UMA superfície com linhas, no lugar de N cards soltos.
+              //
+              // Cada peça era um card com borda, raio 12, sombra dupla e mais
+              // sombra no hover, separado por 10px de vão — cinquenta molduras
+              // para cinquenta linhas de uma lista que já está ordenada e é
+              // lida de cima para baixo. O que distingue uma linha da outra é
+              // o TRILHO do estado, não a moldura.
+              <div style={{
+                backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
+                borderRadius: 12, overflow: 'hidden',
+              }}>
+                {historyItems.slice(0, histVisible).map((item: any, iLinha: number) => {
                   const ev = evById.get(item.eventId);
                   const itemSps: any[] = itemSponsorsMap[item.id] || [];
                   const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];
@@ -2716,24 +2726,34 @@ export default function Atendimento() {
                         }
                       }}
                       style={{
-                        background: '#fff', borderRadius: 12,
-                        border: `1px solid ${allApproved ? '#d1fae5' : '#ede9e6'}`,
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03)',
-                        overflow: 'hidden', display: 'flex',
-                        cursor: 'pointer', transition: 'box-shadow 0.12s',
+                        backgroundColor: '#ffffff',
+                        // A régua entre linhas some na última: a borda da
+                        // superfície já fecha embaixo.
+                        borderBottom: iLinha < historyItems.slice(0, histVisible).length - 1
+                          ? '1px solid #f1f0ef' : undefined,
+                        display: 'flex', cursor: 'pointer',
+                        // Herdado por toda a linha: a trilha de datas, o
+                        // contador 2/2 e o codigo da peca. Uma declaracao no
+                        // pai em vez de seis espalhadas — e a setima nao
+                        // aparece sem ela.
+                        fontVariantNumeric: 'tabular-nums',
+                        transition: 'background-color 0.12s',
                       }}
-                      onMouseEnter={e => (e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)')}
-                      onMouseLeave={e => (e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03)')}
+                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#fafaf9')}
+                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#ffffff')}
                     >
-                      {/* Acento lateral */}
-                      <div style={{ width: 4, background: accentColor, flexShrink: 0 }} />
+                      {/* Trilho do estado — 3px, o mesmo vocabulário do card do
+                          quadro da Gestão de Prazos e do card da peça aqui em
+                          cima. Sem moldura em volta, ele é o único sinal de
+                          estado da linha, e é onde o olho cai ao varrer. */}
+                      <div style={{ width: 3, background: accentColor, flexShrink: 0 }} />
 
                       <div style={{ flex: 1, minWidth: 0 }}>
                         {/* ── Cabeçalho — empilha no mobile para não estourar a largura ── */}
                         <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', alignItems: isMobile ? 'stretch' : 'center', gap: 12, padding: '14px 16px 12px' }}>
                           {/* Thumb */}
                           <div style={{
-                            width: 48, height: 48, borderRadius: 8, overflow: 'hidden',
+                            width: 44, height: 44, borderRadius: 8, overflow: 'hidden',
                             background: '#f5f5f4', flexShrink: 0,
                             border: '1px solid #e7e5e4',
                             boxShadow: '0 1px 3px rgba(0,0,0,0.06)', position: 'relative',

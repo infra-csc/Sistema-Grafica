@@ -1575,7 +1575,9 @@ export default function Atendimento() {
             borderRadius: 12, cursor: 'pointer', textAlign: 'left',
           }}
         >
-          <div style={{ width: 28, height: 28, borderRadius: 8, background: 'linear-gradient(135deg, #f97316, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          {/* Ladrilho chapado em tinta. O gradiente laranja era o objeto mais
+              saturado da tela para marcar um atalho que nem estava aberto. */}
+          <div style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: '#1c1917', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <Zap style={{ width: 14, height: 14, color: '#ffffff' }} />
           </div>
           <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 800, letterSpacing: '-0.01em', color: '#1c1917', whiteSpace: 'nowrap' }}>
@@ -1606,17 +1608,21 @@ export default function Atendimento() {
               }
             }}
             data-testid="button-batch-panel-collapse"
-            style={{ background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)', padding: isMobile ? '16px 16px' : '20px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderRadius: '12px 12px 0 0', flexWrap: isMobile ? 'wrap' : 'nowrap', cursor: 'pointer' }}
+            /* FAIXA CLARA. O cabeçalho era um bloco quase preto com gradiente,
+               um ladrilho laranja com sombra colorida e três bolinhas — a coisa
+               mais pesada da página, para um painel auxiliar que fica ACIMA da
+               lista de peças que a tela existe para mostrar. */
+            style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4', padding: isMobile ? '14px 16px' : '16px 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, borderRadius: '12px 12px 0 0', flexWrap: isMobile ? 'wrap' : 'nowrap', cursor: 'pointer' }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #f97316, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(249,115,22,0.35)' }}>
-                <Zap style={{ width: 18, height: 18, color: '#ffffff' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: '#1c1917', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Zap style={{ width: 14, height: 14, color: '#ffffff' }} />
               </div>
               <div>
-                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 800, letterSpacing: '-0.02em', margin: 0, color: '#ffffff' }}>
+                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em', margin: 0, color: '#1c1917' }}>
                   Aprovação em Lote
                 </h3>
-                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 13, margin: 0 }}>
+                <p style={{ color: '#746e69', fontSize: 12, margin: 0 }}>
                   {batchEligibleSponsors.length} {batchEligibleSponsors.length === 1 ? 'patrocinador com' : 'patrocinadores com'} itens pendentes
                 </p>
               </div>
@@ -1631,25 +1637,25 @@ export default function Atendimento() {
                 const active = idx === 0 ? !batchSponsorId : idx === 1 ? !!batchSponsorId && !batchEventId : !!batchSponsorId && !!batchEventId;
                 return (
                   <Fragment key={step.n}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <div style={{
-                        width: 22, height: 22, borderRadius: '50%',
-                        background: step.done ? '#22c55e' : active ? '#f97316' : 'rgba(255,255,255,0.15)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        fontSize: 11, fontWeight: 800, color: step.done || active ? '#fff' : 'rgba(255,255,255,0.5)',
-                        flexShrink: 0, transition: 'background 0.2s',
-                      }}>
-                        {step.done ? <Check style={{ width: 11, height: 11 }} /> : step.n}
-                      </div>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: step.done ? 'rgba(255,255,255,0.75)' : active ? '#fff' : 'rgba(255,255,255,0.55)' }}>
-                        {step.label}
-                      </span>
-                    </div>
-                    {idx < 2 && <div style={{ width: 20, height: 1, background: step.done ? '#22c55e' : 'rgba(255,255,255,0.15)' }} />}
+                    {/* Pílula, e não bolinha + texto solto: o passo é UMA coisa
+                        (número, nome e estado) e era desenhado como duas. */}
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      height: 24, padding: '0 9px', borderRadius: 999,
+                      fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap',
+                      backgroundColor: step.done ? '#f0fdf4' : active ? '#fff7ed' : '#f5f5f4',
+                      color: step.done ? '#15803d' : active ? '#c2410c' : '#746e69',
+                    }}>
+                      {step.done
+                        ? <Check aria-hidden="true" style={{ width: 11, height: 11, flexShrink: 0 }} />
+                        : <span style={{ fontVariantNumeric: 'tabular-nums' }}>{step.n}</span>}
+                      {step.label}
+                    </span>
+                    {idx < 2 && <div style={{ width: 16, height: 1, background: step.done ? '#86efac' : '#e7e5e4' }} />}
                   </Fragment>
                 );
               })}
-              <ChevronDown style={{ width: 16, height: 16, color: 'rgba(255,255,255,0.6)', marginLeft: 10, flexShrink: 0 }} />
+              <ChevronDown style={{ width: 16, height: 16, color: '#746e69', marginLeft: 10, flexShrink: 0 }} />
             </div>
           </div>
 
@@ -1891,17 +1897,23 @@ export default function Atendimento() {
                           data-testid="button-batch-approve"
                           style={{
                             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                            background: batchSelectedItemIds.size === 0 ? '#f5f5f4' : 'linear-gradient(135deg, #15803d, #166534)',
+                            // TINTA, não verde.
+                            //
+                            // O botão era um gradiente verde com sombra verde —
+                            // e nesta tela verde é o ESTADO 'aprovado', o que a
+                            // peça vira depois. Pintar de verde o botão que
+                            // ainda vai decidir usa a cor do resultado para o
+                            // pedido, e deixa a ação mais chamativa que o
+                            // próprio dado da lista.
+                            background: batchSelectedItemIds.size === 0 ? '#f5f5f4' : '#1c1917',
                             // O branco era fixo: sobre o fundo do estado
                             // desabilitado o rótulo simplesmente sumia.
                             color: batchSelectedItemIds.size === 0 ? '#57534e' : '#ffffff',
-                            border: 'none', borderRadius: 8,
-                            padding: '10px 22px', fontSize: 13, fontWeight: 800,
+                            border: 'none', borderRadius: 9,
+                            height: isMobile ? 44 : 36, padding: '0 18px', fontSize: 13, fontWeight: 700,
                             cursor: batchSelectedItemIds.size === 0 ? 'not-allowed' : 'pointer',
-                            boxShadow: batchSelectedItemIds.size > 0 ? '0 4px 12px rgba(34,197,94,0.35)' : 'none',
                             letterSpacing: '-0.01em', fontFamily: "'Space Grotesk', sans-serif",
-                            transition: 'filter 0.15s, box-shadow 0.15s',
-                            minHeight: isMobile ? 44 : undefined,
+                            transition: 'filter 0.15s',
                           }}
                           onMouseEnter={e => { if (batchSelectedItemIds.size > 0) e.currentTarget.style.filter = 'brightness(0.9)'; }}
                           onMouseLeave={e => { e.currentTarget.style.filter = 'none'; }}
@@ -1973,8 +1985,8 @@ export default function Atendimento() {
             ) : (
               /* Estado vazio — orientação de uso */
               <div style={{ display: 'flex', alignItems: 'center', gap: 20, padding: '20px 24px', backgroundColor: '#fff7ed', borderRadius: 12, border: '1px solid #fed7aa' }}>
-                <div style={{ width: 48, height: 48, borderRadius: 12, background: 'linear-gradient(135deg, #f97316, #ea580c)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(249,115,22,0.25)' }}>
-                  <Zap style={{ width: 22, height: 22, color: '#ffffff' }} />
+                <div style={{ width: 34, height: 34, borderRadius: 10, backgroundColor: '#ffffff', border: '1px solid #fed7aa', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Zap aria-hidden="true" style={{ width: 16, height: 16, color: '#c2410c' }} />
                 </div>
                 <div>
                   <p style={{ fontSize: 15, fontWeight: 700, color: '#9a3412', margin: '0 0 3px' }}>
@@ -2954,9 +2966,20 @@ export default function Atendimento() {
             const allApp = diSps.length > 0 && approvedCount === diSps.length;
             return (
               <>
-                {/* Header escuro */}
-                <div style={{ padding: '20px 24px 16px', background: 'linear-gradient(135deg,#1c1917,#292524)', display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 12, overflow: 'hidden', flexShrink: 0, background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.12)', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {/* CABEÇALHO CLARO.
+
+                    Era um bloco quase preto com gradiente, ladrilho translúcido
+                    e botão de fechar circular — um tema visual só dele, dentro
+                    de um app inteiro claro. Todo o texto vinha em branco com
+                    opacidade (0,55 a 0,65), que é como se apaga texto sem
+                    admitir que ele ficou ilegível.
+
+                    O contador 1/2 subiu para cá: ele era uma pílula empilhada de
+                    56x56 no corpo, com o número, a fração e a palavra 'parcial'
+                    em três alturas — e a frase ao lado já dizia a mesma coisa
+                    por extenso. */}
+                <div style={{ padding: '16px 20px', backgroundColor: '#fdfcfb', borderBottom: '1px solid #f1f0ef', display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+                  <div style={{ width: 38, height: 38, borderRadius: 10, overflow: 'hidden', flexShrink: 0, backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {(di.approvalThumbUrl || di.finalPreviewUrl)
                       ? <>
                           <img
@@ -2970,20 +2993,31 @@ export default function Atendimento() {
                             }}
                           />
                           <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center' }}>
-                            <span style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.65)', letterSpacing: '-0.01em' }}>{di.type?.slice(0,2).toUpperCase()}</span>
+                            <span style={{ fontSize: 12, fontWeight: 800, color: '#746e69', letterSpacing: '-0.01em' }}>{di.type?.slice(0,2).toUpperCase()}</span>
                           </div>
                         </>
-                      : <span style={{ fontSize: 13, fontWeight: 800, color: 'rgba(255,255,255,0.65)', letterSpacing: '-0.01em' }}>{di.type?.slice(0,2).toUpperCase()}</span>}
+                      : <span style={{ fontSize: 12, fontWeight: 800, color: '#746e69', letterSpacing: '-0.01em' }}>{di.type?.slice(0,2).toUpperCase()}</span>}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
-                      <h2 style={{ fontSize: 15, fontWeight: 800, color: '#fff', margin: 0, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'capitalize' }}>{di.type}</h2>
-                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', fontWeight: 500, flexShrink: 0 }}>{di.displayId}</span>
+                      <h2 title={di.type} style={{ fontSize: 15, fontWeight: 700, color: '#1c1917', margin: 0, letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', textTransform: 'capitalize' }}>{di.type}</h2>
+                      <span style={{ fontFamily: 'ui-monospace, SFMono-Regular, Menlo, monospace', fontSize: 11, color: '#746e69', fontWeight: 700, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{di.displayId}</span>
                     </div>
-                    <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)' }}>{ev?.name || '—'}</span>
+                    <span title={ev?.name || undefined} style={{ display: 'block', fontSize: 12, color: '#746e69', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev?.name || '—'}</span>
                   </div>
-                  <button onClick={() => setHistDetailItem(null)} aria-label="Fechar" style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.12)', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <X style={{ width: 16, height: 16 }} />
+                  <span
+                    data-testid="hist-contador-aprovacoes"
+                    title={`${approvedCount} de ${diSps.length} patrocinadores aprovaram`}
+                    style={{
+                      flexShrink: 0, fontSize: 13, fontWeight: 700,
+                      fontVariantNumeric: 'tabular-nums',
+                      color: allApp ? '#15803d' : '#57534e',
+                    }}
+                  >
+                    {approvedCount}/{diSps.length}
+                  </span>
+                  <button onClick={() => setHistDetailItem(null)} aria-label="Fechar" style={{ width: 36, height: 36, borderRadius: 9, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', cursor: 'pointer', color: '#57534e', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <X style={{ width: 15, height: 15 }} />
                   </button>
                 </div>
                 {/* Body: resumo + lista integrados, sem faixa separada.
@@ -2997,23 +3031,9 @@ export default function Atendimento() {
                 <div style={{ maxHeight: 440, overflowY: 'auto', flex: '0 1 auto', minHeight: 0 }}>
                   {/* Resumo compacto no topo do body */}
                   <div style={{ padding: '14px 24px 12px', display: 'flex', alignItems: 'center', gap: 14, borderBottom: `1px solid ${allApp ? '#d1fae5' : '#f0ede8'}`, background: allApp ? '#f6fef9' : '#fff' }}>
-                    {/* Counter pill empilhado verticalmente */}
-                    <div style={{
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                      width: 56, height: 56, borderRadius: 12, flexShrink: 0,
-                      background: allApp ? '#f0fdf4' : '#f5f5f4',
-                      border: `1.5px solid ${allApp ? '#bbf7d0' : '#e7e5e4'}`,
-                    }}>
-                      <div style={{ display: 'flex', alignItems: 'baseline', gap: 1, lineHeight: 1 }}>
-                        <span style={{ fontSize: 22, fontWeight: 800, color: allApp ? '#15803d' : '#374151' }}>{approvedCount}</span>
-                        {/* #86efac/#22c55e como texto reprovavam AA (1,33:1) — tom
-                            700 da lib para texto; saturado fica só nas dots. */}
-                        <span style={{ fontSize: 13, fontWeight: 500, color: allApp ? '#15803d' : '#746e69' }}>/{diSps.length}</span>
-                      </div>
-                      <span style={{ fontSize: 11, color: allApp ? '#15803d' : '#6b7280', fontWeight: 700, marginTop: 2, letterSpacing: '0.03em', textTransform: 'uppercase' }}>
-                        {allApp ? (diSps.length === 1 ? 'aprovou' : 'todos') : 'parcial'}
-                      </span>
-                    </div>
+                    {/* A pílula de 56x56 saiu: ela dizia "2", "/2" e "TODOS" em
+                        três alturas, ao lado de uma frase que já dizia "Todos os
+                        patrocinadores aprovaram". A fração ficou no cabeçalho. */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
                         {allApp && <CheckCircle style={{ width: 14, height: 14, color: '#15803d', flexShrink: 0 }} />}

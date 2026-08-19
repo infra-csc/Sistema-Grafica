@@ -25,7 +25,7 @@ import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { CheckCircle2, Search } from "lucide-react";
 import { CONTENT_CARDS_MAX, useElementSize } from "@/hooks/use-mobile";
-import { getStatusLabel } from "@/lib/status";
+import { getStatusLabel, getStatusShort } from "@/lib/status";
 import { FilterChip } from "./filter-chip";
 import { PrioridadeChip, PrioridadePonto, temChipDePrioridade } from "./prioridade";
 import type { PecaAtrasada } from "./atrasadas";
@@ -478,7 +478,15 @@ export function PecasAtrasadas({
                         overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                       }}
                     >
-                      {getStatusLabel(p.item.status)}
+                      {/* A FORMA CURTA na coluna estreita.
+
+                          A coluna da peça tem 104px e o rótulo longo era cortado
+                          no meio da palavra: "Aguardando Vi…" não diz vinculação,
+                          visita nem visualização. `lib/status` já mantém a forma
+                          curta de cada status ("Ag. Vinculação") justamente para
+                          isto — a tabela é que estava pedindo a longa. O `title`
+                          acima continua com o rótulo inteiro. */}
+                      {getStatusShort(p.item.status)}
                     </span>
                   </th>
                   <td style={{ padding: "9px 8px", verticalAlign: "top" }}>

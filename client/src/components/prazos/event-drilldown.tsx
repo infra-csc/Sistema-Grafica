@@ -22,7 +22,7 @@ import { Fragment, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { ChevronDown } from "lucide-react";
 import { useElementSize, useIsMobile } from "@/hooks/use-mobile";
-import { getStatusLabel } from "@/lib/status";
+import { getStatusLabel, getStatusShort } from "@/lib/status";
 import type { CobrancaEntry, PrazoEvent, PrazoPendingItem } from "@shared/prazos-contract";
 import { CobradoControl } from "./cobrado-control";
 import {
@@ -426,7 +426,9 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
                               overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                             }}
                           >
-                            {getStatusLabel(it.status)}
+                            {/* Forma curta: mesma coluna estreita, mesmo corte de
+                                "Aguardando Vin…". O `title` acima tem a inteira. */}
+                            {getStatusShort(it.status)}
                           </span>
                         </td>
                         <td style={{ padding: "6px 10px", fontSize: 12, color: TI.strong }}>

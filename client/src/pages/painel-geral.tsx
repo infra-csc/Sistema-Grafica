@@ -168,13 +168,16 @@ const PG_CSS = `
 // reagem ao mouse, o único que serve de "limpar status" parecia quebrado.
 function StatusCard({
   label, value, dot, color, filterKey, sub, subActionLabel, onSubAction,
-  isActive, onToggle, dark, badge, title, carregando,
+  isActive, onToggle, dark, badge, title, carregando, pct,
 }: {
   label: string; value: number; dot: string; color: string;
   filterKey: string; sub?: string; subActionLabel?: string; onSubAction?: () => void;
   isActive: boolean; onToggle: () => void; dark?: boolean; badge?: string; title?: string;
   /** Enquanto os dados nao chegaram, o card nao sabe o numero — e nao deve chutar zero. */
   carregando?: boolean;
+  /** Fatia do total. O absoluto responde "quantas peças"; o percentual
+   *  responde "quanto isso pesa", que é a pergunta de quem procura gargalo. */
+  pct?: number;
 }) {
   // Cards zerados são informação de baixo valor no escaneamento ("onde está
   // o gargalo?") — ficam esmaecidos, mas continuam clicáveis/filtráveis.
@@ -259,6 +262,18 @@ function StatusCard({
             Um travessão diz a verdade: ainda não sei. */}
         <p style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 26, fontWeight: 700, color: dark ? "#f97316" : (isActive ? color : "#1c1917"), lineHeight: 1, margin: 0, letterSpacing: "-.05em" }}>{carregando ? "—" : value}</p>
         <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: dark ? "rgba(255,255,255,0.75)" : "#746e69", marginTop: 4, lineHeight: 1.2 }}>{label}</p>
+        {/* A HIERARQUIA VEM DO PESO, NÃO DO CONTRASTE.
+            A primeira tentativa usou um cinza mais claro (#8c8580) para o
+            percentual ficar subordinado — e ele dá 3,63:1 em 10px, reprova
+            AA. Enfraquecer contraste para criar hierarquia é trocar um
+            problema de design por um de acesso.
+            Mesmo cinza do rótulo (5,03:1), subordinado por peso (600 contra
+            800) e por não ser caixa-alta. */}
+        {!carregando && pct !== undefined && value > 0 && (
+          <p style={{ fontSize: 10, fontWeight: 600, color: dark ? "rgba(255,255,255,0.7)" : "#746e69", marginTop: 2, lineHeight: 1.2 }}>
+            {pct < 1 ? "<1" : Math.round(pct)}% do total
+          </p>
+        )}
         {sub && (
           onSubAction ? (
             /* O subtexto era um beco sem saída: dizia "inclui 7 rascunhos" e
@@ -1211,6 +1226,7 @@ export default function PainelGeral() {
         // dois nomes à mesma peça na mesma tela.
         label={useCards ? m.short : m.label}
         value={stats.byGroup[key]} carregando={isLoading}
+        pct={stats.total > 0 ? ((stats.byGroup[key] ?? 0) / stats.total) * 100 : undefined}
         dot={m.dot} color={m.text} filterKey={key}
         isActive={statusFilter.includes(key)}
         onToggle={() => toggleStatusCard(key)}
@@ -1430,6 +1446,82 @@ export default function PainelGeral() {
         );
       })()}
 
+
+      {/* ── O FLUXO INTEIRO NUMA BARRA ─────────────────────────────────────
+
+          O GARGALO ESTAVA INVISÍVEL. Com dados de produção, 1.129 de 2.632
+          peças (43%) estavam em "Aguardando envio" — e esse número aparecia
+          como mais um entre doze contadores do mesmo tamanho. Doze cards com
+          o mesmo peso não têm vencedor: a tela mostrava tudo e não dizia
+          nada.
+
+          Uma barra proporcional resolve o que doze números iguais não
+          resolvem, porque a informação que importa aqui é RELATIVA — não
+          "quantos", e sim "onde está a massa". 43% num segmento salta aos
+          olhos sem ler um algarismo sequer.
+
+          Os cards continuam existindo abaixo, como detalhe. Esta é a leitura
+          de três segundos; eles são a de trinta.
+
+          A barra usa a MESMA fonte de cor dos cards e dos selos da tabela
+          (getStatusMeta), e cada segmento aplica o mesmo recorte que o card
+          correspondente — clicar aqui e clicar no card levam ao mesmo lugar. */}
+      {!isLoading && stats.total > 0 && (() => {
+        const zonas = [
+          { nome: "Entrada", chaves: ZONA_ENTRADA },
+          { nome: "Aprovação", chaves: ZONA_APROVACAO },
+          { nome: "Produção & Entrega", chaves: ZONA_PRODUCAO },
+        ];
+        const segmentos = zonas.flatMap(z =>
+          z.chaves
+            .map(k => ({ k, zona: z.nome, n: stats.byGroup[k] ?? 0, meta: getStatusMeta(STATUS_GROUPS[k][0]) }))
+            .filter(seg => seg.n > 0),
+        );
+        const soma = segmentos.reduce((t, seg) => t + seg.n, 0) || 1;
+        const maior = segmentos.reduce((a, b) => (b.n > a.n ? b : a), segmentos[0]);
+        return (
+          <section aria-label="Distribuição das peças pelo fluxo" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69" }}>
+                Onde estão as {stats.total} peças
+              </span>
+              {/* O maior segmento dito por extenso: a barra mostra a forma, a
+                  frase nomeia o gargalo para quem chega sem contexto — e para
+                  quem lê por leitor de tela, que não enxerga proporção. */}
+              <span style={{ fontSize: 12, fontWeight: 700, color: "#57534e" }}>
+                Maior fila: <strong style={{ color: "#1c1917" }}>{maior.meta.label}</strong>
+                {" "}· {Math.round((maior.n / soma) * 100)}% ({maior.n})
+              </span>
+            </div>
+            <div style={{ display: "flex", height: 14, borderRadius: 999, overflow: "hidden", background: "#f5f5f4", border: "1px solid #e7e5e4" }}>
+              {segmentos.map(seg => {
+                const pct = (seg.n / soma) * 100;
+                const ativo = statusFilter.includes(seg.k);
+                return (
+                  <button
+                    key={seg.k}
+                    onClick={() => toggleStatusCard(seg.k)}
+                    aria-pressed={ativo}
+                    data-testid={`fluxo-seg-${seg.k}`}
+                    title={`${seg.zona} · ${seg.meta.label}: ${seg.n} ${seg.n === 1 ? "peça" : "peças"} (${Math.round(pct)}%)`}
+                    aria-label={`${seg.meta.label}, ${seg.n} ${seg.n === 1 ? "peça" : "peças"}, ${Math.round(pct)} por cento. Filtrar.`}
+                    style={{
+                      width: `${pct}%`, minWidth: 3, height: "100%", border: "none", padding: 0, cursor: "pointer",
+                      background: seg.meta.dot,
+                      // O ativo se separa por brilho e por um anel interno —
+                      // não só por cor, que aqui já está ocupada dizendo QUAL
+                      // status o segmento é.
+                      boxShadow: ativo ? "inset 0 0 0 2px #1c1917" : "none",
+                      filter: ativo ? "none" : "saturate(0.92)",
+                      transition: "filter .15s, box-shadow .15s",
+                    }}
+                  />
+                );
+              })}
+            </div>
+          </section>
+        );
+      })()}
 
       {/* ── Status cards — agrupados nas 3 fases do fluxo ─────────────────
           12 cards iguais obrigavam o usuário a escanear um a um para achar o

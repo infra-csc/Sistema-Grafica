@@ -5,3 +5,4 @@
 - [db:push silent failure](schema-push-session-table.md) — session table must stay in schema.ts or push aborts on drop prompt; dev DB drifts and publish misses columns → prod 500s.
 - [Partial-publish branches](partial-publish-branches.md) — main = published base + book only; full features on `todas-mudancas-completas`; never push reverts to origin.
 - [Merge conflict resolution strategy](merge-conflict-strategy.md) — HEAD wins for: export route, awaiting_creator_review gates, draft+requested compat, 680px send-confirm dialog. REMOTE wins for: LINKING_STATUSES/DOWNSTREAM_STATUSES constants, "Solicitado" translation, awaiting_creator_review→awaiting_final_review bucket.
+- [DB Architecture](db-architecture.md) — server uses DATABASE_URL only; prod DB is separate and only reachable via Publish flow (not via shell ALTER TABLE).

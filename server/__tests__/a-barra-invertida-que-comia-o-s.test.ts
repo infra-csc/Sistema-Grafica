@@ -57,8 +57,16 @@ describe("nenhuma classe de regex perdeu a barra invertida", () => {
   const SUSPEITO = /replace\(\s*\/[sdwSDW]\+?\//;
 
   it("nenhum arquivo usa replace(/s+/) e parentes", () => {
+    // Varre o CÓDIGO, não o comentário.
+    //
+    // Sem isto a asserção morde a própria documentação: `shared/reparo-motivo`
+    // precisa CITAR a forma errada para explicar o defeito que ele conserta, e
+    // o teste acusava o texto que existe para impedir o defeito de voltar.
+    const semComentario = (t: string) => t
+      .replace(/\/\*[\s\S]*?\*\//g, "")
+      .replace(/^[ \t]*\/\/.*$/gm, "");
     const culpados = TODOS
-      .filter(f => SUSPEITO.test(readFileSync(f, "utf8")))
+      .filter(f => SUSPEITO.test(semComentario(readFileSync(f, "utf8"))))
       .map(f => path.relative(RAIZ, f));
     expect(culpados).toEqual([]);
   });

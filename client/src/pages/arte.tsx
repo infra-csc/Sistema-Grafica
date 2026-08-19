@@ -189,7 +189,24 @@ type ArteCol = { label: string; w: number | string; right?: boolean; sep?: boole
 // couber se anuncie em vez de ser decepado em silêncio.
 const ARTE_COLS: ArteCol[] = [
   { label: 'ID',            w: 84 },
-  { label: 'Qtd',           w: 44 },
+  // QTD DE 44 PARA 56 — o cabeçalho não cabia no próprio cabeçalho.
+  //
+  // O `thStyle` renderiza o rótulo em CAIXA ALTA (11px/700, letterSpacing
+  // 0.06em), então a coluna precisa comportar "QTD", não "Qtd":
+  //
+  //   Q + T + D em 11px/700 ......... ~22,9px
+  //   letterSpacing 0.06em x 3 ......  ~2,0px
+  //   total .........................  ~25px
+  //
+  // A coluna tinha 44 e o `th` usa padding 12+12 — sobravam 20 úteis. Como o
+  // `thStyle` também tem `overflow: hidden` + `textOverflow: ellipsis`, o
+  // resultado era "Q…" em TODAS as abas de tabela da Arte. O dado nunca foi o
+  // problema: a quantidade tem 1 a 3 dígitos e cabia folgada.
+  //
+  // 56 devolve 32 úteis. O orçamento aguenta: o mínimo da tabela vai de 1226
+  // para 1238, ainda abaixo dos 1246 disponíveis — e o scroller próprio da
+  // tabela continua sendo a rede se um dia passar.
+  { label: 'Qtd',           w: 56 },
   { label: 'Peça',          w: 'auto' },
   { label: 'Dimensões',     w: 152 },
   // M² VOLTOU PARA 72. Eu tinha apertado de 72 para 60 numa passada de
@@ -203,7 +220,8 @@ const ARTE_COLS: ArteCol[] = [
   // dimensionado para "252.34" (45px).
   //
   // Não precisa tirar de ninguém: `arteColsWidth` é DERIVADO da soma das
-  // fixas mais o mínimo de "Peça". O mínimo da tabela vai de 1214 para 1226,
+  // fixas mais o mínimo de "Peça". O mínimo da tabela foi de 1214 para 1226
+  // nesta rodada, e para 1238 quando a coluna Qtd subiu para 56 (ver acima) —
   // ainda abaixo dos 1246 disponíveis.
   { label: 'M²',            w: 72, right: true, sep: true },
   { label: 'Material',      w: 132 },
@@ -3088,9 +3106,9 @@ export default function Arte() {
                           <span style={{ fontSize: 12, fontWeight: 700, color: '#991b1b', flex: 1 }}>{approval.sponsor?.name || 'Patrocinador'}</span>
                           {/* Log: quem + quando */}
                           {(approval.rejectedBy || approval.rejectedAt) && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 3, minWidth: 0 }}>
                               {approval.rejectedBy && (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 11, fontWeight: 600, color: '#57534e', maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={approval.rejectedBy}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, minWidth: 0, fontSize: 11, fontWeight: 600, color: '#57534e', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={approval.rejectedBy}>
                                   <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                                   {/* Nome INTEIRO. O `split(' ')[0]` cortava no
                                       primeiro nome — numa empresa com dois

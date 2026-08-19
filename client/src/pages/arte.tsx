@@ -1871,8 +1871,16 @@ export default function Arte() {
     if (tabId !== "criar-aprovacoes" && tabId !== "finalizar-layouts") return null;
     const isSkip = tabId === "criar-aprovacoes" && item.skipApproval;
     return {
-      // O laranja da marca dá 2,80:1 com texto branco e reprova AA; este dá 5,18.
-      bg: tabId === "finalizar-layouts" ? '#2563eb' : isSkip ? '#7c3aed' : '#c2410c',
+      // TINTA, uma cor só.
+      //
+      // Eram três, por aba: azul em Finalizar, roxo em Enviar direto, laranja
+      // em Enviar. A cor não distinguia uma LINHA da outra — dentro de uma aba
+      // todas as linhas tinham a mesma —, então ela não carregava informação
+      // nenhuma; o que ela fazia era gastar três cores de destaque em botões
+      // que se repetem em toda linha da tabela. O laranja é a cor de ATENÇÃO
+      // desta tela (o prazo, o selo, a aba ativa) e usá-lo assim anulava o
+      // sinal. Qual é a ação continua escrito no rótulo, que é onde se lê.
+      bg: '#1c1917',
       // Rótulos curtos, porque a fase já está escrita na aba ativa logo acima.
       // "Enviar aprovação" pedia ~176px numa coluna de 170: com o flexWrap da
       // célula, o botão QUEBRAVA para a linha de cima do menu "⋯" e a linha da
@@ -1899,7 +1907,7 @@ export default function Arte() {
             onClick={e => e.stopPropagation()}
             aria-label={`Mais ações para ${item.displayId}`}
             data-testid={`button-row-menu-${item.id}`}
-            style={{ width: isMobile ? 44 : 36, minWidth: isMobile ? 44 : 36, height: isMobile ? 44 : 36, flexShrink: 0, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid #e7e5e4', cursor: 'pointer', color: '#57534e' }}
+            style={{ width: isMobile ? 44 : 36, minWidth: isMobile ? 44 : 36, height: isMobile ? 44 : 36, flexShrink: 0, borderRadius: 9, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#ffffff', border: '1px solid #e7e5e4', cursor: 'pointer', color: '#57534e' }}
           >
             <MoreHorizontal style={{ width: 15, height: 15 }} />
           </button>
@@ -1994,7 +2002,7 @@ export default function Arte() {
           // minWidth 0 + flexShrink: numa coluna estreita o botão encolhe com
           // reticências em vez de empurrar o menu "⋯" para outra linha.
           width: largura, minWidth: 0, flexShrink: 1,
-          height: isMobile ? 44 : 36, padding: '0 11px', borderRadius: 8,
+          height: isMobile ? 44 : 36, padding: '0 11px', borderRadius: 9,
           backgroundColor: travado ? '#d6d3d1' : acao.bg,
           color: '#ffffff', border: 'none',
           cursor: travado ? 'not-allowed' : 'pointer',
@@ -2120,7 +2128,7 @@ export default function Arte() {
       </td>
       {/* Qtd — formatQuantity: `String(q || '—').padStart(2,'0')` transformava
           peça sem quantidade em "0—", e uma peça só em "01". */}
-      <td style={{ padding: '9px 12px', fontWeight: 700, color: item.quantity ? '#1c1917' : '#57534e', fontSize: 14 }}>
+      <td style={{ padding: '9px 12px', fontWeight: 700, color: item.quantity ? '#1c1917' : '#57534e', fontSize: 14, fontVariantNumeric: 'tabular-nums' }}>
         {formatQuantity(item.quantity)}
       </td>
       {/* Peça */}
@@ -2312,14 +2320,18 @@ export default function Arte() {
       const outrosFiltros = activeFilterCount - 1;
       return (
         <div style={{ textAlign: 'center', padding: '48px 0' }} data-testid="empty-arte">
+          {/* ÍCONE DE 28, título 15/700, frase 13 — a régua dos vazios das
+              outras telas. Eram QUATRO tamanhos diferentes (40, 44, 48) num
+              mesmo bloco, e o vazio ficava desenhado com mais peso visual que
+              qualquer linha da tabela cheia. */}
           {soAtrasadas
-            ? <CheckCircle style={{ width: 44, height: 44, color: '#16a34a', margin: '0 auto 16px' }} />
+            ? <CheckCircle aria-hidden="true" style={{ width: 28, height: 28, color: '#15803d', margin: '0 auto 12px' }} />
             : porFiltro
-            ? <Search style={{ width: 40, height: 40, color: '#78716c', margin: '0 auto 16px' }} />
-            : tabId === "criar-aprovacoes" ? <CheckCircle style={{ width: 48, height: 48, color: '#16a34a', margin: '0 auto 16px' }} />
-            : tabId === "finalizar-layouts" ? <Upload style={{ width: 48, height: 48, color: '#2563eb', margin: '0 auto 16px' }} />
-            : <Eye style={{ width: 48, height: 48, color: '#57534e', margin: '0 auto 16px' }} />}
-          <p style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 4 }}>
+            ? <Search aria-hidden="true" style={{ width: 28, height: 28, color: '#746e69', margin: '0 auto 12px' }} />
+            : tabId === "criar-aprovacoes" ? <CheckCircle aria-hidden="true" style={{ width: 28, height: 28, color: '#15803d', margin: '0 auto 12px' }} />
+            : tabId === "finalizar-layouts" ? <Upload aria-hidden="true" style={{ width: 28, height: 28, color: '#15803d', margin: '0 auto 12px' }} />
+            : <Eye aria-hidden="true" style={{ width: 28, height: 28, color: '#15803d', margin: '0 auto 12px' }} />}
+          <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1c1c', marginBottom: 6 }}>
             {soAtrasadas
               ? tabId === "finalizados"
                 ? "Finalizados não tem atraso a mostrar"
@@ -2331,7 +2343,7 @@ export default function Arte() {
               : tabId === "finalizar-layouts" ? "Nenhuma peça aguardando arquivo final"
               : "Nenhuma peça finalizada"}
           </p>
-          <p style={{ fontSize: 13, color: '#57534e', maxWidth: 460, margin: '0 auto' }} data-testid="empty-arte-motivo">
+          <p style={{ fontSize: 13, color: '#746e69', lineHeight: 1.55, maxWidth: 460, margin: '0 auto' }} data-testid="empty-arte-motivo">
             {soAtrasadas
               ? tabId === "finalizados"
                 ? "O marco desta fase é a própria saída do caminhão, que numa peça já pronta passou por definição — a lista está vazia pelo filtro, não porque falte trabalho."
@@ -2476,7 +2488,9 @@ export default function Arte() {
             <button
               onClick={() => setFinalizadosTudo(v => !v)}
               data-testid="button-finalizados-janela"
-              style={{ marginLeft: 'auto', height: 30, padding: '0 12px', borderRadius: 999, border: '1px solid #e7e5e4', background: '#ffffff', color: '#1c1917', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              // 30px era o menor alvo da faixa, e este botão troca o RECORTE
+              // inteiro da aba — mostra ou esconde tudo o que passou de 90 dias.
+              style={{ marginLeft: 'auto', height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 9, border: '1px solid #e7e5e4', background: '#ffffff', color: '#1c1917', fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
             >
               {finalizadosTudo ? 'Voltar aos 90 dias' : 'Ver tudo'}
             </button>
@@ -2558,37 +2572,44 @@ export default function Arte() {
               return (
                 <div key={bloco.key} style={{ borderRadius: 12, overflow: 'hidden', backgroundColor: '#ffffff', border: '1px solid #e7e5e4' }}>
                   {/* ── Faixa do evento ──
-                      Escura, e não mais no gradiente laranja: sobre o laranja
-                      claro, a data e a saída em branco 0,85 davam ~2,5:1 e o
-                      chip de total ~3,7:1 — nenhuma opacidade de branco resolve
-                      num fundo claro. Sobre #1c1917 o mesmo branco passa folgado,
-                      e o laranja volta a ser exclusivo de ação. */}
+
+                      CLARA. Ela já foi laranja, e o problema real daquela
+                      versão era contraste: a data e a saída em branco 0,85
+                      davam ~2,5:1. A resposta na época foi escurecer o fundo
+                      até o branco passar — o que resolveu o contraste e criou
+                      outro problema: uma barra quase preta acima de cada bloco
+                      da lista, mais pesada que qualquer dado dentro dela.
+
+                      Texto escuro sobre fundo claro resolve os dois de uma vez,
+                      e devolve o destaque para os três chips de marco — que
+                      eram exatamente o que a faixa escura estava sufocando. */}
                   <div style={{
                     padding: '12px 18px',
-                    background: 'linear-gradient(135deg, #1c1917 0%, #292524 100%)',
+                    backgroundColor: '#fdfcfb',
+                    borderBottom: '1px solid #f1efec',
                     display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap',
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-                      <Star style={{ width: 16, height: 16, color: '#fb923c', fill: '#fb923c', flexShrink: 0 }} />
-                      <span style={{ color: '#ffffff', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 15, letterSpacing: '-0.03em', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <Star aria-hidden="true" style={{ width: 14, height: 14, color: '#c2410c', fill: '#c2410c', flexShrink: 0 }} />
+                      <span title={bloco.eventName} style={{ color: '#1a1c1c', fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, fontSize: 15, letterSpacing: '-0.03em', textTransform: 'uppercase', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {bloco.eventName}
                       </span>
                       {/* Quanto daquele evento já está resolvido NESTA fase. */}
                       {faltando && (
-                        <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.72)', whiteSpace: 'nowrap' }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: '#746e69', whiteSpace: 'nowrap' }}>
                           {faltando}
                         </span>
                       )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 14, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                       {!isMobile && bloco.eventObj?.startDate && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: 600 }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#57534e', fontSize: 11, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                           <Calendar style={{ width: 12, height: 12 }} />
                           {parseDateLocal(bloco.eventObj.startDate).toLocaleDateString('pt-BR')}
                         </span>
                       )}
                       {!isMobile && bloco.eventObj?.truckDepartureDate && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: 'rgba(255,255,255,0.85)', fontSize: 11, fontWeight: 600 }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 5, color: '#57534e', fontSize: 11, fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
                           <Truck style={{ width: 12, height: 12 }} />
                           Saída: {toUTCDisplayDate(bloco.eventObj.truckDepartureDate).toLocaleDateString('pt-BR')} às {toUTCDisplayDate(bloco.eventObj.truckDepartureDate).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
                         </span>
@@ -2617,7 +2638,7 @@ export default function Arte() {
                           </span>
                         );
                       })}
-                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 999, padding: '2px 9px', fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.92)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 999, padding: '2px 9px', fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                         {evTotal} {evTotal === 1 ? 'Item' : 'Itens'}
                       </span>
                     </div>
@@ -2628,8 +2649,8 @@ export default function Arte() {
                       {bloco.grupos.map((grupo, gi) => (
                         <Fragment key={gi}>
                           {grupo.nome && (
-                            <div style={{ backgroundColor: '#dbeafe', borderRadius: 8, padding: '4px 12px' }}>
-                              <span style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{grupo.nome}</span>
+                            <div style={{ padding: '6px 2px 2px', borderBottom: '1px solid #f1efec' }}>
+                              <span style={{ fontSize: 10, fontWeight: 800, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{grupo.nome}</span>
                             </div>
                           )}
                           {grupo.items.map((item: any) => renderMobileCard(item, tabId, hoje))}
@@ -2669,8 +2690,13 @@ export default function Arte() {
                                 que o grupo existir. */}
                             {grupo.nome && (
                               <tr>
-                                <td colSpan={totalColunas} style={{ padding: '6px 12px', background: '#f8fafc', borderBottom: '1px solid #e7e5e4' }}>
-                                  <span style={{ display: 'inline-block', backgroundColor: '#dbeafe', borderRadius: 6, padding: '2px 10px', fontSize: 11, fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                                {/* O AZUL SAIU. Era a única cor fria da tela,
+                                    numa faixa cheia, para nomear um grupo — e
+                                    disputava atenção com o dado das linhas logo
+                                    abaixo. Um rótulo entre dois hairlines separa
+                                    igual e não pinta nada. */}
+                                <td colSpan={totalColunas} style={{ padding: '7px 12px', background: '#fdfcfb', borderTop: '1px solid #f1efec', borderBottom: '1px solid #f1efec' }}>
+                                  <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 800, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.12em' }}>
                                     {grupo.nome}
                                   </span>
                                 </td>
@@ -2783,8 +2809,8 @@ export default function Arte() {
     if (correcaoItems.length === 0) {
       return (
         <div style={{ textAlign: 'center', padding: '48px 0' }}>
-          <CheckCircle style={{ width: 48, height: 48, color: '#16a34a', margin: '0 auto 16px' }} />
-          <p style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 4 }}>Sem correção pendente</p>
+          <CheckCircle aria-hidden="true" style={{ width: 28, height: 28, color: '#15803d', margin: '0 auto 12px' }} />
+          <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1c1c', marginBottom: 6 }}>Sem correção pendente</p>
           <p style={{ fontSize: 13, color: '#57534e' }}>Nenhuma peça aguarda nova versão de arte</p>
         </div>
       );
@@ -3083,12 +3109,22 @@ export default function Arte() {
           {/* ── Identity + actions ── */}
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 18 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{ width: 48, height: 48, borderRadius: 12, background: 'linear-gradient(135deg, #ea580c, #f97316)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 0 0 1px rgba(249,115,22,0.4), 0 8px 24px rgba(234,88,12,0.45)' }}>
-                <Palette style={{ width: 24, height: 24, color: '#fff' }} />
+              {/* LADRILHO CHAPADO, 40px.
+
+                  Era um quadrado de 48 com gradiente laranja, anel de 1px e
+                  uma sombra colorida de 24px — o objeto mais saturado da tela
+                  inteira, para dizer o nome do módulo em que a pessoa acabou de
+                  clicar. O laranja nesta tela é a cor de ATENÇÃO (o selo "em
+                  andamento", o prazo, a aba ativa); gastá-lo na decoração do
+                  cabeçalho enfraquece todos os outros usos. */}
+              <div style={{ width: 40, height: 40, borderRadius: 11, backgroundColor: '#1c1917', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <Palette aria-hidden="true" style={{ width: 19, height: 19, color: '#fb923c' }} />
               </div>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-                  <h1 style={{ fontSize: 22, fontWeight: 800, color: '#1c1917', letterSpacing: '-0.05em', margin: 0, fontFamily: '"Space Grotesk", sans-serif', lineHeight: 1.1 }}>
+                  {/* 26/700/-0.03em: a mesma escala da Gestão de Prazos e do
+                      Atendimento. Em -0.05em as letras do título se tocavam. */}
+                  <h1 style={{ fontSize: 26, fontWeight: 700, color: '#1a1c1c', letterSpacing: '-0.03em', margin: 0, fontFamily: '"Space Grotesk", sans-serif', lineHeight: 1.15 }}>
                     Módulo Arte
                   </h1>
                   {(pendingCount + correcaoCount + needsFinalFileCount) > 0 ? (
@@ -3102,7 +3138,7 @@ export default function Arte() {
                     </span>
                   )}
                 </div>
-                <p style={{ fontSize: 12, color: '#57534e', margin: 0, marginTop: 3 }}>
+                <p style={{ fontSize: 13, color: '#746e69', margin: 0, marginTop: 4, lineHeight: 1.5 }}>
                   Aprovações · Correções · Finalizações de layout
                 </p>
               </div>
@@ -3305,7 +3341,7 @@ export default function Arte() {
                 Em Finalizados o marco É a saída, que numa peça pronta já passou
                 por definição: lá o recorte não existe em vez de mentir. */}
             <div role="group" aria-label="Prazo da fase" data-testid="segment-atrasado"
-              style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 999, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 2, height: isMobile ? 44 : 36, padding: '0 3px', borderRadius: 9, background: '#f5f5f4', border: '1px solid #e7e5e4', boxSizing: 'border-box', flexShrink: 0 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', padding: '0 6px 0 8px' }}>Prazo</span>
               {([
                 { on: false, label: 'todos' },
@@ -3320,7 +3356,7 @@ export default function Arte() {
                     title={bloqueado
                       ? "Em Finalizados o marco é a própria saída do caminhão, que numa peça pronta já passou — não há atraso a apontar"
                       : on ? "Só peças que já passaram do marco desta fase" : undefined}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 22, padding: '0 10px', borderRadius: 999, border: 'none', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.5 : 1, fontSize: 11, fontWeight: ativo ? 700 : 500, background: ativo ? '#ffffff' : 'transparent', color: ativo ? '#1c1917' : '#57534e', boxShadow: ativo ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.12s' }}>
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, alignSelf: 'stretch', margin: '3px 0', padding: '0 10px', borderRadius: 6, border: 'none', cursor: bloqueado ? 'not-allowed' : 'pointer', opacity: bloqueado ? 0.5 : 1, fontSize: 11, fontWeight: ativo ? 700 : 600, background: ativo ? '#ffffff' : '#fafaf9', color: ativo ? '#1c1917' : '#57534e', boxShadow: ativo ? 'inset 0 -2px 0 #1c1917' : 'none', transition: 'all 0.12s' }}>
                     {label}
                     {on && !bloqueado && (
                       // A contagem vive no controle: o recorte diz QUANTOS são
@@ -3339,7 +3375,7 @@ export default function Arte() {
             </div>
 
             <div role="group" aria-label="Prioridade" data-testid="segment-urgente"
-              style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 999, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
+              style={{ display: 'flex', alignItems: 'center', gap: 2, height: isMobile ? 44 : 36, padding: '0 3px', borderRadius: 9, background: '#f5f5f4', border: '1px solid #e7e5e4', boxSizing: 'border-box', flexShrink: 0 }}>
               <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', padding: '0 6px 0 8px' }}>Prioridade</span>
               {([
                 { on: false, label: 'todas' },
@@ -3361,7 +3397,7 @@ export default function Arte() {
               { rotulo: 'Arquivo final', value: finalFilter, set: setFinalFilter, testId: 'segment-final' },
             ] as { rotulo: string; value: TriState; set: (v: TriState) => void; testId: string }[]).map(({ rotulo, value, set, testId }) => (
               <div key={testId} role="group" aria-label={rotulo} data-testid={testId}
-                style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '3px', borderRadius: 999, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
+                style={{ display: 'flex', alignItems: 'center', gap: 2, height: isMobile ? 44 : 36, padding: '0 3px', borderRadius: 9, background: '#f5f5f4', border: '1px solid #e7e5e4', boxSizing: 'border-box', flexShrink: 0 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, color: '#57534e', padding: '0 6px 0 8px' }}>{rotulo}</span>
                 {([
                   { v: 'todos', label: 'todos' },
@@ -3369,7 +3405,7 @@ export default function Arte() {
                   { v: 'sem', label: 'sem' },
                 ] as { v: TriState; label: string }[]).map(({ v, label }) => (
                   <button key={v} onClick={() => set(v)} aria-pressed={value === v}
-                    style={{ height: 22, padding: '0 10px', borderRadius: 999, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: value === v ? 700 : 500, background: value === v ? '#ffffff' : 'transparent', color: value === v ? '#1c1917' : '#57534e', boxShadow: value === v ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.12s' }}>
+                    style={{ alignSelf: 'stretch', margin: '3px 0', padding: '0 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: value === v ? 700 : 600, background: value === v ? '#ffffff' : '#fafaf9', color: value === v ? '#1c1917' : '#57534e', boxShadow: value === v ? 'inset 0 -2px 0 #1c1917' : 'none', transition: 'all 0.12s' }}>
                     {label}
                   </button>
                 ))}
@@ -3491,14 +3527,21 @@ export default function Arte() {
                       tabIndex={isActive ? 0 : -1}
                       onClick={() => changeTab(tab.id)}
                       data-testid={tab.testId}
-                      style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', border: 'none', cursor: 'pointer', borderBottom: isActive ? `2px solid ${dot}` : '2px solid transparent', marginBottom: -1, background: isActive ? `${dot}0d` : 'transparent', color: isActive ? text : '#57534e', fontWeight: isActive ? 700 : 500, fontSize: 13, whiteSpace: 'nowrap', borderRadius: '6px 6px 0 0', transition: 'all 0.14s', flexShrink: 0 }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '10px 16px', border: 'none', cursor: 'pointer', borderBottom: isActive ? `2px solid ${dot}` : '2px solid transparent', marginBottom: -1, background: 'transparent', color: isActive ? text : '#57534e', fontWeight: isActive ? 700 : 500, fontSize: 13, whiteSpace: 'nowrap', borderRadius: '6px 6px 0 0', transition: 'all 0.14s', flexShrink: 0 }}
                       onMouseEnter={e => { if (!isActive) e.currentTarget.style.color = '#1c1917'; }}
                       onMouseLeave={e => { if (!isActive) e.currentTarget.style.color = '#57534e'; }}
                     >
                       <TabIcon style={{ width: 13, height: 13, flexShrink: 0 }} />
                       {tab.label}
+                      {/* PILULA CLARA, nao bloco solido.
+
+                          O contador da aba ativa era o proprio `dot` chapado
+                          com texto branco: um bloco saturado dentro de um botao
+                          que ja e marcado pela regua de baixo — dois sinais para
+                          o mesmo fato, e o mais forte deles no elemento menos
+                          importante do par. */}
                       {tab.count > 0 && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 18, height: 18, borderRadius: 999, fontSize: 11, fontWeight: 700, padding: '0 5px', backgroundColor: isActive ? dot : '#e7e5e4', color: isActive ? '#fff' : '#44403c' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', minWidth: 18, height: 18, borderRadius: 999, fontSize: 11, fontWeight: 700, padding: '0 5px', fontVariantNumeric: 'tabular-nums', backgroundColor: isActive ? '#fff7ed' : '#f5f5f4', border: isActive ? '1px solid #fed7aa' : '1px solid #e7e5e4', color: isActive ? '#c2410c' : '#57534e' }}>
                           {tab.count}
                         </span>
                       )}
@@ -3517,7 +3560,7 @@ export default function Arte() {
               {selectedItemIds.size > 0 && (
                 <span
                   data-testid="chip-selecao"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 34, padding: '0 6px 0 12px', borderRadius: 999, background: '#1c1917', color: '#ffffff', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 6px 0 12px', borderRadius: 999, background: '#1c1917', color: '#ffffff', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}
                 >
                   {selectedItemIds.size} {selectedItemIds.size === 1 ? 'selecionada' : 'selecionadas'}
                   <button
@@ -3537,7 +3580,7 @@ export default function Arte() {
                     else setSelectedItemIds(new Set(filteredItems.map((i: any) => i.id)));
                   }}
                   data-testid="button-select-all"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: 34, padding: '0 13px', borderRadius: 8, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', fontSize: 13, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, height: isMobile ? 44 : 36, padding: '0 13px', borderRadius: 9, border: '1px solid #e7e5e4', background: '#ffffff', color: '#44403c', fontSize: 13, fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}
                 >
                   {selectedItemIds.size === filteredItems.length
                     ? <><X style={{ width: 11, height: 11 }} /> Desmarcar tudo</>
@@ -3650,14 +3693,21 @@ export default function Arte() {
               ordem dos outros quatro modais desta tela. */}
           <ModalFooter>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
-              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} style={{ height: 40, padding: '0 16px', borderRadius: 8, backgroundColor: 'transparent', border: 'none', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} style={{ height: 36, padding: '0 14px', borderRadius: 9, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 Cancelar
               </button>
               <button
                 onClick={() => dispenseItem && dispenseMutation.mutate({ itemId: dispenseItem.id, reason: dispenseReason })}
                 disabled={dispenseMutation.isPending}
                 data-testid="button-confirm-dispense"
-                style={{ height: 40, padding: '0 18px', borderRadius: 8, backgroundColor: '#b91c1c', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: dispenseMutation.isPending ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: dispenseMutation.isPending ? 0.7 : 1 }}
+                // CONTORNO, não vermelho cheio.
+                //
+                // O próprio subtítulo do modal diz "Ação irreversível": um botão
+                // vermelho preenchido é o objeto mais chamativo do diálogo e
+                // convida ao clique reflexo justamente onde não há volta. O
+                // contorno mantém o vermelho como AVISO e obriga a ler antes.
+                // Mesmo tratamento de "Reprovar" no Atendimento.
+                style={{ height: 36, padding: '0 16px', borderRadius: 9, backgroundColor: '#ffffff', border: '1.5px solid #b91c1c', color: '#b91c1c', fontSize: 13, fontWeight: 700, cursor: dispenseMutation.isPending ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: dispenseMutation.isPending ? 0.7 : 1 }}
               >
                 {dispenseMutation.isPending ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Dispensando…</> : <><Ban style={{ width: 14, height: 14 }} />Dispensar peça</>}
               </button>

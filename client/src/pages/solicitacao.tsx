@@ -209,7 +209,10 @@ export default function Solicitacao() {
   // TODAS as portas de devolucao (lerMotivoDevolucao, routes/items.ts). Uma
   // regua so, nos dois lados: senao o botao habilita e a requisicao volta 400.
   const MOTIVO_MIN = 10;
-  const motivoCurto = (t: string) => t.trim().replace(/s+/g, " ").length < MOTIVO_MIN;
+  // A mesma barra invertida que faltava no servidor. Aqui ela não corrompia
+  // texto, só a CONTA: um motivo cheio de "s" era medido como mais curto do
+  // que é, e o botão de enviar ficava desabilitado sem explicar por quê.
+  const motivoCurto = (t: string) => t.trim().replace(/\s+/g, " ").length < MOTIVO_MIN;
   const avisoMotivoCurto = `Explique o motivo em pelo menos ${MOTIVO_MIN} caracteres — a Arte precisa saber o que corrigir.`;
   const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({ queryKey: ["/api/items"] });
   const { data: events = [], isLoading: eventsLoading, isError: eventsError, refetch: refetchEvents } = useQuery<any[]>({ queryKey: ["/api/events"] });

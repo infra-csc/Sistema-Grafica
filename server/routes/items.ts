@@ -52,7 +52,20 @@ function lerMotivoDevolucao(req: any): { ok: true; motivo: string } | { ok: fals
     : typeof req.body?.notes === "string" ? req.body.notes
     : typeof req.body?.observations === "string" ? req.body.observations
     : "";
-  const motivo = String(bruto).trim().replace(/s+/g, " ");
+  // `\s+` (espaço em branco), e NÃO `s+` (a letra s).
+  //
+  // Faltava esta barra invertida, e o efeito era comer a letra "s" de todo
+  // motivo digitado no app: "parece desbotada" virava "parece de botada" e
+  // "Preciso garantir que ele seja" virava "Preci o garantir que ele eja".
+  //
+  // Só o minúsculo — por isso a frase que o próprio servidor monta em volta
+  // ("Item aguarda nova versão da Arte") saía intacta, e o defeito parecia
+  // ser de quem digitou.
+  //
+  // Passa por aqui o motivo de SETE rotas de devolução e reprovação, e o
+  // texto é gravado já mastigado: o que foi salvo antes desta linha não
+  // volta — as letras não estão em lugar nenhum para serem recuperadas.
+  const motivo = String(bruto).trim().replace(/\s+/g, " ");
   if (motivo.length < MOTIVO_MIN) {
     return {
       ok: false,

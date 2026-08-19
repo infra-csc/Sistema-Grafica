@@ -288,7 +288,10 @@ export default function Atendimento() {
   const [rejectionReason, setRejectionReason] = useState("");
   /** Mesma regua do servidor: 10 caracteres. "nao" nao diz a Arte o que mudar. */
   const MOTIVO_MIN = 10;
-  const motivoCurto = (t: string) => t.trim().replace(/s+/g, " ").length < MOTIVO_MIN;
+  // A mesma barra invertida que faltava no servidor. Aqui ela não corrompia
+  // texto, só a CONTA: um motivo cheio de "s" era medido como mais curto do
+  // que é, e o botão de enviar ficava desabilitado sem explicar por quê.
+  const motivoCurto = (t: string) => t.trim().replace(/\s+/g, " ").length < MOTIVO_MIN;
   const [rejectingSponsorId, setRejectingSponsorId] = useState<string | null>(null);
 
   // Confirmação de aprovação

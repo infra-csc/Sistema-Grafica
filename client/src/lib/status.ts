@@ -32,9 +32,17 @@ export interface StatusMeta {
   icon: LucideIcon;   // ícone (para o StatusBadge com ícone)
 }
 
-// Paleta base por "família" de cor — reutilizada pelos status.
-// bg = 50, border = 100/200, text = 700/800 (AA), dot = 500.
-const P = {
+/**
+ * Paleta base por "família" de cor — reutilizada pelos status.
+ * bg = 50, border = 100/200, text = 700/800 (AA), dot = 500.
+ *
+ * EXPORTADA porque era privada e todo mundo redigitava o hex à mão. Uma tarja
+ * de erro escrita como `#fef2f2` + `#fecaca` num arquivo de tela é a MESMA
+ * coisa que `P.red.bg` + `P.red.border`, com a diferença de que a cópia não
+ * acompanha a origem — foi assim que um cinza aposentado voltou para a Gestão
+ * de Prazos e um vermelho reprovado em contraste sobreviveu em cinco telas.
+ */
+export const P = {
   neutral: { bg: "#f5f5f4", border: "#e7e5e4", text: "#44403c", dot: "#78716c" },
   blue:    { bg: "#eff6ff", border: "#bfdbfe", text: "#1d4ed8", dot: "#3b82f6" },
   sky:     { bg: "#f0f9ff", border: "#bae6fd", text: "#0369a1", dot: "#0ea5e9" },

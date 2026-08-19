@@ -20,8 +20,14 @@ import {
   isEventoFinalizado,
   motivoEventoFinalizado,
   avisoPecasOcultas,
+  P,
   type EventoFinalizadoMotivo,
 } from "@/lib/status";
+// Raio e paleta vêm de fonte, não do dedo: `R` tem cinco degraus e a Arte
+// chegou a usar dezenove; `P` é a mesma paleta que os selos de status já
+// consomem, e reescrever o hex dela numa tela cria uma cópia que não
+// acompanha a origem.
+import { R } from "@/lib/theme";
 import { spDayMs } from "@shared/prazo-dates";
 import { useAuth } from "@/contexts/auth-context";
 // Regras puras (recortes de status, predicado de filtro, prazo por fase,
@@ -3804,7 +3810,9 @@ export default function Arte() {
               sobrar do teto do `modalSurface`, e só ele rola. */}
           <div style={{ padding: '18px 24px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
             {dispenseItem && (
-              <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: 8, padding: '12px 14px', marginBottom: 16, display: 'flex', gap: 10 }}>
+              // Mesmos valores de antes, agora vindos da fonte: `#fef2f2` e
+              // `#fecaca` ERAM P.red.bg e P.red.border copiados à mão.
+              <div style={{ backgroundColor: P.red.bg, border: `1px solid ${P.red.border}`, borderRadius: R.md, padding: '12px 14px', marginBottom: 16, display: 'flex', gap: 10 }}>
                 <Ban style={{ width: 16, height: 16, color: '#dc2626', flexShrink: 0, marginTop: 2 }} />
                 <div>
                   <p style={{ fontSize: 12, fontWeight: 700, color: '#7f1d1d', margin: '0 0 2px' }}>{dispenseItem.displayId} — {dispenseItem.type}</p>
@@ -3827,7 +3835,8 @@ export default function Arte() {
               ordem dos outros quatro modais desta tela. */}
           <ModalFooter>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
-              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} style={{ height: 36, padding: '0 14px', borderRadius: 9, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              {/* Raio 9 não existe em `R` (6/8/12/16/999) — era valor sem fonte. */}
+              <button onClick={() => { setDispenseItem(null); setDispenseReason(""); }} style={{ height: 36, padding: '0 14px', borderRadius: R.md, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 Cancelar
               </button>
               <button
@@ -3841,9 +3850,24 @@ export default function Arte() {
                 // convida ao clique reflexo justamente onde não há volta. O
                 // contorno mantém o vermelho como AVISO e obriga a ler antes.
                 // Mesmo tratamento de "Reprovar" no Atendimento.
-                style={{ height: 36, padding: '0 16px', borderRadius: 9, backgroundColor: '#ffffff', border: '1.5px solid #b91c1c', color: '#b91c1c', fontSize: 13, fontWeight: 700, cursor: dispenseMutation.isPending ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: dispenseMutation.isPending ? 0.7 : 1 }}
+                style={{ height: 36, padding: '0 16px', borderRadius: R.md, backgroundColor: '#ffffff', border: `1.5px solid ${P.red.text}`, color: P.red.text, fontSize: 13, fontWeight: 700, cursor: dispenseMutation.isPending ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: dispenseMutation.isPending ? 0.7 : 1 }}
               >
-                {dispenseMutation.isPending ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Dispensando…</> : <><Ban style={{ width: 14, height: 14 }} />Dispensar peça</>}
+                {dispenseMutation.isPending ? (
+                  <>
+                    {/* O SPINNER ERA BRANCO SOBRE BOTÃO BRANCO.
+
+                        Ele nasceu junto com o botão vermelho CHEIO, onde branco
+                        era a única cor legível. Quando o botão virou contorno —
+                        para não convidar ao clique reflexo numa ação
+                        irreversível — o fundo virou #ffffff e o spinner ficou
+                        invisível, justamente durante a dispensa, que é quando a
+                        pessoa precisa saber que o clique pegou. */}
+                    <div style={{ width: 14, height: 14, borderRadius: R.pill, border: `2px solid ${P.red.border}`, borderTopColor: P.red.text, animation: 'spin 0.8s linear infinite' }} />
+                    Dispensando…
+                  </>
+                ) : (
+                  <><Ban style={{ width: 14, height: 14 }} />Dispensar peça</>
+                )}
               </button>
             </div>
           </ModalFooter>

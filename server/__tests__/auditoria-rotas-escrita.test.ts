@@ -185,7 +185,7 @@ describe("as quatro rotas que enchem a coluna 'Realizado por'", () => {
     {
       nome: "entrega",
       chave: "PATCH /api/items/:id/deliver",
-      ctx: { params: { id: "i-1" }, body: { receivedBy: "Portaria" }, userRole: "grafica" },
+      ctx: { params: { id: "i-1" }, body: { receivedBy: "Portaria", photoUrl: "/objects/uploads/comprovante.jpg" }, userRole: "grafica" },
       antes: () => { itemEmFoco = peca({ status: "conferred", conferredQty: 4 }); },
       acao: "delivered",
     },

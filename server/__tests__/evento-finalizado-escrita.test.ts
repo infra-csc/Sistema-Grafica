@@ -420,7 +420,7 @@ describe.each(MOTIVOS)("evento $nome — o que arruma a casa continua liberado",
     motivo.aplica();
 
     const r = await chamar("PATCH /api/items/:id/deliver", {
-      params: { id: "it-1" }, userRole: "grafica", body: { receivedBy: "João da portaria" },
+      params: { id: "it-1" }, userRole: "grafica", body: { receivedBy: "João da portaria", photoUrl: "/objects/uploads/comprovante.jpg" },
     });
 
     expect(r.status).toBe(200);

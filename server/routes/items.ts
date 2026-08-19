@@ -3642,8 +3642,22 @@ export function registerItemRoutes(app: Express): void {
       const { receivedBy, photoUrl, notes } = req.body;
       const trimmedNotes = typeof notes === "string" ? notes.trim() : "";
 
-      if (!receivedBy) {
-        return res.status(400).json({ error: "receivedBy is required" });
+      /**
+       * A FOTO É O COMPROVANTE; O NOME É O RECADO.
+       *
+       * A regra estava invertida: exigia-se o NOME de quem recebeu e a foto
+       * era opcional. Na prática isso troca a prova pela palavra — nome é
+       * texto digitado por quem entrega, e não comprova entrega nenhuma; a
+       * foto é o registro que sustenta a conversa quando o cliente diz que
+       * não recebeu.
+       *
+       * Invertido a pedido do dono: foto obrigatória, nome opcional. A
+       * validação vive aqui e não só no cliente porque esta rota também
+       * atende a entrega em LOTE e qualquer chamada futura — regra de
+       * negócio validada só no formulário é regra que o próximo caller ignora.
+       */
+      if (!photoUrl) {
+        return res.status(400).json({ error: "photoUrl is required" });
       }
       
       // Pegar status anterior antes de atualizar
@@ -3693,9 +3707,12 @@ export function registerItemRoutes(app: Express): void {
           entityType: "item",
           entityId: updated.id,
           details:
+            // `receivedBy` agora é opcional, então a trilha precisa de uma
+            // frase que funcione sem ele — "recebido por: undefined" seria
+            // pior que não dizer nada.
             (isFullDelivery
-              ? `Entrega concluída (${newDelivered}/${currentItem.quantity}, recebido por: ${receivedBy})`
-              : `Entrega parcial: ${n} un. (${newDelivered}/${currentItem.quantity}, recebido por: ${receivedBy})`)
+              ? `Entrega concluída (${newDelivered}/${currentItem.quantity}${receivedBy ? `, recebido por: ${receivedBy}` : ""})`
+              : `Entrega parcial: ${n} un. (${newDelivered}/${currentItem.quantity}${receivedBy ? `, recebido por: ${receivedBy}` : ""})`)
             + (trimmedNotes ? ` — Obs.: ${trimmedNotes}` : ""),
         });
 

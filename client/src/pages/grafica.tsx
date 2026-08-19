@@ -356,7 +356,7 @@ function BulkActionDialog({
           {!isConfer && (
             <div>
               <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 10 }}>
-                Responsável pelo Recebimento *
+                Responsável pelo Recebimento
               </label>
               <input
                 type="text"
@@ -366,7 +366,7 @@ function BulkActionDialog({
                 // disparavam o lote duas vezes (o 409 da repetição virava
                 // toast de erro falso).
                 onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); if (!isSubmitting && canSubmit) onConfirm(); } }}
-                placeholder="Nome de quem recebeu"
+                placeholder="Nome de quem recebeu (opcional)"
                 autoFocus
                 style={{ width: "100%", boxSizing: "border-box", padding: "14px 16px", background: "#fff", border: "1.5px solid #e7e5e4", borderRadius: 12, fontSize: 15, fontWeight: 600, color: TI.text, transition: "border-color 0.15s, box-shadow 0.15s" }}
                 onFocus={e => { e.currentTarget.style.borderColor = tint; e.currentTarget.style.boxShadow = `0 0 0 3px ${tint}22`; }}
@@ -381,7 +381,7 @@ function BulkActionDialog({
             onAdd={onAddPhoto}
             onRemove={onRemovePhoto}
             onError={onPhotoError}
-            label={isConfer ? "Foto da conferência *" : "Comprovante fotográfico"}
+            label={isConfer ? "Foto da conferência *" : "Foto da entrega *"}
             hint={isConfer ? "· mesma para todas as peças" : "· opcional · mesmo para todas as peças"}
           />
 
@@ -1241,8 +1241,12 @@ export default function Grafica() {
   const handleSubmitDelivery = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedItem) return;
-    if (!deliveryData.receivedBy?.trim()) {
-      toast({ title: "Campo obrigatório", description: "Por favor, informe quem recebeu o material", variant: "destructive" });
+    // A FOTO É O COMPROVANTE; O NOME É O RECADO. A regra era o inverso —
+    // exigia o nome e deixava a foto de fora, ou seja, trocava a prova pela
+    // palavra. Nome é texto digitado por quem entrega; foto é o registro que
+    // sustenta a conversa quando o cliente diz que não recebeu.
+    if (photos.length === 0) {
+      toast({ title: "Foto obrigatória", description: "Anexe ao menos uma foto da entrega — ela é o comprovante.", variant: "destructive" });
       return;
     }
     // Mutation PRIMEIRO; fotos só depois do sucesso — mesma disciplina do lote.
@@ -1583,8 +1587,9 @@ export default function Grafica() {
 
   const handleBulkDelivery = async () => {
     if (isBulkSubmitting) return; // Enter repetido no dialog disparava o lote 2x
-    if (!bulkReceivedBy.trim()) {
-      toast({ title: "Campo obrigatório", description: "Informe quem recebeu o material", variant: "destructive" });
+    // Mesma regra da entrega individual: a foto é o comprovante.
+    if (bulkDeliveryPhotos.length === 0) {
+      toast({ title: "Foto obrigatória", description: "Anexe ao menos uma foto da entrega — ela é o comprovante.", variant: "destructive" });
       return;
     }
     setIsBulkSubmitting(true);
@@ -3878,7 +3883,7 @@ export default function Grafica() {
                 {/* Responsável */}
                 <div>
                   <label style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 10 }}>
-                    Responsável pelo Recebimento *
+                    Responsável pelo Recebimento
                   </label>
                   {/* Campo livre: quem recebe muda a cada entrega, e a lista de
                       nomes anteriores mais atrapalhava do que ajudava. */}
@@ -3886,7 +3891,7 @@ export default function Grafica() {
                     type="text"
                     value={deliveryData.receivedBy}
                     onChange={e => setDeliveryData({ ...deliveryData, receivedBy: e.target.value })}
-                    placeholder="Nome de quem recebeu"
+                    placeholder="Nome de quem recebeu (opcional)"
                     autoFocus
                     data-testid="input-received-by"
                     style={{ width: "100%", padding: "12px 14px", backgroundColor: "#e8e8e7", border: "1px solid transparent", borderRadius: 8, fontSize: 13, fontWeight: 500, color: TI.text }}
@@ -3906,7 +3911,13 @@ export default function Grafica() {
                 )}
 
                 {/* Comprovante fotográfico */}
-                <PhotoPicker photos={photos} onAdd={addPhoto} onRemove={removePhoto} onError={onPhotoError} hint="(opcional) · pode anexar várias" />
+                {/* A FOTO É O COMPROVANTE; O NOME É O RECADO.
+                    A regra era o inverso — o nome tinha asterisco e a foto
+                    dizia "(opcional)". Isso troca a prova pela palavra: nome
+                    é texto digitado por quem entrega e não comprova entrega
+                    nenhuma; a foto é o que sustenta a conversa quando o
+                    cliente diz que não recebeu. Invertido a pedido do dono. */}
+                <PhotoPicker photos={photos} onAdd={addPhoto} onRemove={removePhoto} onError={onPhotoError} label="Foto da entrega *" hint="· obrigatória, pode anexar várias" />
 
                 {renderNotesField("Ex.: entregue na portaria, faltou 1 caixa…")}
 

@@ -89,3 +89,40 @@ export function suspeitasDeSNoMeio(texto: string): string[] {
   }
   return fora;
 }
+
+/**
+ * Correções revisadas para os textos que foram efetivamente gravados durante
+ * o incidente de 17–19/08. Diferente da heurística acima, este catálogo
+ * corrige também o "s" perdido NO MEIO de palavras, mas só quando o texto
+ * inteiro é uma correspondência exata já conferida por uma pessoa.
+ *
+ * Isso é deliberadamente fechado: uma frase nova ou diferente não pode ser
+ * "corrigida" por aproximação e acabar reescrita com uma instrução errada.
+ */
+const CORRECOES_REVISADAS = new Map<string, string>([
+  [
+    "A cor do logo parece de botada, o roxo é bem mai  vivo - preci amo  garantir que ele  eja Core Purple (#8D0DE3 | RGB: 141, 13, 227 | CMYK: 68 76 0 2 | Pantone Uncoated: 266 U | Pantone Coated: 266 C)",
+    "A cor do logo parece desbotada, o roxo é bem mais vivo - precisamos garantir que ele seja Core Purple (#8D0DE3 | RGB: 141, 13, 227 | CMYK: 68 76 0 2 | Pantone Uncoated: 266 U | Pantone Coated: 266 C)",
+  ],
+  [
+    "Seguem o  aju te  nece ário :\n•\tNa  peça  onde con ta a chancela 'Patrocínio',  ub tituir por 'Realização'. \n•\tE paço Bem-e tar: recuar um pouco a ilu tração para mantê-la mai  afa tada da logomarca.\n•\tE tande local: falta informar o nome (enviaremo  a arte pronta)\n•\tPeça  balcão: conforme demai  etapa , não teremo  e ta peça, certo?",
+    "Seguem os ajustes necessários :\n•\tNas peças onde consta a chancela 'Patrocínio', substituir por 'Realização'. \n•\tEspaço Bem-estar: recuar um pouco a ilustração para mantê-la mais afastada da logomarca.\n•\tEstande local: falta informar o nome (enviaremos a arte pronta)\n•\tPeças balcão: conforme demais etapas, não teremos esta peça, certo?",
+  ],
+  [
+    "acho que veio duplicado a  olicitação",
+    "acho que veio duplicado a solicitação",
+  ],
+  [
+    " ão  ó 5..",
+    "são só 5..",
+  ],
+]);
+
+/**
+ * Devolve somente uma correção previamente revisada, ou `null` quando o texto
+ * não pertence ao conjunto confirmado. Quem chama deve deixar os demais
+ * registros intactos.
+ */
+export function correcaoRevisadaMotivoSemS(texto: string): string | null {
+  return CORRECOES_REVISADAS.get(texto) ?? null;
+}

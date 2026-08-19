@@ -24,6 +24,7 @@ import { registerPrazoRoutes } from "./routes/prazos";
 import { registerAnaliseRoutes } from "./routes/analises";
 import { registerObjectRoutes } from "./routes/objects";
 import { registerInventoryRoutes } from "./routes/inventory";
+import { registerReparoMotivosRoutes } from "./routes/reparo-motivos";
 import { startDeadlineAlerts } from "./services/deadlineAlerts";
 import { startInventoryLifecycle } from "./services/inventoryLifecycle";
 import { startPrazoSnapshots } from "./services/prazoSnapshots";
@@ -59,6 +60,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerAuditLogRoutes(app);
   registerPrazoRoutes(app);
   registerAnaliseRoutes(app);
+  registerReparoMotivosRoutes(app);
   await registerObjectRoutes(app);
 
   // ── Background jobs ──────────────────────────────────────────────────────

@@ -44,6 +44,7 @@ import Estoque from "@/pages/estoque";
 import TriagemRetorno from "@/pages/triagem-retorno";
 import ConfigurarCotas from "@/pages/configurar-cotas";
 import GestaoPrazos from "@/pages/gestao-prazos";
+import ReparoMotivos from "@/pages/reparo-motivos";
 
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -100,6 +101,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/estoque": "Estoque",
   "/usuarios": "Usuários",
   "/logs-sistema": "Logs do Sistema",
+  "/reparo-motivos": "Correção de textos",
   "/change-password": "Alterar Senha",
 };
 
@@ -251,6 +253,9 @@ function Router() {
       </Route>
       <Route path="/logs-sistema">
         {() => <RoleProtectedRoute component={LogsSistema} allowedRoles={ROLES_ADMIN} />}
+      </Route>
+      <Route path="/reparo-motivos">
+        {() => <RoleProtectedRoute component={ReparoMotivos} allowedRoles={ROLES_ADMIN} />}
       </Route>
       <Route path="/estoque">
         {() => <RoleProtectedRoute component={Estoque} allowedRoles={ROLES_ADMIN} />}

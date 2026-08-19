@@ -1,7 +1,7 @@
 import {
   Calendar, CalendarRange, Palette, Printer, Layers, LayoutDashboard,
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
-  Link2, LogOut, Loader2, ScrollText, Archive, ScanSearch, Compass, Settings2, Camera,
+  Link2, LogOut, Loader2, ScrollText, Archive, ScanSearch, Compass, Settings2, Camera, Wand2,
   Timer,
 } from "lucide-react";
 import { useId, useState } from "react";
@@ -70,6 +70,7 @@ const stockItems: MenuItem[] = [
 // Administração: apenas admin (filtrado via hasPermission no componente)
 const adminItems: MenuItem[] = [
   { title: "Usuários",        url: "/usuarios",     icon: Users },
+  { title: "Correção de textos", url: "/reparo-motivos", icon: Wand2 },
   { title: "Logs do Sistema", url: "/logs-sistema", icon: ScrollText },
 ];
 

@@ -2007,8 +2007,11 @@ export default function Atendimento() {
       {/* ─── GRID DE CARDS (bento-style) ─────────────────────────── */}
       {filteredItems.length === 0 ? (
         <div style={{ textAlign: 'center', padding: '64px 0' }} data-testid="empty-atendimento">
-          <CheckCircle style={{ width: 48, height: 48, color: '#86efac', margin: '0 auto 16px' }} />
-          <h3 style={{ fontSize: 18, fontWeight: 700, color: '#1c1917', margin: '0 0 8px' }}>
+          {/* Regua dos vazios da casa: icone 28, titulo 15/700, frase 13. Era
+              48/18/15 — um vazio desenhado com mais peso visual que qualquer
+              card de peca da lista cheia. */}
+          <CheckCircle aria-hidden="true" style={{ width: 28, height: 28, color: '#86efac', margin: '0 auto 12px' }} />
+          <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1c1917', margin: '0 0 6px' }}>
             {/* Vazio por causa do recorte de atrasados tem texto próprio: com o
                 filtro ligado, "Nenhum item pendente" leria como "nada a fazer"
                 enquanto a fila inteira continua ali, dentro do prazo. */}
@@ -2016,7 +2019,7 @@ export default function Atendimento() {
               ? "Nada atrasado neste recorte"
               : pendingItems.length === 0 ? "Nenhum item pendente" : "Nenhum resultado encontrado"}
           </h3>
-          <p style={{ color: '#746e69', fontSize: 15, maxWidth: 520, margin: '0 auto' }} data-testid="empty-atendimento-motivo">
+          <p style={{ color: '#746e69', fontSize: 13, lineHeight: 1.5, maxWidth: 520, margin: '0 auto' }} data-testid="empty-atendimento-motivo">
             {atrasadosFilter
               ? `A lista está vazia pelo FILTRO "Atrasados" — ${filteredItemsBase.length === 0 ? 'os demais filtros já não devolvem nenhuma peça' : `as ${filteredItemsBase.length} peças deste recorte estão todas dentro do prazo de Aprovação de Layout`}.`
               : pendingItems.length === 0
@@ -2603,8 +2606,8 @@ export default function Atendimento() {
               </div>
             ) : historyItems.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '64px 0' }}>
-                <CheckCircle style={{ width: 48, height: 48, color: '#86efac', margin: '0 auto 16px' }} />
-                <h3 style={{ fontSize: 18, fontWeight: 700, color: '#1c1917', margin: '0 0 8px' }}>Nenhuma peça encontrada</h3>
+                <CheckCircle aria-hidden="true" style={{ width: 28, height: 28, color: '#86efac', margin: '0 auto 12px' }} />
+                <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1c1917', margin: '0 0 6px' }}>Nenhuma peça encontrada</h3>
                 <p style={{ color: '#746e69', fontSize: 15 }}>
                   {hasHistFilters ? 'Tente ajustar os filtros.' : 'Ainda não há peças aprovadas pelo patrocinador.'}
                 </p>
@@ -3768,7 +3771,10 @@ export default function Atendimento() {
               }}
               disabled={individualApproveMutation.isPending}
               data-testid="button-confirm-approve-individual"
-              style={{ width: '100%', height: 44, borderRadius: 8, backgroundColor: '#15803d', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+              // TINTA. Verde e o ESTADO 'aprovado' nesta tela — o que a peca
+              // vira DEPOIS da decisao. Pintar de verde o botao que ainda vai
+              // decidir usa a cor do resultado para fazer o pedido.
+              style={{ width: '100%', height: 44, borderRadius: 9, backgroundColor: '#1c1917', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
               <CheckCircle style={{ width: 15, height: 15 }} />
               Aprovar
@@ -3811,7 +3817,10 @@ export default function Atendimento() {
               }}
               disabled={batchSponsorMutation.isPending}
               data-testid="button-confirm-batch-approve"
-              style={{ width: '100%', height: 44, borderRadius: 8, backgroundColor: '#15803d', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 800, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+              // TINTA. Verde e o ESTADO 'aprovado' nesta tela — o que a peca
+              // vira DEPOIS da decisao. Pintar de verde o botao que ainda vai
+              // decidir usa a cor do resultado para fazer o pedido.
+              style={{ width: '100%', height: 44, borderRadius: 9, backgroundColor: '#1c1917', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
             >
               <CheckCircle style={{ width: 15, height: 15 }} />
               Aprovar seleção

@@ -3894,9 +3894,14 @@ export default function Arte() {
             onClose={() => { setDevolverItem(null); setDevolverMotivo(""); }}
           />
           <div style={{ padding: '18px 24px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
+            {/* `#fffbeb`, `#fde68a` e `#b45309` ERAM P.amber.bg, .border e .text
+                copiados à mão — a mesma cor, sem o vínculo com a origem. Os tons
+                800/900 do texto abaixo continuam literais porque a paleta guarda
+                UM tom por família, e a hierarquia entre título e corpo da tarja
+                precisa de dois. */}
             {devolverItem && (
-              <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '12px 14px', marginBottom: 16, display: 'flex', gap: 10 }}>
-                <RotateCcw style={{ width: 16, height: 16, color: '#b45309', flexShrink: 0, marginTop: 2 }} />
+              <div style={{ backgroundColor: P.amber.bg, border: `1px solid ${P.amber.border}`, borderRadius: R.md, padding: '12px 14px', marginBottom: 16, display: 'flex', gap: 10 }}>
+                <RotateCcw style={{ width: 16, height: 16, color: P.amber.text, flexShrink: 0, marginTop: 2 }} />
                 <div>
                   {/* #78350f sobre #fffbeb = 9,7:1 ✓ · #92400e = 6,5:1 ✓ */}
                   <p style={{ fontSize: 12, fontWeight: 700, color: '#78350f', margin: '0 0 2px' }}>{devolverItem.displayId} — {devolverItem.type}</p>
@@ -3906,7 +3911,7 @@ export default function Arte() {
             )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
               <label htmlFor="motivo-devolucao-arte" style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#57534e' }}>
-                Motivo <span style={{ color: '#b91c1c' }}>*</span>
+                Motivo <span style={{ color: P.red.text }}>*</span>
               </label>
               <textarea
                 id="motivo-devolucao-arte"
@@ -3915,11 +3920,11 @@ export default function Arte() {
                 onChange={e => setDevolverMotivo(e.target.value)}
                 placeholder="Ex: a medida não fecha com o layout enviado — confirmar largura antes de refazer."
                 data-testid="textarea-devolver-motivo"
-                style={{ width: '100%', backgroundColor: '#fafaf9', border: `1px solid ${motivoCurto(devolverMotivo) ? '#e7e5e4' : '#16a34a'}`, borderRadius: 8, padding: '10px 12px', fontSize: 12, resize: 'none', height: 84, fontFamily: 'inherit', color: '#1c1917', boxSizing: 'border-box' }}
+                style={{ width: '100%', backgroundColor: '#fafaf9', border: `1px solid ${motivoCurto(devolverMotivo) ? '#e7e5e4' : '#16a34a'}`, borderRadius: R.md, padding: '10px 12px', fontSize: 12, resize: 'none', height: 84, fontFamily: 'inherit', color: '#1c1917', boxSizing: 'border-box' }}
               />
               {/* #b45309 sobre #fafaf9 = 4,79:1 ✓ nos 11px */}
               {motivoCurto(devolverMotivo) && (
-                <p style={{ margin: 0, fontSize: 11, color: '#b45309' }}>
+                <p style={{ margin: 0, fontSize: 11, color: P.amber.text }}>
                   Faltam {Math.max(0, MOTIVO_MIN - devolverMotivo.trim().replace(/\s+/g, " ").length)} caracteres — sem motivo, quem recebe a peça de volta não sabe o que fazer com ela.
                 </p>
               )}
@@ -3927,7 +3932,18 @@ export default function Arte() {
           </div>
           <ModalFooter>
             <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', alignItems: 'center' }}>
-              <button onClick={() => { setDevolverItem(null); setDevolverMotivo(""); }} style={{ height: 40, padding: '0 16px', borderRadius: 8, backgroundColor: 'transparent', border: 'none', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+              {/* CANCELAR PRECISA PARECER BOTÃO.
+
+                  Ele estava `transparent` + `border: none` ao lado de um
+                  primário sólido: sem fundo e sem contorno, lia como legenda,
+                  não como a saída do diálogo — e a saída é o caminho que a
+                  pessoa procura quando abriu por engano. O contorno é o mesmo
+                  do Cancelar da dispensa, para os dois diálogos vizinhos não
+                  ensinarem duas gramáticas.
+
+                  Os 40px ficam: são a altura dos dois botões deste rodapé, e
+                  acima do mínimo da casa. */}
+              <button onClick={() => { setDevolverItem(null); setDevolverMotivo(""); }} style={{ height: 40, padding: '0 16px', borderRadius: R.md, backgroundColor: '#ffffff', border: '1px solid #e7e5e4', color: '#57534e', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
                 Cancelar
               </button>
               <button
@@ -3935,7 +3951,13 @@ export default function Arte() {
                 disabled={devolverMutation.isPending || motivoCurto(devolverMotivo)}
                 title={motivoCurto(devolverMotivo) ? `Explique em pelo menos ${MOTIVO_MIN} caracteres.` : undefined}
                 data-testid="button-confirm-devolver"
-                style={{ height: 40, padding: '0 18px', borderRadius: 8, backgroundColor: motivoCurto(devolverMotivo) ? '#e7e5e4' : '#b45309', border: 'none', color: motivoCurto(devolverMotivo) ? '#78716c' : '#ffffff', fontSize: 13, fontWeight: 700, cursor: devolverMutation.isPending || motivoCurto(devolverMotivo) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: devolverMutation.isPending ? 0.7 : 1 }}
+                // O RÓTULO DESABILITADO REPROVAVA AA: #78716c sobre #e7e5e4
+                // mede 3,82:1, e 13px exige 4,5. E este é o estado em que o
+                // botão passa a MAIOR PARTE do tempo — ele só libera depois do
+                // motivo mínimo, então o texto ilegível era a leitura normal,
+                // não a exceção. #57534e mede 6,08:1 e é o mesmo cinza que a
+                // casca usa para desabilitado.
+                style={{ height: 40, padding: '0 18px', borderRadius: R.md, backgroundColor: motivoCurto(devolverMotivo) ? '#e7e5e4' : P.amber.text, border: 'none', color: motivoCurto(devolverMotivo) ? '#57534e' : '#ffffff', fontSize: 13, fontWeight: 700, cursor: devolverMutation.isPending || motivoCurto(devolverMotivo) ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: devolverMutation.isPending ? 0.7 : 1 }}
               >
                 {devolverMutation.isPending
                   ? <><div style={{ width: 14, height: 14, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Devolvendo…</>

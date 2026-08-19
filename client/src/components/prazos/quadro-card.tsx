@@ -172,8 +172,19 @@ export function QuadroCard({ ev, stage, cobranca, onOpen, onFocusCard, realce }:
         </span>
       )}
 
+      {/* 12px, e não 11: isto é FRASE, não rótulo.
+
+          Varri a tela medindo texto de 5+ palavras em 11px e achei 174
+          ocorrências — 166 delas neste card, em só DUAS linhas repetidas por
+          86 cards: esta e a de "pior peça parada há…". 11px é o tamanho dos
+          micro-rótulos da tela (o selo, o cabeçalho de coluna); frase pede o
+          degrau de leitura.
+
+          E estas duas são o DIAGNÓSTICO do card: o número grande diz que há
+          atraso, elas dizem o tamanho e a idade dele. Eram o texto mais
+          apagado de um card que existe para ser lido de relance. */}
       {mostraTravadas && (
-        <span style={{ display: "block", marginTop: 4, fontSize: 11, color: TI.secondary }}>
+        <span style={{ display: "block", marginTop: 4, fontSize: 12, color: TI.secondary }}>
           {travadasAqui} de {ev.totalItems} travada{travadasAqui !== 1 ? "s" : ""} nesta etapa
         </span>
       )}
@@ -209,7 +220,9 @@ export function QuadroCard({ ev, stage, cobranca, onOpen, onFocusCard, realce }:
         // ganha a cor da régua única (`dayColor`): é o mesmo âmbar/vermelho
         // que o drill usa para os mesmos dias — abandono visível de relance.
         <span style={{
-          display: "block", marginTop: 6, fontSize: 11,
+          // 12px pelo mesmo motivo da linha de "travadas": é frase, não
+          // rótulo, e é metade do diagnóstico do card.
+          display: "block", marginTop: 6, fontSize: 12,
           color: ev.piorEsperaDias >= 3 ? dayColor(ev.piorEsperaDias) : TI.secondary,
           fontWeight: ev.piorEsperaDias >= 3 ? 700 : 400,
         }}>

@@ -113,3 +113,24 @@ describe("6. os alvos da aba", () => {
     expect(codigo).not.toContain("rgba(186,26,26,0.07)");
   });
 });
+
+describe("7. o que a segunda passada fechou", () => {
+  it("nenhum segmentado ficou com botão de 22px dentro de trilho de 36", () => {
+    // Na passada anterior eu subi os TRÊS trilhos e corrigi só DOIS dos três
+    // estilos de botão — o de "Prioridade" ficou descolado dentro do próprio
+    // trilho. Erro de contagem, não de desenho.
+    expect(codigo).not.toContain("height: 22, padding: '0 10px', borderRadius: 999");
+  });
+
+  it("o erro de carga é uma caixa, não um vazio", () => {
+    // Sem contorno, "não consegui buscar" lia como "não há nada" — e a
+    // diferença entre as duas é a diferença entre seguir o dia e recarregar.
+    expect(arte).toContain("background: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12 }} data-testid={testId}");
+  });
+
+  it("e o círculo do upload troca sombra por hairline", () => {
+    // Escopo: a MESMA sombra e usada por outro modal fora deste handoff, entao
+    // a asserção é sobre o círculo, não sobre o valor solto no arquivo.
+    expect(arte).toContain("borderRadius: '50%', backgroundColor: '#fff', border: '1px solid #ebe8e3'");
+  });
+});

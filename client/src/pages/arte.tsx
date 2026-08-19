@@ -2770,19 +2770,29 @@ export default function Arte() {
    * é permanente até um F5 manual. Numa fila cujo prazo é a saída do caminhão,
    * acreditar que a fila zerou é a pior mentira possível.
    */
+  /**
+   * O erro de carga vira uma CAIXA.
+   *
+   * Era um bloco de texto centrado solto na página, sem contorno: parecia um
+   * estado vazio, não uma falha — e a diferença entre "não há nada" e "não
+   * consegui buscar" é a diferença entre seguir o dia e recarregar.
+   *
+   * Vale para as CINCO abas do Arte, que compartilham este render. O ícone
+   * encolhe de 56 para 40 pela mesma régua dos vazios da tela.
+   */
   const renderErroDeCarga = (titulo: string, erro: unknown, tentarDeNovo: () => void, testId: string) => (
-    <div style={{ textAlign: 'center', padding: '56px 24px' }} data-testid={testId}>
-      <div style={{ width: 56, height: 56, borderRadius: 16, background: '#fffbeb', border: '1px solid #fde68a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
-        <WifiOff style={{ width: 24, height: 24, color: '#b45309' }} />
+    <div style={{ textAlign: 'center', padding: '32px 24px', margin: '24px auto', maxWidth: 460, background: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12 }} data-testid={testId}>
+      <div style={{ width: 40, height: 40, borderRadius: 12, background: '#fffbeb', border: '1px solid #fde68a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 12px' }}>
+        <WifiOff aria-hidden="true" style={{ width: 18, height: 18, color: '#b45309' }} />
       </div>
-      <p style={{ fontSize: 15, fontWeight: 700, color: '#1c1917', margin: '0 0 6px', fontFamily: '"Space Grotesk", sans-serif' }}>{titulo}</p>
-      <p style={{ fontSize: 12, color: '#57534e', margin: '0 0 16px' }}>
+      <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1c1c', margin: '0 0 6px', fontFamily: '"Space Grotesk", sans-serif' }}>{titulo}</p>
+      <p style={{ fontSize: 13, color: '#746e69', lineHeight: 1.55, margin: '0 0 16px' }}>
         {erro instanceof Error && erro.message ? mensagemDeErro(erro) : 'Verifique sua conexão e tente novamente.'}
       </p>
       <button
         onClick={tentarDeNovo}
         data-testid={`${testId}-retry`}
-        style={{ height: 38, padding: '0 18px', borderRadius: 8, background: '#1c1917', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}
+        style={{ height: 36, padding: '0 16px', borderRadius: 9, background: '#1c1917', color: '#fff', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 7 }}
       >
         <RefreshCw style={{ width: 14, height: 14 }} /> Tentar novamente
       </button>
@@ -3474,7 +3484,7 @@ export default function Arte() {
               ] as { on: boolean; label: string }[]).map(({ on, label }) => (
                 <button key={label} onClick={() => setUrgenteFilter(on)} aria-pressed={urgenteFilter === on}
                   data-testid={`button-urgente-${on ? 'sim' : 'nao'}`}
-                  style={{ height: 22, padding: '0 10px', borderRadius: 999, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: urgenteFilter === on ? 700 : 500, background: urgenteFilter === on ? '#ffffff' : 'transparent', color: urgenteFilter === on ? '#1c1917' : '#57534e', boxShadow: urgenteFilter === on ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', transition: 'all 0.12s' }}>
+                  style={{ alignSelf: 'stretch', margin: '3px 0', padding: '0 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 11, fontWeight: urgenteFilter === on ? 700 : 600, background: urgenteFilter === on ? '#ffffff' : '#fafaf9', color: urgenteFilter === on ? '#1c1917' : '#57534e', boxShadow: urgenteFilter === on ? 'inset 0 -2px 0 #1c1917' : 'none', transition: 'all 0.12s' }}>
                   {label}
                 </button>
               ))}
@@ -4054,7 +4064,10 @@ export default function Arte() {
                         uploadFileDirect(file, (localPath) => setCorrecaoThumbUrl(localPath));
                       }}
                     >
-                      <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#fff', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
+                      {/* Hairline no lugar da sombra: uma sombra difusa dentro
+                          de uma caixa tracejada dá dois contornos concorrentes
+                          para o mesmo objeto. */}
+                      <div style={{ width: 40, height: 40, borderRadius: '50%', backgroundColor: '#fff', border: '1px solid #ebe8e3', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 6 }}>
                         {isPasteUploading
                           ? <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2.5px solid #fecaca', borderTopColor: '#dc2626', animation: 'spin 0.8s linear infinite' }} />
                           : <Upload style={{ width: 18, height: 18, color: '#dc2626' }} />

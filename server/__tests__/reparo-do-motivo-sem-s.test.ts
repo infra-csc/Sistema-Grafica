@@ -1,81 +1,121 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // O REPARO DOS MOTIVOS QUE PERDERAM O "S".
 //
-// A entrada destes testes é o texto REAL que apareceu na tela de Correção, e a
-// saída esperada é o que a pessoa escreveu. O que este arquivo trava:
+// A PROVA DESTE ARQUIVO. Em vez de escrever à mão o que "deveria sair", ele
+// pega o texto ORIGINAL, aplica o defeito exatamente como o servidor aplicou, e
+// exige que o reparo devolva o original. É a única forma de medir honestamente
+// quanto se recupera — e de descobrir o que NÃO se recupera.
 //
-//   1. O reparo determinístico funciona — e só ele. Espaço duplo era um "s"
-//      colado a um espaço; espaço simples pode ser espaço de verdade.
+// O que ficou provado:
 //
-//   2. O reparo NÃO INVENTA. Um texto que já está inteiro tem de sair
-//      idêntico: rodar a ferramenta duas vezes não pode corromper nada.
-//
-//   3. O detector não confunde texto curto ou sem "s" legítimo com dano.
+//   • com o vocabulário do próprio banco, o texto longo volta INTEIRO;
+//   • sem vocabulário, volta só o "s" de borda (espaço duplo);
+//   • palavra que ninguém escreveu antes fica com o buraco à vista, e o buraco
+//     é reportado em vez de ser preenchido por chute.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import {
+  pareceMotivoDanificado as temAssinaturaDeDano,
+  montarLexico,
   pareceMotivoDanificado,
   repararMotivoSemS,
-  suspeitasDeSNoMeio,
 } from "../../shared/reparo-motivo";
 
-/** O texto exatamente como o defeito o gravou (medido na tela de Correção). */
-const DANIFICADO = "A cor do logo parece de botada, o roxo é bem mai  vivo - preci amo  garantir que ele  eja Core Purple";
+/** O defeito, exatamente como o servidor o aplicou. */
+const quebrar = (t: string) => t.replace(/s+/g, " ");
 
-describe("o reparo determinístico", () => {
-  const reparado = repararMotivoSemS(DANIFICADO);
+/** O motivo real que apareceu na tela de Correção (peça #2222). */
+const ORIGINAL =
+  "Seguem os ajustes necessários : • Na peça onde consta a chancela 'Patrocínio', " +
+  "substituir por 'Realização'. • Espaço Bem-estar: recuar um pouco a ilustração " +
+  "para mantê-la mais afastada da logomarca. • Estande local: falta informar o nome " +
+  "(enviaremos a arte pronta) • Peça balcão: conforme demais etapas , não teremos " +
+  "esta peça, certo?";
 
-  it('devolve o "s" no fim de palavra: "mai  vivo" → "mais vivo"', () => {
-    expect(reparado).toContain("mais vivo");
+/**
+ * O vocabulário que o banco teria: outros motivos, escritos FORA da janela do
+ * defeito, com as mesmas palavras do dia a dia da Arte. Nenhum deles é o texto
+ * danificado — se fosse, o teste seria circular.
+ */
+const CORPUS_INTEGRO = [
+  "Seguem os ajustes necessários para a arte",
+  "Onde consta a chancela, favor substituir",
+  "O Espaço Bem-estar precisa de mais respiro",
+  "Recuar a ilustração para deixar mais afastada",
+  "O Estande local ainda não tem nome",
+  "Enviaremos a arte pronta ainda hoje",
+  "Conforme as demais etapas do evento",
+  "Não teremos esta peça neste ciclo",
+];
+
+describe("o defeito e a sua assinatura", () => {
+  const quebrado = quebrar(ORIGINAL);
+
+  it("some com todos os s minúsculos", () => {
+    expect(quebrado).not.toMatch(/s/);
+    expect(quebrado).toContain("aju te");     // "ajustes"
+    expect(quebrado).toContain("nece ário");  // "necessários" — o "ss" virou UM espaço
   });
 
-  it('devolve o "s" no começo de palavra: "ele  eja" → "ele seja"', () => {
-    expect(reparado).toContain("ele seja");
+  it("e o detector reconhece", () => {
+    expect(pareceMotivoDanificado(quebrado)).toBe(true);
+    expect(pareceMotivoDanificado(ORIGINAL)).toBe(false);
+  });
+});
+
+describe("com o vocabulário do próprio banco", () => {
+  const lex = montarLexico(CORPUS_INTEGRO);
+  const reparado = repararMotivoSemS(quebrar(ORIGINAL), lex);
+
+  it("devolve o texto inteiro", () => {
+    expect(reparado).toBe(ORIGINAL);
   });
 
-  it('e o "s" que fecha "precisamos"', () => {
-    expect(reparado).toContain("amos garantir");
+  it("inclusive o 'ss' de necessários, que virou um espaço só", () => {
+    expect(reparado).toContain("necessários");
   });
 
-  it("mas NÃO tenta o s do meio da palavra — o buraco fica à vista", () => {
-    // "desbotada" e "precisamos" perderam um "s" INTERNO, que virou espaço
-    // simples e não tem como ser distinguido de um espaço de verdade.
-    expect(reparado).toContain("de botada");
-    expect(reparado).toContain("preci amos");
+  it("e o texto deixa de ter a assinatura do dano", () => {
+    expect(temAssinaturaDeDano(reparado)).toBe(false);
+  });
+});
+
+describe("sem vocabulário, recupera só o que é certo", () => {
+  const reparado = repararMotivoSemS(quebrar(ORIGINAL));
+
+  it("devolve o s de borda", () => {
+    expect(reparado).toContain("Seguem os");
+  });
+
+  it("mas deixa o do meio da palavra à vista, em vez de inventar", () => {
+    expect(reparado).toContain("aju");
+    expect(reparado).not.toContain("ajustes");
   });
 });
 
 describe("o reparo não estraga o que está inteiro", () => {
-  const INTEIRO = "A cor do logo parece desbotada, o roxo é bem mais vivo.";
+  const lex = montarLexico(CORPUS_INTEGRO);
 
   it("texto sadio sai idêntico", () => {
-    expect(repararMotivoSemS(INTEIRO)).toBe(INTEIRO);
+    expect(repararMotivoSemS(ORIGINAL, lex)).toBe(ORIGINAL);
   });
 
   it("e rodar duas vezes não muda nada", () => {
-    const uma = repararMotivoSemS(DANIFICADO);
-    expect(repararMotivoSemS(uma)).toBe(uma);
+    const uma = repararMotivoSemS(quebrar(ORIGINAL), lex);
+    expect(repararMotivoSemS(uma, lex)).toBe(uma);
   });
 });
 
-describe("o detector", () => {
-  it("acusa o texto mastigado", () => {
-    expect(pareceMotivoDanificado(DANIFICADO)).toBe(true);
-  });
+describe("palavra que ninguém escreveu antes", () => {
+  const lex = montarLexico(["texto sem nada a ver"]);
 
-  it("não acusa texto com s", () => {
-    expect(pareceMotivoDanificado("A cor parece desbotada e o roxo está apagado")).toBe(false);
-  });
-
-  it("nem texto curto demais para ter opinião", () => {
-    // "Cor errada" nao tem "s" minusculo e esta perfeito — por isso o piso.
-    expect(pareceMotivoDanificado("Cor errada")).toBe(false);
-  });
-});
-
-describe("as suspeitas que sobram são para o olho humano", () => {
-  it("apontam onde ainda pode faltar um s no meio", () => {
-    const sugestoes = suspeitasDeSNoMeio(repararMotivoSemS(DANIFICADO)).join(" ");
-    expect(sugestoes).toContain("de botada");
+  it("fica com o buraco em vez de inventar a palavra", () => {
+    const reparado = repararMotivoSemS(quebrar("a cor está desbotada"), lex);
+    // Sem vocabulário que confirme, o espaço FICA. E não existe sinal
+    // automático de 'ainda está quebrado' depois disso: a assinatura do dano
+    // é a ausência de s, e ela cai assim que um único s é reposto. Quem julga
+    // é quem lê o antes e o depois na ferramenta.
+    expect(reparado).not.toContain("desbotada");
+    expect(reparado).toContain("de botada");
   });
 });

@@ -1,15 +1,21 @@
 /**
- * FERRAMENTA — encontra e repara os motivos que perderam a letra "s".
+ * FERRAMENTA — revisa e repara TODOS os motivos que perderam a letra "s".
  *
- * A regra de reparo mora em `shared/reparo-motivo.ts`, testada em
+ * A regra do reparo mora em `shared/reparo-motivo.ts`, provada em
  * `server/__tests__/reparo-do-motivo-sem-s.test.ts` contra o texto real que
- * apareceu na tela de Correção. Aqui só há a varredura e a gravação.
+ * apareceu na tela de Correção: o teste aplica o defeito ao original e exige o
+ * original de volta.
  *
- *   npx tsx scripts/motivos-sem-s.ts             # LISTA. Não grava nada.
- *   npx tsx scripts/motivos-sem-s.ts --aplicar   # grava depois de você ler
+ *   npx tsx scripts/motivos-sem-s.ts             # LISTA tudo. Não grava nada.
+ *   npx tsx scripts/motivos-sem-s.ts --aplicar   # grava, depois de você ler
+ *
+ * DE ONDE VEM O VOCABULÁRIO. Dos motivos ÍNTEGROS do próprio banco — os que
+ * foram escritos fora da janela do defeito. Se "substituir" aparece inteiro em
+ * outro motivo, "ub tituir" deixa de ser chute. Nenhum dicionário de fora: o
+ * vocabulário certo para esta base é o que esta base já escreveu.
  *
  * O QUE ELE NÃO TOCA, de propósito: o log de auditoria e as notificações também
- * guardam o motivo, embutido numa frase. Eles são REGISTRO DO QUE ACONTECEU —
+ * guardam o motivo, embutido numa frase. São REGISTRO DO QUE ACONTECEU —
  * reescrevê-los apagaria a prova de que o defeito existiu, e é por essa prova
  * que alguém consegue explicar depois por que um texto ficou estranho.
  */
@@ -17,9 +23,9 @@ import { eq, isNotNull, or } from "drizzle-orm";
 import { db, pool } from "../server/db";
 import { items } from "@shared/schema";
 import {
+  montarLexico,
   pareceMotivoDanificado,
   repararMotivoSemS,
-  suspeitasDeSNoMeio,
 } from "@shared/reparo-motivo";
 
 const APLICAR = process.argv.includes("--aplicar");
@@ -37,14 +43,23 @@ async function main() {
     .from(items)
     .where(or(isNotNull(items.rejectionReason), isNotNull(items.observations)));
 
-  const afetadas = linhas.filter(l =>
-    CAMPOS.some(c => { const v = l[c]; return !!v && pareceMotivoDanificado(v); }));
+  const textoDe = (l: typeof linhas[number]) =>
+    CAMPOS.map(c => l[c]).filter((v): v is string => !!v);
+
+  const danificada = (l: typeof linhas[number]) =>
+    textoDe(l).some(pareceMotivoDanificado);
+
+  const afetadas = linhas.filter(danificada);
+  const integros = linhas.filter(l => !danificada(l)).flatMap(textoDe);
+
+  console.log(`Vocabulário montado com ${integros.length} motivo(s) íntegro(s) do banco.`);
 
   if (afetadas.length === 0) {
     console.log("Nenhum motivo com a assinatura do defeito. Nada a fazer.");
     return;
   }
 
+  const lex = montarLexico(integros);
   console.log(`${afetadas.length} peça(s) com motivo que perdeu o "s".\n`);
   let gravadas = 0;
 
@@ -55,14 +70,11 @@ async function main() {
     for (const campo of CAMPOS) {
       const atual = l[campo];
       if (!atual || !pareceMotivoDanificado(atual)) continue;
-      const reparado = repararMotivoSemS(atual);
+      const reparado = repararMotivoSemS(atual, lex);
       console.log(`   ${campo}`);
       console.log(`     antes:  ${atual}`);
       console.log(`     depois: ${reparado}`);
-      const restam = suspeitasDeSNoMeio(reparado);
-      if (restam.length) {
-        console.log(`     AINDA PODE FALTAR UM "s" NO MEIO: ${restam.slice(0, 6).join("  |  ")}`);
-      }
+      if (reparado === atual) console.log("     (o vocabulário não fechou nada aqui — precisa de gente)");
       if (reparado !== atual) patch[campo] = reparado;
     }
 
@@ -75,7 +87,7 @@ async function main() {
 
   console.log(APLICAR
     ? `${gravadas} peça(s) gravada(s). Log de auditoria e notificações NÃO foram tocados.`
-    : "Nada foi gravado — este modo só lista. Releia o 'depois' de cada uma e rode de novo com --aplicar.");
+    : "Nada foi gravado — este modo só lista. Leia o 'depois' de cada uma e rode de novo com --aplicar.");
 }
 
 main()

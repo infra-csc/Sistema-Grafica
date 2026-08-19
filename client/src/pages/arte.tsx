@@ -2792,8 +2792,11 @@ export default function Arte() {
   const renderCorrecaoTab = () => {
     if (correcaoLoading) {
       return (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
+        // Um spinner sozinho não diz o que está carregando — e esta aba demora
+        // mais que as outras, porque a fila de correção é uma rota própria.
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '48px 0' }}>
           <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid #e7e5e4', borderTopColor: '#f97316', animation: 'spin 0.8s linear infinite' }} />
+          <p style={{ margin: 0, fontSize: 13, color: '#57534e' }}>Carregando a fila de correção…</p>
         </div>
       );
     }
@@ -2825,9 +2828,9 @@ export default function Arte() {
     if (baseItems.length === 0) {
       return (
         <div style={{ textAlign: 'center', padding: '48px 0' }}>
-          <Search style={{ width: 40, height: 40, color: '#a8a29e', margin: '0 auto 16px' }} />
-          <p style={{ fontSize: 16, fontWeight: 600, color: '#1c1917', marginBottom: 4 }}>Nenhuma correção neste recorte</p>
-          <p style={{ fontSize: 13, color: '#57534e' }}>Há {correcaoItems.length} {correcaoItems.length === 1 ? 'peça aguardando correção' : 'peças aguardando correção'} fora dos filtros atuais</p>
+          <Search aria-hidden="true" style={{ width: 28, height: 28, color: '#746e69', margin: '0 auto 12px' }} />
+          <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1c1c', marginBottom: 6 }}>Nenhuma correção neste recorte</p>
+          <p style={{ fontSize: 13, color: '#746e69', lineHeight: 1.55 }}>Há {correcaoItems.length} {correcaoItems.length === 1 ? 'peça aguardando correção' : 'peças aguardando correção'} fora dos filtros atuais</p>
           {activeFilterCount > 0 && (
             <button
               onClick={clearAllFilters}
@@ -2858,17 +2861,38 @@ export default function Arte() {
 
     return (
       <div>
+        {/* MODO CONSULTA — por que não há botão.
+
+            Sem papel de edição o "Enviar nova arte" simplesmente não é
+            renderizado (`podeEditar`), e a fila fica parecendo uma lista de
+            problemas sem saída. A faixa diz que a ausência é permissão, não
+            defeito. */}
+        {!podeEditar && (
+          <div style={{ border: '1px solid #e7e5e4', background: '#ffffff', borderRadius: 10, padding: '10px 14px', marginBottom: 14, fontSize: 12, color: '#57534e', lineHeight: 1.5 }}>
+            <strong style={{ color: '#1c1917' }}>Modo consulta.</strong>{' '}
+            Você acompanha a fila e abre as versões enviadas, mas não envia arte nova.
+          </div>
+        )}
         {/* Section header */}
         <div style={{ marginBottom: 20 }}>
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: '"Space Grotesk", sans-serif', fontSize: 18, fontWeight: 700, color: '#1c1917', letterSpacing: '-0.03em', marginBottom: 8 }}>
-            <AlertTriangle style={{ width: 20, height: 20, color: '#ba1a1a' }} />
-            Aguardando Correções
-          </h2>
+          {/* O ÍCONE VIRA MARCADOR. Um triângulo de alerta de 20px no título
+              de uma aba que INTEIRA é sobre peças recusadas não distingue nada
+              — todo card abaixo dele é um alerta. O quadradinho dá a cor do
+              estado sem gritar, e o total da fila sobe para a mesma linha. */}
+          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', marginBottom: 10 }}>
+            <h2 style={{ display: 'flex', alignItems: 'center', gap: 9, fontFamily: '"Space Grotesk", sans-serif', fontSize: 17, fontWeight: 700, color: '#1c1917', letterSpacing: '-0.03em', margin: 0 }}>
+              <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: '#ba1a1a', display: 'inline-block' }} />
+              Aguardando correções
+            </h2>
+            <p style={{ margin: 0, fontSize: 12, color: '#57534e', fontVariantNumeric: 'tabular-nums' }}>
+              {filteredCorrecaoItems.length} {filteredCorrecaoItems.length === 1 ? 'peça na fila' : 'peças na fila'}
+            </p>
+          </div>
 
           {/* Sponsor filter pills */}
           {correcaoSponsors.length > 1 && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Filtrar:</span>
+              <span style={{ fontSize: 11, fontWeight: 600, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Filtrar</span>
               {[{ id: "all", name: "Todos", color: "#746e69" }, ...correcaoSponsors].map(sp => {
                 const isActive = correcaoSponsorFilter === sp.id;
                 return (
@@ -2877,17 +2901,27 @@ export default function Arte() {
                     onClick={() => setCorrecaoSponsorFilter(sp.id)}
                     data-testid={`filter-correcao-sponsor-${sp.id}`}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: 5,
-                      height: 32, padding: '0 13px', borderRadius: 999,
-                      border: isActive ? '1.5px solid #ba1a1a' : '1px solid #e7e5e4',
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      // 36 como todo controle da casa. E hairline no ativo: o
+                      // 1,5px empurrava a pílula meio pixel e desalinhava a
+                      // linha inteira quando uma delas era selecionada.
+                      height: 36, padding: '0 13px', borderRadius: 999,
+                      border: isActive ? '1px solid #ba1a1a' : '1px solid #e7e5e4',
                       backgroundColor: isActive ? '#fef2f2' : '#ffffff',
                       color: isActive ? '#ba1a1a' : '#746e69',
                       fontSize: 12, fontWeight: isActive ? 700 : 500,
                       cursor: 'pointer', transition: 'all 0.15s',
                     }}
                   >
-                    {sp.id !== "all" && <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: sp.color }} />}
+                    {sp.id !== "all" && <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: sp.color, flexShrink: 0 }} />}
                     {sp.name}
+                    {/* A contagem vive no controle: o recorte diz QUANTOS são
+                        antes de ser clicado, como as abas e os dropdowns. */}
+                    <span style={{ fontSize: 11, fontWeight: 700, color: isActive ? '#991b1b' : '#a8a29e', fontVariantNumeric: 'tabular-nums' }}>
+                      {sp.id === 'all'
+                        ? baseItems.length
+                        : baseItems.filter((i: any) => (i.awaitingArteApprovals || []).some((a: any) => a.sponsorId === sp.id)).length}
+                    </span>
                   </button>
                 );
               })}
@@ -2909,40 +2943,90 @@ export default function Arte() {
                 data-testid={`card-correcao-${item.id}`}
                 style={{
                   backgroundColor: '#ffffff',
-                  border: '1px solid #fecaca',
+                  // Borda neutra e SEM sombra: a sombra era vermelha e dupla
+                  // (16px difusos + um anel de 1px), e numa grade de cards
+                  // todos vermelhos ela não distinguia nenhum deles.
+                  border: '1px solid #e7e5e4',
                   borderRadius: 12,
                   overflow: 'hidden',
                   display: 'flex',
                   flexDirection: 'column',
-                  boxShadow: '0 2px 16px rgba(186,26,26,0.07), 0 0 0 1px rgba(186,26,26,0.06)',
                 }}
               >
-                {/* ── Dark header strip ── */}
-                <div style={{ background: 'linear-gradient(135deg, #1c0a0a 0%, #2d1010 60%, #1e1410 100%)', padding: '14px 18px', display: 'flex', alignItems: 'center', gap: 8, position: 'relative', overflow: 'hidden', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
-                  <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 90% 50%, rgba(220,38,38,0.1) 0%, transparent 60%)', pointerEvents: 'none' }} />
-                  {/* Status badge */}
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#fca5a5', background: 'rgba(220,38,38,0.2)', border: '1px solid rgba(252,165,165,0.25)', borderRadius: 6, padding: '2px 8px', letterSpacing: '0.06em', textTransform: 'uppercase', flexShrink: 0, zIndex: 1 }}>
+                {/* ── Cabeçalho: faixa branca com hairline ──
+
+                    Era uma faixa quase preta com gradiente diagonal MAIS um
+                    brilho radial vermelho por cima — dois gradientes empilhados
+                    para hospedar quatro pedaços de texto. Todo o conteúdo vinha
+                    em branco ou vermelho translúcido: `rgba(252,165,165,0.6)`
+                    no grupo e `rgba(255,255,255,0.2)` no chevron, que é como se
+                    apaga texto sem admitir que ele ficou ilegível. */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '12px 16px', borderBottom: '1px solid #f0eeeb', flexWrap: isMobile ? 'wrap' : 'nowrap' }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: '#ba1a1a', background: '#fff1f1', border: '1px solid #fecaca', borderRadius: 5, padding: '3px 7px', letterSpacing: '0.06em', textTransform: 'uppercase', flexShrink: 0 }}>
                     Recusado
                   </span>
-                  {/* Divider */}
-                  <span style={{ width: 1, height: 14, background: 'rgba(255,255,255,0.1)', flexShrink: 0, zIndex: 1 }} />
-                  {/* Group + type */}
-                  <div style={{ flex: 1, minWidth: 0, zIndex: 1 }}>
+                  <span aria-hidden="true" style={{ width: 1, height: 13, background: '#e7e5e4', flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
-                      {groupLabel && <span style={{ fontSize: 11, color: 'rgba(252,165,165,0.6)', fontWeight: 600, flexShrink: 0 }}>{groupLabel}</span>}
-                      {groupLabel && <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.2)', flexShrink: 0 }}>›</span>}
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: '"Space Grotesk", sans-serif' }}>{item.type}</span>
+                      {groupLabel && <span style={{ fontSize: 11, color: '#78716c', fontWeight: 600, flexShrink: 0 }}>{groupLabel}</span>}
+                      {groupLabel && <span aria-hidden="true" style={{ fontSize: 11, color: '#d1ccc8', flexShrink: 0 }}>›</span>}
+                      <span title={item.type} style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: '"Space Grotesk", sans-serif' }}>{item.type}</span>
                       {item.description && item.description !== item.type && (
-                        <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.72)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>— {item.description}</span>
+                        <span title={item.description} style={{ fontSize: 12, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>— {item.description}</span>
                       )}
                     </div>
                   </div>
-                  {/* ID chip */}
-                  <span style={{ fontFamily: '"Space Grotesk", monospace', fontSize: 11, fontWeight: 800, color: 'rgba(252,165,165,0.8)', background: 'rgba(220,38,38,0.15)', border: '1px solid rgba(252,165,165,0.2)', borderRadius: 6, padding: '2px 8px', flexShrink: 0, zIndex: 1 }}>{item.displayId}</span>
+                  <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontSize: 11, fontWeight: 800, color: '#57534e', background: '#faf9f7', border: '1px solid #e7e5e4', borderRadius: 5, padding: '3px 7px', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{item.displayId}</span>
                 </div>
 
+                {/* ── Contexto: de qual evento é a peça, e quando ela sai ──
+
+                    O card dizia o que foi recusado e por quem, e não dizia de
+                    qual evento é nem quando sai — que é justamente o que decide
+                    a ORDEM do trabalho numa fila de correções. O prazo vem do
+                    mesmo `phaseDeadline` da coluna Prazo e do filtro
+                    "atrasados"; nada de conta nova. */}
+                {(() => {
+                  const pr = phaseDeadline(item.event, "correcao", hoje);
+                  const saida = item.event?.truckDepartureDate ? toUTCDisplayDate(item.event.truckDepartureDate) : null;
+                  const urgente = pr != null && pr.diff <= 3;
+                  if (!item.event?.name && !saida && !pr) return null;
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 16px', borderBottom: '1px solid #f0eeeb', background: '#fcfbfa' }}>
+                      {item.event?.name && (
+                        <span title={item.event.name} style={{ fontSize: 11, fontWeight: 600, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.event.name}</span>
+                      )}
+                      {item.event?.name && saida && <span aria-hidden="true" style={{ width: 1, height: 11, background: '#e7e5e4', flexShrink: 0 }} />}
+                      {saida && (
+                        <span style={{ fontSize: 11, fontWeight: 600, color: '#57534e', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>
+                          {String(saida.getDate()).padStart(2, '0')}/{String(saida.getMonth() + 1).padStart(2, '0')}
+                        </span>
+                      )}
+                      <span style={{ flex: 1 }} />
+                      {pr && (
+                        <span style={{
+                          fontSize: 11, fontWeight: 700, flexShrink: 0, whiteSpace: 'nowrap',
+                          fontVariantNumeric: 'tabular-nums',
+                          color: urgente ? '#b45309' : '#78716c',
+                          background: urgente ? '#fffbeb' : 'transparent',
+                          border: urgente ? '1px solid #fde68a' : '1px solid transparent',
+                          borderRadius: 999, padding: '2px 8px',
+                        }}>
+                          {pr.diff < 0
+                            ? `${Math.abs(pr.diff)}d atrasado`
+                            : pr.diff === 0 ? 'vence hoje' : `${pr.diff}d`}
+                        </span>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {/* ── Body ── */}
-                <div style={{ padding: '16px 18px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 12 : 14 }}>
+                {/* `flex: 1` no corpo (e nos blocos de motivo abaixo): sem ele,
+                    cards de alturas diferentes na mesma linha da grade ficavam
+                    com uma faixa branca antes do rodapé, e os rodapés não se
+                    alinhavam. A sobra passa a ser absorvida pelo conteúdo. */}
+                <div style={{ flex: 1, padding: '16px 18px', display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 12 : 14 }}>
                   {/* Thumb */}
                   <div style={{ width: isMobile ? '100%' : 80, height: isMobile ? 120 : 80, borderRadius: 8, backgroundColor: '#fef2f2', border: '1px solid #fecaca', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {isImage ? (
@@ -2969,7 +3053,7 @@ export default function Arte() {
                     {approvalsToShow.length === 0 && (
                       <div
                         data-testid={`correcao-sem-patrocinador-${item.id}`}
-                        style={{ borderRadius: 12, border: '1px solid #fecaca', background: '#fff1f1', padding: '10px 12px' }}
+                        style={{ flex: 1, borderRadius: 12, border: '1px solid #f0dede', background: '#fff8f8', padding: '10px 12px' }}
                       >
                         {/* #991b1b sobre #fff1f1 = 8,1:1 ✓ · #7f1d1d = 10,3:1 ✓ */}
                         <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: '#991b1b' }}>
@@ -2987,9 +3071,9 @@ export default function Arte() {
                       </div>
                     )}
                     {approvalsToShow.map((approval: any) => (
-                      <div key={approval.id} style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #fecaca' }}>
+                      <div key={approval.id} style={{ flex: 1, borderRadius: 12, overflow: 'hidden', border: '1px solid #f0dede' }}>
                         {/* Sponsor bar */}
-                        <div style={{ background: '#fff1f1', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6, borderBottom: approval.rejectionReason ? '1px solid #fecaca' : 'none' }}>
+                        <div style={{ background: '#fff8f8', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 6, borderBottom: approval.rejectionReason ? '1px solid #f7e6e6' : 'none' }}>
                           {approval.sponsor?.color && <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />}
                           <span style={{ fontSize: 12, fontWeight: 700, color: '#991b1b', flex: 1 }}>{approval.sponsor?.name || 'Patrocinador'}</span>
                           {/* Log: quem + quando */}
@@ -2998,12 +3082,16 @@ export default function Arte() {
                               {approval.rejectedBy && (
                                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 11, fontWeight: 600, color: '#57534e', maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={approval.rejectedBy}>
                                   <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                                  {approval.rejectedBy.split(' ')[0]}
+                                  {/* Nome INTEIRO. O `split(' ')[0]` cortava no
+                                      primeiro nome — numa empresa com dois
+                                      "Felipe" isso não identifica ninguém, e a
+                                      reticência já resolvia o espaço. */}
+                                  {approval.rejectedBy}
                                 </span>
                               )}
                               {approval.rejectedBy && approval.rejectedAt && <span style={{ color: '#d1ccc8', fontSize: 11 }}>·</span>}
                               {approval.rejectedAt && (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 11, fontWeight: 600, color: '#b45309', whiteSpace: 'nowrap' }}>
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontSize: 11, fontWeight: 600, color: '#57534e', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
                                   <Clock style={{ width: 9, height: 9, flexShrink: 0 }} />
                                   {(() => { const d = new Date(approval.rejectedAt); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; })()}
                                 </span>
@@ -3013,8 +3101,11 @@ export default function Arte() {
                         </div>
                         {/* Reason */}
                         {approval.rejectionReason && (
-                          <div style={{ background: '#fffafa', padding: '8px 12px' }}>
-                            <p style={{ fontSize: 12, color: '#7f1d1d', margin: 0, lineHeight: 1.5, fontStyle: 'italic' }}>"{approval.rejectionReason}"</p>
+                          <div style={{ background: '#ffffff', padding: '8px 12px' }}>
+                            {/* Sem itálico: as aspas já marcam a citação, e
+                                itálico em 12px pesa a leitura do texto que a
+                                pessoa veio ler. */}
+                            <p style={{ fontSize: 12, color: '#44403c', margin: 0, lineHeight: 1.5 }}>"{approval.rejectionReason}"</p>
                           </div>
                         )}
                       </div>
@@ -3023,7 +3114,7 @@ export default function Arte() {
                 </div>
 
                 {/* ── Footer ── */}
-                <div style={{ padding: '12px 18px', borderTop: '1px solid #fef2f2', display: 'flex', alignItems: 'center', gap: 10, background: '#fffafa', flexWrap: 'wrap' }}>
+                <div style={{ padding: '12px 18px', borderTop: '1px solid #f0eeeb', display: 'flex', alignItems: 'center', gap: 10, background: '#fcfbfa', flexWrap: 'wrap' }}>
                   {podeEditar && <button
                     onClick={() => {
                       setCorrecaoItem(item);
@@ -3033,20 +3124,20 @@ export default function Arte() {
                     }}
                     data-testid={`button-open-correcao-${item.id}`}
                     style={{
-                      flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-                      background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+                      flex: 1, minWidth: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
+                      // Chapado, sem sombra e sem `transform` no clique: eram
+                      // três efeitos (gradiente, sombra colorida, escala) num
+                      // botão que se repete em cada card da grade.
+                      background: '#ba1a1a',
                       color: '#ffffff', border: 'none',
                       borderRadius: 8, minHeight: 44, height: 44, padding: '0 18px',
                       fontWeight: 700, fontSize: 12, cursor: 'pointer',
                       fontFamily: '"Space Grotesk", sans-serif',
                       letterSpacing: '-0.01em',
-                      transition: 'filter 0.15s, transform 0.1s',
-                      boxShadow: '0 2px 8px rgba(185,28,28,0.25)',
+                      transition: 'background-color 0.15s',
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(0.93)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
-                    onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.98)'; }}
-                    onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#9f1717'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ba1a1a'; }}
                   >
                     <Send style={{ width: 13, height: 13 }} />
                     Enviar nova arte
@@ -3058,10 +3149,10 @@ export default function Arte() {
                       rel="noopener noreferrer"
                       style={{
                         display: 'flex', alignItems: 'center', gap: 5,
-                        fontSize: 11, fontWeight: 600, color: '#57534e',
+                        fontSize: 12, fontWeight: 700, color: '#44403c',
                         textDecoration: 'none', transition: 'color 0.15s',
-                        padding: '0 12px', minHeight: 44, height: 44, borderRadius: 8,
-                        border: '1px solid #ebe8e3', background: '#ffffff',
+                        padding: '0 14px', minHeight: 44, height: 44, borderRadius: 8,
+                        border: '1px solid #e7e5e4', background: '#ffffff',
                         whiteSpace: 'nowrap',
                       }}
                       onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = '#44403c'; (e.currentTarget as HTMLElement).style.borderColor = '#c7c3be'; }}
@@ -3811,39 +3902,41 @@ export default function Arte() {
           <DialogTitle className="sr-only">Enviar Nova Arte</DialogTitle>
           <DialogDescription className="sr-only">Reenvio de arte para patrocinadores</DialogDescription>
 
-          {/* ── Dark header ── */}
-          <div style={{ flexShrink: 0, background: 'linear-gradient(135deg, #1c0a0a 0%, #2d1010 50%, #1c1917 100%)', borderRadius: '16px 16px 0 0', padding: '22px 28px 20px', position:'relative', overflow: 'hidden' }}>
-            {/* Subtle texture */}
-            <div style={{ position: 'absolute', inset: 0, background: 'radial-gradient(ellipse at 80% 20%, rgba(220,38,38,0.12) 0%, transparent 60%)', pointerEvents: 'none' }} />
-            {/* Close button */}
+          {/* ── Cabeçalho claro ──
+
+              Eram DOIS gradientes empilhados (um diagonal quase preto e um
+              brilho radial vermelho por cima), com todo o texto em branco
+              translúcido: 0,55 na linha da peça, 0,72 no evento. É como se
+              apaga texto sem admitir que ele ficou ilegível — num modal cuja
+              função é a pessoa LER o que o patrocinador recusou. */}
+          <div style={{ flexShrink: 0, background: '#ffffff', borderBottom: '1px solid #f0eeeb', borderRadius: '16px 16px 0 0', padding: '20px 24px 18px', position: 'relative' }}>
             <button
               onClick={() => fecharCorrecaoModal()}
-              style={{ position: 'absolute', top: 14, right: 14, width: 40, height: 40, borderRadius: '50%', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'background 0.15s', zIndex: 2 }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.2)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.1)')}
+              style={{ position: 'absolute', top: 14, right: 14, width: 36, height: 36, borderRadius: 9, background: '#ffffff', border: '1px solid #e7e5e4', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'border-color 0.15s', zIndex: 2 }}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = '#c7c3be')}
+              onMouseLeave={e => (e.currentTarget.style.borderColor = '#e7e5e4')}
               aria-label="Fechar"
             >
-              <X style={{ width: 14, height: 14, color: 'rgba(255,255,255,0.75)' }} />
+              <X style={{ width: 15, height: 15, color: '#78716c' }} />
             </button>
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, position: 'relative' }}>
-              {/* Icon */}
-              <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #dc2626, #991b1b)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, boxShadow: '0 4px 12px rgba(220,38,38,0.35)' }}>
-                <AlertTriangle style={{ width: 20, height: 20, color: '#fff' }} />
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, position: 'relative' }}>
+              <div style={{ width: 38, height: 38, borderRadius: 10, background: '#fff1f1', border: '1px solid #fecaca', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                <AlertTriangle aria-hidden="true" style={{ width: 18, height: 18, color: '#ba1a1a' }} />
               </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 11, fontWeight: 700, color: '#fca5a5', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 3 }}>Ação Necessária</div>
-                <h2 style={{ fontSize: 20, fontWeight: 700, letterSpacing: '-0.04em', fontFamily: '"Space Grotesk", sans-serif', color: '#fff', margin: 0, lineHeight: 1.2 }}>
+              <div style={{ flex: 1, minWidth: 0, paddingRight: 44 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: '#ba1a1a', letterSpacing: '0.07em', textTransform: 'uppercase', marginBottom: 3 }}>Ação Necessária</div>
+                <h2 style={{ fontSize: 19, fontWeight: 700, letterSpacing: '-0.03em', fontFamily: '"Space Grotesk", sans-serif', color: '#1c1917', margin: 0, lineHeight: 1.2 }}>
                   Enviar Nova Arte
                 </h2>
                 {correcaoItem && (
                   <div style={{ marginTop: 5, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.55)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {correcaoItem.displayId && <span style={{ fontFamily: '"Space Grotesk", monospace', fontWeight: 700, color: 'rgba(252,165,165,0.75)', marginRight: 6 }}>{correcaoItem.displayId}</span>}
+                    <div style={{ fontSize: 12, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                      {correcaoItem.displayId && <span style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: 700, color: '#78716c', marginRight: 6 }}>{correcaoItem.displayId}</span>}
                       <span style={{ fontWeight: 600 }}>{correcaoItem.type}</span>
-                      {correcaoItem.description && correcaoItem.description !== correcaoItem.type && <span style={{ color: 'rgba(255,255,255,0.72)' }}> · {correcaoItem.description}</span>}
+                      {correcaoItem.description && correcaoItem.description !== correcaoItem.type && <span> · {correcaoItem.description}</span>}
                     </div>
                     {correcaoItem.event?.name && (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'rgba(255,255,255,0.72)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#78716c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.7 }}><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
                         <span>{correcaoItem.event.name}</span>
                       </div>
@@ -3866,27 +3959,32 @@ export default function Arte() {
                 {/* Rejection cards */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
                   {correcaoItem.awaitingArteApprovals.map((approval: any) => (
-                    <div key={approval.id} style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #fecaca' }}>
+                    <div key={approval.id} style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #f0dede' }}>
                       {/* Sponsor bar */}
-                      <div style={{ backgroundColor: '#fff1f1', padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 7, borderBottom: '1px solid #fecaca' }}>
+                      <div style={{ backgroundColor: '#fff8f8', padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 7, borderBottom: '1px solid #f7e6e6' }}>
                         {approval.sponsor?.color && <span style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />}
                         <span style={{ fontSize: 11, fontWeight: 700, color: '#991b1b', textTransform: 'uppercase', letterSpacing: '0.06em', flex: 1 }}>{approval.sponsor?.name || 'Patrocinador'}</span>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: '#dc2626', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 6, padding: '2px 7px', letterSpacing: '0.04em' }}>RECUSADO</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: '#ba1a1a', background: '#fff1f1', border: '1px solid #fecaca', borderRadius: 6, padding: '2px 7px', letterSpacing: '0.04em' }}>RECUSADO</span>
                       </div>
                       {/* Reason */}
-                      <div style={{ backgroundColor: '#fffafa', padding: '10px 14px 8px' }}>
-                        <p style={{ fontSize: 12, color: '#7f1d1d', margin: 0, lineHeight: 1.55, fontStyle: approval.rejectionReason ? 'italic' : 'normal' }}>
-                          {approval.rejectionReason ? `"${approval.rejectionReason}"` : <span style={{ color: '#b45309', fontStyle: 'normal' }}>Sem motivo informado.</span>}
+                      {/* Corpo BRANCO e sem itálico: é o texto que a pessoa
+                          abriu o modal para ler, e estava em vermelho escuro
+                          inclinado sobre rosa. As aspas já marcam a citação. */}
+                      <div style={{ backgroundColor: '#ffffff', padding: '10px 14px 8px' }}>
+                        <p style={{ fontSize: 12, color: '#44403c', margin: 0, lineHeight: 1.55 }}>
+                          {approval.rejectionReason ? `"${approval.rejectionReason}"` : <span style={{ color: '#78716c' }}>Sem motivo informado.</span>}
                         </p>
                         {(approval.rejectedBy || approval.rejectedAt) && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 6 }}>
                             {approval.rejectedBy && (
-                              <span style={{ fontSize: 11, fontWeight: 600, color: '#dc2626', background: 'rgba(220,38,38,0.08)', borderRadius: 6, padding: '2px 7px' }}>
+                              // Sem o chip rosa em volta do nome: quem recusou
+                              // não é um status, é um crédito de linha.
+                              <span style={{ fontSize: 11, fontWeight: 600, color: '#57534e' }}>
                                 {approval.rejectedBy}
                               </span>
                             )}
                             {approval.rejectedAt && (
-                              <span style={{ fontSize: 11, color: '#b45309' }}>
+                              <span style={{ fontSize: 11, color: '#57534e', fontVariantNumeric: 'tabular-nums' }}>
                                 {new Date(approval.rejectedAt).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}
                               </span>
                             )}
@@ -3904,8 +4002,11 @@ export default function Arte() {
                   </label>
                   {correcaoThumbUrl ? (
                     /* Uploaded state — compact pill row */
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12, backgroundColor: '#f0fdf4', border: '1.5px solid #86efac' }}>
-                      <div style={{ width: 32, height: 32, borderRadius: 8, background: 'linear-gradient(135deg, #16a34a, #15803d)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 10, backgroundColor: '#f0fdf4', border: '1px solid #86efac' }}>
+                      {/* Ladrilho chapado: o gradiente verde era o ultimo desta
+                          area, e num aviso de sucesso de 32px ele nao le como
+                          gradiente — le como ruido. */}
+                      <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#15803d', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         {/\.(png|jpg|jpeg|gif|webp)/i.test(correcaoThumbUrl)
                           ? <img src={correcaoThumbUrl} alt="" style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 8 }} />
                           : <FileText style={{ width: 15, height: 15, color: '#fff' }} />
@@ -3920,7 +4021,7 @@ export default function Arte() {
                       <button
                         onClick={() => { setCorrecaoThumbUrl(""); setCorrecaoFileName(""); }}
                         data-testid="button-remove-correcao-thumb"
-                        style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, color: '#166534', fontSize: 11, fontWeight: 600, padding: '4px 10px', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#dcfce7', border: '1px solid #86efac', borderRadius: 8, color: '#166534', fontSize: 11, fontWeight: 600, height: 36, padding: '0 12px', cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
                       >
                         <X style={{ width: 11, height: 11 }} /> Trocar
                       </button>
@@ -3929,7 +4030,7 @@ export default function Arte() {
                     /* Empty state. A zona dizia "Arraste ou" mas nunca teve
                        handler de drag — só o link e o Ctrl+V funcionavam. */
                     <div style={{
-                      height: 130, border: (isPasteUploading || isDragOverCorrecao) ? '2px dashed #dc2626' : '2px dashed #e2e0dd', borderRadius: 12,
+                      height: 130, border: (isPasteUploading || isDragOverCorrecao) ? '1.5px dashed #ba1a1a' : '1.5px dashed #e2e0dd', borderRadius: 10,
                       backgroundColor: (isPasteUploading || isDragOverCorrecao) ? '#fff5f5' : '#fafaf9', display: 'flex', flexDirection: 'column',
                       alignItems: 'center', justifyContent: 'center', gap: 2, transition: 'all 0.15s', cursor: 'default'
                     }}
@@ -4005,9 +4106,10 @@ export default function Arte() {
                           key={approval.sponsorId}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 10,
-                            padding: '10px 14px', borderRadius: 12, cursor: 'pointer', userSelect: 'none',
+                            padding: '10px 14px', borderRadius: 10, cursor: 'pointer', userSelect: 'none',
+                            minHeight: 44,
                             backgroundColor: isSelected ? '#fff5f5' : '#fafaf9',
-                            border: `1.5px solid ${isSelected ? '#fecaca' : '#ebe8e3'}`,
+                            border: `1px solid ${isSelected ? '#fecaca' : '#ebe8e3'}`,
                             transition: 'all 0.12s'
                           }}
                         >
@@ -4100,27 +4202,22 @@ export default function Arte() {
               }}
               data-testid="button-submit-correcao"
               style={{
-                width: '100%', padding: '13px 0', borderRadius: 12, border: 'none',
+                width: '100%', height: 48, borderRadius: 10, border: 'none',
                 // Vermelho é a cor do problema (a recusa), não da solução. Enviar
                 // a arte corrigida é a ação construtiva do modal e usa o laranja
                 // de ação do app — o mesmo dos outros botões primários da tela.
                 // Desabilitado em rosa claro com texto branco dava ~2:1; agora usa
                 // o cinza padrão, legível.
-                background: travado
-                  ? '#e7e5e4'
-                  : 'linear-gradient(135deg, #ea580c, #c2410c)',
+                background: travado ? '#e7e5e4' : '#ea580c',
                 color: travado ? '#57534e' : '#ffffff',
                 fontWeight: 700, fontSize: 15,
                 fontFamily: '"Space Grotesk", sans-serif', letterSpacing: '-0.02em',
                 cursor: travado ? 'not-allowed' : 'pointer',
-                boxShadow: travado ? 'none' : '0 4px 16px rgba(194,65,12,0.28)',
-                transition: 'filter 0.15s, transform 0.1s, box-shadow 0.15s',
+                transition: 'background-color 0.15s',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
               }}
-              onMouseEnter={e => { if (travado) return; e.currentTarget.style.filter = 'brightness(0.93)'; }}
-              onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
-              onMouseDown={e => { e.currentTarget.style.transform = 'scale(0.985)'; }}
-              onMouseUp={e => { e.currentTarget.style.transform = 'scale(1)'; }}
+              onMouseEnter={e => { if (!travado) e.currentTarget.style.backgroundColor = '#c2410c'; }}
+              onMouseLeave={e => { if (!travado) e.currentTarget.style.backgroundColor = '#ea580c'; }}
             >
               {enviando ? (
                 <><div style={{ width: 15, height: 15, borderRadius: '50%', border: '2px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', animation: 'spin 0.8s linear infinite' }} />Enviando...</>
@@ -4128,6 +4225,17 @@ export default function Arte() {
                 <><Send style={{ width: 15, height: 15 }} />Confirmar Re-envio</>
               )}
             </button>
+            {/* O BOTÃO TRAVADO PASSA A DIZER O QUE FALTA.
+
+                Ele ficava cinza e mudo, e as duas razões possíveis estão em
+                lugares diferentes da tela — a zona de upload em cima e a lista
+                de patrocinadores embaixo. Quem não vê a que falta fica
+                clicando num botão que não responde. */}
+            {travado && !enviando && (
+              <p style={{ margin: '8px 0 0', fontSize: 11, color: '#78716c', textAlign: 'center' }}>
+                {!correcaoThumbUrl ? 'Suba a nova versão para liberar o envio.' : 'Escolha ao menos um patrocinador para revisar.'}
+              </p>
+            )}
           </div>
           );
           })()}

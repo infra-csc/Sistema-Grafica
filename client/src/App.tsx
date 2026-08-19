@@ -20,7 +20,7 @@ import { roleLabel, userInitials } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useLogout } from "@/hooks/use-logout";
 import { useWebSocket } from "@/hooks/use-websocket";
-import { useEffect, Component, type ReactNode } from "react";
+import { useEffect, useState, Component, type ReactNode } from "react";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import ChangePassword from "@/pages/change-password";
@@ -320,6 +320,39 @@ function AuthenticatedLayout() {
   // Título de página: um rótulo por rota, visível na topbar e na aba do
   // navegador — antes toda aba se chamava igual.
   const pageLabel = getRouteLabel(location);
+
+  /**
+   * O TÍTULO DA TOPBAR APARECE QUANDO O <h1> DA PÁGINA SAI DE VISTA.
+   *
+   * Ele era `md:hidden` — some no desktop — porque duplicava o <h1> logo
+   * abaixo. Verdade enquanto o <h1> está na tela; assim que a pessoa rola uma
+   * lista longa, a única indicação de onde ela está é a aba do navegador.
+   *
+   * O padrão é MOSTRAR: página sem <h1> (ou com um que ainda não renderizou
+   * na primeira passada) cai no caso seguro, que é ter a bússola. O `rAF`
+   * cobre a página que monta o cabeçalho um quadro depois — sem ele, uma tela
+   * com esqueleto de carregamento ficaria com o título preso para sempre.
+   */
+  const [h1Visivel, setH1Visivel] = useState(false);
+  useEffect(() => {
+    let obs: IntersectionObserver | null = null;
+    let raf = 0;
+    const ligar = () => {
+      const alvo = document.querySelector("main h1");
+      if (!alvo) return false;
+      obs = new IntersectionObserver(
+        ([e]) => setH1Visivel(e.isIntersecting),
+        // Desconta a própria topbar: o <h1> que passou por baixo dela já
+        // não está visível, mesmo ainda intersectando a viewport.
+        { rootMargin: "-64px 0px 0px 0px" },
+      );
+      obs.observe(alvo);
+      return true;
+    };
+    setH1Visivel(false);
+    if (!ligar()) raf = requestAnimationFrame(() => { ligar(); });
+    return () => { if (raf) cancelAnimationFrame(raf); obs?.disconnect(); };
+  }, [location]);
   useEffect(() => {
     document.title = pageLabel ? `NORTE — ${pageLabel}` : "NORTE";
   }, [pageLabel]);
@@ -339,7 +372,10 @@ function AuthenticatedLayout() {
             backgroundColor: "rgba(249,249,248,0.85)",
             backdropFilter: "blur(20px)",
             WebkitBackdropFilter: "blur(20px)",
-            boxShadow: "0 16px 32px -12px rgba(28,25,23,0.06)",
+            // Borda, não sombra. A sombra caía sobre um fundo quase da mesma
+            // cor da barra: em vez de destacar, sujava a linha de baixo com um
+            // degradê de 32px que nunca chegava a parecer separação.
+            borderBottom: "1px solid #e7e5e4",
             display: "flex", alignItems: "center",
             justifyContent: "space-between",
             padding: "0 24px",
@@ -349,23 +385,30 @@ function AuthenticatedLayout() {
               título encolher com reticências a 375px em vez de empurrar o
               grupo direito para fora da tela. */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+            {/* Os três controles da barra (gatilho, sino e conta) tinham três
+                formas: fantasma de 44, fantasma redondo e pílula sem borda.
+                Agora são a mesma peça — 36 no ponteiro, 44 no toque, contorno
+                de 1px e raio 9 — e a barra passa a ter uma gramática só. */}
             <SidebarTrigger
               data-testid="button-sidebar-toggle"
-              className="h-11 w-11"
+              className="h-9 w-9 md:h-9 md:w-9 max-md:h-11 max-md:w-11 rounded-[9px] border border-[#e7e5e4] bg-white shrink-0"
               title={`Abrir/fechar menu (${IS_MAC ? "⌘B" : "Ctrl+B"})`}
             />
             {pageLabel && (
               <span
                 data-testid="text-page-title"
-                // md:hidden — no desktop cada página já mostra o próprio h1;
-                // o rótulo da topbar duplicava o título. No mobile (sem h1
-                // visível de imediato) ele segue sendo a bússola. O
-                // document.title continua valendo em todas as larguras.
-                className="md:hidden"
+                title={pageLabel}
+                // Fica no DOM com opacidade 0 em vez de sair dele: assim a
+                // largura do meio da barra não muda quando ele entra, e os
+                // controles da direita não dão um pulo lateral a cada rolagem.
+                aria-hidden={h1Visivel ? "true" : undefined}
                 style={{
                   fontFamily: "'Space Grotesk', sans-serif",
-                  fontSize: 15, fontWeight: 700, color: "#1c1917",
+                  fontSize: 14, fontWeight: 700, color: "#1c1917",
+                  flex: "1 1 auto", minWidth: 0,
                   whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                  opacity: h1Visivel ? 0 : 1,
+                  transition: "opacity 0.18s ease",
                 }}
               >
                 {pageLabel}
@@ -410,28 +453,31 @@ function AuthenticatedLayout() {
                   data-testid="button-user-menu"
                   aria-label={user?.name ? `Menu do usuário — ${user.name}` : "Menu do usuário"}
                   style={{
-                    display: "flex", alignItems: "center", gap: 10,
-                    // 5px + avatar de 34px = 44px de alvo de toque.
-                    marginLeft: 4, padding: "5px 6px",
-                    background: "none", border: "none", borderRadius: 10,
-                    cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 8,
+                    height: 36, padding: "0 5px 0 12px",
+                    backgroundColor: "#ffffff", border: "1px solid #e7e5e4",
+                    borderRadius: 999,
+                    cursor: "pointer", flexShrink: 0,
                   }}
                 >
-                  <div className="hidden md:block" style={{ textAlign: "right", lineHeight: 1.25 }}>
-                    <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#1c1917", whiteSpace: "nowrap" }}>
+                  <div className="hidden md:block" style={{ textAlign: "right", lineHeight: 1.2 }}>
+                    <p style={{ margin: 0, fontSize: 12, fontWeight: 700, color: "#1c1917", whiteSpace: "nowrap" }}>
                       {user?.name}
                     </p>
-                    <p style={{ margin: 0, fontSize: 11, color: "#746e69", textTransform: "capitalize" }}>
+                    <p style={{ margin: 0, fontSize: 10, color: "#746e69", textTransform: "capitalize", whiteSpace: "nowrap" }}>
                       {roleLabel(user?.role)}
                     </p>
                   </div>
                   <div
                     style={{
-                      width: 34, height: 34,
+                      // 26 e sem o anel duplo: o `boxShadow` desenhava dois
+                      // círculos concêntricos em volta do avatar para separá-lo
+                      // de um fundo do qual ele já se separava por ser preto —
+                      // e agora a borda da pílula faz esse papel.
+                      width: 26, height: 26,
                       borderRadius: "50%",
                       backgroundColor: "#1c1917",
                       display: "flex", alignItems: "center", justifyContent: "center",
-                      boxShadow: "0 0 0 2px #e7e5e4, 0 0 0 4px #ffffff",
                       flexShrink: 0,
                     }}
                   >

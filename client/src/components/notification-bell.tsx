@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Bell, Package, CheckCircle, AlertTriangle, Truck, FileText, ClipboardCheck, CalendarClock, PlusCircle, MinusCircle } from "lucide-react";
+import { Bell, Package, CheckCircle, AlertTriangle, Truck, FileText, ClipboardCheck, CalendarClock, PlusCircle, MinusCircle, ChevronRight } from "lucide-react";
 
 export interface Notification {
   id: string;
@@ -117,7 +117,7 @@ const DEFAULT_CONFIG: TypeConfig = {
 // "Não lida" era um fundo por categoria (cfg.bgRow): metade dos tipos tinha
 // fundo transparent e não-lidas passavam por lidas. Agora TODA não lida usa o
 // mesmo âmbar; a categoria segue na borda esquerda.
-const UNREAD_BG = "#fffbf5";
+// O fundo creme de "não lida" saiu: ver o comentário no item da lista.
 
 // ── Timestamp helper ──────────────────────────────────────────────────────────
 function fmtTime(raw: Date | string): string {
@@ -286,10 +286,19 @@ export function NotificationBell({
             data-testid="badge-notification-count"
             aria-hidden="true"
             style={{
-              position: "absolute", top: 6, right: 6,
-              backgroundColor: "#dc2626", color: "#ffffff",
+              // FORA do sino, não em cima dele.
+              //
+              // Em `top/right: 6` o selo cobria o corpo do ícone: com dois
+              // dígitos ele apagava metade do desenho, e o objeto que devia
+              // dizer "há avisos" ficava ilegível junto com o número.
+              //
+              // `#b91c1c` e não `#dc2626`: é o vermelho de alarme da casa, o
+              // mesmo do prazo vencido e do motivo de reprovação.
+              position: "absolute", top: -5, right: -5,
+              backgroundColor: "#b91c1c", color: "#ffffff",
               fontSize: 10, fontWeight: 700,
-              height: 16, minWidth: 16, padding: "0 3px",
+              fontVariantNumeric: "tabular-nums",
+              height: 17, minWidth: 17, padding: "0 4px",
               borderRadius: 999, border: "2px solid #f9f9f8",
               display: "flex", alignItems: "center", justifyContent: "center",
               lineHeight: 1,
@@ -327,7 +336,7 @@ export function NotificationBell({
                deslocamento do sino em relação à borda e cortava ~38px à
                esquerda em telas de 375px. */
             position: "absolute", top: "calc(100% + 12px)", right: -8,
-            width: "min(384px, calc(100vw - 96px))", backgroundColor: "#ffffff",
+            width: "min(376px, calc(100vw - 96px))", backgroundColor: "#ffffff",
             borderRadius: 12,
             boxShadow: "0 32px 64px -16px rgba(28,25,23,0.18)",
             border: "1px solid #f3f4f3",
@@ -373,11 +382,11 @@ export function NotificationBell({
                   style={{
                     background: "none", border: "none",
                     cursor: isMarkingAll ? "default" : "pointer",
-                    // 12px verticais levam o alvo de toque a ~44px.
-                    padding: "12px 10px", borderRadius: 4,
-                    fontSize: 10, fontWeight: 700, color: "#746e69",
-                    textTransform: "uppercase", letterSpacing: "0.05em",
-                    textDecoration: "underline",
+                    // Texto, não link sublinhado em caixa alta de 10px: era o
+                    // único sublinhado da casca, num controle que não navega.
+                    // O alvo continua em 36 por `minHeight`, sem inflar a faixa.
+                    minHeight: 36, padding: "0 8px", borderRadius: 6,
+                    fontSize: 12, fontWeight: 600, color: "#746e69",
                     opacity: isMarkingAll ? 0.6 : 1,
                   }}
                 >
@@ -443,36 +452,50 @@ export function NotificationBell({
                       // 32px à direita: o ponto de não lida ficava por cima do
                       // fim do texto em mensagens longas.
                       padding: "14px 32px 14px 16px",
-                      borderLeft: `4px solid ${cfg.border}`,
-                      backgroundColor: !n.isRead ? UNREAD_BG : "transparent",
+                      // 3px, o mesmo trilho das outras telas.
+                      borderLeft: `3px solid ${cfg.border}`,
+                      // O FUNDO DE "NÃO LIDA" SAIU. `#fffbf5` é um creme que se
+                      // confunde com o `#fff7ed` da família laranja usada aqui
+                      // ao lado (o selo "N não lidas", o ponto do item), e com
+                      // metade da lista não lida ele virava a cor de fundo do
+                      // painel. O sinal fica no ponto laranja à direita e no
+                      // peso do título — dois canais, nenhum deles ambíguo.
+                      backgroundColor: "transparent",
                       cursor: "pointer",
                       transition: "background-color 0.15s",
                       borderBottom: "1px solid #f3f4f3",
                     }}
                     onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.backgroundColor = "#f9f9f8")}
-                    onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.backgroundColor = !n.isRead ? UNREAD_BG : "transparent")}
+                    onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.backgroundColor = "transparent")}
                   >
                     {/* Icon box */}
                     <div style={{
                       flexShrink: 0,
                       backgroundColor: cfg.bgIcon,
-                      borderRadius: 8, padding: 8,
+                      // 30x30 fixo: com `padding: 8` o ladrilho mudava de
+                      // tamanho conforme o ícone, e a coluna da esquerda
+                      // ficava serrilhada ao longo da lista.
+                      width: 30, height: 30, borderRadius: 9,
                       display: "flex", alignItems: "center", justifyContent: "center",
                     }}>
-                      <Icon style={{ width: 18, height: 18, color: cfg.iconColor } as React.CSSProperties} />
+                      <Icon style={{ width: 16, height: 16, color: cfg.iconColor } as React.CSSProperties} />
                     </div>
 
                     {/* Text */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <p style={{
-                        fontSize: 12, fontWeight: !n.isRead ? 600 : 500,
+                        // 700 na não lida: com o fundo creme fora, o peso passa
+                        // a ser um dos dois canais que dizem "isto é novo".
+                        fontSize: 12, fontWeight: !n.isRead ? 700 : 500,
                         color: isDeadline && !n.isRead ? "#b91c1c" : !n.isRead ? "#1c1917" : "#57534e",
                         margin: "0 0 3px 0", lineHeight: 1.4,
                       }}>
                         {n.message}
                       </p>
                       <p style={{
-                        fontSize: 10, fontWeight: 500,
+                        // 11px: é a hora e a categoria, não um micro-rótulo.
+                        fontSize: 11, fontWeight: 500,
+                        fontVariantNumeric: "tabular-nums",
                         // #f87171 sobre branco era ~2.5:1 — ilegível justamente
                         // na notificação mais urgente.
                         color: isDeadline && !n.isRead ? "#b91c1c" : "#746e69",
@@ -512,16 +535,20 @@ export function NotificationBell({
               style={{
                 background: "none", border: "none", cursor: "pointer",
                 // Bloco de largura total: o alvo era só o texto de 10px.
-                display: "block", width: "100%", padding: "10px 16px",
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: 10, fontWeight: 700,
-                color: "#d4d0ce", textTransform: "uppercase", letterSpacing: "0.12em",
-                transition: "color 0.15s",
+                // Linha inteira, e a cor de ação da casa. O rodapé era uma
+                // faixa quase preta com o texto em `#d4d0ce` — cinza claro
+                // sobre escuro, o único bloco invertido de toda a casca, para
+                // hospedar um link.
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                width: "100%", minHeight: 40, padding: "10px 16px",
+                fontSize: 12, fontWeight: 700, color: "#c2410c",
+                transition: "background-color 0.15s",
               }}
-              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#f97316")}
-              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.color = "#d4d0ce")}
+              onMouseEnter={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f9f9f8")}
+              onMouseLeave={(e) => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent")}
             >
-              Ver Todas as Atividades
+              Ver todas as atividades
+              <ChevronRight aria-hidden="true" style={{ width: 14, height: 14 }} />
             </button>
           </div>
         </div>

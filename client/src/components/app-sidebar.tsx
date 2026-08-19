@@ -9,6 +9,9 @@ import { Link, useLocation } from "wouter";
 import { roleLabel, userInitials } from "@/lib/utils";
 import { useAuth, type UserRole } from "@/contexts/auth-context";
 import { useLogout } from "@/hooks/use-logout";
+// Alvo de 44 no toque: a mesma régua das outras telas, que a casca não
+// seguia — os itens do menu tinham altura de padding, não de controle.
+import { useIsMobile } from "@/hooks/use-mobile";
 import {
   Sidebar,
   SidebarContent,
@@ -74,11 +77,14 @@ const adminItems: MenuItem[] = [
 const sectionLabelStyle: React.CSSProperties = {
   fontFamily: "'Plus Jakarta Sans', sans-serif",
   fontSize: 10,
-  fontWeight: 700,
+  // 800 e 0.12em: o rótulo de seção divide a coluna com 18 itens em 500/600.
+  // Em 700/0.1em ele era só mais uma linha de texto pequena entre as outras.
+  fontWeight: 800,
   textTransform: "uppercase",
-  letterSpacing: "0.1em",
+  letterSpacing: "0.12em",
   color: "#746e69",
-  padding: "0 14px",
+  // 18 para alinhar com o padding do item (10) + o respiro do <li>.
+  padding: "0 18px",
   marginBottom: 4,
   marginTop: 0,
   display: "block",
@@ -87,6 +93,7 @@ const sectionLabelStyle: React.CSSProperties = {
 // ─── Single nav item ─────────────────────────────────────
 function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
   const Icon = item.icon;
+  const isMobile = useIsMobile();
 
   // Hover e foco de teclado compartilham o mesmo realce: os estilos são
   // inline, então :focus-visible do CSS não alcança estas cores. Estados
@@ -110,11 +117,19 @@ function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
             display: "flex",
             alignItems: "center",
             gap: 10,
-            padding: "8px 12px",
-            borderRadius: 8,
+            // ALTURA DE CONTROLE, não de padding.
+            //
+            // Eram 8px de padding sobre uma linha de 13px — cerca de 33px de
+            // alvo, abaixo da régua de 36 que o resto do app segue. E
+            // `flexShrink: 0` porque são 18 itens: numa janela de 768px de
+            // altura o flex os comprimia até o texto encostar na borda.
+            height: isMobile ? 44 : 36,
+            flexShrink: 0,
+            padding: "0 10px",
+            borderRadius: 9,
             fontSize: 13,
             fontFamily: "'Plus Jakarta Sans', sans-serif",
-            fontWeight: isActive ? 600 : 500,
+            fontWeight: isActive ? 700 : 500,
             // #f97316 sobre #fff7ed ficava ~2.5:1 — o texto ativo era o menos
             // legível do menu. #9a3412 mantém a família laranja com contraste AA;
             // a barrinha inset devolve a marcação de "ativo" para quem não
@@ -123,7 +138,9 @@ function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
             backgroundColor: isActive ? "#fff7ed" : highlighted ? "#fafaf9" : "transparent",
             // undefined (não "none"): "none" sobrescrevia o focus-ring que o
             // CSS global aplica via box-shadow.
-            boxShadow: isActive ? "inset 3px 0 0 #f97316" : undefined,
+            // 2px: com o item mais baixo, 3px de trilho ficavam grossos demais
+            // para a altura da linha.
+            boxShadow: isActive ? "inset 2px 0 0 #f97316" : undefined,
             textDecoration: "none",
             transition: "background-color 0.12s ease, color 0.12s ease",
             boxSizing: "border-box",
@@ -134,14 +151,23 @@ function NavItem({ item, isActive }: { item: MenuItem; isActive: boolean }) {
           onBlur={() => setFocus(false)}
         >
           <Icon
+            aria-hidden="true"
             style={{
-              width: 18, height: 18, flexShrink: 0,
-              color: isActive ? "#c2410c" : "#746e69",
+              // 17 e um tom mais claro: o ícone é decorativo (o rótulo ao lado
+              // já nomeia o destino) e estava no mesmo peso visual do texto.
+              // `#a8a29e` é a exceção que o próprio theme.ts documenta —
+              // proibido como texto, permitido em ícone.
+              width: 17, height: 17, flexShrink: 0,
+              color: isActive ? "#c2410c" : "#a8a29e",
               filter: isActive ? "drop-shadow(0 0 3px rgba(249,115,22,0.25))" : "none",
               transition: "filter 0.12s ease, color 0.12s ease",
             }}
           />
-          <span>{item.title}</span>
+          {/* `title` + reticência: "Vincular Patrocinadores" é o rótulo mais
+              longo do menu e era o único que podia encostar na borda. */}
+          <span title={item.title} style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {item.title}
+          </span>
         </Link>
       </SidebarMenuButton>
     </SidebarMenuItem>
@@ -165,7 +191,15 @@ function NavGroup({
   // todos os grupos eram anunciados como listas anônimas.
   const labelId = useId();
   return (
-    <SidebarGroup style={{ padding: first ? "8px 0 4px" : "20px 0 4px" }}>
+    <SidebarGroup style={{ padding: first ? "8px 0 4px" : "12px 0 4px" }}>
+      {/* RÉGUA no lugar de vão.
+
+          A separação entre grupos era 20px de ar em cima de cada um. Com
+          quatro grupos e 18 itens isso é ~80px gastos em espaço vazio numa
+          coluna que precisa caber inteira sem rolar. Um hairline separa com
+          1px o que o vão separava com 20 — e a régua diz "grupo novo" de
+          forma mais explícita que a distância. */}
+      {!first && <div aria-hidden="true" style={{ height: 1, backgroundColor: "#f1efec", margin: "14px 18px 0" }} />}
       {label !== null && <span id={labelId} style={sectionLabelStyle}>{label}</span>}
       <SidebarGroupContent>
         <SidebarMenu style={{ gap: 1 }} aria-labelledby={label !== null ? labelId : undefined}>
@@ -185,6 +219,7 @@ export function AppSidebar() {
 
   // Mesmo fluxo do menu do avatar (App.tsx) — hook compartilhado.
   const logoutMutation = useLogout();
+  const isMobileCasca = useIsMobile();
 
   // 18 itens rolam sem nenhuma pista visual: no hover do container a
   // scrollbar fina aparece (.scrollbar-visible já existe no index.css).
@@ -217,7 +252,9 @@ export function AppSidebar() {
     // bg-sidebar padrão do Sheet.
     <Sidebar className="bg-white border-r border-[#e7e5e4]">
       {/* ── Header ── */}
-      <SidebarHeader style={{ padding: "32px 24px 24px" }}>
+      {/* O cabeçalho da marca fecha com hairline em vez de flutuar sobre a
+          lista, e devolve ~14px de altura útil para os 18 itens. */}
+      <SidebarHeader style={{ padding: "22px 18px 18px", borderBottom: "1px solid #f1efec" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <Compass
             style={{
@@ -332,11 +369,13 @@ export function AppSidebar() {
             title="Sair"
             aria-label="Sair do sistema"
             style={{
-              background: "none", border: "none",
+              // Sair é ação de saída e ganha CONTORNO: era um botão fantasma de
+              // 44 sem borda nenhuma ao lado do nome do usuário, indistinguível
+              // de um ícone decorativo até o hover.
+              background: "#ffffff", border: "1px solid #e7e5e4",
               cursor: logoutMutation.isPending ? "default" : "pointer",
-              // 44×44: com padding 6 o alvo ficava em ~27px.
-              width: 44, height: 44,
-              padding: 0, borderRadius: 6, color: "#746e69",
+              width: isMobileCasca ? 44 : 36, height: isMobileCasca ? 44 : 36,
+              padding: 0, borderRadius: 9, color: "#746e69",
               display: "flex", alignItems: "center", justifyContent: "center",
               transition: "color 0.15s ease, background-color 0.15s ease, opacity 0.15s ease",
               flexShrink: 0,
@@ -344,20 +383,20 @@ export function AppSidebar() {
               opacity: logoutMutation.isPending ? 0.5 : 1,
             }}
             onMouseEnter={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = "#dc2626";
-              (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#fef2f2";
+              (e.currentTarget as HTMLButtonElement).style.color = "#b91c1c";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "#fca5a5";
             }}
             onMouseLeave={(e) => {
               (e.currentTarget as HTMLButtonElement).style.color = "#746e69";
-              (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "#e7e5e4";
             }}
             onFocus={(e) => {
-              (e.currentTarget as HTMLButtonElement).style.color = "#dc2626";
-              (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#fef2f2";
+              (e.currentTarget as HTMLButtonElement).style.color = "#b91c1c";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "#fca5a5";
             }}
             onBlur={(e) => {
               (e.currentTarget as HTMLButtonElement).style.color = "#746e69";
-              (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
+              (e.currentTarget as HTMLButtonElement).style.borderColor = "#e7e5e4";
             }}
           >
             {logoutMutation.isPending

@@ -134,3 +134,31 @@ describe("7. o que a segunda passada fechou", () => {
     expect(arte).toContain("borderRadius: '50%', backgroundColor: '#fff', border: '1px solid #ebe8e3'");
   });
 });
+
+describe("8. quem encolhe primeiro no cabeçalho do card", () => {
+  // A ordem estava invertida: o GRUPO era o único protegido (`flexShrink: 0`) e
+  // o TIPO encolhia junto com a descrição. Numa linha apertada dava
+  // "PLACAS DIVERSAS › P… — Cheque Premiação R…" — o nome da peça reduzido a
+  // uma letra enquanto o rótulo do grupo aparecia inteiro.
+  //
+  // A prioridade agora é peso de encolhimento: descrição cede primeiro, grupo
+  // cede depois, tipo não cede.
+  it("o tipo da peça não cede espaço", () => {
+    expect(arte).toContain("letterSpacing: '-0.02em', flexShrink: 0, maxWidth: '100%'");
+  });
+
+  it("a descrição é a primeira a ceder", () => {
+    expect(arte).toContain("fontSize: 12, color: '#57534e', flexShrink: 999");
+  });
+
+  it("e o grupo deixou de ser o único protegido", () => {
+    expect(arte).toContain("fontWeight: 600, flexShrink: 1, minWidth: 0, maxWidth: 140");
+    expect(codigo).not.toContain("fontWeight: 600, flexShrink: 0 }}>{groupLabel}");
+  });
+
+  it("os três mantêm o title, porque os três podem truncar", () => {
+    expect(arte).toContain("<span title={groupLabel}");
+    expect(arte).toContain("<span title={item.type}");
+    expect(arte).toContain("<span title={item.description}");
+  });
+});

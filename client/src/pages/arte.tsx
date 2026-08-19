@@ -2995,12 +2995,27 @@ export default function Arte() {
                   </span>
                   <span aria-hidden="true" style={{ width: 1, height: 13, background: '#e7e5e4', flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
+                    {/* QUEM ENCOLHE PRIMEIRO — a ordem estava invertida.
+
+                        O GRUPO era o único com `flexShrink: 0`, ou seja, o único
+                        protegido; o TIPO e a descrição encolhiam juntos. Numa
+                        linha apertada o resultado era
+
+                          "PLACAS DIVERSAS › P… — Cheque Premiação R…"
+
+                        com o nome da peça reduzido a uma letra enquanto o rótulo
+                        do grupo aparecia inteiro. O tipo é o que a pessoa
+                        procura; o grupo é contexto e a descrição é detalhe.
+
+                        A ordem vira peso de encolhimento: descrição cede
+                        primeiro (999), grupo cede depois (1) e dentro de um
+                        teto, tipo não cede (0). Todos mantêm o `title`. */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
-                      {groupLabel && <span style={{ fontSize: 11, color: '#78716c', fontWeight: 600, flexShrink: 0 }}>{groupLabel}</span>}
+                      {groupLabel && <span title={groupLabel} style={{ fontSize: 11, color: '#78716c', fontWeight: 600, flexShrink: 1, minWidth: 0, maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{groupLabel}</span>}
                       {groupLabel && <span aria-hidden="true" style={{ fontSize: 11, color: '#d1ccc8', flexShrink: 0 }}>›</span>}
-                      <span title={item.type} style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', letterSpacing: '-0.02em', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: '"Space Grotesk", sans-serif' }}>{item.type}</span>
+                      <span title={item.type} style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', letterSpacing: '-0.02em', flexShrink: 0, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: '"Space Grotesk", sans-serif' }}>{item.type}</span>
                       {item.description && item.description !== item.type && (
-                        <span title={item.description} style={{ fontSize: 12, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>— {item.description}</span>
+                        <span title={item.description} style={{ fontSize: 12, color: '#57534e', flexShrink: 999, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>— {item.description}</span>
                       )}
                     </div>
                   </div>

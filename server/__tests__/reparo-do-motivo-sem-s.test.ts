@@ -39,8 +39,6 @@ describe("o reparo determinístico", () => {
   });
 
   it("mas NÃO tenta o s do meio da palavra — o buraco fica à vista", () => {
-    // "desbotada" e "precisamos" perderam um "s" INTERNO, que virou espaço
-    // simples e não tem como ser distinguido de um espaço de verdade.
     expect(reparado).toContain("de botada");
     expect(reparado).toContain("preci amos");
   });
@@ -69,7 +67,6 @@ describe("o detector", () => {
   });
 
   it("nem texto curto demais para ter opinião", () => {
-    // "Cor errada" nao tem "s" minusculo e esta perfeito — por isso o piso.
     expect(pareceMotivoDanificado("Cor errada")).toBe(false);
   });
 });

@@ -16,7 +16,6 @@ import { getPriorityMeta } from "@/lib/status";
 import type { CobrancaEntry, PrazoEvent, PrazoStage } from "@shared/prazos-contract";
 import { CobrancaLinha, cobrancaResumo } from "./cobrado-control";
 import { PrioridadeChip, PrioridadePonto } from "./prioridade";
-import { ProgressoPecas } from "./progresso-pecas";
 import { SeloRisco } from "./selo-risco";
 import {
   dayColor, diasTexto, fmtDayMonth, fmtDiaCurto, pecasTexto, R, RISCO_TITLE,
@@ -49,12 +48,19 @@ export function QuadroCard({ ev, stage, cobranca, onOpen, onFocusCard, realce }:
   // (semPecas > dataInvalida > ...). O evento sem peça E com data quebrada
   // deve dizer "Nenhuma peça cadastrada" — sem peça nem existe funil a
   // corrigir, e é a mesma frase que o KPI e o filtro usam para ele.
+  // SÓLIDO só para dano CONSUMADO que não tem número no cabeçalho: evento sem
+  // peça e data quebrada. Os três estados de prazo viraram texto colorido —
+  // quando todo card vencido do quadro carrega um retângulo vermelho cheio, o
+  // vermelho para de significar "olhe aqui" e vira a cor de fundo da tela.
+  //
+  // O "há N dias" saiu do texto do vencido porque o contador do cabeçalho
+  // agora diz exatamente isso, dois centímetros acima e em corpo maior.
   const gate: { texto: string; cor: string; solido: boolean } | null =
     semPecas ? { texto: "Nenhuma peça cadastrada", cor: TI.red, solido: true }
     : ev.invalidDate ? { texto: "Sem data confiável — corrija a saída", cor: TI.red, solido: true }
     : !stage ? null
     : stage.state === "overdue"
-      ? { texto: `Prazo vencido há ${diasTexto(Math.abs(stage.diffDays))} · ${pecasTexto(stage.pendingCount)}`, cor: TI.red, solido: true }
+      ? { texto: `Prazo vencido · ${pecasTexto(stage.pendingCount)}`, cor: TI.red, solido: false }
     : stage.state === "warning"
       ? {
           texto: stage.diffDays === 0
@@ -64,12 +70,31 @@ export function QuadroCard({ ev, stage, cobranca, onOpen, onFocusCard, realce }:
         }
     : { texto: `Prazo em ${fmtDayMonth(stage.deadline)} · ${pecasTexto(stage.pendingCount)}`, cor: TI.secondary, solido: false };
 
+  // O CONTADOR do cabeçalho: o número que o diretor procura primeiro.
+  //
+  // Ele estava enterrado no meio de uma frase ("Prazo vencido há 13 dias ·
+  // 12 peças"), em 12px, competindo com o nome do evento e com o chip de
+  // saída. Sobe para a direita do nome, no corpo do título, para que a
+  // varredura vertical de uma coluna de 20 cards leia só a coluna de números.
+  const contador = !stage || semPecas || ev.invalidDate ? null
+    : stage.state === "overdue" ? { texto: `${Math.abs(stage.diffDays)}d`, cor: STAGE_STYLE.overdue.text }
+    : stage.state === "warning" && stage.diffDays === 0 ? { texto: "hoje", cor: STAGE_STYLE.warning.text }
+    : { texto: fmtDayMonth(stage.deadline), cor: STAGE_STYLE[stage.state].text };
+
   // "1 de 40 travada aqui": a coluna é decidida pela peça MAIS ATRASADA, e o
   // card comunicava posição de EVENTO. Um evento com 39 peças já na Produção e
   // 1 esquecida no rascunho aparecia na coluna Lista — o diretor lia "esse
   // evento está na Lista de Imagens" e escalava com o setor errado.
   const travadasAqui = stage?.directCount ?? 0;
   const mostraTravadas = !semPecas && travadasAqui > 0 && travadasAqui < ev.totalItems;
+
+  // As duas linhas de diagnóstico viram UMA. Elas respondem à mesma pergunta
+  // — "qual o tamanho e a idade do problema" — e ocupavam dois parágrafos
+  // separados por 6px, o que num card de 8 linhas lê como dois assuntos.
+  const diagnostico = [
+    mostraTravadas ? `${travadasAqui} de ${ev.totalItems} travada${travadasAqui !== 1 ? "s" : ""} nesta etapa` : null,
+    ev.piorEsperaDias > 0 ? `pior peça parada há ${diasTexto(ev.piorEsperaDias)}` : null,
+  ].filter(Boolean).join(" · ");
 
   const trilhaTitle = ev.stages
     .map((s) => `${STAGE_SHORT[s.key] ?? s.label}: ${
@@ -88,6 +113,10 @@ export function QuadroCard({ ev, stage, cobranca, onOpen, onFocusCard, realce }:
     chip.full,
     gate?.texto,
     ev.riskCritical ? `em risco: ${RISCO_TITLE}` : null,
+    // A fração de entregues era desenhada pela barra do `ProgressoPecas`, e
+    // este `aria-label` SUBSTITUI todo o texto interno do botão — ou seja,
+    // ela nunca foi audível. Sai a barra, entra a informação.
+    !semPecas ? `${ev.deliveredItems} de ${ev.totalItems} peças entregues` : null,
     cobranca ? cobrancaResumo(cobranca) : null,
   ].filter(Boolean).join("; ");
 
@@ -107,9 +136,16 @@ export function QuadroCard({ ev, stage, cobranca, onOpen, onFocusCard, realce }:
         textAlign: "left", width: "100%", cursor: "pointer",
         backgroundColor: realce ? TI.amberRow : TI.card,
         borderRadius: R.lg, padding: "12px 14px",
-        border: realce
-          ? `1.5px solid ${TI.amber}`
-          : overdue ? `1.5px solid ${TI.redEdge}` : `1px solid ${TI.border}`,
+        border: realce ? `1.5px solid ${TI.amber}` : `1px solid ${TI.border}`,
+        // TRILHO em vez de moldura. O card vencido tinha a borda inteira em
+        // vermelho claro, o que engrossa o contorno dos quatro lados e deixa
+        // uma coluna de 20 cards parecendo uma grade de caixas vermelhas.
+        // Um trilho de 3px na aresta esquerda diz o mesmo estado e mantém o
+        // resto do card quieto — e vale para as três etapas com estado, não
+        // só para a vencida. `upcoming` fica sem trilho: não há o que marcar.
+        borderLeft: stage && stage.state !== "upcoming"
+          ? `3px solid ${STAGE_STYLE[stage.state].dot}`
+          : undefined,
         boxShadow: elevado ? SHADOW.md : SHADOW.sm,
         transition: "box-shadow 0.12s ease, background-color 0.6s ease, border-color 0.6s ease",
       }}
@@ -121,6 +157,9 @@ export function QuadroCard({ ev, stage, cobranca, onOpen, onFocusCard, realce }:
         <span
           title={ev.name}
           style={{
+            // `flex: 1` para o nome ceder espaço ao contador em vez de
+            // empurrá-lo para fora do card nas colunas de 190px.
+            flex: 1,
             fontSize: 13, fontWeight: 800, color: TI.title,
             fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase",
             // Duas linhas: "COPA BRASIL — ETAPA 1" e "— ETAPA 2" truncavam
@@ -132,6 +171,17 @@ export function QuadroCard({ ev, stage, cobranca, onOpen, onFocusCard, realce }:
         >
           {ev.name}
         </span>
+        {contador && (
+          <span style={{
+            flexShrink: 0,
+            fontSize: 13, fontWeight: 700, color: contador.cor,
+            fontFamily: "'Space Grotesk', sans-serif",
+            fontVariantNumeric: "tabular-nums",
+            lineHeight: 1.25,
+          }}>
+            {contador.texto}
+          </span>
+        )}
       </span>
 
       <span style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 7, flexWrap: "wrap" }}>
@@ -166,74 +216,84 @@ export function QuadroCard({ ev, stage, cobranca, onOpen, onFocusCard, realce }:
           borderRadius: gate.solido ? R.sm : 0,
           backgroundColor: gate.solido ? gate.cor : "transparent",
           color: gate.solido ? "#ffffff" : gate.cor,
-          fontSize: 12, fontWeight: 700,
+          // 600 e não 700: sem o retângulo colorido atrás, 700 fazia o gate
+          // brigar com o nome do evento (800) por ser a segunda coisa mais
+          // escura do card.
+          fontSize: 12, fontWeight: gate.solido ? 700 : 600,
         }}>
           {gate.texto}
         </span>
       )}
 
-      {/* 12px, e não 11: isto é FRASE, não rótulo.
-
-          Varri a tela medindo texto de 5+ palavras em 11px e achei 174
-          ocorrências — 166 delas neste card, em só DUAS linhas repetidas por
-          86 cards: esta e a de "pior peça parada há…". 11px é o tamanho dos
+      {/* 12px, e não 11: isto é FRASE, não rótulo. 11px é o tamanho dos
           micro-rótulos da tela (o selo, o cabeçalho de coluna); frase pede o
-          degrau de leitura.
+          degrau de leitura. E esta é o DIAGNÓSTICO do card — o contador diz
+          que há atraso, ela diz o tamanho e a idade dele.
 
-          E estas duas são o DIAGNÓSTICO do card: o número grande diz que há
-          atraso, elas dizem o tamanho e a idade dele. Eram o texto mais
-          apagado de um card que existe para ser lido de relance. */}
-      {mostraTravadas && (
-        <span style={{ display: "block", marginTop: 4, fontSize: 12, color: TI.secondary }}>
-          {travadasAqui} de {ev.totalItems} travada{travadasAqui !== 1 ? "s" : ""} nesta etapa
+          A cor da régua (`dayColor`) continua valendo a partir de 3 dias de
+          espera: é o mesmo âmbar/vermelho que o drilldown usa para os mesmos
+          dias, e é o que separa o evento atrasado mas FERVENDO do atrasado e
+          abandonado — duas cobranças completamente diferentes.
+
+          "pior peça parada há 5 dias" fica por extenso de propósito: o
+          contador do cabeçalho já usa a forma curta ("13d"), e duas grafias
+          da mesma unidade no mesmo card fazem o olho comparar formatos em
+          vez de números. */}
+      {diagnostico && (
+        <span style={{
+          display: "block", marginTop: 6, fontSize: 12,
+          color: ev.piorEsperaDias >= 3 ? dayColor(ev.piorEsperaDias) : TI.secondary,
+          fontWeight: ev.piorEsperaDias >= 3 ? 700 : 400,
+        }}>
+          {diagnostico}
         </span>
       )}
 
       {/* Mini-trilha: onde o evento está no funil INTEIRO. Sem ela, "passou
           por três etapas e travou na quarta" e "não saiu do lugar" eram
           idênticos por estarem na mesma coluna. */}
-      <span
-        aria-hidden="true"
-        title={trilhaTitle}
-        style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 8 }}
-      >
-        {ev.stages.map((s, i) => {
-          const atual = stage ? s.key === stage.key : false;
-          return (
-            <span
-              key={s.key}
-              style={{
-                width: 6, height: 6, borderRadius: R.pill, flexShrink: 0,
-                backgroundColor: ev.invalidDate && s.state !== "done" ? TI.idle : STAGE_STYLE[s.state].dot,
-                boxShadow: atual ? `0 0 0 2px ${TI.card}, 0 0 0 3.5px ${STAGE_STYLE[s.state].dot}` : "none",
-                marginRight: atual ? 2 : 0,
-                marginLeft: atual && i > 0 ? 2 : 0,
-              }}
-            />
-          );
-        })}
-      </span>
-
-      {ev.piorEsperaDias > 0 && (
-        // Separa o evento atrasado mas FERVENDO do atrasado e abandonado —
-        // duas cobranças completamente diferentes. A partir de 3 dias a linha
-        // ganha a cor da régua única (`dayColor`): é o mesmo âmbar/vermelho
-        // que o drill usa para os mesmos dias — abandono visível de relance.
-        <span style={{
-          // 12px pelo mesmo motivo da linha de "travadas": é frase, não
-          // rótulo, e é metade do diagnóstico do card.
-          display: "block", marginTop: 6, fontSize: 12,
-          color: ev.piorEsperaDias >= 3 ? dayColor(ev.piorEsperaDias) : TI.secondary,
-          fontWeight: ev.piorEsperaDias >= 3 ? 700 : 400,
-        }}>
-          {/* Por extenso: este "há 5 dias" fica a sete pixels do "Faltam 3
-              dias" do chip. Duas grafias da mesma unidade no mesmo card fazem
-              o olho comparar formatos em vez de números. */}
-          pior peça parada há {diasTexto(ev.piorEsperaDias)}
+      <span style={{ display: "flex", alignItems: "center", gap: 5, marginTop: 8 }}>
+        <span
+          aria-hidden="true"
+          title={trilhaTitle}
+          style={{ display: "flex", alignItems: "center", gap: 5 }}
+        >
+          {ev.stages.map((s, i) => {
+            const atual = stage ? s.key === stage.key : false;
+            return (
+              <span
+                key={s.key}
+                style={{
+                  width: 6, height: 6, borderRadius: R.pill, flexShrink: 0,
+                  backgroundColor: ev.invalidDate && s.state !== "done" ? TI.idle : STAGE_STYLE[s.state].dot,
+                  boxShadow: atual ? `0 0 0 2px ${TI.card}, 0 0 0 3.5px ${STAGE_STYLE[s.state].dot}` : "none",
+                  marginRight: atual ? 2 : 0,
+                  marginLeft: atual && i > 0 ? 2 : 0,
+                }}
+              />
+            );
+          })}
         </span>
-      )}
+        {/* A FRAÇÃO no lugar da barra.
 
-      <ProgressoPecas delivered={ev.deliveredItems} total={ev.totalItems} variant="linha" />
+            O card terminava com uma barra de progresso de 3px cuja única
+            leitura possível, num card de 190px, era "mais ou menos pela
+            metade" — e a fração exata já cabia na mesma linha da trilha, que
+            estava vazia à direita. `ProgressoPecas` continua existindo para
+            as superfícies onde a barra tem largura para dizer algo. */}
+        {!semPecas && (
+          <span
+            title={`${ev.deliveredItems} de ${ev.totalItems} peças entregues`}
+            style={{
+              marginLeft: "auto", flexShrink: 0,
+              fontSize: 11, fontWeight: 600, color: TI.secondary,
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {ev.deliveredItems}/{ev.totalItems}
+          </span>
+        )}
+      </span>
 
       {cobranca && (
         <span style={{ display: "block", marginTop: 6 }}>

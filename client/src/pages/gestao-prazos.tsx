@@ -75,6 +75,13 @@ const VISAO_LABEL: Record<Visao, string> = {
 /** Atalho de teclado de cada visão (paridade com o Q/T que já existia). */
 const VISAO_TECLA: Record<Visao, string> = { quadro: "Q", tabela: "T", atrasadas: "A" };
 
+// A barra de controles inteira em R.md. O FilterSelect traz 7px de fabrica e
+// ficava um pixel fora da regua dos vizinhos. Corrigido AQUI, por
+// `triggerStyle`, e nao no componente compartilhado: o raio dele e decisao
+// das 15 telas que o usam, nao desta. Const de modulo para a identidade ser
+// estavel entre renders.
+const RAIO_FILTRO: React.CSSProperties = { borderRadius: R.md };
+
 function parseVisao(raw: string | null): Visao {
   return raw === "tabela" || raw === "atrasadas" ? raw : "quadro";
 }
@@ -1034,7 +1041,17 @@ export default function GestaoPrazos() {
   // explicam por quê. Os chips continuam listados se o filtro veio da URL, e
   // continuam removíveis.
   const faixaTriagem = data && visao !== "atrasadas" && (kpis.semPecas > 0 || kpis.invalidCount > 0) ? (
-    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+    // Última linha DENTRO da superfície do placar, e não um bloco solto
+    // abaixo dela: os dois botões contam eventos que os quatro números acima
+    // não contam: quem está fora da conta pertence ao mesmo quadro, senão
+    // vira nota de rodapé de algo que já terminou.
+    <div style={{
+      gridColumn: "1 / -1",
+      borderTop: `1px solid ${TI.track}`,
+      backgroundColor: TI.sunken,
+      padding: "11px 20px",
+      display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
+    }}>
       <AlertTriangle aria-hidden="true" style={{ width: 15, height: 15, color: TI.red, flexShrink: 0 }} />
       {kpis.semPecas > 0 && triagemBotao(
         soSemPecas,
@@ -1053,6 +1070,15 @@ export default function GestaoPrazos() {
       </span>
     </div>
   ) : null;
+
+  // Quais hairlines cada célula do placar desenha. O número de colunas muda
+  // no celular (2x2), então "última da linha" não é o mesmo índice sempre —
+  // com 4 colunas ninguém tem divisor de baixo; com 2, as duas de cima têm.
+  const colunasPlacar = isMobile ? 2 : 4;
+  const divisorPlacar = (i: number) => ({
+    divisorDireita: (i + 1) % colunasPlacar !== 0,
+    divisorBaixo: i < 4 - colunasPlacar,
+  });
 
   // ── "Comece por aqui": os três piores, com setor e cobrança ───────────────
   // A tela já sabia ordenar por pior atraso e já sabia qual setor destrava
@@ -1094,34 +1120,49 @@ export default function GestaoPrazos() {
               paddingTop: i > 0 ? 8 : 0, borderTop: i > 0 ? `1px solid ${TI.border}` : "none",
             }}>
               <span aria-hidden="true" style={{
-                width: 20, height: 20, borderRadius: R.sm, flexShrink: 0,
+                width: 22, height: 22, borderRadius: R.sm, flexShrink: 0,
                 display: "inline-flex", alignItems: "center", justifyContent: "center",
-                backgroundColor: TI.redBg, color: TI.red, fontSize: 11, fontWeight: 800,
+                backgroundColor: TI.redBg, color: TI.red, fontSize: 12, fontWeight: 700,
+                fontVariantNumeric: "tabular-nums",
               }}>
                 {i + 1}
               </span>
-              <button
-                type="button"
-                onClick={() => setDetailId(ev.id)}
-                aria-haspopup="dialog"
-                data-testid={`comece-${ev.id}`}
-                style={{
-                  background: "none", border: "none", padding: 0, cursor: "pointer",
-                  fontSize: 13, fontWeight: 800, color: TI.title, textAlign: "left",
-                  fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase",
-                  minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320,
-                }}
-                title={`${ev.name} — abrir detalhes`}
-              >
-                {ev.name}
-              </button>
-              <span style={{ fontSize: 12, color: TI.secondary, minWidth: 0 }}>
-                {setor ? `${setor} · ` : ""}
-                <strong style={{ color: TI.red, fontWeight: 700 }}>
-                  prazo vencido há {diasTexto(ev.piorAtrasoDias)}
-                </strong>
-                {ev.pecasEmAtraso > 0 && ` · ${pecasTexto(ev.pecasEmAtraso)} parada${ev.pecasEmAtraso !== 1 ? "s" : ""}`}
-              </span>
+              {/* Nome EM CIMA, diagnóstico embaixo. Os dois dividiam a mesma
+                  linha horizontal, então o nome do evento — que é a chave da
+                  linha — competia lado a lado com a frase que o explica, e
+                  numa tela estreita a frase quebrava para baixo do numeral.
+                  Empilhado, a varredura vertical lê três nomes seguidos. */}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <button
+                  type="button"
+                  onClick={() => setDetailId(ev.id)}
+                  aria-haspopup="dialog"
+                  data-testid={`comece-${ev.id}`}
+                  style={{
+                    background: "none", border: "none", padding: 0, cursor: "pointer",
+                    // 15px: este é o bloco mais forte abaixo do placar e o
+                    // nome estava no mesmo corpo do card do quadro, que é
+                    // uma superfície secundária.
+                    fontSize: 15, fontWeight: 700, color: TI.title, textAlign: "left",
+                    fontFamily: "'Space Grotesk', sans-serif", textTransform: "uppercase",
+                    // Alvo de 36: é um botão que abre modal e tinha ~17px de
+                    // altura. `inline-flex` cresce a área sem desenhar caixa.
+                    display: "inline-flex", alignItems: "center", minHeight: 36,
+                    minWidth: 0, maxWidth: "100%",
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  }}
+                  title={`${ev.name} — abrir detalhes`}
+                >
+                  {ev.name}
+                </button>
+                <span style={{ display: "block", fontSize: 12, color: TI.secondary, minWidth: 0 }}>
+                  {setor ? `${setor} · ` : ""}
+                  <strong style={{ color: TI.red, fontWeight: 700 }}>
+                    prazo vencido há {diasTexto(ev.piorAtrasoDias)}
+                  </strong>
+                  {ev.pecasEmAtraso > 0 && ` · ${pecasTexto(ev.pecasEmAtraso)} parada${ev.pecasEmAtraso !== 1 ? "s" : ""}`}
+                </span>
+              </div>
               {urlSetorAqui && (
                 <Link
                   href={urlSetorAqui}
@@ -1132,7 +1173,11 @@ export default function GestaoPrazos() {
                      caminho que leva de "achei o gargalo" para "vou resolver".
                      `inline-flex` com minHeight cresce a área de clique sem
                      desenhar caixa nenhuma, porque o fundo é transparente. */
-                  style={{ display: "inline-flex", alignItems: "center", minHeight: 36, fontSize: 12, fontWeight: 600, color: TI.secondary, textDecoration: "none", whiteSpace: "nowrap" }}
+                  /* `accentText` e não `secondary`: é a ÚNICA ação de saída
+                     da linha — o caminho de "achei o gargalo" para "vou
+                     resolver" — e estava pintada com a cor do texto de apoio,
+                     mais apagada que o diagnóstico ao lado. */
+                  style={{ display: "inline-flex", alignItems: "center", minHeight: 36, fontSize: 12, fontWeight: 700, color: TI.accentText, textDecoration: "none", whiteSpace: "nowrap" }}
                 >
                   Resolver em {setor} →
                 </Link>
@@ -1316,12 +1361,18 @@ export default function GestaoPrazos() {
         <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 18 }}>
           <div>
             <h1 style={{
-              margin: 0, fontSize: isMobile ? 20 : 24, fontWeight: 800, color: TI.title,
-              fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.02em",
+              // 26 no desktop: o título dividia o corpo com o numeral do
+              // placar (agora 34) e ficava menor que ele — a página parecia
+              // começar no primeiro KPI.
+              margin: 0, fontSize: isMobile ? 20 : 26, fontWeight: 800, color: TI.title,
+              fontFamily: "'Space Grotesk', sans-serif", letterSpacing: "-0.03em",
             }}>
               Gestão de Prazos
             </h1>
-            <p style={{ margin: "4px 0 0", fontSize: 13, color: TI.secondary }}>
+            {/* `maxWidth` porque num monitor de 1600 a linha de apoio ia de
+                ponta a ponta: 130 caracteres por linha, quase o dobro do que
+                se lê sem perder a próxima. */}
+            <p style={{ margin: "4px 0 0", fontSize: 13, color: TI.secondary, maxWidth: 660 }}>
               Etapas de cada evento contra a saída do caminhão — o que venceu, o que vence e quem destrava.
             </p>
           </div>
@@ -1408,9 +1459,24 @@ export default function GestaoPrazos() {
         {/* Placar */}
         {data && (
           <div style={{ marginBottom: 16 }}>
+            {/* UMA superfície com quatro células, não quatro cards soltos.
+
+                Quatro cards com borda de 1px separados por 10px de vão
+                desenhavam oito linhas verticais para dividir quatro números,
+                e cada card repetia raio e sombra. A superfície tem uma borda
+                só; a divisão interna é hairline de `TI.track`. O `gap` sai
+                junto: célula que compartilha borda não pode ter vão.
+
+                `overflow: hidden` é o que faz o fundo do KPI ativo e da faixa
+                de triagem respeitarem o raio da quina. */}
             <div style={{
-              display: "grid", gap: 10,
+              display: "grid",
               gridTemplateColumns: isMobile ? "repeat(2, minmax(0,1fr))" : "repeat(4, minmax(0,1fr))",
+              backgroundColor: TI.card,
+              border: `1px solid ${TI.border}`,
+              borderRadius: R.lg,
+              overflow: "hidden",
+              boxShadow: SHADOW.sm,
             }}>
               {/* O `hint` é a explicação em VOZ DE NEGÓCIO, e é texto visível
                   — não `title`. Antes só o card não-clicável tinha explicação,
@@ -1420,6 +1486,7 @@ export default function GestaoPrazos() {
                   Os quatro recebem uma linha para o placar não ficar com um
                   card explicado e três mudos. */}
               <KpiCard
+                {...divisorPlacar(0)}
                 label="Eventos com atraso" value={kpis.atrasados} tone="red"
                 active={soAtrasados} onClick={() => setSoAtrasados((v) => !v)}
                 hint="com pelo menos uma etapa já vencida"
@@ -1428,6 +1495,7 @@ export default function GestaoPrazos() {
                 testId="kpi-atrasados"
               />
               <KpiCard
+                {...divisorPlacar(1)}
                 label="Saídas em 7 dias" value={kpis.saidas7d} tone="amber"
                 active={soSaidas7d}
                 // Sem o que o filtro consome, o card vira informativo em vez
@@ -1446,6 +1514,7 @@ export default function GestaoPrazos() {
                   diretor sem caminho para as 437. Agora ele é a porta da lista
                   plana de peças, que é o conjunto que este número conta. */}
               <KpiCard
+                {...divisorPlacar(2)}
                 label="Peças em etapa vencida" value={kpis.pecasAtrasadas} tone="red"
                 active={visao === "atrasadas"}
                 onClick={alternarListaDePecas}
@@ -1455,14 +1524,15 @@ export default function GestaoPrazos() {
                 testId="kpi-pecas-atrasadas"
               />
               <KpiCard
+                {...divisorPlacar(3)}
                 label="Eventos em dia" value={kpis.emDia} tone="green"
                 hint="com peças cadastradas, data válida e nada vencido"
                 title="Eventos com peças cadastradas, data de saída válida e nenhuma etapa vencida."
                 trend={trend?.emDia} goodWhenUp
                 testId="kpi-em-dia"
               />
+              {faixaTriagem}
             </div>
-            {faixaTriagem}
           </div>
         )}
 
@@ -1483,9 +1553,24 @@ export default function GestaoPrazos() {
                 lá quadro e tabela não são oferecidos (o corpo é sempre
                 cartão), mas a lista de peças funciona em qualquer largura e
                 sem o seletor não haveria caminho de volta. */}
+            {/* SEGMENTADO SOBRE TRILHO.
+
+                O ativo era um bloco PRETO sólido (`TI.ink`) — o elemento mais
+                escuro da tela inteira, para dizer apenas em qual aba você
+                está. Preto sólido é o vocabulário da ação primária, e aqui
+                ele disputava atenção com o vermelho do que está atrasado.
+
+                O trilho cinza com a pastilha branca inverte a lógica: o ativo
+                é o que está POR CIMA, não o que está mais escuro.
+
+                Padding só na horizontal, e não nos 4 lados: com 3px em cima e
+                embaixo os botões cairiam para 30px de altura, abaixo da régua
+                de 36 da casa. Assim eles ocupam a altura inteira do trilho e
+                o alvo continua igual ao da busca ao lado. */}
             <div role="group" aria-label="Modo de visualização" style={{
-              display: "inline-flex", borderRadius: R.md, border: `1px solid ${TI.border}`,
-              overflow: "hidden", flexShrink: 0, height: isMobile ? 44 : 36,
+              display: "inline-flex", gap: 2, borderRadius: R.md,
+              backgroundColor: TI.track, padding: "0 3px", boxSizing: "border-box",
+              flexShrink: 0, height: isMobile ? 44 : 36,
             }}>
               {(isMobile ? (["quadro", "atrasadas"] as const) : (["quadro", "tabela", "atrasadas"] as const)).map((v) => {
                 // No celular "Quadro" é o botão de VOLTAR para os eventos: a
@@ -1502,9 +1587,14 @@ export default function GestaoPrazos() {
                     title={`Atalho: ${VISAO_TECLA[v]}`}
                     style={{
                       padding: "0 14px", border: "none", cursor: "pointer",
+                      borderRadius: R.sm,
                       fontSize: 12, fontWeight: 700,
-                      backgroundColor: ativo ? TI.ink : TI.card,
-                      color: ativo ? "#ffffff" : TI.strong,
+                      backgroundColor: ativo ? TI.card : "transparent",
+                      color: ativo ? TI.title : TI.strong,
+                      // `SHADOW.sm` é o token que corresponde à sombra pedida
+                      // (0 1px 2px rgba(28,25,23,0.06)): levanta a pastilha do
+                      // trilho sem inventar uma cor fora da paleta.
+                      boxShadow: ativo ? SHADOW.sm : "none",
                     }}
                   >
                     {isMobile && v === "quadro" ? "Eventos" : VISAO_LABEL[v]}
@@ -1550,7 +1640,11 @@ export default function GestaoPrazos() {
                 aria-pressed={soAtrasados}
                 data-testid="toggle-so-atrasados"
                 style={{
-                  padding: "0 14px", height: isMobile ? 44 : 36, borderRadius: R.pill,
+                  // `R.md` e não pílula: esta é a BARRA de controles, e ali
+                  // todo mundo é retângulo (busca, seletor, filtros). As
+                  // pílulas continuam sendo o vocabulário dos chips — os dois
+                  // botões da faixa de triagem, dentro do placar.
+                  padding: "0 14px", height: isMobile ? 44 : 36, borderRadius: R.md,
                   border: soAtrasados ? `1.5px solid ${TI.red}` : `1px solid ${TI.border}`,
                   backgroundColor: soAtrasados ? TI.redBg : TI.card,
                   color: soAtrasados ? TI.red : TI.strong,
@@ -1577,6 +1671,7 @@ export default function GestaoPrazos() {
                 value={eventoFiltro}
                 onChange={setEventoFiltro}
                 searchPlaceholder="Buscar evento..."
+                triggerStyle={RAIO_FILTRO}
                 testId="select-evento-pecas"
                 options={opcoesEvento}
               />
@@ -1592,6 +1687,7 @@ export default function GestaoPrazos() {
                 // é o rótulo mais longo do menu e no painel padrão ele perdia
                 // justamente o setor para a reticência.
                 panelWidth={300}
+                triggerStyle={RAIO_FILTRO}
                 testId="select-etapa-pecas"
                 options={opcoesEtapa}
               />
@@ -1603,6 +1699,7 @@ export default function GestaoPrazos() {
                 value={diaFoco || "all"}
                 onChange={(v) => setDiaFoco(v === "all" ? "" : v)}
                 hideSearch
+                triggerStyle={RAIO_FILTRO}
                 testId="select-dia-pecas"
                 options={opcoesDia}
               />
@@ -1616,6 +1713,7 @@ export default function GestaoPrazos() {
               allLabel="Todas as prioridades"
               value={prioridade}
               onChange={setPrioridade}
+              triggerStyle={RAIO_FILTRO}
               testId="select-prioridade-prazos"
               options={opcoesPrioridade}
             />

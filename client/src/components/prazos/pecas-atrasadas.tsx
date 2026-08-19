@@ -418,7 +418,13 @@ export function PecasAtrasadas({
           // três blocos começam na mesma altura da página.
           overflow: "auto", maxHeight: SCROLLPORT_MAX_H,
         }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
+          {/* Herdado por todas as células: "#3521", "120d" e "venceu 24/07"
+              ficam numa tabela de largura FIXA, onde dígito de largura
+              variável faz a coluna tremer entre uma linha e outra. */}
+          <table style={{
+            width: "100%", borderCollapse: "collapse", tableLayout: "fixed",
+            fontVariantNumeric: "tabular-nums",
+          }}>
             <caption className="sr-only">
               Peças atrasadas de todos os eventos, da mais atrasada para a menos atrasada
             </caption>

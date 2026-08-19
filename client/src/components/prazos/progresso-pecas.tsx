@@ -47,7 +47,7 @@ export function ProgressoPecas({ delivered, total, variant = "linha" }: Progress
       <div>
         <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, color: TI.secondary, marginBottom: 4 }}>
           <span>Peças entregues</span>
-          <span style={{ fontWeight: 700, color: TI.title }}>{delivered}/{total}</span>
+          <span style={{ fontWeight: 700, color: TI.title, fontVariantNumeric: "tabular-nums" }}>{delivered}/{total}</span>
         </div>
         {barra}
       </div>
@@ -58,7 +58,13 @@ export function ProgressoPecas({ delivered, total, variant = "linha" }: Progress
     return (
       <>
         <span
-          style={{ fontSize: 13, fontWeight: 800, color: TI.title, fontFamily: "'Space Grotesk', sans-serif" }}
+          style={{
+            fontSize: 13, fontWeight: 800, color: TI.title,
+            fontFamily: "'Space Grotesk', sans-serif",
+            // A mesma fração aparece em três superfícies; largura de dígito
+            // fixa nas três, senão a coluna da tabela treme a cada linha.
+            fontVariantNumeric: "tabular-nums",
+          }}
           aria-label={`${delivered} de ${total} peças entregues`}
         >
           {delivered}/{total}
@@ -73,7 +79,7 @@ export function ProgressoPecas({ delivered, total, variant = "linha" }: Progress
   return (
     <span style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
       <span style={{ flex: 1, minWidth: 0 }}>{barra}</span>
-      <span style={{ fontSize: 11, fontWeight: 700, color: TI.secondary, whiteSpace: "nowrap" }}>
+      <span style={{ fontSize: 11, fontWeight: 700, color: TI.secondary, whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
         {delivered} de {total} entregues
       </span>
     </span>

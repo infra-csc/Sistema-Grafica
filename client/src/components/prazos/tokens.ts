@@ -558,6 +558,11 @@ export const TH_STYLE: React.CSSProperties = {
 export const TH_STICKY: React.CSSProperties = {
   ...TH_STYLE,
   position: "sticky", top: 0, zIndex: 2,
-  backgroundColor: TI.card,
+  // `sunken` e não `card`: o cabeçalho era da MESMA cor das linhas, e o que
+  // o separava era só um hairline de 1px. Numa tabela rolada, com a primeira
+  // linha grudada embaixo dele, não dava para dizer onde terminava o
+  // cabeçalho e começava o dado. Meia tonalidade abaixo resolve sem borda
+  // nova. Vale para as DUAS tabelas da tela — este token é usado só por elas.
+  backgroundColor: TI.sunken,
   boxShadow: `inset 0 -1px 0 ${TI.border}`,
 };

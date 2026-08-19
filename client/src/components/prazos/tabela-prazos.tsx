@@ -44,7 +44,15 @@ export function TabelaPrazos({
       // medições do mesmo espaço.
       overflow: "auto", maxHeight: SCROLLPORT_MAX_H,
     }}>
-      <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 900 }}>
+      {/* `tabular-nums` na TABELA, e não em cada célula: a propriedade é
+          herdada, e a tabela tem numeral em oito lugares (as duas datas, os
+          seis "13d" das etapas, a fração de entregues). Declarar uma vez é o
+          que impede o nono aparecer sem ela. Sem isto as colunas de data
+          desalinham porque "1" é mais estreito que "8". */}
+      <table style={{
+        width: "100%", borderCollapse: "collapse", minWidth: 900,
+        fontVariantNumeric: "tabular-nums",
+      }}>
         <caption className="sr-only">Eventos ativos, prazos de cada etapa e peças entregues</caption>
         <thead>
           <tr>
@@ -74,7 +82,12 @@ export function TabelaPrazos({
                 <tr
                   className="gp-row"
                   style={{
-                    borderBottom: expanded ? "none" : `1px solid ${TI.rule}`,
+                    // `track` e não `rule`: a régua entre linhas ficou mais
+                    // clara para a densidade nova. A do rodapé do bloco
+                    // expandido continua em `rule` de propósito — ela fecha
+                    // um GRUPO, e linha de grupo pode ser mais forte que
+                    // linha de item.
+                    borderBottom: expanded ? "none" : `1px solid ${TI.track}`,
                     backgroundColor: overdue ? TI.redRow : "transparent",
                   }}
                 >

@@ -1,6 +1,23 @@
-import { useEffect, useState } from "react"
+import { cloneElement, isValidElement, useEffect, useState } from "react"
 import { useToast } from "@/hooks/use-toast"
 import { CheckCircle2, AlertCircle, Info, X } from "lucide-react"
+import { R, T } from "@/lib/theme"
+
+// A AÇÃO DE VOLTA — 36px, e não os 32 do shadcn.
+//
+// A régua da casa é 36 no ponteiro. Um toast vive 4,2 segundos: o alvo da
+// única ação de recuperação da tela é justamente onde não cabe economizar
+// pixel. O botão de fechar ao lado também subiu de 24 pelo mesmo motivo.
+//
+// `T.border` vem de `lib/theme` e não do `TI` da Gestão de Prazos: é a mesma
+// cor (#e8e8e7), mas este componente é global e não pode depender dos tokens
+// de uma tela.
+const ESTILO_ACAO: React.CSSProperties = {
+  height: 36, padding: "0 12px", borderRadius: R.md,
+  border: `1px solid ${T.border}`, backgroundColor: "#ffffff",
+  fontSize: 12, fontWeight: 700, color: "#1c1917",
+  cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
+}
 
 type ToastItem = {
   id: string
@@ -8,6 +25,14 @@ type ToastItem = {
   description?: React.ReactNode
   variant?: "default" | "destructive"
   open?: boolean
+  /**
+   * O botão de recuperação: "Desfazer", "Abrir evento", "Mostrar".
+   *
+   * O tipo existia no hook (`action?: ToastActionElement`) e TRÊS telas o
+   * preenchem — mas este componente, que é o único Toaster montado no app,
+   * nunca leu o campo. As três ações eram descartadas em silêncio.
+   */
+  action?: React.ReactNode
 }
 
 function NorteToast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => void }) {
@@ -25,6 +50,13 @@ function NorteToast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => v
     setLeaving(true)
     setTimeout(onDismiss, 320)
   }
+
+  // O elemento chega como <ToastAction>, que é `ToastPrimitives.Action` do
+  // Radix. Testei fora de um `Toast.Root`: ele NÃO quebra — vira um <button>
+  // comum e o onClick continua funcionando. O que ele traz de errado é a
+  // roupa do shadcn (h-8, text-sm, rounded-md), então clonamos aplicando
+  // `style`, que vence classe utilitária sem precisar de !important.
+  const acao = isValidElement<{ style?: React.CSSProperties }>(toast.action) ? toast.action : null
 
   const accent = isError ? "#dc2626" : "#16a34a"
   const iconBg  = isError ? "#fef2f2" : "#f0fdf4"
@@ -74,10 +106,30 @@ function NorteToast({ toast, onDismiss }: { toast: ToastItem; onDismiss: () => v
         )}
       </div>
 
+      {/* Ação — antes do fechar, porque é o caminho de VOLTA e o fechar é o
+          caminho de saída. O card inteiro tem `onClick={dismiss}`, então sem
+          o `stopPropagation` o clique na ação fecharia o toast pelo caminho
+          do card. Depois de agir, fechamos de propósito: a oferta foi aceita.
+
+          O wrapper cola no botão (sem padding próprio) para que clicar "ao
+          lado" não conte como aceitar a ação. */}
+      {acao && (
+        <div
+          onClick={e => { e.stopPropagation(); dismiss() }}
+          style={{ display: "flex", alignItems: "center", alignSelf: "center", flexShrink: 0 }}
+        >
+          {cloneElement(acao, { style: ESTILO_ACAO })}
+        </div>
+      )}
+
       {/* Close */}
       <button
+        aria-label="Fechar aviso"
         onClick={e => { e.stopPropagation(); dismiss() }}
-        style={{ width: 24, height: 24, borderRadius: 6, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#746e69", flexShrink: 0, marginTop: 1 }}
+        // 36x36: eram 24, que passa no mínimo AA da WCAG 2.5.8 mas fica
+        // abaixo da régua de 36 que o resto do app segue. O glifo continua
+        // com 13px — cresceu o ALVO, não o desenho.
+        style={{ width: 36, height: 36, borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "#746e69", flexShrink: 0, marginTop: -4, marginRight: -6 }}
         onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#f5f4f0"; (e.currentTarget as HTMLButtonElement).style.color = "#57534e" }}
         onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent"; (e.currentTarget as HTMLButtonElement).style.color = "#746e69" }}
       >

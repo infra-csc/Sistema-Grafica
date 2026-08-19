@@ -89,31 +89,24 @@ export function QuadroColuna({ stageKey, label, stageIdx, eventos, temFiltro, re
         // padding-left zerado: os 4px de antes desalinhavam o cabeçalho dos
         // cards que ele nomeia.
         padding: "0 0 8px", minWidth: 0,
+        // O cabeçalho flutua sobre os cards enquanto a coluna rola, e só o
+        // fundo sólido o separava deles. A régua dá a borda de baixo que um
+        // elemento grudado precisa para não parecer o primeiro card.
+        borderBottom: `1px solid ${TI.rule}`,
       }}>
-        <h2 id={headingId} title={label} style={{
-          margin: 0, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
-          color: TI.title, fontFamily: "'Plus Jakarta Sans', sans-serif",
-          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        }}>
-          {STAGE_SHORT[stageKey] ?? label}
-        </h2>
-        {/* ALTURA RESERVADA PARA DUAS LINHAS, em TODAS as colunas.
-
-            O subtitulo e o selo dividem esta linha com flexWrap. Quando o
-            subtitulo e longo — "Atendimento · 30 eventos · 1353 pecas", medido
-            em producao — ele quebra e empurra o selo para baixo. Resultado: a
-            coluna Aprovacao ficava 17px fora da linha de base das outras cinco.
-
-            Reservar a altura e melhor que truncar: os numeros do subtitulo sao
-            o conteudo da coluna, e cortar "1353 pecas" para alinhar seria
-            trocar dado por estetica. O custo e 17px de respiro no cabecalho das
-            colunas curtas — que alias a tela ganha, nao perde. */}
-        <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginTop: 2, minHeight: 34 }}>
-          <span style={{ fontSize: 11, color: TI.secondary, minWidth: 0 }}>
-            {setor ? `${setor} · ` : ""}
-            {eventos.length} evento{eventos.length !== 1 ? "s" : ""}
-            {pecas > 0 && ` · ${pecasTexto(pecas)}`}
-          </span>
+        {/* Título e selo dividem a PRIMEIRA linha. O selo estava lá embaixo
+            junto do subtítulo, brigando por espaço com "Atendimento · 30
+            eventos · 1353 peças" — o dado mais urgente da coluna atrás do
+            menos urgente. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+          <h2 id={headingId} title={label} style={{
+            margin: 0, flex: 1, minWidth: 0,
+            fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
+            color: TI.title, fontFamily: "'Plus Jakarta Sans', sans-serif",
+            overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+          }}>
+            {STAGE_SHORT[stageKey] ?? label}
+          </h2>
           {vencidos > 0 && (
             // "vencido" fala do PRAZO desta etapa (o vocabulário da tela:
             // prazo vence, evento atrasa). O `title` desfaz a ambiguidade que
@@ -121,6 +114,7 @@ export function QuadroColuna({ stageKey, label, stageIdx, eventos, temFiltro, re
             <span
               title={`${vencidos} evento${vencidos !== 1 ? "s" : ""} com o prazo desta etapa já vencido`}
               style={{
+                flexShrink: 0,
                 fontSize: 10, fontWeight: 800, color: TI.red, backgroundColor: TI.redBg,
                 padding: "1px 7px", borderRadius: R.pill, whiteSpace: "nowrap",
               }}
@@ -129,6 +123,27 @@ export function QuadroColuna({ stageKey, label, stageIdx, eventos, temFiltro, re
             </span>
           )}
         </div>
+        {/* A ALTURA RESERVADA CONTINUA — e ela não sobrou por acaso.
+
+            Tirar o selo desta linha não faz o subtítulo caber em uma: no pior
+            caso medido em produção ("Atendimento · 30 eventos · 1353 peças")
+            ele passa de 190px sozinho, e quebra do mesmo jeito. Uma coluna
+            com subtítulo de duas linhas ao lado de cinco com uma linha empurra
+            o primeiro card 14px para baixo — foi o desalinho que este
+            `minHeight` existe para impedir.
+
+            Reservar continua sendo melhor que truncar: os números do subtítulo
+            SÃO o conteúdo da coluna, e cortar "1353 peças" para alinhar seria
+            trocar dado por estética. O que mudou é o tamanho da reserva: com o
+            selo fora, bastam duas linhas de 11px (29) no lugar dos 34. */}
+        <span style={{
+          display: "block", marginTop: 3, minWidth: 0,
+          fontSize: 11, lineHeight: 1.3, color: TI.label, minHeight: 29,
+        }}>
+          {setor ? `${setor} · ` : ""}
+          {eventos.length} evento{eventos.length !== 1 ? "s" : ""}
+          {pecas > 0 && ` · ${pecasTexto(pecas)}`}
+        </span>
       </div>
 
       <div role="list" style={{ display: "flex", flexDirection: "column", gap: 8 }}>

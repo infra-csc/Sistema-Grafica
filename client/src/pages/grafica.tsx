@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { FilterSelect, ShortcutPill } from "@/components/filter-select";
-import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, ImagePlus, FileSpreadsheet, ListChecks, PlusCircle, Trash2 } from "lucide-react";
+import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, ImagePlus, FileSpreadsheet, ListChecks, PlusCircle, Trash2, Undo2, Loader2 } from "lucide-react";
 import { Fragment, useState, useMemo, useEffect, useRef } from "react";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { parseDateLocal } from "@/lib/utils";
@@ -507,6 +507,21 @@ function BulkActionDialog({
   );
 }
 
+/**
+ * ANTES DE PRODUZIR — a janela em que a peça ainda pode voltar.
+ *
+ * Espelha `STATUS_ANTES_DE_PRODUZIR` em server/routes/items.ts. A partir do
+ * momento em que a produção começa existe material físico, `quantityProduced`
+ * contado e ativos de inventário criados: devolver para uma fila que assume
+ * que nada foi feito exigiria um estorno que não existe.
+ */
+const STATUS_ANTES_DE_PRODUZIR = ["ready_for_production", "pronto_para_producao", "approved", "liberado"];
+const podeDevolverParaRevisao = (item: any): boolean =>
+  STATUS_ANTES_DE_PRODUZIR.includes(item?.status);
+
+/** A mesma régua das outras devoluções do app (`lerMotivoDevolucao`). */
+const MOTIVO_MIN_DEVOLUCAO = 10;
+
 export default function Grafica() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
@@ -797,6 +812,28 @@ export default function Grafica() {
       toast({ title: "Entrega confirmada", description: "O item foi marcado como entregue com sucesso" });
     },
     onError: (error: Error) => toast({ title: "Erro ao confirmar entrega", description: error.message, variant: "destructive" }),
+  });
+
+  // DEVOLVER PARA A REVISÃO.
+  //
+  // O operador abre o arquivo na hora de imprimir e vê que está errado. Até
+  // aqui ele tinha duas saídas ruins: imprimir mesmo assim, ou deixar a peça
+  // parada na fila — onde ela continuava contando como "Pronto para Produção"
+  // para o resto do app, inclusive para a Gestão de Prazos, que a cobrava da
+  // Gráfica sem que ninguém soubesse que ela estava travada.
+  const [devolverItem, setDevolverItem] = useState<any>(null);
+  const [devolverMotivo, setDevolverMotivo] = useState("");
+  const devolverMutation = useMutation({
+    mutationFn: async ({ itemId, notes }: { itemId: string; notes: string }) =>
+      await apiRequest("PATCH", `/api/items/${itemId}/return-to-review`, { notes }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setDevolverItem(null);
+      setDevolverMotivo("");
+      toast({ title: "Devolvida para a Revisão", description: "A peça saiu da fila da Gráfica e o motivo foi registrado." });
+    },
+    onError: (error: Error) => toast({ title: "Não foi possível devolver", description: error.message, variant: "destructive" }),
   });
 
   const conferMutation = useMutation({
@@ -3259,6 +3296,27 @@ export default function Grafica() {
 
                           {/* Conferir — etapa entre Produzido e Entregue (com foto);
                               gate igual ao do servidor (grafica/admin) */}
+                          {/* DEVOLVER — contorno, não preenchido: é a saída de
+                              exceção ao lado de "Produzir", que é o caminho
+                              normal. Só antes de produzir; depois disso o botão
+                              some, porque não há estorno do que já foi impresso. */}
+                          {!bulkOn && canProduce && podeDevolverParaRevisao(item) && (
+                            <button
+                              onClick={() => { setDevolverItem(item); setDevolverMotivo(""); }}
+                              title="Devolver para a Revisão — a peça sai da fila da Gráfica"
+                              data-testid={`button-devolver-revisao-${item.id}`}
+                              style={{
+                                backgroundColor: "#ffffff", color: "#b91c1c",
+                                border: "1px solid #fca5a5", borderRadius: 6, height: 30, padding: "0 10px",
+                                fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em",
+                                cursor: "pointer", display: "flex", alignItems: "center", gap: 4,
+                              }}
+                            >
+                              <Undo2 style={{ width: 11, height: 11 }} />
+                              Devolver
+                            </button>
+                          )}
+
                           {!bulkOn && podeConferir && canConfer(item) && (
                             <button
                               onClick={() => openConferenceModal(item)}
@@ -4008,6 +4066,76 @@ export default function Grafica() {
               </form>
             )}
 
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Devolver para a Revisão — o motivo é obrigatório pela mesma régua das
+          outras devoluções: quem recebe a peça de volta precisa saber o que
+          refazer, senão é ida e volta garantida. */}
+      <Dialog open={!!devolverItem} onOpenChange={o => { if (!o) { setDevolverItem(null); setDevolverMotivo(""); } }}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(460)}>
+          <DialogTitle className="sr-only">Devolver peça para a Revisão</DialogTitle>
+          <ModalHeader
+            variant="confirm"
+            icon={Undo2}
+            tint="#b91c1c"
+            title="Devolver para a Revisão"
+            subtitle={devolverItem ? `${devolverItem.displayId} · ${devolverItem.type ?? ""}` : undefined}
+            onClose={() => { setDevolverItem(null); setDevolverMotivo(""); }}
+          />
+          <div style={{ padding: "18px 24px", overflowY: "auto", flex: "1 1 auto", minHeight: 0 }}>
+            <p style={{ fontSize: 13, color: "#57534e", lineHeight: 1.6, margin: "0 0 14px" }}>
+              A peça sai da fila da Gráfica e volta para <strong style={{ color: "#1c1917" }}>Aguardando Revisão Final</strong>. Nada foi produzido, então não há material a estornar.
+            </p>
+            <label style={{ display: "block", fontSize: 11, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#746e69", marginBottom: 6 }}>
+              Motivo da devolução
+            </label>
+            <textarea
+              value={devolverMotivo}
+              onChange={e => setDevolverMotivo(e.target.value)}
+              placeholder="O que está errado? Ex.: arquivo em baixa resolução, medida diferente do pedido..."
+              rows={3}
+              data-testid="textarea-devolver-revisao-motivo"
+              style={{
+                width: "100%", boxSizing: "border-box", padding: "10px 12px",
+                fontSize: 13, fontFamily: "inherit", color: "#1c1917",
+                backgroundColor: "#ffffff", border: "1px solid #e7e5e4", borderRadius: 9,
+                resize: "vertical", outlineOffset: 2,
+              }}
+            />
+            {/* O mínimo aparece SEMPRE, não só depois de errar: botão
+                desabilitado sem explicação é o que faz a pessoa achar que o
+                app travou. */}
+            <p style={{ fontSize: 11, color: "#746e69", margin: "6px 0 0" }}>
+              Mínimo de {MOTIVO_MIN_DEVOLUCAO} caracteres — {devolverMotivo.trim().replace(/\s+/g, " ").length}/{MOTIVO_MIN_DEVOLUCAO}
+            </p>
+          </div>
+          <div style={{ padding: "12px 24px", borderTop: "1px solid #f1f0ef", backgroundColor: "#fafaf9", display: "flex", gap: 8, justifyContent: "flex-end" }}>
+            <button
+              onClick={() => { setDevolverItem(null); setDevolverMotivo(""); }}
+              style={{ height: 36, padding: "0 14px", borderRadius: 9, border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: "#57534e", fontSize: 13, fontWeight: 600, cursor: "pointer" }}
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={() => devolverItem && devolverMutation.mutate({ itemId: devolverItem.id, notes: devolverMotivo })}
+              disabled={devolverMutation.isPending || devolverMotivo.trim().replace(/\s+/g, " ").length < MOTIVO_MIN_DEVOLUCAO}
+              data-testid="button-confirmar-devolver-revisao"
+              // Contorno vermelho, não preenchido: devolver tira o trabalho da
+              // mão de alguém, e botão vermelho cheio convida ao clique reflexo.
+              style={{
+                height: 36, padding: "0 16px", borderRadius: 9,
+                border: "1.5px solid #b91c1c", backgroundColor: "#ffffff", color: "#b91c1c",
+                fontSize: 13, fontWeight: 700,
+                cursor: devolverMutation.isPending ? "default" : "pointer",
+                opacity: devolverMutation.isPending || devolverMotivo.trim().replace(/\s+/g, " ").length < MOTIVO_MIN_DEVOLUCAO ? 0.5 : 1,
+                display: "flex", alignItems: "center", gap: 6,
+              }}
+            >
+              {devolverMutation.isPending && <Loader2 className="animate-spin" style={{ width: 14, height: 14 }} />}
+              Devolver para a Revisão
+            </button>
           </div>
         </DialogContent>
       </Dialog>

@@ -2838,6 +2838,91 @@ export function registerItemRoutes(app: Express): void {
     }
   });
 
+  /**
+   * DEVOLVER PARA A REVISÃO — a saída que faltava na Gráfica.
+   *
+   * O operador abre o arquivo na hora de imprimir e vê que está errado. Até
+   * aqui ele tinha duas opções ruins: imprimir mesmo assim, ou deixar a peça
+   * parada na fila sem que ninguém soubesse por quê — a peça continuava
+   * contando como "Pronto para Produção" para o resto do app, inclusive para
+   * a Gestão de Prazos, que a cobrava da Gráfica.
+   *
+   * SÓ ANTES DE PRODUZIR (decisão do dono). A partir do momento em que a
+   * produção começa existe material físico, `quantityProduced` contado e
+   * ativos de inventário criados; devolver para uma fila que assume que nada
+   * foi feito exigiria um caminho de estorno que não existe. Depois de
+   * produzida, o caminho continua sendo o de sempre.
+   *
+   * O motivo é obrigatório pela mesma régua das outras devoluções: quem
+   * recebe a peça de volta precisa saber o que refazer.
+   */
+  const STATUS_ANTES_DE_PRODUZIR = ["ready_for_production", "pronto_para_producao", "approved", "liberado"];
+
+  app.patch("/api/items/:id/return-to-review", requireAuth, async (req, res) => {
+    try {
+      // Quem decide NÃO imprimir é quem tem a impressora — mesmo gate de
+      // `start-production`, e não o de conferir/entregar: devolver é recusar
+      // o trabalho, não executá-lo.
+      if (req.userRole !== "grafica" && req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas a Gráfica pode devolver para a Revisão" });
+      }
+
+      const motivo = lerMotivoDevolucao(req);
+      if (!motivo.ok) return res.status(400).json({ error: motivo.erro });
+      const notes = motivo.motivo;
+
+      const currentItem = await storage.getItem(req.params.id);
+      if (!currentItem) return res.status(404).json({ error: "Item não encontrado" });
+
+      if (await barraEventoFinalizado(currentItem, res)) return;
+
+      if (!STATUS_ANTES_DE_PRODUZIR.includes(currentItem.status)) {
+        return res.status(409).json({
+          error: `A peça já saiu da fila de produção (${translateStatus(currentItem.status)}) e não pode voltar para a Revisão — há material produzido para desfazer.`,
+        });
+      }
+
+      const item = await storage.updateItem(req.params.id, {
+        status: "awaiting_final_review",
+        // A revisão anterior deixa de valer: foi ela que liberou a peça para
+        // uma produção que a Gráfica está recusando. Sem zerar isto, a peça
+        // reapareceria na Revisão marcada como já revisada.
+        creatorReviewedAt: null,
+        // O motivo SUBSTITUI a observação, como no `return-to-arte`: motivo
+        // novo não convive com o feedback de uma devolução anterior.
+        observations: notes,
+        rejectionReason: notes,
+      });
+      if (!item) return res.status(404).json({ error: "Item não encontrado" });
+
+      const event = await storage.getEvent(item.eventId);
+
+      await createAuditLog(
+        req,
+        "rejected",
+        "item",
+        item.id,
+        `Gráfica devolveu a peça para a Revisão antes de produzir. Motivo: ${notes}`,
+      );
+
+      const notification = await storage.createNotification({
+        type: "itemRejected",
+        message: `Gráfica devolveu ${item.displayId} para a Revisão: ${notes}`,
+        eventId: item.eventId,
+        itemId: item.id,
+        targetRoles: ["solicitacao"],
+      });
+
+      // `item_updated` é o que invalida `/api/items/approved` (a fila da
+      // Gráfica, que roda com staleTime: Infinity) — ver use-websocket.
+      broadcast({ type: "item_updated", item });
+      broadcast({ type: "notification_created", notification });
+      res.json(item);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
   // Bulk return to Arte with notes
   app.patch("/api/items/bulk-return-to-arte", requireAuth, async (req, res) => {
     try {

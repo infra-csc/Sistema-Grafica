@@ -3582,8 +3582,19 @@ export function registerItemRoutes(app: Express): void {
   // só aceita unidades conferidas.
   app.post("/api/items/:id/confer", requireAuth, async (req, res) => {
     try {
-      if ((req as any).userRole !== "grafica" && (req as any).userRole !== "admin") {
-        return res.status(403).json({ error: "Apenas a Gráfica pode conferir" });
+      // CONFERIR é da Gráfica E da Solicitação (decisão do dono).
+      //
+      // Era só grafica|admin, e isso criava um beco: a peça vinda do acervo
+      // não passa pela Gráfica (não há o que imprimir), mas alguém precisa
+      // conferir o material antes que ele possa ser entregue — e a entrega
+      // sai do CONFERIDO. Sem este papel aqui, a Solicitação enxergava a peça,
+      // enxergava que faltava entregar, e não tinha como destravar.
+      //
+      // A lista é a MESMA da entrega logo abaixo, de propósito: as duas etapas
+      // finais do fluxo passaram a ter o mesmo conjunto de donos. Produzir
+      // continua só com grafica|admin — quem produz é quem tem a impressora.
+      if (!["grafica", "solicitacao", "admin"].includes((req as any).userRole ?? "")) {
+        return res.status(403).json({ error: "Sem permissão para conferir" });
       }
       const { conferencePhotoUrl, qty, notes } = req.body ?? {};
       const current = await storage.getItem(req.params.id);

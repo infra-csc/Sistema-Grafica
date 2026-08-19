@@ -510,11 +510,22 @@ function BulkActionDialog({
 export default function Grafica() {
   const { user } = useAuth();
   const isAdmin = user?.role === "admin";
-  // Espelha os gates do servidor (server/routes/items.ts): start-production e
-  // confer aceitam apenas grafica/admin; deliver aceita também solicitacao.
-  // Sem isto a Solicitação via botões de Produzir/Conferir que o servidor
-  // recusava com 403 depois do clique.
+  // DOIS gates, porque o servidor tem dois — e por muito tempo um só fazia o
+  // papel dos dois aqui.
+  //
+  // PRODUZIR é de quem tem a impressora: grafica|admin, espelho de
+  // `start-production`. Ampliar este gate faria a Solicitação ver um convite
+  // que o servidor recusa com 403 depois do clique.
   const canProduce = ["grafica", "admin"].includes(user?.role ?? "");
+  // CONFERIR e ENTREGAR são as duas etapas finais, e agora têm os mesmos
+  // donos: grafica|solicitacao|admin. A conferência estava presa em
+  // `canProduce` só porque as duas nasceram juntas — e o efeito era a
+  // Solicitação ver a peça do acervo parada sem nenhum caminho adiante,
+  // porque a entrega sai do conferido.
+  //
+  // A entrega nunca teve gate de papel NESTE arquivo: quem a limita é
+  // `canDeliver(item)`, que é saldo, não permissão. O servidor é que barra.
+  const podeConferir = ["grafica", "solicitacao", "admin"].includes(user?.role ?? "");
   // MEXER NA QUANTIDADE (criar complemento e cancelar complemento) é outro
   // papel: admin | solicitacao, espelho de `podeMudarQuantidade` no servidor.
   // `canProduce` (grafica|admin) NÃO participa deste gate em ponto nenhum — a
@@ -1788,7 +1799,7 @@ export default function Grafica() {
             </span>
           )}
           {/* Botão Conferência em Lote — só para quem pode conferir (gate do servidor) */}
-          {canProduce && conferableInFilter.length > 0 && !bulkOn && (
+          {podeConferir && conferableInFilter.length > 0 && !bulkOn && (
             <button
               onClick={() => { setBulkConferMode(true); setBulkSelectedIds(new Set()); }}
               data-testid="button-bulk-confer"
@@ -2242,7 +2253,7 @@ export default function Grafica() {
               // fazem). Espelha as rotas: produzir e aumentar quantidade são
               // 409; conferir, entregar e cancelar complemento passam.
               const selo = seloDoItem(item);
-              const temGrupoFluxo = podeProduzirAqui || canDeliverItem || (canProduce && canConferItem) || isDelivered(item);
+              const temGrupoFluxo = podeProduzirAqui || canDeliverItem || (podeConferir && canConferItem) || isDelivered(item);
               const temGrupoContrato = mostraAumentar || podeCancelarCompl;
 
               return (
@@ -2516,7 +2527,7 @@ export default function Grafica() {
                             Produzir {remainingProduce(item)}
                           </button>
                         )}
-                        {canProduce && canConferItem && (
+                        {podeConferir && canConferItem && (
                           <button
                             onClick={e => { e.stopPropagation(); openConferenceModal(item); }}
                             /* #0e7490 (5,36:1) — o mesmo ciano do desktop, do
@@ -3248,7 +3259,7 @@ export default function Grafica() {
 
                           {/* Conferir — etapa entre Produzido e Entregue (com foto);
                               gate igual ao do servidor (grafica/admin) */}
-                          {!bulkOn && canProduce && canConfer(item) && (
+                          {!bulkOn && podeConferir && canConfer(item) && (
                             <button
                               onClick={() => openConferenceModal(item)}
                               title={`Conferir (faltam ${remainingConfer(item)} de ${qtyOf(item)})`}

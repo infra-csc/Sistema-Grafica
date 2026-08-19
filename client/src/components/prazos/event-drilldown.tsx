@@ -126,7 +126,9 @@ function PecaCartao({ eventId, it, isAprovacao }: {
         <Link
           href={urlPecaNoEvento(eventId, it.id)}
           title={`Abrir ${it.displayId} no evento`}
-          style={{ fontSize: 12, fontWeight: 700, color: TI.accentText, textDecoration: "none" }}
+          /* Alvo de 36px: era 20 de altura. Aqui há espaço no card, então
+             vale o mínimo de ponteiro da casa inteiro. */
+          style={{ display: "inline-flex", alignItems: "center", minHeight: 36, fontSize: 12, fontWeight: 700, color: TI.accentText, textDecoration: "none" }}
         >
           {it.displayId}
         </Link>
@@ -303,7 +305,12 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
                   display: "inline-flex", alignItems: "center", gap: 8,
                   background: "none", border: "none", padding: 0, margin: 0,
                   cursor: "pointer", textAlign: "left", font: "inherit",
-                  minHeight: isMobile ? 44 : undefined,
+                  /* O DESKTOP TAMBÉM PRECISA DE ALVO.
+                     Era `isMobile ? 44 : undefined` — o dedo foi atendido e o
+                     ponteiro esquecido, o que deixava 18px de altura num botão
+                     de 320px de largura. Alvo raso e comprido é o que faz
+                     errar o clique sem entender por quê. */
+                  minHeight: isMobile ? 44 : 36,
                 }}
               >
                 <ChevronDown
@@ -387,8 +394,25 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
                           <Link
                             href={urlPecaNoEvento(ev.id, it.id)}
                             title={`Abrir ${it.displayId} no evento`}
+                            /* 24px, e não os 36 do resto — e a diferença é
+                               deliberada.
+
+                               São 72 destes numa tela, um por peça. Levar cada
+                               um a 36 somaria ~18px por linha e mais de 1.300px
+                               de rolagem numa tabela cuja densidade é o ponto:
+                               ela existe para caber muita peça na mesma tela.
+
+                               24×24 é o piso da WCAG 2.5.8 em nível AA, e a
+                               largura aqui é folgada (88px medidos), então o
+                               alvo real é bem maior que o mínimo em área. O
+                               `flex` faz o link preencher a altura da célula em
+                               vez de flutuar no meio dela.
+
+                               Subir a tabela inteira para 36 é possível, mas é
+                               decisão de densidade e não conserto de alvo. */
                             style={{
-                              display: "block", fontSize: 12, fontWeight: 700,
+                              display: "flex", alignItems: "center", minHeight: 24,
+                              fontSize: 12, fontWeight: 700,
                               color: TI.accentText, textDecoration: "none",
                               overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                             }}

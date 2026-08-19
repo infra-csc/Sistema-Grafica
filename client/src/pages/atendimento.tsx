@@ -15,6 +15,13 @@ import {
   prazoAprovacaoLayout,
 } from "@/lib/atendimento-prazo";
 import { FilePreview } from "@/components/file-preview";
+// Chip de filtro ativo: o MESMO componente da Gestão de Prazos. Dois chips
+// com o mesmo papel e desenhos diferentes seriam duas gramáticas para a
+// mesma ideia — e este arquivo já tem literal de cor demais.
+import { FilterChip } from "@/components/prazos/filter-chip";
+// Selo "Atualizado há X": o mesmo formatador da Gestão de Prazos, da Gráfica
+// e das Análises, para as quatro telas datarem o dado com as mesmas palavras.
+import { fmtRelative } from "@/components/prazos/tokens";
 import {
   getStatusMeta, getStatusLabel, getStatusShort, PRODUCTION_STATUSES,
   isEventoFinalizado, motivoEventoFinalizado, marcoEventoFinalizado,
@@ -289,7 +296,8 @@ export default function Atendimento() {
   const [confirmApproveBatch, setConfirmApproveBatch] = useState(false);
 
   const isMobile = useIsMobile();
-  const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({
+  const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems,
+    dataUpdatedAt, isFetching: isFetchingItems } = useQuery<any[]>({
     queryKey: ["/api/items"],
   });
 
@@ -734,18 +742,35 @@ export default function Atendimento() {
     return Array.from(map.values());
   }, [pendingItems, eventFilter, itemTypeFilter, sponsorFilter, itemSponsorsMap, loadingSponsors, events, atrasadosFilter, eventoPorId, hoje]);
 
-  const situacaoFilterOptions = useMemo(() => {
+  // A contagem por SITUAÇÃO, calculada UMA vez.
+  //
+  // O placar e o menu "Situação" mostram os mesmos números em dois lugares da
+  // mesma tela. Esta tela já teve exatamente esse defeito — o badge do topo e
+  // a contagem da aba somavam conjuntos diferentes e divergiam à vista de
+  // todos, e há um comentário no código registrando o conserto. Com uma fonte
+  // só eles não voltam a divergir nem se alguém mexer em um dos dois.
+  //
+  // O pool é o de `facetPool("situacao")`, que aplica os OUTROS filtros mas
+  // não o de situação: o placar é o controle que LIGA esse filtro, então ele
+  // precisa contar o conjunto de antes dele — senão clicar numa célula mudaria
+  // o número da própria célula que você clicou.
+  const contagemSituacao = useMemo(() => {
     const conta = new Map<string, number>();
     facetPool('situacao').forEach((i: any) => {
       const k = situacaoDaPeca(itemApprovalsMap[i.id]);
       conta.set(k, (conta.get(k) ?? 0) + 1);
     });
+    return conta;
+  }, [pendingItems, eventFilter, itemTypeFilter, sponsorFilter, situacaoFilter, itemApprovalsMap, itemSponsorsMap, loadingSponsors, atrasadosFilter, eventoPorId, hoje]);
+
+  const situacaoFilterOptions = useMemo(() => {
+    const conta = contagemSituacao;
     // `pinned`: a ordem é a da urgência, e alfabética poria "Aprovado" antes de
     // "Nova versão para aprovar" — o oposto de onde o olho precisa cair.
     return SITUACAO_ORDEM
       .filter(k => (conta.get(k) ?? 0) > 0)
       .map(k => ({ value: k, label: SITUACAO_META[k].label, count: conta.get(k)!, pinned: true }));
-  }, [pendingItems, eventFilter, itemTypeFilter, sponsorFilter, situacaoFilter, itemApprovalsMap, itemSponsorsMap, loadingSponsors, atrasadosFilter, eventoPorId, hoje]);
+  }, [contagemSituacao]);
 
   const typeFilterOptions = useMemo(() => {
     const map = new Map<string, { value: string; label: string; count: number }>();
@@ -837,6 +862,56 @@ export default function Atendimento() {
       return approvals.some(a => a.status === 'rejected' || a.status === 'pending' || a.status === 'new_version_pending');
     }).length;
   }, [pendingGroup, itemApprovalsMap, loadingSponsors]);
+
+  /**
+   * Liga o filtro de situação numa chave só — e desliga se ela já era a
+   * única ligada. É o comportamento de um placar: a célula é um recorte, não
+   * um acumulador.
+   */
+  const alternarSituacao = (k: string) =>
+    setSituacaoFilter(atual => (atual.length === 1 && atual[0] === k ? [] : [k]));
+
+  const nomePorPatrocinador = useMemo(
+    () => new Map((sponsors as any[]).map((s: any) => [s.id, s.name])),
+    [sponsors],
+  );
+
+  /**
+   * O recorte ativo, escrito.
+   *
+   * Cinco filtros combinam nesta tela e nenhum deles aparecia por extenso: o
+   * estado morava dentro dos menus. Quem clicava numa célula do placar, era
+   * interrompido e voltava dez minutos depois via uma lista curta sem nada na
+   * tela explicando por quê. Estado invisível vira desconfiança do número.
+   */
+  const chipsAtivos: { key: string; label: string; onRemove: () => void }[] = [];
+  if (searchTerm) chipsAtivos.push({ key: "busca", label: `Busca: ${searchTerm}`, onRemove: () => setSearchTerm("") });
+  situacaoFilter.forEach(k => chipsAtivos.push({
+    key: `sit-${k}`,
+    label: SITUACAO_META[k as SituacaoPeca]?.label ?? k,
+    onRemove: () => setSituacaoFilter(v => v.filter(x => x !== k)),
+  }));
+  eventFilter.forEach(id => chipsAtivos.push({
+    key: `ev-${id}`,
+    label: eventoPorId.get(id)?.name ?? "Evento",
+    onRemove: () => setEventFilter(v => v.filter(x => x !== id)),
+  }));
+  itemTypeFilter.forEach(t => chipsAtivos.push({
+    key: `tp-${t}`, label: t,
+    onRemove: () => setItemTypeFilter(v => v.filter(x => x !== t)),
+  }));
+  sponsorFilter.forEach(id => chipsAtivos.push({
+    key: `sp-${id}`,
+    label: nomePorPatrocinador.get(id) ?? "Patrocinador",
+    onRemove: () => setSponsorFilter(v => v.filter(x => x !== id)),
+  }));
+  if (atrasadosFilter) chipsAtivos.push({ key: "atrasados", label: "Passaram do prazo", onRemove: () => setAtrasadosFilter(false) });
+
+  /** Limpa TUDO — inclusive a situação, que o botão antigo esquecia. */
+  const limparFiltros = () => {
+    setSearchTerm(""); setEventFilter([]); setItemTypeFilter([]);
+    setSponsorFilter([]); setSituacaoFilter([]); setAtrasadosFilter(false);
+  };
 
   const batchEligibleSponsors = useMemo(() => {
     if (loadingSponsors) return [];
@@ -1108,240 +1183,51 @@ export default function Atendimento() {
   return (
     <div className="bg-stone-50" style={{ height: "100%", overflowY: "auto", padding: isMobile ? "12px 12px" : "32px" }}>
 
-      {/* ─── HERO HEADER ─────────────────────────────────────────── */}
+      {/* ─── CABEÇALHO ───────────────────────────────────────────── */}
       <header className="mb-6 flex flex-col md:flex-row md:items-end justify-between gap-6">
         <div className="max-w-2xl">
-          <div className="flex items-center gap-3 mb-3">
-            <span style={{
-              backgroundColor: 'transparent', color: '#c2410c',
-              fontSize: 11, fontWeight: 700,
-              padding: '2px 8px', borderRadius: 6,
-              letterSpacing: '0.08em', textTransform: 'uppercase',
-              border: '1px solid #fed7aa',
-            }}>
-              Fluxo de Verificação
-            </span>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: '#9d4300', display: 'inline-block' }} />
-            {/* Eyebrow com o nome do módulo no menu (padrão do breadcrumb de
-                vincular-patrocinadores) — o texto antigo repetia o h1 logo abaixo. */}
-            <span style={{ color: '#746e69', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-              Atendimento
-            </span>
+          {/* Eyebrow numa linha só. Eram DOIS selos para dizer onde você
+              está: um com moldura laranja ("Fluxo de Verificação"), um ponto
+              decorativo e o nome do módulo — três elementos e uma borda para
+              uma migalha de pão. */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 5, marginBottom: 10,
+            fontSize: 10, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase',
+          }}>
+            <span style={{ color: '#c2410c' }}>Atendimento</span>
+            <span style={{ color: '#746e69' }}>· Fluxo de Verificação</span>
           </div>
           <h1 style={{
             fontFamily: "'Space Grotesk', sans-serif",
-            fontSize: 'clamp(1.5rem, 2.5vw, 1.875rem)', fontWeight: 900,
+            // 26/700, a mesma escala da Gestão de Prazos. O `clamp` com peso
+            // 900 fazia o título mudar de tamanho conforme a largura da
+            // janela e o deixava mais pesado que qualquer número da tela.
+            fontSize: 26, fontWeight: 700,
             letterSpacing: '-0.03em', color: '#1c1917',
-            lineHeight: 1.1, marginBottom: 12,
+            lineHeight: 1.15, marginBottom: 8,
           }}>
             Aprovação do Patrocinador
           </h1>
-          <p style={{ color: '#746e69', fontSize: 15, fontWeight: 500, lineHeight: 1.5 }}>
+          <p style={{ color: '#746e69', fontSize: 15, fontWeight: 500, lineHeight: 1.5, maxWidth: 660 }}>
             Valide e aprove ativos de marca com cada patrocinador.
           </p>
         </div>
-        <div
-          data-testid="badge-pendentes-count"
-          style={{
-            display: activeTab === 'history' ? 'none' : 'flex', alignItems: 'center', gap: 12,
-            padding: '12px 20px', borderRadius: 12,
-            border: `1.5px solid ${actionableCount ? '#fed7aa' : '#e7e5e4'}`,
-            backgroundColor: actionableCount ? '#fff7ed' : '#fafaf9',
-            flexShrink: 0,
-          }}
-        >
-          <span style={{
-            fontFamily: "'Space Grotesk', sans-serif",
-            fontSize: 26, fontWeight: 800, lineHeight: 1,
-            color: actionableCount ? '#c2410c' : '#746e69',
-          }}>
-            {actionableCount ?? '—'}
-          </span>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-            <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: actionableCount ? '#c2410c' : '#746e69' }}>
-              Aguardam
-            </span>
-            <span style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', color: '#746e69' }}>
-              Aprovação
-            </span>
-          </div>
-        </div>
-      </header>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          {/* O badge "Aguardam Aprovação" saiu daqui: era UM número para uma
+              tela que responde a quatro perguntas, e virou o placar abaixo.
 
-      {/* ─── ABAS ─────────────────────────────────────────────────── */}
-      <div role="tablist" aria-label="Abas de aprovação" style={{ display: 'flex', gap: 4, marginBottom: 28, borderBottom: '1px solid #e7e5e4', paddingBottom: 0 }}>
-        {([
-          // Mesma conta do badge "Aguardam Aprovação" do topo (actionableCount):
-          // antes a aba somava também peças bloqueadas/aprovadas e os dois
-          // números divergiam na mesma tela.
-          { key: 'pending', label: 'Pendentes', count: actionableCount },
-          { key: 'history', label: 'Histórico', count: null },
-        ] as const).map(tab => (
-          <button
-            key={tab.key}
-            role="tab"
-            id={`tab-${tab.key}`}
-            aria-selected={activeTab === tab.key}
-            aria-controls={`tabpanel-${tab.key}`}
-            onClick={() => setActiveTab(tab.key)}
-            style={{
-              padding: '10px 20px', border: 'none', cursor: 'pointer',
-              backgroundColor: 'transparent',
-              borderBottom: activeTab === tab.key ? '2px solid #f97316' : '2px solid transparent',
-              fontSize: 15, fontWeight: activeTab === tab.key ? 700 : 500,
-              color: activeTab === tab.key ? '#c2410c' : '#746e69',
-              display: 'flex', alignItems: 'center', gap: 8,
-              marginBottom: -1, transition: 'color 0.15s',
-            }}
-          >
-            {tab.label}
-            {tab.count != null && (
-              <span style={{
-                backgroundColor: '#f5f5f4',
-                color: '#746e69',
-                border: '1px solid #e7e5e4',
-                fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 12,
-                minWidth: 20, textAlign: 'center',
-              }}>
-                {tab.count}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* ─── PAINEL DA ABA PENDENTES ─────────────────────────────── */}
-      {activeTab === "pending" && <div role="tabpanel" id="tabpanel-pending" aria-labelledby="tab-pending">
-
-      {/* ─── FILTROS ─────────────────────────────────────────────── */}
-      <section style={{
-        marginBottom: 32, backgroundColor: '#f3f4f3',
-        padding: 24, borderRadius: 12,
-        border: '1px solid rgba(224,192,177,0.15)',
-        display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center',
-      }}>
-        {/* Busca */}
-        <div style={{ flex: '1 1 200px', minWidth: 180, position: 'relative' }}>
-          <Search style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: '#a8a29e' }} />
-          <input
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            placeholder="ID, tipo ou descrição..."
-            aria-label="Buscar por ID, tipo ou descrição"
-            data-testid="input-search"
-            style={{
-              width: '100%', paddingLeft: 40, paddingRight: 16, paddingTop: 12, paddingBottom: 12,
-              backgroundColor: '#ffffff', borderRadius: 8, border: 'none',
-              fontSize: 15, fontWeight: 500, color: '#1c1917',
-              boxSizing: 'border-box',
-            }}
-          />
-          {searchTerm && (
-            <button
-              onClick={() => setSearchTerm("")}
-              aria-label="Limpar busca"
-              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#746e69' }}
-            >
-              <X style={{ width: 14, height: 14 }} />
-            </button>
-          )}
-        </div>
-
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-          <EventFilterDropdown
-            values={eventFilter}
-            onValuesChange={setEventFilter}
-            options={eventFilterOptions}
-          />
-
-          <FilterSelect
-            label="Tipo de Entrega" allLabel="Todos os tipos"
-            values={itemTypeFilter} onValuesChange={setItemTypeFilter}
-            options={typeFilterOptions} showAllLabelWhenEmpty
-            searchPlaceholder="Buscar tipo..." emptyText="Nenhum tipo encontrado."
-            testId="select-type-filter"
-          />
-
-          {/* SITUAÇÃO — a dimensão que faltava. Sem ela não havia como
-              perguntar "o que já voltou corrigido e está esperando por mim?",
-              que é a pergunta que atrasou a peça #1527 por semanas. */}
-          <FilterSelect
-            label="Situação" allLabel="Todas as situações"
-            values={situacaoFilter} onValuesChange={setSituacaoFilter}
-            options={situacaoFilterOptions} hideSearch showAllLabelWhenEmpty
-            panelWidth={260}
-            testId="select-situacao-filter"
-          />
-
-          <FilterSelect
-            label="Patrocinador" allLabel="Todos os Patrocinadores"
-            values={sponsorFilter} onValuesChange={setSponsorFilter}
-            options={sponsorFilterOptions} panelWidth={260}
-            showAllLabelWhenEmpty
-            searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador encontrado."
-            testId="select-sponsor-filter"
-          />
-
-          {/* Atrasados — o recorte que o dono pediu.
-              "Atrasado" aqui é medido contra o marco de APROVAÇÃO DE LAYOUT
-              (deadlineAprovacaoLayout do evento, padrão −12 dias sobre a saída),
-              que é o mesmo selo já exibido no cabeçalho de cada evento e no
-              modal de revisão. NÃO é a saída do caminhão: ela é o prazo mais
-              folgado do fluxo, semanas depois da data em que a decisão do
-              patrocinador precisa existir — por ela quase nada apareceria como
-              atrasado, que é justamente o alarme tarde demais.
-              A contagem fica no controle: o recorte diz quantos são antes de
-              ser clicado. Ver lib/atendimento-prazo. */}
-          <button
-            onClick={() => setAtrasadosFilter(v => !v)}
-            aria-pressed={atrasadosFilter}
-            data-testid="button-filter-atrasados"
-            title="Só peças cujo evento já passou do prazo de Aprovação de Layout"
-            style={{
-              display: 'flex', alignItems: 'center', gap: 7,
-              height: isMobile ? 44 : 36, padding: '0 12px',
-              borderRadius: 7,
-              backgroundColor: atrasadosFilter ? '#991b1b' : '#ffffff',
-              border: atrasadosFilter ? '1.5px solid #991b1b' : '1px solid #e7e5e4',
-              color: atrasadosFilter ? '#ffffff' : '#1c1917',
-              fontSize: 13, fontWeight: atrasadosFilter ? 600 : 400,
-              cursor: 'pointer', whiteSpace: 'nowrap',
-              transition: 'background 0.15s, border 0.15s, color 0.15s',
-            }}
-          >
-            <Clock aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} />
-            Atrasados
+              No lugar dele, a idade do dado. Sem isto, uma aba aberta o dia
+              inteiro nunca dizia de quando são os números que mostra. */}
+          {!itemsLoading && !itemsError && (
             <span
-              data-testid="badge-atrasados-count"
-              // Contrastes (texto ≤13px exige 4,5:1): #991b1b sobre #fef2f2 =
-              // 7,60:1 ✓ · #57534e sobre #f5f5f4 = 6,99:1 ✓ · branco sobre o
-              // véu claro do estado ativo (≈#af4d4d) = 5,24:1 ✓
-              style={{
-                padding: '1px 7px', borderRadius: 99, fontSize: 11, fontWeight: 700,
-                backgroundColor: atrasadosFilter ? 'rgba(255,255,255,0.22)' : atrasadosNaBase.length > 0 ? '#fef2f2' : '#f5f5f4',
-                color: atrasadosFilter ? '#ffffff' : atrasadosNaBase.length > 0 ? '#991b1b' : '#57534e',
-              }}
+              data-testid="selo-atualizado"
+              title={new Date(dataUpdatedAt).toLocaleString("pt-BR")}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#746e69', whiteSpace: 'nowrap' }}
             >
-              {atrasadosNaBase.length}
+              {isFetchingItems && <RotateCcw aria-hidden="true" className="animate-spin" style={{ width: 11, height: 11 }} />}
+              Atualizado {fmtRelative(new Date(dataUpdatedAt).toISOString(), agora)}
             </span>
-          </button>
-
-          {/* Limpar filtros */}
-          {(searchTerm || eventFilter.length > 0 || itemTypeFilter.length > 0 || sponsorFilter.length > 0 || atrasadosFilter) && (
-            <button
-              onClick={() => { setSearchTerm(""); setEventFilter([]); setItemTypeFilter([]); setSponsorFilter([]); setAtrasadosFilter(false); }}
-              aria-label="Limpar filtros"
-              data-testid="button-clear-filters"
-              style={{
-                backgroundColor: '#0c0a09', color: '#ffffff',
-                padding: '12px', borderRadius: 8, border: 'none',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              <X style={{ width: 18, height: 18 }} />
-            </button>
           )}
-
           {/* Exportar PDF — desabilita enquanto os dados de aprovação carregam:
               o pool de exportação depende deles e sairia vazio/incompleto. */}
           <button
@@ -1350,22 +1236,317 @@ export default function Atendimento() {
             data-testid="button-export-pdf"
             title={loadingSponsors ? "Aguarde: carregando os dados de aprovação das peças" : "Exportar peças em PDF"}
             style={{
-              height: 46, padding: '0 16px', borderRadius: 8,
-              backgroundColor: 'transparent', border: '1.5px solid #d4d0ca',
-              color: '#746e69', cursor: loadingSponsors ? 'not-allowed' : 'pointer',
+              height: isMobile ? 44 : 36, padding: '0 14px', borderRadius: 9,
+              backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
+              color: '#57534e', cursor: loadingSponsors ? 'not-allowed' : 'pointer',
               opacity: loadingSponsors ? 0.5 : 1,
               display: 'flex', alignItems: 'center', gap: 6,
-              fontSize: 13, fontWeight: 600, transition: 'all 0.15s',
-              whiteSpace: 'nowrap', marginLeft: 'auto',
+              fontSize: 13, fontWeight: 600, whiteSpace: 'nowrap',
             }}
-            onMouseEnter={e => { if (!loadingSponsors) { e.currentTarget.style.borderColor = '#a8a29e'; e.currentTarget.style.color = '#1c1917'; } }}
-            onMouseLeave={e => { e.currentTarget.style.borderColor = '#d4d0ca'; e.currentTarget.style.color = '#746e69'; }}
           >
-            <FileText style={{ width: 15, height: 15 }} />
-            Exportar
+            <FileText aria-hidden="true" style={{ width: 15, height: 15 }} />
+            Exportar PDF
           </button>
         </div>
-      </section>
+      </header>
+
+      {/* ─── PLACAR POR SITUAÇÃO ─────────────────────────────────── */}
+      {/* A tela mostrava UM número no cabeçalho ("Aguardam Aprovação") e a
+          dimensão que de fato separa o trabalho — a SITUAÇÃO da peça —
+          existia só como menu suspenso. Quem abre esta tela pergunta "o que
+          depende de mim agora?", e a resposta estava fechada num dropdown.
+
+          AS TRÊS PRIMEIRAS CÉLULAS SOMAM; A QUARTA NÃO.
+
+          As três primeiras são chaves exclusivas de `situacaoDaPeca` —
+          nenhuma peça conta em duas. A quarta é outra dimensão: "passaram do
+          prazo" CRUZA com as outras (uma peça atrasada também é "aguardando"
+          ou "nova versão"). Por isso ela é separada por uma régua mais forte
+          e não entra em soma nenhuma. */}
+      {activeTab === 'pending' && (
+        <div style={{
+          display: 'grid', marginBottom: 14,
+          gridTemplateColumns: isMobile ? 'repeat(2, minmax(0,1fr))' : 'repeat(4, minmax(0,1fr))',
+          backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12,
+          overflow: 'hidden', boxShadow: '0 1px 2px rgba(28,25,23,0.06)',
+        }}>
+          {[
+            { k: 'nova_versao', titulo: 'Sua decisão', n: contagemSituacao.get('nova_versao') ?? 0,
+              cor: '#92400e', anel: '#b45309', hint: SITUACAO_META.nova_versao.hint,
+              testId: 'placar-nova-versao', cruzada: false,
+              ativo: situacaoFilter.length === 1 && situacaoFilter[0] === 'nova_versao',
+              onClick: () => alternarSituacao('nova_versao') },
+            { k: 'aguardando', titulo: 'Aguardam patrocinador', n: contagemSituacao.get('aguardando') ?? 0,
+              cor: '#c2410c', anel: '#c2410c', hint: SITUACAO_META.aguardando.hint,
+              testId: 'placar-aguardando', cruzada: false,
+              ativo: situacaoFilter.length === 1 && situacaoFilter[0] === 'aguardando',
+              onClick: () => alternarSituacao('aguardando') },
+            { k: 'aguardando_arte', titulo: 'Arte refazendo', n: contagemSituacao.get('aguardando_arte') ?? 0,
+              cor: '#57534e', anel: '#57534e', hint: SITUACAO_META.aguardando_arte.hint,
+              testId: 'placar-arte-refazendo', cruzada: false,
+              ativo: situacaoFilter.length === 1 && situacaoFilter[0] === 'aguardando_arte',
+              onClick: () => alternarSituacao('aguardando_arte') },
+            { k: 'atrasados', titulo: 'Passaram do prazo', n: atrasadosNaBase.length,
+              cor: '#b91c1c', anel: '#b91c1c',
+              hint: 'O prazo de Aprovação de Layout do evento já venceu — cruza com as outras três',
+              testId: 'placar-atrasados', cruzada: true,
+              ativo: atrasadosFilter,
+              onClick: () => setAtrasadosFilter(v => !v) },
+          ].map((c, i) => (
+            <button
+              key={c.k}
+              type="button"
+              onClick={c.onClick}
+              aria-pressed={c.ativo}
+              data-testid={c.testId}
+              style={{
+                textAlign: 'left', cursor: 'pointer', minWidth: 0,
+                padding: '14px 16px', border: 'none',
+                // A quarta célula é de OUTRA dimensão. A régua mais forte
+                // antes dela é o que impede o olho de somar as quatro.
+                borderLeft: c.cruzada && !isMobile ? '1px solid #e7e5e4' : undefined,
+                borderRight: (i + 1) % (isMobile ? 2 : 4) !== 0 ? '1px solid #f1f0ef' : undefined,
+                borderBottom: isMobile && i < 2 ? '1px solid #f1f0ef' : undefined,
+                backgroundColor: c.ativo ? '#fafaf9' : '#ffffff',
+                boxShadow: c.ativo ? `inset 0 -2px 0 ${c.anel}` : 'none',
+              }}
+            >
+              <span style={{
+                display: 'block', fontSize: 10, fontWeight: 800, letterSpacing: '0.12em',
+                textTransform: 'uppercase', color: '#746e69', marginBottom: 6,
+              }}>
+                {c.titulo}
+              </span>
+              <span style={{
+                display: 'block', fontFamily: "'Space Grotesk', sans-serif",
+                fontSize: 34, fontWeight: 700, lineHeight: 1,
+                fontVariantNumeric: 'tabular-nums',
+                // Zero é neutro: um "0" pintado de vermelho afirmaria o
+                // contrário do que o número diz.
+                color: c.n === 0 ? '#746e69' : c.cor,
+              }}>
+                {loadingSponsors ? '—' : c.n}
+              </span>
+              {/* O `hint` do SITUACAO_META como TEXTO, não como `title`: ele
+                  explica o que o número significa e vivia só no hover do
+                  menu — ou seja, existia para quem tem mouse e já sabia. */}
+              <span style={{ display: 'block', marginTop: 6, fontSize: 12, lineHeight: 1.45, color: '#746e69' }}>
+                {c.hint}
+              </span>
+            </button>
+          ))}
+          {avisoOcultas && (
+            // Peça de evento finalizado — encerrado à mão OU já realizado —
+            // não entra nesta fila (ver `awaitingItems`). Esconder em silêncio
+            // faria a tela dizer "nada a fazer" para quem, na verdade, teve o
+            // trabalho retirado. Fica na mesma superfície do placar: é a
+            // linha do que ficou FORA da conta que as células mostram.
+            <div
+              role="status"
+              data-testid="aviso-eventos-encerrados"
+              style={{
+                gridColumn: '1 / -1', borderTop: '1px solid #f1f0ef',
+                backgroundColor: '#fafaf9', padding: '11px 20px',
+                fontSize: 13, color: '#44403c', lineHeight: 1.5,
+              }}
+            >
+              <strong>{avisoOcultas.destaque}</strong>{' '}{avisoOcultas.texto}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── ABAS + FILTROS, numa faixa só ───────────────────────── */}
+      {/* A <section> cinza de 24px de padding que embrulhava os filtros saiu.
+          Ela era um bloco de fundo diferente, com sombra própria, para
+          hospedar cinco controles — e empurrava a primeira peça da lista para
+          baixo da dobra numa tela de notebook. Os controles moram agora na
+          mesma linha das abas, que é onde já se olha para trocar de recorte. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+        {/* Segmentado sobre trilho. O ativo era sublinhado laranja de 2px num
+            rodapé de 1px — o mesmo traço que a borda da faixa, e por isso
+            fácil de perder. Padding só na horizontal: com 3px em cima e
+            embaixo os botões cairiam para 30px, abaixo da régua de 36. */}
+        <div role="tablist" aria-label="Abas de aprovação" style={{
+          display: 'inline-flex', gap: 2, borderRadius: 10,
+          backgroundColor: '#f0efee', padding: '0 3px', boxSizing: 'border-box',
+          height: isMobile ? 44 : 36, flexShrink: 0,
+        }}>
+          {([
+            // Mesma conta de antes (actionableCount): a aba e o placar contam
+            // conjuntos diferentes de propósito — a aba diz quantas peças
+            // pedem ação, o placar diz de que TIPO é cada uma.
+            { key: 'pending', label: 'Pendentes', count: actionableCount },
+            { key: 'history', label: 'Histórico', count: null },
+          ] as const).map(tab => (
+            <button
+              key={tab.key}
+              role="tab"
+              id={`tab-${tab.key}`}
+              aria-selected={activeTab === tab.key}
+              aria-controls={`tabpanel-${tab.key}`}
+              onClick={() => setActiveTab(tab.key)}
+              style={{
+                padding: '0 14px', border: 'none', cursor: 'pointer', borderRadius: 8,
+                backgroundColor: activeTab === tab.key ? '#ffffff' : 'transparent',
+                color: activeTab === tab.key ? '#1c1917' : '#746e69',
+                boxShadow: activeTab === tab.key ? '0 1px 2px rgba(28,25,23,0.08)' : 'none',
+                fontSize: 13, fontWeight: 700,
+                display: 'flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap',
+              }}
+            >
+              {tab.label}
+              {tab.count != null && (
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#746e69', fontVariantNumeric: 'tabular-nums' }}>
+                  {tab.count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'pending' && (
+          <>
+            <div style={{ position: 'relative', flex: isMobile ? '1 1 100%' : '0 1 240px' }}>
+              <Search aria-hidden="true" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: '#746e69', pointerEvents: 'none' }} />
+              <input
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                placeholder="ID, tipo ou descrição..."
+                aria-label="Buscar por ID, tipo ou descrição"
+                data-testid="input-search"
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  // A busca não tinha borda: ela era um retângulo branco sobre
+                  // o cinza da <section>. Sem a <section>, branco sobre branco
+                  // deixaria de parecer campo.
+                  height: isMobile ? 44 : 36, padding: '0 30px 0 32px', borderRadius: 9,
+                  border: '1px solid #e7e5e4', backgroundColor: '#ffffff',
+                  fontSize: 13, color: '#1c1917', outlineOffset: 2,
+                }}
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm("")}
+                  aria-label="Limpar busca"
+                  style={{ position: 'absolute', right: 2, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: '#746e69', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                >
+                  <X style={{ width: 14, height: 14 }} />
+                </button>
+              )}
+            </div>
+
+            <EventFilterDropdown
+              values={eventFilter}
+              onValuesChange={setEventFilter}
+              options={eventFilterOptions}
+            />
+
+            <FilterSelect
+              label="Tipo de Entrega" allLabel="Todos os tipos"
+              values={itemTypeFilter} onValuesChange={setItemTypeFilter}
+              options={typeFilterOptions} showAllLabelWhenEmpty
+              searchPlaceholder="Buscar tipo..." emptyText="Nenhum tipo encontrado."
+              testId="select-type-filter"
+            />
+
+            {/* SITUAÇÃO — a dimensão que faltava. Sem ela não havia como
+                perguntar "o que já voltou corrigido e está esperando por mim?",
+                que é a pergunta que atrasou a peça #1527 por semanas. O menu
+                continua aqui porque o placar oferece TRÊS das cinco chaves:
+                "Reprovado" e "Aprovado" só se alcançam por ele. */}
+            <FilterSelect
+              label="Situação" allLabel="Todas as situações"
+              values={situacaoFilter} onValuesChange={setSituacaoFilter}
+              options={situacaoFilterOptions} hideSearch showAllLabelWhenEmpty
+              panelWidth={260}
+              testId="select-situacao-filter"
+            />
+
+            <FilterSelect
+              label="Patrocinador" allLabel="Todos os Patrocinadores"
+              values={sponsorFilter} onValuesChange={setSponsorFilter}
+              options={sponsorFilterOptions} panelWidth={260}
+              showAllLabelWhenEmpty
+              searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador encontrado."
+              testId="select-sponsor-filter"
+            />
+
+            {/* "Atrasado" aqui é medido contra o marco de APROVAÇÃO DE LAYOUT,
+                nunca contra a saída do caminhão — ela é o prazo mais folgado do
+                fluxo, semanas depois da data em que a decisão precisa existir.
+                Ver lib/atendimento-prazo. */}
+            <button
+              onClick={() => setAtrasadosFilter(v => !v)}
+              aria-pressed={atrasadosFilter}
+              data-testid="button-filter-atrasados"
+              title="Só peças cujo evento já passou do prazo de Aprovação de Layout"
+              style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                height: isMobile ? 44 : 36, padding: '0 12px', borderRadius: 9,
+                backgroundColor: atrasadosFilter ? '#991b1b' : '#ffffff',
+                border: atrasadosFilter ? '1.5px solid #991b1b' : '1px solid #e7e5e4',
+                color: atrasadosFilter ? '#ffffff' : '#1c1917',
+                fontSize: 13, fontWeight: atrasadosFilter ? 600 : 400,
+                cursor: 'pointer', whiteSpace: 'nowrap',
+              }}
+            >
+              <Clock aria-hidden="true" style={{ width: 13, height: 13, flexShrink: 0 }} />
+              Atrasados
+              <span
+                data-testid="badge-atrasados-count"
+                // Contrastes (texto ≤13px exige 4,5:1): #991b1b sobre #fef2f2 =
+                // 7,60:1 ✓ · #57534e sobre #f5f5f4 = 6,99:1 ✓ · branco sobre o
+                // véu claro do estado ativo (≈#af4d4d) = 5,24:1 ✓
+                style={{
+                  padding: '1px 7px', borderRadius: 99, fontSize: 11, fontWeight: 700,
+                  fontVariantNumeric: 'tabular-nums',
+                  backgroundColor: atrasadosFilter ? 'rgba(255,255,255,0.22)' : atrasadosNaBase.length > 0 ? '#fef2f2' : '#f5f5f4',
+                  color: atrasadosFilter ? '#ffffff' : atrasadosNaBase.length > 0 ? '#991b1b' : '#57534e',
+                }}
+              >
+                {atrasadosNaBase.length}
+              </span>
+            </button>
+
+            {/* "Limpar" em TEXTO: era um quadrado preto com um × dentro, do
+                tamanho e do peso de uma ação primária, para desfazer filtro. */}
+            {chipsAtivos.length > 0 && (
+              <button
+                onClick={limparFiltros}
+                data-testid="button-clear-filters"
+                style={{
+                  height: isMobile ? 44 : 36, padding: '0 8px',
+                  background: 'none', border: 'none', cursor: 'pointer',
+                  color: '#c2410c', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+                }}
+              >
+                Limpar
+              </button>
+            )}
+
+            <span
+              data-testid="contador-pecas"
+              style={{
+                marginLeft: 'auto', fontSize: 12, color: '#746e69',
+                fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
+              }}
+            >
+              {filteredItems.length} de {pendingItems.length} peças
+            </span>
+          </>
+        )}
+      </div>
+
+      {chipsAtivos.length > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+          {chipsAtivos.map(c => <FilterChip key={c.key} label={c.label} onRemove={c.onRemove} />)}
+        </div>
+      )}
+
+      {/* ─── PAINEL DA ABA PENDENTES ─────────────────────────────── */}
+      {activeTab === "pending" && <div role="tabpanel" id="tabpanel-pending" aria-labelledby="tab-pending">
+
 
       {/* ─── PAINEL DE LOTE ───────────────────────────────── */}
       {/* Sem papel de decisão: o painel vira uma faixa informativa — os
@@ -1809,19 +1990,6 @@ export default function Atendimento() {
             )}
           </div>
         </section>
-      )}
-
-      {/* Peça de evento finalizado — encerrado à mão OU já realizado — não entra
-          nesta fila (ver `awaitingItems`). Esconder em silêncio faria a tela
-          dizer "nada a fazer" para quem, na verdade, teve o trabalho retirado. */}
-      {avisoOcultas && (
-        <div
-          role="status"
-          data-testid="aviso-eventos-encerrados"
-          style={{ background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#44403c', lineHeight: 1.5 }}
-        >
-          <strong>{avisoOcultas.destaque}</strong>{' '}{avisoOcultas.texto}
-        </div>
       )}
 
       {/* ─── GRID DE CARDS (bento-style) ─────────────────────────── */}

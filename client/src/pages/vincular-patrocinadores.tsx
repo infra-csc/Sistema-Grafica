@@ -1464,15 +1464,19 @@ export default function VincularPatrocinadores() {
                     title={todosMarcados ? 'Desvincular todos deste escopo' : 'Vincular todos os patrocinadores do evento'}
                     data-testid={`btn-select-all-${item.id}`}
                     style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      // MESMA CASCA dos chips de marca ao lado: 26px, raio
+                      // 999, ponto de 7px, fundo branco quando desligado. O
+                      // que o distingue é o peso do rótulo e o ponto neutro —
+                      // ele não é uma marca, é o atalho para todas elas.
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
                       height: isMobile ? 44 : 26, padding: '0 10px', borderRadius: 999,
                       border: `1px solid ${todosMarcados ? '#1c1917' : '#e7e5e4'}`,
-                      backgroundColor: todosMarcados ? '#1c1917' : '#f5f4f1',
+                      backgroundColor: todosMarcados ? '#1c1917' : '#ffffff',
                       color: todosMarcados ? '#ffffff' : '#44403c',
                       cursor: 'pointer', font: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
                     }}
                   >
-                    {todosMarcados && <Check aria-hidden="true" style={{ width: 11, height: 11 }} />}
+                    <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: todosMarcados ? '#ffffff' : '#78716c', flexShrink: 0 }} />
                     Todos
                   </button>
                 );
@@ -1577,11 +1581,10 @@ export default function VincularPatrocinadores() {
                   setItemSponsorsMap(prev => ({ ...prev, [item.id]: originais }));
                 }}
                 title="Descartar as alterações e voltar ao que está salvo"
-                aria-label={`Descartar as alterações de ${item.displayId}`}
                 data-testid={`button-discard-item-${item.id}`}
-                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: ALVO, height: ALVO, borderRadius: R.sm, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', color: '#57534e', cursor: 'pointer', padding: 0 }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: ALVO, padding: '0 10px', borderRadius: R.sm, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', color: '#57534e', font: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}
               >
-                <X aria-hidden="true" style={{ width: 13, height: 13 }} />
+                Descartar
               </button>
             )}
             {estado === 'RASCUNHO' && editavel && (

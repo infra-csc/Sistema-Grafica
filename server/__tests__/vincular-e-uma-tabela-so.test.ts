@@ -172,6 +172,42 @@ describe("a linha da peça cabe numa linha", () => {
     expect(tela.slice(enviar, enviar + 500)).toContain("Enviar");
   });
 
+  it("a regra vale para TODA ação da linha, inclusive as que voltarem depois", () => {
+    // Esta asserção nasceu de um escorregão: "Descartar alterações" foi
+    // devolvido à linha depois da revisão e voltou como um `X` de 13px sem
+    // texto — exatamente o defeito que a revisão tinha acabado de tirar dali.
+    //
+    // Devolver uma capacidade com o desenho velho é meio caminho: a capacidade
+    // volta e a inconsistência volta junto. A lista abaixo é o contrato — quem
+    // acrescentar uma ação na linha acrescenta o rótulo dela aqui.
+    const acoesDaLinha: [string, string][] = [
+      ["button-save-item-", "Salvar"],
+      ["button-discard-item-", "Descartar"],
+      ["button-send-item-", "Enviar"],
+    ];
+    for (const [testid, rotulo] of acoesDaLinha) {
+      const i = tela.indexOf(testid);
+      expect(i, `${testid} sumiu da linha`).toBeGreaterThan(-1);
+      expect(
+        tela.slice(i, i + 700),
+        `a ação ${testid} perdeu o rótulo "${rotulo}" — ícone sem texto na linha só vale para o menu`,
+      ).toContain(rotulo);
+    }
+  });
+
+  it("e o chip Todos usa a casca dos chips de marca, não a da árvore antiga", () => {
+    // Ele voltou com fundo #f5f4f1 e sem ponto — o visual que tinha na aba
+    // removida. Ao lado dos chips redesenhados ele se lia como outro sistema.
+    const i = tela.indexOf("data-testid={`btn-select-all-${item.id}`}");
+    expect(i).toBeGreaterThan(-1);
+    // Janela larga: entre o testid e o ponto cabe o style inteiro mais o
+    // comentário que explica a casca.
+    const bloco = tela.slice(i, i + 1600);
+    expect(bloco).toContain("borderRadius: 999");
+    expect(bloco).toContain("width: 7, height: 7");
+    expect(bloco).not.toContain("#f5f4f1");
+  });
+
   it("as ações secundárias saíram dos links sublinhados para um menu", () => {
     // "sem pat." APAGA os patrocinadores da peça, e era um link de 11px em
     // cinza, indistinguível de texto morto.

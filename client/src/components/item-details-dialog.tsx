@@ -7,12 +7,12 @@ import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { getApprovalMeta, getStatusLabel, marcoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import {
   Edit, Save, X, Check, Clock, Eye, ExternalLink, Camera, Paperclip,
-  FileImage, FolderOpen, AlertTriangle, CheckCircle2, Recycle, Send, Copy,
+  FileImage, FolderOpen, AlertTriangle, CheckCircle2, Recycle,
   ChevronDown, Undo2, Truck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
@@ -259,11 +259,7 @@ export function ItemDetailsDialog({
   // O percurso abre com os 4 mais recentes. Uma peça que foi e voltou três
   // vezes tem trinta registros, e a ficha inteira virava a trilha dela.
   const [percursoAberto, setPercursoAberto] = useState(false);
-  // "Ver quem falta" rola o miolo até a linha do patrocinador e a acende por
-  // dois segundos. Sem o realce, a rolagem entrega uma lista e deixa a pessoa
-  // procurar de novo o nome que ela acabou de ler na faixa.
-  const [patrocinadorEmFoco, setPatrocinadorEmFoco] = useState<string | null>(null);
-  const patrocinadoresRef = useRef<HTMLDivElement | null>(null);
+
 
   // Aprovação por patrocinador não vem no payload de /api/items — sem buscar
   // aqui, peças com várias marcas apareciam sempre como "Aguardando" no Painel
@@ -295,7 +291,6 @@ export function ItemDetailsDialog({
     setEditMode(false);
     setEditedItem(item);
     setPercursoAberto(false);
-    setPatrocinadorEmFoco(null);
   }, [open, item?.id]);
 
   // Fotos que a Gráfica anexou na conferência e na entrega, para que o registro
@@ -678,42 +673,17 @@ export function ItemDetailsDialog({
   const tom = TOM[bloqueio.tom];
   const IconeDoBloqueio = bloqueio.tom === "ok" ? CheckCircle2 : bloqueio.tom === "reprovado" ? AlertTriangle : Clock;
 
-  // ── Cobrança: o que dá para fazer sem inventar rota ────────────────────────
+  // ── ESTA FICHA NÃO AGE, SÓ CONTA ──────────────────────────────────────────
   //
-  // Não existe cobrança dentro do sistema — patrocinador não tem login e o
-  // servidor não manda e-mail. Quem cobra abre o WhatsApp ou o e-mail e digita
-  // do zero, toda vez, o mesmo texto: qual peça, qual evento, há quantos dias.
-  // O botão monta esse texto. Com e-mail cadastrado, abre o cliente de e-mail
-  // já preenchido; sem e-mail, copia para a área de transferência.
-  const alvoDaCobranca = pendentes[0] ?? null;
-  const textoDaCobranca = alvoDaCobranca
-    ? `${item.displayId} — ${item.description || item.type || "peça"}`
-      + `${item.event?.name ? ` (${item.event.name})` : ""}`
-      + ` está aguardando a aprovação de ${alvoDaCobranca.sponsor?.name ?? "vocês"}`
-      + `${diasParado ? ` ${haQuantoTempo(diasParado)}` : ""}.`
-      + `${item.event?.truckDepartureDate ? ` A saída do caminhão é ${format(toUTCDisplayDate(item.event.truckDepartureDate), "dd/MM 'às' HH:mm", { locale: ptBR })}.` : ""}`
-    : "";
-
-  const cobrar = () => {
-    const email = alvoDaCobranca?.sponsor?.email;
-    if (email) {
-      const assunto = encodeURIComponent(`Aprovação pendente — ${item.displayId}`);
-      window.location.href = `mailto:${email}?subject=${assunto}&body=${encodeURIComponent(textoDaCobranca)}`;
-      return;
-    }
-    navigator.clipboard?.writeText(textoDaCobranca).then(
-      () => toast({ title: "Cobrança copiada", description: "Cole no WhatsApp ou no e-mail do patrocinador." }),
-      () => toast({ title: "Não foi possível copiar", description: "Copie o texto da faixa manualmente.", variant: "destructive" }),
-    );
-  };
-
-  const irAosPatrocinadores = (sponsorId?: string) => {
-    patrocinadoresRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    if (!sponsorId) return;
-    setPatrocinadorEmFoco(sponsorId);
-    window.setTimeout(() => setPatrocinadorEmFoco(null), 2000);
-  };
-
+  // Decisão do dono (20/08): nada de atalhos aqui — só os dados. A ficha abre
+  // em cinco telas, cada uma com o seu próprio conjunto de permissões e de
+  // ações; um botão que resolve na Arte é um botão que dá 403 na Gráfica. A
+  // faixa de resolução continua dizendo O QUE falta e QUEM precisa agir, que é
+  // dado, não ação — quem age vai à tela onde a ação vive.
+  //
+  // O que sobrou de clicável é leitura ou correção do próprio dado: abrir um
+  // arquivo, ampliar uma foto, editar a especificação e reverter uma aprovação
+  // lançada por engano (admin).
   // ── Prazo ─────────────────────────────────────────────────────────────────
   const saida = item.event?.truckDepartureDate ? toUTCDisplayDate(item.event.truckDepartureDate) : null;
   const diasAteSaida = saida ? Math.ceil((saida.getTime() - todayBusinessMs()) / DIA_MS) : null;
@@ -937,80 +907,31 @@ export function ItemDetailsDialog({
         </header>
 
         {/* ══════════════════════════════════════════════════════════════════
-            FAIXA DE RESOLUÇÃO — o que trava, desde quando, e o que fazer.
+            FAIXA DE RESOLUÇÃO — o que trava, desde quando, e quem precisa agir.
         ══════════════════════════════════════════════════════════════════ */}
         <div
           data-testid="banner-blocker"
           style={{
             flexShrink: 0, padding: isMobile ? "12px 16px" : "14px 32px",
             backgroundColor: tom.bg, borderBottom: `1px solid ${tom.borda}`,
-            display: "flex", alignItems: isMobile ? "stretch" : "center",
-            flexDirection: isMobile ? "column" : "row", gap: 12,
+            display: "flex", alignItems: "flex-start", gap: 12,
           }}
         >
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 12, minWidth: 0, flex: "1 1 auto" }}>
-            <span aria-hidden="true" style={{
-              width: 34, height: 34, borderRadius: 8, flexShrink: 0,
-              backgroundColor: tom.ladrilho, color: tom.detalhe,
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <IconeDoBloqueio style={{ width: 17, height: 17 }} />
-            </span>
-            <div style={{ minWidth: 0 }}>
-              <p style={{ fontSize: 14, fontWeight: 700, color: tom.frase, margin: 0, lineHeight: 1.35 }}>
-                {bloqueio.frase}
+          <span aria-hidden="true" style={{
+            width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+            backgroundColor: tom.ladrilho, color: tom.detalhe,
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}>
+            <IconeDoBloqueio style={{ width: 17, height: 17 }} />
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: 14, fontWeight: 700, color: tom.frase, margin: 0, lineHeight: 1.35 }}>
+              {bloqueio.frase}
+            </p>
+            {bloqueio.detalhe && (
+              <p style={{ fontSize: 12, color: tom.detalhe, margin: "3px 0 0", lineHeight: 1.45 }}>
+                {bloqueio.detalhe}
               </p>
-              {bloqueio.detalhe && (
-                <p style={{ fontSize: 12, color: tom.detalhe, margin: "3px 0 0", lineHeight: 1.45 }}>
-                  {bloqueio.detalhe}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* No máximo duas ações, e só as que existem de verdade para este
-              estado. Não há rota de cobrança no servidor — patrocinador não tem
-              login e não há disparo de e-mail —, então "Cobrar" monta o texto e
-              entrega pronto para o canal onde a cobrança acontece. */}
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
-            {alvoDaCobranca && (
-              <button
-                type="button"
-                onClick={cobrar}
-                data-testid="button-blocker-primary"
-                style={{
-                  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
-                  height: isMobile ? 44 : 38, padding: "0 16px", borderRadius: 8, border: "none",
-                  backgroundColor: "#c2410c", color: "#ffffff", cursor: "pointer",
-                  font: "inherit", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
-                }}
-                onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#9a3412"; }}
-                onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#c2410c"; }}
-                title={alvoDaCobranca.sponsor?.email
-                  ? `Abrir e-mail para ${alvoDaCobranca.sponsor.email}`
-                  : "Copiar o texto da cobrança"}
-              >
-                {alvoDaCobranca.sponsor?.email
-                  ? <Send aria-hidden="true" style={{ width: 14, height: 14 }} />
-                  : <Copy aria-hidden="true" style={{ width: 14, height: 14 }} />}
-                Cobrar aprovação
-              </button>
-            )}
-            {(pendentes.length > 0 || reprovados.length > 0) && (
-              <button
-                type="button"
-                onClick={() => irAosPatrocinadores((reprovados[0] ?? pendentes[0])?.sponsor?.id)}
-                data-testid="button-blocker-secondary"
-                style={{
-                  display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  height: isMobile ? 44 : 38, padding: "0 14px", borderRadius: 8,
-                  border: `1px solid ${tom.borda}`, backgroundColor: "#ffffff",
-                  color: tom.detalhe, cursor: "pointer",
-                  font: "inherit", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
-                }}
-              >
-                {reprovados.length > 0 ? "Ver o motivo" : "Ver quem falta"}
-              </button>
             )}
           </div>
         </div>
@@ -1123,7 +1044,7 @@ export function ItemDetailsDialog({
 
               {/* ── Patrocinadores ── */}
               {linhasPatrocinador.length > 0 && (
-                <section ref={patrocinadoresRef} data-testid="section-patrocinadores">
+                <section data-testid="section-patrocinadores">
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
                     <h3 style={TITULO_SECAO}>Patrocinadores</h3>
                     <span style={{ fontSize: 12, fontWeight: 700, color: aprovados.length === linhasPatrocinador.length ? "#15803d" : "#c2410c" }}>
@@ -1134,7 +1055,6 @@ export function ItemDetailsDialog({
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                     {patrocinadoresOrdenados.map(({ sponsor: s, approval, meta }) => {
                       const pendente = meta.tone === "waiting";
-                      const emFoco = patrocinadorEmFoco === s.id;
                       // O detalhe em 12px #57534e (7,63 sobre branco), e não no
                       // monospace de 10px de antes: é frase, não carimbo — e a
                       // observação da reprovação, que é a informação mais útil
@@ -1151,8 +1071,6 @@ export function ItemDetailsDialog({
                           style={{
                             ...CARTAO,
                             border: `1px solid ${pendente || meta.isRejection ? meta.border : "#ebe8e4"}`,
-                            boxShadow: emFoco ? `0 0 0 3px ${meta.dot}55` : "none",
-                            transition: "box-shadow 0.2s",
                             padding: 12,
                             display: "flex", alignItems: "flex-start", gap: 12,
                           }}
@@ -1196,21 +1114,6 @@ export function ItemDetailsDialog({
                           </div>
 
                           <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                            {pendente && (
-                              <button
-                                type="button"
-                                onClick={() => { setPatrocinadorEmFoco(s.id); cobrar(); }}
-                                data-testid={`button-cobrar-${s.id}`}
-                                style={{
-                                  height: ALVO, padding: "0 12px", borderRadius: 8,
-                                  border: `1px solid ${meta.border}`, backgroundColor: meta.bg,
-                                  color: meta.text, cursor: "pointer",
-                                  font: "inherit", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
-                                }}
-                              >
-                                Cobrar
-                              </button>
-                            )}
                             {/* Correção de admin: desfaz uma aprovação/reprovação
                                 feita por engano, sem mexer direto no banco. */}
                             {user?.role === "admin" && approval && approval.status !== "pending" && (
@@ -1536,22 +1439,6 @@ export function ItemDetailsDialog({
           </span>
 
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            {onEditSave && !editMode && (
-              <button
-                type="button"
-                onClick={() => { setEditedItem(item); setEditMode(true); }}
-                data-testid="button-editar-peca"
-                style={{
-                  display: "inline-flex", alignItems: "center", gap: 6,
-                  height: ALVO, padding: "0 14px", borderRadius: 8,
-                  border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: "#1c1917",
-                  cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 700,
-                }}
-              >
-                <Edit aria-hidden="true" style={{ width: 13, height: 13 }} />
-                Editar peça
-              </button>
-            )}
             <button
               type="button"
               onClick={() => onOpenChange(false)}

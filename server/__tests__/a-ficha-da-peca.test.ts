@@ -208,7 +208,20 @@ describe("a estrutura que mantém cabeçalho, faixa e rodapé à vista", () => {
 describe("a faixa de resolução responde 'o que falta' sem rolar", () => {
   it("existe e tem o testid que a identifica", () => {
     expect(modal).toContain('data-testid="banner-blocker"');
-    expect(modal).toContain('data-testid="button-blocker-primary"');
+  });
+
+  it("a ficha CONTA, não age — não há atalho de ação nela", () => {
+    // Decisão do dono (20/08): só os dados. A ficha abre em cinco telas, cada
+    // uma com o seu conjunto de permissões; um botão que resolve na Arte é um
+    // botão que dá 403 na Gráfica. A faixa diz o que falta e quem age; quem
+    // age vai à tela onde a ação vive.
+    //
+    // O que continua clicável é leitura ou correção do próprio dado: abrir
+    // arquivo, ampliar foto, editar a especificação, reverter aprovação lançada
+    // por engano (admin), fechar.
+    for (const atalho of ["Cobrar aprovação", "Ver quem falta", "Ver o motivo", "mailto:"]) {
+      expect(codigo, `\"${atalho}\" voltou para a ficha`).not.toContain(atalho);
+    }
   });
 
   it("a frase nomeia quem falta e há quanto tempo", () => {

@@ -3,7 +3,7 @@
 // a ela, e este acervo interessa a todo mundo.
 import { useMemo, useState, useEffect, useRef, useDeferredValue } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Camera, Truck, FileCheck, Search, X, ExternalLink, ChevronLeft, ChevronRight, ZoomIn, Download, Loader2, CalendarDays } from "lucide-react";
+import { Camera, Truck, FileCheck, Search, X, ExternalLink, ChevronLeft, ChevronRight, ZoomIn, Download, Loader2, CalendarDays, SlidersHorizontal, Check } from "lucide-react";
 import { Link } from "wouter";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { FilterSelect } from "@/components/filter-select";
@@ -26,6 +26,9 @@ type Kind = keyof typeof KIND;
 interface Photo {
   id: string;
   kind?: string;
+  /** Id da peça. Vem do payload desde sempre; faltava aqui. É por ele que as
+   *  duas fotos da mesma peça se acham — `displayId` é editável. */
+  itemId?: string;
   photoUrl?: string;
   eventId?: string;
   eventName?: string;
@@ -46,6 +49,28 @@ type Period = typeof PERIODS[number];
 const PERIOD_DAYS: Record<string, number> = { "Hoje": 0, "7 dias": 7, "15 dias": 15, "30 dias": 30 };
 
 const kindOf = (p: Photo): Kind => (p.kind === "conference" ? "conference" : "delivery");
+
+/** Chave da PEÇA. `itemId` primeiro; `displayId` só como rede. */
+const pecaDe = (p: Photo): string => p.itemId || p.displayId || "";
+
+const MS_DIA = 86_400_000;
+
+/**
+ * Rótulo do dia: "Hoje", "Ontem", ou a data escrita.
+ *
+ * Comparação por DIA CIVIL (zerando a hora dos dois lados), não por diferença
+ * de milissegundos: às 00h30 uma foto das 23h de ontem está a uma hora de
+ * distância e mesmo assim é de ontem.
+ */
+function rotuloDoDia(iso: string, hoje: Date): string {
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "Sem data";
+  const dia = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const base = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate()).getTime();
+  if (dia === base) return "Hoje";
+  if (dia === base - MS_DIA) return "Ontem";
+  return format(d, "d 'de' MMMM", { locale: ptBR });
+}
 // Registros antigos guardaram a URL assinada do GCS, que expira; o app serve
 // os arquivos por /objects/...
 const srcOf = (p: Photo) => convertGCSUrlToLocalPath(p.photoUrl || "");
@@ -216,6 +241,100 @@ export default function Registros() {
 
   // Foto grande demora a chegar no 4G do galpão; sem indicação, a troca de
   // imagem parece que travou porque a anterior fica na tela até a nova pintar.
+  // ═══════════════════════════════════════════════════════════════════════
+  // O PAR CONFERÊNCIA ↔ ENTREGA
+  //
+  // A pergunta central de um acervo de comprovantes é "a peça foi entregue
+  // como foi conferida?" — e as duas fotos que respondem isso eram cartões
+  // independentes, a dezenas de posições de distância na grade, muitas vezes
+  // em dias diferentes (o que o agrupamento por dia acentua). Não havia
+  // caminho de uma para a outra: só buscar o displayId e conferir na mão.
+  //
+  // O índice é sobre `photos` (o acervo inteiro), não sobre `filtered`: a
+  // contraparte existe independentemente do filtro em vigor, e escondê-la
+  // porque o filtro de tipo está em "Conferência" seria dizer "sem foto de
+  // entrega" para uma peça que tem.
+  // ═══════════════════════════════════════════════════════════════════════
+  const porPeca = useMemo(() => {
+    const mapa = new Map<string, { conference: Photo[]; delivery: Photo[] }>();
+    for (const f of photos) {
+      const chave = pecaDe(f);
+      if (!chave) continue;
+      let e = mapa.get(chave);
+      if (!e) { e = { conference: [], delivery: [] }; mapa.set(chave, e); }
+      e[kindOf(f)].push(f);
+    }
+    // Mais recente primeiro: com duas fotos do mesmo tipo, a contraparte é a
+    // última — a que representa o estado atual da peça.
+    const maisNova = (a: Photo, b: Photo) =>
+      new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
+    for (const e of Array.from(mapa.values())) {
+      e.conference.sort(maisNova);
+      e.delivery.sort(maisNova);
+    }
+    return mapa;
+  }, [photos]);
+
+  /** A foto de tipo oposto da mesma peça, ou null. */
+  const contraparteDe = (f: Photo): Photo | null => {
+    const e = porPeca.get(pecaDe(f));
+    if (!e) return null;
+    const outras = kindOf(f) === "conference" ? e.delivery : e.conference;
+    return outras[0] ?? null;
+  };
+
+  /** Todas as fotos daquela peça, em ordem de tempo — a faixa do zoom. */
+  const fotosDaPeca = (f: Photo): Photo[] => {
+    const e = porPeca.get(pecaDe(f));
+    if (!e) return [f];
+    return [...e.conference, ...e.delivery]
+      .sort((a, b) => new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime());
+  };
+
+  // ═══════════════════════════════════════════════════════════════════════
+  // AGRUPAMENTO POR DIA
+  //
+  // A grade era plana: dezenas de cartões seguidos, sem marco temporal, e a
+  // única referência era "Exibindo 60 de 240". Um acervo fotográfico se lê em
+  // ordem de tempo — a pergunta é "o que entrou hoje".
+  //
+  // Agrupa a FATIA VISÍVEL, não `filtered` inteiro. "Carregar mais" traz 60 de
+  // cada vez e pode partir um dia no meio: isso é aceitável (o grupo seguinte
+  // continua), mas contar sobre `filtered` faria o cabeçalho anunciar um
+  // número que não está na tela.
+  //
+  // O índice de cada foto em `filtered` viaja junto: é ele que o zoom usa, e
+  // as setas ← → têm de continuar percorrendo o acervo filtrado inteiro, não
+  // o grupo.
+  // ═══════════════════════════════════════════════════════════════════════
+  const gruposPorDia = useMemo(() => {
+    const hoje = new Date();
+    const out: { rotulo: string; fotos: { p: Photo; idx: number }[] }[] = [];
+    filtered.slice(0, visible).forEach((p, idx) => {
+      const rotulo = p.createdAt ? rotuloDoDia(p.createdAt, hoje) : "Sem data";
+      const ultimo = out[out.length - 1];
+      if (ultimo && ultimo.rotulo === rotulo) ultimo.fotos.push({ p, idx });
+      else out.push({ rotulo, fotos: [{ p, idx }] });
+    });
+    return out;
+  }, [filtered, visible]);
+
+  // Foto que o clique no par pediu e que ainda nao entrou em `filtered`
+  // porque o filtro de tipo a excluia. O efeito abaixo abre quando ela chegar.
+  const [alvoDoPar, setAlvoDoPar] = useState<string | null>(null);
+  useEffect(() => {
+    if (!alvoDoPar) return;
+    const i = filtered.findIndex(f => f.id === alvoDoPar);
+    if (i < 0) return;
+    setZoomIdx(i);
+    setAlvoDoPar(null);
+  }, [alvoDoPar, filtered]);
+
+  const qtdFiltros = kindFilter.length + eventFilter.length + (period !== "Todos" ? 1 : 0);
+
+  // Bottom sheet dos filtros — só no celular.
+  const [sheetAberto, setSheetAberto] = useState(false);
+
   const [zoomLoading, setZoomLoading] = useState(false);
   useEffect(() => { if (zoomIdx != null) setZoomLoading(true); }, [zoomIdx]);
 
@@ -277,7 +396,7 @@ export default function Registros() {
           </div>
 
           {/* Contadores — refletem os filtros ativos e servem de atalho de filtro */}
-          <div style={{ display: "flex", gap: 24, margin: "16px 0" }}>
+          <div style={{ display: "flex", gap: isMobile ? 8 : 24, margin: "16px 0" }}>
             {([
               ["Total", counts.total, T.text, null],
               ["Conferências", counts.conference, KIND.conference.color, "conference"],
@@ -289,15 +408,27 @@ export default function Registros() {
               // agora recua trocando a COR para o cinza AA do tema e o peso
               // para 600 — legível e visivelmente secundário.
               const dim = !(active || kindFilter.length === 0);
+              // NO CELULAR ELES SAO ALVO DE TOQUE, nao so numero. Um texto de
+              // 11px com sublinhado de 2px e um alvo de ~14px de altura; o
+              // cartao de 56px com borda na cor do tipo diz que e clicavel e
+              // cabe no dedo.
               return (
                 <button key={label} className="group"
                   onClick={() => { setKindFilter(kind && !active ? [kind] : []); setVisible(PAGE_SIZE); }}
                   data-testid={`stat-${kind ?? "total"}`}
                   aria-pressed={active}
                   title={kind ? `Ver só ${label.toLowerCase()}` : "Ver tudo"}
-                  style={{ background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" }}>
-                  <p style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: dim ? 600 : 700, fontSize: FS.h2, color: dim ? T.second : color, margin: 0, lineHeight: 1, transition: "color 0.15s" }}>{n}</p>
-                  <p className="group-hover:opacity-80" style={{ fontSize: FS.small, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: T.second, margin: "4px 0 0", borderBottom: active && kind ? `2px solid ${color}` : "2px solid transparent", paddingBottom: 2, transition: "border-color 0.15s" }}>{label}</p>
+                  style={isMobile
+                    ? {
+                        flex: 1, minWidth: 0, minHeight: 56, padding: "8px 10px",
+                        display: "flex", flexDirection: "column", justifyContent: "center",
+                        backgroundColor: T.surface, borderRadius: R.md,
+                        border: `1px solid ${active && kind ? color : T.border}`,
+                        textAlign: "left", cursor: "pointer",
+                      }
+                    : { background: "none", border: "none", padding: 0, textAlign: "left", cursor: "pointer" }}>
+                  <p style={{ fontFamily: '"Space Grotesk", sans-serif', fontWeight: dim ? 600 : 700, fontSize: isMobile ? 20 : FS.h2, color: dim ? T.second : color, margin: 0, lineHeight: 1, transition: "color 0.15s" }}>{n}</p>
+                  <p className="group-hover:opacity-80" style={{ fontSize: FS.small, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: T.second, margin: "4px 0 0", borderBottom: !isMobile && active && kind ? `2px solid ${color}` : "2px solid transparent", paddingBottom: 2, transition: "border-color 0.15s", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{label}</p>
                 </button>
               );
             })}
@@ -317,6 +448,29 @@ export default function Registros() {
                 style={{ width: "100%", height: controlHeight, padding: "0 12px 0 34px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: T.surface, fontSize: FS.body, color: T.text }}
               />
             </div>
+            {/* NO CELULAR OS QUATRO GATILHOS NÃO CABEM. Lado a lado eles
+                estouram 390px e embrulham em três fileiras, empurrando a grade
+                para fora da primeira tela — numa tela cujo conteúdo é
+                justamente a grade. Viram um botão só, com o selo de quantos
+                filtros estão ativos, e as opções vão para um sheet onde cada
+                linha tem 48px em vez de 28. */}
+            {isMobile ? (
+              <button
+                type="button"
+                onClick={() => setSheetAberto(true)}
+                aria-haspopup="dialog"
+                aria-label={qtdFiltros > 0 ? `Filtros (${qtdFiltros} ativos)` : "Filtros"}
+                data-testid="button-open-filters"
+                style={{ position: "relative", width: 44, height: 44, flexShrink: 0, borderRadius: R.md, border: `1px solid ${qtdFiltros > 0 ? "#c2410c" : T.border}`, backgroundColor: T.surface, color: qtdFiltros > 0 ? "#c2410c" : T.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+              >
+                <SlidersHorizontal style={{ width: 18, height: 18 }} />
+                {qtdFiltros > 0 && (
+                  <span style={{ position: "absolute", top: -6, right: -6, minWidth: 18, height: 18, borderRadius: R.pill, backgroundColor: "#c2410c", color: "#ffffff", fontSize: 10, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 5px" }}>
+                    {qtdFiltros}
+                  </span>
+                )}
+              </button>
+            ) : (<>
             <FilterSelect
               label="Todos os tipos"
               testId="filter-kind"
@@ -357,7 +511,8 @@ export default function Registros() {
               testId="select-period-filter"
               triggerStyle={{ height: controlHeight }}
             />
-            {hasFilters && (
+            </>)}
+            {hasFilters && !isMobile && (
               <button onClick={clearAll} data-testid="button-clear-filters" className="hover:bg-black/[0.03]"
                 style={{ display: "inline-flex", alignItems: "center", minHeight: isMobile ? 44 : 34, fontSize: FS.small, fontWeight: 600, color: T.second, background: "none", border: `1px solid ${T.border}`, borderRadius: R.pill, cursor: "pointer", padding: "0 14px", transition: "background-color 0.15s" }}>
                 Limpar tudo
@@ -372,10 +527,12 @@ export default function Registros() {
         {isLoading ? (
           /* Skeleton com a silhueta dos cards reais (foto + legenda) — o
              spinner central deixava a tela em branco e causava layout shift. */
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 20 }} aria-busy="true" aria-label="Carregando registros">
+          <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(220px, 1fr))", gap: 20 }} aria-busy="true" aria-label="Carregando registros">
             {[0, 1, 2, 3, 4, 5, 6, 7].map(i => (
               <div key={i} style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: "hidden" }}>
-                <div className="animate-pulse" style={{ width: "100%", aspectRatio: "4/3", backgroundColor: T.low }} />
+                {/* A MESMA proporção do cartão real: com 4:3 aqui e 1:1 lá, a
+                    grade saltava de altura no instante em que a lista chegava. */}
+                <div className="animate-pulse" style={{ width: "100%", aspectRatio: "1/1", backgroundColor: T.low }} />
                 <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 8 }}>
                   <div className="animate-pulse" style={{ width: "70%", height: 12, borderRadius: 4, backgroundColor: "#e7e5e4" }} />
                   <div className="animate-pulse" style={{ width: "45%", height: 10, borderRadius: 4, backgroundColor: T.low }} />
@@ -422,8 +579,37 @@ export default function Registros() {
                 </p>
               )}
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 20 }}>
-              {filtered.slice(0, visible).map((p, idx) => {
+            {gruposPorDia.map(grupo => (
+              <div key={grupo.rotulo} style={{ marginBottom: 26 }}>
+                {/* CABEÇALHO DO DIA.
+
+                    `top` negativo: o contêiner rolável tem 24px de padding, e
+                    sem compensar isso o rótulo gruda 24px abaixo do topo,
+                    deixando uma faixa de cartões passando por cima.
+
+                    Gradiente em vez de fundo chapado com borda: uma borda dura
+                    corta a foto que passa por baixo dela na rolagem; o
+                    gradiente entrega o texto legível e some. */}
+                <div
+                  data-testid={`group-day-${grupo.rotulo}`}
+                  style={{
+                    position: "sticky", top: -24, zIndex: 2,
+                    display: "flex", alignItems: "center", gap: 10,
+                    padding: "10px 0 12px",
+                    background: "linear-gradient(#f9f9f8 78%, rgba(249,249,248,0))",
+                  }}
+                >
+                  <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 13, fontWeight: 700, color: "#1a1c1c", whiteSpace: "nowrap" }}>
+                    {grupo.rotulo}
+                  </span>
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#57534e", whiteSpace: "nowrap" }}>
+                    {grupo.fotos.length} {grupo.fotos.length === 1 ? "registro" : "registros"}
+                  </span>
+                  <span aria-hidden="true" style={{ flex: 1, height: 1, backgroundColor: "#e7e5e4" }} />
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(auto-fill, minmax(220px, 1fr))", gap: 20 }}>
+              {grupo.fotos.map(({ p, idx }) => {
                 const k = KIND[kindOf(p)];
                 const Icon = k.icon;
                 const notes = kindOf(p) === "conference" ? p.conferenceNotes : p.deliveryNotes;
@@ -433,11 +619,18 @@ export default function Registros() {
                     onMouseEnter={e => { e.currentTarget.style.boxShadow = SHADOW.md; e.currentTarget.style.transform = "translateY(-2px)"; }}
                     onMouseLeave={e => { e.currentTarget.style.boxShadow = SHADOW.sm; e.currentTarget.style.transform = "translateY(0)"; }}
                   >
+                    <div style={{ position: "relative" }}>
                     <button
                       onClick={() => setZoomIdx(idx)}
                       title="Ampliar"
                       aria-label={`Ampliar: ${altOf(p)}`}
-                      style={{ display: "block", position: "relative", width: "100%", aspectRatio: "4/3", border: "none", padding: 0, backgroundColor: T.low, cursor: "zoom-in" }}
+                      /* QUADRADO, não 4:3. As fotos da Gráfica vêm em
+                         orientações misturadas, e 4:3 com `objectFit: cover`
+                         corta topo e base de qualquer foto em pé — justo onde
+                         a peça está, porque banner e placa são o assunto
+                         vertical. O quadrado recorta as duas orientações
+                         igualmente pouco e mantém o ritmo da grade. */
+                      style={{ display: "block", position: "relative", width: "100%", aspectRatio: "1/1", border: "none", padding: 0, backgroundColor: T.low, cursor: "zoom-in" }}
                     >
                       {/* lazy: a grade carrega dezenas de fotos; sem isso o
                           navegador baixa todas de uma vez ao abrir a tela. */}
@@ -475,6 +668,32 @@ export default function Registros() {
                       </span>
                     </button>
 
+                    {/* BAIXAR SEM ABRIR. Salvar é a ação natural de um acervo
+                        que serve de comprovante, e era alcançável só de dentro
+                        do zoom: para guardar seis fotos era preciso abrir seis.
+                        Fora do <button> da foto, porque um botão dentro de
+                        outro é HTML inválido — e `position: absolute` sobre o
+                        cartão põe no mesmo lugar. */}
+                    <button
+                      onClick={e => { e.stopPropagation(); baixar(p); }}
+                      disabled={baixando}
+                      title="Baixar esta foto"
+                      aria-label={`Baixar: ${altOf(p)}`}
+                      data-testid={`button-card-download-${p.id}`}
+                      style={{
+                        position: "absolute", right: 8, bottom: 8,
+                        width: isMobile ? 44 : 30, height: isMobile ? 44 : 30, borderRadius: R.pill,
+                        border: "none", backgroundColor: "rgba(28,25,23,0.6)", color: "#ffffff",
+                        cursor: baixando ? "wait" : "pointer", display: "flex", alignItems: "center", justifyContent: "center",
+                        padding: 0, zIndex: 1,
+                      }}
+                    >
+                      {baixando
+                        ? <Loader2 className="animate-spin" style={{ width: 14, height: 14 }} />
+                        : <Download style={{ width: 14, height: 14 }} />}
+                    </button>
+                    </div>
+
                     <div style={{ padding: 12, display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
                       <p style={{ fontSize: FS.body, fontWeight: 700, color: T.text, margin: 0, lineHeight: 1.3 }}>
                         {p.itemType || "Peça removida"}
@@ -504,7 +723,77 @@ export default function Registros() {
                         </p>
                       )}
 
-                      <div style={{ marginTop: "auto", paddingTop: 6, borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", gap: 8 }}>
+                      {/* ── O PAR ──
+                          A pergunta central deste acervo é "a peça foi entregue
+                          como foi conferida?". As duas fotos que respondem isso
+                          eram cartões independentes, a dezenas de posições de
+                          distância — e, com o agrupamento por dia, quase sempre
+                          em grupos diferentes.
+
+                          A AUSÊNCIA também é informação, e as duas direções
+                          dizem coisas diferentes: faltar a entrega é trabalho
+                          em curso; faltar a conferência é uma peça que SAIU sem
+                          conferência registrada. */}
+                      {(() => {
+                        const outra = contraparteDe(p);
+                        const ehConferencia = kindOf(p) === "conference";
+                        if (!outra) {
+                          return (
+                            <p style={{ marginTop: "auto", fontSize: FS.small, color: "#92400e", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: R.sm, padding: "7px 9px", margin: "auto 0 0", lineHeight: 1.4 }}>
+                              {ehConferencia ? "Sem foto de entrega ainda" : "Entregue sem foto de conferência"}
+                            </p>
+                          );
+                        }
+                        const ko = KIND[kindOf(outra)];
+                        // O índice da contraparte na lista FILTRADA. Quando ela
+                        // não passa no filtro em vigor (ex.: filtro de tipo em
+                        // "Conferência"), o zoom não tem para onde ir — então o
+                        // clique limpa o filtro de tipo antes de abrir, em vez
+                        // de não fazer nada.
+                        const idxOutra = filtered.findIndex(f => f.id === outra.id);
+                        return (
+                          <button
+                            type="button"
+                            onClick={e => {
+                              e.stopPropagation();
+                              if (idxOutra >= 0) { setZoomIdx(idxOutra); return; }
+                              // A contraparte não passa no filtro de tipo em
+                              // vigor. Limpa o filtro e ANOTA quem abrir; o
+                              // efeito abaixo abre quando ela entrar em
+                              // `filtered`. Sem a anotação o clique não faria
+                              // nada visível e pareceria um botão quebrado.
+                              setKindFilter([]);
+                              setAlvoDoPar(outra.id);
+                            }}
+                            title={`Abrir a foto de ${ko.label.toLowerCase()} desta peça`}
+                            data-testid={`button-pair-${p.id}`}
+                            style={{
+                              marginTop: "auto", width: "100%",
+                              minHeight: isMobile ? 52 : 44, padding: "7px 9px",
+                              display: "flex", alignItems: "center", gap: 9,
+                              backgroundColor: ko.bg, border: `1px solid ${ko.border}`,
+                              borderRadius: R.sm, cursor: "pointer", font: "inherit", textAlign: "left",
+                            }}
+                          >
+                            <img
+                              src={srcOf(outra)} alt="" aria-hidden="true" loading="lazy"
+                              style={{ width: 26, height: 26, borderRadius: R.sm, objectFit: "cover", flexShrink: 0, backgroundColor: T.low }}
+                              onError={e => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }}
+                            />
+                            <span style={{ minWidth: 0, flex: 1 }}>
+                              <span style={{ display: "block", fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: ko.color }}>
+                                {ehConferencia ? "Ver a entrega" : "Ver a conferência"}
+                              </span>
+                              <span style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#57534e" }}>
+                                {fmt(outra.createdAt)}
+                              </span>
+                            </span>
+                            <ChevronRight aria-hidden="true" style={{ width: 14, height: 14, color: ko.color, flexShrink: 0 }} />
+                          </button>
+                        );
+                      })()}
+
+                      <div style={{ paddingTop: 6, borderTop: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", gap: 8 }}>
                         <span style={{ fontSize: FS.small, color: T.second }}>{fmt(p.createdAt)}</span>
                         <span style={{ fontSize: FS.small, color: T.second, textAlign: "right", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                           {kindOf(p) === "delivery" && p.receivedBy ? `Recebido: ${p.receivedBy}` : (p.uploadedBy || "")}
@@ -514,7 +803,9 @@ export default function Registros() {
                   </div>
                 );
               })}
-            </div>
+                </div>
+              </div>
+            ))}
 
             {visible < filtered.length && (
               <div style={{ display: "flex", justifyContent: "center", marginTop: 20 }}>
@@ -527,6 +818,92 @@ export default function Registros() {
           </>
         )}
       </div>
+
+      {/* ══════════════════════════════════════════════════════════════════
+          FILTROS NO CELULAR — bottom sheet.
+
+          Os quatro gatilhos lado a lado estouram 390px e embrulham em três
+          fileiras, empurrando a grade para fora da primeira tela — numa tela
+          cujo conteúdo É a grade. Aqui cada opção tem 48px de altura em vez
+          dos 28 de um item de menu, e o rodapé diz o resultado antes de
+          fechar: "Ver N registros".
+
+          Dialog e não um <div> fixo, pelo mesmo motivo do zoom: foco preso,
+          fundo sem rolagem, foco devolvido, e o leitor de tela anunciando a
+          abertura.
+      ══════════════════════════════════════════════════════════════════ */}
+      <Dialog open={sheetAberto} onOpenChange={setSheetAberto}>
+        <DialogContent
+          className="p-0 gap-0 [&>button]:hidden"
+          data-testid="sheet-filters"
+          style={{
+            width: "100vw", maxWidth: "100vw",
+            top: "auto", bottom: 0, left: 0, right: 0, transform: "none",
+            maxHeight: "85dvh", borderRadius: "16px 16px 0 0",
+            display: "flex", flexDirection: "column", backgroundColor: T.surface,
+          }}
+        >
+          <DialogTitle className="sr-only">Filtros dos registros</DialogTitle>
+          <DialogDescription className="sr-only">Escolha tipo, evento e período</DialogDescription>
+
+          <div style={{ flexShrink: 0, padding: "14px 16px", borderBottom: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+            <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 16, fontWeight: 700, color: T.text }}>Filtros</span>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {hasFilters && (
+                <button type="button" onClick={() => { clearAll(); setVisible(PAGE_SIZE); }}
+                  data-testid="button-clear-filters"
+                  style={{ minHeight: 44, padding: "0 12px", borderRadius: R.pill, border: `1px solid ${T.border}`, background: "none", color: T.second, font: "inherit", fontSize: FS.small, fontWeight: 600, cursor: "pointer" }}>
+                  Limpar tudo
+                </button>
+              )}
+              <button type="button" onClick={() => setSheetAberto(false)} aria-label="Fechar"
+                style={{ width: 44, height: 44, borderRadius: R.pill, border: "none", background: T.low, color: T.text, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <X style={{ width: 18, height: 18 }} />
+              </button>
+            </div>
+          </div>
+
+          <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: "4px 0 8px" }}>
+            {([
+              { titulo: "Tipo",    opcoes: kindOptions,   marcadas: kindFilter,  alterna: (v: string) => setKindFilter(kindFilter.includes(v) ? kindFilter.filter(x => x !== v) : [...kindFilter, v]), cor: (v: string) => KIND[v as Kind]?.color },
+              { titulo: "Evento",  opcoes: eventOptions,  marcadas: eventFilter, alterna: (v: string) => setEventFilter(eventFilter.includes(v) ? eventFilter.filter(x => x !== v) : [...eventFilter, v]), cor: () => "#c2410c" },
+              // Período é escolha única: marcar um desmarca o anterior.
+              { titulo: "Período", opcoes: periodOptions, marcadas: period === "Todos" ? [] : [period], alterna: (v: string) => setPeriod(period === v ? "Todos" : (v as Period)), cor: () => "#78716c" },
+            ] as const).map(grupo => (
+              <div key={grupo.titulo} style={{ padding: "8px 0" }}>
+                <p style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7a6154", margin: "0 16px 4px" }}>
+                  {grupo.titulo}
+                </p>
+                {grupo.opcoes.map((o: any) => {
+                  const marcada = (grupo.marcadas as readonly string[]).includes(o.value);
+                  return (
+                    <button
+                      key={o.value}
+                      type="button"
+                      role="checkbox"
+                      aria-checked={marcada}
+                      onClick={() => { grupo.alterna(o.value); setVisible(PAGE_SIZE); }}
+                      style={{ width: "100%", minHeight: 48, padding: "0 16px", display: "flex", alignItems: "center", gap: 10, border: "none", background: marcada ? T.low : "none", font: "inherit", textAlign: "left", cursor: "pointer" }}
+                    >
+                      <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: grupo.cor(o.value) || "#78716c", flexShrink: 0 }} />
+                      <span style={{ flex: 1, minWidth: 0, fontSize: FS.body, color: T.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.label}</span>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#57534e", flexShrink: 0 }}>{o.count}</span>
+                      {marcada && <Check aria-hidden="true" style={{ width: 16, height: 16, color: "#c2410c", flexShrink: 0 }} />}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
+
+          <div style={{ flexShrink: 0, padding: 12, borderTop: `1px solid ${T.border}` }}>
+            <button type="button" onClick={() => setSheetAberto(false)}
+              style={{ width: "100%", minHeight: 48, borderRadius: R.md, border: "none", backgroundColor: "#1c1917", color: "#ffffff", font: "inherit", fontSize: FS.body, fontWeight: 700, cursor: "pointer" }}>
+              Ver {filtered.length} {filtered.length === 1 ? "registro" : "registros"}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Zoom ──────────────────────────────────────────────────────────
           Era um <div> fixo sobre a página. Como o recurso central da tela, é o
@@ -550,7 +927,18 @@ export default function Registros() {
           // rolagem: num lightbox a resposta certa é a foto encolher. Por isso a
           // moldura da imagem é o item elástico (`flex: 1 1 auto` + `minHeight:
           // 0`) e a legenda não encolhe — a foto acompanha com `maxHeight: 100%`.
-          style={{ width: "96vw", maxWidth: 1280, maxHeight: "calc(100vh - 48px)", display: "flex", flexDirection: "column" }}
+          style={isMobile
+            ? {
+                // TELA CHEIA OPACA. Em 390px, 96vw com fundo transparente
+                // deixa a grade aparecendo nas beiradas e a foto disputa a
+                // atencao com ela. `dvh` porque `vh` conta a barra do
+                // navegador que se esconde — a legenda ficava embaixo dela.
+                width: "100vw", maxWidth: "100vw", height: "100dvh", maxHeight: "100dvh",
+                top: 0, left: 0, right: 0, bottom: 0, transform: "none",
+                borderRadius: 0, backgroundColor: "#0c0a09", padding: 12,
+                display: "flex", flexDirection: "column",
+              }
+            : { width: "96vw", maxWidth: 1280, maxHeight: "calc(100vh - 48px)", display: "flex", flexDirection: "column" }}
         >
           <DialogTitle className="sr-only">
             {zoom ? altOf(zoom) : "Registro"}
@@ -578,14 +966,14 @@ export default function Registros() {
 
                 {/* Setas dentro da moldura da imagem: fora dela, em tela larga,
                     ficavam a meio metro da foto. */}
-                {zoomIdx! > 0 && (
+                {!isMobile && zoomIdx! > 0 && (
                   <button onClick={() => stepZoom(-1)} title="Anterior (←)" aria-label="Registro anterior"
                     data-testid="button-zoom-prev"
                     style={{ position: "absolute", left: 12, width: 44, height: 44, borderRadius: R.pill, border: "none", backgroundColor: "rgba(28,25,23,0.55)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <ChevronLeft style={{ width: 22, height: 22 }} />
                   </button>
                 )}
-                {zoomIdx! < filtered.length - 1 && (
+                {!isMobile && zoomIdx! < filtered.length - 1 && (
                   <button onClick={() => stepZoom(1)} title="Próxima (→)" aria-label="Próximo registro"
                     data-testid="button-zoom-next"
                     style={{ position: "absolute", right: 12, width: 44, height: 44, borderRadius: R.pill, border: "none", backgroundColor: "rgba(28,25,23,0.55)", color: "#fff", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -610,6 +998,71 @@ export default function Registros() {
                       “{kindOf(zoom) === "conference" ? zoom.conferenceNotes : zoom.deliveryNotes}”
                     </p>
                   )}
+
+                  {/* ── MESMA PEÇA ──
+                      Dois eixos de navegação, de propósito: as setas ← → andam
+                      no ACERVO (a lista filtrada inteira), esta faixa anda na
+                      PEÇA. Sem ela, comparar conferência com entrega da mesma
+                      peça exigia fechar o zoom, achar o outro cartão na grade e
+                      abrir de novo — e as duas costumam estar em dias
+                      diferentes, portanto em grupos diferentes.
+
+                      Trocar aqui NÃO fecha o diálogo: só muda o índice. */}
+                  {(() => {
+                    const daPeca = fotosDaPeca(zoom);
+                    if (daPeca.length < 2) return null;
+                    return (
+                      <div data-testid="strip-same-item" style={{ marginTop: 10 }}>
+                        <p style={{ fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "rgba(255,255,255,0.65)", margin: "0 0 6px" }}>
+                          Mesma peça
+                        </p>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          {daPeca.map(f => {
+                            const atual = f.id === zoom.id;
+                            const kf = KIND[kindOf(f)];
+                            const i = filtered.findIndex(x => x.id === f.id);
+                            // Fora do filtro em vigor, a ficha aparece mas não
+                            // leva a lugar nenhum — dizer isso é melhor que
+                            // escondê-la, porque a foto EXISTE.
+                            const alcancavel = i >= 0;
+                            return (
+                              <button
+                                key={f.id}
+                                type="button"
+                                onClick={() => { if (alcancavel && !atual) setZoomIdx(i); }}
+                                disabled={atual || !alcancavel}
+                                aria-current={atual || undefined}
+                                title={atual ? "Você está vendo esta" : alcancavel ? `Ver a ${kf.label.toLowerCase()}` : `${kf.label} — fora do filtro em vigor`}
+                                style={{
+                                  display: "flex", alignItems: "center", gap: 8,
+                                  minHeight: 44, padding: "5px 10px 5px 5px", borderRadius: R.md,
+                                  backgroundColor: atual ? "rgba(255,255,255,0.18)" : "transparent",
+                                  border: `1px solid ${atual ? "rgba(255,255,255,0.35)" : "rgba(255,255,255,0.15)"}`,
+                                  color: "#ffffff", font: "inherit",
+                                  cursor: atual ? "default" : alcancavel ? "pointer" : "not-allowed",
+                                  opacity: alcancavel || atual ? 1 : 0.5,
+                                }}
+                              >
+                                <img
+                                  src={srcOf(f)} alt="" aria-hidden="true" loading="lazy"
+                                  style={{ width: 34, height: 34, borderRadius: R.sm, objectFit: "cover", flexShrink: 0, backgroundColor: "rgba(255,255,255,0.1)" }}
+                                  onError={e => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }}
+                                />
+                                <span style={{ textAlign: "left" }}>
+                                  <span style={{ display: "block", fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                                    {kf.label}
+                                  </span>
+                                  <span style={{ display: "block", fontFamily: "'DM Mono', monospace", fontSize: 11, color: "rgba(255,255,255,0.75)" }}>
+                                    {fmt(f.createdAt)}
+                                  </span>
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>

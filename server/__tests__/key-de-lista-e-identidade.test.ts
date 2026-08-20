@@ -73,8 +73,12 @@ describe("key de lista é identidade, não conteúdo", () => {
   });
 
   it("o agrupador de tipo do Vincular ancora no id da peça", () => {
+    // O prefixo virou `tipo-` quando as duas arvores da tela se fundiram numa
+    // tabela so; a regra que este teste guarda e outra e continua de pe — a
+    // key sai do ID da primeira peca do tipo, nunca do `item.type`, que e o
+    // campo que o usuario RENOMEIA.
     const fonte = readFileSync(path.join(RAIZ, "pages/vincular-patrocinadores.tsx"), "utf8");
-    expect(fonte).toContain("key={`type-${item.id}`}");
+    expect(fonte).toContain("key={`tipo-${item.id}`}");
     expect(fonte).not.toContain("key={`type-${item.type}-${itemIndex}`}");
   });
 });

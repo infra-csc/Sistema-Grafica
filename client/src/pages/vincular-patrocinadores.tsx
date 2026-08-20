@@ -20,7 +20,7 @@ import { ptBR } from "date-fns/locale";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
-import { R, onColor } from "@/lib/theme";
+import { R, onColor, darkenToContrast } from "@/lib/theme";
 import {
   isEventoFinalizado, motivoEventoFinalizado, avisoPecasOcultas, todayBusinessMs,
 } from "@/lib/status";
@@ -213,6 +213,21 @@ export default function VincularPatrocinadores() {
   // Blocos (evento ou grupo de patrocinador) com todas as linhas visíveis
   const [showAllRows, setShowAllRows] = useState<Set<string>>(new Set());
 
+  // Menu de ações secundárias da linha — um por vez, para que abrir o de uma
+  // peça feche o da anterior.
+  const [menuDaLinha, setMenuDaLinha] = useState<string | null>(null);
+  // Cabeçalhos de tipo fechados, por `${grupo}:${tipo}`.
+  const [tiposColapsados, setTiposColapsados] = useState<Set<string>>(new Set());
+
+  // Clique fora fecha o menu da linha. Sem isto, abrir um menu e clicar
+  // noutro lugar deixava o painel pendurado sobre a tabela.
+  useEffect(() => {
+    if (!menuDaLinha) return;
+    const fecha = () => setMenuDaLinha(null);
+    window.addEventListener("click", fecha);
+    return () => window.removeEventListener("click", fecha);
+  }, [menuDaLinha]);
+
   // Filtros e aba refletidos na URL via replaceState (não polui o histórico)
   useEffect(() => {
     const p = new URLSearchParams();
@@ -240,8 +255,6 @@ export default function VincularPatrocinadores() {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Seleção em lote na aba "Por Patrocinador"
-  const [sponsorBulkSelected, setSponsorBulkSelected] = useState<Set<string>>(new Set());
   const [optimisticSentIds, setOptimisticSentIds] = useState<Set<string>>(new Set());
 
   const [sendConfirmModal, setSendConfirmModal] = useState<SendConfirmModal | null>(null);
@@ -249,8 +262,6 @@ export default function VincularPatrocinadores() {
   const [isSending, setIsSending] = useState(false);
 
 
-  // Estado para expandir a lista de patrocinadores por item (quando há muitos)
-  const [expandedSponsorCells, setExpandedSponsorCells] = useState<Set<string>>(new Set());
 
   // Estados auto-vincular por cota
   // preview: array de { sponsorId, sponsorName, quota, items: [{ itemId, displayId, type, description }] }
@@ -258,24 +269,6 @@ export default function VincularPatrocinadores() {
   const [autoLinkPreview, setAutoLinkPreview] = useState<any[] | null>(null);
   const [autoLinkLoading, setAutoLinkLoading] = useState(false);
   const [autoLinkConfirming, setAutoLinkConfirming] = useState(false);
-
-  // Estado para colapsar grupos de patrocinadores na view Por Patrocinador
-  const [collapsedSponsorGroups, setCollapsedSponsorGroups] = useState<Set<string>>(new Set());
-  const toggleSponsorGroupCollapse = (key: string) => {
-    setCollapsedSponsorGroups(prev => {
-      const n = new Set(prev);
-      n.has(key) ? n.delete(key) : n.add(key);
-      return n;
-    });
-  };
-  const toggleSponsorExpand = (itemId: string) => {
-    setExpandedSponsorCells(prev => {
-      const n = new Set(prev);
-      n.has(itemId) ? n.delete(itemId) : n.add(itemId);
-      return n;
-    });
-  };
-
 
   // Modal de confirmação de salvamento
   type SaveModal = { payloads: SavePayload[]; items: any[] };
@@ -441,7 +434,7 @@ export default function VincularPatrocinadores() {
 
   // `itemTypes` saiu: era a lista de tipos de TODA a fila visível alimentando o
   // menu de Peça sem contagem e sem respeitar os outros filtros. Quem faz isso
-  // agora é `itemFilterOptions`, mais abaixo, junto com `statusFilterOptions`.
+  // agora é `itemFilterOptions`, mais abaixo.
 
   // Estado para armazenar sponsors originais (do banco de dados) - DEVE VIR ANTES DE filterItems
   const [originalSponsorsMap, setOriginalSponsorsMap] = useState<Record<string, string[]>>({});
@@ -507,6 +500,9 @@ export default function VincularPatrocinadores() {
       return filteredItems.length > 0;
     });
   }, [itemsByEvent, eventById, searchQuery, eventFilter, sponsorFilter, itemFilter, statusFilter, originalSponsorsMap, pendingChanges]);
+
+  const temFiltroAtivo = !!searchQuery || eventFilter.length > 0 || sponsorFilter.length > 0
+                       || itemFilter.length > 0 || statusFilter.length > 0;
 
   // ===== FONTE ÚNICA DE VERDADE: Computar estados UI de todos os items =====
   const itemUIStates = useMemo(() => {
@@ -634,21 +630,6 @@ export default function VincularPatrocinadores() {
     poolSemDimensao("tipo").forEach(i => conta.set(i.type, (conta.get(i.type) ?? 0) + 1));
     return Array.from(conta.entries()).map(([t, count]) => ({ value: t, label: t, count }));
   }, [contextVisibleItems, eventById, searchQuery, sponsorFilter, statusFilter, originalSponsorsMap, pendingChanges]);
-
-  const statusFilterOptions = useMemo(() => {
-    const ROTULO: Record<string, string> = { PENDENTE: "Pendente", RASCUNHO: "Rascunho", PRONTO: "Pronto", ENVIADO: "Enviado" };
-    const conta = new Map<string, number>();
-    poolSemDimensao("status").forEach(i => {
-      const st = getItemUIStatus(i, originalSponsorsMap[i.id] || [], pendingChanges[i.id]);
-      conta.set(st, (conta.get(st) ?? 0) + 1);
-    });
-    // A ordem é a do FLUXO (Pendente → Rascunho → Pronto → Enviado), não a
-    // alfabética; `pinned` é o que faz o FilterSelect respeitá-la. Situações
-    // sem nenhuma peça saem da lista — o clique nelas devolveria vazio.
-    return ["PENDENTE", "RASCUNHO", "PRONTO", "ENVIADO"]
-      .filter(v => (conta.get(v) ?? 0) > 0 || statusFilter.includes(v))
-      .map(v => ({ value: v, label: ROTULO[v], count: conta.get(v) ?? 0, pinned: true }));
-  }, [contextVisibleItems, eventById, searchQuery, itemFilter, sponsorFilter, statusFilter, originalSponsorsMap, pendingChanges]);
 
   // ── AS DUAS CONTAGENS, e o papel de cada uma ─────────────────────────────
   //
@@ -1064,23 +1045,6 @@ export default function VincularPatrocinadores() {
     });
   };
 
-  const toggleTypeGroup = (typeItems: any[]) => {
-    const selectableItems = typeItems.filter(item => {
-      const s = itemUIStates[item.id] || 'PENDENTE';
-      return s === 'PENDENTE' || s === 'RASCUNHO';
-    });
-    const allSelected = selectableItems.length > 0 && selectableItems.every(item => selectedItemIds.has(item.id));
-    setSelectedItemIds(prev => {
-      const newSet = new Set(prev);
-      if (allSelected) {
-        selectableItems.forEach(item => newSet.delete(item.id));
-      } else {
-        selectableItems.forEach(item => newSet.add(item.id));
-      }
-      return newSet;
-    });
-  };
-
   const handleOpenBulkApplyDialog = () => {
     setBulkSelectedSponsors([]);
     setBulkSkipApproval(false);
@@ -1189,136 +1153,441 @@ export default function VincularPatrocinadores() {
   };
 
 
-  // ── Dados agrupados para aba "Por Patrocinador" ──────────────────────────
-  // Estrutura: [{ event, sponsors: [{ sponsor, items: any[] }] }]
-  const sponsorGroupedData = useMemo(() => {
-    if (sponsors.length === 0) return [];
+  // ── OS GRUPOS DA LISTA ───────────────────────────────────────────────────
+  //
+  // Um derivado só para os dois agrupamentos. Antes o "por patrocinador"
+  // tinha a sua própria árvore de dados (`sponsorGroupedData`, três níveis:
+  // evento → patrocinador → itens) e separava as peças em `items` (já
+  // vinculadas) e `pendingItems` (as outras) — duas listas para o mesmo
+  // patrocinador, quando a operação que traz alguém aqui é justamente passar
+  // de uma para a outra. Agora o grupo traz TODAS as peças do evento e o chip
+  // marcado é que diz quais já têm a marca.
+  type GrupoDaLista = {
+    chave: string;
+    event: any;
+    /** Só no agrupamento por patrocinador. */
+    sponsor?: any;
+    itens: any[];
+    vinculadas: number;
+    total: number;
+  };
 
-    // Aplicar filtros de evento/tipo/busca/status
-    const filterFn = (item: any, eventName: string) => {
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase();
-        if (!item.type.toLowerCase().includes(q) &&
-            !item.description?.toLowerCase().includes(q) &&
-            !eventName.toLowerCase().includes(q)) return false;
-      }
-      if (itemFilter.length > 0 && !itemFilter.includes(item.type)) return false;
-      // Mesmo filtro de status da aba Por Item — antes o statusFilter era
-      // ignorado aqui e a aba parecia não responder ao filtro ativo.
-      if (statusFilter.length > 0) {
-        const orig = originalSponsorsMap[item.id] || [];
-        const pc = pendingChanges[item.id];
-        if (!statusFilter.includes(getItemUIStatus(item, orig, pc))) return false;
-      }
-      return true;
-    };
-
-    return Object.entries(itemsByEvent)
-      .filter(([eventId]) => {
-        if (eventFilter.length > 0 && !eventFilter.includes(eventId)) return false;
-        // eventById (lookup O(1) sobre todos os eventos), não events.find:
-        // consistente com a aba Por Item e sem varredura por item.
-        return !!eventById.get(eventId);
-      })
-      .map(([eventId, eventItems]) => {
+  const gruposDaLista = useMemo<GrupoDaLista[]>(() => {
+    if (agrupamento === 'evento') {
+      return filteredEventEntries.map(([eventId, eventItems]) => {
         const event = eventById.get(eventId)!;
-        const eventSponsorList = getEventSponsors(eventId);
-
-        // Filtrar por patrocinador selecionado no filtro
-        const sponsorsToShow = sponsorFilter.length > 0
-          ? eventSponsorList.filter(s => sponsorFilter.includes(s.id))
-          : eventSponsorList;
-
-        const sponsorGroups = sponsorsToShow.map(sponsor => {
-          const sponsorItems = eventItems.filter(item => {
-            const linked = originalSponsorsMap[item.id] || [];
-            return linked.includes(sponsor.id) && filterFn(item, event.name);
-          });
-
-          // Items PENDENTES deste patrocinador (sem ele vinculado)
-          const pendingItems = eventItems.filter(item => {
-            const linked = originalSponsorsMap[item.id] || [];
-            return !linked.includes(sponsor.id) && filterFn(item, event.name);
-          });
-
-          return { sponsor, items: sponsorItems, pendingItems };
-        });
-
-        // Totais
-        const totalItems = eventItems.filter(i => filterFn(i, event.name)).length;
-        const linkedCount = eventItems.filter(i => {
-          const linked = originalSponsorsMap[i.id] || [];
-          return linked.length > 0 || i.skipApproval;
-        }).length;
-
-        return { event, sponsorGroups, totalItems, linkedCount };
-      })
-      .filter(g => g.sponsorGroups.some(sg => sg.items.length > 0 || sg.pendingItems.length > 0) || g.totalItems > 0);
-  }, [itemsByEvent, eventById, sponsors, originalSponsorsMap, pendingChanges, searchQuery, itemFilter, eventFilter, sponsorFilter, statusFilter]);
-
-  // Contagem de patrocinadores totalmente vinculados (todos os itens do evento têm esse patrocinador)
-  const sponsorLinkStats = useMemo(() => {
-    let total = 0, fullyLinked = 0;
-    events.forEach(event => {
-      const eventSponsorList = getEventSponsors(event.id);
-      eventSponsorList.forEach(sponsor => {
-        total++;
-        const eventItemIds = (itemsByEvent[event.id] || []).map(i => i.id);
-        if (eventItemIds.length > 0 && eventItemIds.every(id => (originalSponsorsMap[id] || []).includes(sponsor.id))) {
-          fullyLinked++;
-        }
+        const itens = filterItems(eventItems as any[], event.name);
+        const progresso = calculateProgress(itens);
+        return { chave: eventId, event, itens, vinculadas: progresso.completed, total: progresso.total };
       });
-    });
-    return { total, fullyLinked };
-  }, [events, itemsByEvent, originalSponsorsMap, sponsors]);
+    }
 
-  // Toggle seleção em lote por patrocinador (aba "Por Patrocinador")
-  // Chave composta "itemId::sponsorId" para isolar seleção por grupo
-  const sponsorKey = (itemId: string, sponsorId: string) => `${itemId}::${sponsorId}`;
+    const out: GrupoDaLista[] = [];
+    for (const [eventId, eventItems] of Object.entries(itemsByEvent)) {
+      if (eventFilter.length > 0 && !eventFilter.includes(eventId)) continue;
+      const event = eventById.get(eventId);
+      if (!event) continue;
+      const itens = filterItems(eventItems as any[], event.name);
+      if (itens.length === 0) continue;
+      const doEvento = getEventSponsors(eventId)
+        .filter(sp => sponsorFilter.length === 0 || sponsorFilter.includes(sp.id));
+      for (const sponsor of doEvento) {
+        const vinculadas = itens.filter(i => (itemSponsorsMap[i.id] ?? []).includes(sponsor.id)).length;
+        out.push({ chave: `${eventId}:${sponsor.id}`, event, sponsor, itens, vinculadas, total: itens.length });
+      }
+    }
+    return out;
+  }, [agrupamento, filteredEventEntries, itemsByEvent, eventById, eventFilter, sponsorFilter,
+      itemSponsorsMap, originalSponsorsMap, pendingChanges, searchQuery, itemFilter, statusFilter,
+      eventSponsorMap, sponsors]);
 
-  const toggleSponsorBulkItem = (itemId: string, sponsorId: string) => {
-    const key = sponsorKey(itemId, sponsorId);
-    setSponsorBulkSelected(prev => {
-      const next = new Set(prev);
-      next.has(key) ? next.delete(key) : next.add(key);
-      return next;
-    });
+  // Alvo dos controles dentro da linha. 44 no toque; no ponteiro a linha é
+  // densa de proposito — esta tela existe para varrer dezenas de pecas — e o
+  // desenho pede 26/30, abaixo dos 36 que a regua da casa usa em barra de
+  // ferramentas. Aqui o alvo real e a LINHA INTEIRA, que abre a peca no
+  // clique; estes botoes sao o refinamento dentro dela.
+  const ALVO = isMobile ? 44 : 30;
+
+  // ── Cabeçalho de coluna. #7a6154 e não o #746e69 de antes: sobre o #fafaf9
+  //    do thead, 4,4:1 não passa a régua da casa; este dá 5,5.
+  const THC: React.CSSProperties = {
+    padding: '9px 12px', textAlign: 'left',
+    fontSize: 11, fontWeight: 700, color: '#7a6154',
+    textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap',
+  };
+
+  /**
+   * Vincula um patrocinador a todas as peças que ainda não o têm — como
+   * RASCUNHO, igual a marcar um chip a um. Nada vai para o servidor até o
+   * "Salvar", que é o que torna a ação segura de oferecer no cabeçalho.
+   */
+  const vincularRestantes = (sponsorId: string, alvos: any[]) => {
+    if (alvos.length === 0) return;
+    const novosVinculos: Record<string, string[]> = {};
+    setPendingChanges(prev => {
+      const next = { ...prev };
+      for (const item of alvos) {
+        const atuais = itemSponsorsMap[item.id] ?? [];
+        if (atuais.includes(sponsorId)) continue;
+        const novos = [...atuais, sponsorId];
+        novosVinculos[item.id] = novos;
+        const originais = originalSponsorsMap[item.id] || [];
+        const skipOriginal = item.skipApproval || false;
+        // Vincular alguém e continuar "sem patrocinador" é contradição: o
+        // vínculo ganha, como já acontece ao marcar um chip.
+        const mudou = !areSponsorsEqual(novos, originais) || skipOriginal;
+        if (mudou) next[item.id] = { sponsorIds: novos, skipApproval: false, isDirty: true };
+        else delete next[item.id];
+      }
+      return next;
+    });
+    setItemSponsorsMap(prev => ({ ...prev, ...novosVinculos }));
+  };
+
+  /** Grava um conjunto novo de patrocinadores como rascunho local. */
+  const aplicarVinculo = (item: any, novos: string[], skip: boolean) => {
+    const originais = originalSponsorsMap[item.id] || [];
+    const skipOriginal = item.skipApproval || false;
+    const mudou = !areSponsorsEqual(novos, originais) || skip !== skipOriginal;
+    setPendingChanges(prev => {
+      if (!mudou) { const n = { ...prev }; delete n[item.id]; return n; }
+      return { ...prev, [item.id]: { sponsorIds: novos, skipApproval: skip, isDirty: true } };
+    });
+    setItemSponsorsMap(prev => ({ ...prev, [item.id]: novos }));
+  };
+
+  /**
+   * UMA LINHA DE TABELA POR PEÇA.
+   *
+   * Ocupava três a quatro linhas de altura: seis colunas (ID e Peça separadas,
+   * Detalhes com dois valores empilhados) e, dentro da célula de vínculos, um
+   * selo "Salvo · editar", os chips, uma linha de links sublinhados
+   * ("sem pat." · "reaprov.") e o selo "Sem patrocinador". Numa tela cujo
+   * trabalho é varrer dezenas de peças, a altura da linha é o custo de tudo.
+   *
+   * `chips` é o escopo do agrupamento: todos os patrocinadores do evento, ou
+   * só aquele por quem se agrupou.
+   */
+  const renderLinhaDaPeca = (item: any, chips: any[], eventSponsors: any[]) => {
+    const vinculados = itemSponsorsMap[item.id] || [];
+    const semPatrocinador = pendingChanges[item.id]?.skipApproval ?? (item.skipApproval || false);
+    const editavel = getItemEditability(item);
+    const estado = optimisticSentIds.has(item.id) ? 'ENVIADO' : (itemUIStates[item.id] || 'PENDENTE');
+    const selecionada = selectedItemIds.has(item.id);
+    const podeSelecionar = estado === 'PENDENTE' || estado === 'RASCUNHO';
+    const menuAberto = menuDaLinha === item.id;
+
+    // A COR DE ESTADO VAI NA BORDA, não no fundo. O fundo colorido da linha
+    // inteira competia com os chips, que também são coloridos — e chip de
+    // marca sobre fundo tingido perde justamente a cor que o identifica.
+    const corDaBorda = selecionada ? '#c2410c' : estado === 'RASCUNHO' ? '#f97316' : 'transparent';
+
+    return (
+      <tr
+        key={item.id}
+        data-testid={`item-row-${item.id}`}
+        onClick={() => setSelectedItemForDetails(item)}
+        style={{
+          borderBottom: '1px solid #f0efee',
+          backgroundColor: selecionada ? '#fff7ed' : '#ffffff',
+          // 0.55 + grayscale derrubava a linha inteira abaixo de AA, e o hover
+          // (que restaurava) não existe no teclado.
+          opacity: estado === 'ENVIADO' ? 0.8 : 1,
+          cursor: 'pointer',
+          transition: 'background-color 0.12s',
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = selecionada ? '#ffedd5' : '#fafaf9'; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = selecionada ? '#fff7ed' : '#ffffff'; }}
+      >
+        {/* ── Seleção ── */}
+        <td onClick={e => e.stopPropagation()} style={{ width: 46, textAlign: 'center', padding: '8px 0', borderLeft: `3px solid ${corDaBorda}` }}>
+          <Checkbox
+            checked={selecionada}
+            onCheckedChange={() => podeSelecionar && toggleItemSelection(item.id)}
+            disabled={!podeSelecionar}
+            title={estado === 'PRONTO' ? 'Remova os patrocinadores antes de aplicar em lote' : estado === 'ENVIADO' ? 'Peça já enviada' : undefined}
+            aria-label={`Selecionar ${item.displayId}`}
+            data-testid={`checkbox-item-${item.id}`}
+          />
+        </td>
+
+        {/* ── Peça ── */}
+        <td style={{ padding: '8px 12px', minWidth: 200 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            {/* A linha inteira abre o detalhe no clique, mas <tr> não recebe
+                foco: por teclado não havia como abrir peça nenhuma. O ID vira o
+                alvo focável — é o rótulo natural da linha. */}
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); setSelectedItemForDetails(item); }}
+              aria-label={`Ver detalhes da peça ${item.displayId}`}
+              data-testid={`text-display-id-${item.id}`}
+              style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: '#78716c', background: 'none', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
+            >
+              {item.displayId}
+            </button>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', whiteSpace: 'nowrap', flexShrink: 0 }}>{item.type}</span>
+            {item.description && (
+              // flexShrink alto: quando falta largura, é a descrição que cede.
+              // O tipo e o ID identificam a peça; a descrição a detalha.
+              <span title={item.description} style={{ fontSize: 12, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 999, minWidth: 0 }}>
+                {item.description}
+              </span>
+            )}
+            {/* MARCADORES COMO ÍCONE. Eram pílulas com texto ("Ref. visual"),
+                do mesmo tamanho da descrição e disputando com ela a leitura —
+                sendo que o que elas dizem é binário: tem ou não tem. */}
+            {safeRefUrl(item.referenceUrl) && (
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); setPreviewRefUrl(safeRefUrl(item.referenceUrl)); }}
+                title="Ver a referência visual do solicitante"
+                aria-label={`Ver a referência visual de ${item.displayId}`}
+                data-testid={`link-reference-vincular-${item.id}`}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 6, border: 'none', background: 'none', color: '#2563eb', cursor: 'pointer', flexShrink: 0, padding: 0 }}
+              >
+                <Paperclip style={{ width: 13, height: 13 }} />
+              </button>
+            )}
+            {item.isReuse && (
+              <span title="Reaproveitamento" aria-label="Reaproveitamento" style={{ display: 'inline-flex', color: '#047857', flexShrink: 0 }}>
+                <Recycle aria-hidden="true" style={{ width: 13, height: 13 }} />
+              </span>
+            )}
+          </div>
+        </td>
+
+        {/* ── Qtd · m² ──
+            Eram dois valores empilhados em 11px, o segundo com letterSpacing
+            negativo. Numa célula só e em DM Mono, os números de linhas
+            vizinhas se alinham e dá para comparar de relance. */}
+        <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: '#57534e' }}>
+            {item.quantity ?? 0} un
+            {item.calculatedM2 != null && !isNaN(parseFloat(item.calculatedM2))
+              ? ` · ${parseFloat(item.calculatedM2).toFixed(2)} m²`
+              : ''}
+          </span>
+        </td>
+
+        {/* ── Patrocinadores / Vínculo ── */}
+        <td onClick={e => e.stopPropagation()} style={{ padding: '8px 12px', minWidth: 0 }}>
+          {semPatrocinador ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 10px', borderRadius: 999, backgroundColor: '#fffbeb', color: '#92400e', border: '1px solid #fcd34d', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                Sem patrocinador
+              </span>
+              {editavel && (
+                <button
+                  type="button"
+                  onClick={() => toggleItemSkipApproval(item)}
+                  data-testid={`btn-undo-skip-${item.id}`}
+                  style={{ height: ALVO, padding: '0 10px', borderRadius: R.sm, border: '1px solid #e7e5e4', background: '#fff', color: '#57534e', font: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Desfazer
+                </button>
+              )}
+            </div>
+          ) : eventSponsors.length === 0 ? (
+            <span style={{ fontSize: 12, color: '#57534e', fontStyle: 'italic' }}>Sem patrocinadores no evento</span>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
+              {chips.map(sp => {
+                const marcado = vinculados.includes(sp.id);
+                // PEÇA ENVIADA mostra só o que ficou vinculado, em cinza e sem
+                // clique: o vínculo está travado no servidor, e um chip que
+                // parece clicável e não faz nada é pior que a ausência dele.
+                if (estado === 'ENVIADO') {
+                  if (!marcado) return null;
+                  return (
+                    <span
+                      key={sp.id}
+                      title="Peça já enviada — vínculo travado"
+                      data-testid={`chip-sponsor-${item.id}-${sp.id}`}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 26, padding: '0 10px', borderRadius: 999, backgroundColor: '#f0efee', color: '#57534e', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}
+                    >
+                      <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#a8a29e', flexShrink: 0 }} />
+                      {sp.name}
+                    </span>
+                  );
+                }
+                const marca = sp.color || '#3b82f6';
+                // A cor da marca em texto de 12px precisa de 4,5:1 sobre o
+                // fundo de 10% dela mesma. `darkenToContrast` escurece só o
+                // necessário — a marca continua reconhecível, que é o que faz
+                // a tabela legível de longe.
+                const corDoTexto = darkenToContrast(marca, '#ffffff', 4.5);
+                return (
+                  <button
+                    key={sp.id}
+                    type="button"
+                    role="checkbox"
+                    aria-checked={marcado}
+                    aria-label={`${marcado ? 'Desvincular' : 'Vincular'} ${sp.name} ${marcado ? 'de' : 'a'} ${item.displayId}`}
+                    title={marcado ? `Clique para desvincular ${sp.name}` : `Clique para vincular ${sp.name}`}
+                    disabled={!editavel}
+                    onClick={() => {
+                      if (!editavel) return;
+                      aplicarVinculo(item, marcado ? vinculados.filter(id => id !== sp.id) : [...vinculados, sp.id], false);
+                    }}
+                    onKeyDown={e => {
+                      if (e.key !== 'Enter' && e.key !== ' ') return;
+                      e.preventDefault();
+                      if (!editavel) return;
+                      aplicarVinculo(item, marcado ? vinculados.filter(id => id !== sp.id) : [...vinculados, sp.id], false);
+                    }}
+                    data-testid={`checkbox-sponsor-${item.id}-${sp.id}`}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      height: isMobile ? 44 : 26, padding: '0 10px', borderRadius: 999,
+                      backgroundColor: marcado ? hexToRgba(marca, 0.1) : '#ffffff',
+                      color: marcado ? corDoTexto : '#57534e',
+                      border: `1px solid ${marcado ? hexToRgba(marca, 0.45) : '#e7e5e4'}`,
+                      cursor: editavel ? 'pointer' : 'not-allowed',
+                      font: 'inherit', fontSize: 12, fontWeight: 600,
+                      whiteSpace: 'nowrap', transition: 'background 0.12s, border-color 0.12s',
+                    }}
+                  >
+                    <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: marcado ? marca : '#d6d3d1', flexShrink: 0 }} />
+                    {sp.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </td>
+
+        {/* ── Status e a ação daquele estado ── */}
+        <td onClick={e => e.stopPropagation()} style={{ padding: '8px 16px 8px 12px', whiteSpace: 'nowrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+            <span
+              data-testid={`badge-status-${item.id}`}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                height: 24, padding: '0 9px', borderRadius: 999,
+                fontSize: 12, fontWeight: 700,
+                ...(estado === 'RASCUNHO' ? { backgroundColor: '#ffedd5', color: '#9a3412' }
+                  : estado === 'PRONTO' ? { backgroundColor: '#dcfce7', color: '#166534' }
+                  : estado === 'ENVIADO' ? { backgroundColor: '#1c1917', color: '#ffffff' }
+                  : { backgroundColor: '#f0efee', color: '#44403c' }),
+              }}
+            >
+              {estado === 'RASCUNHO' ? <Save aria-hidden="true" style={{ width: 11, height: 11 }} />
+                : estado === 'PRONTO' ? <CheckCircle2 aria-hidden="true" style={{ width: 11, height: 11 }} />
+                : estado === 'ENVIADO' ? <Lock aria-hidden="true" style={{ width: 11, height: 11 }} />
+                : <Info aria-hidden="true" style={{ width: 11, height: 11 }} />}
+              {UI_STATUS_LABEL[estado] ?? estado}
+            </span>
+
+            {/* A AÇÃO DO ESTADO, COM RÓTULO. Eram ícones de 13px sem texto, com
+                o significado só no `title`: um disquete e um avião de papel
+                lado a lado, e a diferença entre salvar e ENVIAR — que tira a
+                peça da tela — ficava por conta de quem adivinhasse. */}
+            {estado === 'RASCUNHO' && editavel && (
+              <button
+                type="button"
+                onClick={() => {
+                  const ch = pendingChanges[item.id];
+                  saveLinkingMutation.mutate([{ itemId: item.id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false }]);
+                }}
+                disabled={saveLinkingMutation.isPending}
+                data-testid={`button-save-item-${item.id}`}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: ALVO, padding: '0 12px', borderRadius: R.sm, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', font: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+              >
+                <Save aria-hidden="true" style={{ width: 12, height: 12 }} />
+                Salvar
+              </button>
+            )}
+            {estado === 'PRONTO' && editavel && (
+              <button
+                type="button"
+                onClick={() => openSendModalForItem(item)}
+                disabled={sendToArteMutation.isPending}
+                data-testid={`button-send-item-${item.id}`}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: ALVO, padding: '0 12px', borderRadius: R.sm, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', font: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+              >
+                <Send aria-hidden="true" style={{ width: 12, height: 12 }} />
+                Enviar
+              </button>
+            )}
+
+            {/* ── Ações secundárias ──
+                Eram links SUBLINHADOS de 11px em cinza dentro da célula de
+                vínculos ("sem pat." · "reaprov."), indistinguíveis de texto
+                morto — e "sem pat." apaga os patrocinadores da peça. Ação que
+                descarta trabalho não mora num link de 11px. */}
+            {editavel && (
+              <div style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setMenuDaLinha(menuAberto ? null : item.id)}
+                  aria-haspopup="menu"
+                  aria-expanded={menuAberto}
+                  aria-label={`Mais ações para ${item.displayId}`}
+                  title="Mais ações"
+                  data-testid={`menu-row-actions-${item.id}`}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: isMobile ? 44 : 26, height: isMobile ? 44 : 26, borderRadius: R.sm, border: '1px solid #e7e5e4', background: '#fff', color: '#57534e', cursor: 'pointer', padding: 0 }}
+                >
+                  <MoreHorizontal style={{ width: 14, height: 14 }} />
+                </button>
+                {menuAberto && (
+                  <div
+                    role="menu"
+                    onKeyDown={e => {
+                      if (e.key !== 'Escape') return;
+                      e.stopPropagation();
+                      setMenuDaLinha(null);
+                      // Devolve o foco ao gatilho — sem isto o foco cai no
+                      // <body> e o teclado recomeça do topo da tabela.
+                      document.querySelector<HTMLButtonElement>(`[data-testid="menu-row-actions-${item.id}"]`)?.focus();
+                    }}
+                    style={{
+                      position: 'absolute', right: 0, top: '100%', marginTop: 4, zIndex: 40,
+                      minWidth: 226, backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
+                      borderRadius: R.md, boxShadow: '0 10px 30px rgba(0,0,0,0.12)', padding: 4,
+                    }}
+                  >
+                    {[
+                      {
+                        rotulo: semPatrocinador ? 'Desmarcar "sem patrocinador"' : 'Marcar sem patrocinador',
+                        testId: `btn-skip-sponsor-${item.id}`,
+                        acao: () => toggleItemSkipApproval(item),
+                      },
+                      {
+                        rotulo: item.isReuse ? 'Desmarcar reaproveitamento' : 'Marcar reaproveitamento',
+                        testId: `btn-reuse-${item.id}`,
+                        acao: () => updateItemIsReuseMutation.mutate({ itemId: item.id, isReuse: !item.isReuse }),
+                      },
+                      {
+                        rotulo: 'Devolver para Criação',
+                        testId: `button-return-creation-${item.id}`,
+                        acao: () => setReturnModal(item),
+                      },
+                    ].map(op => (
+                      <button
+                        key={op.testId}
+                        type="button"
+                        role="menuitem"
+                        autoFocus={op.testId.startsWith('btn-skip-sponsor')}
+                        onClick={() => { setMenuDaLinha(null); op.acao(); }}
+                        data-testid={op.testId}
+                        style={{ display: 'block', width: '100%', minHeight: ALVO, padding: '0 12px', textAlign: 'left', border: 'none', background: 'none', borderRadius: R.sm, font: 'inherit', fontSize: 13, color: '#1c1917', cursor: 'pointer' }}
+                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f4f1'; }}
+                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                      >
+                        {op.rotulo}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
   };
 
-  const toggleSponsorGroup = (pendingItemIds: string[], sponsorId: string) => {
-    setSponsorBulkSelected(prev => {
-      const next = new Set(prev);
-      const keys = pendingItemIds.map(id => sponsorKey(id, sponsorId));
-      const allSelected = keys.every(k => next.has(k));
-      if (allSelected) keys.forEach(k => next.delete(k));
-      else keys.forEach(k => next.add(k));
-      return next;
-    });
-  };
-
-  // Extrai item IDs únicos a partir das chaves compostas selecionadas
-  const selectedSponsorItemIds = () =>
-    Array.from(new Set(Array.from(sponsorBulkSelected).map(k => k.split('::')[0])))
-      .filter(itemId => {
-        const uiSt = itemUIStates[itemId] || 'PENDENTE';
-        return uiSt !== 'ENVIADO' && !optimisticSentIds.has(itemId);
-      });
-
-  // Agrupa as chaves compostas por itemId → lista de sponsorIds selecionados
-  const groupSelectedBySponsor = () => {
-    const map: Record<string, string[]> = {};
-    Array.from(sponsorBulkSelected).forEach(key => {
-      const [itemId, sponsorId] = key.split('::');
-      if (!map[itemId]) map[itemId] = [];
-      map[itemId].push(sponsorId);
-    });
-    return map;
-  };
-
-
-  // ===== Modal de Confirmação de Envio =====
-
-  // Abre o modal para o botão "Enviar" individual (item já vinculado)
   const openSendModalForItem = (item: any, preSelectedSponsorId?: string) => {
     const pending: Set<string> = new Set();
     if (preSelectedSponsorId) pending.add(preSelectedSponsorId);
@@ -1326,21 +1595,6 @@ export default function VincularPatrocinadores() {
   };
 
   // Abre o modal para o bulk "Vincular e Enviar"
-  const openSendModalForBulk = () => {
-    const grouped = groupSelectedBySponsor();
-    const itemIds = Object.keys(grouped);
-    if (itemIds.length === 0) return;
-    const items = visibleItems.filter(i => itemIds.includes(i.id));
-    const pendingByItem: Record<string, Set<string>> = {};
-    items.forEach(item => {
-      const existing = originalSponsorsMap[item.id] || [];
-      // Only NEW sponsors (not yet linked)
-      const newOnes = (grouped[item.id] || []).filter(id => !existing.includes(id));
-      pendingByItem[item.id] = new Set(newOnes);
-    });
-    setSendConfirmModal({ items, pendingByItem });
-  };
-
   // Alterna sponsor no modal (na seção "outros patrocinadores")
   const toggleModalSponsor = (itemId: string, sponsorId: string) => {
     setSendConfirmModal(prev => {
@@ -1389,10 +1643,10 @@ export default function VincularPatrocinadores() {
       // fechava antes da resposta e, em erro, o usuário perdia o contexto.
       // Sucesso fecha o modal no onSuccess; erro toasta no onError e o modal
       // fica aberto para tentar de novo.
-      await sendToArteMutation.mutateAsync(itemIds).then(
-        () => setSponsorBulkSelected(new Set()),
-        () => {},
-      );
+      // A selecao que este .then limpava era a `sponsorBulkSelected`, do
+      // segundo sistema de selecao que a aba por patrocinador mantinha em
+      // paralelo. Com uma selecao so, quem limpa e o onSuccess da mutation.
+      await sendToArteMutation.mutateAsync(itemIds).then(() => {}, () => {});
     } catch (err: any) {
       toast({
         title: "Erro ao enviar",
@@ -2130,1177 +2384,295 @@ export default function VincularPatrocinadores() {
         </div>
       )}
 
-      {/* ── VIEW: POR ITEM (existente) ── */}
-      {agrupamento === 'evento' && (
-      <div className="space-y-6" role="tabpanel" id="tabpanel-por-item" aria-labelledby="tab-btn-por-item">
-        {filteredEventEntries.map(([eventId, eventItems]) => {
-          // eventById (todos os eventos), não events (só futuros): itens
-          // pendentes de evento passado passam no visibleItems e eram contados
-          // nos totais, mas sumiam do render — "3 prontos" com a tela vazia.
-          const event = eventById.get(eventId);
-          const eventSponsors = getEventSponsors(eventId);
-          
-          // Usar a mesma função de filtro para garantir consistência
-          // Ordenar por tipo para que o agrupador funcione corretamente
-          const displayedItems = filterItems(eventItems, event?.name)
-            .slice()
-            .sort((a, b) => {
-              const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
-              if (ga !== gb) return COLLATOR_PTBR.compare(ga, gb);
-              if (a.type !== b.type) return COLLATOR_PTBR.compare(a.type, b.type);
-              // compareDisplayId, não replace(/\D/g,''): o complemento
-              // "#0062-C1" virava 621 e desgrudava da peça original.
-              return compareDisplayId(a.displayId, b.displayId);
-            });
+      {/* ══════════════════════════════════════════════════════════════════
+          A TABELA — uma só, agrupada por evento ou por patrocinador.
 
-          // Progress usa TODOS os itens do evento, não apenas os filtrados
-          const progress = calculateProgress(eventItems);
+          Eram duas árvores de JSX de ~660 e ~500 linhas, com a mesma
+          informação e conjuntos de ação DIFERENTES: a de patrocinador tinha
+          Vincular/Desvincular/Enviar que a outra não tinha, tinha a sua
+          PRÓPRIA seleção em lote (`sponsorBulkSelected`, um segundo sistema
+          paralelo ao `selectedItemIds`) e não tinha salvar nem o menu de
+          linha. Trocar de aba mudava o que dava para fazer.
 
-          // Cap de renderização — contagens e "selecionar todos" continuam
-          // usando displayedItems completo; só o DOM é limitado.
-          const showAllEventRows = showAllRows.has(eventId);
-          const renderedItems = showAllEventRows || displayedItems.length <= ITEM_RENDER_CAP
-            ? displayedItems
-            : displayedItems.slice(0, ITEM_RENDER_CAP);
-
-          if (!event) return null;
+          Agora a linha é uma função só. O que o agrupamento muda é o
+          cabeçalho do grupo e o ESCOPO DOS CHIPS — todos os patrocinadores do
+          evento, ou só aquele — e nada mais.
+      ══════════════════════════════════════════════════════════════════ */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {gruposDaLista.map(grupo => {
+          const { chave, event, sponsor, itens, vinculadas, total } = grupo;
+          const eventSponsors = getEventSponsors(event.id);
+          const chipsDoEscopo = sponsor ? [sponsor] : eventSponsors;
+          const pct = total > 0 ? Math.round((vinculadas / total) * 100) : 0;
+          const mostrarTodas = showAllRows.has(chave);
+          const renderizadas = mostrarTodas ? itens : itens.slice(0, ITEM_RENDER_CAP);
+          const selecionaveis = itens.filter(i => {
+            const s = itemUIStates[i.id] || 'PENDENTE';
+            return s === 'PENDENTE' || s === 'RASCUNHO';
+          });
+          const marcadas = selecionaveis.filter(i => selectedItemIds.has(i.id)).length;
+          // Peças do grupo que ainda não têm ESTE patrocinador — o alvo do
+          // "Vincular restantes".
+          const faltando = sponsor
+            ? itens.filter(i => getItemEditability(i) && !(itemSponsorsMap[i.id] ?? []).includes(sponsor.id))
+            : [];
+          const corDoPatrocinador = sponsor ? (sponsor.color || '#3b82f6') : '#c2410c';
 
           return (
-            <section key={eventId} className="space-y-0">
+            <section key={chave} data-testid={`grupo-${chave}`} style={{ border: '1px solid #e7e5e4', borderRadius: 12, overflow: 'hidden' }}>
 
-              {/* ── Cabeçalho escuro Titanium ── */}
-              <header style={{ backgroundColor: '#1c1917', padding: '18px 20px', borderRadius: '12px 12px 0 0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
-                  <h2 style={{ fontFamily: 'Space Grotesk, sans-serif', color: '#ffffff', fontSize: 18, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '-0.01em', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    {event.name}
-                  </h2>
-                  {/* "VINCULADO", não "CONCLUÍDO": calculateProgress conta
-                      itens com patrocinador salvo (ou isentos), enquanto o
-                      "enviados" do topo conta outra coisa — os dois "concluído"
-                      divergiam na mesma tela. */}
-                  <span style={{ backgroundColor: progress.completed === progress.total && progress.total > 0 ? '#16a34a' : '#3d3936', color: '#ffffff', borderRadius: 6, padding: '1px 7px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0, letterSpacing: '0.03em' }}>
-                    {progress.completed}/{progress.total} VINCULADO
+              {/* ── Cabeçalho do grupo ── */}
+              <header style={{
+                background: 'linear-gradient(135deg, #1c1917 0%, #2d2926 100%)',
+                padding: isMobile ? '14px 16px' : '16px 20px',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                gap: 12, flexWrap: 'wrap',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0, flex: '1 1 auto' }}>
+                  {/* Ladrilho: calendário no evento, inicial na cor da marca no
+                      patrocinador. */}
+                  <span aria-hidden="true" style={{
+                    width: 38, height: 38, borderRadius: 8, flexShrink: 0,
+                    backgroundColor: sponsor ? corDoPatrocinador : 'rgba(255,255,255,0.1)',
+                    color: sponsor ? onColor(corDoPatrocinador) : '#fdba74',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 16, fontWeight: 700, fontFamily: "'Space Grotesk', sans-serif",
+                  }}>
+                    {sponsor ? (sponsor.name || '?')[0].toUpperCase() : <Calendar style={{ width: 18, height: 18 }} />}
                   </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 20, flexShrink: 0 }}>
-                  {/* #746e69 é o cinza de texto secundário sobre superfície
-                      clara; aqui o fundo é o #1c1917 do <header> e a data
-                      ficava em 3.18:1 — escuro sobre escuro. Sobre preto o
-                      papel se inverte: #a8a29e, que é decorativo no claro,
-                      passa em 6.34:1. */}
-                  <div style={{ display: 'flex', gap: 18, fontSize: 11, fontWeight: 600, color: '#a8a29e' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Calendar style={{ width: 13, height: 13 }} />
-                      <span>{format(parseDateLocal(event.startDate), "dd MMM yyyy", { locale: ptBR }).toUpperCase()}</span>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <Truck style={{ width: 13, height: 13 }} />
-                      <span>{format(toUTCDisplayDate(event.truckDepartureDate), "dd MMM yyyy 'às' HH:mm", { locale: ptBR }).toUpperCase()}</span>
+
+                  <div style={{ minWidth: 0 }}>
+                    <h2 style={{
+                      fontFamily: "'Space Grotesk', sans-serif", color: '#ffffff',
+                      fontSize: 17, fontWeight: 700, letterSpacing: '-0.02em', margin: 0,
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    }}>
+                      {sponsor ? sponsor.name : event.name}
+                    </h2>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 5, flexWrap: 'wrap' }}>
+                      {/* Barra de vinculação. #a8a29e sobre o gradiente escuro
+                          dá 6,3 — no claro ele é decorativo, aqui passa. */}
+                      <span aria-hidden="true" style={{ width: 84, height: 5, backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 999, overflow: 'hidden', display: 'inline-block', flexShrink: 0 }}>
+                        <span style={{ display: 'block', height: '100%', width: `${pct}%`, backgroundColor: pct === 100 ? '#4ade80' : '#fdba74', transition: 'width 0.4s ease' }} />
+                      </span>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: pct === 100 ? '#4ade80' : '#a8a29e', whiteSpace: 'nowrap' }}>
+                        {vinculadas}/{total} {sponsor ? 'com esta marca' : 'vinculadas'}
+                      </span>
+                      {!sponsor && event.startDate && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#a8a29e', whiteSpace: 'nowrap' }}>
+                          <Truck aria-hidden="true" style={{ width: 12, height: 12 }} />
+                          {event.truckDepartureDate
+                            ? format(toUTCDisplayDate(event.truckDepartureDate), "dd/MM 'às' HH:mm", { locale: ptBR })
+                            : format(parseDateLocal(event.startDate), 'dd/MM/yyyy', { locale: ptBR })}
+                        </span>
+                      )}
+                      {sponsor && (
+                        <span style={{ fontSize: 12, color: '#a8a29e', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 240 }}>
+                          {event.name}
+                        </span>
+                      )}
                     </div>
                   </div>
+                </div>
+
+                {/* A ação do cabeçalho depende do agrupamento — é o único lugar
+                    onde ele muda o que dá para fazer, e de propósito: são ações
+                    SOBRE O GRUPO, não sobre a peça. */}
+                {sponsor ? (
                   <button
+                    type="button"
+                    onClick={() => vincularRestantes(sponsor.id, faltando)}
+                    disabled={faltando.length === 0}
+                    title={faltando.length === 0
+                      ? `Todas as peças deste evento já têm ${sponsor.name}`
+                      : `Vincular ${sponsor.name} às ${faltando.length} peças que ainda não têm — entra como rascunho`}
+                    data-testid={`button-link-remaining-${sponsor.id}`}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                      height: isMobile ? 44 : 34, padding: '0 14px', borderRadius: R.sm,
+                      backgroundColor: faltando.length === 0 ? 'rgba(255,255,255,0.06)' : 'rgba(255,255,255,0.12)',
+                      color: faltando.length === 0 ? 'rgba(255,255,255,0.55)' : '#ffffff',
+                      border: '1px solid rgba(255,255,255,0.2)',
+                      cursor: faltando.length === 0 ? 'not-allowed' : 'pointer',
+                      font: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+                    }}
+                  >
+                    <Plus aria-hidden="true" style={{ width: 13, height: 13 }} />
+                    {faltando.length === 0 ? 'Todas vinculadas' : `Vincular restantes (${faltando.length})`}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
                     onClick={() => handleOpenSponsorDialog(event)}
                     data-testid={`button-manage-event-sponsors-${event.id}`}
-                    title={eventSponsors.length === 0 ? 'Adicionar patrocinadores a este evento' : `${eventSponsors.length} ${eventSponsors.length === 1 ? 'patrocinador' : 'patrocinadores'} neste evento`}
-                    /* "Adicionar Pat." e "3 Pat." abreviavam o que o botão faz
-                       para caber; num cabeçalho que já reserva espaço de sobra,
-                       a abreviação só custava clareza. */
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 30, padding: '0 12px', borderRadius: R.sm, cursor: 'pointer', backgroundColor: 'rgba(255,255,255,0.1)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap' }}
-                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.18)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'; }}>
-                    <Building2 style={{ width: 13, height: 13 }} />
+                    title={eventSponsors.length === 0 ? 'Adicionar patrocinadores a este evento' : 'Escolher quem participa deste evento'}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                      height: isMobile ? 44 : 34, padding: '0 14px', borderRadius: R.sm,
+                      backgroundColor: 'rgba(255,255,255,0.12)', color: '#ffffff',
+                      border: '1px solid rgba(255,255,255,0.2)', cursor: 'pointer',
+                      font: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.12)'; }}
+                  >
+                    <Building2 aria-hidden="true" style={{ width: 13, height: 13 }} />
                     {eventSponsors.length === 0
                       ? 'Adicionar patrocinadores'
                       : `${eventSponsors.length} ${eventSponsors.length === 1 ? 'patrocinador' : 'patrocinadores'}`}
                   </button>
-                </div>
+                )}
               </header>
 
-              {/* Tabela de Items */}
-              <div style={{ backgroundColor: '#ffffff', borderRadius: '0 0 12px 12px', overflow: 'hidden', border: '1px solid #e7e5e4', borderTop: 'none' }}>
+              {/* ── A tabela ── */}
+              <div style={{ backgroundColor: '#ffffff' }}>
                 <div className="overflow-x-auto scrollbar-visible">
-                  <table className="w-full">
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4' }}>
-                        <th className="px-3 py-2 text-center w-[50px]">
+                        <th style={{ ...THC, width: 46, textAlign: 'center', padding: '9px 0' }}>
                           <Checkbox
                             /* "indeterminate" em seleção parcial: sem isto o
                                checkbox aparecia vazio mesmo com metade das
                                linhas marcadas. */
-                            checked={(() => {
-                              const sel = displayedItems.filter(item => { const s = itemUIStates[item.id] || 'PENDENTE'; return s === 'PENDENTE' || s === 'RASCUNHO'; });
-                              if (sel.length === 0) return false;
-                              const marked = sel.filter(item => selectedItemIds.has(item.id)).length;
-                              return marked === sel.length ? true : marked > 0 ? "indeterminate" : false;
-                            })()}
-                            onCheckedChange={() => toggleAllItemsInEvent(displayedItems.filter(item => { const s = itemUIStates[item.id] || 'PENDENTE'; return s === 'PENDENTE' || s === 'RASCUNHO'; }))}
-                            disabled={displayedItems.filter(item => { const s = itemUIStates[item.id] || 'PENDENTE'; return s === 'PENDENTE' || s === 'RASCUNHO'; }).length === 0}
-                            aria-label={`Selecionar todas as peças pendentes de ${event.name}`}
-                            data-testid={`checkbox-select-all-${event.id}`}
+                            checked={selecionaveis.length === 0 ? false : marcadas === selecionaveis.length ? true : marcadas > 0 ? 'indeterminate' : false}
+                            onCheckedChange={() => toggleAllItemsInEvent(selecionaveis)}
+                            disabled={selecionaveis.length === 0}
+                            aria-label={`Selecionar todas as peças de ${sponsor ? sponsor.name : event.name}`}
+                            data-testid={`checkbox-select-all-${chave}`}
                           />
                         </th>
-                        <th className="px-3 py-4 text-left" style={{ fontSize: '11px', fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em' }}>ID</th>
-                        <th className="px-3 py-4 text-left" style={{ fontSize: '11px', fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Peça / Especificação</th>
-                        <th className="px-3 py-4 text-left" style={{ fontSize: '11px', fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Detalhes</th>
-                        <th className="px-3 py-4 text-left" style={{ fontSize: '11px', fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                          Vínculos Ativos
-                        </th>
-                        <th className="px-3 py-4 text-right pr-6" style={{ fontSize: '11px', fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                          Status
-                        </th>
+                        <th style={THC}>Peça</th>
+                        <th style={{ ...THC, whiteSpace: 'nowrap' }}>Qtd · m²</th>
+                        <th style={THC}>{sponsor ? 'Vínculo' : 'Patrocinadores'}</th>
+                        <th style={{ ...THC, textAlign: 'right', paddingRight: 16 }}>Status</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {renderedItems.map((item, itemIndex) => {
-                        const linkedSponsors = itemSponsorsMap[item.id] || [];
-                        const currentSkipApproval = pendingChanges[item.id]?.skipApproval ?? (item.skipApproval || false);
-                        const isEditable = getItemEditability(item);
-                        const uiStatus = optimisticSentIds.has(item.id) ? 'ENVIADO' : (itemUIStates[item.id] || 'PENDENTE');
-                        const prevItem = itemIndex > 0 ? renderedItems[itemIndex - 1] : null;
-                        const showTypeGrouper = !prevItem || prevItem.type !== item.type;
-                        const groupName = typeToGroup[item.type] || '';
-                        const prevGroupName = prevItem ? (typeToGroup[prevItem.type] || '') : '';
-                        const showGroupGrouper = showTypeGrouper && groupName !== '' && groupName !== prevGroupName;
+                      {renderizadas.map((item, idx) => {
+                        const anterior = idx > 0 ? renderizadas[idx - 1] : null;
+                        const abreTipo = !anterior || anterior.type !== item.type;
+                        const chaveTipo = `${chave}:${item.type}`;
+                        const tipoFechado = tiposColapsados.has(chaveTipo);
+                        const linhas: React.ReactNode[] = [];
 
-                        return [
-                          /* ── Agrupador de Grupo Pai ── */
-                          showGroupGrouper ? (
-                            <tr key={`group-${groupName}-${itemIndex}`}>
-                              <td colSpan={6} style={{ padding: 0 }}>
-                                <div style={{ backgroundColor: '#dbeafe', padding: '5px 20px', display: 'flex', alignItems: 'center', gap: 8 }}>
-                                  <span style={{ fontSize: 11, fontWeight: 700, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{groupName}</span>
-                                </div>
-                              </td>
-                            </tr>
-                          ) : null,
-                          /* ── Agrupador de Tipo ── */
-                          showTypeGrouper ? (() => {
-                            const typeItems = displayedItems.filter(i => i.type === item.type);
-                            const selectableTypeItems = typeItems.filter(i => { const s = itemUIStates[i.id] || 'PENDENTE'; return s === 'PENDENTE' || s === 'RASCUNHO'; });
-                            const allTypeSelected = selectableTypeItems.length > 0 && selectableTypeItems.every(i => selectedItemIds.has(i.id));
+                        if (abreTipo) {
+                          const doTipo = itens.filter(i => i.type === item.type);
+                          const semPatrocinador = doTipo.filter(i => {
+                            const s = itemUIStates[i.id] || 'PENDENTE';
+                            return s === 'PENDENTE';
+                          }).length;
+                          const enviadas = doTipo.filter(i => (itemUIStates[i.id] || 'PENDENTE') === 'ENVIADO').length;
+                          const tudoEnviado = enviadas === doTipo.length;
+                          const tudoVinculado = semPatrocinador === 0;
+                          const corDoLote = tudoEnviado ? '#1c1917' : tudoVinculado ? '#15803d' : '#c2410c';
+                          const textoDoLote = tudoEnviado ? 'tudo enviado'
+                            : tudoVinculado ? 'tudo vinculado'
+                            : `${semPatrocinador} sem patrocinador`;
 
-                            // Calcular status do grupo
-                            const prontoCount = typeItems.filter(i => (itemUIStates[i.id] || 'PENDENTE') === 'PRONTO').length;
-                            const enviadoCount = typeItems.filter(i => (itemUIStates[i.id] || 'PENDENTE') === 'ENVIADO').length;
-                            const pendingCount = typeItems.filter(i => { const s = itemUIStates[i.id] || 'PENDENTE'; return s === 'PENDENTE' || s === 'RASCUNHO'; }).length;
-                            const allReady = pendingCount === 0 && (prontoCount + enviadoCount) === typeItems.length;
-                            const allSent = enviadoCount === typeItems.length;
+                          linhas.push(
+                            /* CABEÇALHO DE TIPO, colapsável.
+                               O agrupador de GRUPO PAI (a faixa #dbeafe com
+                               "PLACA KM") saiu: dentro de um evento já
+                               agrupado, um segundo nível de agrupador é um
+                               nível a mais do que a informação pede.
 
-                            const groupBg = allSent ? 'rgba(134,239,172,0.08)' : allReady ? 'rgba(134,239,172,0.12)' : 'rgba(249,115,22,0.06)';
-                            const groupBorder = allSent ? '#86efac' : allReady ? '#22c55e' : '#f97316';
-                            const groupTextColor = allSent ? '#15803d' : allReady ? '#166534' : '#c2410c';
-
-                            // KEY PELA IDENTIDADE, NAO PELO CONTEUDO.
-                            // A key trazia `item.type` — o campo que o usuario
-                            // RENOMEIA. Renomear mudava a key, e mudar a key
-                            // nao e re-render: e desmontar a linha e montar
-                            // outra no lugar. Esta linha carrega um Checkbox do
-                            // Radix, que compoe refs; remontagem forcada troca o
-                            // no sob o ref e realimenta o ciclo de render — a
-                            // familia de falha do "Maximum update depth
-                            // exceeded" que derrubou a tela ao renomear.
-                            // O agrupador pertence a PRIMEIRA peca do tipo,
-                            // entao o id dela identifica a linha de forma
-                            // estavel e unica, e sobrevive ao rename.
-                            return (
-                              <tr key={`type-${item.id}`} style={{ borderLeft: `4px solid ${groupBorder}` }}>
-                                <td colSpan={6} style={{ padding: 0 }}>
-                                  <div style={{ backgroundColor: groupBg, display: 'flex', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
-                                    {/* Coluna do checkbox — mesma largura do td de item (50px) */}
-                                    <div style={{ width: 50, flexShrink: 0, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: '10px 0' }}>
-                                      <Checkbox
-                                        checked={allTypeSelected}
-                                        onCheckedChange={() => toggleTypeGroup(typeItems)}
-                                        disabled={selectableTypeItems.length === 0}
-                                        aria-label={`Selecionar peças do tipo ${item.type}`}
-                                        data-testid={`checkbox-group-${item.type}`}
-                                      />
-                                    </div>
-                                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingRight: 20 }}>
-                                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                                        <span style={{ fontSize: 11, fontWeight: 700, color: groupTextColor, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                                          {item.type} — {typeItems.length} {typeItems.length !== 1 ? 'itens' : 'item'}
-                                        </span>
-                                        {/* Badge de status do grupo */}
-                                        {allSent ? (
-                                          <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', backgroundColor: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                                            Enviado
-                                          </span>
-                                        ) : allReady ? (
-                                          <span style={{ fontSize: 11, fontWeight: 700, color: '#166534', backgroundColor: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                                            Pronto
-                                          </span>
-                                        ) : (
-                                          <span style={{ fontSize: 11, fontWeight: 700, color: '#92400e', backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: 6, padding: '1px 6px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                                            {pendingCount} sem atribuição
-                                          </span>
-                                        )}
-                                      </div>
-                                      <ChevronDown style={{ width: 14, height: 14, color: '#a8a29e' }} />
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })() : null,
-                          <tr
-                            key={item.id}
-                            className="cursor-pointer"
-                            style={{
-                              borderBottom: '1px solid #f0efee',
-                              borderLeft: selectedItemIds.has(item.id) ? '4px solid #3b82f6' : uiStatus === 'RASCUNHO' ? '4px solid #f97316' : uiStatus === 'PRONTO' ? '4px solid #22c55e' : '4px solid transparent',
-                              backgroundColor: selectedItemIds.has(item.id) ? 'rgba(59,130,246,0.06)' : uiStatus === 'RASCUNHO' ? 'rgba(249,115,22,0.04)' : uiStatus === 'PRONTO' ? 'rgba(134,239,172,0.10)' : '#ffffff',
-                              // 0.55 + grayscale derrubava a linha inteira abaixo de AA, e o
-                              // hover (que restaurava) não existe no teclado. 0.75 sem
-                              // grayscale mantém a leitura E o rebaixamento visual.
-                              opacity: uiStatus === 'ENVIADO' ? 0.75 : 1,
-                              transition: 'background-color 0.12s, border-color 0.12s, filter 0.2s, opacity 0.2s',
-                            }}
-                            onMouseEnter={e => {
-                              const el = e.currentTarget as HTMLElement;
-                              el.style.filter = 'none';
-                              el.style.opacity = '1';
-                              if (selectedItemIds.has(item.id)) {
-                                el.style.backgroundColor = 'rgba(59,130,246,0.11)';
-                              } else {
-                                el.style.backgroundColor = uiStatus === 'RASCUNHO' ? 'rgba(249,115,22,0.09)' : uiStatus === 'PRONTO' ? 'rgba(134,239,172,0.18)' : '#fafaf9';
-                              }
-                            }}
-                            onMouseLeave={e => {
-                              const el = e.currentTarget as HTMLElement;
-                              el.style.opacity = uiStatus === 'ENVIADO' ? '0.75' : '1';
-                              if (selectedItemIds.has(item.id)) {
-                                el.style.backgroundColor = 'rgba(59,130,246,0.06)';
-                              } else {
-                                el.style.backgroundColor = uiStatus === 'RASCUNHO' ? 'rgba(249,115,22,0.04)' : uiStatus === 'PRONTO' ? 'rgba(134,239,172,0.10)' : '#ffffff';
-                              }
-                            }}
-                            onClick={() => setSelectedItemForDetails(item)}
-                            data-testid={`item-row-${item.id}`}
-                          >
-                            <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
-                              <Checkbox
-                                checked={selectedItemIds.has(item.id)}
-                                onCheckedChange={() => (uiStatus === 'PENDENTE' || uiStatus === 'RASCUNHO') && toggleItemSelection(item.id)}
-                                disabled={uiStatus !== 'PENDENTE' && uiStatus !== 'RASCUNHO'}
-                                title={uiStatus === 'PRONTO' ? 'Remova os patrocinadores antes de aplicar em lote' : uiStatus === 'ENVIADO' ? 'Peça já enviada' : undefined}
-                                aria-label={`Selecionar ${item.displayId}`}
-                                data-testid={`checkbox-item-${item.id}`}
-                              />
-                            </td>
-                            <td className="px-3 py-3">
-                              {/* A linha inteira abre o detalhe no clique, mas
-                                  <tr> não recebe foco: por teclado não havia
-                                  como abrir peça nenhuma. O ID vira o alvo
-                                  focável — é o rótulo natural da linha e não
-                                  acrescenta ruído visual. */}
-                              <button
-                                onClick={e => { e.stopPropagation(); setSelectedItemForDetails(item); }}
-                                aria-label={`Ver detalhes da peça ${item.displayId}`}
-                                className="font-mono whitespace-nowrap"
-                                style={{ fontSize: 11, fontWeight: 700, color: '#746e69', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-                                data-testid={`text-display-id-${item.id}`}
-                              >
-                                {item.displayId}
-                              </button>
-                            </td>
-                            <td className="px-3 py-3" style={{ minWidth: 180 }}>
-                              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <span style={{ fontWeight: 700, fontSize: 13, color: '#1a1c1c' }}>{item.type}</span>
-                                {item.description && (
-                                  <span style={{ fontSize: 11, color: '#746e69', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 200 }}>
-                                    {item.description}
-                                  </span>
-                                )}
-                                {safeRefUrl(item.referenceUrl) && (
-                                  <button
-                                    type="button"
-                                    onClick={e => { e.stopPropagation(); setPreviewRefUrl(safeRefUrl(item.referenceUrl)); }}
-                                    title="Ver referência visual"
-                                    data-testid={`link-reference-vincular-${item.id}`}
-                                    style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: '#2563eb', textDecoration: 'none', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 999, padding: '2px 6px', marginTop: 2, cursor: 'pointer' }}
-                                  >
-                                    <Paperclip style={{ width: 9, height: 9 }} />
-                                    Ref. visual
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-3 py-3">
-                              <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <span style={{ fontSize: 11, fontWeight: 700, color: '#1a1c1c' }}>Qtd {String(item.quantity ?? 0).padStart(2, '0')}</span>
-                                {item.calculatedM2 != null && !isNaN(parseFloat(item.calculatedM2)) && (
-                                  <span style={{ fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '-0.02em' }}>
-                                    {parseFloat(item.calculatedM2).toFixed(2)} m²
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            {/* ── Coluna: Vínculos Ativos ── */}
-                            <td className="px-3 py-3" style={{ minWidth: 0 }} onClick={(e) => e.stopPropagation()}>
-                              {currentSkipApproval ? (
-                                /* "Sem Patrocinador" */
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                  <span style={{ padding: '3px 8px', backgroundColor: '#fffbeb', color: '#92400e', border: '1px solid #fcd34d', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', borderRadius: R.sm, letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
-                                    Sem patrocinador
-                                  </span>
-                                  {isEditable && (
-                                    <button onClick={() => toggleItemSkipApproval(item)} data-testid={`btn-undo-skip-${item.id}`}
-                                      style={{ background: 'none', border: 'none', fontSize: 11, color: '#746e69', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}>
-                                      desfazer
-                                    </button>
-                                  )}
-                                </div>
-                              ) : eventSponsors.length === 0 ? (
-                                <span style={{ fontSize: 11, color: '#746e69', fontStyle: 'italic' }}>Sem patrocinadores no evento</span>
-                              ) : uiStatus === 'ENVIADO' ? (
-                                /* ── ENVIADO: pills coloridos (somente leitura) ── */
-                                (() => {
-                                  const isExpanded = expandedSponsorCells.has(item.id);
-                                  const validLinked = linkedSponsors.map(sId => eventSponsors.find(s => s.id === sId)).filter(Boolean) as any[];
-                                  const LIMIT = 3;
-                                  const visible = isExpanded ? validLinked : validLinked.slice(0, LIMIT);
-                                  const overflow = validLinked.length - LIMIT;
-                                  // Este ramo só roda com uiStatus === 'ENVIADO', então comparar
-                                  // com 'PRONTO' era sempre falso: o botão de desvincular abaixo
-                                  // nunca aparecia, e o próprio comentário do bloco diz que aqui é
-                                  // somente leitura. Mantido como constante para deixar explícito
-                                  // — era o erro de tipo que o tsc apontava neste arquivo.
-                                  const canUnlink = false;
-                                  return (
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
-                                      {validLinked.length === 0 ? (
-                                        <span style={{ fontSize: 11, color: '#746e69', fontStyle: 'italic' }}>Nenhum</span>
-                                      ) : (
-                                        <>
-                                          {visible.map((sp: any) => {
-                                            return (
-                                              <span key={sp.id} style={{
-                                                display: 'inline-flex', alignItems: 'center',
-                                                padding: '3px 7px',
-                                                // Peça já enviada some do fluxo de edição: o pill
-                                                // fica neutro para não competir com as linhas que
-                                                // ainda pedem ação. #57534e sobre #e8e8e7 dá 5.3:1
-                                                // (o #78716c anterior ficava em 3.91).
-                                                backgroundColor: '#e8e8e7', color: '#57534e',
-                                                fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-                                                borderRadius: R.sm, letterSpacing: '0.04em', whiteSpace: 'nowrap',
-                                              }}>
-                                                {sp.name}
-                                                {canUnlink && (
-                                                  <button
-                                                    onClick={(e) => {
-                                                      e.stopPropagation();
-                                                      const newSponsors = linkedSponsors.filter(id => id !== sp.id);
-                                                      const originalSponsors = originalSponsorsMap[item.id] || [];
-                                                      const origSkip = item.skipApproval || false;
-                                                      const curSkip = pendingChanges[item.id]?.skipApproval ?? origSkip;
-                                                      const hasChanges = !areSponsorsEqual(newSponsors, originalSponsors) || curSkip !== origSkip;
-                                                      setPendingChanges(prev => {
-                                                        if (!hasChanges) { const n = { ...prev }; delete n[item.id]; return n; }
-                                                        return { ...prev, [item.id]: { sponsorIds: newSponsors, skipApproval: curSkip, isDirty: true } };
-                                                      });
-                                                      setItemSponsorsMap(prev => ({ ...prev, [item.id]: newSponsors }));
-                                                    }}
-                                                    title={`Desvincular ${sp.name}`}
-                                                    style={{ background: 'none', border: 'none', padding: '1px 1px', cursor: 'pointer', display: 'flex', alignItems: 'center', opacity: 0.6, lineHeight: 1 }}
-                                                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}
-                                                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.6'; }}
-                                                  >
-                                                    <X style={{ width: 8, height: 8 }} />
-                                                  </button>
-                                                )}
-                                              </span>
-                                            );
-                                          })}
-                                          {!isExpanded && overflow > 0 && (
-                                            <button onClick={(e) => { e.stopPropagation(); toggleSponsorExpand(item.id); }}
-                                              style={{ padding: '3px 6px', backgroundColor: '#f0efee', color: '#57534e', fontSize: 11, fontWeight: 700, borderRadius: 6, border: '1px solid #e7e5e4', cursor: 'pointer' }}>
-                                              +{overflow}
-                                            </button>
-                                          )}
-                                          {isExpanded && validLinked.length > LIMIT && (
-                                            <button onClick={(e) => { e.stopPropagation(); toggleSponsorExpand(item.id); }}
-                                              style={{ padding: '3px 6px', backgroundColor: '#f0efee', color: '#57534e', fontSize: 11, fontWeight: 700, borderRadius: 6, border: '1px solid #e7e5e4', cursor: 'pointer' }}>
-                                              menos
-                                            </button>
-                                          )}
-                                        </>
-                                      )}
-                                    </div>
-                                  );
-                                })()
-                              ) : (
-                                /* ── PENDENTE/RASCUNHO/PRONTO: seleção interativa de patrocinadores ── */
-                                (() => {
-                                  const allSelected = eventSponsors.length > 0 && eventSponsors.every(s => linkedSponsors.includes(s.id));
-                                  const noneSelected = linkedSponsors.length === 0;
-                                  const handleToggleAll = (e: React.MouseEvent) => {
-                                    e.stopPropagation();
-                                    if (!isEditable) return;
-                                    const newSponsors = allSelected ? [] : eventSponsors.map(s => s.id);
-                                    const originalSponsors = originalSponsorsMap[item.id] || [];
-                                    const origSkip = item.skipApproval || false;
-                                    const curSkip = pendingChanges[item.id]?.skipApproval ?? origSkip;
-                                    const hasChanges = !areSponsorsEqual(newSponsors, originalSponsors) || curSkip !== origSkip;
-                                    setPendingChanges(prev => {
-                                      if (!hasChanges) { const n = { ...prev }; delete n[item.id]; return n; }
-                                      return { ...prev, [item.id]: { sponsorIds: newSponsors, skipApproval: curSkip, isDirty: true } };
-                                    });
-                                    setItemSponsorsMap(prev => ({ ...prev, [item.id]: newSponsors }));
-                                  };
-                                  return (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-                                      {/* Indicador "Salvo" para itens PRONTO */}
-                                      {uiStatus === 'PRONTO' && (
-                                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 7px', backgroundColor: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, width: 'fit-content' }}>
-                                          <Check style={{ width: 9, height: 9, color: '#166534' }} />
-                                          <span style={{ fontSize: 11, fontWeight: 700, color: '#166534', letterSpacing: '0.04em' }}>Salvo · editar</span>
-                                        </div>
-                                      )}
-                                      {/* Row 1: sponsor toggle chips */}
-                                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center' }}>
-                                        {/* "Todos" quick-select chip */}
-                                        {eventSponsors.length > 1 && isEditable && (
-                                          <button
-                                            onClick={handleToggleAll}
-                                            data-testid={`btn-select-all-${item.id}`}
-                                            aria-pressed={allSelected}
-                                            title={allSelected ? 'Desmarcar todos' : 'Selecionar todos'}
-                                            style={{
-                                              display: 'inline-flex', alignItems: 'center', gap: 3,
-                                              padding: '3px 7px',
-                                              backgroundColor: allSelected ? '#1c1917' : '#f0efee',
-                                              color: allSelected ? '#ffffff' : '#746e69',
-                                              fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-                                              borderRadius: 6, border: `1px solid ${allSelected ? '#1c1917' : '#d6d3d1'}`,
-                                              cursor: 'pointer', letterSpacing: '0.03em',
-                                            }}
-                                          >
-                                            {allSelected ? <Check style={{ width: 8, height: 8 }} /> : null}
-                                            Todos
-                                          </button>
-                                        )}
-                                        {/* Individual sponsor chips */}
-                                        {eventSponsors.map(sponsor => {
-                                          const isLinked = linkedSponsors.includes(sponsor.id);
-                                          const brandColor = sponsor?.color || '#3b82f6';
-                                          return (
-                                            <button
-                                              key={sponsor.id}
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                if (!isEditable) return;
-                                                const newSponsors = isLinked
-                                                  ? linkedSponsors.filter(id => id !== sponsor.id)
-                                                  : [...linkedSponsors, sponsor.id];
-                                                const originalSponsors = originalSponsorsMap[item.id] || [];
-                                                const origSkip = item.skipApproval || false;
-                                                const curSkip = pendingChanges[item.id]?.skipApproval ?? origSkip;
-                                                const hasChanges = !areSponsorsEqual(newSponsors, originalSponsors) || curSkip !== origSkip;
-                                                setPendingChanges(prev => {
-                                                  if (!hasChanges) { const n = { ...prev }; delete n[item.id]; return n; }
-                                                  return { ...prev, [item.id]: { sponsorIds: newSponsors, skipApproval: curSkip, isDirty: true } };
-                                                });
-                                                setItemSponsorsMap(prev => ({ ...prev, [item.id]: newSponsors }));
-                                              }}
-                                              disabled={!isEditable}
-                                              aria-pressed={isLinked}
-                                              aria-label={`Selecionar ${item.displayId} para ${sponsor.name}`}
-                                              data-testid={`checkbox-sponsor-${item.id}-${sponsor.id}`}
-                                              style={{
-                                                display: 'inline-flex', alignItems: 'center', gap: 5,
-                                                padding: '3px 7px',
-                                                backgroundColor: isLinked ? hexToRgba(brandColor, 0.18) : '#fafafa',
-                                                color: isLinked ? brandColor : '#57534e',
-                                                fontSize: 11, fontWeight: 700, textTransform: 'uppercase',
-                                                borderRadius: 6,
-                                                border: `1px solid ${isLinked ? hexToRgba(brandColor, 0.5) : hexToRgba(brandColor, 0.3)}`,
-                                                cursor: isEditable ? 'pointer' : 'not-allowed',
-                                                letterSpacing: '0.03em', whiteSpace: 'nowrap',
-                                                transition: 'all 0.12s',
-                                              }}
-                                            >
-                                              <span style={{
-                                                width: 7, height: 7, borderRadius: '50%',
-                                                backgroundColor: isLinked ? brandColor : hexToRgba(brandColor, 0.6),
-                                                flexShrink: 0, display: 'inline-block',
-                                              }} />
-                                              {sponsor.name}
-                                              {isLinked && <Check style={{ width: 8, height: 8, marginLeft: 1 }} />}
-                                            </button>
-                                          );
-                                        })}
-                                      </div>
-                                      {/* Row 2: ações secundárias (sem pat. / reaprov.) */}
-                                      {isEditable && (
-                                        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                                          <button
-                                            onClick={(e) => { e.stopPropagation(); toggleItemSkipApproval(item); }}
-                                            data-testid={`btn-skip-sponsor-${item.id}`}
-                                            aria-pressed={currentSkipApproval}
-                                            style={{ background: 'none', border: 'none', fontSize: 11, color: '#746e69', cursor: 'pointer', textDecoration: 'underline', padding: 0 }}
-                                          >
-                                            sem pat.
-                                          </button>
-                                          <span style={{ color: '#d6d3d1', fontSize: 11 }}>·</span>
-                                          <button
-                                            onClick={(e) => { e.stopPropagation(); updateItemIsReuseMutation.mutate({ itemId: item.id, isReuse: !item.isReuse }); }}
-                                            data-testid={`btn-reuse-${item.id}`}
-                                            aria-pressed={!!item.isReuse}
-                                            title={item.isReuse ? "Reaproveitamento ativo — clique para desativar" : "Marcar como reaproveitamento"}
-                                            style={{
-                                              display: 'inline-flex', alignItems: 'center', gap: 3,
-                                              background: 'none', border: 'none', padding: 0,
-                                              fontSize: 11, fontWeight: item.isReuse ? 700 : 400,
-                                              color: item.isReuse ? '#065f46' : '#746e69',
-                                              cursor: 'pointer', textDecoration: item.isReuse ? 'none' : 'underline',
-                                            }}
-                                          >
-                                            {item.isReuse && <Check style={{ width: 8, height: 8 }} />}
-                                            reaprov.
-                                          </button>
-                                        </div>
-                                      )}
-                                    </div>
-                                  );
-                                })()
-                              )}
-                            </td>
-
-                            {/* ── Coluna: Status / Ações ── */}
-                            <td className="px-3 py-3 pr-6" style={{ whiteSpace: 'nowrap' }} onClick={(e) => e.stopPropagation()}>
-                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-                                {/* Badge de status */}
-                                <span
-                                  data-testid={`badge-status-${item.id}`}
+                               KEY PELA IDENTIDADE, NÃO PELO CONTEÚDO. A key
+                               trazia `item.type` — o campo que o usuário
+                               RENOMEIA. Renomear mudava a key, e mudar a key
+                               não é re-render: é desmontar a linha e montar
+                               outra. Esta linha carrega um Checkbox do Radix,
+                               que compõe refs; a remontagem forçada realimenta
+                               o ciclo e derrubava a tela com "Maximum update
+                               depth exceeded". */
+                            <tr key={`tipo-${item.id}`} style={{ borderLeft: `3px solid ${corDoLote}` }}>
+                              <td colSpan={5} style={{ padding: 0, backgroundColor: '#fafaf9', borderBottom: '1px solid #f0efee' }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setTiposColapsados(prev => {
+                                    const n = new Set(prev);
+                                    if (n.has(chaveTipo)) n.delete(chaveTipo); else n.add(chaveTipo);
+                                    return n;
+                                  })}
+                                  aria-expanded={!tipoFechado}
+                                  data-testid={`toggle-tipo-${chaveTipo}`}
                                   style={{
-                                    padding: '2px 8px', borderRadius: 999, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
-                                    ...(uiStatus === 'RASCUNHO' ? { backgroundColor: '#ffedd5', color: '#c2410c' }
-                                      : uiStatus === 'PRONTO' ? { backgroundColor: '#dcfce7', color: '#166534' }
-                                      : uiStatus === 'ENVIADO' ? { backgroundColor: '#1c1917', color: '#ffffff' }
-                                      : { backgroundColor: '#e8e8e7', color: '#57534e' }),
+                                    width: '100%', minHeight: 34, padding: '6px 16px',
+                                    display: 'flex', alignItems: 'center', gap: 8,
+                                    background: 'none', border: 'none', cursor: 'pointer', font: 'inherit', textAlign: 'left',
                                   }}
                                 >
-                                  {UI_STATUS_LABEL[uiStatus] ?? uiStatus}
-                                </span>
-                                {/* Divider */}
-                                <span style={{ width: 1, height: 16, backgroundColor: '#e7e5e4', display: 'inline-block' }} />
-                                {/* Ações */}
-                                {uiStatus === 'ENVIADO' && (
-                                  <Lock style={{ width: 13, height: 13, color: '#78716c' }} />
-                                )}
-                                {uiStatus === 'RASCUNHO' && isEditable && (
-                                  <>
-                                    {/* Descartar é ação puramente local (só desfaz o rascunho
-                                        deste usuário) — restringir a admin só impedia
-                                        arte/solicitação de desfazer o próprio trabalho. */}
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        const original = originalSponsorsMap[item.id] || [];
-                                        setPendingChanges(prev => { const n = { ...prev }; delete n[item.id]; return n; });
-                                        setItemSponsorsMap(prev => ({ ...prev, [item.id]: original }));
-                                      }}
-                                      data-testid={`button-discard-item-${item.id}`}
-                                      title="Descartar alterações"
-                                      aria-label={`Descartar alterações de ${item.displayId}`}
-                                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#746e69', display: 'flex', alignItems: 'center', padding: 6 }}
-                                    >
-                                      <X style={{ width: 13, height: 13 }} />
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        const ch = pendingChanges[item.id];
-                                        const payload = { itemId: item.id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false };
-                                        saveLinkingMutation.mutate([payload]);
-                                      }}
-                                      disabled={saveLinkingMutation.isPending}
-                                      data-testid={`button-save-item-${item.id}`}
-                                      title="Salvar vinculação"
-                                      aria-label={`Salvar vinculação de ${item.displayId}`}
-                                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#c2410c', display: 'flex', alignItems: 'center', padding: 6 }}
-                                    >
-                                      <Save style={{ width: 14, height: 14 }} />
-                                    </button>
-                                  </>
-                                )}
-                                {(uiStatus === 'PENDENTE' || uiStatus === 'RASCUNHO' || uiStatus === 'PRONTO') && (
-                                  <button
-                                    onClick={() => setReturnModal(item)}
-                                    disabled={returnToCreationMutation.isPending}
-                                    data-testid={`button-return-creation-${item.id}`}
-                                    title="Devolver peça para Criação"
-                                    aria-label={`Devolver ${item.displayId} para Criação`}
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#746e69', display: 'flex', alignItems: 'center', padding: 6 }}
-                                  >
-                                    <RotateCcw style={{ width: 13, height: 13 }} />
-                                  </button>
-                                )}
-                                {uiStatus === 'PRONTO' && isEditable && (
-                                  <button
-                                    onClick={() => openSendModalForItem(item)}
-                                    disabled={sendToArteMutation.isPending}
-                                    data-testid={`button-send-item-${item.id}`}
-                                    title="Enviar para Arte"
-                                    aria-label={`Enviar ${item.displayId} para Arte`}
-                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#166534', display: 'flex', alignItems: 'center', padding: 6 }}
-                                  >
-                                    <Send style={{ width: 14, height: 14 }} />
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ];
+                                  <ChevronDown aria-hidden="true" style={{ width: 13, height: 13, color: '#57534e', flexShrink: 0, transform: tipoFechado ? 'rotate(-90deg)' : 'none', transition: 'transform 0.15s' }} />
+                                  <span style={{ fontSize: 11, fontWeight: 800, color: '#44403c', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {item.type}
+                                  </span>
+                                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: '#57534e', flexShrink: 0 }}>
+                                    {doTipo.length}
+                                  </span>
+                                  <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: corDoLote, whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                    {textoDoLote}
+                                  </span>
+                                </button>
+                              </td>
+                            </tr>,
+                          );
+                        }
+
+                        if (!tipoFechado) linhas.push(renderLinhaDaPeca(item, chipsDoEscopo, eventSponsors));
+                        return linhas;
                       })}
                     </tbody>
                   </table>
                 </div>
-                {displayedItems.length > ITEM_RENDER_CAP && (
+
+                {itens.length > ITEM_RENDER_CAP && (
                   <button
+                    type="button"
                     onClick={() => setShowAllRows(prev => {
                       const n = new Set(prev);
-                      if (showAllEventRows) n.delete(eventId); else n.add(eventId);
+                      if (mostrarTodas) n.delete(chave); else n.add(chave);
                       return n;
                     })}
-                    data-testid={`button-show-all-${eventId}`}
-                    style={{ width: '100%', padding: '10px 0', background: '#fafaf9', border: 'none', borderTop: '1px solid #e7e5e4', color: '#c2410c', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+                    data-testid={`button-show-all-${chave}`}
+                    style={{ width: '100%', minHeight: 38, background: '#fafaf9', border: 'none', borderTop: '1px solid #e7e5e4', color: '#c2410c', font: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
                   >
-                    {showAllEventRows
-                      ? 'Mostrar menos'
-                      : `Mostrar todos os ${displayedItems.length} itens (+${displayedItems.length - ITEM_RENDER_CAP})`}
+                    {mostrarTodas ? 'Mostrar menos' : `Mostrar todas as ${itens.length} peças (+${itens.length - ITEM_RENDER_CAP})`}
                   </button>
                 )}
               </div>
             </section>
           );
         })}
+
         {/* Filtros zeraram tudo: sem isto a área principal ficava em branco
             absoluto, sem explicação e sem saída. */}
-        {filteredEventEntries.length === 0 && (
+        {gruposDaLista.length === 0 && (
           <div style={{ backgroundColor: '#fff', border: '1px dashed #d6d3d1', borderRadius: 12, padding: '40px 24px', textAlign: 'center' }}>
-            <Search style={{ width: 26, height: 26, color: '#a8a29e', margin: '0 auto 12px', display: 'block' }} />
-            <p style={{ fontSize: 14, fontWeight: 700, color: '#1a1c1c', margin: '0 0 4px' }}>Nenhuma peça com os filtros atuais</p>
-            <p style={{ fontSize: 12, color: '#746e69', margin: '0 0 16px' }}>Ajuste a busca ou os filtros acima para ver as peças.</p>
-            <button
-              onClick={() => { setSearchQuery(""); setEventFilter([]); setSponsorFilter([]); setItemFilter([]); setStatusFilter([]); }}
-              data-testid="button-clear-filters"
-              style={{ height: 36, padding: '0 16px', backgroundColor: '#f5f5f4', color: '#1c1917', fontWeight: 700, fontSize: 12, borderRadius: 8, border: '1px solid #e7e5e4', cursor: 'pointer' }}
-            >
-              Limpar filtros
-            </button>
+            <Search aria-hidden="true" style={{ width: 26, height: 26, color: '#78716c', margin: '0 auto 12px', display: 'block' }} />
+            <p style={{ fontSize: 14, fontWeight: 700, color: '#1c1917', margin: '0 0 4px' }}>
+              {temFiltroAtivo ? 'Nenhuma peça com os filtros atuais' : agrupamento === 'patrocinador' ? 'Nenhum evento com patrocinadores' : 'Nada a vincular'}
+            </p>
+            <p style={{ fontSize: 13, color: '#57534e', margin: '0 0 16px', maxWidth: 400, marginLeft: 'auto', marginRight: 'auto', lineHeight: 1.5 }}>
+              {temFiltroAtivo
+                ? 'Ajuste a busca ou os filtros acima para ver as peças.'
+                : agrupamento === 'patrocinador'
+                  ? 'Use "Patrocinadores do evento" para definir quem participa de cada evento — depois eles aparecem agrupados aqui.'
+                  : 'Toda peça em fila já foi vinculada e enviada à Arte.'}
+            </p>
+            {temFiltroAtivo && (
+              <button
+                type="button"
+                onClick={() => { setSearchQuery(''); setEventFilter([]); setSponsorFilter([]); setItemFilter([]); setStatusFilter([]); }}
+                data-testid="button-clear-filters"
+                style={{ height: 36, padding: '0 16px', backgroundColor: '#f5f5f4', color: '#1c1917', font: 'inherit', fontWeight: 700, fontSize: 13, borderRadius: R.md, border: '1px solid #e7e5e4', cursor: 'pointer' }}
+              >
+                Limpar filtros
+              </button>
+            )}
           </div>
         )}
       </div>
-      )} {/* fim agrupamento === 'evento' */}
 
-      {/* ── VIEW: POR PATROCINADOR ── */}
-      {agrupamento === 'patrocinador' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }} role="tabpanel" id="tabpanel-por-patrocinador" aria-labelledby="tab-btn-por-patrocinador">
-
-          {/* ── Header de progresso global ── */}
-          <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '18px 22px', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-              <span style={{ fontSize: 13, fontWeight: 600, color: '#1c1917' }}>Progresso Global de Vinculação</span>
-              <span style={{ fontSize: 13, color: '#746e69' }}>
-                <strong style={{ color: '#c2410c' }}>{sponsorLinkStats.fullyLinked}</strong>
-                <span style={{ margin: '0 4px' }}>/</span>
-                <strong style={{ color: '#1c1917' }}>{sponsorLinkStats.total}</strong>
-                <span style={{ marginLeft: 4 }}>patrocinadores totalmente vinculados</span>
-              </span>
-            </div>
-            <div style={{ width: '100%', height: 6, backgroundColor: '#e7e5e4', borderRadius: 999, overflow: 'hidden' }}>
-              <div style={{
-                height: '100%', borderRadius: 999, backgroundColor: '#c2410c',
-                width: `${sponsorLinkStats.total > 0 ? Math.round((sponsorLinkStats.fullyLinked / sponsorLinkStats.total) * 100) : 0}%`,
-                transition: 'width 0.5s ease',
-              }} />
-            </div>
-            {sponsorLinkStats.total > 0 && (
-              <div style={{ marginTop: 6, textAlign: 'right', fontSize: 11, fontWeight: 700, color: '#c2410c', letterSpacing: '0.04em', textTransform: 'uppercase' }}>
-                {Math.round((sponsorLinkStats.fullyLinked / sponsorLinkStats.total) * 100)}% completo
-              </div>
-            )}
-          </div>
-
-          {/* ── Barra de ações em lote ── */}
-          {sponsorBulkSelected.size > 0 && (() => {
-            const uniqueItemIds = selectedSponsorItemIds();
-            const n = uniqueItemIds.length;
-            return (
-              <div style={{
-                position: 'sticky', top: 0, zIndex: 50,
-                backgroundColor: '#1c1917', borderRadius: 8,
-                padding: '12px 18px',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.22)',
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                  <div style={{
-                    width: 32, height: 32, borderRadius: '50%',
-                    backgroundColor: '#c2410c',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 13, fontWeight: 700, color: '#ffffff',
-                  }}>{n}</div>
-                  <span style={{ color: '#ffffff', fontSize: 13, fontWeight: 600, letterSpacing: '-0.01em' }}>
-                    {n} item{n !== 1 ? 's' : ''} selecionado{n !== 1 ? 's' : ''}
-                  </span>
-                  <span style={{ width: 1, height: 20, backgroundColor: 'rgba(255,255,255,0.2)', display: 'inline-block' }} />
-                  <span style={{ fontSize: 13, color: 'rgba(255,255,255,0.6)' }}>Ações em lote aplicadas a todos os itens selecionados.</span>
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    onClick={() => setSponsorBulkSelected(new Set())}
-                    style={{ background: 'none', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.7)', borderRadius: 6, height: 36, padding: '0 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', cursor: 'pointer' }}
-                  >
-                    Desmarcar Tudo
-                  </button>
-                  <button
-                    onClick={openSendModalForBulk}
-                    disabled={sendToArteMutation.isPending}
-                    style={{ backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: 6, height: 36, padding: '0 18px', fontWeight: 700, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.06em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, opacity: sendToArteMutation.isPending ? 0.7 : 1 }}
-                  >
-                    <Send style={{ width: 13, height: 13 }} />
-                    {sendToArteMutation.isPending ? 'Enviando...' : `Vincular e Enviar ${n} item${n !== 1 ? 's' : ''}`}
-                  </button>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* ── Lista de eventos → patrocinadores → itens ── */}
-          {sponsorGroupedData.length === 0 ? (
-            /* Antes era uma frase solta no meio do branco. Com filtro ativo a
-               causa provável é o próprio filtro (mesmo padrão da aba Por
-               Item); sem filtro, quase sempre falta vincular patrocinadores
-               aos eventos — dizer isso poupa o usuário de procurar o que não
-               existe. */
-            (searchQuery || eventFilter.length > 0 || sponsorFilter.length > 0 || itemFilter.length > 0 || statusFilter.length > 0) ? (
-              <div style={{ backgroundColor: '#fff', border: '1px dashed #d6d3d1', borderRadius: 12, padding: '40px 24px', textAlign: 'center' }}>
-                <Search style={{ width: 26, height: 26, color: '#a8a29e', margin: '0 auto 12px', display: 'block' }} />
-                <p style={{ fontSize: 14, fontWeight: 700, color: '#1a1c1c', margin: '0 0 4px' }}>Nenhuma peça com os filtros atuais</p>
-                <p style={{ fontSize: 12, color: '#746e69', margin: '0 0 16px' }}>Ajuste a busca ou os filtros acima para ver as peças.</p>
-                <button
-                  onClick={() => { setSearchQuery(""); setEventFilter([]); setSponsorFilter([]); setItemFilter([]); setStatusFilter([]); }}
-                  data-testid="button-clear-filters-sponsor-view"
-                  style={{ height: 36, padding: '0 16px', backgroundColor: '#f5f5f4', color: '#1c1917', fontWeight: 700, fontSize: 12, borderRadius: 8, border: '1px solid #e7e5e4', cursor: 'pointer' }}
-                >
-                  Limpar filtros
-                </button>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', padding: '56px 24px' }}>
-                <div style={{ width: 56, height: 56, borderRadius: R.lg, backgroundColor: '#f5f5f4', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-                  <Building2 style={{ width: 24, height: 24, color: '#a8a29e' }} />
-                </div>
-                <p style={{ fontSize: 15, fontWeight: 700, color: '#1a1c1c', margin: '0 0 6px' }}>
-                  Nenhum evento com patrocinadores
-                </p>
-                <p style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0, maxWidth: 380 }}>
-                  Use “Patrocinadores do evento” para definir quem participa de
-                  cada evento — depois eles aparecem agrupados aqui.
-                </p>
-              </div>
-            )
-          ) : sponsorGroupedData.map(({ event, sponsorGroups, totalItems: evTotal, linkedCount }) => {
-            const eventSponsorList = getEventSponsors(event.id);
-            const eventPct = evTotal > 0 ? Math.round((linkedCount / evTotal) * 100) : 0;
-            const visibleSponsors = eventSponsorList.slice(0, 5);
-            const overflowCount = Math.max(0, eventSponsorList.length - 5);
-
-            return (
-              <div key={event.id} style={{ border: '1px solid #e7e5e4', borderRadius: 12, overflow: 'hidden' }}>
-
-                {/* ── Nível 1: Header do Evento ── */}
-                <div style={{ backgroundColor: '#1c1917', padding: '18px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <div style={{ width: 42, height: 42, borderRadius: 8, backgroundColor: 'rgba(249,115,22,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <Package style={{ width: 22, height: 22, color: '#f97316' }} />
-                    </div>
-                    <div>
-                      <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#ffffff', textTransform: 'uppercase', letterSpacing: '-0.02em', fontFamily: "'Space Grotesk', sans-serif" }}>
-                        {event.name}
-                      </h2>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
-                        <span style={{
-                          display: 'inline-flex', alignItems: 'center', gap: 5,
-                          backgroundColor: 'rgba(249,115,22,0.2)', color: '#f97316',
-                          border: '1px solid rgba(249,115,22,0.3)',
-                          borderRadius: 999, padding: '2px 10px',
-                          fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em',
-                        }}>
-                          <span style={{ width: 5, height: 5, borderRadius: '50%', backgroundColor: '#f97316', display: 'inline-block' }} />
-                          {eventSponsorList.length} Patrocinadores Ativos
-                        </span>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                          {eventPct}% vinculado
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Avatar stack de patrocinadores */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <div style={{ display: 'flex' }}>
-                      {visibleSponsors.map((s, idx) => (
-                        <div
-                          key={s.id}
-                          title={s.name}
-                          style={{
-                            width: 32, height: 32, borderRadius: '50%',
-                            border: '2px solid #1c1917',
-                            marginLeft: idx === 0 ? 0 : -10,
-                            backgroundColor: s.color || '#2563eb',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 11, fontWeight: 700, color: onColor(s.color || '#2563eb'),
-                            zIndex: visibleSponsors.length - idx,
-                            position: 'relative',
-                            flexShrink: 0,
-                          }}
-                        >
-                          {s.name.charAt(0).toUpperCase()}
-                        </div>
-                      ))}
-                      {overflowCount > 0 && (
-                        <div style={{
-                          width: 32, height: 32, borderRadius: '50%',
-                          border: '2px solid #1c1917',
-                          marginLeft: -10,
-                          backgroundColor: '#57534e',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 11, fontWeight: 700, color: '#ffffff',
-                          zIndex: 0, position: 'relative', flexShrink: 0,
-                        }}>
-                          +{overflowCount}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* ── Nível 2+3: Grupos de Patrocinador ── */}
-                {sponsorGroups.length === 0 ? (
-                  <div style={{ padding: '28px 22px', textAlign: 'center', borderTop: '1px solid #e7e5e4' }}>
-                    <p style={{ fontSize: 13, color: '#57534e', margin: 0, lineHeight: 1.6 }}>
-                      Este evento ainda não tem patrocinadores.<br />
-                      Use <strong style={{ color: '#1c1917' }}>Patrocinadores do evento</strong> para definir quem participa.
-                    </p>
-                  </div>
-                ) : sponsorGroups.map(({ sponsor, items: linkedItems, pendingItems }) => {
-                  const allItems = [...linkedItems, ...pendingItems];
-                  // Itens pendentes que já foram enviados (sem este patrocinador) — não podem mais ser vinculados
-                  const sentWithoutLinkItems = pendingItems.filter(pi =>
-                    (itemUIStates[pi.id] || 'PENDENTE') === 'ENVIADO' || optimisticSentIds.has(pi.id)
-                  );
-                  const truelyPendingItems = pendingItems.filter(pi =>
-                    !sentWithoutLinkItems.some(s => s.id === pi.id)
-                  );
-                  // O denominador do progresso exclui itens que já foram enviados sem vínculo
-                  const effectiveTotal = linkedItems.length + truelyPendingItems.length;
-                  const pendingIds = truelyPendingItems.map(i => i.id);
-                  const allPendingSelected = pendingIds.length > 0 && pendingIds.every(id => sponsorBulkSelected.has(sponsorKey(id, sponsor.id)));
-                  const groupKey = `${event.id}::${sponsor.id}`;
-                  const isCollapsed = collapsedSponsorGroups.has(groupKey);
-                  // Cap de renderização: com muitos itens esta visão monta
-                  // linked+pending por patrocinador (quase nº itens × nº
-                  // patrocinadores de linhas) — só o DOM é limitado, as
-                  // contagens continuam vindo das listas completas.
-                  const showAllGroupRows = showAllRows.has(groupKey);
-                  const renderedGroupItems = showAllGroupRows || allItems.length <= ITEM_RENDER_CAP
-                    ? allItems
-                    : allItems.slice(0, ITEM_RENDER_CAP);
-                  const allLinked = effectiveTotal > 0 && truelyPendingItems.length === 0;
-                  const nearCompletion = effectiveTotal > 0 && linkedItems.length / effectiveTotal >= 0.6 && !allLinked;
-                  const linkPct = effectiveTotal > 0 ? Math.round((linkedItems.length / effectiveTotal) * 100) : 100;
-
-                  return (
-                    <div key={sponsor.id} style={{ borderTop: '1px solid #e7e5e4' }}>
-
-                      {/* Nível 2 — Linha do Patrocinador.
-                          Era um <div> com onClick: dava para colapsar o grupo
-                          só com o mouse. Sem foco nem tecla, quem navega por
-                          teclado não conseguia recolher nada — e numa tela com
-                          dezenas de grupos, colapsar é o principal recurso de
-                          navegação. role/tabIndex/aria-expanded devolvem isso e
-                          ainda anunciam o estado. */}
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        aria-expanded={!isCollapsed}
-                        aria-label={`${sponsor.name} — ${isCollapsed ? 'expandir' : 'recolher'} itens`}
-                        data-testid={`toggle-sponsor-group-${event.id}-${sponsor.id}`}
-                        style={{ padding: '14px 22px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, backgroundColor: '#fafaf9', cursor: 'pointer' }}
-                        onClick={() => toggleSponsorGroupCollapse(groupKey)}
-                        onKeyDown={e => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            toggleSponsorGroupCollapse(groupKey);
-                          }
-                        }}
-                        onMouseEnter={e => ((e.currentTarget as HTMLElement).style.backgroundColor = '#f5f4f0')}
-                        onMouseLeave={e => ((e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9')}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          {/* Checkbox só para itens pendentes */}
-                          <div onClick={e => e.stopPropagation()}>
-                            <Checkbox
-                              checked={allPendingSelected}
-                              onCheckedChange={() => toggleSponsorGroup(pendingIds, sponsor.id)}
-                              disabled={pendingIds.length === 0}
-                              aria-label={`Selecionar itens pendentes de ${sponsor.name}`}
-                              data-testid={`checkbox-sponsor-group-${event.id}-${sponsor.id}`}
-                            />
-                          </div>
-                          {/* Ícone colorido do patrocinador */}
-                          <div style={{
-                            width: 32, height: 32, borderRadius: R.sm,
-                            backgroundColor: sponsor.color || '#2563eb',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 13, fontWeight: 700, color: onColor(sponsor.color || '#2563eb'), flexShrink: 0,
-                          }}>
-                            {sponsor.name.charAt(0).toUpperCase()}
-                          </div>
-                          {/* A legenda "Patrocinador" abaixo de cada nome era
-                              ruído puro: esta visão inteira agrupa por
-                              patrocinador e cada linha já traz o avatar de
-                              marca. Uma linha de texto por grupo, sem
-                              informação nenhuma. */}
-                          <div style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', textTransform: 'uppercase', letterSpacing: '-0.01em' }}>
-                            {sponsor.name}
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-                          {/* Mini progress */}
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: '#1c1917', marginBottom: 2 }}>
-                              {linkedItems.length} / {effectiveTotal} itens vinculados
-                            </div>
-                            {sentWithoutLinkItems.length > 0 && (
-                              <div style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', marginBottom: 4, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                {sentWithoutLinkItems.length} enviado{sentWithoutLinkItems.length !== 1 ? 's' : ''} sem vínculo
-                              </div>
-                            )}
-                            {sentWithoutLinkItems.length === 0 && <div style={{ marginBottom: 4 }} />}
-                            {/* #f97316 e #16a34a ficavam em 1.8 e 2.6:1 contra o
-                                próprio trilho: o preenchimento mal se destacava
-                                do vazio. Mesmos tons do resto do sistema. */}
-                            <div
-                              role="progressbar"
-                              aria-valuenow={linkPct}
-                              aria-valuemin={0}
-                              aria-valuemax={100}
-                              aria-label={`${linkedItems.length} de ${effectiveTotal} itens vinculados`}
-                              style={{ width: 120, height: 4, backgroundColor: '#e7e5e4', borderRadius: R.pill, overflow: 'hidden' }}
-                            >
-                              <div style={{
-                                height: '100%', borderRadius: R.pill,
-                                backgroundColor: allLinked ? '#15803d' : nearCompletion ? '#0369a1' : '#c2410c',
-                                width: `${linkPct}%`, transition: 'width 0.4s',
-                              }} />
-                            </div>
-                          </div>
-
-                          {/* Status chip */}
-                          {allLinked ? (
-                            <span style={{ backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
-                              Completo
-                            </span>
-                          ) : nearCompletion ? (
-                            <span style={{ backgroundColor: '#e0f2fe', color: '#0369a1', border: '1px solid #7dd3fc', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
-                              Quase Completo
-                            </span>
-                          ) : (
-                            <span style={{ backgroundColor: '#fafaf9', color: '#746e69', border: '1px solid #e7e5e4', borderRadius: 6, padding: '3px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
-                              Em Andamento
-                            </span>
-                          )}
-
-                          {/* Chevron — é o único indicador de que o grupo
-                              abre/fecha, então precisa alcançar o piso de 3:1
-                              de elemento gráfico; #a8a29e ficava em 2.4. */}
-                          <ChevronDown style={{
-                            width: 16, height: 16, color: '#746e69',
-                            transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
-                            transition: 'transform 0.2s',
-                            flexShrink: 0,
-                          }} />
-                        </div>
-                      </div>
-
-                      {/* Nível 3 — Tabela de itens (colapsável).
-                          overflowX: sem isso, no celular as 6 colunas ficavam
-                          espremidas dentro de overflow:hidden e a coluna de
-                          Ações — onde se vincula — saía de alcance. */}
-                      {!isCollapsed && allItems.length > 0 && (
-                        <div style={{ backgroundColor: '#ffffff', margin: '0 16px 14px', borderRadius: 8, overflow: 'hidden', overflowX: 'auto', boxShadow: '0 1px 4px rgba(0,0,0,0.06)' }}>
-                          <table style={{ width: '100%', minWidth: isMobile ? 620 : undefined, borderCollapse: 'collapse' }}>
-                            <thead>
-                              <tr style={{ backgroundColor: 'rgba(231,229,228,0.4)', borderBottom: '1px solid #e7e5e4' }}>
-                                {/* Coluna do marcador de linha. Tinha um
-                                    <input type="checkbox"> com display:none —
-                                    markup morto que o leitor de tela ainda
-                                    encontrava como campo sem rótulo. */}
-                                <th style={{ padding: '10px 16px', width: 40 }} />
-
-                                {['ID', 'Peça', 'Detalhes', 'Status de Vínculo', 'Ações'].map(col => (
-                                  <th key={col} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 11, fontWeight: 700, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{col}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody style={{ borderTop: '1px solid #e7e5e4' }}>
-                              {renderedGroupItems.map(item => {
-                                const isLinked = linkedItems.some(i => i.id === item.id);
-                                const uiStatus = itemUIStates[item.id] || 'PENDENTE';
-                                const isSent = uiStatus === 'ENVIADO' || optimisticSentIds.has(item.id);
-                                return (
-                                  <tr
-                                    key={item.id}
-                                    style={{ borderBottom: '1px solid #f4f3f0', cursor: 'pointer', transition: 'background-color 0.1s' }}
-                                    onMouseEnter={e => ((e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9')}
-                                    onMouseLeave={e => ((e.currentTarget as HTMLElement).style.backgroundColor = '')}
-                                    onClick={() => setSelectedItemForDetails(item)}
-                                    data-testid={`sp-item-row-${item.id}`}
-                                  >
-                                    {/* Checkbox */}
-                                    <td style={{ padding: '12px 16px', width: 40 }} onClick={e => e.stopPropagation()}>
-                                      <Checkbox
-                                        checked={sponsorBulkSelected.has(sponsorKey(item.id, sponsor.id))}
-                                        onCheckedChange={() => toggleSponsorBulkItem(item.id, sponsor.id)}
-                                        disabled={isLinked || isSent}
-                                        data-testid={`sp-checkbox-${item.id}`}
-                                      />
-                                    </td>
-                                    {/* ID — também é o alvo focável desta linha,
-                                        pelo mesmo motivo da tabela por item.
-                                        #f97316 sobre branco dá 2.80:1; o tom de
-                                        ação escuro mantém o laranja e passa. */}
-                                    <td style={{ padding: '12px 16px' }}>
-                                      <button
-                                        onClick={e => { e.stopPropagation(); setSelectedItemForDetails(item); }}
-                                        aria-label={`Ver detalhes da peça ${item.displayId}`}
-                                        style={{ fontSize: 11, fontFamily: "'DM Mono', monospace", color: '#c2410c', fontWeight: 700, letterSpacing: '0.04em', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
-                                        data-testid={`sp-item-display-id-${item.id}`}
-                                      >
-                                        {item.displayId}
-                                      </button>
-                                    </td>
-                                    {/* Peça */}
-                                    <td style={{ padding: '12px 16px', minWidth: 200 }}>
-                                      <div style={{ fontSize: 13, fontWeight: 700, color: '#1c1917' }}>{item.type}</div>
-                                      {item.description && (
-                                        <div style={{ fontSize: 11, color: '#746e69', marginTop: 2, maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                          {item.description}
-                                        </div>
-                                      )}
-                                    </td>
-                                    {/* Detalhes / tags */}
-                                    <td style={{ padding: '12px 16px' }}>
-                                      <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                                        {item.quantity && (
-                                          <span style={{ padding: '2px 6px', backgroundColor: '#f4f3f0', borderRadius: 999, fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                            {item.quantity} un
-                                          </span>
-                                        )}
-                                        {item.calculatedM2 && parseFloat(item.calculatedM2) > 0 && (
-                                          <span style={{ padding: '2px 6px', backgroundColor: '#f4f3f0', borderRadius: 999, fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                            {parseFloat(item.calculatedM2).toFixed(2)} m²
-                                          </span>
-                                        )}
-                                      </div>
-                                    </td>
-                                    {/* Status badge */}
-                                    <td style={{ padding: '12px 16px' }}>
-                                      {isLinked ? (
-                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: '#dcfce7', color: '#15803d', border: '1px solid #86efac', borderRadius: 999, padding: '3px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                          <Check style={{ width: 9, height: 9 }} /> Vinculado
-                                        </span>
-                                      ) : isSent ? (
-                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: '#fff7ed', color: '#c2410c', border: '1px solid #fed7aa', borderRadius: 999, padding: '3px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }} title="Item enviado sem este patrocinador vinculado">
-                                          <Send style={{ width: 9, height: 9 }} /> Enviado s/ vínculo
-                                        </span>
-                                      ) : (
-                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, backgroundColor: '#f5f5f4', color: '#746e69', border: '1px solid #e7e5e4', borderRadius: 999, padding: '3px 10px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-                                          Pendente
-                                        </span>
-                                      )}
-                                    </td>
-                                    {/* Ações */}
-                                    <td style={{ padding: '12px 16px', textAlign: 'right' }} onClick={e => e.stopPropagation()}>
-                                      {isSent ? (
-                                        <span style={{ fontSize: 13, color: '#15803d', display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600 }}>
-                                          <Check style={{ width: 13, height: 13 }} /> Enviado
-                                        </span>
-                                      ) : isLinked ? (
-                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-                                          <button
-                                            onClick={() => openSendModalForItem(item)}
-                                            disabled={sendToArteMutation.isPending}
-                                            style={{ backgroundColor: '#1c1917', color: '#ffffff', border: 'none', borderRadius: 6, height: 34, padding: '0 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-                                            onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#c2410c')}
-                                            onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#1c1917')}
-                                            data-testid={`sp-btn-send-${item.id}`}
-                                          >
-                                            <Send style={{ width: 11, height: 11 }} /> Enviar
-                                          </button>
-                                          <button
-                                            onClick={() => unlinkSponsorFromItem(item.id, sponsor.id)}
-                                            title="Desvincular"
-                                            style={{ backgroundColor: 'transparent', border: '1px solid #e7e5e4', color: '#746e69', borderRadius: 6, height: 34, padding: '0 10px', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3 }}
-                                            onMouseEnter={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#fca5a5'; b.style.color = '#dc2626'; }}
-                                            onMouseLeave={e => { const b = e.currentTarget as HTMLButtonElement; b.style.borderColor = '#e7e5e4'; b.style.color = '#746e69'; }}
-                                            data-testid={`sp-btn-unlink-${item.id}-${sponsor.id}`}
-                                          >
-                                            <X style={{ width: 11, height: 11 }} /> Desvincular
-                                          </button>
-                                        </div>
-                                      ) : (
-                                        <button
-                                          onClick={() => linkSponsorToItem(item.id, sponsor.id)}
-                                          disabled={saveLinkingMutation.isPending}
-                                          style={{ backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: 6, height: 34, padding: '0 14px', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
-                                          /* onMouseLeave volta ao #c2410c BASE do botão — voltar
-                                             para #f97316 deixava o botão preso num laranja claro
-                                             reprovado depois do primeiro hover. */
-                                          onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#9a3412')}
-                                          onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = '#c2410c')}
-                                          data-testid={`sp-btn-link-${item.id}`}
-                                        >
-                                          <Plus style={{ width: 11, height: 11 }} /> Vincular Peça
-                                        </button>
-                                      )}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                          {allItems.length > ITEM_RENDER_CAP && (
-                            <button
-                              onClick={() => setShowAllRows(prev => {
-                                const n = new Set(prev);
-                                if (showAllGroupRows) n.delete(groupKey); else n.add(groupKey);
-                                return n;
-                              })}
-                              data-testid={`button-show-all-group-${event.id}-${sponsor.id}`}
-                              style={{ width: '100%', padding: '10px 0', background: '#fafaf9', border: 'none', borderTop: '1px solid #e7e5e4', color: '#c2410c', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-                            >
-                              {showAllGroupRows
-                                ? 'Mostrar menos'
-                                : `Mostrar todos os ${allItems.length} itens (+${allItems.length - ITEM_RENDER_CAP})`}
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
-        </div>
-      )} {/* fim agrupamento === 'patrocinador' */}
 
       {/* Dialog — Gerenciar Patrocinadores do Evento */}
       <Dialog open={sponsorDialogOpen} onOpenChange={(open) => { setSponsorDialogOpen(open); if (!open) setSponsorModalSearch(''); }}>

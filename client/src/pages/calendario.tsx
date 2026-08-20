@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { MARCOS_DO_EVENTO, OFFSET_PADRAO_DO_MARCO } from "@shared/prazo-dates";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 /* ── Palette ── */
@@ -59,21 +60,22 @@ const LEGEND_PRIOS: { label: string; dot: string }[] = [
    `text` é o tom 700 da MESMA família da cor saturada (violet→#6d28d9,
    blue→#1d4ed8, amber→#b45309, emerald→#047857, orange→#c2410c): a cor
    saturada como texto a 10px reprovava AA sobre o fundo tingido. */
-const DEADLINE_TYPES = [
-  { key: "deadlineListaImagens",    label: "Lista de Imagens",    short: "Lista Img",       color: "#8b5cf6", text: "#6d28d9" },
-  { key: "deadlineEntregaLayouts",  label: "Entrega de Layouts",  short: "Entrega Layout",  color: "#3b82f6", text: "#1d4ed8" },
-  { key: "deadlineAprovacaoLayout", label: "Aprovação de Layout", short: "Aprov. Layout",   color: "#f59e0b", text: "#b45309" },
-  { key: "deadlineRevisaoLista",    label: "Revisão de Lista",    short: "Revisão Lista",   color: "#10b981", text: "#047857" },
-  { key: "deadlineProducaoGrafica", label: "Produção Gráfica",    short: "Prod. Gráfica",   color: "#f97316", text: "#c2410c" },
-] as const;
+// OS MARCOS VÊM DE @shared/prazo-dates — e são SEIS.
+//
+// Esta lista era escrita à mão aqui e tinha CINCO: faltava a FINALIZAÇÃO
+// (−10). Não era escolha de desenho — o servidor COBRA esse prazo (coluna
+// própria em `events`, e uma das seis chaves de `nextMilestone`), e o
+// calendário simplesmente não o desenhava. Um evento cuja finalização vencia
+// hoje não aparecia na grade nem no dialog do dia: cobrado num lugar e
+// invisível justamente naquele onde as pessoas vão para planejar.
+//
+// Com a lista vindo de um lugar só, o próximo marco nasce nas três telas —
+// e não em duas, com a terceira descobrindo meses depois.
+const DEADLINE_TYPES = MARCOS_DO_EVENTO.map(m => ({
+  key: m.campo, label: m.label, short: m.curto, color: m.cor, text: m.texto,
+}));
 
-const DEADLINE_DEFAULTS: Record<string, number> = {
-  deadlineListaImagens:    -25,
-  deadlineEntregaLayouts:  -20,
-  deadlineAprovacaoLayout: -12,
-  deadlineRevisaoLista:    -8,
-  deadlineProducaoGrafica: -1,
-};
+const DEADLINE_DEFAULTS: Record<string, number> = OFFSET_PADRAO_DO_MARCO;
 
 /* Sunday-first week (matches mockup) */
 const WEEK_DAYS = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];

@@ -70,6 +70,7 @@ import { ToastAction } from "@/components/ui/toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
+import { MARCOS_DO_EVENTO, OFFSET_PADRAO_DO_MARCO } from "@shared/prazo-dates";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 type PriorityLevel = 'baixa' | 'media' | 'alta' | 'urgente' | 'sem_prioridade';
@@ -131,20 +132,25 @@ const QUOTA_OPTIONS = [
 ];
 
 // Offsets padrão dos prazos (dias relativos à saída do caminhão).
-const DEFAULT_DEADLINES = {
-  deadlineListaImagens: -25,
-  deadlineEntregaLayouts: -20,
-  deadlineAprovacaoLayout: -12,
-  deadlineFinalizacao: -10,
-  deadlineRevisaoLista: -8,
-  deadlineProducaoGrafica: -1,
-};
+// Os offsets padrão, da mesma fonte.
+const DEFAULT_DEADLINES = OFFSET_PADRAO_DO_MARCO as Record<
+  'deadlineListaImagens' | 'deadlineEntregaLayouts' | 'deadlineAprovacaoLayout'
+  | 'deadlineFinalizacao' | 'deadlineRevisaoLista' | 'deadlineProducaoGrafica',
+  number
+>;
 
 type DeadlineField = keyof typeof DEFAULT_DEADLINES;
 
 // Os marcos, na ORDEM da cadeia causal. `key` casa com `nextMilestone.key`
 // do servidor (server/routes/events.ts MARCO_DEFS) — é o que permite pintar a
 // bolinha do card com a cor do marco sem duplicar a conta de prazo.
+// Os marcos vêm de @shared/prazo-dates — a MESMA lista que o servidor usa em
+// MARCO_DEFS e que o Calendário desenha.
+//
+// Ela estava escrita à mão em TRÊS lugares, e o Calendário tinha ficado com
+// CINCO: faltava a Finalização (−10). Três cópias com duas certas não é
+// coincidência — é o prazo de uma delas não ter sido atualizado, e ninguém
+// ter como perceber, porque nada quebra quando uma lista fica para trás.
 const MARCO_FIELDS: {
   field: DeadlineField;
   key: string;
@@ -152,14 +158,14 @@ const MARCO_FIELDS: {
   desc: string;
   color: string;
   allDays: boolean;
-}[] = [
-  { field: 'deadlineListaImagens',   key: 'listaImagens', label: 'Lista de Imagens',    desc: 'Criação dos itens do evento',          color: '#8b5cf6', allDays: false },
-  { field: 'deadlineEntregaLayouts', key: 'layouts',      label: 'Entrega de Layouts',  desc: 'Arte entrega os arquivos finais',      color: '#3b82f6', allDays: false },
-  { field: 'deadlineAprovacaoLayout',key: 'aprovacao',    label: 'Aprovação de Layout', desc: 'Aprovação pelo patrocinador',          color: '#f59e0b', allDays: false },
-  { field: 'deadlineFinalizacao',    key: 'finalizacao',  label: 'Finalização',         desc: 'Arte anexa o arquivo final da peça',   color: '#14b8a6', allDays: false },
-  { field: 'deadlineRevisaoLista',   key: 'revisao',      label: 'Revisão de Lista',    desc: 'Criador revisa e lança todos os itens',color: '#10b981', allDays: false },
-  { field: 'deadlineProducaoGrafica',key: 'producao',     label: 'Produção Gráfica',    desc: 'Prazo da gráfica para produzir',       color: '#f97316', allDays: true  },
-];
+}[] = MARCOS_DO_EVENTO.map((m) => ({
+  field: m.campo as DeadlineField,
+  key: m.key,
+  label: m.label,
+  desc: m.descricao,
+  color: m.cor,
+  allDays: m.todosOsDias,
+}));
 const MARCO_COLOR: Record<string, string> = Object.fromEntries(MARCO_FIELDS.map((m) => [m.key, m.color]));
 
 // Rótulo do botão "Restaurar padrão", DERIVADO dos offsets. Era a lista

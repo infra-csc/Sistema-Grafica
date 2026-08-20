@@ -29,6 +29,7 @@ import {
   Plus, Calendar, Truck, AlertCircle, AlertTriangle, Search, Pencil, Trash2,
   Package, Flag, Building2, CheckCircle, ChevronDown, ChevronUp, Clock,
   HelpCircle, Copy, RotateCcw, CalendarPlus, X, Lock, Unlock,
+  LayoutGrid, List as ListIcon,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Link, useLocation } from "wouter";
@@ -363,6 +364,154 @@ const MILESTONE_TONE = {
   upcoming: { text: '#57534e', bg: '#f5f5f4', border: '#e7e5e4' },
 } as const;
 
+/**
+ * UMA DEFINIÇÃO DE GRADE, usada pelo cabeçalho E pelas linhas.
+ *
+ * Duas definições — uma no `<thead>`, outra na linha — é como colunas saem
+ * de registro: elas nascem iguais e divergem no primeiro ajuste que só um
+ * dos dois lados recebe. A primeira coluna é a faixa de acento, por isso os
+ * 4px.
+ */
+const GRADE_LISTA = '4px 1fr 132px 190px 108px 92px';
+
+/**
+ * Peças por fase, na ordem de PHASES. Era um derivado local do cartão; virou
+ * função de módulo quando a lista passou a desenhar a mesma barra — duas
+ * implementações da mesma contagem divergem no primeiro ajuste que só uma
+ * delas recebe.
+ */
+function contarPorFase(event: any): number[] {
+  const counts = new Array(PHASES.length).fill(0) as number[];
+  const items: any[] = Array.isArray(event.items) ? event.items : [];
+  for (const it of items) {
+    const idx = PHASES.findIndex((p) => p.statuses.includes(it.status));
+    if (idx >= 0) counts[idx] += 1;
+  }
+  return counts;
+}
+
+/** Rótulo de coluna. #7a6154 sobre #fafaf9 dá 5,49. */
+const TH_LISTA: React.CSSProperties = {
+  fontSize: FS.micro, fontWeight: 800, color: '#7a6154',
+  textTransform: 'uppercase', letterSpacing: '0.08em', whiteSpace: 'nowrap',
+};
+
+/**
+ * UMA LINHA DA LISTA.
+ *
+ * Mesmas cinco informações do cartão, na mesma ordem de leitura, sem os
+ * blocos que só fazem sentido quando há espaço para eles (patrocinadores por
+ * extenso, data de início, ações). As ações ficam de fora de propósito: numa
+ * linha de 44px elas seriam três alvos de 24px grudados na borda, e o cartão
+ * continua a um clique.
+ */
+function EventRow({ event, sponsorCount, currentYear }: {
+  event: any;
+  sponsorCount: number;
+  currentYear: number;
+}) {
+  const stats = readEventStats(event);
+  const prio = getPriorityConfig(event.priority);
+  const ms = event.nextMilestone;
+  // Mesma indexação do cartão (linha ~679): o `state` vem do servidor como
+  // string, e o mapa cobre os três valores possíveis.
+  const msTone = MILESTONE_TONE[(ms?.state ?? 'upcoming') as keyof typeof MILESTONE_TONE];
+  const fases = contarPorFase(event);
+
+  // toUTCDisplayDate: o horário do caminhão foi gravado como UTC mas É o de
+  // exibição. Com `new Date()` cru, um caminhão gravado para 08:00 exibia
+  // "08:00" e o selo "Saiu hoje" ao mesmo tempo.
+  const saida = event.truckDepartureDate ? toUTCDisplayDate(event.truckDepartureDate) : null;
+  const diasAteSaida = saida
+    ? Math.ceil((new Date(saida.getFullYear(), saida.getMonth(), saida.getDate()).getTime()
+        - new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).getTime()) / 86400000)
+    : null;
+  const corDaSaida = diasAteSaida === null ? T.second
+    : diasAteSaida < 0 ? '#b91c1c'
+    : diasAteSaida <= 7 ? '#9a3412'
+    : T.second;
+
+  // A MESMA frase do rodapé do cartão — não uma segunda redação do mesmo
+  // estado, que divergiria no primeiro ajuste.
+  const situacao = stats.activeItemCount === 0
+    ? 'Sem peças'
+    : `${stats.deliveredCount} de ${stats.activeItemCount}`;
+
+  return (
+    <a
+      href={`/eventos/${event.id}`}
+      data-testid={`row-event-${event.id}`}
+      style={{
+        display: 'grid', gridTemplateColumns: GRADE_LISTA, gap: 12,
+        alignItems: 'center', padding: '0 16px 0 0',
+        borderBottom: '1px solid #f5f4f2', textDecoration: 'none',
+        color: 'inherit', minHeight: 52,
+      }}
+      onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9'; }}
+      onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
+    >
+      {/* A faixa de acento — a mesma borda esquerda do cartão. */}
+      <span aria-hidden="true" style={{ alignSelf: 'stretch', backgroundColor: prio.hex }} />
+
+      {/* Evento */}
+      <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, paddingLeft: 12 }}>
+        <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: prio.hex, flexShrink: 0 }} />
+        <span style={{ fontSize: FS.body, fontWeight: 700, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {event.name}
+        </span>
+        {sponsorCount > 0 && (
+          <span style={{ fontSize: FS.small, color: T.second, whiteSpace: 'nowrap', flexShrink: 0 }}>
+            {sponsorCount} patroc.
+          </span>
+        )}
+      </span>
+
+      {/* Saída */}
+      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: FS.small, color: corDaSaida, whiteSpace: 'nowrap' }}>
+        {saida
+          ? `${saida.toLocaleDateString('pt-BR', saida.getFullYear() === currentYear
+              ? { day: '2-digit', month: 'short' }
+              : { day: '2-digit', month: 'short', year: '2-digit' }).replace('.', '')} ${String(saida.getHours()).padStart(2, '0')}:${String(saida.getMinutes()).padStart(2, '0')}`
+          : '—'}
+      </span>
+
+      {/* Próximo marco */}
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+        {ms ? (
+          <>
+            <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: MARCO_COLOR[ms.key] || '#78716c', flexShrink: 0 }} />
+            <span style={{ fontSize: FS.small, color: T.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ms.label}</span>
+            <span style={{ fontSize: FS.small, fontWeight: 700, color: msTone.text, whiteSpace: 'nowrap', flexShrink: 0 }}>
+              {milestoneDueText(ms)}
+            </span>
+          </>
+        ) : (
+          <span style={{ fontSize: FS.small, color: T.second }}>—</span>
+        )}
+      </span>
+
+      {/* Peças — a MESMA barra segmentada por fase do cartão. A barra antiga
+          media só `delivered` e mostrava 0% num evento todo conferido. */}
+      <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+        <span aria-hidden="true" style={{ display: 'flex', width: 46, height: 6, borderRadius: R.pill, overflow: 'hidden', backgroundColor: '#f0efee', flexShrink: 0 }}>
+          {stats.activeItemCount > 0 && PHASES.map((fase, i) => (
+            fases[i] > 0
+              ? <span key={fase.key} title={`${fases[i]} ${fase.noun}`} style={{ width: `${(fases[i] / stats.activeItemCount) * 100}%`, backgroundColor: fase.color }} />
+              : null
+          ))}
+        </span>
+        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: FS.small, color: T.second, whiteSpace: 'nowrap' }}>
+          {stats.activeItemCount > 0 ? `${stats.deliveredCount}/${stats.activeItemCount}` : '—'}
+        </span>
+      </span>
+
+      {/* Situação */}
+      <span style={{ fontSize: FS.small, color: T.second, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {situacao}
+      </span>
+    </a>
+  );
+}
 function EventCardActions({
   event,
   accentHex,
@@ -580,15 +729,7 @@ function EventCard({
           : `Abrir evento ${event.name}`;
 
   // Uma passada só sobre as peças (a grade monta até 50 cards).
-  const phaseCounts = (() => {
-    const counts = new Array(PHASES.length).fill(0) as number[];
-    const items: any[] = Array.isArray(event.items) ? event.items : [];
-    for (const it of items) {
-      const idx = PHASES.findIndex((p) => p.statuses.includes(it.status));
-      if (idx >= 0) counts[idx] += 1;
-    }
-    return counts;
-  })();
+  const phaseCounts = contarPorFase(event);
 
   const emptyActive = stats.activeItemCount === 0 && stats.lifecycle === 'active';
 
@@ -880,6 +1021,54 @@ export default function Eventos() {
   // Chips de foco do cabeçalho (sugestão 7 do relatório).
   const [foco, setFoco] = useState<string>(() => urlParams.get("foco") ?? "");
 
+  // ── ORDEM ────────────────────────────────────────────────────────────────
+  //
+  // `sortedEvents` sempre ordenou por risco e depois pela saída do caminhão.
+  // É a ordem certa — e a tela nunca a disse: ninguém entendia por que um
+  // evento era o terceiro, e não havia como pedir outro critério. Uma ordem
+  // que a pessoa não consegue nomear ela lê como aleatória, e passa a varrer
+  // a lista inteira toda vez em vez de confiar no topo.
+  const [ordem, setOrdem] = useState<"saida" | "marco" | "nome">(() => {
+    const v = urlParams.get("ordem");
+    return v === "marco" || v === "nome" ? v : "saida";
+  });
+
+  // ── SITUAÇÃO ─────────────────────────────────────────────────────────────
+  //
+  // O mesmo eixo vivia em TRÊS lugares: o FilterSelect "Prioridade e situação"
+  // (que misturava PRIORITY com LIFECYCLE_FILTERS), o botão "Ocultar
+  // concluídos", e os chips do cabeçalho. O código chegava a DESABILITAR o
+  // botão quando o filtro pedia uma situação — `explicitLifecycleFilter` era
+  // a confissão de que dois controles disputavam a mesma decisão.
+  //
+  // Três alternadores que PARTICIONAM: cada evento cai num balde só, e a soma
+  // das contagens fecha com o total. Alternadores e não radios — radios
+  // prometem exclusão mútua, e aqui a pessoa combina baldes.
+  //
+  // Padrão: Ativos + Pendências (a visão padrão de hoje). "Pendências" é
+  // `realizado`, o único balde em que sobrou trabalho — ele nunca some por
+  // decisão de ninguém, e por isso ARCHIVED_LIFECYCLES não o inclui.
+  const [situacoes, setSituacoes] = useState<Set<string>>(() => {
+    const v = urlParams.get("situacao");
+    if (v) return new Set(v.split(",").filter(Boolean));
+    return new Set(["ativos", "pendencias"]);
+  });
+  const alternarSituacao = (chave: string) => setSituacoes((prev) => {
+    const n = new Set(prev);
+    n.has(chave) ? n.delete(chave) : n.add(chave);
+    return n;
+  });
+
+  // ── DENSIDADE ────────────────────────────────────────────────────────────
+  //
+  // O cartão tem sete blocos e ~440px de altura; com 50 eventos a varredura é
+  // longa. A lista não substitui o cartão — responde outra pergunta: "onde
+  // está o evento X" em vez de "como está o evento X".
+  const [densidade, setDensidade] = useState<"cartoes" | "lista">(() => {
+    const v = urlParams.get("densidade");
+    return v === "lista" ? "lista" : "cartoes";
+  });
+
   useEffect(() => {
     const t = setTimeout(() => setSearchTerm(searchInput), 200);
     return () => clearTimeout(t);
@@ -896,11 +1085,17 @@ export default function Eventos() {
       if (monthFilter !== "all") p.set("mes", monthFilter);
       if (showCompleted) p.set("concluidos", "1");
       if (foco) p.set("foco", foco);
+      if (ordem !== "saida") p.set("ordem", ordem);
+      // A situação só entra quando difere do padrão (ativos+pendências), para
+      // o link continuar curto no caso comum.
+      const sit = Array.from(situacoes).sort().join(",");
+      if (sit !== "ativos,pendencias") p.set("situacao", sit);
+      if (densidade !== "cartoes") p.set("densidade", densidade);
       const qs = p.toString();
       window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchTerm, selectedPriorities, selectedSponsorFilter, next10DaysFilter, monthFilter, showCompleted, foco]);
+  }, [searchTerm, selectedPriorities, selectedSponsorFilter, next10DaysFilter, monthFilter, showCompleted, foco, ordem, situacoes, densidade]);
 
   // Atalho "/" foca a busca (paridade com o Painel Geral).
   const searchRef = useRef<HTMLInputElement>(null);
@@ -1587,22 +1782,35 @@ export default function Eventos() {
     });
   }, [selectedPriorities]);
 
+  /**
+   * O balde de situação. PARTICIONA: todo evento cai em exatamente um, e é
+   * isso que faz a soma das três contagens fechar com o total.
+   */
+  const baldeDe = useCallback((event: any): "ativos" | "pendencias" | "arquivados" => {
+    const lifecycle = readEventStats(event).lifecycle;
+    if (ARCHIVED_LIFECYCLES.has(lifecycle)) return "arquivados";
+    if (lifecycle === "realizado") return "pendencias";
+    return "ativos";
+  }, []);
+
   const matchesSponsor = useCallback((event: any) => {
     if (selectedSponsorFilter.length === 0) return true;
     return ((event.sponsors || []) as any[]).some((es) => selectedSponsorFilter.includes(es.sponsorId));
   }, [selectedSponsorFilter]);
 
-  // "Ocultar concluídos" é ignorado quando o usuário pede explicitamente por
-  // eles no filtro de prioridade — senão o dropdown mostraria contagem e a
-  // grade viria vazia.
-  const explicitLifecycleFilter = selectedPriorities.some((p) => (LIFECYCLE_FILTERS as readonly string[]).includes(p));
+  // A visibilidade agora é UM controle: os três alternadores de situação.
+  //
+  // Saiu daqui o `explicitLifecycleFilter` — a regra que ignorava o botão
+  // "Ocultar concluídos" quando o dropdown pedia uma situação. Ela existia
+  // para remendar a disputa entre dois controles sobre o mesmo eixo; sem a
+  // disputa, não há o que remendar.
+  //
+  // Nenhum balde marcado mostra tudo, e não nada: uma tela vazia porque a
+  // pessoa desmarcou os três se lê como erro, não como filtro.
   const matchesVisibility = useCallback((event: any) => {
-    if (showCompleted || explicitLifecycleFilter) return true;
-    // O encerrado à mão sai da visão padrão pela MESMA porta do concluído — e
-    // volta pela mesma: o botão "Ocultar concluídos" e o filtro explícito.
-    // Encerrar nunca esconde um evento de forma irrecuperável.
-    return !ARCHIVED_LIFECYCLES.has(readEventStats(event).lifecycle);
-  }, [showCompleted, explicitLifecycleFilter]);
+    if (situacoes.size === 0) return true;
+    return situacoes.has(baldeDe(event));
+  }, [situacoes, baldeDe]);
 
   /**
    * Ordenação: RISCO primeiro, depois SAÍDA DO CAMINHÃO ascendente.
@@ -1636,11 +1844,23 @@ export default function Eventos() {
         rank: sortRank(event),
         dep: event.truckDepartureDate ? toUTCDisplayDate(event.truckDepartureDate).getTime() : Number.MAX_SAFE_INTEGER,
         prio: PRIORITY_ORDER[eventPriorityKey(event)],
+        // `daysRemaining` vem do SERVIDOR, já no fuso do negócio — não é
+        // recalculado aqui de propósito.
+        marco: event.nextMilestone?.daysRemaining ?? Number.MAX_SAFE_INTEGER,
         name: event.name || '',
       }));
 
+    // O CRITÉRIO ESCOLHIDO decide o primeiro desempate; o resto da cadeia
+    // continua igual, porque ela é o que torna a ordem estável (sem ela, dois
+    // eventos com o mesmo marco trocariam de lugar a cada render).
     decorated.sort((a, b) => {
+      if (ordem === 'nome') return a.name.localeCompare(b.name, 'pt-BR');
       if (a.rank !== b.rank) return a.rank - b.rank;
+      if (ordem === 'marco') {
+        // Sem marco vai para o fim: não é "o menos urgente", é ausência de
+        // marco — e misturá-lo com os de prazo longo esconderia os dois.
+        if (a.marco !== b.marco) return a.marco - b.marco;
+      }
       if (a.dep !== b.dep) return a.dep - b.dep;
       if (a.prio !== b.prio) return a.prio - b.prio;
       return a.name.localeCompare(b.name, 'pt-BR');
@@ -1648,15 +1868,26 @@ export default function Eventos() {
 
     return decorated.map((d) => d.event);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [events, matchesSearch, matchesDates, matchesFoco, matchesPriority, matchesSponsor, matchesVisibility]);
+  }, [events, matchesSearch, matchesDates, matchesFoco, matchesPriority, matchesSponsor, matchesVisibility, ordem]);
 
   // Volta ao teto sempre que o recorte muda: "Mostrar todos" de um filtro não
   // pode vazar para o próximo.
   useEffect(() => { setVisibleCount(CARD_PAGE); },
-    [searchTerm, selectedPriorities, selectedSponsorFilter, next10DaysFilter, monthFilter, showCompleted, foco]);
+    [searchTerm, selectedPriorities, selectedSponsorFilter, next10DaysFilter, monthFilter, situacoes, foco]);
 
   const visibleEvents = useMemo(() => filteredEvents.slice(0, visibleCount), [filteredEvents, visibleCount]);
   const hiddenCount = filteredEvents.length - visibleEvents.length;
+
+  // CONTAGEM POR BALDE — sobre a lista filtrada por tudo MENOS a própria
+  // situação. É o que faz o número ao lado de cada alternador ser exatamente o
+  // de linhas que ligá-lo acrescenta, e a soma dos três fechar com o total.
+  const contagemPorSituacao = useMemo(() => {
+    const c = { ativos: 0, pendencias: 0, arquivados: 0 };
+    events
+      .filter((e) => matchesSearch(e) && matchesDates(e) && matchesFoco(e) && matchesPriority(e) && matchesSponsor(e))
+      .forEach((e) => { c[baldeDe(e)] += 1; });
+    return c;
+  }, [events, matchesSearch, matchesDates, matchesFoco, matchesPriority, matchesSponsor, baldeDe]);
 
   // Contagens de prioridade sobre a lista já filtrada pelos DEMAIS filtros.
   const priorityCounts = useMemo(() => {
@@ -1698,9 +1929,9 @@ export default function Eventos() {
       group: "Prioridade",
     })),
     { value: "sem_prioridade", label: "Sem Prioridade", dotColor: "#d6d3d1", count: priorityCounts.sem_prioridade || 0, pinned: true, group: "Prioridade" },
-    { value: "realizado", label: "Realizado com pendências", dotColor: "#f59e0b", count: priorityCounts.realizado || 0, pinned: true, group: "Situação do evento" },
-    { value: "completed", label: "Concluído", dotColor: "#10b981", count: priorityCounts.completed || 0, pinned: true, group: "Situação do evento" },
-    { value: "manually_closed", label: "Encerrado manualmente", dotColor: "#78716c", count: priorityCounts.manually_closed || 0, pinned: true, group: "Situação do evento" },
+    // As três opções de SITUAÇÃO saíram daqui. Elas eram o segundo lugar do
+    // mesmo eixo, e é o que obrigava `matchesPriority` a saber de lifecycle e
+    // o botão a se desabilitar sozinho.
   ]), [priorityCounts]);
 
   // Opções/contagens do filtro de patrocinador — mesma disciplina: contam a
@@ -1773,9 +2004,16 @@ export default function Eventos() {
     if (next10DaysFilter) chips.push({ key: 'proximos', label: 'Próximos 10 dias', clear: () => setNext10DaysFilter(false) });
     if (foco === 'atrasado') chips.push({ key: 'foco', label: 'Marco atrasado', clear: () => setFoco("") });
     if (foco === 'sem_pecas') chips.push({ key: 'foco', label: 'Sem peças', clear: () => setFoco("") });
-    if (!showCompleted && !explicitLifecycleFilter) chips.push({ key: 'concluidos', label: 'Concluídos e encerrados ocultos', clear: () => setShowCompleted(true) });
+    // O chip de "concluídos ocultos" saiu: os três alternadores de situação
+    // JÁ mostram o que está dentro e o que está fora, com contagem. Um chip
+    // que repete um controle visível ao lado é ruído — e este ainda oferecia
+    // um "limpar" que discordava do alternador.
+    if (!situacoes.has('arquivados') && situacoes.size > 0) {
+      chips.push({ key: 'arquivados', label: 'Arquivados fora da lista', clear: () => alternarSituacao('arquivados') });
+    }
     return chips;
-  }, [searchTerm, selectedPriorities, selectedSponsorFilter, monthFilter, next10DaysFilter, foco, showCompleted, explicitLifecycleFilter, priorityFilterOptions, monthOptions, sponsorById]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, selectedPriorities, selectedSponsorFilter, monthFilter, next10DaysFilter, foco, situacoes, priorityFilterOptions, monthOptions, sponsorById]);
 
   const hasActiveFilters = searchTerm !== "" || selectedPriorities.length > 0 || selectedSponsorFilter.length > 0
     || monthFilter !== "all" || next10DaysFilter || foco !== "";
@@ -2647,9 +2885,12 @@ export default function Eventos() {
             FIXA (8 opções) — e porque a busca do FilterSelect não atravessa
             opções agrupadas, então um campo aqui seria um campo que não faz
             nada. */}
+        {/* VOLTOU A SER SÓ PRIORIDADE. O rótulo prometia "situação" porque o
+            menu misturava PRIORITY com LIFECYCLE_FILTERS; com a situação num
+            controle próprio, a promessa deixaria de ser cumprida. */}
         <FilterSelect
-          label="Prioridade e situação"
-          allLabel="Prioridade e situação"
+          label="Todas as prioridades"
+          allLabel="Todas as prioridades"
           values={selectedPriorities}
           onValuesChange={(v) => setSelectedPriorities(v)}
           options={priorityFilterOptions}
@@ -2690,33 +2931,49 @@ export default function Eventos() {
           title="Só eventos cujo caminhão sai nos próximos 10 dias"
         />
 
-        {/* "Ocultar concluídos" nasce ligado: a grade padrão mostra o que ainda
-            tem trabalho. Esconde o concluído e o encerrado à mão; NUNCA esconde
-            "Realizado com pendências", que segue sendo cobrança. */}
-        <button
-          onClick={() => setShowCompleted(!showCompleted)}
-          aria-pressed={!showCompleted}
-          disabled={explicitLifecycleFilter}
-          title={explicitLifecycleFilter
-            ? 'Desativado enquanto o filtro de prioridade e situação pede uma situação específica'
-            : 'Esconde os eventos concluídos e os encerrados manualmente. "Realizado com pendências" continua na grade — é o único estado em que sobrou trabalho, e some por decisão de ninguém.'}
-          data-testid="button-toggle-completed"
-          style={{
-            display: 'flex', alignItems: 'center', gap: '6px',
-            padding: '5px 13px', borderRadius: R.pill,
-            fontSize: FS.body, fontWeight: '700',
-            cursor: explicitLifecycleFilter ? 'default' : 'pointer',
-            opacity: explicitLifecycleFilter ? 0.5 : 1,
-            border: 'none',
-            backgroundColor: !showCompleted ? T.dark : '#e2e2e2',
-            color: !showCompleted ? '#ffffff' : '#57534e',
-            transition: 'all 0.15s',
-          }}
-        >
-          <CheckCircle style={{ width: '13px', height: '13px' }} />
-          Ocultar concluídos
-        </button>
+        {/* ── SITUAÇÃO, UM CONTROLE SÓ ──
 
+            Alternadores e não radios: radios prometem exclusão mútua, e aqui
+            a pessoa combina baldes. `aria-pressed` diz isso ao leitor de tela.
+
+            Os baldes PARTICIONAM — a soma das três contagens fecha com o
+            total —, e é o que permite ler a barra como um mapa do acervo, não
+            como três filtros que se sobrepõem em alguma parte que ninguém
+            consegue apontar. */}
+        <div role="group" aria-label="Situação dos eventos" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          {([
+            { chave: 'ativos', rotulo: 'Ativos', cor: '#22c55e' },
+            { chave: 'pendencias', rotulo: 'Pendências', cor: '#f59e0b' },
+            { chave: 'arquivados', rotulo: 'Arquivados', cor: '#78716c' },
+          ] as const).map(({ chave, rotulo, cor }) => {
+            const ligado = situacoes.has(chave);
+            return (
+              <button
+                key={chave}
+                type="button"
+                onClick={() => alternarSituacao(chave)}
+                aria-pressed={ligado}
+                data-testid={`toggle-situacao-${chave}`}
+                title={ligado ? `Tirar ${rotulo.toLowerCase()} da lista` : `Trazer ${rotulo.toLowerCase()} para a lista`}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 7,
+                  height: isMobile ? 44 : 30, padding: '0 12px', borderRadius: R.pill,
+                  border: `1px solid ${ligado ? T.dark : '#e8e8e7'}`,
+                  backgroundColor: ligado ? T.dark : '#ffffff',
+                  color: ligado ? '#ffffff' : '#44403c',
+                  font: 'inherit', fontSize: FS.body, fontWeight: 600,
+                  cursor: 'pointer', whiteSpace: 'nowrap',
+                }}
+              >
+                <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: ligado ? '#ffffff' : cor, flexShrink: 0 }} />
+                {rotulo}
+                <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, opacity: ligado ? 1 : 0.75 }}>
+                  {contagemPorSituacao[chave]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
         {hasActiveFilters && (
           <button onClick={clearAllEventFilters} data-testid="button-clear-filters"
             style={{ padding: '5px 10px', borderRadius: R.pill, fontSize: FS.small, cursor: 'pointer', border: 'none', backgroundColor: 'transparent', color: T.second }}>
@@ -2726,13 +2983,130 @@ export default function Eventos() {
 
         {/* Contador de resultados — plural correto ("1 de 1 eventos" era o texto antigo). */}
         {!isLoading && !isError && (
-          <span aria-live="polite" style={{ marginLeft: 'auto', fontSize: FS.small, color: T.second, flexShrink: 0 }}>
-            {filteredEvents.length === events.length
-              ? `${events.length} ${events.length === 1 ? 'evento' : 'eventos'}`
-              : `${filteredEvents.length} de ${events.length} ${events.length === 1 ? 'evento' : 'eventos'}`}
-          </span>
+          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+            <span aria-live="polite" style={{ fontSize: FS.small, color: T.second }}>
+              {filteredEvents.length === events.length
+                ? `${events.length} ${events.length === 1 ? 'evento' : 'eventos'}`
+                : `${filteredEvents.length} de ${events.length} ${events.length === 1 ? 'evento' : 'eventos'}`}
+            </span>
+
+            {/* ── CARTÕES | LISTA ──
+                O cartão tem sete blocos e ~440px de altura; com 50 eventos a
+                varredura é longa. A lista não substitui o cartão — responde
+                outra pergunta: "onde está o evento X" em vez de "como está o
+                evento X". No celular só existe cartão: a tabela de seis
+                colunas não cabe em 390px, e virar cartão é o que ela faria. */}
+            {!isMobile && (
+              <div
+                role="radiogroup"
+                aria-label="Densidade da lista"
+                style={{ display: 'flex', backgroundColor: '#f3f4f3', padding: 2, borderRadius: R.md }}
+              >
+                {([
+                  ['cartoes', 'Cartões', LayoutGrid],
+                  ['lista', 'Lista', ListIcon],
+                ] as const).map(([valor, rotulo, Icone]) => {
+                  const ativo = densidade === valor;
+                  return (
+                    <button
+                      key={valor}
+                      type="button"
+                      role="radio"
+                      aria-checked={ativo}
+                      tabIndex={ativo ? 0 : -1}
+                      onClick={() => setDensidade(valor)}
+                      onKeyDown={(e) => {
+                        if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+                        e.preventDefault();
+                        setDensidade(valor === 'cartoes' ? 'lista' : 'cartoes');
+                      }}
+                      data-testid={`toggle-densidade-${valor}`}
+                      style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        height: 30, padding: '0 12px', borderRadius: 6, border: 'none',
+                        backgroundColor: ativo ? '#ffffff' : 'transparent',
+                        boxShadow: ativo ? '0 1px 3px rgba(0,0,0,0.10)' : 'none',
+                        color: ativo ? T.text : T.second,
+                        font: 'inherit', fontSize: FS.body, fontWeight: ativo ? 700 : 600,
+                        cursor: 'pointer', whiteSpace: 'nowrap',
+                      }}
+                    >
+                      <Icone aria-hidden="true" style={{ width: 13, height: 13 }} />
+                      {rotulo}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         )}
       </div>
+
+      {/* ══════════════════════════════════════════════════════════════════
+          ORDEM — declarada, e trocável.
+
+          `sortedEvents` sempre ordenou por risco e depois pela saída do
+          caminhão. É a ordem certa, e a tela nunca a dizia: ninguém entendia
+          por que um evento era o terceiro, e não havia como pedir outro
+          critério. Uma ordem que a pessoa não consegue nomear ela lê como
+          aleatória — e passa a varrer a lista inteira toda vez, em vez de
+          confiar no topo.
+
+          A regra fica ESCRITA ao lado, não num tooltip: ela é a resposta a
+          "por que este está em cima", e essa pergunta se faz olhando a lista,
+          não apontando para um controle.
+      ══════════════════════════════════════════════════════════════════ */}
+      {!isLoading && !isError && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+          <span style={{ fontSize: FS.small, color: T.second, flexShrink: 0 }}>Ordem</span>
+          <div
+            role="radiogroup"
+            aria-label="Critério de ordenação"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              // No celular vira uma linha rolável: três alternadores mais a
+              // regra não cabem em 390px, e embrulhar empurraria a lista para
+              // fora da primeira tela.
+              overflowX: isMobile ? 'auto' : 'visible',
+              maxWidth: '100%',
+            }}
+          >
+            {([
+              ['saida', 'Saída do caminhão'],
+              ['marco', 'Marco mais crítico'],
+              ['nome', 'Nome'],
+            ] as const).map(([valor, rotulo]) => {
+              const ativo = ordem === valor;
+              return (
+                <button
+                  key={valor}
+                  type="button"
+                  role="radio"
+                  aria-checked={ativo}
+                  tabIndex={ativo ? 0 : -1}
+                  onClick={() => setOrdem(valor)}
+                  data-testid={`toggle-ordem-${valor}`}
+                  style={{
+                    height: isMobile ? 44 : 30, padding: '0 12px', borderRadius: R.pill,
+                    border: `1px solid ${ativo ? '#fdba74' : '#e8e8e7'}`,
+                    backgroundColor: ativo ? '#fff7ed' : '#ffffff',
+                    color: ativo ? '#9a3412' : '#44403c',
+                    font: 'inherit', fontSize: FS.body, fontWeight: ativo ? 700 : 600,
+                    cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+                  }}
+                >
+                  {rotulo}
+                </button>
+              );
+            })}
+          </div>
+          <span style={{ fontSize: FS.small, color: T.second, minWidth: 0 }}>
+            {ordem === 'saida' ? 'marco atrasado primeiro, depois quem embarca antes'
+              : ordem === 'marco' ? 'o marco mais perto de vencer no topo'
+              : 'ordem alfabética'}
+          </span>
+        </div>
+      )}
 
       {/* ── CONTEÚDO ── */}
       {isLoading ? (
@@ -2827,6 +3201,49 @@ export default function Eventos() {
         </div>
       ) : (
         <>
+          {densidade === 'lista' && !isMobile ? (
+            /* ══════════════════════════════════════════════════════════════
+               MODO LISTA — uma linha por evento.
+
+               O cartão tem sete blocos e ~440px de altura: com 50 eventos a
+               varredura é longa. A lista responde outra pergunta — "onde está
+               o evento X" em vez de "como está o evento X" — e por isso não
+               substitui o cartão, convive com ele.
+
+               A linha inteira continua sendo ÂNCORA de verdade (`<a href>`),
+               como o cartão: Ctrl+clique, clique do meio e "abrir em nova aba"
+               são o jeito de comparar dois eventos, e um `div role="link"`
+               tira os três de uma vez.
+            ══════════════════════════════════════════════════════════════ */
+            <div style={{ border: '1px solid #e7e5e4', borderRadius: R.lg, overflow: 'hidden', backgroundColor: '#ffffff' }}>
+              <div style={{
+                display: 'grid', gridTemplateColumns: GRADE_LISTA, gap: 12,
+                alignItems: 'center', padding: '10px 16px 10px 0',
+                backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4',
+              }}>
+                <span aria-hidden="true" />
+                <span style={TH_LISTA}>Evento</span>
+                <span style={TH_LISTA}>Saída</span>
+                <span style={TH_LISTA}>Próximo marco</span>
+                <span style={TH_LISTA}>Peças</span>
+                <span style={TH_LISTA}>Situação</span>
+              </div>
+
+              {visibleEvents.map((event) => {
+                const cardSponsors = ((event.sponsors || []) as any[])
+                  .map((es) => sponsorById.get(es.sponsorId))
+                  .filter(Boolean) as Sponsor[];
+                return (
+                  <EventRow
+                    key={event.id}
+                    event={event}
+                    sponsorCount={cardSponsors.length}
+                    currentYear={currentYear}
+                  />
+                );
+              })}
+            </div>
+          ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-6">
             {visibleEvents.map((event) => {
               // O payload de eventos traz só o vínculo (sponsorId/quota) —
@@ -2856,6 +3273,7 @@ export default function Eventos() {
               );
             })}
           </div>
+          )}
           {hiddenCount > 0 && (
             <button
               onClick={() => setVisibleCount(filteredEvents.length)}

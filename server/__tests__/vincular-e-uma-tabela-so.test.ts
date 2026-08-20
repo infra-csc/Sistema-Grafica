@@ -146,7 +146,9 @@ describe("os chips de status são facetas de verdade", () => {
 describe("a linha da peça cabe numa linha", () => {
   it("são cinco colunas, não seis", () => {
     // ID e Peça eram colunas separadas; "Detalhes" empilhava Qtd e m².
-    const i = tela.indexOf("<thead>");
+    // `<thead` sem o `>`: a tag carrega um style (ela some no celular).
+    const i = tela.indexOf("<thead");
+    expect(i).toBeGreaterThan(-1);
     const cabecalho = tela.slice(i, tela.indexOf("</thead>", i));
     // `/<th/` casaria também o próprio `<thead>` — o espaço é o que separa a
     // tag da coluna da tag do cabeçalho.

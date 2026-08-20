@@ -1286,13 +1286,28 @@ export default function VincularPatrocinadores() {
     // marca sobre fundo tingido perde justamente a cor que o identifica.
     const corDaBorda = selecionada ? '#c2410c' : estado === 'RASCUNHO' ? '#f97316' : 'transparent';
 
+    // NO CELULAR A LINHA VIRA CARTÃO — sem duplicar a árvore.
+    //
+    // Cinco colunas não cabem em 390px, e o caminho fácil seria escrever uma
+    // segunda árvore de JSX para o celular: exatamente o defeito que esta tela
+    // acabou de resolver (duas árvores é como as ações divergem — não por
+    // decisão, mas porque ninguém copiou o botão novo para o outro lado).
+    // `display: grid` na <tr> e `display: block` nas <td> empilham as mesmas
+    // células, e a função de render continua sendo uma só.
+    const celula: React.CSSProperties = isMobile ? { display: 'block', width: '100%' } : {};
+
     return (
       <tr
         key={item.id}
         data-testid={`item-row-${item.id}`}
         onClick={() => setSelectedItemForDetails(item)}
         style={{
-          borderBottom: '1px solid #f0efee',
+          ...(isMobile ? {
+            display: 'grid', gridTemplateColumns: '46px 1fr',
+            border: `1px solid ${selecionada ? '#fdba74' : '#e7e5e4'}`,
+            borderLeft: `3px solid ${corDaBorda === 'transparent' ? '#e7e5e4' : corDaBorda}`,
+            borderRadius: 12, marginBottom: 10, padding: '10px 12px 10px 0',
+          } : { borderBottom: '1px solid #f0efee' }),
           backgroundColor: selecionada ? '#fff7ed' : '#ffffff',
           // 0.55 + grayscale derrubava a linha inteira abaixo de AA, e o hover
           // (que restaurava) não existe no teclado.
@@ -1304,7 +1319,9 @@ export default function VincularPatrocinadores() {
         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = selecionada ? '#fff7ed' : '#ffffff'; }}
       >
         {/* ── Seleção ── */}
-        <td onClick={e => e.stopPropagation()} style={{ width: 46, textAlign: 'center', padding: '8px 0', borderLeft: `3px solid ${corDaBorda}` }}>
+        <td onClick={e => e.stopPropagation()} style={isMobile
+          ? { display: 'flex', alignItems: 'flex-start', justifyContent: 'center', gridRow: '1 / span 4', paddingTop: 2 }
+          : { width: 46, textAlign: 'center', padding: '8px 0', borderLeft: `3px solid ${corDaBorda}` }}>
           <Checkbox
             checked={selecionada}
             onCheckedChange={() => podeSelecionar && toggleItemSelection(item.id)}
@@ -1316,7 +1333,7 @@ export default function VincularPatrocinadores() {
         </td>
 
         {/* ── Peça ── */}
-        <td style={{ padding: '8px 12px', minWidth: 200 }}>
+        <td style={isMobile ? { ...celula, paddingBottom: 6 } : { padding: '8px 12px', minWidth: 200 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             {/* A linha inteira abre o detalhe no clique, mas <tr> não recebe
                 foco: por teclado não havia como abrir peça nenhuma. O ID vira o
@@ -1365,7 +1382,7 @@ export default function VincularPatrocinadores() {
             Eram dois valores empilhados em 11px, o segundo com letterSpacing
             negativo. Numa célula só e em DM Mono, os números de linhas
             vizinhas se alinham e dá para comparar de relance. */}
-        <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
+        <td style={isMobile ? { ...celula, paddingBottom: 8 } : { padding: '8px 12px', whiteSpace: 'nowrap' }}>
           <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: '#57534e' }}>
             {item.quantity ?? 0} un
             {item.calculatedM2 != null && !isNaN(parseFloat(item.calculatedM2))
@@ -1375,7 +1392,7 @@ export default function VincularPatrocinadores() {
         </td>
 
         {/* ── Patrocinadores / Vínculo ── */}
-        <td onClick={e => e.stopPropagation()} style={{ padding: '8px 12px', minWidth: 0 }}>
+        <td onClick={e => e.stopPropagation()} style={isMobile ? { ...celula, paddingBottom: 10 } : { padding: '8px 12px', minWidth: 0 }}>
           {semPatrocinador ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 10px', borderRadius: 999, backgroundColor: '#fffbeb', color: '#92400e', border: '1px solid #fcd34d', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
@@ -1462,8 +1479,8 @@ export default function VincularPatrocinadores() {
         </td>
 
         {/* ── Status e a ação daquele estado ── */}
-        <td onClick={e => e.stopPropagation()} style={{ padding: '8px 16px 8px 12px', whiteSpace: 'nowrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+        <td onClick={e => e.stopPropagation()} style={isMobile ? celula : { padding: '8px 16px 8px 12px', whiteSpace: 'nowrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: isMobile ? 'flex-start' : 'flex-end', gap: 6, flexWrap: 'wrap' }}>
             <span
               data-testid={`badge-status-${item.id}`}
               style={{
@@ -2540,8 +2557,8 @@ export default function VincularPatrocinadores() {
               {/* ── A tabela ── */}
               <div style={{ backgroundColor: '#ffffff' }}>
                 <div className="overflow-x-auto scrollbar-visible">
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                    <thead>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', ...(isMobile ? { display: 'block', padding: 12 } : {}) }}>
+                    <thead style={{ display: isMobile ? 'none' : 'table-header-group' }}>
                       <tr style={{ backgroundColor: '#fafaf9', borderBottom: '1px solid #e7e5e4' }}>
                         <th style={{ ...THC, width: 46, textAlign: 'center', padding: '9px 0' }}>
                           <Checkbox
@@ -2561,7 +2578,7 @@ export default function VincularPatrocinadores() {
                         <th style={{ ...THC, textAlign: 'right', paddingRight: 16 }}>Status</th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody style={{ display: isMobile ? 'block' : 'table-row-group' }}>
                       {renderizadas.map((item, idx) => {
                         const anterior = idx > 0 ? renderizadas[idx - 1] : null;
                         const abreTipo = !anterior || anterior.type !== item.type;
@@ -2598,8 +2615,8 @@ export default function VincularPatrocinadores() {
                                que compõe refs; a remontagem forçada realimenta
                                o ciclo e derrubava a tela com "Maximum update
                                depth exceeded". */
-                            <tr key={`tipo-${item.id}`} style={{ borderLeft: `3px solid ${corDoLote}` }}>
-                              <td colSpan={5} style={{ padding: 0, backgroundColor: '#fafaf9', borderBottom: '1px solid #f0efee' }}>
+                            <tr key={`tipo-${item.id}`} style={{ borderLeft: `3px solid ${corDoLote}`, ...(isMobile ? { display: 'block', marginBottom: 8 } : {}) }}>
+                              <td colSpan={5} style={{ padding: 0, backgroundColor: '#fafaf9', borderBottom: '1px solid #f0efee', ...(isMobile ? { display: 'block' } : {}) }}>
                                 <button
                                   type="button"
                                   onClick={() => setTiposColapsados(prev => {

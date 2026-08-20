@@ -216,6 +216,28 @@ export const items = pgTable("items", {
   approvedAt: timestamp("approved_at"), // Timestamp quando foi liberado pela Arte
   productionStartedAt: timestamp("production_started_at"), // Timestamp quando produção iniciou
   producedAt: timestamp("produced_at"), // Timestamp quando foi produzido
+  // DESDE QUANDO a peca esta no status atual.
+  //
+  // O Painel Geral responde ONDE as pecas estao e nunca DESDE QUANDO — e
+  // 1.129 pecas em "Aguardando envio" pode ser vazao normal ou travamento de
+  // duas semanas, que e justamente a pergunta de quem procura gargalo.
+  //
+  // Por que uma coluna, e nao os dados que ja existem:
+  //   · `updatedAt` muda em QUALQUER edicao (observacao, quantidade, thumb),
+  //     entao mede a ultima vez que alguem tocou na peca, nao a ultima vez que
+  //     ela ANDOU.
+  //   · o audit_log registra as transicoes, mas em texto livre ("Status
+  //     alterado: X -> Y") com `action` variado, e o Painel deixou de baixar a
+  //     tabela inteira de proposito (em 1 ano, megabytes por visita).
+  //   · os carimbos por etapa (sponsorApprovedAt, approvedAt, producedAt...)
+  //     so existem da metade do fluxo para frente. Nao ha carimbo para
+  //     awaiting_linking, awaiting_submission nem awaiting_approval — que e
+  //     onde esta a maior fila.
+  //
+  // NULL e um valor legitimo aqui: peca anterior ao backfill sem carimbo de
+  // etapa nao tem como saber. A tela nao exibe idade nessas linhas em vez de
+  // mostrar a idade desde a criacao como se fosse tempo no estado.
+  statusChangedAt: timestamp("status_changed_at"),
   deliveredAt: timestamp("delivered_at"), // Timestamp quando foi entregue
   referenceUrl: text("reference_url"), // Anexo/referência de demonstração das peças (upload do Solicitante)
   bookUrl: text("book_url"), // PDF do book de aprovação (layout pronto) que cobre esta peça — enviado pela Arte para os patrocinadores

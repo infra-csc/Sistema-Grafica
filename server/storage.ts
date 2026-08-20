@@ -675,6 +675,20 @@ export class DatabaseStorage implements IStorage {
     }
     updateData.updatedAt = new Date();
 
+    // ── O CARIMBO DE "DESDE QUANDO" ──
+    //
+    // Num lugar so, e nao espalhado pelas ~30 rotas que mudam status: aqui e o
+    // funil por onde todas passam, e uma rota nova nasce carimbando de graca.
+    //
+    // A comparacao vai no SQL (`IS DISTINCT FROM`) em vez de um SELECT antes do
+    // UPDATE. Ler-para-decidir abriria uma janela entre a leitura e a escrita em
+    // que outra requisicao muda o status — e o carimbo sairia errado justamente
+    // nas pecas mais movimentadas, que sao as que interessam. `IS DISTINCT
+    // FROM` (e nao `<>`) porque status nulo tem de contar como diferente.
+    if (data.status !== undefined) {
+      updateData.statusChangedAt = sql`CASE WHEN ${items.status} IS DISTINCT FROM ${data.status} THEN now() ELSE ${items.statusChangedAt} END`;
+    }
+
     const [item] = await db
       .update(items)
       .set(updateData)
@@ -708,7 +722,10 @@ export class DatabaseStorage implements IStorage {
       .update(items)
       .set({
         status: toStatus,
-        updatedAt: new Date()
+        updatedAt: new Date(),
+        // O `where` abaixo ja garante que o status era outro: se a linha for
+        // atualizada, houve transicao.
+        statusChangedAt: new Date(),
       })
       .where(and(
         eq(items.id, id),

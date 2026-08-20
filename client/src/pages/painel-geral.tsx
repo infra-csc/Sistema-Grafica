@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useState, useMemo, useRef, Fragment, useEffect, useCallback } from "react";
 import {
-  Search, Calendar, Truck, Eye, Paperclip, Trash2, FileText, Printer, RotateCcw,
+  Search, Calendar, Truck, Eye, Paperclip, Trash2, FileText, Printer, RotateCcw, Hourglass,
   Loader2, MessageSquare, ArrowUpRight, ChevronDown, ChevronUp, Copy, FileSpreadsheet,
   SlidersHorizontal, Link2, Check, Lock, Pin, AlertTriangle,
 } from "lucide-react";
@@ -112,6 +112,20 @@ const EVENT_TITLE_STYLE: React.CSSProperties = {
 
 // Zonas dos KPIs — as três fases do fluxo. 12 cards iguais obrigavam a
 // escanear um a um para achar o gargalo.
+//
+// ── TEMPO NO ESTADO ────────────────────────────────────────────────────────
+//
+// O painel respondia ONDE as peças estão e nunca DESDE QUANDO. 1.129 peças em
+// "Aguardando envio" pode ser vazão normal ou travamento de duas semanas — e
+// essa é exatamente a pergunta de quem procura gargalo. Status é posição;
+// faltava duração.
+//
+// A fonte é `items.status_changed_at`, coluna que o servidor carimba em toda
+// transição (ver shared/schema.ts para por que não serve `updatedAt` nem o
+// audit_log). NULO É LEGÍTIMO: peça anterior ao backfill, em status sem
+// carimbo de etapa, não tem como saber — e a tela não exibe idade nessas
+// linhas em vez de mostrar a idade desde a criação como se fosse tempo no
+// estado. Um campo vazio diz "não sei"; um número errado diz "sei" e mente.
 const ZONA_ENTRADA: GroupKey[] = ["requested", "awaiting_linking"];
 const ZONA_APROVACAO: GroupKey[] = ["awaiting_submission", "awaiting_approval", "awaiting_finalization", "awaiting_final_review"];
 const ZONA_PRODUCAO: GroupKey[] = ["ready_for_production", "approved", "inProduction", "produced", "conferred", "delivered"];
@@ -344,6 +358,39 @@ function FilterChip({ label, onRemove, isMobile }: { label: string; onRemove: ()
 // ─── Barra de distribuição de status do evento ──────────────────────────────
 // O header do grupo dizia só "N peças": para saber se o evento estava saudável
 // era preciso expandir e ler linha a linha. A barra responde "onde está o
+/** Acima disto, a peça não está em fluxo: está parada. */
+const LIMITE_PARADA = 7;
+
+const DIA_MS = 86_400_000;
+
+/**
+ * Dias inteiros desde a última mudança de status, ou `null` quando não há
+ * registro. O `null` percorre a tela toda: nenhuma das três leituras inventa
+ * um número quando ele falta.
+ */
+function diasNoEstado(item: any, agoraMs: number): number | null {
+  const bruto = item?.statusChangedAt ?? item?.status_changed_at;
+  if (!bruto) return null;
+  const t = new Date(bruto).getTime();
+  if (!Number.isFinite(t)) return null;
+  return Math.max(0, Math.floor((agoraMs - t) / DIA_MS));
+}
+
+/**
+ * Tom pela idade. Até o limite é FLUXO e fica discreto — pintar de vermelho
+ * tudo que tem três dias transformaria o alerta em papel de parede, e a tela
+ * inteira em ruído. Acima do limite o dado vira acionável e o peso sobe junto
+ * com a cor: cor sozinha não é sinal para quem não a distingue.
+ */
+function tomDaIdade(dias: number): { cor: string; peso: number } {
+  if (dias > 14) return { cor: "#b91c1c", peso: 700 };
+  if (dias > LIMITE_PARADA) return { cor: "#b45309", peso: 700 };
+  return { cor: "#746e69", peso: 500 };
+}
+
+/** "há 1 dia" / "há 12 dias" / "hoje". */
+const idadePorExtenso = (d: number) => (d === 0 ? "hoje" : d === 1 ? "há 1 dia" : `há ${d} dias`);
+
 // gargalo" na unidade de decisão real — o evento — sem nenhum clique. As cores
 // saem de lib/status.ts (mesmas dos dots e pills), então nada de novo vocabulário.
 function EventStatusBar({ items, width }: { items: Array<{ status?: string | null }>; width: number }) {
@@ -931,6 +978,16 @@ export default function PainelGeral() {
       // compareDisplayId, não replace(/\D/g,'') — com o replace, o complemento
       // "#0062-C1" virava 621 e aparecia centenas de linhas longe da mãe.
       if (sortBy === "status") {
+        // ORDENA PELO TEMPO NO ESTADO, nao pela etapa do fluxo. Ordenar por
+        // etapa so reagrupa o que os cards ja agrupam; ordenar por tempo
+        // responde a pergunta nova — o que esta parado ha mais tempo. Peca sem
+        // carimbo vai para o fim: ela nao e "a mais nova", e desconhecida.
+        const ia = diasNoEstado(a, Date.now()), ib = diasNoEstado(b, Date.now());
+        if (ia !== ib) {
+          if (ia === null) return 1;
+          if (ib === null) return -1;
+          return (ib - ia) * dir;
+        }
         const d = statusFlowIndex(a.status) - statusFlowIndex(b.status);
         if (d !== 0) return d * dir;
       } else if (sortBy === "area") {
@@ -954,6 +1011,7 @@ export default function PainelGeral() {
   // o switch sem `default:` deixava status fora do mapa somarem no Total e em
   // card nenhum — a soma dos cards parava de fechar sem qualquer aviso.
   const stats = computeStats(statsItems);
+
 
   // Grupos ordenados pela saída do caminhão (ascendente; sem data por último;
   // empate/sem data desempata pelo nome) — Object.entries herdava a ordem de
@@ -1479,6 +1537,28 @@ export default function PainelGeral() {
         );
         const soma = segmentos.reduce((t, seg) => t + seg.n, 0) || 1;
         const maior = segmentos.reduce((a, b) => (b.n > a.n ? b : a), segmentos[0]);
+
+        // MEDIA DE IDADE DA MAIOR FILA. So sobre as pecas que TEM carimbo: a
+        // media de um conjunto com buracos e uma media do que se sabe, nao do
+        // que se supoe. Sem nenhuma carimbada, nao ha frase — melhor calar do
+        // que dizer "parada ha 0 dias".
+        // A MEDIA DA MAIOR FILA. So sobre as pecas que TEM carimbo: a media de
+        // um conjunto com buracos e a media do que se SABE, nao do que se supoe.
+        // Sem nenhuma carimbada nao ha frase — melhor calar do que dizer
+        // "parada ha 0 dias", que se leria como "acabou de entrar".
+        //
+        // O pool e `filteredItems` — a lista que a pessoa esta vendo. Os
+        // segmentos contam `statsItems` (um recorte acima), e os dois so
+        // divergem com filtro ativo; quando divergem, a media do que esta na
+        // tela e a mais util das duas.
+        const idadeDoSegmento = (chave: string): number | null => {
+          const idades = (filteredItems as any[])
+            .filter(i => (STATUS_GROUPS as any)[chave]?.includes(i.status))
+            .map(i => diasNoEstado(i, Date.now()))
+            .filter((d): d is number => d !== null);
+          return idades.length ? Math.round(idades.reduce((t, d) => t + d, 0) / idades.length) : null;
+        };
+        const mediaDaMaior = idadeDoSegmento(maior.k);
         return (
           <section aria-label="Distribuição das peças pelo fluxo" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
@@ -1491,11 +1571,27 @@ export default function PainelGeral() {
               <span style={{ fontSize: 12, fontWeight: 700, color: "#57534e" }}>
                 Maior fila: <strong style={{ color: "#1c1917" }}>{maior.meta.label}</strong>
                 {" "}· {Math.round((maior.n / soma) * 100)}% ({maior.n})
+                {/* A frase dizia o quanto a fila PESA; passa a dizer tambem se
+                    ela esta andando. E a diferenca entre vazao normal e
+                    travamento — a pergunta inteira de quem procura gargalo. */}
+                {mediaDaMaior !== null && (() => {
+                  const tom = tomDaIdade(mediaDaMaior);
+                  return (
+                    <span data-testid="texto-idade-maior-fila" style={{ color: tom.cor, fontWeight: tom.peso }}>
+                      {" "}· parada {idadePorExtenso(mediaDaMaior)} em média
+                    </span>
+                  );
+                })()}
               </span>
             </div>
             <div style={{ display: "flex", height: 14, borderRadius: 999, overflow: "hidden", background: "#f5f5f4", border: "1px solid #e7e5e4" }}>
-              {segmentos.map(seg => {
+              {segmentos.map((seg, i) => {
                 const pct = (seg.n / soma) * 100;
+                // O VAO ENTRE ZONAS. A barra tem ate 13 segmentos sem rotulo e
+                // as zonas so existiam nos cards abaixo: as duas leituras nao
+                // se reconheciam. Uma borda de 2px na cor do fundo separa sem
+                // mexer nas larguras proporcionais — a soma continua 100%.
+                const fechaZona = i < segmentos.length - 1 && segmentos[i + 1].zona !== seg.zona;
                 const ativo = statusFilter.includes(seg.k);
                 return (
                   <button
@@ -1503,10 +1599,16 @@ export default function PainelGeral() {
                     onClick={() => toggleStatusCard(seg.k)}
                     aria-pressed={ativo}
                     data-testid={`fluxo-seg-${seg.k}`}
-                    title={`${seg.zona} · ${seg.meta.label}: ${seg.n} ${seg.n === 1 ? "peça" : "peças"} (${Math.round(pct)}%)`}
+                    title={`${seg.zona} · ${seg.meta.label}: ${seg.n} ${seg.n === 1 ? "peça" : "peças"} (${Math.round(pct)}%)`
+                      + (idadeDoSegmento(seg.k) !== null ? ` · parada ${idadePorExtenso(idadeDoSegmento(seg.k)!)} em média` : "")}
                     aria-label={`${seg.meta.label}, ${seg.n} ${seg.n === 1 ? "peça" : "peças"}, ${Math.round(pct)} por cento. Filtrar.`}
                     style={{
-                      width: `${pct}%`, minWidth: 3, height: "100%", border: "none", padding: 0, cursor: "pointer",
+                      width: `${pct}%`, minWidth: 3, height: "100%", padding: 0, cursor: "pointer",
+                      border: "none",
+                      // O vao entre zonas: 2px na cor do fundo, via borda, para
+                      // nao mexer nas larguras proporcionais — a soma continua
+                      // 100%.
+                      borderRight: fechaZona ? "2px solid #fafaf9" : "none",
                       background: seg.meta.dot,
                       // O ativo se separa por brilho e por um anel interno —
                       // não só por cor, que aqui já está ocupada dizendo QUAL
@@ -1519,6 +1621,40 @@ export default function PainelGeral() {
                 );
               })}
             </div>
+
+            {/* ── AS MARCAS DE ZONA ──
+
+                A barra mostra ate 13 segmentos e as zonas so existiam nos cards
+                abaixo — duas leituras da mesma coisa que nao se reconheciam.
+                Cada marca tem a largura da soma da sua zona, com elipse: uma
+                zona estreita nao pode empurrar as outras.
+
+                No celular elas somem. Tres rotulos em 390px nao cabem, e a
+                barra sem rotulo e o que ela ja era — nada se perde. */}
+            {!useCards && (
+              <div aria-hidden="true" style={{ display: "flex", marginTop: 2 }}>
+                {zonas.map(z => {
+                  const daZona = segmentos.filter(seg => seg.zona === z.nome);
+                  if (daZona.length === 0) return null;
+                  const n = daZona.reduce((t, seg) => t + seg.n, 0);
+                  const pct = (n / soma) * 100;
+                  return (
+                    <div
+                      key={z.nome}
+                      data-testid={`zona-tick-${z.nome}`}
+                      style={{ width: `${pct}%`, borderLeft: "1px solid #ddd8d1", paddingLeft: 7, overflow: "hidden" }}
+                    >
+                      <p style={{ margin: 0, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#7a6154", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {z.nome}
+                      </p>
+                      <p style={{ margin: 0, fontSize: 11, color: "#57534e", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {Math.round(pct)}% · {n}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </section>
         );
       })()}
@@ -2143,6 +2279,34 @@ export default function PainelGeral() {
                             {deadline.text}
                           </span>
                         )}
+                        {/* ── PECAS PARADAS ──
+
+                            Antes das datas e com `flexShrink: 0`, pela mesma
+                            regra do chip de prazo ao lado: dado acionavel nao
+                            pode ser clipado em silencio quando a largura
+                            aperta. A data pode encolher; "7 paradas" nao.
+
+                            So aparece acima do limite — abaixo dele a peca esta
+                            em fluxo, e um chip em todo cabecalho viraria papel
+                            de parede. */}
+                        {(() => {
+                          const paradas = (gd.items as any[])
+                            .map(i => ({ i, d: diasNoEstado(i, Date.now()) }))
+                            .filter((x): x is { i: any; d: number } => x.d !== null && x.d > LIMITE_PARADA);
+                          if (paradas.length === 0) return null;
+                          const pior = paradas.reduce((a, b) => (b.d > a.d ? b : a));
+                          const tom = tomDaIdade(pior.d);
+                          return (
+                            <span
+                              data-testid={`chip-paradas-${eventKey}`}
+                              title={`${paradas.length} ${paradas.length === 1 ? "peça parada" : "peças paradas"} há mais de ${LIMITE_PARADA} dias. A mais antiga: ${pior.i.displayId} em ${getStatusMeta(pior.i.status).label}, ${idadePorExtenso(pior.d)}.`}
+                              style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 800, color: tom.cor, textTransform: "uppercase", letterSpacing: "0.06em", whiteSpace: "nowrap", flexShrink: 0 }}
+                            >
+                              <Hourglass aria-hidden="true" style={{ width: 11, height: 11 }} />
+                              {paradas.length} {paradas.length === 1 ? "parada" : "paradas"} +{LIMITE_PARADA}d
+                            </span>
+                          );
+                        })()}
                         {firstItem?.event?.truckDepartureDate && (
                           <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 600, color: "#746e69", whiteSpace: "nowrap", flexShrink: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>
                             <Truck style={{ width: 11, height: 11, flexShrink: 0 }} />
@@ -2462,7 +2626,7 @@ export default function PainelGeral() {
                           cols.push(
                             <th key="st" scope="col" aria-sort={ariaSort("status")} style={thBase}>
                               <span className="pg-sortable" role="button" tabIndex={0} onClick={() => toggleSort("status")} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleSort("status"); } }} title="Ordenar pela etapa do fluxo">
-                                Status{seta("status")}
+                                Status · tempo{seta("status")}
                               </span>
                             </th>,
                             <th key="ac" scope="col" style={{ ...thBase, textAlign: "right" }}>Ações</th>,
@@ -2751,9 +2915,36 @@ export default function PainelGeral() {
                                     </td>
                                   )}
 
-                                  {/* Status */}
-                                  <td style={{ padding: "10px 18px", overflow: "hidden" }}>
+                                  {/* Status · tempo
+
+                                      A pilula diz ONDE a peca esta; a linha
+                                      abaixo diz DESDE QUANDO. Sem a segunda, a
+                                      lista mostra 1.129 pecas em "Aguardando
+                                      envio" sem distinguir vazao normal de
+                                      travamento de duas semanas.
+
+                                      Peca sem carimbo nao ganha linha nenhuma:
+                                      um campo vazio diz "nao sei"; um numero
+                                      inferido da criacao diria "sei" e mentiria.
+
+                                      Padding 16 e nao 20: abre a linha extra sem
+                                      crescer a altura da tabela. */}
+                                  <td data-testid={`cell-idade-${item.id}`} style={{ padding: "10px 16px", overflow: "hidden" }}>
                                     <StatusPill status={isDeleted ? "deleted" : item.status} />
+                                    {(() => {
+                                      if (isDeleted) return null;
+                                      const d = diasNoEstado(item, Date.now());
+                                      if (d === null) return null;
+                                      const tom = tomDaIdade(d);
+                                      return (
+                                        <p
+                                          style={{ margin: "3px 0 0", fontSize: 11, color: tom.cor, fontWeight: tom.peso, whiteSpace: "nowrap" }}
+                                          title={d > LIMITE_PARADA ? `Parada em ${getStatusMeta(item.status).label} ${idadePorExtenso(d)}` : undefined}
+                                        >
+                                          {idadePorExtenso(d)}
+                                        </p>
+                                      );
+                                    })()}
                                   </td>
 
                                   {/* Ação */}
@@ -2855,9 +3046,36 @@ export default function PainelGeral() {
           role="region" aria-label="Ações para as peças selecionadas"
           style={{ position: "fixed", left: "50%", bottom: 20, transform: "translateX(-50%)", zIndex: 30, display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 999, backgroundColor: "#1c1917", boxShadow: "0 8px 24px rgba(28,25,23,.28)", flexWrap: "wrap", maxWidth: "94vw" }}
         >
-          <span style={{ fontSize: 13, fontWeight: 800, color: "#fff", whiteSpace: "nowrap" }}>
-            {selecionadas.length} {selecionadas.length === 1 ? "peça selecionada" : "peças selecionadas"}
-          </span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
+            <span style={{ fontSize: 13, fontWeight: 800, color: "#fff", whiteSpace: "nowrap" }}>
+              {selecionadas.length} {selecionadas.length === 1 ? "peça selecionada" : "peças selecionadas"}
+            </span>
+            {/* DO QUE A SELECAO E FEITA. "12 selecionadas" nao diz se sao doze
+                aguardando aprovacao ou onze entregues e uma reprovada — e a
+                acao que faz sentido depende inteiramente disso. Marcar em lote
+                e facil; lembrar o que se marcou, nao. */}
+            {(() => {
+              const porStatus = new Map<string, number>();
+              for (const i of selecionadas as any[]) {
+                const m = getStatusMeta(i.status);
+                const rotulo = m.short || m.label;
+                porStatus.set(rotulo, (porStatus.get(rotulo) ?? 0) + 1);
+              }
+              if (porStatus.size === 0) return null;
+              const partes = Array.from(porStatus.entries())
+                .sort((a, b) => b[1] - a[1])
+                .map(([rotulo, n]) => `${n} ${rotulo.toLowerCase()}`);
+              // Acima de tres situacoes a frase vira lista de compras: o resto
+              // some num "+N", que ainda diz que ha mais.
+              const visiveis = partes.slice(0, 3);
+              const resto = partes.length - visiveis.length;
+              return (
+                <span data-testid="text-selecao-composicao" style={{ fontSize: 11, color: "rgba(255,255,255,0.6)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  {visiveis.join(" · ")}{resto > 0 ? ` · +${resto}` : ""}
+                </span>
+              );
+            })()}
+          </div>
           <button onClick={() => setShowExportPDFModal(true)} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.22)", borderRadius: 999, color: "#fff", fontSize: 12, fontWeight: 700, padding: "6px 12px", cursor: "pointer" }}>
             <Printer style={{ width: 13, height: 13 }} /> PDF
           </button>

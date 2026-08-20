@@ -372,7 +372,20 @@ const MILESTONE_TONE = {
  * dos dois lados recebe. A primeira coluna é a faixa de acento, por isso os
  * 4px.
  */
-const GRADE_LISTA = '4px 1fr 132px 190px 108px 92px';
+/**
+ * A grade da lista, do cabeçalho e das linhas — a última coluna é a das
+ * AÇÕES, com a mesma largura do cartão (5 botões de 32px + gaps + folga).
+ *
+ * DENSIDADE NÃO PODE MUDAR O QUE DÁ PARA FAZER. A primeira versão desta lista
+ * deixou as ações de fora, com o argumento de que numa linha de 52px elas
+ * seriam alvos pequenos grudados na borda e o cartão está a um clique. O
+ * argumento estava errado pelo mesmo motivo que valeu na tela de Vincular:
+ * escolher a visão densa passaria a CUSTAR capacidade, e é assim que dois
+ * modos da mesma tela divergem — não por decisão, mas porque o botão novo só
+ * foi copiado para um dos lados.
+ */
+const LARGURA_ACOES = 5 * 32 + 4 * 6 + 10;
+const GRADE_LISTA = `4px 1fr 132px 190px 108px 92px ${LARGURA_ACOES}px`;
 
 /**
  * Peças por fase, na ordem de PHASES. Era um derivado local do cartão; virou
@@ -405,10 +418,26 @@ const TH_LISTA: React.CSSProperties = {
  * linha de 44px elas seriam três alvos de 24px grudados na borda, e o cartão
  * continua a um clique.
  */
-function EventRow({ event, sponsorCount, currentYear }: {
+function EventRow({
+  event, sponsorCount, currentYear, isMobile,
+  canEdit, canDelete, canDuplicate, canSetPriority, canClose,
+  onEdit, onDelete, onDuplicate, onSetPriority, onClose, onReopen,
+}: {
   event: any;
   sponsorCount: number;
   currentYear: number;
+  isMobile: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  canDuplicate: boolean;
+  canSetPriority: boolean;
+  canClose: boolean;
+  onEdit: (event: any, e: React.MouseEvent) => void;
+  onDelete: (id: string, e: React.MouseEvent) => void;
+  onDuplicate: (event: any, e: React.MouseEvent) => void;
+  onSetPriority: (event: any, e: React.MouseEvent) => void;
+  onClose: (event: any, e: React.MouseEvent) => void;
+  onReopen: (event: any, e: React.MouseEvent) => void;
 }) {
   const stats = readEventStats(event);
   const prio = getPriorityConfig(event.priority);
@@ -437,19 +466,35 @@ function EventRow({ event, sponsorCount, currentYear }: {
     ? 'Sem peças'
     : `${stats.deliveredCount} de ${stats.activeItemCount}`;
 
+  const isClosed = stats.lifecycle === 'manually_closed';
+  const isDone = stats.lifecycle === 'completed';
+
   return (
-    <a
-      href={`/eventos/${event.id}`}
+    <div
+      className="group"
       data-testid={`row-event-${event.id}`}
       style={{
         display: 'grid', gridTemplateColumns: GRADE_LISTA, gap: 12,
         alignItems: 'center', padding: '0 16px 0 0',
-        borderBottom: '1px solid #f5f4f2', textDecoration: 'none',
-        color: 'inherit', minHeight: 52,
+        borderBottom: '1px solid #f5f4f2', minHeight: 52,
       }}
       onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = '#fafaf9'; }}
       onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.backgroundColor = 'transparent'; }}
     >
+      {/* ÂNCORA DE VERDADE, com `display: contents`.
+
+          Os filhos viram itens diretos do grid, então as colunas alinham com
+          o cabeçalho por UMA definição de grade — e o conteúdo continua
+          DENTRO do link, o que preserva seleção de texto e o alvo de clique
+          por célula. A alternativa comum (link esticado por `position:
+          absolute` + `pointer-events: none` nas células) alinharia igual e
+          custaria a seleção de texto da linha inteira. */}
+      <a
+        href={`/eventos/${event.id}`}
+        aria-label={`Abrir evento ${event.name}`}
+        data-testid={`link-event-${event.id}`}
+        style={{ display: 'contents', textDecoration: 'none', color: 'inherit' }}
+      >
       {/* A faixa de acento — a mesma borda esquerda do cartão. */}
       <span aria-hidden="true" style={{ alignSelf: 'stretch', backgroundColor: prio.hex }} />
 
@@ -509,7 +554,34 @@ function EventRow({ event, sponsorCount, currentYear }: {
       <span style={{ fontSize: FS.small, color: T.second, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
         {situacao}
       </span>
-    </a>
+      </a>
+
+      {/* AÇÕES — fora da âncora, como no cartão: <button> dentro de <a> é
+          HTML inválido, e o navegador desfaz o aninhamento de um jeito que
+          quebra os dois. Mesmo componente do cartão, então um botão novo
+          nasce nos dois lugares. */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <EventCardActions
+          event={event}
+          accentHex={prio.hex}
+          onEdit={onEdit}
+          onDelete={onDelete}
+          onDuplicate={onDuplicate}
+          onSetPriority={onSetPriority}
+          onClose={onClose}
+          onReopen={onReopen}
+          canEdit={canEdit}
+          canDelete={canDelete}
+          canDuplicate={canDuplicate}
+          // Mesma regra do cartão: prioridade não faz sentido no que já saiu
+          // de jogo.
+          canSetPriority={canSetPriority && !isDone && !isClosed}
+          canClose={canClose}
+          isClosed={isClosed}
+          isMobile={isMobile}
+        />
+      </div>
+    </div>
   );
 }
 function EventCardActions({
@@ -3227,6 +3299,7 @@ export default function Eventos() {
                 <span style={TH_LISTA}>Próximo marco</span>
                 <span style={TH_LISTA}>Peças</span>
                 <span style={TH_LISTA}>Situação</span>
+                <span aria-hidden="true" />
               </div>
 
               {visibleEvents.map((event) => {
@@ -3239,6 +3312,18 @@ export default function Eventos() {
                     event={event}
                     sponsorCount={cardSponsors.length}
                     currentYear={currentYear}
+                    isMobile={isMobile}
+                    canEdit={canEdit}
+                    canDelete={canDelete}
+                    canDuplicate={canCreate && !isMobile}
+                    canSetPriority={canSetPriority}
+                    canClose={canClose}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onDuplicate={handleDuplicate}
+                    onSetPriority={handleSetPriority}
+                    onClose={handleClose}
+                    onReopen={handleReopen}
                   />
                 );
               })}

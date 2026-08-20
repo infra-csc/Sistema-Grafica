@@ -202,7 +202,7 @@ describe("o modo lista", () => {
     // Duas definições — uma no cabeçalho, outra na linha — é como colunas saem
     // de registro: nascem iguais e divergem no primeiro ajuste que só um dos
     // lados recebe.
-    expect(tela).toContain("const GRADE_LISTA = '4px 1fr 132px 190px 108px 92px';");
+    expect(tela).toContain("const GRADE_LISTA = `4px 1fr 132px 190px 108px 92px ${LARGURA_ACOES}px`;");
     const usos = tela.split("gridTemplateColumns: GRADE_LISTA").length - 1;
     expect(usos).toBe(2);
   });
@@ -210,9 +210,43 @@ describe("o modo lista", () => {
   it("a linha é uma âncora de verdade, como o cartão", () => {
     // Ctrl+clique, clique do meio e "abrir em nova aba" são o jeito de comparar
     // dois eventos — um `div role="link"` tira os três de uma vez.
-    const i = tela.indexOf("data-testid={`row-event-${event.id}`}");
+    expect(tela).toContain("data-testid={`link-event-${event.id}`}");
+    const i = tela.indexOf("data-testid={`link-event-${event.id}`}");
+    expect(tela.slice(i - 300, i)).toContain("href={`/eventos/${event.id}`}");
+  });
+
+  it("DENSIDADE NÃO MUDA O QUE DÁ PARA FAZER: a linha tem as mesmas ações", () => {
+    // O mesmo defeito que a tela de Vincular tinha entre suas duas abas —
+    // escolher um modo custava capacidade. A primeira versão desta lista deixou
+    // as ações de fora com o argumento de que o cartão está a um clique; o
+    // argumento não sobrevive a "e por que o cartão não usa o mesmo?".
+    //
+    // Mesmo COMPONENTE, não uma segunda fileira de botões: assim um botão novo
+    // nasce nos dois lugares.
+    const usos = tela.split("<EventCardActions").length - 1;
+    expect(usos).toBe(2); // o cartão e a linha
+  });
+
+  it("e as ações ficam FORA da âncora, como no cartão", () => {
+    // <button> dentro de <a> é HTML inválido, e o navegador desfaz o
+    // aninhamento de um jeito que quebra os dois.
+    const i = tela.indexOf("AÇÕES — fora da âncora");
     expect(i).toBeGreaterThan(-1);
-    expect(tela.slice(i - 200, i)).toContain("href={`/eventos/${event.id}`}");
+    // O fechamento da âncora vem ANTES do bloco de ações.
+    expect(tela.slice(i - 200, i)).toContain("</a>");
+  });
+
+  it("a âncora usa `display: contents` para não quebrar o alinhamento", () => {
+    // Os filhos viram itens diretos do grid: as colunas alinham com o cabeçalho
+    // por UMA definição de grade, e o conteúdo continua DENTRO do link — o que
+    // preserva a seleção de texto. A alternativa comum (link esticado por
+    // `position: absolute` + `pointer-events: none` nas células) alinharia
+    // igual e custaria a seleção da linha inteira.
+    expect(tela).toContain("style={{ display: 'contents', textDecoration: 'none', color: 'inherit' }}");
+  });
+
+  it("a largura da coluna de ações é a mesma conta do cartão", () => {
+    expect(tela).toContain("const LARGURA_ACOES = 5 * 32 + 4 * 6 + 10;");
   });
 
   it("desenha a MESMA barra segmentada por fase do cartão", () => {

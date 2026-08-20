@@ -2,13 +2,72 @@
 // facetados, seleção manual das peças e agrupamento por grupo/evento — tudo
 // gerando o mesmo book via exportMixedToPDF.
 import { useState, useMemo, useEffect } from "react";
-import { Printer, X, FileText, FileImage, CheckCircle, SlidersHorizontal, BookOpen, Scissors } from "lucide-react";
+import { Printer, X, FileText, FileImage, CheckCircle, SlidersHorizontal, BookOpen, Scissors, Search, LayoutGrid, File, AlertTriangle, Loader2 } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { FilterSelect } from "@/components/filter-select";
 import { BookPagePicker } from "@/components/book-page-picker";
 import { exportMixedToPDF, groupKeyOf, MAX_ITEMS_PER_COMBINED_PAGE, convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { normalizarBusca } from "@/lib/utils";
+
+/**
+ * UMA PÁGINA DO PDF QUE VAI SAIR.
+ *
+ * `capa` só existe com mais de um evento e a opção ligada; `combinada` junta
+ * até `MAX_ITEMS_PER_COMBINED_PAGE` peças do mesmo grupo; `unica` é uma peça
+ * por página.
+ */
+type PaginaExport =
+  | { tipo: "capa"; rotulo: string }
+  | { tipo: "combinada"; grupo: string; itens: any[] }
+  | { tipo: "unica"; grupo: string; item: any };
+
+/**
+ * A MONTAGEM DAS PÁGINAS, PURA — e é por ser pura que ela conserta a
+ * contradição.
+ *
+ * A contagem de páginas das ARTES precisa aparecer no cartão de origem mesmo
+ * quando a origem escolhida é o BOOK: é ela que diz o que o outro caminho
+ * entrega. Se esse número for derivado da lista de páginas da origem ATUAL, o
+ * cartão inativo passa a mostrar a contagem do caminho ativo — que é a
+ * contradição que este modal já corrigiu uma vez, quando exibia '926 peças' no
+ * topo e '223 peças' no botão.
+ *
+ * Fora daqui, a função também é a fonte da prévia: a lista de miniaturas é
+ * literalmente o que sai, na ordem em que sai, e não uma segunda conta que
+ * pode divergir da primeira.
+ */
+function montarPaginas(
+  selecionadas: any[],
+  combinadas: Set<string>,
+  capaPorEvento: boolean,
+): PaginaExport[] {
+  const porEvento = new Map<string, { nome: string; grupos: Map<string, any[]> }>();
+  selecionadas.forEach(i => {
+    const ev = i.eventId || "__";
+    if (!porEvento.has(ev)) porEvento.set(ev, { nome: i.event?.name || "Sem evento", grupos: new Map() });
+    const g = groupKeyOf(i);
+    const grupos = porEvento.get(ev)!.grupos;
+    grupos.set(g, (grupos.get(g) ?? []).concat([i]));
+  });
+
+  const paginas: PaginaExport[] = [];
+  const comCapa = capaPorEvento && porEvento.size > 1;
+  porEvento.forEach(({ nome, grupos }) => {
+    if (comCapa) paginas.push({ tipo: "capa", rotulo: nome });
+    grupos.forEach((itens, grupo) => {
+      if (combinadas.has(grupo)) {
+        for (let k = 0; k < itens.length; k += MAX_ITEMS_PER_COMBINED_PAGE) {
+          paginas.push({ tipo: "combinada", grupo, itens: itens.slice(k, k + MAX_ITEMS_PER_COMBINED_PAGE) });
+        }
+      } else {
+        itens.forEach(item => paginas.push({ tipo: "unica", grupo, item }));
+      }
+    });
+  });
+  return paginas;
+}
 
 interface ExportPdfDialogProps {
   open: boolean;
@@ -26,6 +85,12 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
   const [excludedIds, setExcludedIds]   = useState<Set<string>>(new Set());
   const [ungroupedKeys, setUngroupedKeys] = useState<Set<string>>(new Set());
   const [groupByEvent, setGroupByEvent] = useState(false);
+  // Busca livre: com cinco menus facetados a lista ainda pedia rolagem para
+  // achar UMA peça pelo código. Ela varre o que a pessoa tem na mão — código,
+  // descrição e nome de patrocinador.
+  const [busca, setBusca] = useState("");
+  const [exportando, setExportando] = useState(false);
+  const [maisFiltros, setMaisFiltros] = useState(false);
   // De onde sai o arquivo. Antes existiam quatro controles disputando a mesma
   // decisão — o interruptor "Ignorar book", "Abrir Books", "Extrair páginas" e
   // "Gerar PDF" — em dois lugares diferentes da tela, e o modal ainda podia
@@ -48,7 +113,7 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
     // exportação anterior, senão quem trocou uma vez para "artes" nunca mais vê
     // o book como padrão. Os 5 filtros também zeram — um filtro esquecido da
     // exportação anterior recortava a lista em silêncio.
-    if (open) { setExcludedIds(new Set()); setUngroupedKeys(new Set()); setSource("book"); clearFilters(); }
+    if (open) { setExcludedIds(new Set()); setUngroupedKeys(new Set()); setSource("book"); setBusca(""); setExportando(false); setMaisFiltros(false); clearFilters(); }
     // O seletor de páginas é irmão deste Dialog, não filho — fechar a exportação
     // não o desmontaria, e ele ficaria sozinho na tela sem o modal que o abriu.
     else setPickerOpen(false);
@@ -64,6 +129,14 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
       : APPROVED_STATUSES.includes(i.status) ? "aprovado" : "outro";
 
   const matches = (i: any, skip?: "event"|"sponsor"|"group"|"type"|"status") => {
+    // A busca entra em TODOS os recortes, inclusive nas facetas: um menu que
+    // oferece 'Evento X · 12' e devolve 2 é pior que não ter o menu.
+    if (busca.trim()) {
+      const alvo = normalizarBusca(
+        [i.displayId, i.description, i.type, (i.sponsors ?? []).map((s: any) => s.name).join(" ")].filter(Boolean).join(" "),
+      );
+      if (!alvo.includes(normalizarBusca(busca))) return false;
+    }
     if (skip !== "event"   && eventFilter   !== "all" && i.eventId !== eventFilter) return false;
     if (skip !== "sponsor" && sponsorFilter !== "all" && !(i.sponsors ?? []).some((s: any) => s.id === sponsorFilter)) return false;
     if (skip !== "group"   && groupFilter   !== "all" && groupKeyOf(i) !== groupFilter) return false;
@@ -73,9 +146,9 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
   };
 
   const filtered = useMemo(() => items.filter(i => matches(i)),
-    [items, eventFilter, sponsorFilter, groupFilter, typeFilter, statusFilter]);
+    [items, eventFilter, sponsorFilter, groupFilter, typeFilter, statusFilter, busca]);
   const selected = useMemo(() => filtered.filter(i => !excludedIds.has(i.id)), [filtered, excludedIds]);
-  const facetDeps = [items, eventFilter, sponsorFilter, groupFilter, typeFilter, statusFilter];
+  const facetDeps = [items, eventFilter, sponsorFilter, groupFilter, typeFilter, statusFilter, busca];
 
   const countOpts = (skip: "event"|"sponsor"|"group"|"type", keyOf: (i: any) => {value:string;label:string}|null) => {
     const map = new Map<string,{value:string;label:string;count:number}>();
@@ -142,17 +215,37 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
   const anyBook  = coveredCount > 0;
   const useBook  = source === "book" && anyBook;
 
-  const pageCount = useMemo(() => {
-    const perEvent = new Map<string,Map<string,number>>();
-    selected.forEach(i => {
-      const ev = i.eventId || "__"; if (!perEvent.has(ev)) perEvent.set(ev, new Map());
-      const g = groupKeyOf(i); const m = perEvent.get(ev)!; m.set(g, (m.get(g) ?? 0) + 1);
+  // UMA conta só, para o cartão de origem, a prévia e o rodapé. Antes o
+  // número existia aqui e a prévia não existia; agora que ela existe, duas
+  // contas separadas divergiriam no primeiro ajuste de paginação.
+  const paginasArtes = useMemo(
+    () => montarPaginas(selected, combinedSet, groupByEvent),
+    [selected, combinedSet, groupByEvent],
+  );
+  const pageCount = paginasArtes.length;
+
+  // As linhas da lista, agrupadas por `groupKeyOf` — a mesma chave que decide
+  // a paginação. Agrupar por outra coisa faria a lista contar uma história e o
+  // arquivo, outra.
+  const gruposDaLista = useMemo(() => {
+    const map = new Map<string, any[]>();
+    filtered.forEach(i => {
+      const k = groupKeyOf(i);
+      map.set(k, (map.get(k) ?? []).concat([i]));
     });
-    let total = 0;
-    perEvent.forEach(groups => groups.forEach((count, key) => { total += combinedSet.has(key) ? Math.ceil(count / MAX_ITEMS_PER_COMBINED_PAGE) : count; }));
-    if (groupByEvent && perEvent.size > 1) total += perEvent.size;
-    return total;
-  }, [selected, combinedSet, groupByEvent]);
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0], "pt-BR"));
+  }, [filtered]);
+
+  const cortadas = useBook ? uncoveredCount : 0;
+  const primarioTravado = selected.length === 0 || exportando;
+
+  const gerarArtes = () => {
+    if (selected.length === 0) return;
+    setExportando(true);
+    void Promise.resolve(
+      exportMixedToPDF(selected, combinedSet, `${title} — ${selected.length} peça(s)`, groupByEvent),
+    ).finally(() => { setExportando(false); onOpenChange(false); });
+  };
 
   return (
     <>
@@ -166,53 +259,39 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
           border: "none",
           boxShadow: "0 32px 64px -16px rgba(0,0,0,0.28), 0 0 0 1px rgba(0,0,0,0.05)",
           overflow: "hidden",
-          // ALTURA: o teto de 85dvh existia SÓ no ramo `isMobile`; no desktop
-          // não havia teto nenhum. A conta do desktop: cabeçalho 85 (22+22 de
-          // padding + ladrilho de 40) + 1 de borda + corpo de altura FIXA 580 =
-          // 666px. Numa janela de 445 de altura (a do relato) o Radix centra e
-          // corta 110px EM CIMA e 110 EMBAIXO ao mesmo tempo — some o título e
-          // some o fim da lista de peças —, e o `overflow: hidden` daqui
-          // impedia qualquer rolagem.
-          //
-          // A CONTA é `100vh − 48`: viewport menos 24px de respiro em cima e 24
-          // embaixo, simétrico porque o modal é centrado. Com a coluna flex o
-          // cabeçalho fica parado e o corpo encolhe abaixo dos 580 quando a
-          // janela é baixa — as duas listas internas já rolam sozinhas.
-          //
-          // `dvh` no celular e `vh` no desktop: o corpo aqui tinha um teto de
-          // 85dvh justamente porque no mobile a barra de endereço do Chrome come
-          // ~60px que o `vh` finge que existem. Trocar por `vh` puro devolveria
-          // esse defeito pela outra ponta, com o rodapé da lista atrás da barra.
-          // Mesma troca de unidade que o formulário de evento faz.
+          // O teto é `100vh − 48`: a viewport menos 24px de respiro em cima e 24
+          // embaixo, simétrico porque o Radix centra o Content. `dvh` no celular
+          // porque a barra de endereço come ~60px que o `vh` finge que existem.
           maxHeight: isMobile ? "calc(100dvh - 48px)" : "calc(100vh - 48px)",
           display: "flex", flexDirection: "column",
         }}
       >
         <DialogTitle className="sr-only">Exportar PDF</DialogTitle>
-        <DialogDescription className="sr-only">Filtros, seleção e opções antes de gerar o PDF</DialogDescription>
+        <DialogDescription className="sr-only">Escolha a origem, as peças e confira a prévia antes de gerar</DialogDescription>
 
-        {/* ══ Header ══════════════════════════════════════════════════════ */}
+        {/* ══ Cabeçalho ═══════════════════════════════════════════════════
+            O TÍTULO NÃO TROCA MAIS COM A ORIGEM. Ele alternava entre "Exportar
+            PDF" e "Exportar book", junto com o subtítulo inteiro: trocar de
+            origem repintava o topo da tela e dava a impressão de ter aberto
+            outro modal. Só o ladrilho muda — é sinal suficiente, e fica ao lado
+            do controle que causou a mudança. */}
         <div style={{
           padding: "22px 32px",
           display: "flex", justifyContent: "space-between", alignItems: "center",
           background: "linear-gradient(135deg, #1c1917 0%, #2d2926 100%)",
           borderBottom: "1px solid rgba(255,255,255,0.06)",
-          // Não encolhe: o cabeçalho carrega o X, e é a última coisa que pode
-          // ser espremida numa janela baixa.
           flexShrink: 0,
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0 }}>
             <div style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: useBook ? "#6d28d9" : "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 0 0 1px rgba(255,255,255,0.12) inset", transition: "background-color 0.2s" }}>
               {useBook ? <BookOpen style={{ width: 18, height: 18, color: "#fff" }} /> : <Printer style={{ width: 18, height: 18, color: "#fff" }} />}
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <h2 style={{ fontSize: 20, fontWeight: 800, letterSpacing: "-0.03em", color: "#fff", margin: 0, lineHeight: 1.2 }}>
-                {useBook ? "Exportar book" : "Exportar PDF"}
+                Exportar PDF
               </h2>
-              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.72)", margin: "3px 0 0" }}>
-                {useBook
-                  ? "Use o arquivo que a Arte já enviou — inteiro ou só as páginas que precisa"
-                  : "Selecione as peças, aplique filtros e configure o layout do arquivo"}
+              <p style={{ fontSize: 13, color: "rgba(255,255,255,0.72)", margin: "3px 0 0", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {title} · {items.length} {items.length === 1 ? "peça" : "peças"} na fila
               </p>
             </div>
           </div>
@@ -224,342 +303,108 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
           </button>
         </div>
 
-        {/* ══ Body ═══════════════════════════════════════════════════════
-            overflow visible: mesma causa do painel direito logo abaixo — este
-            era o segundo ancestral com overflow:hidden entre o dropdown de
-            filtro e a borda do modal. A altura fixa (580) não depende do
-            overflow para funcionar; só o overflow:hidden do DialogContent (que
-            faz a máscara dos cantos arredondados) precisa continuar como está.
-            Mobile: colunas empilhadas e o CORPO rola — a altura fixa de 580
-            estourava telas baixas.
+        {/* ══ Barra de origem ═════════════════════════════════════════════
+            A DECISÃO SAI DE DENTRO DO PAINEL DE OPÇÕES. Ela era um par de
+            radios espremido entre checkboxes de layout, e é a escolha que
+            determina TODO o resto da tela — inclusive se o botão primário gera
+            um arquivo novo ou abre um que já existe.
 
-            Desktop: os 580 continuam sendo a altura DESEJADA (é o desenho de
-            duas colunas), mas agora com `flex: 0 1 auto` + `minHeight: 0`, que
-            deixa este bloco ENCOLHER abaixo dos 580 quando o teto do
-            DialogContent (100vh − 48) não comporta. Sem o `minHeight: 0` o
-            tamanho mínimo automático de um item flex é o conteúdo dele e o
-            corpo se recusaria a encolher, voltando a estourar a viewport.
-            As duas listas internas já têm `flex: 1; minHeight: 0; overflowY:
-            auto`, então quem rola continua sendo elas.
+            E cada cartão passa a dizer o que ENTREGA. Antes era preciso trocar
+            de origem para descobrir quantas páginas o outro caminho dava, o que
+            transformava a comparação numa ida e volta. */}
+        <div
+          role="radiogroup"
+          aria-label="Origem do arquivo"
+          style={{
+            display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 10,
+            padding: "14px 24px", backgroundColor: "#fafaf9",
+            borderBottom: "1px solid #ebe8e4", flexShrink: 0,
+          }}
+        >
+          {([
+            {
+              id: "book" as const, tint: "#6d28d9", tintFraco: "#f5f3ff", tintTexto: "#5b21b6",
+              Icone: BookOpen, titulo: "Book da Arte",
+              meta: anyBook
+                ? `${booksInSelection.length} ${booksInSelection.length === 1 ? "book" : "books"} · ${coveredCount} de ${selected.length} peças`
+                : "nenhuma peça da seleção tem book",
+              desabilitado: !anyBook,
+            },
+            {
+              id: "artes" as const, tint: "#c2410c", tintFraco: "#fff7ed", tintTexto: "#c2410c",
+              Icone: Printer, titulo: "Gerar das artes",
+              // `pageCount` sai de `montarPaginas`, que não conhece a origem —
+              // então este número é o das ARTES mesmo com o book selecionado.
+              meta: `${selected.length} ${selected.length === 1 ? "peça" : "peças"} · ${pageCount} ${pageCount === 1 ? "página" : "páginas"}`,
+              desabilitado: false,
+            },
+          ]).map(op => {
+            const ativo = (op.id === "book" ? useBook : !useBook);
+            return (
+              <div
+                key={op.id}
+                role="radio"
+                aria-checked={ativo}
+                aria-disabled={op.desabilitado || undefined}
+                tabIndex={op.desabilitado ? -1 : 0}
+                data-testid={`radio-source-${op.id}`}
+                onClick={() => { if (!op.desabilitado) setSource(op.id); }}
+                onKeyDown={e => { if (!op.desabilitado && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); setSource(op.id); } }}
+                style={{
+                  display: "flex", alignItems: "center", gap: 11,
+                  padding: "12px 14px", borderRadius: 10,
+                  border: `1px solid ${ativo ? op.tint : "#e4e0db"}`,
+                  backgroundColor: ativo ? op.tintFraco : "#fff",
+                  boxShadow: ativo ? `0 0 0 1px ${op.tint} inset` : "none",
+                  cursor: op.desabilitado ? "not-allowed" : "pointer",
+                  opacity: op.desabilitado ? 0.55 : 1,
+                  minHeight: isMobile ? 44 : undefined,
+                }}
+              >
+                <div style={{ width: 32, height: 32, borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: ativo ? op.tint : "#f5f5f4" }}>
+                  <op.Icone style={{ width: 15, height: 15, color: ativo ? "#fff" : "#78716c" }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: ativo ? op.tintTexto : "#1c1917" }}>{op.titulo}</div>
+                  <div style={{ fontSize: 11, color: "#57534e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{op.meta}</div>
+                </div>
+                <div aria-hidden="true" style={{ width: 16, height: 16, borderRadius: "50%", flexShrink: 0, border: `2px solid ${ativo ? op.tint : "#d4d0ca"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {ativo && <div style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: op.tint }} />}
+                </div>
+              </div>
+            );
+          })}
+        </div>
 
-            No mobile o próprio corpo é o scrollport; o teto de 85dvh saiu
-            porque o teto agora é do DialogContent e vale nas duas larguras. */}
+        {/* ══ Corpo: a lista à esquerda, o que sai à direita ═══════════════ */}
         <div style={{
           display: "flex",
           ...(isMobile
             ? { flexDirection: "column" as const, flex: "1 1 auto" as const, minHeight: 0, overflowY: "auto" as const }
-            : { height: 580, flex: "0 1 auto" as const, minHeight: 0, overflow: "visible" as const }),
+            : { flex: "1 1 auto" as const, minHeight: 0, overflow: "visible" as const }),
         }}>
 
-          {/* ── Painel esquerdo — Opções do PDF ─────────────────────────── */}
-          <div style={{
-            width: isMobile ? "100%" : 300, flexShrink: 0,
-            borderRight: isMobile ? "none" : "1px solid #ebe8e4",
-            borderBottom: isMobile ? "1px solid #ebe8e4" : "none",
-            display: "flex", flexDirection: "column",
-            backgroundColor: "#fafaf9",
-          }}>
-            {/* Título da seção. #78716c em vez de #a8a29e: o rótulo tem 11px em
-                caixa alta sobre #fafaf9, onde o cinza claro dava 2,4:1 e reprova
-                WCAG AA — texto pequeno é justamente o que menos pode perder
-                contraste. */}
-            <div style={{ padding: "20px 24px 16px", borderBottom: "1px solid #ebe8e4" }}>
-              <p style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", margin: 0 }}>
-                Opções
-              </p>
-            </div>
-
-            <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "20px 24px" }}>
-
-              {/* ── Origem do arquivo ──────────────────────────────────────
-                  A decisão que governa todo o resto do painel vem primeiro. Era
-                  ela que antes estava dissolvida em quatro controles espalhados;
-                  como radio, o usuário vê as duas saídas possíveis lado a lado
-                  em vez de deduzi-las pelos botões do rodapé. */}
-              {anyBook && (
-                <div style={{ marginBottom: 24 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "#292524", margin: "0 0 10px" }}>Origem do arquivo</p>
-                  <div role="radiogroup" aria-label="Origem do arquivo" style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    {([
-                      { id: "artes" as const, icon: Printer,  title: "Gerar das artes",
-                        desc: `Uma página por peça, montada a partir das artes aprovadas.` },
-                      { id: "book"  as const, icon: BookOpen, title: "Book da Arte",
-                        desc: `O PDF original do evento, como foi enviado ao patrocinador.` },
-                    ]).map(opt => {
-                      const on = source === opt.id;
-                      const Icon = opt.icon;
-                      const tint = opt.id === "book" ? "#6d28d9" : "#c2410c";
-                      return (
-                        <button
-                          key={opt.id}
-                          role="radio"
-                          aria-checked={on}
-                          onClick={() => setSource(opt.id)}
-                          data-testid={`radio-source-${opt.id}`}
-                          style={{
-                            display: "flex", alignItems: "flex-start", gap: 10, width: "100%", textAlign: "left",
-                            padding: "11px 12px", borderRadius: 10, cursor: "pointer",
-                            border: `1px solid ${on ? tint : "#e4e0db"}`,
-                            backgroundColor: on ? (opt.id === "book" ? "#f5f3ff" : "#fff7ed") : "#fff",
-                            boxShadow: on ? `0 0 0 1px ${tint} inset` : "none",
-                            transition: "border-color 0.12s, background-color 0.12s",
-                          }}>
-                          <span style={{
-                            width: 16, height: 16, borderRadius: 999, flexShrink: 0, marginTop: 2,
-                            border: `2px solid ${on ? tint : "#d4d0ca"}`,
-                            display: "flex", alignItems: "center", justifyContent: "center",
-                          }}>
-                            {on && <span style={{ width: 7, height: 7, borderRadius: 999, backgroundColor: tint }} />}
-                          </span>
-                          <span style={{ minWidth: 0 }}>
-                            <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 700, color: on ? tint : "#1c1917" }}>
-                              <Icon style={{ width: 12, height: 12 }} /> {opt.title}
-                            </span>
-                            <span style={{ display: "block", fontSize: 11, color: "#57534e", lineHeight: 1.5, marginTop: 3 }}>
-                              {opt.desc}
-                            </span>
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Várias peças por página — só afeta o PDF gerado das artes. */}
-              {!useBook && groupsInSelection.length > 0 && (
-                <div style={{ marginBottom: 24 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
-                    <p style={{ fontSize: 12, fontWeight: 700, color: "#292524", margin: 0 }}>Peças por página</p>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <button onClick={() => setUngroupedKeys(new Set())} style={{ background: "none", border: "none", padding: 0, fontSize: 11, fontWeight: 700, color: "#7c3aed", cursor: "pointer" }}>Todos</button>
-                      <span style={{ color: "#d4d0ca", fontSize: 11 }}>·</span>
-                      <button onClick={() => setUngroupedKeys(new Set(groupsInSelection.map(g => g.key)))} style={{ background: "none", border: "none", padding: 0, fontSize: 11, fontWeight: 700, color: "#7c3aed", cursor: "pointer" }}>Nenhum</button>
-                    </div>
-                  </div>
-                  <p style={{ fontSize: 11, color: "#746e69", margin: "0 0 12px", lineHeight: 1.5 }}>
-                    Grupos marcados saem juntos numa página. Desmarcados, uma peça por página.
-                  </p>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-                    {groupsInSelection.map(g => {
-                      const on = combinedSet.has(g.key);
-                      const toggleGroup = () => setUngroupedKeys(prev => { const n = new Set(prev); if (n.has(g.key)) n.delete(g.key); else n.add(g.key); return n; });
-                      return (
-                        <div
-                          key={g.key}
-                          role="checkbox"
-                          aria-checked={on}
-                          tabIndex={0}
-                          onClick={toggleGroup}
-                          onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleGroup(); } }}
-                          style={{
-                            display: "flex", alignItems: "center", gap: 10,
-                            padding: "9px 12px", borderRadius: 8,
-                            border: `1px solid ${on ? "#ddd6fe" : "#e4e0db"}`,
-                            backgroundColor: on ? "#f5f3ff" : "#fff",
-                            cursor: "pointer", transition: "background 0.1s",
-                          }}
-                        >
-                          <div style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, border: `2px solid ${on ? "#7c3aed" : "#d4d0ca"}`, backgroundColor: on ? "#7c3aed" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                            {on && <CheckCircle style={{ width: 10, height: 10, color: "#fff" }} />}
-                          </div>
-                          <span style={{ flex: 1, minWidth: 0, fontSize: 12, fontWeight: 600, color: "#1c1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textTransform: "capitalize" }}>{g.key}</span>
-                          <span style={{ flexShrink: 0, fontSize: 11, fontWeight: 700, color: on ? "#7c3aed" : "#746e69" }}>
-                            {on ? Math.ceil(g.count / MAX_ITEMS_PER_COMBINED_PAGE) : g.count} pág.
-                          </span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* Divisória por evento */}
-              {eventCount > 1 && (
-                <div style={{ marginBottom: 24 }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "#292524", margin: "0 0 10px" }}>Divisória de eventos</p>
-                  <div
-                    role="checkbox"
-                    aria-checked={groupByEvent}
-                    aria-label="Página de capa por evento"
-                    tabIndex={0}
-                    onClick={() => setGroupByEvent(!groupByEvent)}
-                    onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setGroupByEvent(v => !v); } }}
-                    style={{
-                      display: "flex", alignItems: "center", gap: 10,
-                      padding: "10px 12px", borderRadius: 8,
-                      border: `1px solid ${groupByEvent ? "#ddd6fe" : "#e4e0db"}`,
-                      backgroundColor: groupByEvent ? "#f5f3ff" : "#fff",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <div style={{ width: 18, height: 18, borderRadius: 5, flexShrink: 0, border: `2px solid ${groupByEvent ? "#7c3aed" : "#d4d0ca"}`, backgroundColor: groupByEvent ? "#7c3aed" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      {groupByEvent && <CheckCircle style={{ width: 10, height: 10, color: "#fff" }} />}
-                    </div>
-                    <div>
-                      <p style={{ fontSize: 12, fontWeight: 600, color: "#1c1917", margin: 0 }}>Página de capa por evento</p>
-                      <p style={{ fontSize: 11, color: "#746e69", margin: 0 }}>{eventCount} eventos no PDF</p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Estado vazio do painel: só quando não há mesmo nada a
-                  configurar. Com origem "book" o painel fica curto de
-                  propósito — a ação está no rodapé, não aqui. */}
-              {!useBook && groupsInSelection.length === 0 && eventCount <= 1 && !anyBook && (
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "32px 0", gap: 10 }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: "#f5f5f4", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <FileText style={{ width: 20, height: 20, color: "#d4d0ca" }} />
-                  </div>
-                  <p style={{ fontSize: 12, color: "#746e69", margin: 0, textAlign: "center", lineHeight: 1.5 }}>
-                    Selecione peças ao lado<br />para configurar o layout
-                  </p>
-                </div>
-              )}
-
-              {/* Com o book escolhido, o painel explica o que o arquivo é — sem
-                  isso a coluna ficaria com um radio solto e um vazio embaixo. */}
-              {useBook && (
-                <div style={{ backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 10, padding: "12px 14px" }}>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: "#5b21b6", margin: "0 0 6px" }}>
-                    {booksInSelection.length === 1
-                      ? "1 book na seleção"
-                      : `${booksInSelection.length} books na seleção`}
-                  </p>
-                  <p style={{ fontSize: 11, color: "#6d28d9", margin: 0, lineHeight: 1.6 }}>
-                    Cada evento tem um book próprio, com o layout já aprovado.
-                    O arquivo sai exatamente como a Arte enviou.
-                  </p>
-                </div>
-              )}
-            </div>
-
-            {/* Rodapé — flexShrink 0 aqui e em cada botão: a coluna tem altura
-                fixa (580) e o rodapé empilha até três controles. Sem travar o
-                encolhimento, o flex espremia as alturas e os botões saíam
-                achatados em vez de o painel de cima ceder espaço. */}
-            <div style={{ padding: "16px 24px", borderTop: "1px solid #ebe8e4", display: "flex", flexDirection: "column", gap: 8, flexShrink: 0, backgroundColor: "#fff" }}>
-
-              {/* Aviso de peças que ficam de fora. Antes o modal produzia os dois
-                  artefatos de uma vez e mostrava duas contagens contraditórias
-                  ("926 peças" no topo, "223 peças" no botão) sem explicar a
-                  diferença. Agora a saída é uma só e o aviso diz o que sobra. */}
-              {useBook && uncoveredCount > 0 && (
-                <p style={{ fontSize: 11, color: "#7c2d12", margin: "0 0 4px", lineHeight: 1.6, background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 8, padding: "9px 11px" }}>
-                  <strong style={{ color: "#7c2d12" }}>{uncoveredCount}</strong>{" "}
-                  {uncoveredCount === 1 ? "peça selecionada não tem" : "peças selecionadas não têm"} book
-                  e {uncoveredCount === 1 ? "fica" : "ficam"} de fora. Escolha "Gerar das artes" para incluir {uncoveredCount === 1 ? "ela" : "todas"}.
-                </p>
-              )}
-
-              {useBook ? (
-                <>
-                  {/* Recortar é a ação primária: abrir o book inteiro já era
-                      possível antes e é justamente o que devolvia "o book cheio"
-                      quando o usuário queria só algumas peças. */}
-                  <button
-                    onClick={() => setPickerOpen(true)}
-                    data-testid="button-extract-book"
-                    style={{
-                      width: "100%", height: 46, flexShrink: 0, borderRadius: 10,
-                      backgroundColor: "#6d28d9", border: "none", color: "#fff",
-                      fontSize: 13, fontWeight: 800, letterSpacing: "-0.01em",
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                      cursor: "pointer", boxShadow: "0 2px 8px rgba(109,40,217,0.28)",
-                    }}>
-                    <Scissors style={{ width: 15, height: 15 }} />
-                    Escolher páginas do book
-                  </button>
-                  <button
-                    onClick={() => {
-                      // window.open com "noopener" retorna SEMPRE null por
-                      // especificação — o teste de pop-up dava falso positivo,
-                      // os books seguintes não abriam e o modal não fechava.
-                      // Âncora dinâmica abre cada book sem depender do retorno
-                      // (cliques de usuário não disparam o bloqueador).
-                      booksInSelection.forEach(b => {
-                        const a = document.createElement("a");
-                        a.href = b.url;
-                        a.target = "_blank";
-                        a.rel = "noopener";
-                        document.body.appendChild(a);
-                        a.click();
-                        a.remove();
-                      });
-                      onOpenChange(false);
-                    }}
-                    data-testid="button-export-book"
-                    style={{
-                      width: "100%", height: 38, flexShrink: 0, borderRadius: 10,
-                      backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe",
-                      color: "#5b21b6", fontSize: 12, fontWeight: 700,
-                      display: "flex", alignItems: "center", justifyContent: "center", gap: 7,
-                      cursor: "pointer",
-                    }}>
-                    <BookOpen style={{ width: 14, height: 14 }} />
-                    {booksInSelection.length === 1
-                      ? "Abrir book completo"
-                      : `Abrir os ${booksInSelection.length} books completos`}
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => {
-                    if (selected.length > 0) void exportMixedToPDF(selected, combinedSet, `${title} — ${selected.length} peça(s)`, groupByEvent);
-                    onOpenChange(false);
-                  }}
-                  disabled={selected.length === 0}
-                  data-testid="button-export-confirm"
-                  style={{
-                    width: "100%", height: 46, flexShrink: 0, borderRadius: 10,
-                    // Ação primária do modal usa o laranja de ação do app, como os
-                    // botões primários das listas. O roxo fica reservado ao book,
-                    // onde a cor tem significado.
-                    backgroundColor: selected.length === 0 ? "#e7e5e4" : "#c2410c",
-                    border: "none",
-                    color: selected.length === 0 ? "#57534e" : "#fff",
-                    fontSize: 13, fontWeight: 800,
-                    display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                    cursor: selected.length === 0 ? "not-allowed" : "pointer",
-                    letterSpacing: "-0.01em",
-                    boxShadow: selected.length > 0 ? "0 2px 8px rgba(194,65,12,0.24)" : "none",
-                  }}>
-                  <Printer style={{ width: 15, height: 15 }} />
-                  {selected.length === 0
-                    ? "Gerar PDF"
-                    : `Gerar PDF — ${selected.length} ${selected.length === 1 ? "peça" : "peças"}${pageCount > 0 ? ` · ${pageCount} pág.` : ""}`}
-                </button>
-              )}
-
-              {/* Cancelar por último e discreto: a ação destrutiva não deve
-                  competir com a primária, e vinha acima dela chamando mais
-                  atenção que o próprio "Gerar PDF". */}
-              <button
-                onClick={() => onOpenChange(false)}
-                style={{ width: "100%", height: 36, flexShrink: 0, borderRadius: 8, background: "none", border: "none", color: "#746e69", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
-                Cancelar
-              </button>
-            </div>
-          </div>
-
-          {/* ── Painel direito — filtros + lista ──────────────────────────
-              overflow visible: com "hidden" aqui, o painel dos filtros era
-              recortado na borda do painel (o z-index não ajuda contra o clip de
-              um ancestral). A lista continua rolando por conta própria — o que
-              faz isso funcionar é o minHeight 0 nela, não o overflow do pai. */}
+          {/* ── Lista ───────────────────────────────────────────────────── */}
           <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "visible", minWidth: 0, backgroundColor: "#fff" }}>
 
-            {/* Barra de filtros */}
+            {/* Filtros */}
             <div style={{
-              padding: "14px 24px",
-              borderBottom: "1px solid #ebe8e4",
-              backgroundColor: "#fafaf9",
-              display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap",
+              padding: "12px 20px", borderBottom: "1px solid #ebe8e4", backgroundColor: "#fafaf9",
+              display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", flexShrink: 0,
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginRight: 4, flexShrink: 0 }}>
-                <SlidersHorizontal style={{ width: 13, height: 13, color: "#a8a29e" }} />
-                <span style={{ fontSize: 11, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.08em" }}>Filtros</span>
+              {/* A BUSCA É O PRIMEIRO CONTROLE. Cinco menus facetados respondem
+                  "que recorte eu quero"; nenhum responde "cadê a peça #3524",
+                  que é a pergunta de quem já sabe o que procura. */}
+              <div style={{ position: "relative", flex: "1 1 190px", minWidth: 150 }}>
+                <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "#a8a29e", pointerEvents: "none" }} />
+                <input
+                  value={busca}
+                  onChange={e => setBusca(e.target.value)}
+                  placeholder="Buscar peça, código, patrocinador…"
+                  aria-label="Buscar peça por código, descrição ou patrocinador"
+                  data-testid="input-export-busca"
+                  style={{ width: "100%", boxSizing: "border-box", height: isMobile ? 44 : 36, padding: "0 10px 0 30px", borderRadius: 7, border: "1px solid #e7e5e4", backgroundColor: "#fff", fontSize: 12, color: "#1c1917", outlineOffset: 2 }}
+                />
               </div>
               <FilterSelect showAllLabelWhenEmpty hideWhenEmpty={false} accent="violet"
                 label="Evento" allLabel="Todos os eventos"
@@ -573,150 +418,389 @@ export function ExportPdfDialog({ open, onOpenChange, items, title = "Peças" }:
                 label="Grupo" allLabel="Todos os grupos"
                 value={groupFilter} onChange={(x: string) => { setGroupFilter(x); setTypeFilter("all"); }}
                 options={groupOptions} searchPlaceholder="Buscar grupo..." emptyText="Nenhum." />
-              <FilterSelect showAllLabelWhenEmpty hideWhenEmpty={false} accent="violet"
-                label="Tipo" allLabel="Todos os tipos"
-                value={typeFilter} onChange={setTypeFilter}
-                options={typeOptions} searchPlaceholder="Buscar tipo..." emptyText="Nenhum."
-                dropdownAlign="right" />
-              <FilterSelect showAllLabelWhenEmpty hideWhenEmpty={false} accent="violet"
-                label="Status" allLabel="Todos os status"
-                value={statusFilter} onChange={setStatusFilter}
-                options={statusOptions} searchPlaceholder="Buscar..." emptyText="Nenhum."
-                dropdownAlign="right" />
-              {hasFilters && (
+
+              {/* Tipo e Status vêm depois de um gatilho: com a busca ocupando a
+                  ponta esquerda, os cinco menus não cabiam numa linha só, e
+                  quebrar a barra em duas empurrava a lista para baixo da dobra.
+                  O selo diz quantos estão ativos para eles não sumirem de vista. */}
+              <button
+                onClick={() => setMaisFiltros(v => !v)}
+                aria-expanded={maisFiltros}
+                data-testid="button-export-mais-filtros"
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, height: isMobile ? 44 : 36, padding: "0 12px", borderRadius: 8, background: "#fff", border: "1px solid #e4e0db", color: "#57534e", cursor: "pointer", fontSize: 12, fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap" }}>
+                <SlidersHorizontal style={{ width: 13, height: 13 }} />
+                Mais filtros
+                {(typeFilter !== "all" ? 1 : 0) + (statusFilter !== "all" ? 1 : 0) > 0 && (
+                  <span style={{ fontSize: 11, fontWeight: 700, color: "#5b21b6", backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 99, padding: "0 6px" }}>
+                    {(typeFilter !== "all" ? 1 : 0) + (statusFilter !== "all" ? 1 : 0)}
+                  </span>
+                )}
+              </button>
+
+              {maisFiltros && (
+                <>
+                  <FilterSelect showAllLabelWhenEmpty hideWhenEmpty={false} accent="violet"
+                    label="Tipo" allLabel="Todos os tipos"
+                    value={typeFilter} onChange={setTypeFilter}
+                    options={typeOptions} searchPlaceholder="Buscar tipo..." emptyText="Nenhum."
+                    dropdownAlign="right" />
+                  <FilterSelect showAllLabelWhenEmpty hideWhenEmpty={false} accent="violet"
+                    label="Status" allLabel="Todos os status"
+                    value={statusFilter} onChange={setStatusFilter}
+                    options={statusOptions} searchPlaceholder="Buscar..." emptyText="Nenhum."
+                    dropdownAlign="right" />
+                </>
+              )}
+
+              {(hasFilters || busca.trim()) && (
                 <button
-                  onClick={clearFilters}
-                  style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 32, padding: "0 12px", borderRadius: 8, background: "none", border: "1px solid #e4e0db", color: "#746e69", cursor: "pointer", fontSize: 11, fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap" }}>
+                  onClick={() => { clearFilters(); setBusca(""); }}
+                  data-testid="button-export-limpar-filtros"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 5, height: isMobile ? 44 : 36, padding: "0 12px", borderRadius: 8, background: "none", border: "1px solid #e4e0db", color: "#746e69", cursor: "pointer", fontSize: 11, fontWeight: 600, flexShrink: 0, whiteSpace: "nowrap" }}>
                   <X style={{ width: 11, height: 11 }} />
-                  {activeFilterCount > 1 ? `${activeFilterCount} filtros` : "Limpar filtro"}
+                  {activeFilterCount > 1 ? `${activeFilterCount} filtros` : "Limpar"}
                 </button>
               )}
             </div>
 
-            {/* Cabeçalho da lista */}
+            {/* Cabeçalho da lista — a contagem da seleção e os dois atalhos.
+                Sem eles, desmarcar quarenta peças é quarenta cliques. */}
             <div style={{
-              padding: "12px 24px",
-              borderBottom: "1px solid #f0ede8",
-              display: "flex", alignItems: "center", justifyContent: "space-between",
-              flexShrink: 0,
+              padding: "10px 20px", borderBottom: "1px solid #f0ede8",
+              display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexShrink: 0,
             }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={{ fontSize: 13, fontWeight: 700, color: "#292524" }}>
-                  {selected.length} <span style={{ fontWeight: 400, color: "#746e69" }}>de {filtered.length} {filtered.length === 1 ? "peça" : "peças"}</span>
-                </span>
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <button
-                    onClick={() => setExcludedIds(new Set())}
-                    disabled={selected.length === filtered.length}
-                    style={{ background: "none", border: "none", padding: 0, fontSize: 12, fontWeight: 700, cursor: selected.length === filtered.length ? "default" : "pointer", color: selected.length === filtered.length ? "#d4d0ca" : "#7c3aed" }}>
-                    Selecionar todas
-                  </button>
-                  <span style={{ color: "#e4e0db" }}>·</span>
-                  <button
-                    onClick={() => setExcludedIds(new Set(filtered.map(i => i.id)))}
-                    disabled={selected.length === 0}
-                    style={{ background: "none", border: "none", padding: 0, fontSize: 12, fontWeight: 700, cursor: selected.length === 0 ? "default" : "pointer", color: selected.length === 0 ? "#d4d0ca" : "#7c3aed" }}>
-                    Limpar
-                  </button>
-                </div>
-              </div>
-              <span style={{ fontSize: 11, color: "#746e69" }}>
-                {/* Descreve os dados da seleção, não a origem escolhida: uma peça
-                    coberta por book continua coberta mesmo quando a exportação
-                    sai pelas artes. */}
-                {selected.filter(i => i.approvalThumbUrl).length} com thumb
-                {anyBook ? ` · ${coveredCount} com book` : ""}
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#292524", fontVariantNumeric: "tabular-nums" }}>
+                {selected.length} <span style={{ fontWeight: 400, color: "#746e69" }}>de {filtered.length} {filtered.length === 1 ? "peça" : "peças"}</span>
               </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <button
+                  onClick={() => setExcludedIds(new Set())}
+                  disabled={selected.length === filtered.length}
+                  data-testid="button-export-selecionar-todas"
+                  style={{ background: "none", border: "none", padding: "0 4px", minHeight: isMobile ? 44 : 36, fontSize: 12, fontWeight: 700, cursor: selected.length === filtered.length ? "default" : "pointer", color: selected.length === filtered.length ? "#c4c0ba" : "#7c3aed" }}>
+                  Selecionar todas
+                </button>
+                <span aria-hidden="true" style={{ color: "#e4e0db" }}>·</span>
+                <button
+                  onClick={() => setExcludedIds(new Set(filtered.map(i => i.id)))}
+                  disabled={selected.length === 0}
+                  data-testid="button-export-limpar-selecao"
+                  style={{ background: "none", border: "none", padding: "0 4px", minHeight: isMobile ? 44 : 36, fontSize: 12, fontWeight: 700, cursor: selected.length === 0 ? "default" : "pointer", color: selected.length === 0 ? "#c4c0ba" : "#7c3aed" }}>
+                  Limpar
+                </button>
+              </div>
             </div>
 
-            {/* Lista */}
+            {/* Lista agrupada */}
             {filtered.length === 0 ? (
-              <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14 }}>
-                <div style={{ width: 64, height: 64, borderRadius: 16, backgroundColor: "#f5f5f4", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <FileText style={{ width: 26, height: 26, color: "#d4d0ca" }} />
-                </div>
+              <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: 24 }}>
+                <FileText aria-hidden="true" style={{ width: 28, height: 28, color: "#d4d0ca" }} />
                 <div style={{ textAlign: "center" }}>
-                  <p style={{ fontSize: 14, fontWeight: 700, color: "#746e69", margin: "0 0 4px" }}>Nenhuma peça encontrada</p>
-                  <p style={{ fontSize: 12, color: "#746e69", margin: 0 }}>Ajuste os filtros acima</p>
+                  <p style={{ fontSize: 15, fontWeight: 700, color: "#1c1917", margin: "0 0 6px" }}>Nenhuma peça encontrada</p>
+                  <p style={{ fontSize: 13, color: "#746e69", lineHeight: 1.55, margin: 0 }}>
+                    {busca.trim() ? `Nada bate com “${busca.trim()}” nos filtros atuais` : "Ajuste os filtros acima"}
+                  </p>
                 </div>
-                {hasFilters && (
-                  <button onClick={clearFilters} style={{ fontSize: 12, fontWeight: 700, color: "#7c3aed", background: "none", border: "none", cursor: "pointer", textDecoration: "underline" }}>
+                {(hasFilters || busca.trim()) && (
+                  <button
+                    onClick={() => { clearFilters(); setBusca(""); }}
+                    style={{ height: isMobile ? 44 : 36, padding: "0 16px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", fontSize: 13, fontWeight: 700, color: "#1c1917", cursor: "pointer" }}>
                     Limpar filtros
                   </button>
                 )}
               </div>
             ) : (
-              <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 6 }}>
-                {filtered.map((item: any) => {
-                  const hasThumb = !!item.approvalThumbUrl;
-                  const thumbSrc = hasThumb ? convertGCSUrlToLocalPath(item.approvalThumbUrl) : null;
-                  const picked   = !excludedIds.has(item.id);
-                  const toggleItem = () => setExcludedIds(prev => { const n = new Set(prev); if (n.has(item.id)) n.delete(item.id); else n.add(item.id); return n; });
+              <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
+                {gruposDaLista.map(([grupo, itensDoGrupo]) => {
+                  const juntas = !ungroupedKeys.has(grupo);
+                  const alternarGrupo = () => setUngroupedKeys(prev => {
+                    const n = new Set(prev); if (n.has(grupo)) n.delete(grupo); else n.add(grupo); return n;
+                  });
                   return (
-                    <div
-                      key={item.id}
-                      role="checkbox"
-                      aria-checked={picked}
-                      aria-label={`${item.displayId} — ${item.type}`}
-                      tabIndex={0}
-                      onClick={toggleItem}
-                      onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleItem(); } }}
-                      style={{
-                        display: "flex", alignItems: "center", gap: 12,
-                        padding: "10px 14px", borderRadius: 10,
-                        border: `1px solid ${picked ? "#ebe8e4" : "#e4e0db"}`,
-                        backgroundColor: picked ? "#fff" : "#fafaf9",
-                        opacity: picked ? 1 : 0.5,
-                        cursor: "pointer",
-                        transition: "opacity 0.12s, background 0.1s",
-                      }}
-                    >
-                      {/* Checkbox */}
-                      <div style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, border: `2px solid ${picked ? "#7c3aed" : "#d4d0ca"}`, backgroundColor: picked ? "#7c3aed" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        {picked && <CheckCircle style={{ width: 10, height: 10, color: "#fff" }} />}
+                    <div key={grupo}>
+                      {/* O LAYOUT DA PÁGINA MORA NO GRUPO A QUE ELE SE APLICA.
+                          Era uma lista de checkboxes no painel de opções, longe
+                          das peças: para saber o que "Backdrop" ia virar, era
+                          preciso procurar o nome do grupo numa segunda lista. */}
+                      <div style={{
+                        position: "sticky", top: 0, zIndex: 1, backgroundColor: "#fff",
+                        borderBottom: "1px solid #f0ede8", padding: "7px 8px",
+                        display: "flex", alignItems: "center", gap: 8,
+                      }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, color: "#57534e", textTransform: "uppercase", letterSpacing: "0.08em", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{grupo}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "#57534e", backgroundColor: "#F3F4F6", borderRadius: 99, padding: "1px 7px", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{itensDoGrupo.length}</span>
+                        <span style={{ flex: 1 }} />
+                        {!useBook && (
+                          <button
+                            role="checkbox"
+                            aria-checked={juntas}
+                            aria-label={`${grupo}: ${juntas ? "várias peças por página" : "uma peça por página"}`}
+                            onClick={alternarGrupo}
+                            onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); alternarGrupo(); } }}
+                            data-testid={`toggle-grupo-layout-${grupo}`}
+                            style={{
+                              display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0,
+                              minHeight: isMobile ? 44 : 36, borderRadius: 999, padding: "3px 9px",
+                              fontSize: 11, fontWeight: 700, cursor: "pointer",
+                              border: `1px solid ${juntas ? "#ddd6fe" : "#e4e0db"}`,
+                              backgroundColor: juntas ? "#f5f3ff" : "#fff",
+                              color: juntas ? "#5b21b6" : "#746e69",
+                            }}>
+                            {juntas ? <LayoutGrid style={{ width: 11, height: 11 }} /> : <File style={{ width: 11, height: 11 }} />}
+                            {juntas ? "juntas na página" : "uma por página"}
+                          </button>
+                        )}
                       </div>
-                      {/* Thumb */}
-                      <div style={{ width: 50, height: 50, borderRadius: 8, overflow: "hidden", flexShrink: 0, border: "1px solid rgba(0,0,0,0.07)", backgroundColor: "#f3f4f3", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        {hasThumb && thumbSrc
-                          ? <img src={thumbSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-                          : <FileImage style={{ width: 18, height: 18, color: "#d4d4d0" }} />}
-                      </div>
-                      {/* Info */}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-                          <span style={{ fontSize: 11, fontWeight: 800, color: "#7c3aed", fontFamily: "monospace", letterSpacing: "0.02em" }}>{item.displayId}</span>
-                          <span style={{ fontSize: 12, fontWeight: 600, color: "#1c1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textTransform: "capitalize" }}>{item.type}</span>
-                          {/* O selo marca só o que muda o resultado. Com origem
-                              "book" o que importa é quem fica de fora, então a
-                              linha destacada é a peça SEM book — antes o selo
-                              roxo aparecia em centenas de linhas repetindo uma
-                              informação que não mudava decisão nenhuma. */}
-                          {useBook
-                            ? !item.bookUrl && (
-                                <span
-                                  title="Esta peça não está coberta por nenhum book e fica de fora da exportação"
-                                  data-testid={`badge-no-book-export-${item.id}`}
-                                  style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 700, color: "#9a3412", backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 4, padding: "2px 6px", textTransform: "uppercase", letterSpacing: "0.03em" }}>
-                                  Sem book
-                                </span>
-                              )
-                            : item.bookUrl && (
-                                <span
-                                  title="Coberta por um book da Arte — troque a origem para usar o arquivo original"
-                                  data-testid={`badge-book-export-${item.id}`}
-                                  style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 700, color: "#6d28d9", backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 4, padding: "2px 6px", textTransform: "uppercase", letterSpacing: "0.03em" }}>
-                                  <FileText style={{ width: 9, height: 9 }} /> Book
-                                </span>
-                              )}
-                        </div>
-                        <div style={{ fontSize: 11, color: "#746e69", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {item.event?.name || ""}{item.description ? ` · ${item.description}` : ""}
-                        </div>
+
+                      <div style={{ padding: "6px 8px", display: "flex", flexDirection: "column", gap: 4 }}>
+                        {itensDoGrupo.map((item: any) => {
+                          const hasThumb = !!item.approvalThumbUrl;
+                          const thumbSrc = hasThumb ? convertGCSUrlToLocalPath(item.approvalThumbUrl) : null;
+                          const picked   = !excludedIds.has(item.id);
+                          const toggleItem = () => setExcludedIds(prev => { const n = new Set(prev); if (n.has(item.id)) n.delete(item.id); else n.add(item.id); return n; });
+                          return (
+                            <div
+                              key={item.id}
+                              role="checkbox"
+                              aria-checked={picked}
+                              aria-label={`${item.displayId} — ${item.type}`}
+                              tabIndex={0}
+                              onClick={toggleItem}
+                              onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggleItem(); } }}
+                              style={{
+                                display: "flex", alignItems: "center", gap: 12,
+                                padding: "9px 12px", borderRadius: 10, minHeight: 44,
+                                border: `1px solid ${picked ? "#ebe8e4" : "#e4e0db"}`,
+                                backgroundColor: picked ? "#fff" : "#fafaf9",
+                                opacity: picked ? 1 : 0.5,
+                                cursor: "pointer",
+                                transition: "opacity 0.12s, background 0.1s",
+                              }}
+                            >
+                              <div style={{ width: 20, height: 20, borderRadius: 6, flexShrink: 0, border: `2px solid ${picked ? "#7c3aed" : "#d4d0ca"}`, backgroundColor: picked ? "#7c3aed" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                {picked && <CheckCircle style={{ width: 10, height: 10, color: "#fff" }} />}
+                              </div>
+                              <div style={{ width: 44, height: 44, borderRadius: 8, overflow: "hidden", flexShrink: 0, border: "1px solid rgba(0,0,0,0.07)", backgroundColor: "#f3f4f3", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                                {hasThumb && thumbSrc
+                                  ? <img src={thumbSrc} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                                  : <FileImage style={{ width: 18, height: 18, color: "#d4d4d0" }} />}
+                              </div>
+                              <div style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
+                                  <span style={{ fontSize: 11, fontWeight: 800, color: "#7c3aed", fontFamily: "monospace", letterSpacing: "0.02em", flexShrink: 0 }}>{item.displayId}</span>
+                                  <span style={{ fontSize: 12, fontWeight: 600, color: "#1c1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textTransform: "capitalize" }}>{item.type}</span>
+                                  {/* "FICA DE FORA" diz a consequência, e só onde
+                                      ela existe: peça selecionada, sem book, com a
+                                      origem book. "Sem book" descrevia o dado e
+                                      deixava a pessoa deduzir o efeito. */}
+                                  {useBook && picked && !item.bookUrl && (
+                                    <span
+                                      title="Esta peça não está coberta por nenhum book e fica de fora da exportação"
+                                      data-testid={`badge-no-book-export-${item.id}`}
+                                      style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 700, color: "#9a3412", backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 4, padding: "2px 6px", textTransform: "uppercase", letterSpacing: "0.03em" }}>
+                                      Fica de fora
+                                    </span>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: 11, color: "#746e69", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                  {item.event?.name || ""}{item.description ? ` · ${item.description}` : ""}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   );
                 })}
               </div>
+            )}
+          </div>
+
+          {/* ── Prévia: o arquivo, página a página ──────────────────────────
+              A tela dizia quantas páginas sairiam e nunca COMO. Layout por
+              grupo, capa por evento e o teto de seis peças por página são três
+              decisões que só se conferiam abrindo o PDF pronto — e refazer a
+              exportação por causa de uma delas custa a espera inteira. */}
+          <div style={{
+            width: isMobile ? "auto" : 320, flexShrink: 0,
+            borderLeft: isMobile ? "none" : "1px solid #ebe8e4",
+            borderTop: isMobile ? "1px solid #ebe8e4" : "none",
+            backgroundColor: "#fafaf9",
+            display: "flex", flexDirection: "column", minHeight: 0,
+          }}>
+            <div style={{ padding: "10px 16px", borderBottom: "1px solid #ebe8e4", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
+              <span style={{ fontSize: 11, fontWeight: 800, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.1em" }}>O arquivo</span>
+              <span style={{ fontSize: 11, color: "#746e69", fontFamily: "monospace", fontVariantNumeric: "tabular-nums" }}>
+                {useBook
+                  ? `${booksInSelection.length} ${booksInSelection.length === 1 ? "book" : "books"}`
+                  : `${pageCount} ${pageCount === 1 ? "pág." : "págs."}`}
+              </span>
+            </div>
+
+            <div style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+              {useBook ? (
+                booksInSelection.map(b => (
+                  <div key={b.url} style={{ backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", borderRadius: 6, padding: 8, height: 120, display: "flex", flexDirection: "column", justifyContent: "center", alignItems: "center", gap: 4 }}>
+                    <BookOpen aria-hidden="true" style={{ width: 18, height: 18, color: "#6d28d9" }} />
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#5b21b6", textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "100%" }}>{b.label}</span>
+                    <span style={{ fontSize: 10, color: "#6d28d9", fontFamily: "monospace" }}>book completo · {b.count} peças cobertas</span>
+                  </div>
+                ))
+              ) : paginasArtes.length === 0 ? (
+                <p style={{ fontSize: 12, color: "#746e69", textAlign: "center", margin: "24px 0 0", lineHeight: 1.55 }}>
+                  Nenhuma peça selecionada — o arquivo sairia vazio.
+                </p>
+              ) : (
+                paginasArtes.map((pg, idx) => {
+                  const legenda = pg.tipo === "capa" ? "capa"
+                    : pg.tipo === "combinada" ? `${pg.grupo} · ${pg.itens.length} juntas`
+                    : pg.grupo;
+                  return (
+                    <div key={idx}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4, gap: 8 }}>
+                        <span style={{ fontSize: 10, color: "#78716c", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{legenda}</span>
+                        <span style={{ fontSize: 10, color: "#a8a29e", fontFamily: "monospace", flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>{idx + 1}</span>
+                      </div>
+                      <div style={{
+                        backgroundColor: "#fff", border: "1px solid #e7e5e4", borderRadius: 6, padding: 8,
+                        display: "grid", gap: 5,
+                        gridTemplateColumns: pg.tipo === "combinada" ? "1fr 1fr" : "1fr",
+                        height: pg.tipo === "capa" ? 76 : 104,
+                      }}>
+                        {pg.tipo === "capa" && (
+                          <div style={{ backgroundColor: "#fafaf9", borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center", padding: 4 }}>
+                            <span style={{ fontSize: 8, fontFamily: "monospace", textTransform: "uppercase", color: "#a8a29e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{pg.rotulo}</span>
+                          </div>
+                        )}
+                        {pg.tipo === "combinada" && pg.itens.map((it: any) => (
+                          <div key={it.id} style={{ backgroundColor: "#f3f4f3", borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center", padding: 2 }}>
+                            <span style={{ fontSize: 8, fontFamily: "monospace", textTransform: "uppercase", color: "#a8a29e" }}>{it.displayId}</span>
+                          </div>
+                        ))}
+                        {pg.tipo === "unica" && (
+                          <div style={{ backgroundColor: "#f3f4f3", borderRadius: 3, display: "flex", alignItems: "center", justifyContent: "center", padding: 4 }}>
+                            <span style={{ fontSize: 8, fontFamily: "monospace", textTransform: "uppercase", color: "#a8a29e" }}>{pg.item.displayId}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
+            </div>
+
+            {!useBook && eventCount > 1 && (
+              <label
+                style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 16px", borderTop: "1px solid #ebe8e4", cursor: "pointer", minHeight: 44, flexShrink: 0, backgroundColor: "#fff" }}
+              >
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={groupByEvent}
+                  onChange={e => setGroupByEvent(e.target.checked)}
+                  data-testid="checkbox-capa-por-evento"
+                />
+                <span aria-hidden="true" style={{ width: 18, height: 18, borderRadius: 6, flexShrink: 0, border: `2px solid ${groupByEvent ? "#7c3aed" : "#d4d0ca"}`, backgroundColor: groupByEvent ? "#7c3aed" : "transparent", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {groupByEvent && <CheckCircle style={{ width: 10, height: 10, color: "#fff" }} />}
+                </span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: "#1c1917" }}>Capa por evento</span>
+              </label>
+            )}
+          </div>
+        </div>
+
+        {/* ══ Rodapé único ════════════════════════════════════════════════
+            Havia um rodapé DENTRO da coluna esquerda, com a ação primária a
+            meia largura e um "Cancelar" de largura inteira embaixo dela — a
+            saída ocupando mais pixels que a ação. Agora a linha atravessa o
+            modal: a resolução à esquerda, as ações à direita. */}
+        <div style={{
+          borderTop: "1px solid #ebe8e4", backgroundColor: "#fff",
+          padding: "14px 24px", display: "flex", alignItems: "center", gap: 16,
+          flexWrap: isMobile ? "wrap" : "nowrap", flexShrink: 0,
+        }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {cortadas > 0 ? (
+              /* O AVISO PASSA A OFERECER A SAÍDA. Ele dizia "troque para as
+                 artes" e deixava a pessoa procurar onde — com o controle a uma
+                 tela de distância, no topo do modal. */
+              <div style={{ display: "flex", alignItems: "center", gap: 8, backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 8, padding: "8px 10px" }}>
+                <AlertTriangle aria-hidden="true" style={{ width: 14, height: 14, color: "#c2410c", flexShrink: 0 }} />
+                <span style={{ fontSize: 11, color: "#7c2d12", flex: 1, minWidth: 0 }}>
+                  {cortadas} {cortadas === 1 ? "peça fica" : "peças ficam"} de fora — {cortadas === 1 ? "não está coberta" : "não estão cobertas"} por nenhum book.
+                </span>
+                <button
+                  onClick={() => setSource("artes")}
+                  data-testid="button-trocar-para-artes"
+                  style={{ flexShrink: 0, height: 28, padding: "0 10px", borderRadius: 7, backgroundColor: "#fff", border: "1px solid #fdba74", color: "#9a3412", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                  Gerar das artes
+                </button>
+              </div>
+            ) : (
+              <p style={{ fontSize: 12, color: "#57534e", margin: 0, lineHeight: 1.5 }}>
+                {useBook
+                  ? "Sai o PDF original do evento, como a Arte enviou ao patrocinador."
+                  : `${selected.length} ${selected.length === 1 ? "peça" : "peças"} em ${pageCount} ${pageCount === 1 ? "página" : "páginas"}, montadas a partir das artes aprovadas.`}
+              </p>
+            )}
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <button
+              onClick={() => onOpenChange(false)}
+              style={{ height: 40, padding: "0 14px", borderRadius: 8, background: "none", border: "none", color: "#746e69", cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+              Cancelar
+            </button>
+
+            {useBook ? (
+              <>
+                <button
+                  onClick={() => {
+                    booksInSelection.forEach(b => {
+                      // window.open com "noopener" retorna SEMPRE null por
+                      // especificação — o teste de pop-up dava falso positivo e
+                      // os books seguintes não abriam.
+                      const a = document.createElement("a");
+                      a.href = b.url; a.target = "_blank"; a.rel = "noopener";
+                      document.body.appendChild(a); a.click(); a.remove();
+                    });
+                    onOpenChange(false);
+                  }}
+                  data-testid="button-export-book"
+                  style={{ height: 40, padding: "0 14px", borderRadius: 10, backgroundColor: "#f5f3ff", border: "1px solid #ddd6fe", color: "#5b21b6", fontSize: 12, fontWeight: 700, display: "flex", alignItems: "center", gap: 7, cursor: "pointer", whiteSpace: "nowrap" }}>
+                  <BookOpen style={{ width: 14, height: 14 }} />
+                  Abrir completo
+                </button>
+                <button
+                  onClick={() => setPickerOpen(true)}
+                  data-testid="button-extract-book"
+                  style={{ height: 46, padding: "0 18px", borderRadius: 10, backgroundColor: "#6d28d9", border: "none", color: "#fff", fontSize: 13, fontWeight: 800, display: "flex", alignItems: "center", gap: 8, cursor: "pointer", letterSpacing: "-0.01em", whiteSpace: "nowrap" }}>
+                  <Scissors style={{ width: 15, height: 15 }} />
+                  Escolher páginas
+                </button>
+              </>
+            ) : (
+              <button
+                onClick={gerarArtes}
+                disabled={primarioTravado}
+                data-testid="button-export-confirm"
+                style={{
+                  height: 46, padding: "0 18px", borderRadius: 10,
+                  backgroundColor: primarioTravado ? "#e7e5e4" : "#c2410c",
+                  border: "none",
+                  color: primarioTravado ? "#57534e" : "#fff",
+                  fontSize: 13, fontWeight: 800,
+                  display: "flex", alignItems: "center", gap: 8,
+                  cursor: primarioTravado ? "not-allowed" : "pointer",
+                  letterSpacing: "-0.01em", whiteSpace: "nowrap",
+                }}>
+                {/* MONTAR O PDF NÃO É INSTANTÂNEO com dezenas de imagens, e o
+                    botão ficava mudo: sem retorno, a pessoa clica de novo. */}
+                {exportando
+                  ? <><Loader2 className="animate-spin" style={{ width: 15, height: 15 }} />Gerando…</>
+                  : <><Printer style={{ width: 15, height: 15 }} />{selected.length === 0 ? "Gerar PDF" : `Gerar PDF — ${pageCount} pág.`}</>}
+              </button>
             )}
           </div>
         </div>

@@ -1341,9 +1341,42 @@ export default function Solicitacao() {
                                 {event.startDate && (
                                   <span>Início: <span style={{ color: "#d6d3d1" }}>{parseDateLocal(event.startDate).toLocaleDateString("pt-BR")}</span></span>
                                 )}
-                                {event.truckDepartureDate && (
-                                  <span>Saída: <span style={{ color: "#d6d3d1" }}>{new Date(event.truckDepartureDate).toLocaleDateString("pt-BR", { timeZone: 'UTC' })} {new Date(event.truckDepartureDate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: 'UTC' })}</span></span>
-                                )}
+                                {/* ── A SAIDA DO CAMINHAO, COM OS DIAS ──
+
+                                    Os eventos JA vinham na ordem da saida (ver
+                                    `itemsByEvent`), mas o cabecalho so dizia a
+                                    DATA: para saber se "09/09" e daqui a tres
+                                    dias ou a tres semanas era preciso fazer a
+                                    conta de cabeca, evento por evento, numa
+                                    fila de 74 pecas. A ordem ja e a da
+                                    urgencia; faltava a urgencia estar escrita.
+
+                                    A cor sai da mesma regua dos chips de prazo
+                                    ao lado — nada de um terceiro vocabulario de
+                                    urgencia no mesmo cabecalho. */}
+                                {event.truckDepartureDate && (() => {
+                                  const saida = new Date(event.truckDepartureDate);
+                                  const hoje = new Date(); hoje.setHours(0,0,0,0);
+                                  const dia = new Date(saida); dia.setHours(0,0,0,0);
+                                  const dias = Math.ceil((dia.getTime() - hoje.getTime()) / 86400000);
+                                  const cor = dias <= 7 ? "#fca5a5" : dias <= 30 ? "#fdba74" : "rgba(255,255,255,0.7)";
+                                  const quando = dias < 0 ? `ha ${-dias}d`
+                                    : dias === 0 ? "hoje"
+                                    : dias === 1 ? "amanha"
+                                    : `${dias}d`;
+                                  return (
+                                    <span
+                                      data-testid={`chip-caminhao-${eventId}`}
+                                      title={`Saida do caminhao em ${saida.toLocaleDateString("pt-BR", { timeZone: 'UTC' })} as ${saida.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: 'UTC' })}`}
+                                      style={{ display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0, backgroundColor: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.2)", borderRadius: 999, padding: "3px 9px", fontSize: 10, fontWeight: 700, color: cor, letterSpacing: "0.04em", whiteSpace: "nowrap", textTransform: "none" }}
+                                    >
+                                      <Truck aria-hidden="true" style={{ width: 11, height: 11 }} />
+                                      Caminhao {saida.toLocaleDateString("pt-BR", { day: "2-digit", month: "short", timeZone: 'UTC' }).toUpperCase().replace(".", "")}
+                                      {" · "}{saida.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: 'UTC' })}
+                                      {" · "}{quando}
+                                    </span>
+                                  );
+                                })()}
                                 {event.truckDepartureDate && (() => {
                                   const dls = [
                                     { label: "Lista de Imagens", days: event.deadlineListaImagens  ?? -25 },

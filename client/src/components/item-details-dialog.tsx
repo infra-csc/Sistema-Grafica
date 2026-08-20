@@ -1,25 +1,24 @@
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { FilePreview, isImageUrl, isPdf } from "@/components/file-preview";
+import { FilePreview } from "@/components/file-preview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
-import { getApprovalMeta, getStatusLabel, getStatusMeta, marcoEventoFinalizado, todayBusinessMs } from "@/lib/status";
+import { getApprovalMeta, getStatusLabel, marcoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import {
-  Calendar, ClipboardList, FileText, History,
-  Edit, Save, X, Link2, Palette, CheckCircle, Zap, Eye, Cog, Check,
-  FileImage, FolderOpen, ExternalLink, Camera, Clock, ShieldCheck, Package, Paperclip,
+  Edit, Save, X, Check, Clock, Eye, ExternalLink, Camera, Paperclip,
+  FileImage, FolderOpen, AlertTriangle, CheckCircle2, Recycle, Send, Copy,
+  ChevronDown, Undo2, Truck,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/auth-context";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { queryClient } from "@/lib/queryClient";
 import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
-import { Undo2 } from "lucide-react";
 
 interface ItemDetailsDialogProps {
   item: any | null;
@@ -32,12 +31,12 @@ interface ItemDetailsDialogProps {
 }
 
 const TIMELINE_STEPS = [
-  { label: "Vinculação", icon: Link2,       idx: 0 },
-  { label: "Arte",       icon: Palette,     idx: 1 },
-  { label: "Aprovação",  icon: CheckCircle, idx: 2 },
-  { label: "Finalização",icon: Zap,         idx: 3 },
-  { label: "Revisão",    icon: Eye,         idx: 4 },
-  { label: "Produção",   icon: Cog,         idx: 5 },
+  { label: "Vinculação", idx: 0 },
+  { label: "Arte",       idx: 1 },
+  { label: "Aprovação",  idx: 2 },
+  { label: "Finalização",idx: 3 },
+  { label: "Revisão",    idx: 4 },
+  { label: "Produção",   idx: 5 },
 ];
 
 const STATUS_STEP: Record<string, number> = {
@@ -51,7 +50,50 @@ const STATUS_STEP: Record<string, number> = {
   produced: 6, conferred: 6, delivered: 6,
 };
 
-// Rótulos de status vêm de lib/status.ts (fonte única).
+// ─────────────────────────────────────────────────────────────────────────────
+// PALETA DA FICHA — três tons, e nada além deles.
+//
+// Não é paleta própria: são os mesmos campos de `P` (lib/status) que os chips
+// do app já usam, nomeados aqui pelo PAPEL que exercem nesta tela. O modal já
+// carregou uma paleta estrangeira uma vez (60 cores, tokens de Material 3); o
+// jeito de não repetir é ter um lugar só onde a cor é escolhida.
+//
+// Os valores de texto foram medidos contra o fundo real de cada tom — ver o
+// teste `a-ficha-da-peca-e-legivel`. #8c7164 sobre #fafaf9 dá 4,31 e por isso
+// não aparece em lugar nenhum: o título de seção usa #7a6154 (5,49).
+// ─────────────────────────────────────────────────────────────────────────────
+const TOM = {
+  espera:    { bg: "#fff7ed", borda: "#fed7aa", frase: "#9a3412", detalhe: "#7c2d12", ladrilho: "#fed7aa" },
+  reprovado: { bg: "#fef2f2", borda: "#fecaca", frase: "#b91c1c", detalhe: "#991b1b", ladrilho: "#fecaca" },
+  ok:        { bg: "#f0fdf4", borda: "#bbf7d0", frase: "#15803d", detalhe: "#166534", ladrilho: "#bbf7d0" },
+  neutro:    { bg: "#fafaf9", borda: "#e7e5e4", frase: "#44403c", detalhe: "#57534e", ladrilho: "#e7e5e4" },
+} as const;
+type NomeDoTom = keyof typeof TOM;
+
+/** Título de seção — fora do card, como uma legenda do bloco que vem abaixo. */
+const TITULO_SECAO: React.CSSProperties = {
+  fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10,
+  textTransform: "uppercase", letterSpacing: "0.12em", color: "#7a6154",
+  margin: 0,
+};
+
+/** Bloco branco que recebe o conteúdo de uma seção. */
+const CARTAO: React.CSSProperties = {
+  backgroundColor: "#ffffff", border: "1px solid #ebe8e4", borderRadius: 12,
+};
+
+const DIA_MS = 86_400_000;
+
+/**
+ * "há 3 dias" — e não "3 dias", que não diz para que lado o tempo corre.
+ * Zero vira "hoje" porque "há 0 dias" é como um relógio quebrado: tecnicamente
+ * certo, ilegível.
+ */
+function haQuantoTempo(dias: number): string {
+  if (dias <= 0) return "hoje";
+  if (dias === 1) return "há 1 dia";
+  return `há ${dias} dias`;
+}
 
 /**
  * Nome legível do arquivo. Os uploads ficam no storage com UUID, que não diz
@@ -105,7 +147,7 @@ function PhotoLightbox({
         style={{
           position: "absolute", top: 16, right: 16,
           background: "rgba(255,255,255,0.15)", border: "none", cursor: "pointer",
-          color: "#ffffff", padding: 8, borderRadius: 6,
+          color: "#ffffff", width: 40, height: 40, borderRadius: 999,
           display: "flex", alignItems: "center", justifyContent: "center",
           transition: "background 0.15s",
         }}
@@ -133,12 +175,12 @@ function PhotoLightbox({
           rel="noopener noreferrer"
           style={{
             display: "inline-flex", alignItems: "center", gap: 6,
-            color: "rgba(255,255,255,0.65)", fontSize: 13, textDecoration: "none",
-            padding: "5px 12px", borderRadius: 6, backgroundColor: "rgba(255,255,255,0.1)",
+            color: "rgba(255,255,255,0.75)", fontSize: 13, textDecoration: "none",
+            padding: "8px 14px", borderRadius: 8, backgroundColor: "rgba(255,255,255,0.12)",
             transition: "color 0.15s, background 0.15s",
           }}
           onMouseEnter={e => { (e.currentTarget as HTMLAnchorElement).style.color = "#fff"; (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "rgba(255,255,255,0.2)"; }}
-          onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "rgba(255,255,255,0.65)"; (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "rgba(255,255,255,0.1)"; }}
+          onMouseLeave={e => { (e.currentTarget as HTMLAnchorElement).style.color = "rgba(255,255,255,0.75)"; (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "rgba(255,255,255,0.12)"; }}
         >
           <ExternalLink style={{ width: 12, height: 12 }} />
           Abrir original
@@ -149,25 +191,29 @@ function PhotoLightbox({
 }
 
 /**
- * Faixa de miniaturas; clicar abre a foto em lightbox. Tamanho fixo
- * por miniatura — com largura total, uma única foto virava um bloco gigante.
+ * Fotos da Gráfica em grade de duas colunas.
+ *
+ * Eram quadrados FIXOS de 132px numa faixa que quebrava a linha. Na coluna
+ * direita de um modal a 445px — e no mobile — 132px não é uma medida
+ * proporcional a nada: duas fotos deixavam uma sobra irregular à direita, três
+ * transbordavam. `aspectRatio: 1` em duas colunas fluidas acompanha a largura
+ * que houver.
  */
-function PhotoStrip({ urls, alt }: { urls: string[]; alt: string }) {
+function PhotoGrid({ urls, alt }: { urls: string[]; alt: string }) {
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   return (
     <>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
         {urls.map(url => (
           <button
             key={url}
             onClick={() => setLightboxUrl(url)}
             title="Ampliar foto"
             style={{
-              display: "block", position: "relative", width: 132, height: 132,
-              borderRadius: 8, overflow: "hidden", border: "1px solid #e8e8e7",
-              backgroundColor: "#f3f4f3", flexShrink: 0,
-              cursor: "zoom-in", padding: 0, appearance: "none",
+              display: "block", position: "relative", width: "100%", aspectRatio: "1",
+              borderRadius: 8, overflow: "hidden", border: "1px solid #ebe8e4",
+              backgroundColor: "#f5f4f1", cursor: "zoom-in", padding: 0, appearance: "none",
             }}
           >
             <img src={url} alt={alt}
@@ -180,12 +226,14 @@ function PhotoStrip({ urls, alt }: { urls: string[]; alt: string }) {
                   const span = document.createElement("span");
                   span.setAttribute("data-broken", "1");
                   span.textContent = "Imagem indisponível";
-                  span.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;font-size:10px;color:#a8a29e";
+                  // #78716c sobre #f5f4f1 dá 4,36 — abaixo da régua. Sobre o
+                  // branco do fallback, 4,80.
+                  span.style.cssText = "position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;font-size:11px;background:#ffffff;color:#78716c";
                   parent.appendChild(span);
                 }
               }} />
-            <span style={{ position: "absolute", bottom: 4, right: 4, backgroundColor: "rgba(0,0,0,0.55)", color: "#ffffff", padding: 4, borderRadius: 6, display: "flex" }}>
-              <Eye style={{ width: 10, height: 10 }} />
+            <span style={{ position: "absolute", bottom: 6, right: 6, backgroundColor: "rgba(0,0,0,0.6)", color: "#ffffff", padding: 5, borderRadius: 999, display: "flex" }}>
+              <Eye style={{ width: 11, height: 11 }} />
             </span>
           </button>
         ))}
@@ -208,6 +256,14 @@ export function ItemDetailsDialog({
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [revertingSponsorId, setRevertingSponsorId] = useState<string | null>(null);
+  // O percurso abre com os 4 mais recentes. Uma peça que foi e voltou três
+  // vezes tem trinta registros, e a ficha inteira virava a trilha dela.
+  const [percursoAberto, setPercursoAberto] = useState(false);
+  // "Ver quem falta" rola o miolo até a linha do patrocinador e a acende por
+  // dois segundos. Sem o realce, a rolagem entrega uma lista e deixa a pessoa
+  // procurar de novo o nome que ela acabou de ler na faixa.
+  const [patrocinadorEmFoco, setPatrocinadorEmFoco] = useState<string | null>(null);
+  const patrocinadoresRef = useRef<HTMLDivElement | null>(null);
 
   // Aprovação por patrocinador não vem no payload de /api/items — sem buscar
   // aqui, peças com várias marcas apareciam sempre como "Aguardando" no Painel
@@ -238,6 +294,8 @@ export function ItemDetailsDialog({
     // Salvar da ficha usava o id da peça ANTERIOR.
     setEditMode(false);
     setEditedItem(item);
+    setPercursoAberto(false);
+    setPatrocinadorEmFoco(null);
   }, [open, item?.id]);
 
   // Fotos que a Gráfica anexou na conferência e na entrega, para que o registro
@@ -301,10 +359,8 @@ export function ItemDetailsDialog({
   // trilha não dizia isso em lugar nenhum, embora seja o que explica a peça ter
   // parado onde parou. Esta ficha abre em cinco telas (Arte, Gráfica,
   // Solicitação, Vincular, Painel Geral), então o marco chega às cinco de uma
-  // vez — e mora SÓ na trilha do Histórico: repeti-lo no cabeçalho escuro, que
-  // já carrega status + reaproveitamento + reprovações, trocaria informação
-  // nova por barulho. `item.event` é o evento cru do enrich de /api/items:
-  // traz `status` e `startDate`, as duas colunas do predicado.
+  // vez. `item.event` é o evento cru do enrich de /api/items: traz `status` e
+  // `startDate`, as duas colunas do predicado.
   const marcoEvento = marcoEventoFinalizado(item.event, todayBusinessMs());
 
   const handleEditChange = (field: string, value: any) =>
@@ -332,7 +388,7 @@ export function ItemDetailsDialog({
   // dentro da mensagem. Um motivo como "o cliente pediu mais 4 para a
   // conferência de sábado" contém "conferência" e ROUBARIA a etapa "Conferido"
   // de uma peça que nunca foi conferida — carimbando uma data falsa na trilha
-  // que o fechamento lê. Tirar estas ações do pool das 12 etapas resolve para
+  // que o fechamento lê. Tirar estas ações do pool das etapas resolve para
   // sempre, e elas voltam logo abaixo, renderizadas como evento próprio.
   const EXTRA_ACTIONS = ["complement_created", "complement_canceled"];
   const isExtraAction = (l: any) => EXTRA_ACTIONS.includes(String(l.action ?? ""));
@@ -353,11 +409,6 @@ export function ItemDetailsDialog({
    * transição SEGUINTE: "Em aprovação de patrocinador" pegava o log que SAI de
    * "Aguardando Aprovação", que na verdade é a aprovação. Por isso o casamento
    * de status olha só o trecho depois da seta.
-   *
-   * Com o destino certo, cada etapa encontra exatamente o seu log e não é
-   * preciso "consumir" logs para evitar colisão — o que inclusive seria errado,
-   * já que um mesmo log representa duas etapas de propósito: enviar para a Arte
-   * É entrar em aprovação de patrocinador.
    */
   const resolveStages = (stages: typeof historyStages) => {
     const out = new Map<string, { date: string; user?: string; ts?: any } | null>();
@@ -412,29 +463,11 @@ export function ItemDetailsDialog({
       match: d => d.includes("entrega concluída") || d.includes("entrega parcial") },
   ];
 
-  // Resolvido uma vez e compartilhado pelas duas colunas — ver resolveStages.
   const stageLogs = resolveStages(historyStages);
+  const logTs = (l: any) => l?.ts ?? null;
+  const logBy = (l: any) => l?.user ?? null;
+  const conferLog = stageLogs.get("Conferido");
 
-  const deliveryLog = itemLogs.find((l: any) => l.action === "delivered");
-
-  // ── A TRILHA COMPLETA da peça ────────────────────────────────────────────
-  //
-  // O painel do Histórico montava ONZE ETAPAS FIXAS e procurava, em cada uma,
-  // o log que casasse por palavra-chave. Quem não estava na lista não existia:
-  // reprovação do patrocinador, devolução para a Arte, troca do arquivo final,
-  // edição de dados, exclusão e restauração — todos deixam registro e nenhum
-  // aparecia. E cada etapa mostrava só o PRIMEIRO log que casou, então uma
-  // peça que passou por aprovação duas vezes (porque voltou no meio) mostrava
-  // uma data só. O painel desenhava sempre um caminho linear, mesmo quando a
-  // peça foi e voltou três vezes.
-  //
-  // Agora a trilha é a LISTA DE LOGS, na ordem em que aconteceram. O texto de
-  // cada linha é o `details` que a própria rota escreveu — em português, já
-  // com o motivo quando existe. Nada é resumido e nada é descartado.
-  //
-  // As etapas fixas continuam à esquerda, na Rastreabilidade Temporal: lá elas
-  // respondem "onde a peça está", que é uma pergunta diferente de "o que
-  // aconteceu com ela".
   const CORES_ACAO: Record<string, string> = {
     created: "#3b82f6",
     rejected: "#dc2626",
@@ -447,943 +480,1093 @@ export function ItemDetailsDialog({
     complement_created: "#f97316",
     complement_canceled: "#f97316",
   };
-  /** Cinza para o que não tem família própria — updated é a maioria. */
-  const corDaAcao = (a: string) => CORES_ACAO[a] ?? "#a8a29e";
+  // Cinza para o que não tem família própria — `updated` é a maioria. #78716c e
+  // não o #a8a29e de antes: o ponto é o único código de cor da linha, então vale
+  // por ele o mínimo de 3:1 de elemento gráfico, e 2,52 não chegava lá.
+  const corDaAcao = (a: string) => CORES_ACAO[a] ?? "#78716c";
 
   /** Fallback de texto: log antigo sem `details` ainda precisa dizer algo. */
   const textoDoLog = (l: any) =>
     String(l.details ?? "").trim() || getStatusLabel(String(l.action ?? "")) || String(l.action ?? "registro");
 
   const thumbUrl = item.approvalThumbUrl;
-  const isThumbImage = thumbUrl && (isImageUrl(thumbUrl) && !isPdf(thumbUrl));
-
-  // Com uma foto só, ela já está no topo ao lado da arte — repetir aqui embaixo
-  // seria a mesma imagem duas vezes no mesmo card.
-  const showConferenceStrip = conferencePhotos.length > (thumbUrl ? 1 : 0);
-  // Peça entregue sem comprovante: a foto da entrega é opcional, então dá para
-  // concluir sem anexar nada. Mostrar isso explicitamente evita a leitura de que
-  // o registro existe e não está carregando.
-  const isDeliveredItem  = ["delivered", "entregue"].includes(rawStatus);
-  const missingDeliveryProof = isDeliveredItem && deliveryPhotos.length === 0;
-  // A seção só existe se sobrar algo para mostrar. Sem esta checagem, quando a
-  // única foto subia para o topo o título "Registros da Gráfica" ficava sozinho,
-  // anunciando um bloco vazio.
-  const hasFlowPhotos    = showConferenceStrip || deliveryPhotos.length > 0
-                        || !!item.conferenceNotes || !!item.deliveryNotes
-                        || missingDeliveryProof;
-  const hasObservations  = !!item.observations;
-  const hasTimestamps    = !!(item.createdAt || item.sponsorApprovedAt || item.creatorReviewedAt || item.approvedAt || item.productionStartedAt || item.producedAt || item.conferredAt || item.deliveredAt);
 
   const createdBy = createdLog?.userName ?? createdLog?.user_name ?? null;
 
-  // Etapas intermediárias não têm campo de timestamp dedicado no item — vêm dos
-  // audit logs. Reaproveitam a resolução sequencial do HISTÓRICO em vez de cada
-  // uma varrer a lista por conta própria: com buscas independentes, duas etapas
-  // acabavam no mesmo log e a trilha aparecia fora de ordem.
-  const sponsorLinkLog = stageLogs.get("Vinculação de patrocinador");
-  const sentToArteLog = stageLogs.get("Enviado para Arte");
-  const awaitingSponsorLog = stageLogs.get("Em aprovação de patrocinador");
-  const conferLog = stageLogs.get("Conferido");
-  const logTs = (l: any) => l?.ts ?? null;
-  const logBy = (l: any) => l?.user ?? null;
+  // ═══════════════════════════════════════════════════════════════════════════
+  // O PERCURSO — uma lista só.
+  //
+  // A ficha trazia DUAS trilhas dos mesmos acontecimentos, lado a lado:
+  // "Rastreabilidade Temporal" (tabela de etapas, vinda dos carimbos do item e
+  // de etapas resolvidas contra os logs) e "Histórico" (a lista de logs). Quem
+  // lia via cada evento duas vezes, em dois formatos, e tinha de descobrir
+  // sozinho que eram a mesma coisa.
+  //
+  // A ESPINHA é a lista de logs: é o registro completo, tem o texto que uma
+  // pessoa escreveu e tem autor. Dos carimbos do item entra apenas o que NÃO
+  // tem log correspondente — uma peça migrada, por exemplo, tem `producedAt`
+  // sem nenhum log de produção. Etapas que já vinham resolvidas CONTRA os logs
+  // não entram nunca: seriam o mesmo registro, com outro rótulo.
+  //
+  // A janela de 90s existe porque as duas fontes são gravadas na mesma
+  // transação, mas não no mesmo instante.
+  // ═══════════════════════════════════════════════════════════════════════════
+  const JANELA_MESMO_EVENTO_MS = 90_000;
 
-  const traceRows = [
-    { label: "Solicitado / Criado",        value: item.createdAt,                                         by: createdBy,                                                 dot: "#2563eb" },
-    sponsorLinkLog ? { label: "Vinculação de Patrocinador", value: logTs(sponsorLinkLog), by: logBy(sponsorLinkLog), dot: "#8b5cf6" } : null,
-    sentToArteLog ? { label: "Enviado para Arte", value: logTs(sentToArteLog), by: logBy(sentToArteLog), dot: "#0ea5e9" } : null,
-    awaitingSponsorLog ? { label: "Em Aprovação de Patrocinador", value: logTs(awaitingSponsorLog), by: logBy(awaitingSponsorLog), dot: "#f97316" } : null,
-    { label: "Aprovado pelo Patrocinador", value: item.sponsorApprovedAt,                                  by: item.sponsorApprovedBy,                                    dot: "#7c3aed" },
-    { label: "Revisado pelo Criador",      value: item.creatorReviewedAt,                                  by: null,                                                      dot: "#d946ef" },
-    { label: "Liberado para Produção",     value: item.approvedAt,                                         by: null,                                                      dot: "#f97316" },
-    { label: "Produção Iniciada",          value: item.productionStartedAt,                                by: null,                                                      dot: "#f59e0b" },
-    { label: "Produzido",                  value: item.producedAt,                                         by: null,                                                      dot: "#ec4899" },
-    // A conferência entrou no fluxo depois e ficou de fora desta trilha.
-    { label: "Conferido",                  value: item.conferredAt,                                        by: logBy(conferLog),                                          dot: "#0891b2" },
-    { label: "Entregue",                   value: item.deliveredAt,                                        by: item.receivedBy,                                           dot: "#10b981" },
-  ]
-    .filter((r): r is { label: string; value: any; by: any; dot: string } => !!r && !!r.value)
-    // A ordem das etapas é a do fluxo, mas as datas vêm de fontes diferentes
-    // (campos do item e audit logs). Ordenar por data garante que a trilha seja
-    // lida de cima para baixo sem saltos para trás.
-    .sort((a, b) => new Date(a.value).getTime() - new Date(b.value).getTime());
+  type EventoDoPercurso = { chave: string; ts: number; texto: string; autor: string | null; cor: string };
+
+  const eventosDeLog: EventoDoPercurso[] = itemLogs.map((l: any, i: number) => ({
+    chave: String(l.id ?? `${l.action}-${l.createdAt ?? l.created_at}-${i}`),
+    ts: new Date(l.createdAt ?? l.created_at).getTime(),
+    texto: textoDoLog(l),
+    autor: l.userName ?? l.user_name ?? null,
+    cor: corDaAcao(String(l.action ?? "")),
+  })).filter((e: EventoDoPercurso) => Number.isFinite(e.ts));
+
+  // Só carimbos do PRÓPRIO item: colunas de data que existem no registro.
+  const carimbosDoItem = [
+    { label: "Solicitada",                 valor: item.createdAt,            por: createdBy,             cor: "#3b82f6" },
+    { label: "Aprovada pelo patrocinador", valor: item.sponsorApprovedAt,    por: item.sponsorApprovedBy, cor: "#16a34a" },
+    { label: "Revisada pela Solicitação",  valor: item.creatorReviewedAt,    por: null,                  cor: "#d946ef" },
+    { label: "Liberada para produção",     valor: item.approvedAt,           por: null,                  cor: "#f97316" },
+    { label: "Produção iniciada",          valor: item.productionStartedAt,  por: null,                  cor: "#eab308" },
+    { label: "Produzida",                  valor: item.producedAt,           por: null,                  cor: "#a855f7" },
+    { label: "Conferida",                  valor: item.conferredAt,          por: logBy(conferLog),      cor: "#06b6d4" },
+    { label: "Entregue",                   valor: item.deliveredAt,          por: item.receivedBy,       cor: "#10b981" },
+  ].filter(c => !!c.valor);
+
+  const eventosPercurso: EventoDoPercurso[] = [...eventosDeLog];
+  for (const c of carimbosDoItem) {
+    const ts = new Date(c.valor).getTime();
+    if (!Number.isFinite(ts)) continue;
+    const jaTemLog = eventosDeLog.some(e => Math.abs(e.ts - ts) < JANELA_MESMO_EVENTO_MS);
+    if (jaTemLog) continue;
+    eventosPercurso.push({ chave: `carimbo-${c.label}`, ts, texto: c.label, autor: c.por ?? null, cor: c.cor });
+  }
+  // Mais recente primeiro: a pergunta que traz alguém aqui é "o que aconteceu
+  // por último", não "como tudo começou".
+  eventosPercurso.sort((a, b) => b.ts - a.ts);
+
+  const PERCURSO_VISIVEL = 4;
+  const percursoVisivel = percursoAberto ? eventosPercurso : eventosPercurso.slice(0, PERCURSO_VISIVEL);
+  const percursoEscondidos = eventosPercurso.length - percursoVisivel.length;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // PATROCINADORES, EM ORDEM DE URGÊNCIA.
+  //
+  // A ordem era a do banco. Numa peça com cinco marcas, a única que trava tudo
+  // podia estar na quarta linha, abaixo de quatro aprovações que não pedem nada
+  // de ninguém. Pendente primeiro, reprovado depois, aprovado por último: a
+  // lista passa a ser lida de cima para baixo como fila de trabalho.
+  // ═══════════════════════════════════════════════════════════════════════════
+  const linhasPatrocinador = ((item.sponsors ?? []) as any[]).map((s: any) => {
+    const approval = approvalsList.find((a: any) => a.sponsorId === s.id);
+    // O chip tinha TRÊS ramos para os CINCO estados do vocabulário. Os dois que
+    // sobravam — `awaiting_arte` e `new_version_pending` — caíam no "senão" e
+    // apareciam como AGUARDANDO, que se lê "esperando o patrocinador". Nos dois
+    // a bola está com a CASA: o patrocinador já respondeu.
+    const meta = getApprovalMeta(
+      approval?.status
+        ?? (approval?.approved === true ? "approved"
+          : approval?.approved === false ? "rejected" : "pending"),
+    ) ?? getApprovalMeta("pending")!;
+    return { sponsor: s, approval, meta };
+  });
+
+  const PESO_DO_TOM: Record<string, number> = { waiting: 0, rejected: 1, rework: 1, unknown: 2, approved: 3 };
+  const patrocinadoresOrdenados = [...linhasPatrocinador]
+    .sort((a, b) => (PESO_DO_TOM[a.meta.tone] ?? 2) - (PESO_DO_TOM[b.meta.tone] ?? 2));
+
+  const pendentes  = linhasPatrocinador.filter(l => l.meta.tone === "waiting");
+  const reprovados = linhasPatrocinador.filter(l => l.meta.isRejection);
+  const aprovados  = linhasPatrocinador.filter(l => l.meta.tone === "approved");
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // A FAIXA DE RESOLUÇÃO.
+  //
+  // A pergunta que traz alguém a esta ficha é "onde está esta peça e o que
+  // falta". A resposta não estava em lugar nenhum: era preciso ler a lista de
+  // patrocinadores, cruzar com o histórico e calcular de cabeça há quanto tempo
+  // aquilo não anda. Aqui ela vira uma frase, no alto, sem rolar.
+  //
+  // Tudo sai do que a ficha JÁ tem: status, aprovações com data e observação, e
+  // a data do último registro. Nenhuma coluna nova no banco.
+  // ═══════════════════════════════════════════════════════════════════════════
+  const ultimoMovimentoMs = eventosPercurso.length
+    ? eventosPercurso[0].ts
+    : (item.updatedAt ? new Date(item.updatedAt).getTime() : NaN);
+  const diasParado = Number.isFinite(ultimoMovimentoMs)
+    ? Math.max(0, Math.floor((Date.now() - ultimoMovimentoMs) / DIA_MS))
+    : null;
+  const desdeQuando = diasParado === null ? "" : ` ${haQuantoTempo(diasParado)}`;
+
+  const nomes = (lista: typeof linhasPatrocinador) => lista.map(l => l.sponsor?.name).filter(Boolean).join(", ");
+
+  const bloqueio: { tom: NomeDoTom; frase: string; detalhe: string | null } = (() => {
+    // 1. Alguém reprovou. É o estado mais grave e o único que traz texto escrito
+    //    por uma pessoa — o pedido de ajuste é a informação mais útil da tela.
+    if (reprovados.length > 0) {
+      const primeiro = reprovados[0];
+      const quando = primeiro.approval?.rejectedAt
+        ? ` em ${format(new Date(primeiro.approval.rejectedAt), "dd/MM 'às' HH:mm", { locale: ptBR })}`
+        : "";
+      const motivo = primeiro.approval?.rejectionReason
+        ? ` — "${String(primeiro.approval.rejectionReason).trim()}"`
+        : "";
+      return {
+        tom: "reprovado",
+        frase: reprovados.length === 1
+          ? `Reprovada por ${primeiro.sponsor?.name ?? "um patrocinador"}${desdeQuando}`
+          : `Reprovada por ${reprovados.length} patrocinadores${desdeQuando}`,
+        detalhe: `${primeiro.sponsor?.name ?? "Patrocinador"} reprovou${quando}${motivo}`
+          + (aprovados.length ? ` · ${aprovados.length} de ${linhasPatrocinador.length} já aprovaram` : ""),
+      };
+    }
+    // 2. A bola está com o patrocinador.
+    if (["awaiting_approval", "awaiting_sponsor_approval"].includes(rawStatus) || pendentes.length > 0) {
+      return {
+        tom: "espera",
+        frase: pendentes.length === 1
+          ? `Parada em aprovação${desdeQuando} — falta ${pendentes[0].sponsor?.name ?? "um patrocinador"}`
+          : pendentes.length > 1
+            ? `Parada em aprovação${desdeQuando} — faltam ${pendentes.length} patrocinadores`
+            : `Parada em aprovação${desdeQuando}`,
+        detalhe: aprovados.length
+          ? `${aprovados.length} de ${linhasPatrocinador.length} já aprovaram: ${nomes(aprovados)}`
+          : (pendentes.length > 1 ? `Aguardando: ${nomes(pendentes)}` : "Nenhum patrocinador respondeu até agora"),
+      };
+    }
+    if (rawStatus === "awaiting_linking") {
+      return { tom: "espera", frase: `Sem patrocinador vinculado${desdeQuando}`, detalhe: "A peça só entra em aprovação depois de vincular as marcas que aparecem nela." };
+    }
+    if (rawStatus === "awaiting_submission") {
+      return { tom: "espera", frase: `Aguardando a Arte enviar para aprovação${desdeQuando}`, detalhe: "A arte precisa subir o layout para os patrocinadores decidirem." };
+    }
+    if (["awaiting_finalization", "sponsor_approved", "awaiting_creator_review"].includes(rawStatus)) {
+      return {
+        tom: "ok",
+        frase: linhasPatrocinador.length
+          ? `Aprovada por todos os ${linhasPatrocinador.length} patrocinadores — falta finalizar a arte`
+          : "Aprovada — falta finalizar a arte",
+        detalhe: `A Arte precisa subir o arquivo final${desdeQuando ? ` · sem movimento${desdeQuando}` : ""}`,
+      };
+    }
+    if (["awaiting_final_review", "awaiting_review"].includes(rawStatus)) {
+      return { tom: "espera", frase: `Aguardando a revisão final${desdeQuando}`, detalhe: "O arquivo final está pronto e espera a conferência da Solicitação antes de ir para a gráfica." };
+    }
+    if (["ready_for_production", "pronto_para_producao", "approved", "liberado"].includes(rawStatus)) {
+      return { tom: "ok", frase: "Liberada para produção", detalhe: `A gráfica pode imprimir${desdeQuando ? ` · liberada${desdeQuando}` : ""}` };
+    }
+    if (["inproduction", "inProduction", "em_producao"].includes(rawStatus)) {
+      return { tom: "espera", frase: `Em produção na gráfica${desdeQuando}`, detalhe: null };
+    }
+    if (["produced", "produzido"].includes(rawStatus)) {
+      return { tom: "espera", frase: `Produzida — falta conferir${desdeQuando}`, detalhe: item.conferredQty > 0 ? `${item.conferredQty} de ${item.quantity} já conferidas` : null };
+    }
+    if (["conferred", "conferido"].includes(rawStatus)) {
+      return { tom: "espera", frase: `Conferida — falta entregar${desdeQuando}`, detalhe: item.deliveredQty > 0 ? `${item.deliveredQty} de ${item.quantity} já entregues` : null };
+    }
+    if (["delivered", "entregue"].includes(rawStatus)) {
+      return { tom: "ok", frase: "Entregue — nada pendente", detalhe: item.receivedBy ? `Recebida por ${item.receivedBy}` : null };
+    }
+    // Estado fora do fluxo (rascunho, cancelada, ou um status que esta versão
+    // não conhece): dizer o rótulo do status é mais honesto que inventar uma
+    // frase de bloqueio.
+    return { tom: "neutro", frase: getStatusLabel(rawStatus) || "Sem etapa definida", detalhe: diasParado === null ? null : `Sem movimento ${haQuantoTempo(diasParado)}` };
+  })();
+
+  const tom = TOM[bloqueio.tom];
+  const IconeDoBloqueio = bloqueio.tom === "ok" ? CheckCircle2 : bloqueio.tom === "reprovado" ? AlertTriangle : Clock;
+
+  // ── Cobrança: o que dá para fazer sem inventar rota ────────────────────────
+  //
+  // Não existe cobrança dentro do sistema — patrocinador não tem login e o
+  // servidor não manda e-mail. Quem cobra abre o WhatsApp ou o e-mail e digita
+  // do zero, toda vez, o mesmo texto: qual peça, qual evento, há quantos dias.
+  // O botão monta esse texto. Com e-mail cadastrado, abre o cliente de e-mail
+  // já preenchido; sem e-mail, copia para a área de transferência.
+  const alvoDaCobranca = pendentes[0] ?? null;
+  const textoDaCobranca = alvoDaCobranca
+    ? `${item.displayId} — ${item.description || item.type || "peça"}`
+      + `${item.event?.name ? ` (${item.event.name})` : ""}`
+      + ` está aguardando a aprovação de ${alvoDaCobranca.sponsor?.name ?? "vocês"}`
+      + `${diasParado ? ` ${haQuantoTempo(diasParado)}` : ""}.`
+      + `${item.event?.truckDepartureDate ? ` A saída do caminhão é ${format(toUTCDisplayDate(item.event.truckDepartureDate), "dd/MM 'às' HH:mm", { locale: ptBR })}.` : ""}`
+    : "";
+
+  const cobrar = () => {
+    const email = alvoDaCobranca?.sponsor?.email;
+    if (email) {
+      const assunto = encodeURIComponent(`Aprovação pendente — ${item.displayId}`);
+      window.location.href = `mailto:${email}?subject=${assunto}&body=${encodeURIComponent(textoDaCobranca)}`;
+      return;
+    }
+    navigator.clipboard?.writeText(textoDaCobranca).then(
+      () => toast({ title: "Cobrança copiada", description: "Cole no WhatsApp ou no e-mail do patrocinador." }),
+      () => toast({ title: "Não foi possível copiar", description: "Copie o texto da faixa manualmente.", variant: "destructive" }),
+    );
+  };
+
+  const irAosPatrocinadores = (sponsorId?: string) => {
+    patrocinadoresRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    if (!sponsorId) return;
+    setPatrocinadorEmFoco(sponsorId);
+    window.setTimeout(() => setPatrocinadorEmFoco(null), 2000);
+  };
+
+  // ── Prazo ─────────────────────────────────────────────────────────────────
+  const saida = item.event?.truckDepartureDate ? toUTCDisplayDate(item.event.truckDepartureDate) : null;
+  const diasAteSaida = saida ? Math.ceil((saida.getTime() - todayBusinessMs()) / DIA_MS) : null;
+  const prazoApertado = diasAteSaida !== null && diasAteSaida <= 7;
+  const textoDoPrazo = diasAteSaida === null ? null
+    : diasAteSaida < 0 ? `${haQuantoTempo(-diasAteSaida)}`
+    : diasAteSaida === 0 ? "é hoje"
+    : diasAteSaida === 1 ? "falta 1 dia"
+    : `faltam ${diasAteSaida} dias`;
+
+  // ── Especificações: a grade sem linha dupla ───────────────────────────────
+  //
+  // A grade é feita com `gap: 1px` sobre um fundo — as bordas são as FRESTAS
+  // entre as células, então não existe borda dupla por construção (era o risco
+  // do desenho com borderRight/borderBottom em cada célula). O que sobra é a
+  // última linha incompleta: com 5 dados em 3 colunas, a sexta vaga mostraria a
+  // cor do fundo como um retângulo tingido. Células vazias brancas fecham a
+  // grade.
+  const colunasEspec = isMobile ? 2 : 3;
+  const dadosEspec = [
+    { label: "Tipo",       value: item.type },
+    { label: "Material",   value: item.material },
+    { label: "Acabamento", value: item.finish },
+    { label: "Quantidade", value: item.quantity ? `${item.quantity} un.` : null },
+    { label: "M²",         value: item.calculatedM2 ? `${item.calculatedM2} m²` : null },
+    { label: "Medida",     value: item.measurement },
+    { label: "Visual",     value: item.visualWidth && item.visualHeight ? `${item.visualWidth} × ${item.visualHeight}` : null },
+    { label: "Arquivo",    value: item.fileWidth && item.fileHeight ? `${item.fileWidth} × ${item.fileHeight}` : null },
+  ].filter(x => x.value);
+  const vagasVazias = (colunasEspec - (dadosEspec.length % colunasEspec)) % colunasEspec;
+
+  // ── Andamento na gráfica ──────────────────────────────────────────────────
+  const andamentoGrafica = ([
+    ["Reaproveitado", item.reuseQty,        "#047857"],
+    ["Produzido",     item.quantityProduced,"#7e22ce"],
+    ["Conferido",     item.conferredQty,    "#0e7490"],
+    ["Entregue",      item.deliveredQty,    "#047857"],
+  ] as const).filter(([, v]) => v > 0);
+
+  const isDeliveredItem  = ["delivered", "entregue"].includes(rawStatus);
+  const missingDeliveryProof = isDeliveredItem && deliveryPhotos.length === 0;
+  const temRegistrosGrafica = conferencePhotos.length > 0 || deliveryPhotos.length > 0
+    || !!item.conferenceNotes || !!item.deliveryNotes
+    || missingDeliveryProof || andamentoGrafica.length > 0 || !!item.receivedBy;
+
+  const PAD = isMobile ? "16px" : "32px";
+  const ALVO = isMobile ? 44 : 36;   // alvo de toque / de ponteiro
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className={`max-w-6xl max-h-[90vh] overflow-y-auto p-0 gap-0 ${HIDE_NATIVE_CLOSE}`}
-        /* raio 16: era 6, o único modal do app fora do degrau de modal. */
-        style={{ backgroundColor: "#f9f9f8", borderRadius: 16, boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)" }}
+        className={`max-w-6xl p-0 gap-0 ${HIDE_NATIVE_CLOSE}`}
+        /* O TETO E O SCROLL.
+           Antes o DialogContent inteiro era o scroller (`max-h-[90vh]
+           overflow-y-auto`): rolar a ficha levava embora o cabeçalho, o status
+           e o prazo — exatamente o que se quer manter à vista enquanto se lê o
+           resto. Agora ele é coluna flex e SÓ o miolo rola; cabeçalho, faixa e
+           rodapé são `flexShrink: 0`.
+           `dvh` no mobile: `vh` conta a barra do navegador que se esconde, e o
+           rodapé ficava embaixo dela. */
+        style={{
+          backgroundColor: "#f9f9f8", borderRadius: 16,
+          boxShadow: "0 25px 50px -12px rgba(0,0,0,0.3)",
+          maxHeight: isMobile ? "calc(100dvh - 24px)" : "calc(100vh - 48px)",
+          display: "flex", flexDirection: "column", overflow: "hidden",
+        }}
       >
         {/* Sem DialogTitle o Radix anuncia um diálogo sem nome (e reclama no
-            console). Como o cabeçalho visual já mostra a peça, o título fica
-            só para leitor de tela. Este componente abre em cinco telas, então
-            a falta valia por cinco. */}
+            console). O cabeçalho visual já mostra a peça, então o título fica
+            só para leitor de tela — e é ele que o Radix aponta em
+            aria-labelledby. Este componente abre em cinco telas, então a falta
+            valia por cinco. */}
         <DialogTitle className="sr-only">
-          {item?.displayId ? `Peça ${item.displayId}` : "Detalhes da peça"}
+          {item?.displayId ? `Peça ${item.displayId} — ${item.description || item.type || ""}` : "Detalhes da peça"}
         </DialogTitle>
         <DialogDescription className="sr-only">
-          Especificações, arte, patrocinadores e histórico da peça
+          {bloqueio.frase}
         </DialogDescription>
-        {/* ── Close button ──
-            Sticky (não absolute): o DialogContent é o próprio scroller — com
-            absolute o X sumia na primeira rolagem. O wrapper de altura zero
-            gruda no topo sem empurrar o conteúdo. */}
-        <div style={{ position: "sticky", top: 0, zIndex: 50, height: 0, display: "flex", justifyContent: "flex-end" }}>
-          <button
-            onClick={() => onOpenChange(false)}
-            aria-label="Fechar"
-            style={{
-              margin: "16px 16px 0 0",
-              // Chip escuro translúcido: legível tanto sobre o header escuro
-              // quanto sobre o corpo claro quando a ficha rola.
-              background: "rgba(28,25,23,0.55)", border: "none", cursor: "pointer",
-              color: "#ffffff", padding: 6, borderRadius: 6,
-              display: "flex", alignItems: "center", transition: "background 0.15s",
-            }}
-            onMouseEnter={e => { e.currentTarget.style.background = "rgba(28,25,23,0.8)"; }}
-            onMouseLeave={e => { e.currentTarget.style.background = "rgba(28,25,23,0.55)"; }}
-          >
-            <X style={{ width: 24, height: 24 }} />
-          </button>
-        </div>
 
-        {/* ══════════════════════════════════════════════════════
-            HEADER — Dark
-        ══════════════════════════════════════════════════════ */}
-        <header style={{ backgroundColor: "#1c1917", color: "#ffffff" }}>
-          {/* Title + pills row — padding menor no mobile: 32px de cada lado
-              comia um terço da tela. */}
-          <div style={{ padding: isMobile ? "16px" : "24px 32px 20px" }}>
-            {/* ID chip inline */}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: "0.06em" }}>
-                {item.displayId}
-              </span>
-              {/* Status pill — cor por status (fonte única). Antes era laranja
-                  fixo para qualquer status, divergindo dos pills das tabelas.
-                  Sobre o header escuro: texto no tom pastel (border) e fundo no
-                  tint do dot — mesmo padrão dos chips vizinhos (reuso/reprovado). */}
-              {(() => {
-                const m = getStatusMeta(rawStatus);
-                return (
-                  <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: `${m.dot}26`, color: m.border, border: `1px solid ${m.dot}4D`, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                    {getStatusLabel(rawStatus)}
-                  </span>
-                );
-              })()}
-              {(item.isReuse || item.reuseQty > 0) && (
-                <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(22,101,52,0.3)", color: "#4ade80", border: "1px solid rgba(22,101,52,0.4)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                  {item.isReuse ? "Reaproveitamento" : `↩ ${item.reuseQty}/${item.quantity}`}
+        {/* ══════════════════════════════════════════════════════════════════
+            CABEÇALHO
+        ══════════════════════════════════════════════════════════════════ */}
+        <header
+          style={{
+            flexShrink: 0,
+            background: "linear-gradient(135deg, #1c1917 0%, #2d2926 100%)",
+            color: "#ffffff",
+            padding: isMobile ? "16px 16px 0" : "22px 32px 0",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
+            <div style={{ minWidth: 0, flex: "1 1 auto" }}>
+              {/* Linha de identificação */}
+              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.5)", letterSpacing: "0.06em" }}>
+                  {item.displayId}
                 </span>
-              )}
-              {item.rejectedBySponsor && (
-                <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(186,26,26,0.25)", color: "#ff5449", border: "1px solid rgba(186,26,26,0.35)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Reprov. Patrocinador</span>
-              )}
-              {item.rejectedByCreator && (
-                <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(186,26,26,0.25)", color: "#ff5449", border: "1px solid rgba(186,26,26,0.35)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Reprov. Criador</span>
-              )}
-              {item.skipApproval && (
-                <span style={{ padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.5)", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em" }}>Aprov. Ignorada</span>
+                <span aria-hidden="true" style={{ width: 1, height: 12, backgroundColor: "rgba(255,255,255,0.18)" }} />
+                {/* O EVENTO DESCE DE TÍTULO PARA LINHA DE CONTEXTO. Ele nomeia
+                    dezenas de peças ao mesmo tempo; quem abre a ficha já sabe em
+                    que evento está e precisa saber QUAL peça é esta. */}
+                <span style={{ fontSize: 12, color: "rgba(255,255,255,0.6)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 320 }}>
+                  {item.event?.name || "Sem evento"}
+                </span>
+                {(item.isReuse || item.reuseQty > 0) && (
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "3px 10px", borderRadius: 999, backgroundColor: "rgba(22,101,52,0.28)", color: "#4ade80", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}>
+                    <Recycle aria-hidden="true" style={{ width: 11, height: 11 }} />
+                    {item.isReuse ? "Reaproveitamento" : `${item.reuseQty}ª de ${item.quantity} usos`}
+                  </span>
+                )}
+              </div>
+
+              {/* O TÍTULO É A DESCRIÇÃO DA PEÇA. */}
+              <h1 style={{
+                fontFamily: "'Space Grotesk', sans-serif",
+                fontSize: isMobile ? 22 : 30, fontWeight: 800,
+                letterSpacing: "-0.03em", color: "#ffffff", margin: 0, lineHeight: 1.12,
+              }}>
+                {item.description || item.type || item.displayId}
+              </h1>
+              {item.description && item.type && (
+                <p style={{ fontSize: 13, color: "rgba(255,255,255,0.6)", margin: "6px 0 0", maxWidth: 620, lineHeight: 1.5 }}>
+                  {item.type}{item.material ? ` · ${item.material}` : ""}{item.measurement ? ` · ${item.measurement}` : ""}
+                </p>
               )}
             </div>
-            <h1 style={{
-              fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: "clamp(22px, 3.2vw, 34px)", fontWeight: 800,
-              letterSpacing: "-0.03em", color: "#ffffff", margin: 0, lineHeight: 1.1,
-            }}>
-              {item.event?.name?.toUpperCase() || "—"}
-            </h1>
+
+            {/* Prazo + fechar */}
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 12, flexShrink: 0 }}>
+              {saida && !isMobile && (
+                <div style={{ textAlign: "right" }}>
+                  <p style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 5, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgba(255,255,255,0.5)", margin: "0 0 3px" }}>
+                    <Truck aria-hidden="true" style={{ width: 11, height: 11 }} />
+                    Saída do caminhão
+                  </p>
+                  <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 17, fontWeight: 700, color: "#fdba74", margin: 0, whiteSpace: "nowrap" }}>
+                    {format(saida, "dd/MM 'às' HH:mm", { locale: ptBR })}
+                  </p>
+                  {textoDoPrazo && (
+                    <p style={{ fontSize: 11, fontWeight: 600, color: prazoApertado ? "#fca5a5" : "rgba(255,255,255,0.6)", margin: "2px 0 0", whiteSpace: "nowrap" }}>
+                      {textoDoPrazo}
+                    </p>
+                  )}
+                </div>
+              )}
+              <button
+                onClick={() => onOpenChange(false)}
+                aria-label="Fechar"
+                data-testid="button-fechar-ficha"
+                style={{
+                  width: 36, height: 36, borderRadius: 999, flexShrink: 0,
+                  backgroundColor: "rgba(255,255,255,0.08)", border: "none", cursor: "pointer",
+                  color: "#ffffff", display: "flex", alignItems: "center", justifyContent: "center",
+                  transition: "background 0.15s",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.18)"; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.08)"; }}
+              >
+                <X style={{ width: 18, height: 18 }} />
+              </button>
+            </div>
           </div>
 
-          {/* Progress tracker — full-width strip */}
-          <div style={{ padding: "14px 32px 18px", borderTop: "1px solid rgba(255,255,255,0.06)", display: "flex", alignItems: "center", gap: 0, overflowX: "auto" }}>
-            {TIMELINE_STEPS.map((s, i) => {
+          {/* Prazo no mobile: sob o título, onde há largura para ele. */}
+          {saida && isMobile && (
+            <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 12 }}>
+              <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "rgba(255,255,255,0.5)" }}>Saída</span>
+              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 15, fontWeight: 700, color: "#fdba74" }}>
+                {format(saida, "dd/MM 'às' HH:mm", { locale: ptBR })}
+              </span>
+              {textoDoPrazo && (
+                <span style={{ fontSize: 11, fontWeight: 600, color: prazoApertado ? "#fca5a5" : "rgba(255,255,255,0.6)" }}>{textoDoPrazo}</span>
+              )}
+            </div>
+          )}
+
+          {/* ── TRILHA DE ETAPAS ──
+              Decorativa: o estado que importa está escrito na faixa logo
+              abaixo, em texto. Anunciar seis etapas com "concluída/atual/
+              futura" antes da frase que resolve seria ler o índice antes do
+              capítulo.
+
+              Círculos ligados por linha viraram COLUNAS com barra: a linha de
+              1px entre bolinhas dava um fio que sumia no gradiente, e os
+              rótulos de 10px em coluna forçavam rolagem horizontal. Agora cada
+              etapa ocupa a mesma fração da largura e a barra de 3px abaixo dela
+              é o que se lê de longe. */}
+          <div aria-hidden="true" style={{ display: "flex", gap: 6, margin: isMobile ? "16px 0 0" : "20px 0 0" }}>
+            {TIMELINE_STEPS.map(s => {
               const done    = s.idx < step;
               const current = s.idx === step;
               return (
-                <div key={s.idx} style={{ display: "flex", alignItems: "center", flex: i < TIMELINE_STEPS.length - 1 ? "1 1 0" : "0 0 auto" }}>
-                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 5, flexShrink: 0 }}>
-                    <div style={{
-                      width: 24, height: 24, borderRadius: "50%",
-                      backgroundColor: done ? "#c2410c" : current ? "rgba(253,118,26,0.25)" : "rgba(255,255,255,0.08)",
-                      border: current ? "2px solid #c2410c" : "none",
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      color: done ? "#fff" : current ? "#c2410c" : "rgba(255,255,255,0.3)",
-                      fontWeight: 800, fontSize: 10,
-                      transition: "all 0.2s",
-                      flexShrink: 0,
-                    }}>
-                      {done ? <Check style={{ width: 11, height: 11, strokeWidth: 3 }} /> : <span>{s.idx + 1}</span>}
-                    </div>
+                <div key={s.idx} style={{ flex: "1 1 0", minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7, minWidth: 0 }}>
                     <span style={{
-                      fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em",
-                      color: (done || current) ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.55)",
-                      whiteSpace: "nowrap",
+                      width: 18, height: 18, borderRadius: "50%", flexShrink: 0,
+                      backgroundColor: (done || current) ? "#c2410c" : "rgba(255,255,255,0.09)",
+                      boxShadow: current ? "0 0 0 3px rgba(251,146,60,0.25)" : "none",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      color: (done || current) ? "#ffffff" : "rgba(255,255,255,0.55)",
+                      fontSize: 9, fontWeight: 800,
+                    }}>
+                      {done ? <Check style={{ width: 10, height: 10, strokeWidth: 3 }} /> : s.idx + 1}
+                    </span>
+                    {/* Nenhum alfa abaixo de 0.55 sobre este gradiente: 0.35 dá
+                        3,11 e reprova em texto pequeno. */}
+                    <span style={{
+                      fontSize: 11, fontWeight: current ? 700 : 500,
+                      color: current ? "#ffffff" : "rgba(255,255,255,0.55)",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0,
                     }}>
                       {s.label}
                     </span>
                   </div>
-                  {i < TIMELINE_STEPS.length - 1 && (
-                    <div style={{ flex: 1, height: 1, backgroundColor: done ? "rgba(253,118,26,0.4)" : "rgba(255,255,255,0.08)", marginBottom: 14, minWidth: 12 }} />
-                  )}
+                  <div style={{ height: 3, borderRadius: 999, backgroundColor: (done || current) ? "#c2410c" : "rgba(255,255,255,0.09)" }} />
                 </div>
               );
             })}
           </div>
+          <div style={{ height: isMobile ? 16 : 20 }} />
         </header>
 
-        {/* ══════════════════════════════════════════════════════
-            BANNER DESCRIPTION
-        ══════════════════════════════════════════════════════ */}
-        {item.description && (
-          <div style={{ padding: "14px 32px", backgroundColor: "#fdf8f5", borderLeft: "3px solid #c2410c", borderBottom: "1px solid #f0ede9" }}>
-            <p style={{ color: "#57534e", lineHeight: 1.6, maxWidth: 800, margin: 0, fontSize: 13, fontWeight: 500 }}>
-              {item.description}
-            </p>
-          </div>
-        )}
-
-        {/* ══════════════════════════════════════════════════════
-            REFERÊNCIA DO SOLICITANTE
-        ══════════════════════════════════════════════════════ */}
-        {item.referenceUrl && (
-          <div style={{ padding: "20px 32px", backgroundColor: "#fff7ed", borderLeft: "8px solid #f97316", display: "flex", alignItems: "center", gap: 20 }}>
-            <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0, display: "block", borderRadius: 8, overflow: "hidden", border: "2px solid #fed7aa", boxShadow: "0 4px 12px rgba(249,115,22,0.15)" }}>
-              <img
-                src={item.referenceUrl}
-                alt="Referência"
-                style={{ width: 100, height: 72, objectFit: "cover", display: "block" }}
-                onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-              />
-            </a>
-            <div>
-              <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#c2410c", margin: "0 0 6px 0", display: "flex", alignItems: "center", gap: 5 }}>
-                <Paperclip style={{ width: 11, height: 11 }} />
-                Referência do Solicitante
+        {/* ══════════════════════════════════════════════════════════════════
+            FAIXA DE RESOLUÇÃO — o que trava, desde quando, e o que fazer.
+        ══════════════════════════════════════════════════════════════════ */}
+        <div
+          data-testid="banner-blocker"
+          style={{
+            flexShrink: 0, padding: isMobile ? "12px 16px" : "14px 32px",
+            backgroundColor: tom.bg, borderBottom: `1px solid ${tom.borda}`,
+            display: "flex", alignItems: isMobile ? "stretch" : "center",
+            flexDirection: isMobile ? "column" : "row", gap: 12,
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "flex-start", gap: 12, minWidth: 0, flex: "1 1 auto" }}>
+            <span aria-hidden="true" style={{
+              width: 34, height: 34, borderRadius: 8, flexShrink: 0,
+              backgroundColor: tom.ladrilho, color: tom.detalhe,
+              display: "flex", alignItems: "center", justifyContent: "center",
+            }}>
+              <IconeDoBloqueio style={{ width: 17, height: 17 }} />
+            </span>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ fontSize: 14, fontWeight: 700, color: tom.frase, margin: 0, lineHeight: 1.35 }}>
+                {bloqueio.frase}
               </p>
-              <p style={{ fontSize: 13, color: "#7c2d12", margin: "0 0 8px 0", lineHeight: 1.4 }}>
-                Imagem de demonstração fornecida pelo solicitante para orientar a produção da peça.
-              </p>
-              <a
-                href={item.referenceUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 700, color: "#c2410c", textDecoration: "none", padding: "5px 12px", backgroundColor: "rgba(249,115,22,0.08)", borderRadius: 6, border: "1px solid rgba(249,115,22,0.2)" }}
-              >
-                <ExternalLink style={{ width: 12, height: 12 }} />
-                Ver imagem completa
-              </a>
+              {bloqueio.detalhe && (
+                <p style={{ fontSize: 12, color: tom.detalhe, margin: "3px 0 0", lineHeight: 1.45 }}>
+                  {bloqueio.detalhe}
+                </p>
+              )}
             </div>
           </div>
-        )}
 
-        {/* ══════════════════════════════════════════════════════
-            TWO-COLUMN GRID
-        ══════════════════════════════════════════════════════ */}
-        {/* No mobile as duas colunas empilham — 60/40 lado a lado espremia
-            os cards em ~180px cada. */}
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "6fr 4fr", gap: 16, padding: isMobile ? "16px" : "20px 32px 20px", backgroundColor: "#e8e4de" }}>
+          {/* No máximo duas ações, e só as que existem de verdade para este
+              estado. Não há rota de cobrança no servidor — patrocinador não tem
+              login e não há disparo de e-mail —, então "Cobrar" monta o texto e
+              entrega pronto para o canal onde a cobrança acontece. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+            {alvoDaCobranca && (
+              <button
+                type="button"
+                onClick={cobrar}
+                data-testid="button-blocker-primary"
+                style={{
+                  display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 7,
+                  height: isMobile ? 44 : 38, padding: "0 16px", borderRadius: 8, border: "none",
+                  backgroundColor: "#c2410c", color: "#ffffff", cursor: "pointer",
+                  font: "inherit", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
+                }}
+                onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#9a3412"; }}
+                onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#c2410c"; }}
+                title={alvoDaCobranca.sponsor?.email
+                  ? `Abrir e-mail para ${alvoDaCobranca.sponsor.email}`
+                  : "Copiar o texto da cobrança"}
+              >
+                {alvoDaCobranca.sponsor?.email
+                  ? <Send aria-hidden="true" style={{ width: 14, height: 14 }} />
+                  : <Copy aria-hidden="true" style={{ width: 14, height: 14 }} />}
+                Cobrar aprovação
+              </button>
+            )}
+            {(pendentes.length > 0 || reprovados.length > 0) && (
+              <button
+                type="button"
+                onClick={() => irAosPatrocinadores((reprovados[0] ?? pendentes[0])?.sponsor?.id)}
+                data-testid="button-blocker-secondary"
+                style={{
+                  display: "inline-flex", alignItems: "center", justifyContent: "center",
+                  height: isMobile ? 44 : 38, padding: "0 14px", borderRadius: 8,
+                  border: `1px solid ${tom.borda}`, backgroundColor: "#ffffff",
+                  color: tom.detalhe, cursor: "pointer",
+                  font: "inherit", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
+                }}
+              >
+                {reprovados.length > 0 ? "Ver o motivo" : "Ver quem falta"}
+              </button>
+            )}
+          </div>
+        </div>
 
-          {/* ── LEFT COLUMN (60%) ── */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* ══════════════════════════════════════════════════════════════════
+            MIOLO — a única parte que rola.
+        ══════════════════════════════════════════════════════════════════ */}
+        <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", backgroundColor: "#f9f9f8" }}>
 
-            {/* Event info + Specs */}
-            <section style={{ backgroundColor: "#ffffff", padding: "20px 24px", borderRadius: 12 }}>
-              <h3 style={{
-                fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10,
-                textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 18px 0",
-                display: "flex", alignItems: "center", gap: 6, color: "#746e69",
-              }}>
-                <Calendar style={{ width: 13, height: 13, color: "#c2410c" }} />
-                Informações do Evento
-              </h3>
+          {/* O bloco de trabalho que a tela hospedeira mandou (a finalização de
+              layout, na Arte) abre o miolo: é a tarefa por que a ficha foi
+              aberta, e ficava depois de tudo. */}
+          {topActions && (
+            <div style={{ padding: isMobile ? "16px 16px 0" : "20px 32px 0" }}>{topActions}</div>
+          )}
 
-              {/* Dates */}
-              <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 16 : 32 }}>
-                <div>
-                  <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#8c7164", display: "block", marginBottom: 4 }}>
-                    Data de Início
-                  </label>
-                  <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, color: "#1c1917", fontWeight: 500, margin: 0 }}>
-                    {item.event?.startDate
-                      ? format(parseDateLocal(item.event.startDate), "dd MMM yyyy", { locale: ptBR }).toUpperCase()
-                      : "—"}
-                  </p>
-                </div>
-                <div>
-                  <label style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em", color: "#8c7164", display: "block", marginBottom: 4 }}>
-                    Saída do Caminhão
-                  </label>
-                  <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 18, color: "#c2410c", fontWeight: 700, margin: 0 }}>
-                    {item.event?.truckDepartureDate
-                      ? format(toUTCDisplayDate(item.event.truckDepartureDate), "dd MMM yyyy 'às' HH:mm", { locale: ptBR }).toUpperCase()
-                      : "—"}
-                  </p>
-                </div>
-              </div>
+          <div style={{
+            display: "grid",
+            gridTemplateColumns: isMobile ? "1fr" : "6fr 4fr",
+            gap: isMobile ? 20 : 24,
+            padding: isMobile ? "16px" : "20px 32px",
+            alignItems: "start",
+          }}>
 
-              {/* Specs */}
-              <div style={{ marginTop: 32, paddingTop: 32, borderTop: "1px solid #eeeeed" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                  <h4 style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "#8c7164", margin: 0 }}>
-                    Especificações Técnicas
-                  </h4>
+            {/* ═══ COLUNA ESQUERDA ═══ */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 22, minWidth: 0 }}>
+
+              {/* ── Especificação ── */}
+              <section>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+                  <h3 style={TITULO_SECAO}>Especificação</h3>
                   {!editMode && onEditSave && (
                     <button
                       onClick={() => { setEditedItem(item); setEditMode(true); }}
-                      style={{ background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, color: "#c2410c", textTransform: "uppercase", padding: 0 }}
+                      data-testid="button-editar-especificacao"
+                      style={{
+                        background: "none", border: "none", cursor: "pointer", padding: 0,
+                        display: "flex", alignItems: "center", gap: 5,
+                        font: "inherit", fontSize: 11, fontWeight: 700, color: "#c2410c",
+                        textTransform: "uppercase", letterSpacing: "0.06em",
+                      }}
                     >
-                      <Edit style={{ width: 11, height: 11 }} /> EDITAR
+                      <Edit aria-hidden="true" style={{ width: 11, height: 11 }} /> Editar
                     </button>
                   )}
                 </div>
 
-                {editMode ? (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {[
-                      { label: "Tipo",       field: "type" },
-                      { label: "Material",   field: "material" },
-                      { label: "Acabamento", field: "finish" },
-                    ].map(({ label, field }) => (
-                      <div key={field}>
-                        <label htmlFor={`detail-edit-${field}`} style={{ fontSize: 11, color: "#746e69", display: "block", marginBottom: 4 }}>{label}</label>
-                        <Input id={`detail-edit-${field}`} value={editedItem?.[field] || ""} onChange={(e) => handleEditChange(field, e.target.value)} className="h-8 text-sm" />
+                <div style={{ ...CARTAO, overflow: "hidden" }}>
+                  {editMode ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: 16 }}>
+                      {[
+                        { label: "Tipo",       field: "type" },
+                        { label: "Material",   field: "material" },
+                        { label: "Acabamento", field: "finish" },
+                      ].map(({ label, field }) => (
+                        <div key={field}>
+                          <label htmlFor={`detail-edit-${field}`} style={{ fontSize: 11, color: "#57534e", display: "block", marginBottom: 4 }}>{label}</label>
+                          <Input id={`detail-edit-${field}`} value={editedItem?.[field] || ""} onChange={(e) => handleEditChange(field, e.target.value)} className="h-9 text-sm" />
+                        </div>
+                      ))}
+                      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
+                        <Button size="sm" variant="outline" onClick={() => setEditMode(false)}>Cancelar</Button>
+                        <Button size="sm" onClick={handleSave}><Save className="h-3 w-3 mr-1" />Salvar</Button>
                       </div>
-                    ))}
-                    <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-                      <Button size="sm" variant="outline" onClick={() => setEditMode(false)}>Cancelar</Button>
-                      <Button size="sm" onClick={handleSave}><Save className="h-3 w-3 mr-1" />Salvar</Button>
                     </div>
-                  </div>
-                ) : (
-                  /* SEIS mini-cards para seis pares rótulo/valor era card demais
-                     para o que é uma ficha técnica: seis fundos, seis bordas e
-                     seis raios competindo com o conteúdo que carregam. Vira uma
-                     grade sem moldura, separada por hairlines — o dado ganha o
-                     peso e a moldura desaparece, que é o objetivo dela. */
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, minmax(0,1fr))",
-                    gap: "1px",
-                    backgroundColor: "#f0ede9",
-                    border: "1px solid #f0ede9",
-                    borderRadius: 10,
-                    overflow: "hidden",
-                  }}>
-                    {[
-                      { label: "Tipo",       value: item.type },
-                      { label: "Material",   value: item.material },
-                      { label: "Acabamento", value: item.finish },
-                      { label: "Quantidade", value: item.quantity ? `${item.quantity} un.` : null },
-                      { label: "M²",         value: item.calculatedM2 ? `${item.calculatedM2} m²` : null },
-                      { label: "Medida",     value: item.measurement },
-                    ].filter(x => x.value).map(({ label, value }) => (
-                      <div key={label} style={{ backgroundColor: "#ffffff", padding: "11px 14px", minWidth: 0 }}>
-                        {/* #8c7164 sobre branco = 5,3:1 ✓ nos 10px */}
-                        <p style={{ fontSize: 10, fontWeight: 700, color: "#8c7164", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 3px 0" }}>{label}</p>
-                        <p title={String(value)} style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 15, color: "#1c1917", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </section>
-
-            {/* Sponsors */}
-            {item.sponsors && item.sponsors.length > 0 && (
-              <section style={{ backgroundColor: "#ffffff", padding: 24, borderRadius: 12 }}>
-                <h3 style={{
-                  fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10,
-                  textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 16px 0",
-                  display: "flex", alignItems: "center", gap: 6, color: "#746e69",
-                }}>
-                  <ShieldCheck style={{ width: 13, height: 13, color: "#c2410c" }} />
-                  Patrocinadores Vinculados
-                </h3>
-
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {item.sponsors.map((s: any) => {
-                    const approval = approvalsList.find((a: any) => a.sponsorId === s.id);
-                    // O chip tinha TRÊS ramos (aprovado / reprovado / "Aguardando")
-                    // para os CINCO estados do vocabulário. Os dois que sobravam —
-                    // `awaiting_arte` e `new_version_pending` — caíam no "senão" e
-                    // apareciam como AGUARDANDO, que se lê "esperando o patrocinador".
-                    // Nos dois a bola está com a CASA: o patrocinador já respondeu.
-                    // Foi assim que a peça #1527 apareceu "aguardando" com um pedido
-                    // de ajuste do patrocinador escrito logo acima, em vermelho.
-                    // Agora o rótulo e as cores saem do vocabulário único
-                    // (lib/status.ts), o mesmo que o Atendimento já usa.
-                    const meta = getApprovalMeta(
-                      approval?.status
-                        ?? (approval?.approved === true ? "approved"
-                          : approval?.approved === false ? "rejected" : "pending"),
-                    ) ?? getApprovalMeta("pending")!;
-                    return (
-                      <div
-                        key={s.id}
-                        style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: 12, backgroundColor: "#fafaf9", borderRadius: 8, border: "1px solid #f0ede9", transition: "background 0.15s" }}
-                        onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = "#e8e8e7"}
-                        // Volta à cor BASE (#fafaf9): sair do hover deixava a
-                        // linha num #f3f4f3 que não é o fundo original.
-                        onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = "#fafaf9"}
-                      >
-                        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                          <div style={{
-                            width: 36, height: 36, backgroundColor: "#f5f4f1", borderRadius: 8,
-                            display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
-                          }}>
-                            <span style={{ fontSize: 15, fontWeight: 700, color: s.color || "#1c1917" }}>
-                              {(s.name || "?")[0].toUpperCase()}
-                            </span>
+                  ) : (
+                    <>
+                      {/* Grade por FRESTA (gap 1px sobre o fundo): não existe
+                          borda dupla nas beiradas porque não existe borda nas
+                          células. As vagas vazias fecham a última linha. */}
+                      <div style={{
+                        display: "grid",
+                        gridTemplateColumns: `repeat(${colunasEspec}, minmax(0,1fr))`,
+                        gap: 1, backgroundColor: "#ebe8e4",
+                      }}>
+                        {dadosEspec.map(({ label, value }) => (
+                          <div key={label} style={{ backgroundColor: "#ffffff", padding: "11px 14px", minWidth: 0 }}>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: "#7a6154", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 3px" }}>{label}</p>
+                            <p title={String(value)} style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 15, color: "#1c1917", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{value}</p>
                           </div>
-                          <div>
-                            <span style={{ fontWeight: 700, fontSize: 15, color: "#1c1917", display: "block" }}>{s.name}</span>
-                            {approval?.approvedAt ? (
-                              <span style={{ fontSize: 10, color: "#746e69", fontFamily: "'DM Mono', monospace" }}>
-                                {format(new Date(approval.approvedAt), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}
-                                {approval.approvedBy ? ` · ${approval.approvedBy}` : ""}
-                              </span>
-                            ) : approval?.rejectedAt ? (
-                              <span style={{ fontSize: 10, color: "#ba1a1a", fontFamily: "'DM Mono', monospace" }}>
-                                {format(new Date(approval.rejectedAt), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}
-                                {approval.rejectedBy ? ` · ${approval.rejectedBy}` : ""}
-                                {approval.rejectionReason ? ` — ${approval.rejectionReason}` : ""}
-                              </span>
-                            ) : null}
-                          </div>
-                        </div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <span
-                            title={meta.hint}
-                            data-testid={`chip-aprovacao-${s.id}`}
-                            style={{
-                              display: "inline-flex", alignItems: "center", gap: 6,
-                              padding: "4px 12px", borderRadius: 999,
-                              backgroundColor: meta.bg, color: meta.text,
-                              border: `1px solid ${meta.border}`,
-                              fontSize: 10, fontWeight: 700, textTransform: "uppercase", whiteSpace: "nowrap",
-                            }}
-                          >
-                            <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: meta.dot, flexShrink: 0 }} />
-                            {meta.label}
-                          </span>
-                          {/* Correção de admin: desfaz uma aprovação/reprovação feita por
-                              engano, sem precisar mexer direto no banco. */}
-                          {user?.role === "admin" && approval && approval.status !== "pending" && (
-                            <button
-                              type="button"
-                              onClick={() => handleRevertApproval(s.id, s.name)}
-                              disabled={revertingSponsorId === s.id}
-                              title={`Reverter para pendente (admin) — estava ${meta.label.toLowerCase()}`}
-                              data-testid={`button-revert-approval-${s.id}`}
-                              style={{
-                                display: "flex", alignItems: "center", justifyContent: "center",
-                                width: 26, height: 26, borderRadius: 999, border: "1px solid #e7e5e4",
-                                backgroundColor: "#ffffff", color: "#746e69", cursor: revertingSponsorId === s.id ? "default" : "pointer",
-                                opacity: revertingSponsorId === s.id ? 0.5 : 1, flexShrink: 0,
-                              }}
-                            >
-                              <Undo2 style={{ width: 13, height: 13 }} />
-                            </button>
-                          )}
-                        </div>
+                        ))}
+                        {Array.from({ length: vagasVazias }).map((_, i) => (
+                          <div key={`vaga-${i}`} aria-hidden="true" style={{ backgroundColor: "#ffffff" }} />
+                        ))}
                       </div>
-                    );
-                  })}
+                      {/* A data que importa — a saída do caminhão — já está no
+                          cabeçalho. Aqui fica o contexto, numa linha só, onde
+                          antes havia dois blocos de 32px de respiro. */}
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 16px", padding: "10px 14px", borderTop: "1px solid #ebe8e4", fontSize: 12, color: "#57534e" }}>
+                        <span>
+                          Evento em{" "}
+                          <strong style={{ color: "#1c1917", fontWeight: 700 }}>
+                            {item.event?.startDate ? format(parseDateLocal(item.event.startDate), "dd/MM/yyyy", { locale: ptBR }) : "—"}
+                          </strong>
+                        </span>
+                        {item.printShop && <span>Gráfica: <strong style={{ color: "#1c1917", fontWeight: 700 }}>{item.printShop}</strong></span>}
+                        {createdBy && <span>Solicitada por <strong style={{ color: "#1c1917", fontWeight: 700 }}>{createdBy}</strong></span>}
+                      </div>
+                    </>
+                  )}
                 </div>
 
-                {item.sponsorApprovedBy && item.sponsorApprovedAt && (
-                  <div style={{ marginTop: 12, padding: "8px 12px", background: "rgba(0,99,152,0.05)", border: "1px solid rgba(0,99,152,0.15)", borderRadius: 8, display: "flex", alignItems: "center", gap: 8 }}>
-                    <CheckCircle style={{ width: 14, height: 14, color: "#006398", flexShrink: 0 }} />
-                    <span style={{ fontSize: 11, color: "#003554", fontWeight: 600 }}>
-                      Aprovado por <strong>{item.sponsorApprovedBy}</strong> em {format(new Date(item.sponsorApprovedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                    </span>
+                {item.observations && (
+                  <div style={{ ...CARTAO, marginTop: 10, padding: "12px 14px" }}>
+                    <p style={{ fontSize: 10, fontWeight: 700, color: "#7a6154", textTransform: "uppercase", letterSpacing: "0.06em", margin: "0 0 4px" }}>Observações</p>
+                    <p style={{ fontSize: 13, color: "#57534e", fontStyle: "italic", lineHeight: 1.55, margin: 0 }}>"{item.observations}"</p>
                   </div>
                 )}
               </section>
-            )}
-          </div>
 
-          {/* ── RIGHT COLUMN (40%) ── */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-
-            {/* Aprovação de Arte — glass-purple/orange */}
-            <section style={{
-              background: "#ffffff",
-              // A BORDA SUPERIOR COLORIDA SAIU. Os painéis da direita tinham
-              // uma tarja de 3px (laranja aqui, azul no Arquivo Final) que os
-              // painéis da esquerda não têm — dois sistemas de moldura no mesmo
-              // modal. O ícone do canto e o título já dizem de que bloco se
-              // trata; a tarja era ênfase sobre algo que não estava em disputa.
-              border: "1px solid #f0ede9",
-              padding: 24, borderRadius: 12,
-            }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69", margin: 0 }}>
-                  Aprovação de Arte
-                </h3>
-                <FileImage style={{ width: 20, height: 20, color: "#9d4300" }} />
-              </div>
-
-              {thumbUrl ? (
-                <>
-                  {/* Arte aprovada e peça conferida lado a lado: comparar o que
-                      foi aprovado com o que saiu da impressora é justamente o
-                      que se quer olhar aqui, sem rolar até o fim do card. */}
-                  <div style={{
-                    display: "grid",
-                    gridTemplateColumns: conferencePhotos.length > 0 ? "1fr 1fr" : "1fr",
-                    gap: 10, marginBottom: 16,
-                  }}>
-                    <div>
-                      <div style={{ position: "relative", aspectRatio: "16/9", backgroundColor: "rgba(255,255,255,0.4)", borderRadius: 6, overflow: "hidden" }}>
-                        <FilePreview url={thumbUrl} linkUrl={thumbUrl} objectFit="cover" />
-                      </div>
-                      {conferencePhotos.length > 0 && (
-                        <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9d4300", margin: "6px 0 0", textAlign: "center" }}>
-                          Arte aprovada
-                        </p>
-                      )}
-                    </div>
-
-                    {conferencePhotos.length > 0 && (
-                      <div>
-                        <a href={conferencePhotos[0]} target="_blank" rel="noopener noreferrer"
-                          title="Abrir foto da conferência"
-                          style={{ display: "block", position: "relative", aspectRatio: "16/9", backgroundColor: "rgba(255,255,255,0.4)", borderRadius: 6, overflow: "hidden", border: "1px solid #a5f3fc" }}>
-                          <img src={conferencePhotos[0]} alt="Foto da conferência"
-                            style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
-                            onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-                          {conferencePhotos.length > 1 && (
-                            <span style={{ position: "absolute", bottom: 4, right: 4, backgroundColor: "rgba(14,116,144,0.9)", color: "#fff", fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 6 }}>
-                              +{conferencePhotos.length - 1}
-                            </span>
-                          )}
-                        </a>
-                        <p style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#0e7490", margin: "6px 0 0", textAlign: "center" }}>
-                          Conferido pela Gráfica
-                        </p>
-                      </div>
-                    )}
+              {/* ── Patrocinadores ── */}
+              {linhasPatrocinador.length > 0 && (
+                <section ref={patrocinadoresRef} data-testid="section-patrocinadores">
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+                    <h3 style={TITULO_SECAO}>Patrocinadores</h3>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: aprovados.length === linhasPatrocinador.length ? "#15803d" : "#c2410c" }}>
+                      {aprovados.length} de {linhasPatrocinador.length} aprovaram
+                    </span>
                   </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                    <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: "rgba(88,66,55,0.6)", margin: 0 }}>Arquivo de Aprovação</p>
-                    {/* O nome do arquivo no storage é um UUID; mostrá-lo cru não
-                        informa nada. Só exibe quando for um nome de verdade. */}
-                    <p style={{ fontSize: 13, fontWeight: 500, margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {friendlyFileName(thumbUrl)}
-                    </p>
-                    {item.approvalThumbUpdatedAt && (
-                      <p style={{ fontSize: 10, color: "rgba(88,66,55,0.6)", margin: "2px 0 0" }}>
-                        Atualizado em {fmtShort(item.approvalThumbUpdatedAt)}
-                      </p>
-                    )}
-                    <div style={{ display: "flex", gap: 12, marginTop: 4, flexWrap: "wrap" }}>
-                      <a href={thumbUrl} target="_blank" rel="noopener noreferrer" style={{ fontSize: 10, color: "#9d4300", textDecoration: "underline", display: "flex", alignItems: "center", gap: 4 }}>
-                        <ExternalLink style={{ width: 10, height: 10 }} /> Abrir original
-                      </a>
-                      {item.previousApprovalThumbUrl && (
-                        <a href={item.previousApprovalThumbUrl} target="_blank" rel="noopener noreferrer" title="Versão anterior do thumb"
-                          style={{ fontSize: 10, color: "#92400e", textDecoration: "underline", display: "flex", alignItems: "center", gap: 4 }}>
-                          <ExternalLink style={{ width: 10, height: 10 }} /> Ver versão anterior
-                        </a>
-                      )}
-                      {item.bookUrl && (
-                        <a href={item.bookUrl} target="_blank" rel="noopener noreferrer" title="Book de aprovação que cobre esta peça"
-                          style={{ fontSize: 10, color: "#6d28d9", textDecoration: "underline", display: "flex", alignItems: "center", gap: 4 }}>
-                          <ExternalLink style={{ width: 10, height: 10 }} /> Book de aprovação
-                        </a>
-                      )}
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div style={{ aspectRatio: "16/9", backgroundColor: "rgba(255,255,255,0.3)", borderRadius: 6, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 8, border: "1px dashed rgba(157,67,0,0.2)" }}>
-                  <FileImage style={{ width: 32, height: 32, color: "rgba(157,67,0,0.3)" }} />
-                  <p style={{ fontSize: 13, color: "rgba(157,67,0,0.8)", margin: 0 }}>Nenhum arquivo enviado</p>
-                </div>
-              )}
-            </section>
 
-            {/* Arquivo Final — glass-green/blue */}
-            <section style={{
-              background: "#ffffff",
-              border: "1px solid #e8f4fb",
-              padding: 24, borderRadius: 12,
-            }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
-                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", color: "#746e69", margin: 0 }}>
-                  Arquivo Final
-                </h3>
-                <FolderOpen style={{ width: 20, height: 20, color: "#006398" }} />
-              </div>
-
-              {item.finalFileUrl ? (
-                <>
-                  <div style={{ padding: 16, backgroundColor: "#f5f9fc", borderRadius: 8, border: "1px solid #d4eaf5" }}>
-                    <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                      <FolderOpen style={{ width: 20, height: 20, color: "#006398", marginTop: 2, flexShrink: 0 }} />
-                      <div style={{ overflow: "hidden" }}>
-                        <p style={{
-                          fontSize: 10, fontWeight: 700, backgroundColor: "#006398", color: "#ffffff",
-                          padding: "2px 8px", borderRadius: 6, display: "inline-block",
-                          marginBottom: 8, textTransform: "uppercase", letterSpacing: "-0.04em",
-                        }}>
-                          PRONTO PARA IMPRESSÃO
-                        </p>
-                        {/* O nome original do arquivo é o que identifica a peça
-                            para a Gráfica; a URL é um UUID e não diz nada. */}
-                        <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, wordBreak: "break-all", color: "#003554", margin: 0, fontWeight: 700 }}>
-                          {item.finalFileName || item.finalFileUrl}
-                        </p>
-                        {item.finalFileUpdatedAt && (
-                          <p style={{ fontSize: 10, color: "rgba(0,53,84,0.6)", margin: "4px 0 0" }}>
-                            Enviado em {fmtShort(item.finalFileUpdatedAt)}
-                          </p>
-                        )}
-                        {item.previousFinalFileUrl && (
-                          <p style={{ fontSize: 10, color: "#92400e", margin: "6px 0 0", display: "flex", alignItems: "center", gap: 4 }}>
-                            ⚠ Substituiu <strong>{item.previousFinalFileName || "versão anterior"}</strong>
-                            {" — "}
-                            <a href={item.previousFinalFileUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#92400e" }}>ver anterior</a>
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                  {item.finalFileUrl.startsWith("http") && (
-                    <a
-                      href={item.finalFileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        width: "100%", marginTop: 12, padding: "12px 0",
-                        backgroundColor: "#006398", color: "#ffffff", borderRadius: 6,
-                        fontWeight: 700, fontSize: 11, textTransform: "uppercase",
-                        letterSpacing: "0.1em", textDecoration: "none",
-                        transition: "filter 0.15s",
-                      }}
-                      onMouseEnter={e => (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "#004f7a"}
-                      onMouseLeave={e => (e.currentTarget as HTMLAnchorElement).style.backgroundColor = "#006398"}
-                    >
-                      <ExternalLink style={{ width: 14, height: 14, marginRight: 8 }} />
-                      Abrir Arquivo Final
-                    </a>
-                  )}
-                </>
-              ) : (
-                <div style={{ padding: 24, backgroundColor: "#f5f9fc", borderRadius: 8, border: "1px dashed rgba(0,99,152,0.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  <p style={{ fontSize: 13, color: "rgba(0,99,152,0.8)", margin: 0 }}>Arquivo final não informado</p>
-                </div>
-              )}
-            </section>
-          </div>
-        </div>
-
-        {/* ══════════════════════════════════════════════════════
-            FULL-WIDTH SECTIONS
-        ══════════════════════════════════════════════════════ */}
-        <div style={{ padding: "20px 32px 32px 32px", display: "flex", flexDirection: "column", gap: 36 }}>
-
-          {/* ── Dados de Produção ── */}
-          <section>
-            <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 14px 0", display: "flex", alignItems: "center", gap: 6, color: "#746e69" }}>
-              <Package style={{ width: 13, height: 13, color: "#c2410c" }} />
-              Dados de Produção
-            </h3>
-            <div style={{ overflow: "hidden", borderRadius: 12, border: "1px solid #f0ede9", backgroundColor: "#ffffff" }}>
-              <table style={{ width: "100%", textAlign: "left", borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ backgroundColor: "#fafaf9", borderBottom: "1px solid #f0ede9" }}>
-                    {["Quantidade", "Total M²", "Dimensões Visuais", "Dimensões Arquivo", "Medida"].map(col => (
-                      <th key={col} style={{ padding: "11px 16px", fontSize: 10, fontWeight: 900, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.1em" }}>{col}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr style={{ borderTop: "1px solid #eeeeed" }}>
-                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 15, fontWeight: 700, color: "#1c1917" }}>{item.quantity || 0} un.</td>
-                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 15, color: "#57534e" }}>{item.calculatedM2 ?? "—"} m²</td>
-                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 15, color: "#57534e" }}>
-                      {item.visualWidth && item.visualHeight ? `${item.visualWidth} × ${item.visualHeight}` : "—"}
-                    </td>
-                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 15, color: "#57534e" }}>
-                      {item.fileWidth && item.fileHeight ? `${item.fileWidth} × ${item.fileHeight}` : "—"}
-                    </td>
-                    <td style={{ padding: 16, fontFamily: "'DM Mono', monospace", fontSize: 15, color: "#57534e" }}>{item.measurement || "—"}</td>
-                  </tr>
-                  {/* Andamento na Gráfica. Sem estas quantidades não dava para
-                      saber quanto de uma peça já foi conferido ou entregue —
-                      justamente o que as etapas parciais criaram. */}
-                  {(item.quantityProduced || item.receivedBy || item.reuseQty > 0
-                    || item.conferredQty > 0 || item.deliveredQty > 0) && (
-                    <tr style={{ borderTop: "1px solid #eeeeed", backgroundColor: "#fafaf9" }}>
-                      <td colSpan={5} style={{ padding: "12px 16px" }}>
-                        <div style={{ display: "flex", gap: 32, flexWrap: "wrap" }}>
-                          {([
-                            ["Reaproveitado", item.reuseQty, "#059669"],
-                            ["Produzido", item.quantityProduced, "#1a1c1c"],
-                            ["Conferido", item.conferredQty, "#0e7490"],
-                            // Esmeralda: cor canônica de "Entregue" (lib/status).
-                            // Roxo é "Produzido" — usava a cor do status errado.
-                            ["Entregue", item.deliveredQty, "#047857"],
-                          ] as const).filter(([, v]) => v > 0).map(([label, value, color]) => (
-                            <div key={label}>
-                              <span style={{ fontSize: 10, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.07em" }}>{label}</span>
-                              <p style={{ fontSize: 15, fontWeight: 700, color, margin: "2px 0 0 0", fontFamily: "'DM Mono', monospace" }}>
-                                {value}<span style={{ color: "#746e69", fontWeight: 400 }}>/{item.quantity}</span>
-                              </p>
-                            </div>
-                          ))}
-                          {item.receivedBy && (
-                            <div>
-                              <span style={{ fontSize: 10, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.07em" }}>Recebido por</span>
-                              <p style={{ fontSize: 15, fontWeight: 700, color: "#1c1917", margin: "2px 0 0 0" }}>{item.receivedBy}</p>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          {/* ── Action slots ── */}
-          {topActions && <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>{topActions}</div>}
-          {customActions && <div>{customActions}</div>}
-
-          {/* ── Fotos da conferência/entrega + Observações ── */}
-          {(hasFlowPhotos || hasObservations) && (
-            <div style={{ display: "grid", gridTemplateColumns: !isMobile && hasFlowPhotos && hasObservations ? "1fr 1fr" : "1fr", gap: 32 }}>
-              {hasFlowPhotos && (
-                <section>
-                  <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 14px 0", display: "flex", alignItems: "center", gap: 6, color: "#746e69" }}>
-                    <Camera style={{ width: 13, height: 13, color: "#c2410c" }} />
-                    Registros da Gráfica
-                  </h3>
-
-                  {/* A primeira foto da conferência já aparece ao lado da arte,
-                      no topo. Aqui só entra o que não coube lá: as demais fotos
-                      e a observação. */}
-                  {(showConferenceStrip || item.conferenceNotes) && (
-                    <div style={{ marginBottom: (deliveryPhotos.length || item.deliveryNotes) ? 20 : 0 }}>
-                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#0e7490", margin: "0 0 8px 0" }}>
-                        Conferência {conferencePhotos.length > 1 && `· ${conferencePhotos.length} fotos`}
-                      </p>
-                      {showConferenceStrip && <PhotoStrip urls={conferencePhotos} alt="Foto da conferência" />}
-                      {item.conferenceNotes && (
-                        <p style={{ fontSize: 13, color: "#584237", fontStyle: "italic", lineHeight: 1.5, margin: "8px 0 0 0" }}>"{item.conferenceNotes}"</p>
-                      )}
-                    </div>
-                  )}
-
-                  {(deliveryPhotos.length > 0 || item.deliveryNotes) && (
-                    <div>
-                      <p style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#047857", margin: "0 0 8px 0" }}>
-                        Entrega {deliveryPhotos.length > 1 && `· ${deliveryPhotos.length} fotos`}
-                        {item.receivedBy && <span style={{ color: "#84756c", letterSpacing: 0, textTransform: "none", fontWeight: 400 }}> — recebido por {item.receivedBy}</span>}
-                      </p>
-                      <PhotoStrip urls={deliveryPhotos} alt="Foto da entrega" />
-                      {item.deliveryNotes && (
-                        <p style={{ fontSize: 13, color: "#584237", fontStyle: "italic", lineHeight: 1.5, margin: "8px 0 0 0" }}>"{item.deliveryNotes}"</p>
-                      )}
-                    </div>
-                  )}
-
-                  {missingDeliveryProof && (
-                    <div style={{ display: "flex", alignItems: "flex-start", gap: 8, backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 12px" }}>
-                      <span style={{ fontSize: 13, lineHeight: 1 }}>⚠</span>
-                      <div>
-                        <p style={{ fontSize: 11, fontWeight: 700, color: "#92400e", margin: 0 }}>Entregue sem comprovante fotográfico</p>
-                        <p style={{ fontSize: 11, color: "#a16207", margin: "2px 0 0", lineHeight: 1.4 }}>
-                          A foto da entrega é opcional{item.receivedBy ? ` — consta apenas o recebimento por ${item.receivedBy}` : ""}.
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </section>
-              )}
-              {hasObservations && (
-                <section>
-                  <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 14px 0", display: "flex", alignItems: "center", gap: 6, color: "#746e69" }}>
-                    <FileText style={{ width: 13, height: 13, color: "#c2410c" }} />
-                    Observações
-                  </h3>
-                  <div style={{ backgroundColor: "#fafaf9", padding: "14px 16px", borderRadius: 12, border: "1px solid #f0ede9" }}>
-                    <p style={{ color: "#584237", fontStyle: "italic", lineHeight: 1.6, fontSize: 13, margin: 0 }}>
-                      "{item.observations}"
-                    </p>
-                  </div>
-                </section>
-              )}
-            </div>
-          )}
-
-          {/* ── Rastreabilidade + Histórico ── */}
-          {(hasTimestamps || historyStages.length > 0 || deliveryLog) && (
-            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : (hasTimestamps ? "2fr 1fr" : "1fr"), gap: 32 }}>
-
-              {/* Rastreabilidade Temporal */}
-              {hasTimestamps && (
-                <div>
-                  <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 16px 0", display: "flex", alignItems: "center", gap: 6, color: "#746e69" }}>
-                    <Clock style={{ width: 13, height: 13, color: "#c2410c" }} />
-                    Rastreabilidade Temporal
-                  </h3>
-                  {/* minWidth no mobile: sem ele as três colunas se esmagavam
-                      em vez de rolar dentro do wrapper. */}
-                  <div style={{ overflowX: "auto" }}>
-                    <table style={{ width: "100%", minWidth: isMobile ? 480 : undefined, textAlign: "left", borderCollapse: "collapse" }}>
-                      <thead>
-                        <tr style={{ borderBottom: "1px solid #eeeeed" }}>
-                          {["Etapa", "Data / Hora", "Responsável"].map(col => (
-                            <th key={col} style={{ paddingBottom: 12, fontSize: 10, fontWeight: 900, textTransform: "uppercase", color: "#8c7164", letterSpacing: "0.08em" }}>{col}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody style={{ borderCollapse: "collapse" }}>
-                        {traceRows.map((row, i) => (
-                          <tr key={row.label} style={{ borderBottom: i < traceRows.length - 1 ? "1px solid rgba(238,238,237,0.6)" : "none" }}>
-                            <td style={{ padding: "12px 0", fontSize: 13, fontWeight: 700, color: "#1c1917", display: "flex", alignItems: "center", gap: 8 }}>
-                              <span style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: row.dot, display: "inline-block", flexShrink: 0 }} />
-                              {row.label}
-                            </td>
-                            <td style={{ padding: "12px 16px", fontFamily: "'DM Mono', monospace", fontSize: 13, color: "#57534e" }}>
-                              {format(new Date(row.value!), "dd MMM yy HH:mm", { locale: ptBR }).toUpperCase()}
-                            </td>
-                            <td style={{ padding: "12px 0", fontSize: 13, color: "#8c7164" }}>
-                              {row.by || <span style={{ opacity: 0.4 }}>—</span>}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
-
-              {/* Histórico / Audit */}
-              <div>
-                <h3 style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 900, fontSize: 10, textTransform: "uppercase", letterSpacing: "0.12em", margin: "0 0 16px 0", display: "flex", alignItems: "center", gap: 6, color: "#746e69" }}>
-                  <History style={{ width: 13, height: 13, color: "#c2410c" }} />
-                  Histórico
-                </h3>
-                <div style={{ position: "relative", paddingLeft: 28 }}>
-                  <div style={{ position: "absolute", left: 5, top: 6, bottom: 6, width: 1, backgroundColor: "#e8e8e7" }} />
-                  <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-                    {/* Uma linha por REGISTRO, na ordem em que aconteceram.
-                        Os blocos que existiam aqui — as onze etapas fixas, a
-                        entrega e os complementos — eram recortes desta mesma
-                        lista, e por isso sumiam com ela. */}
-                    {itemLogs.length === 0 && (
-                      <p style={{ fontSize: 11, color: "#8b8580", margin: 0 }}>
-                        Sem registros para esta peça.
-                      </p>
-                    )}
-                    {itemLogs.map((log: any, idx: number) => {
-                      const acao = String(log.action ?? "");
-                      const cor = corDaAcao(acao);
-                      const autor = log.userName ?? log.user_name;
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {patrocinadoresOrdenados.map(({ sponsor: s, approval, meta }) => {
+                      const pendente = meta.tone === "waiting";
+                      const emFoco = patrocinadorEmFoco === s.id;
+                      // O detalhe em 12px #57534e (7,63 sobre branco), e não no
+                      // monospace de 10px de antes: é frase, não carimbo — e a
+                      // observação da reprovação, que é a informação mais útil
+                      // da tela, era a menos legível dela.
+                      const detalhe = approval?.approvedAt
+                        ? `Aprovou em ${format(new Date(approval.approvedAt), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}${approval.approvedBy ? ` · ${approval.approvedBy}` : ""}`
+                        : approval?.rejectedAt
+                          ? `Reprovou em ${format(new Date(approval.rejectedAt), "dd/MM/yy 'às' HH:mm", { locale: ptBR })}${approval.rejectedBy ? ` · ${approval.rejectedBy}` : ""}`
+                          : null;
                       return (
-                        <div key={log.id ?? `${acao}-${log.createdAt ?? log.created_at}-${idx}`} style={{ position: "relative" }}>
-                          <div style={{
-                            position: "absolute", left: -23, top: 4,
-                            width: 12, height: 12, borderRadius: "50%",
-                            backgroundColor: cor,
-                            boxShadow: `0 0 0 4px ${cor}22`,
-                          }} />
-                          {/* #1a1c1c sobre branco = 16,4:1 ✓ · #8c7164 = 5,3:1 ✓ */}
-                          <p style={{ fontSize: 12, fontWeight: 600, color: "#1c1917", margin: "0 0 2px 0", lineHeight: 1.45 }}>
-                            {textoDoLog(log)}
-                          </p>
-                          <p style={{ fontSize: 10, color: "#8c7164", margin: 0, fontFamily: "'DM Mono', monospace" }}>
-                            {fmtShort(log.createdAt ?? log.created_at)}
-                            {autor ? ` · @${autor}` : ""}
-                          </p>
+                        <div
+                          key={s.id}
+                          data-testid={`linha-patrocinador-${s.id}`}
+                          style={{
+                            ...CARTAO,
+                            border: `1px solid ${pendente || meta.isRejection ? meta.border : "#ebe8e4"}`,
+                            boxShadow: emFoco ? `0 0 0 3px ${meta.dot}55` : "none",
+                            transition: "box-shadow 0.2s",
+                            padding: 12,
+                            display: "flex", alignItems: "flex-start", gap: 12,
+                          }}
+                        >
+                          <span aria-hidden="true" style={{
+                            width: 36, height: 36, borderRadius: 8, flexShrink: 0,
+                            backgroundColor: "#f5f4f1",
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            fontSize: 15, fontWeight: 700, color: s.color || "#1c1917",
+                          }}>
+                            {(s.name || "?")[0].toUpperCase()}
+                          </span>
+
+                          <div style={{ minWidth: 0, flex: "1 1 auto" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                              <span style={{ fontWeight: 700, fontSize: 15, color: "#1c1917" }}>{s.name}</span>
+                              <span
+                                title={meta.hint}
+                                data-testid={`chip-aprovacao-${s.id}`}
+                                style={{
+                                  display: "inline-flex", alignItems: "center", gap: 6,
+                                  padding: "3px 10px", borderRadius: 999,
+                                  backgroundColor: meta.bg, color: meta.text,
+                                  border: `1px solid ${meta.border}`,
+                                  fontSize: 11, fontWeight: 700, whiteSpace: "nowrap",
+                                }}
+                              >
+                                <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: meta.dot, flexShrink: 0 }} />
+                                {meta.short}
+                              </span>
+                            </div>
+                            {detalhe && (
+                              <p style={{ fontSize: 12, color: "#57534e", margin: "4px 0 0", lineHeight: 1.45 }}>{detalhe}</p>
+                            )}
+                            {/* O pedido de ajuste, entre aspas e por extenso. */}
+                            {approval?.rejectionReason && (
+                              <p style={{ fontSize: 12, color: "#991b1b", margin: "4px 0 0", lineHeight: 1.5, fontStyle: "italic" }}>
+                                "{String(approval.rejectionReason).trim()}"
+                              </p>
+                            )}
+                          </div>
+
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                            {pendente && (
+                              <button
+                                type="button"
+                                onClick={() => { setPatrocinadorEmFoco(s.id); cobrar(); }}
+                                data-testid={`button-cobrar-${s.id}`}
+                                style={{
+                                  height: ALVO, padding: "0 12px", borderRadius: 8,
+                                  border: `1px solid ${meta.border}`, backgroundColor: meta.bg,
+                                  color: meta.text, cursor: "pointer",
+                                  font: "inherit", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
+                                }}
+                              >
+                                Cobrar
+                              </button>
+                            )}
+                            {/* Correção de admin: desfaz uma aprovação/reprovação
+                                feita por engano, sem mexer direto no banco. */}
+                            {user?.role === "admin" && approval && approval.status !== "pending" && (
+                              <button
+                                type="button"
+                                onClick={() => handleRevertApproval(s.id, s.name)}
+                                disabled={revertingSponsorId === s.id}
+                                title={`Reverter para pendente (admin) — estava ${meta.label.toLowerCase()}`}
+                                aria-label={`Reverter a decisão de ${s.name}`}
+                                data-testid={`button-revert-approval-${s.id}`}
+                                style={{
+                                  display: "flex", alignItems: "center", justifyContent: "center",
+                                  width: ALVO, height: ALVO, borderRadius: 8, border: "1px solid #e7e5e4",
+                                  backgroundColor: "#ffffff", color: "#57534e",
+                                  cursor: revertingSponsorId === s.id ? "default" : "pointer",
+                                  opacity: revertingSponsorId === s.id ? 0.5 : 1, flexShrink: 0,
+                                }}
+                              >
+                                <Undo2 style={{ width: 14, height: 14 }} />
+                              </button>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
-                    {/* ÚLTIMO NÓ — o evento acabou. Sempre por último porque é o
-                        fim da história: depois dele nada mais acontece com esta
-                        peça enquanto o evento não for reaberto (e "reaberto" só
-                        existe no encerramento manual).
+                  </div>
+                </section>
+              )}
 
-                        A frase diz EVENTO, nunca "peça": quem lê está na ficha de
-                        uma peça e precisa saber, na mesma linha, que o que
-                        terminou foi o evento em volta dela.
+              {/* ── Percurso ── */}
+              <section data-testid="section-percurso">
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+                  <h3 style={TITULO_SECAO}>Percurso</h3>
+                  <span style={{ fontSize: 12, color: "#57534e" }}>{eventosPercurso.length} registro{eventosPercurso.length === 1 ? "" : "s"}</span>
+                </div>
 
-                        A segunda linha é onde as duas origens se separam:
-                        "realizado" mostra a data do evento (o fato é a data);
-                        "encerrado" não mostra data nem autor porque nenhum dos
-                        dois viaja com a peça — o evento não tem coluna de
-                        encerramento, só um registro no Histórico geral. Dizer
-                        onde procurar é honesto; carimbar `updatedAt` seria
-                        inventar. */}
-                    {marcoEvento && (
-                      <div style={{ position: "relative" }} title={marcoEvento.hint}>
-                        <div style={{
-                          position: "absolute", left: -23, top: 4,
-                          width: 12, height: 12, borderRadius: "50%",
-                          backgroundColor: marcoEvento.dot,
-                          boxShadow: `0 0 0 4px ${marcoEvento.dot}26`,
-                        }} />
-                        <p style={{ fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: "-0.04em", color: marcoEvento.text, margin: "0 0 2px 0" }}>
-                          {marcoEvento.label}
-                        </p>
-                        {/* #746e69, e não o #8c7164 das linhas vizinhas: em 10px
-                            a régua da casa é AA 4,5:1, e sobre o #f9f9f8 desta
-                            ficha o #8c7164 dá 4,28:1 — o #746e69 dá 4,77:1. */}
-                        <p style={{ fontSize: 10, color: "#746e69", margin: 0, fontFamily: "'DM Mono', monospace" }}>
+                <div style={{ ...CARTAO, padding: "4px 14px" }}>
+                  {marcoEvento && (
+                    <div title={marcoEvento.hint} style={{ display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0", borderBottom: eventosPercurso.length ? "1px solid #f5f4f1" : "none" }}>
+                      <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: marcoEvento.dot, marginTop: 6, flexShrink: 0 }} />
+                      <div style={{ minWidth: 0, flex: "1 1 auto" }}>
+                        <p style={{ fontSize: 13, fontWeight: 700, color: marcoEvento.text, margin: 0, lineHeight: 1.4 }}>{marcoEvento.label}</p>
+                        <p style={{ fontSize: 11, color: "#78716c", margin: "2px 0 0" }}>
                           {marcoEvento.dataEventoISO
                             ? format(parseDateLocal(marcoEvento.dataEventoISO), "dd/MM/yy", { locale: ptBR })
-                            : "DATA E AUTOR NO HISTÓRICO GERAL"}
+                            : "Data e autor no Histórico geral"}
                         </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {eventosPercurso.length === 0 && !marcoEvento && (
+                    <p style={{ fontSize: 13, color: "#57534e", margin: 0, padding: "12px 0" }}>Sem registros para esta peça.</p>
+                  )}
+
+                  {percursoVisivel.map((e, i) => (
+                    <div key={e.chave} style={{
+                      display: "flex", alignItems: "flex-start", gap: 10, padding: "10px 0",
+                      borderBottom: i < percursoVisivel.length - 1 ? "1px solid #f5f4f1" : "none",
+                    }}>
+                      <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: e.cor, marginTop: 6, flexShrink: 0 }} />
+                      <div style={{ minWidth: 0, flex: "1 1 auto" }}>
+                        <p style={{ fontSize: 13, fontWeight: 600, color: "#1c1917", margin: 0, lineHeight: 1.45 }}>{e.texto}</p>
+                        {e.autor && <p style={{ fontSize: 11, color: "#78716c", margin: "2px 0 0" }}>{e.autor}</p>}
+                      </div>
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#78716c", flexShrink: 0, marginTop: 2 }}>
+                        {fmtShort(new Date(e.ts).toISOString())}
+                      </span>
+                    </div>
+                  ))}
+
+                  {(percursoEscondidos > 0 || percursoAberto) && (
+                    <button
+                      type="button"
+                      onClick={() => setPercursoAberto(v => !v)}
+                      data-testid="button-percurso-expand"
+                      style={{
+                        width: "100%", height: ALVO, marginBottom: 4,
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                        border: "none", borderTop: "1px solid #f5f4f1", background: "none",
+                        cursor: "pointer", font: "inherit", fontSize: 12, fontWeight: 700, color: "#c2410c",
+                      }}
+                    >
+                      <ChevronDown aria-hidden="true" style={{ width: 13, height: 13, transform: percursoAberto ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+                      {percursoAberto ? "Ver menos" : `Ver os ${percursoEscondidos} registros anteriores`}
+                    </button>
+                  )}
+                </div>
+              </section>
+            </div>
+
+            {/* ═══ COLUNA DIREITA ═══ */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 22, minWidth: 0 }}>
+
+              {/* ── Arte: referência e arte enviada, lado a lado ── */}
+              <section>
+                <h3 style={{ ...TITULO_SECAO, marginBottom: 10 }}>Arte</h3>
+                {/* A COMPARAÇÃO É O QUE SE QUER FAZER AQUI. A referência do
+                    solicitante vinha num banner de largura inteira no topo da
+                    ficha e a arte enviada num card no fim da coluna direita —
+                    uma tela de rolagem entre as duas imagens que existem para
+                    ser comparadas. */}
+                <div style={{ display: "grid", gridTemplateColumns: item.referenceUrl && thumbUrl ? "1fr 1fr" : "1fr", gap: 10 }}>
+                  {item.referenceUrl && (
+                    <div>
+                      <a
+                        href={item.referenceUrl} target="_blank" rel="noopener noreferrer"
+                        title="Abrir a referência do solicitante"
+                        data-testid="link-referencia"
+                        style={{ display: "block", position: "relative", aspectRatio: "16/9", borderRadius: 10, overflow: "hidden", border: "2px solid #fed7aa", backgroundColor: "#fff7ed" }}
+                      >
+                        <img
+                          src={item.referenceUrl} alt="Referência do solicitante"
+                          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                          onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                        />
+                      </a>
+                      <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "#9a3412", margin: "6px 0 0" }}>
+                        <Paperclip aria-hidden="true" style={{ width: 11, height: 11 }} />
+                        Referência do solicitante
+                      </p>
+                    </div>
+                  )}
+
+                  {thumbUrl ? (
+                    <div>
+                      <div style={{ position: "relative", aspectRatio: "16/9", borderRadius: 10, overflow: "hidden", border: "1px solid #ebe8e4", backgroundColor: "#f5f4f1" }}>
+                        <FilePreview url={thumbUrl} linkUrl={thumbUrl} objectFit="cover" />
+                      </div>
+                      <p style={{ fontSize: 11, fontWeight: 700, color: "#57534e", margin: "6px 0 0" }}>
+                        Arte enviada{item.approvalThumbUpdatedAt ? ` · ${fmtShort(item.approvalThumbUpdatedAt)}` : ""}
+                      </p>
+                    </div>
+                  ) : (
+                    <div style={{ aspectRatio: "16/9", borderRadius: 10, border: "1px dashed #d6d3d1", backgroundColor: "#ffffff", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                      <FileImage aria-hidden="true" style={{ width: 24, height: 24, color: "#a8a29e" }} />
+                      <p style={{ fontSize: 12, color: "#57534e", margin: 0 }}>A Arte ainda não enviou</p>
+                    </div>
+                  )}
+                </div>
+
+                {thumbUrl && (
+                  <div style={{ display: "flex", gap: 14, marginTop: 8, flexWrap: "wrap" }}>
+                    <a href={thumbUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600, color: "#c2410c" }}>
+                      <ExternalLink style={{ width: 11, height: 11 }} /> {friendlyFileName(thumbUrl)}
+                    </a>
+                    {item.previousApprovalThumbUrl && (
+                      <a href={item.previousApprovalThumbUrl} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 12, fontWeight: 600, color: "#57534e" }}>
+                        <ExternalLink style={{ width: 11, height: 11 }} /> Versão anterior
+                      </a>
+                    )}
+                  </div>
+                )}
+              </section>
+
+              {/* ── Arquivos ── */}
+              <section>
+                <h3 style={{ ...TITULO_SECAO, marginBottom: 10 }}>Arquivos</h3>
+                <div style={{ ...CARTAO, overflow: "hidden" }}>
+                  {/* Arquivo final. A AUSÊNCIA É UM ESTADO NORMAL do fluxo, não
+                      um card vazio de 100px: até a arte ser aprovada não existe
+                      arquivo final, e a ficha dizia isso com uma caixa
+                      tracejada do tamanho de um erro. */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 12, borderBottom: "1px solid #f5f4f1" }}>
+                    <span aria-hidden="true" style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, backgroundColor: item.finalFileUrl ? "#ecfeff" : "#f5f4f1", color: item.finalFileUrl ? "#0e7490" : "#78716c", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <FolderOpen style={{ width: 15, height: 15 }} />
+                    </span>
+                    <div style={{ minWidth: 0, flex: "1 1 auto" }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {item.finalFileUrl ? (item.finalFileName || "Arquivo final") : "Arquivo final"}
+                      </p>
+                      <p style={{ fontSize: 12, color: "#57534e", margin: "2px 0 0" }}>
+                        {item.finalFileUrl
+                          ? `Pronto para impressão${item.finalFileUpdatedAt ? ` · ${fmtShort(item.finalFileUpdatedAt)}` : ""}`
+                          : "Fica pronto quando a Arte finalizar o layout aprovado"}
+                      </p>
+                    </div>
+                    {item.finalFileUrl ? (
+                      item.finalFileUrl.startsWith("http") && (
+                        <a
+                          href={item.finalFileUrl} target="_blank" rel="noopener noreferrer"
+                          style={{ display: "inline-flex", alignItems: "center", height: ALVO, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: "#1c1917", fontSize: 12, fontWeight: 700, textDecoration: "none", flexShrink: 0 }}
+                        >
+                          Abrir
+                        </a>
+                      )
+                    ) : (
+                      <span style={{ padding: "4px 10px", borderRadius: 999, backgroundColor: "#f5f4f1", border: "1px solid #e7e5e4", color: "#44403c", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
+                        Pendente
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Book do evento */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, padding: 12 }}>
+                    <span aria-hidden="true" style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, backgroundColor: item.bookUrl ? "#faf5ff" : "#f5f4f1", color: item.bookUrl ? "#7e22ce" : "#78716c", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <FileImage style={{ width: 15, height: 15 }} />
+                    </span>
+                    <div style={{ minWidth: 0, flex: "1 1 auto" }}>
+                      <p style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", margin: 0 }}>Book de aprovação</p>
+                      <p style={{ fontSize: 12, color: "#57534e", margin: "2px 0 0" }}>
+                        {item.bookUrl
+                          ? (item.bookPage ? `Esta peça está na página ${item.bookPage}` : "Cobre esta peça")
+                          : "A peça não entrou em nenhum book"}
+                      </p>
+                    </div>
+                    {item.bookUrl && (
+                      <a
+                        href={item.bookUrl} target="_blank" rel="noopener noreferrer"
+                        style={{ display: "inline-flex", alignItems: "center", height: ALVO, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: "#1c1917", fontSize: 12, fontWeight: 700, textDecoration: "none", flexShrink: 0 }}
+                      >
+                        Abrir
+                      </a>
+                    )}
+                  </div>
+
+                  {item.previousFinalFileUrl && (
+                    <div style={{ padding: "10px 12px", borderTop: "1px solid #f5f4f1", backgroundColor: "#fffbeb" }}>
+                      <p style={{ fontSize: 12, color: "#92400e", margin: 0, lineHeight: 1.45 }}>
+                        Substituiu <strong>{item.previousFinalFileName || "a versão anterior"}</strong> —{" "}
+                        <a href={item.previousFinalFileUrl} target="_blank" rel="noopener noreferrer" style={{ color: "#92400e", fontWeight: 700 }}>ver anterior</a>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              {/* ── Registros da gráfica ── */}
+              {temRegistrosGrafica && (
+                <section data-testid="section-registros-grafica">
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+                    <h3 style={TITULO_SECAO}>Registros da gráfica</h3>
+                    {item.deliveredQty > 0 && item.quantity > 0 && (
+                      <span style={{ fontSize: 12, fontWeight: 700, color: item.deliveredQty < item.quantity ? "#c2410c" : "#15803d" }}>
+                        {item.deliveredQty} de {item.quantity} entregues
+                      </span>
+                    )}
+                  </div>
+
+                  <div style={{ ...CARTAO, padding: 14, display: "flex", flexDirection: "column", gap: 14 }}>
+                    {andamentoGrafica.length > 0 && (
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: "10px 22px" }}>
+                        {andamentoGrafica.map(([label, valor, cor]) => (
+                          <div key={label}>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: "#7a6154", textTransform: "uppercase", letterSpacing: "0.07em", margin: 0 }}>{label}</p>
+                            <p style={{ fontFamily: "'DM Mono', monospace", fontSize: 15, fontWeight: 700, color: cor, margin: "2px 0 0" }}>
+                              {valor}<span style={{ color: "#78716c", fontWeight: 400 }}>/{item.quantity}</span>
+                            </p>
+                          </div>
+                        ))}
+                        {item.receivedBy && (
+                          <div>
+                            <p style={{ fontSize: 10, fontWeight: 700, color: "#7a6154", textTransform: "uppercase", letterSpacing: "0.07em", margin: 0 }}>Recebido por</p>
+                            <p style={{ fontSize: 15, fontWeight: 700, color: "#1c1917", margin: "2px 0 0" }}>{item.receivedBy}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {(conferencePhotos.length > 0 || item.conferenceNotes) && (
+                      <div>
+                        <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "#0e7490", margin: "0 0 8px" }}>
+                          <Camera aria-hidden="true" style={{ width: 12, height: 12 }} />
+                          Conferência{conferencePhotos.length > 1 ? ` · ${conferencePhotos.length} fotos` : ""}
+                        </p>
+                        {conferencePhotos.length > 0 && <PhotoGrid urls={conferencePhotos} alt="Foto da conferência" />}
+                        {item.conferenceNotes && (
+                          <p style={{ fontSize: 12, color: "#57534e", fontStyle: "italic", lineHeight: 1.5, margin: "8px 0 0" }}>"{item.conferenceNotes}"</p>
+                        )}
+                      </div>
+                    )}
+
+                    {(deliveryPhotos.length > 0 || item.deliveryNotes) && (
+                      <div>
+                        <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "#047857", margin: "0 0 8px" }}>
+                          <Camera aria-hidden="true" style={{ width: 12, height: 12 }} />
+                          Entrega{deliveryPhotos.length > 1 ? ` · ${deliveryPhotos.length} fotos` : ""}
+                        </p>
+                        {deliveryPhotos.length > 0 && <PhotoGrid urls={deliveryPhotos} alt="Foto da entrega" />}
+                        {item.deliveryNotes && (
+                          <p style={{ fontSize: 12, color: "#57534e", fontStyle: "italic", lineHeight: 1.5, margin: "8px 0 0" }}>"{item.deliveryNotes}"</p>
+                        )}
+                      </div>
+                    )}
+
+                    {missingDeliveryProof && (
+                      <div style={{ display: "flex", alignItems: "flex-start", gap: 8, backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 12px" }}>
+                        <AlertTriangle aria-hidden="true" style={{ width: 14, height: 14, color: "#92400e", flexShrink: 0, marginTop: 1 }} />
+                        <div>
+                          <p style={{ fontSize: 12, fontWeight: 700, color: "#92400e", margin: 0 }}>Entregue sem comprovante fotográfico</p>
+                          <p style={{ fontSize: 12, color: "#92400e", margin: "2px 0 0", lineHeight: 1.45 }}>
+                            A foto da entrega é opcional{item.receivedBy ? ` — consta apenas o recebimento por ${item.receivedBy}` : ""}.
+                          </p>
+                        </div>
                       </div>
                     )}
                   </div>
-                </div>
-              </div>
+                </section>
+              )}
             </div>
+          </div>
+
+          {customActions && (
+            <div style={{ padding: isMobile ? "0 16px 16px" : "0 32px 20px" }}>{customActions}</div>
           )}
         </div>
 
-        {/* ══════════════════════════════════════════════════════
-            FOOTER ACTION BAR
-        ══════════════════════════════════════════════════════ */}
+        {/* ══════════════════════════════════════════════════════════════════
+            RODAPÉ
+        ══════════════════════════════════════════════════════════════════ */}
         <footer style={{
-          padding: "16px 32px", borderTop: "1px solid #e7e5e4", backgroundColor: "#f5f4f1",
+          flexShrink: 0, padding: isMobile ? "12px 16px" : "14px 32px",
+          borderTop: "1px solid #ebe8e4",
+          /* Branco, e não o #f5f4f1 de antes: sobre ele o #78716c da linha
+             "Atualizado" dá 4,36 e reprova em 11px. Sobre branco, 4,80. */
+          backgroundColor: "#ffffff",
           display: "flex", flexWrap: "wrap", justifyContent: "space-between", alignItems: "center", gap: 12,
         }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: "#746e69", letterSpacing: "0.04em" }}>
-              {item.displayId}
-            </span>
-            {item.updatedAt && (
-              <>
-                <div style={{ width: 1, height: 12, backgroundColor: "#e7e5e4" }} />
-                <span style={{ fontSize: 10, color: "#746e69" }}>
-                  Atualizado {format(new Date(item.updatedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
-                </span>
-              </>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, color: "#78716c" }}>
+            {item.updatedAt
+              ? `Atualizado ${format(new Date(item.updatedAt), "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}`
+              : item.displayId}
+          </span>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {onEditSave && !editMode && (
+              <button
+                type="button"
+                onClick={() => { setEditedItem(item); setEditMode(true); }}
+                data-testid="button-editar-peca"
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 6,
+                  height: ALVO, padding: "0 14px", borderRadius: 8,
+                  border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: "#1c1917",
+                  cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 700,
+                }}
+              >
+                <Edit aria-hidden="true" style={{ width: 13, height: 13 }} />
+                Editar peça
+              </button>
             )}
+            <button
+              type="button"
+              onClick={() => onOpenChange(false)}
+              data-testid="button-fechar-rodape"
+              style={{
+                height: 44, padding: "0 24px", borderRadius: 8, border: "none",
+                backgroundColor: "#1c1917", color: "#ffffff", cursor: "pointer",
+                font: "inherit", fontSize: 13, fontWeight: 700,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#292524"; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#1c1917"; }}
+            >
+              Fechar
+            </button>
           </div>
-          <button
-            onClick={() => onOpenChange(false)}
-            style={{
-              padding: "8px 20px", backgroundColor: "#1c1917",
-              border: "none",
-              fontFamily: "'Space Grotesk', sans-serif",
-              fontWeight: 700, fontSize: 11, textTransform: "uppercase", letterSpacing: "0.08em",
-              color: "#ffffff", cursor: "pointer", borderRadius: 6, transition: "background 0.15s",
-            }}
-            onMouseEnter={e => (e.currentTarget as HTMLElement).style.backgroundColor = "#292524"}
-            onMouseLeave={e => (e.currentTarget as HTMLElement).style.backgroundColor = "#1c1917"}
-          >
-            Fechar
-          </button>
         </footer>
       </DialogContent>
     </Dialog>

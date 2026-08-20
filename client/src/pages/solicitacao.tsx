@@ -311,7 +311,11 @@ export default function Solicitacao() {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
-      setModalOpen(false); setSelectedItem(null); setReleaseConfirmOpen(false);
+      setReleaseConfirmOpen(false);
+      // Avança para a peça seguinte em vez de fechar. Só fecha na última —
+      // e é aí que o FreezeWhileClosing continua valendo, porque é aí que o
+      // `selectedItem` de fato some com o modal em fade.
+      if (!marcarAvanco()) { setModalOpen(false); setSelectedItem(null); }
       toast({ title: "Peça liberada para produção!", description: "Pronto para produção — a Arte foi notificada." });
     },
     onError: (error: any) => toast({ title: "Erro ao liberar peça", description: error.message, variant: "destructive" }),
@@ -366,8 +370,8 @@ export default function Solicitacao() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
-      setModalOpen(false); setSelectedItem(null);
       setReturnConfirmOpen(false); setReturnObservations("");
+      if (!marcarAvanco()) { setModalOpen(false); setSelectedItem(null); }
       toast({ title: "Peça devolvida para Arte", description: "A peça foi devolvida com observações." });
     },
     onError: (error: any) => toast({ title: "Erro ao devolver peça", description: error.message, variant: "destructive" }),
@@ -782,6 +786,50 @@ export default function Solicitacao() {
       : setSelectedItemIds(new Set(filteredItems.map(i => i.id)));
   };
 
+  const filaIdx = useMemo(
+    () => (selectedItem ? filteredItems.findIndex((i: any) => i.id === selectedItem.id) : -1),
+    [selectedItem, filteredItems],
+  );
+  const temAnterior = filaIdx > 0;
+  const temProxima = filaIdx >= 0 && filaIdx < filteredItems.length - 1;
+
+  const irParaFila = (idx: number) => {
+    const alvo = filteredItems[idx];
+    if (!alvo) return;
+    // Mesmo preparo do openModal, sem reabrir o diálogo: trocar a peça com o
+    // modal aberto tem de zerar os campos de edição da anterior, senão a
+    // observação digitada na peça 3 aparece na 4.
+    setSelectedItem(alvo);
+    setQuantityValue(alvo.quantity ?? 1);
+    setEditingQuantity(false);
+    setReturnObservations("");
+    setCardObservations(alvo.observations || "");
+  };
+
+  /**
+   * Depois de decidir, a peça sai de `pendingItems` — e, portanto, da lista
+   * filtrada. O índice que ERA o dela passa a ser o da peça seguinte, então
+   * avançar é ficar no mesmo índice. Guardamos o índice ANTES da invalidação
+   * porque depois dela `selectedItem` já não está na lista.
+   */
+  const proximaAposDecidir = useRef<number | null>(null);
+  useEffect(() => {
+    const idx = proximaAposDecidir.current;
+    if (idx === null) return;
+    proximaAposDecidir.current = null;
+    const alvo = filteredItems[idx];
+    if (!alvo) { setModalOpen(false); setSelectedItem(null); return; }
+    irParaFila(idx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredItems]);
+
+  /** Marca o avanço, ou devolve `false` quando era a última da fila. */
+  const marcarAvanco = (): boolean => {
+    if (filaIdx < 0 || filaIdx >= filteredItems.length - 1) return false;
+    proximaAposDecidir.current = filaIdx;
+    return true;
+  };
+
   const openModal = (item: any) => {
     setSelectedItem(item);
     setQuantityValue(item.quantity ?? 1);
@@ -810,10 +858,15 @@ export default function Solicitacao() {
       if (e.key === "Enter" && selectedItem?.finalFileUrl
         && !seloPecaEventoFinalizado(selectedItem?.event, hojeBusinessMs)) setReleaseConfirmOpen(true);
       if (e.key === "Escape") setModalOpen(false);
+      if (e.key === "ArrowLeft" && temAnterior) { e.preventDefault(); irParaFila(filaIdx - 1); }
+      if (e.key === "ArrowRight" && temProxima) { e.preventDefault(); irParaFila(filaIdx + 1); }
+      // D de devolver — o par do Enter, que libera. Sem ele o atalho de
+      // teclado só cobria metade da decisão.
+      if ((e.key === "d" || e.key === "D") && !seloSelecionado) { e.preventDefault(); setReturnConfirmOpen(true); }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [modalOpen, selectedItem, releaseConfirmOpen, returnConfirmOpen]);
+  }, [modalOpen, selectedItem, releaseConfirmOpen, returnConfirmOpen, filaIdx, temAnterior, temProxima, seloSelecionado]);
 
   if (itemsLoading || eventsLoading) {
     return (
@@ -865,6 +918,28 @@ export default function Solicitacao() {
               {fraseDeResolucao}
             </p>
           </div>
+
+          {/* A ENTRADA DA FILA. Sem ela, comecar a revisar exige achar a
+              primeira linha e mirar num botao de 90px — e quem abre esta tela
+              para trabalhar quer comecar do comeco, nao escolher por onde. */}
+          {filteredItems.length > 0 && (
+            <button
+              type="button"
+              onClick={() => openModal(filteredItems[0])}
+              data-testid="button-queue-start"
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0,
+                height: 40, padding: "0 18px", borderRadius: 8, border: "none",
+                backgroundColor: "#1c1917", color: "#fff", cursor: "pointer",
+                font: "inherit", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
+              }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#292524"; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#1c1917"; }}
+            >
+              <Eye aria-hidden="true" style={{ width: 15, height: 15 }} />
+              Revisar em fila ({filteredItems.length})
+            </button>
+          )}
         </div>
       </section>
 
@@ -1794,11 +1869,54 @@ export default function Solicitacao() {
                   title="Decisão de Revisão"
                   subtitle={[selectedItem?.displayId && `ID: ${selectedItem.displayId}`, selectedItem?.type].filter(Boolean).join(" | ")}
                   onClose={() => setModalOpen(false)}
-                  trailing={selectedItem?.isReuse ? (
-                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "3px 10px", flexShrink: 0 }}>
-                      Reaproveitamento
-                    </span>
-                  ) : undefined}
+                  trailing={(
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                      {selectedItem?.isReuse && (
+                        <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "3px 10px", flexShrink: 0 }}>
+                          Reaproveitamento
+                        </span>
+                      )}
+                      {/* ── A FILA ──
+                          Sem isto o modal e uma ficha isolada quando o trabalho
+                          e uma fila de 74: decidir, o modal fecha, procurar a
+                          proxima na tabela, clicar de novo. E a tabela mudou
+                          entre uma e outra (a peca decidida saiu dela), entao
+                          "procurar a proxima" nem e procurar a linha de baixo. */}
+                      {filaIdx >= 0 && filteredItems.length > 1 && (
+                        <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
+                          <button
+                            type="button"
+                            onClick={() => irParaFila(filaIdx - 1)}
+                            disabled={!temAnterior}
+                            title="Peça anterior (←)"
+                            aria-label="Peça anterior"
+                            data-testid="button-modal-prev"
+                            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", color: temAnterior ? "#1c1917" : "#a8a29e", cursor: temAnterior ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                          >
+                            <ChevronLeft style={{ width: 15, height: 15 }} />
+                          </button>
+                          <span
+                            data-testid="text-queue-position"
+                            aria-live="polite"
+                            style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color: "#57534e", padding: "0 6px", whiteSpace: "nowrap" }}
+                          >
+                            {filaIdx + 1} / {filteredItems.length}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => irParaFila(filaIdx + 1)}
+                            disabled={!temProxima}
+                            title="Próxima peça (→)"
+                            aria-label="Próxima peça"
+                            data-testid="button-modal-next"
+                            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", color: temProxima ? "#1c1917" : "#a8a29e", cursor: temProxima ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                          >
+                            <ChevronRight style={{ width: 15, height: 15 }} />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 />
               </div>
 
@@ -2005,10 +2123,17 @@ export default function Solicitacao() {
                 <div style={{ padding: "14px 24px", backgroundColor: "#fafaf9", borderTop: "1px solid #f0efee", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                     <span style={{ fontSize: 10, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em" }}>Atalhos:</span>
-                    <span style={{ fontSize: 10, fontWeight: 900, backgroundColor: "#e7e5e4", padding: "2px 6px", borderRadius: 6, color: TI.text }}>Enter</span>
-                    <span style={{ fontSize: 10, color: TI.secondary }}>Liberar</span>
-                    <span style={{ fontSize: 10, fontWeight: 900, backgroundColor: "#e7e5e4", padding: "2px 6px", borderRadius: 6, color: TI.text }}>Esc</span>
-                    <span style={{ fontSize: 10, color: TI.secondary }}>Fechar</span>
+                    {([
+                      ["Enter", "liberar"],
+                      ["D", "devolver"],
+                      ["← →", "peça anterior / próxima"],
+                      ["Esc", "fechar"],
+                    ] as const).map(([tecla, oque]) => (
+                      <Fragment key={tecla}>
+                        <span style={{ fontSize: 10, fontWeight: 900, backgroundColor: "#e7e5e4", padding: "2px 6px", borderRadius: 6, color: TI.text, whiteSpace: "nowrap" }}>{tecla}</span>
+                        <span style={{ fontSize: 10, color: TI.secondary, whiteSpace: "nowrap" }}>{oque}</span>
+                      </Fragment>
+                    ))}
                   </div>
                 </div>
               )}

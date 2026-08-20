@@ -258,6 +258,10 @@ export default function VincularPatrocinadores() {
   const [optimisticSentIds, setOptimisticSentIds] = useState<Set<string>>(new Set());
 
   const [sendConfirmModal, setSendConfirmModal] = useState<SendConfirmModal | null>(null);
+  // Recorte dentro do modal de envio: ver so as pecas que vao sair sem marca.
+  // Numa lista de trinta, as tres em ambar ficam espalhadas e e preciso rolar
+  // procurando — justo a conferencia que o aviso do topo acabou de pedir.
+  const [soSemPatrocinador, setSoSemPatrocinador] = useState(false);
   // Trava o botão de confirmar envio enquanto a sincronização/envio está em curso.
   const [isSending, setIsSending] = useState(false);
 
@@ -1208,385 +1212,387 @@ export default function VincularPatrocinadores() {
   // clique; estes botoes sao o refinamento dentro dela.
   const ALVO = isMobile ? 44 : 30;
 
-  // ── Cabeçalho de coluna. #7a6154 e não o #746e69 de antes: sobre o #fafaf9
-  //    do thead, 4,4:1 não passa a régua da casa; este dá 5,5.
-  const THC: React.CSSProperties = {
-    padding: '9px 12px', textAlign: 'left',
-    fontSize: 11, fontWeight: 700, color: '#7a6154',
-    textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap',
-  };
-
-  /**
-   * Vincula um patrocinador a todas as peças que ainda não o têm — como
-   * RASCUNHO, igual a marcar um chip a um. Nada vai para o servidor até o
-   * "Salvar", que é o que torna a ação segura de oferecer no cabeçalho.
-   */
-  const vincularRestantes = (sponsorId: string, alvos: any[]) => {
-    if (alvos.length === 0) return;
-    const novosVinculos: Record<string, string[]> = {};
-    setPendingChanges(prev => {
-      const next = { ...prev };
-      for (const item of alvos) {
-        const atuais = itemSponsorsMap[item.id] ?? [];
-        if (atuais.includes(sponsorId)) continue;
-        const novos = [...atuais, sponsorId];
-        novosVinculos[item.id] = novos;
-        const originais = originalSponsorsMap[item.id] || [];
-        const skipOriginal = item.skipApproval || false;
-        // Vincular alguém e continuar "sem patrocinador" é contradição: o
-        // vínculo ganha, como já acontece ao marcar um chip.
-        const mudou = !areSponsorsEqual(novos, originais) || skipOriginal;
-        if (mudou) next[item.id] = { sponsorIds: novos, skipApproval: false, isDirty: true };
-        else delete next[item.id];
-      }
-      return next;
-    });
-    setItemSponsorsMap(prev => ({ ...prev, ...novosVinculos }));
-  };
-
-  /** Grava um conjunto novo de patrocinadores como rascunho local. */
-  const aplicarVinculo = (item: any, novos: string[], skip: boolean) => {
-    const originais = originalSponsorsMap[item.id] || [];
-    const skipOriginal = item.skipApproval || false;
-    const mudou = !areSponsorsEqual(novos, originais) || skip !== skipOriginal;
-    setPendingChanges(prev => {
-      if (!mudou) { const n = { ...prev }; delete n[item.id]; return n; }
-      return { ...prev, [item.id]: { sponsorIds: novos, skipApproval: skip, isDirty: true } };
-    });
-    setItemSponsorsMap(prev => ({ ...prev, [item.id]: novos }));
-  };
-
-  /**
-   * UMA LINHA DE TABELA POR PEÇA.
-   *
-   * Ocupava três a quatro linhas de altura: seis colunas (ID e Peça separadas,
-   * Detalhes com dois valores empilhados) e, dentro da célula de vínculos, um
-   * selo "Salvo · editar", os chips, uma linha de links sublinhados
-   * ("sem pat." · "reaprov.") e o selo "Sem patrocinador". Numa tela cujo
-   * trabalho é varrer dezenas de peças, a altura da linha é o custo de tudo.
-   *
-   * `chips` é o escopo do agrupamento: todos os patrocinadores do evento, ou
-   * só aquele por quem se agrupou.
-   */
-  const renderLinhaDaPeca = (item: any, chips: any[], eventSponsors: any[]) => {
-    const vinculados = itemSponsorsMap[item.id] || [];
-    const semPatrocinador = pendingChanges[item.id]?.skipApproval ?? (item.skipApproval || false);
-    const editavel = getItemEditability(item);
-    const estado = optimisticSentIds.has(item.id) ? 'ENVIADO' : (itemUIStates[item.id] || 'PENDENTE');
-    const selecionada = selectedItemIds.has(item.id);
-    const podeSelecionar = estado === 'PENDENTE' || estado === 'RASCUNHO';
-    const menuAberto = menuDaLinha === item.id;
-
-    // A COR DE ESTADO VAI NA BORDA, não no fundo. O fundo colorido da linha
-    // inteira competia com os chips, que também são coloridos — e chip de
-    // marca sobre fundo tingido perde justamente a cor que o identifica.
-    const corDaBorda = selecionada ? '#c2410c' : estado === 'RASCUNHO' ? '#f97316' : 'transparent';
-
-    return (
-      <tr
-        key={item.id}
-        data-testid={`item-row-${item.id}`}
-        onClick={() => setSelectedItemForDetails(item)}
-        style={{
-          borderBottom: '1px solid #f0efee',
-          backgroundColor: selecionada ? '#fff7ed' : '#ffffff',
-          // 0.55 + grayscale derrubava a linha inteira abaixo de AA, e o hover
-          // (que restaurava) não existe no teclado.
-          opacity: estado === 'ENVIADO' ? 0.8 : 1,
-          cursor: 'pointer',
-          transition: 'background-color 0.12s',
-        }}
-        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = selecionada ? '#ffedd5' : '#fafaf9'; }}
-        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = selecionada ? '#fff7ed' : '#ffffff'; }}
-      >
-        {/* ── Seleção ── */}
-        <td onClick={e => e.stopPropagation()} style={{ width: 46, textAlign: 'center', padding: '8px 0', borderLeft: `3px solid ${corDaBorda}` }}>
-          <Checkbox
-            checked={selecionada}
-            onCheckedChange={() => podeSelecionar && toggleItemSelection(item.id)}
-            disabled={!podeSelecionar}
-            title={estado === 'PRONTO' ? 'Remova os patrocinadores antes de aplicar em lote' : estado === 'ENVIADO' ? 'Peça já enviada' : undefined}
-            aria-label={`Selecionar ${item.displayId}`}
-            data-testid={`checkbox-item-${item.id}`}
-          />
-        </td>
-
-        {/* ── Peça ── */}
-        <td style={{ padding: '8px 12px', minWidth: 200 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            {/* A linha inteira abre o detalhe no clique, mas <tr> não recebe
-                foco: por teclado não havia como abrir peça nenhuma. O ID vira o
-                alvo focável — é o rótulo natural da linha. */}
-            <button
-              type="button"
-              onClick={e => { e.stopPropagation(); setSelectedItemForDetails(item); }}
-              aria-label={`Ver detalhes da peça ${item.displayId}`}
-              data-testid={`text-display-id-${item.id}`}
-              style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: '#78716c', background: 'none', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
-            >
-              {item.displayId}
-            </button>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', whiteSpace: 'nowrap', flexShrink: 0 }}>{item.type}</span>
-            {item.description && (
-              // flexShrink alto: quando falta largura, é a descrição que cede.
-              // O tipo e o ID identificam a peça; a descrição a detalha.
-              <span title={item.description} style={{ fontSize: 12, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 999, minWidth: 0 }}>
-                {item.description}
-              </span>
-            )}
-            {/* MARCADORES COMO ÍCONE. Eram pílulas com texto ("Ref. visual"),
-                do mesmo tamanho da descrição e disputando com ela a leitura —
-                sendo que o que elas dizem é binário: tem ou não tem. */}
-            {safeRefUrl(item.referenceUrl) && (
-              <button
-                type="button"
-                onClick={e => { e.stopPropagation(); setPreviewRefUrl(safeRefUrl(item.referenceUrl)); }}
-                title="Ver a referência visual do solicitante"
-                aria-label={`Ver a referência visual de ${item.displayId}`}
-                data-testid={`link-reference-vincular-${item.id}`}
-                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 6, border: 'none', background: 'none', color: '#2563eb', cursor: 'pointer', flexShrink: 0, padding: 0 }}
-              >
-                <Paperclip style={{ width: 13, height: 13 }} />
-              </button>
-            )}
-            {item.isReuse && (
-              <span title="Reaproveitamento" aria-label="Reaproveitamento" style={{ display: 'inline-flex', color: '#047857', flexShrink: 0 }}>
-                <Recycle aria-hidden="true" style={{ width: 13, height: 13 }} />
-              </span>
-            )}
-          </div>
-        </td>
-
-        {/* ── Qtd · m² ──
-            Eram dois valores empilhados em 11px, o segundo com letterSpacing
-            negativo. Numa célula só e em DM Mono, os números de linhas
-            vizinhas se alinham e dá para comparar de relance. */}
-        <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
-          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: '#57534e' }}>
-            {item.quantity ?? 0} un
-            {item.calculatedM2 != null && !isNaN(parseFloat(item.calculatedM2))
-              ? ` · ${parseFloat(item.calculatedM2).toFixed(2)} m²`
-              : ''}
-          </span>
-        </td>
-
-        {/* ── Patrocinadores / Vínculo ── */}
-        <td onClick={e => e.stopPropagation()} style={{ padding: '8px 12px', minWidth: 0 }}>
-          {semPatrocinador ? (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-              <span style={{ display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 10px', borderRadius: 999, backgroundColor: '#fffbeb', color: '#92400e', border: '1px solid #fcd34d', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
-                Sem patrocinador
-              </span>
-              {editavel && (
-                <button
-                  type="button"
-                  onClick={() => toggleItemSkipApproval(item)}
-                  data-testid={`btn-undo-skip-${item.id}`}
-                  style={{ height: ALVO, padding: '0 10px', borderRadius: R.sm, border: '1px solid #e7e5e4', background: '#fff', color: '#57534e', font: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-                >
-                  Desfazer
-                </button>
-              )}
-            </div>
-          ) : eventSponsors.length === 0 ? (
-            <span style={{ fontSize: 12, color: '#57534e', fontStyle: 'italic' }}>Sem patrocinadores no evento</span>
-          ) : (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
-              {chips.map(sp => {
-                const marcado = vinculados.includes(sp.id);
-                // PEÇA ENVIADA mostra só o que ficou vinculado, em cinza e sem
-                // clique: o vínculo está travado no servidor, e um chip que
-                // parece clicável e não faz nada é pior que a ausência dele.
-                if (estado === 'ENVIADO') {
-                  if (!marcado) return null;
-                  return (
-                    <span
-                      key={sp.id}
-                      title="Peça já enviada — vínculo travado"
-                      data-testid={`chip-sponsor-${item.id}-${sp.id}`}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 26, padding: '0 10px', borderRadius: 999, backgroundColor: '#f0efee', color: '#57534e', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}
-                    >
-                      <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#a8a29e', flexShrink: 0 }} />
-                      {sp.name}
-                    </span>
-                  );
-                }
-                const marca = sp.color || '#3b82f6';
-                // A cor da marca em texto de 12px precisa de 4,5:1 sobre o
-                // fundo de 10% dela mesma. `darkenToContrast` escurece só o
-                // necessário — a marca continua reconhecível, que é o que faz
-                // a tabela legível de longe.
-                const corDoTexto = darkenToContrast(marca, '#ffffff', 4.5);
-                return (
-                  <button
-                    key={sp.id}
-                    type="button"
-                    role="checkbox"
-                    aria-checked={marcado}
-                    aria-label={`${marcado ? 'Desvincular' : 'Vincular'} ${sp.name} ${marcado ? 'de' : 'a'} ${item.displayId}`}
-                    title={marcado ? `Clique para desvincular ${sp.name}` : `Clique para vincular ${sp.name}`}
-                    disabled={!editavel}
-                    onClick={() => {
-                      if (!editavel) return;
-                      aplicarVinculo(item, marcado ? vinculados.filter(id => id !== sp.id) : [...vinculados, sp.id], false);
-                    }}
-                    onKeyDown={e => {
-                      if (e.key !== 'Enter' && e.key !== ' ') return;
-                      e.preventDefault();
-                      if (!editavel) return;
-                      aplicarVinculo(item, marcado ? vinculados.filter(id => id !== sp.id) : [...vinculados, sp.id], false);
-                    }}
-                    data-testid={`checkbox-sponsor-${item.id}-${sp.id}`}
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 6,
-                      height: isMobile ? 44 : 26, padding: '0 10px', borderRadius: 999,
-                      backgroundColor: marcado ? hexToRgba(marca, 0.1) : '#ffffff',
-                      color: marcado ? corDoTexto : '#57534e',
-                      border: `1px solid ${marcado ? hexToRgba(marca, 0.45) : '#e7e5e4'}`,
-                      cursor: editavel ? 'pointer' : 'not-allowed',
-                      font: 'inherit', fontSize: 12, fontWeight: 600,
-                      whiteSpace: 'nowrap', transition: 'background 0.12s, border-color 0.12s',
-                    }}
-                  >
-                    <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: marcado ? marca : '#d6d3d1', flexShrink: 0 }} />
-                    {sp.name}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </td>
-
-        {/* ── Status e a ação daquele estado ── */}
-        <td onClick={e => e.stopPropagation()} style={{ padding: '8px 16px 8px 12px', whiteSpace: 'nowrap' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
-            <span
-              data-testid={`badge-status-${item.id}`}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 5,
-                height: 24, padding: '0 9px', borderRadius: 999,
-                fontSize: 12, fontWeight: 700,
-                ...(estado === 'RASCUNHO' ? { backgroundColor: '#ffedd5', color: '#9a3412' }
-                  : estado === 'PRONTO' ? { backgroundColor: '#dcfce7', color: '#166534' }
-                  : estado === 'ENVIADO' ? { backgroundColor: '#1c1917', color: '#ffffff' }
-                  : { backgroundColor: '#f0efee', color: '#44403c' }),
-              }}
-            >
-              {estado === 'RASCUNHO' ? <Save aria-hidden="true" style={{ width: 11, height: 11 }} />
-                : estado === 'PRONTO' ? <CheckCircle2 aria-hidden="true" style={{ width: 11, height: 11 }} />
-                : estado === 'ENVIADO' ? <Lock aria-hidden="true" style={{ width: 11, height: 11 }} />
-                : <Info aria-hidden="true" style={{ width: 11, height: 11 }} />}
-              {UI_STATUS_LABEL[estado] ?? estado}
-            </span>
-
-            {/* A AÇÃO DO ESTADO, COM RÓTULO. Eram ícones de 13px sem texto, com
-                o significado só no `title`: um disquete e um avião de papel
-                lado a lado, e a diferença entre salvar e ENVIAR — que tira a
-                peça da tela — ficava por conta de quem adivinhasse. */}
-            {estado === 'RASCUNHO' && editavel && (
-              <button
-                type="button"
-                onClick={() => {
-                  const ch = pendingChanges[item.id];
-                  saveLinkingMutation.mutate([{ itemId: item.id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false }]);
-                }}
-                disabled={saveLinkingMutation.isPending}
-                data-testid={`button-save-item-${item.id}`}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: ALVO, padding: '0 12px', borderRadius: R.sm, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', font: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-              >
-                <Save aria-hidden="true" style={{ width: 12, height: 12 }} />
-                Salvar
-              </button>
-            )}
-            {estado === 'PRONTO' && editavel && (
-              <button
-                type="button"
-                onClick={() => openSendModalForItem(item)}
-                disabled={sendToArteMutation.isPending}
-                data-testid={`button-send-item-${item.id}`}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: ALVO, padding: '0 12px', borderRadius: R.sm, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', font: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
-              >
-                <Send aria-hidden="true" style={{ width: 12, height: 12 }} />
-                Enviar
-              </button>
-            )}
-
-            {/* ── Ações secundárias ──
-                Eram links SUBLINHADOS de 11px em cinza dentro da célula de
-                vínculos ("sem pat." · "reaprov."), indistinguíveis de texto
-                morto — e "sem pat." apaga os patrocinadores da peça. Ação que
-                descarta trabalho não mora num link de 11px. */}
-            {editavel && (
-              <div style={{ position: 'relative' }}>
-                <button
-                  type="button"
-                  onClick={() => setMenuDaLinha(menuAberto ? null : item.id)}
-                  aria-haspopup="menu"
-                  aria-expanded={menuAberto}
-                  aria-label={`Mais ações para ${item.displayId}`}
-                  title="Mais ações"
-                  data-testid={`menu-row-actions-${item.id}`}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: isMobile ? 44 : 26, height: isMobile ? 44 : 26, borderRadius: R.sm, border: '1px solid #e7e5e4', background: '#fff', color: '#57534e', cursor: 'pointer', padding: 0 }}
-                >
-                  <MoreHorizontal style={{ width: 14, height: 14 }} />
-                </button>
-                {menuAberto && (
-                  <div
-                    role="menu"
-                    onKeyDown={e => {
-                      if (e.key !== 'Escape') return;
-                      e.stopPropagation();
-                      setMenuDaLinha(null);
-                      // Devolve o foco ao gatilho — sem isto o foco cai no
-                      // <body> e o teclado recomeça do topo da tabela.
-                      document.querySelector<HTMLButtonElement>(`[data-testid="menu-row-actions-${item.id}"]`)?.focus();
-                    }}
-                    style={{
-                      position: 'absolute', right: 0, top: '100%', marginTop: 4, zIndex: 40,
-                      minWidth: 226, backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
-                      borderRadius: R.md, boxShadow: '0 10px 30px rgba(0,0,0,0.12)', padding: 4,
-                    }}
-                  >
-                    {[
-                      {
-                        rotulo: semPatrocinador ? 'Desmarcar "sem patrocinador"' : 'Marcar sem patrocinador',
-                        testId: `btn-skip-sponsor-${item.id}`,
-                        acao: () => toggleItemSkipApproval(item),
-                      },
-                      {
-                        rotulo: item.isReuse ? 'Desmarcar reaproveitamento' : 'Marcar reaproveitamento',
-                        testId: `btn-reuse-${item.id}`,
-                        acao: () => updateItemIsReuseMutation.mutate({ itemId: item.id, isReuse: !item.isReuse }),
-                      },
-                      {
-                        rotulo: 'Devolver para Criação',
-                        testId: `button-return-creation-${item.id}`,
-                        acao: () => setReturnModal(item),
-                      },
-                    ].map(op => (
-                      <button
-                        key={op.testId}
-                        type="button"
-                        role="menuitem"
-                        autoFocus={op.testId.startsWith('btn-skip-sponsor')}
-                        onClick={() => { setMenuDaLinha(null); op.acao(); }}
-                        data-testid={op.testId}
-                        style={{ display: 'block', width: '100%', minHeight: ALVO, padding: '0 12px', textAlign: 'left', border: 'none', background: 'none', borderRadius: R.sm, font: 'inherit', fontSize: 13, color: '#1c1917', cursor: 'pointer' }}
-                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f4f1'; }}
-                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                      >
-                        {op.rotulo}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </td>
-      </tr>
-    );
+  // ── Cabeçalho de coluna. #7a6154 e não o #746e69 de antes: sobre o #fafaf9
+  //    do thead, 4,4:1 não passa a régua da casa; este dá 5,5.
+  const THC: React.CSSProperties = {
+    padding: '9px 12px', textAlign: 'left',
+    fontSize: 11, fontWeight: 700, color: '#7a6154',
+    textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap',
   };
+
+  /**
+   * Vincula um patrocinador a todas as peças que ainda não o têm — como
+   * RASCUNHO, igual a marcar um chip a um. Nada vai para o servidor até o
+   * "Salvar", que é o que torna a ação segura de oferecer no cabeçalho.
+   */
+  const vincularRestantes = (sponsorId: string, alvos: any[]) => {
+    if (alvos.length === 0) return;
+    const novosVinculos: Record<string, string[]> = {};
+    setPendingChanges(prev => {
+      const next = { ...prev };
+      for (const item of alvos) {
+        const atuais = itemSponsorsMap[item.id] ?? [];
+        if (atuais.includes(sponsorId)) continue;
+        const novos = [...atuais, sponsorId];
+        novosVinculos[item.id] = novos;
+        const originais = originalSponsorsMap[item.id] || [];
+        const skipOriginal = item.skipApproval || false;
+        // Vincular alguém e continuar "sem patrocinador" é contradição: o
+        // vínculo ganha, como já acontece ao marcar um chip.
+        const mudou = !areSponsorsEqual(novos, originais) || skipOriginal;
+        if (mudou) next[item.id] = { sponsorIds: novos, skipApproval: false, isDirty: true };
+        else delete next[item.id];
+      }
+      return next;
+    });
+    setItemSponsorsMap(prev => ({ ...prev, ...novosVinculos }));
+  };
+
+  /** Grava um conjunto novo de patrocinadores como rascunho local. */
+  const aplicarVinculo = (item: any, novos: string[], skip: boolean) => {
+    const originais = originalSponsorsMap[item.id] || [];
+    const skipOriginal = item.skipApproval || false;
+    const mudou = !areSponsorsEqual(novos, originais) || skip !== skipOriginal;
+    setPendingChanges(prev => {
+      if (!mudou) { const n = { ...prev }; delete n[item.id]; return n; }
+      return { ...prev, [item.id]: { sponsorIds: novos, skipApproval: skip, isDirty: true } };
+    });
+    setItemSponsorsMap(prev => ({ ...prev, [item.id]: novos }));
+  };
+
+  /**
+   * UMA LINHA DE TABELA POR PEÇA.
+   *
+   * Ocupava três a quatro linhas de altura: seis colunas (ID e Peça separadas,
+   * Detalhes com dois valores empilhados) e, dentro da célula de vínculos, um
+   * selo "Salvo · editar", os chips, uma linha de links sublinhados
+   * ("sem pat." · "reaprov.") e o selo "Sem patrocinador". Numa tela cujo
+   * trabalho é varrer dezenas de peças, a altura da linha é o custo de tudo.
+   *
+   * `chips` é o escopo do agrupamento: todos os patrocinadores do evento, ou
+   * só aquele por quem se agrupou.
+   */
+  const renderLinhaDaPeca = (item: any, chips: any[], eventSponsors: any[]) => {
+    const vinculados = itemSponsorsMap[item.id] || [];
+    const semPatrocinador = pendingChanges[item.id]?.skipApproval ?? (item.skipApproval || false);
+    const editavel = getItemEditability(item);
+    const estado = optimisticSentIds.has(item.id) ? 'ENVIADO' : (itemUIStates[item.id] || 'PENDENTE');
+    const selecionada = selectedItemIds.has(item.id);
+    const podeSelecionar = estado === 'PENDENTE' || estado === 'RASCUNHO';
+    const menuAberto = menuDaLinha === item.id;
+
+    // A COR DE ESTADO VAI NA BORDA, não no fundo. O fundo colorido da linha
+    // inteira competia com os chips, que também são coloridos — e chip de
+    // marca sobre fundo tingido perde justamente a cor que o identifica.
+    const corDaBorda = selecionada ? '#c2410c' : estado === 'RASCUNHO' ? '#f97316' : 'transparent';
+
+    return (
+      <tr
+        key={item.id}
+        data-testid={`item-row-${item.id}`}
+        onClick={() => setSelectedItemForDetails(item)}
+        style={{
+          borderBottom: '1px solid #f0efee',
+          backgroundColor: selecionada ? '#fff7ed' : '#ffffff',
+          // 0.55 + grayscale derrubava a linha inteira abaixo de AA, e o hover
+          // (que restaurava) não existe no teclado.
+          opacity: estado === 'ENVIADO' ? 0.8 : 1,
+          cursor: 'pointer',
+          transition: 'background-color 0.12s',
+        }}
+        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.backgroundColor = selecionada ? '#ffedd5' : '#fafaf9'; }}
+        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.backgroundColor = selecionada ? '#fff7ed' : '#ffffff'; }}
+      >
+        {/* ── Seleção ── */}
+        <td onClick={e => e.stopPropagation()} style={{ width: 46, textAlign: 'center', padding: '8px 0', borderLeft: `3px solid ${corDaBorda}` }}>
+          <Checkbox
+            checked={selecionada}
+            onCheckedChange={() => podeSelecionar && toggleItemSelection(item.id)}
+            disabled={!podeSelecionar}
+            title={estado === 'PRONTO' ? 'Remova os patrocinadores antes de aplicar em lote' : estado === 'ENVIADO' ? 'Peça já enviada' : undefined}
+            aria-label={`Selecionar ${item.displayId}`}
+            data-testid={`checkbox-item-${item.id}`}
+          />
+        </td>
+
+        {/* ── Peça ── */}
+        <td style={{ padding: '8px 12px', minWidth: 200 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+            {/* A linha inteira abre o detalhe no clique, mas <tr> não recebe
+                foco: por teclado não havia como abrir peça nenhuma. O ID vira o
+                alvo focável — é o rótulo natural da linha. */}
+            <button
+              type="button"
+              onClick={e => { e.stopPropagation(); setSelectedItemForDetails(item); }}
+              aria-label={`Ver detalhes da peça ${item.displayId}`}
+              data-testid={`text-display-id-${item.id}`}
+              style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: '#78716c', background: 'none', border: 'none', padding: 0, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap' }}
+            >
+              {item.displayId}
+            </button>
+            <span style={{ fontSize: 13, fontWeight: 700, color: '#1c1917', whiteSpace: 'nowrap', flexShrink: 0 }}>{item.type}</span>
+            {item.description && (
+              // flexShrink alto: quando falta largura, é a descrição que cede.
+              // O tipo e o ID identificam a peça; a descrição a detalha.
+              <span title={item.description} style={{ fontSize: 12, color: '#57534e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 999, minWidth: 0 }}>
+                {item.description}
+              </span>
+            )}
+            {/* MARCADORES COMO ÍCONE. Eram pílulas com texto ("Ref. visual"),
+                do mesmo tamanho da descrição e disputando com ela a leitura —
+                sendo que o que elas dizem é binário: tem ou não tem. */}
+            {safeRefUrl(item.referenceUrl) && (
+              <button
+                type="button"
+                onClick={e => { e.stopPropagation(); setPreviewRefUrl(safeRefUrl(item.referenceUrl)); }}
+                title="Ver a referência visual do solicitante"
+                aria-label={`Ver a referência visual de ${item.displayId}`}
+                data-testid={`link-reference-vincular-${item.id}`}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 22, height: 22, borderRadius: 6, border: 'none', background: 'none', color: '#2563eb', cursor: 'pointer', flexShrink: 0, padding: 0 }}
+              >
+                <Paperclip style={{ width: 13, height: 13 }} />
+              </button>
+            )}
+            {item.isReuse && (
+              <span title="Reaproveitamento" aria-label="Reaproveitamento" style={{ display: 'inline-flex', color: '#047857', flexShrink: 0 }}>
+                <Recycle aria-hidden="true" style={{ width: 13, height: 13 }} />
+              </span>
+            )}
+          </div>
+        </td>
+
+        {/* ── Qtd · m² ──
+            Eram dois valores empilhados em 11px, o segundo com letterSpacing
+            negativo. Numa célula só e em DM Mono, os números de linhas
+            vizinhas se alinham e dá para comparar de relance. */}
+        <td style={{ padding: '8px 12px', whiteSpace: 'nowrap' }}>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: '#57534e' }}>
+            {item.quantity ?? 0} un
+            {item.calculatedM2 != null && !isNaN(parseFloat(item.calculatedM2))
+              ? ` · ${parseFloat(item.calculatedM2).toFixed(2)} m²`
+              : ''}
+          </span>
+        </td>
+
+        {/* ── Patrocinadores / Vínculo ── */}
+        <td onClick={e => e.stopPropagation()} style={{ padding: '8px 12px', minWidth: 0 }}>
+          {semPatrocinador ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 10px', borderRadius: 999, backgroundColor: '#fffbeb', color: '#92400e', border: '1px solid #fcd34d', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                Sem patrocinador
+              </span>
+              {editavel && (
+                <button
+                  type="button"
+                  onClick={() => toggleItemSkipApproval(item)}
+                  data-testid={`btn-undo-skip-${item.id}`}
+                  style={{ height: ALVO, padding: '0 10px', borderRadius: R.sm, border: '1px solid #e7e5e4', background: '#fff', color: '#57534e', font: 'inherit', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+                >
+                  Desfazer
+                </button>
+              )}
+            </div>
+          ) : eventSponsors.length === 0 ? (
+            <span style={{ fontSize: 12, color: '#57534e', fontStyle: 'italic' }}>Sem patrocinadores no evento</span>
+          ) : (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
+              {chips.map(sp => {
+                const marcado = vinculados.includes(sp.id);
+                // PEÇA ENVIADA mostra só o que ficou vinculado, em cinza e sem
+                // clique: o vínculo está travado no servidor, e um chip que
+                // parece clicável e não faz nada é pior que a ausência dele.
+                if (estado === 'ENVIADO') {
+                  if (!marcado) return null;
+                  return (
+                    <span
+                      key={sp.id}
+                      title="Peça já enviada — vínculo travado"
+                      data-testid={`chip-sponsor-${item.id}-${sp.id}`}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 26, padding: '0 10px', borderRadius: 999, backgroundColor: '#f0efee', color: '#57534e', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}
+                    >
+                      <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: '#a8a29e', flexShrink: 0 }} />
+                      {sp.name}
+                    </span>
+                  );
+                }
+                const marca = sp.color || '#3b82f6';
+                // A cor da marca em texto de 12px precisa de 4,5:1 sobre o
+                // fundo de 10% dela mesma. `darkenToContrast` escurece só o
+                // necessário — a marca continua reconhecível, que é o que faz
+                // a tabela legível de longe.
+                const corDoTexto = darkenToContrast(marca, '#ffffff', 4.5);
+                return (
+                  <button
+                    key={sp.id}
+                    type="button"
+                    role="checkbox"
+                    aria-checked={marcado}
+                    aria-label={`${marcado ? 'Desvincular' : 'Vincular'} ${sp.name} ${marcado ? 'de' : 'a'} ${item.displayId}`}
+                    title={marcado ? `Clique para desvincular ${sp.name}` : `Clique para vincular ${sp.name}`}
+                    disabled={!editavel}
+                    onClick={() => {
+                      if (!editavel) return;
+                      aplicarVinculo(item, marcado ? vinculados.filter(id => id !== sp.id) : [...vinculados, sp.id], false);
+                    }}
+                    onKeyDown={e => {
+                      if (e.key !== 'Enter' && e.key !== ' ') return;
+                      e.preventDefault();
+                      if (!editavel) return;
+                      aplicarVinculo(item, marcado ? vinculados.filter(id => id !== sp.id) : [...vinculados, sp.id], false);
+                    }}
+                    data-testid={`checkbox-sponsor-${item.id}-${sp.id}`}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 6,
+                      height: isMobile ? 44 : 26, padding: '0 10px', borderRadius: 999,
+                      backgroundColor: marcado ? hexToRgba(marca, 0.1) : '#ffffff',
+                      color: marcado ? corDoTexto : '#57534e',
+                      border: `1px solid ${marcado ? hexToRgba(marca, 0.45) : '#e7e5e4'}`,
+                      cursor: editavel ? 'pointer' : 'not-allowed',
+                      font: 'inherit', fontSize: 12, fontWeight: 600,
+                      whiteSpace: 'nowrap', transition: 'background 0.12s, border-color 0.12s',
+                    }}
+                  >
+                    <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: marcado ? marca : '#d6d3d1', flexShrink: 0 }} />
+                    {sp.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </td>
+
+        {/* ── Status e a ação daquele estado ── */}
+        <td onClick={e => e.stopPropagation()} style={{ padding: '8px 16px 8px 12px', whiteSpace: 'nowrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 6 }}>
+            <span
+              data-testid={`badge-status-${item.id}`}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                height: 24, padding: '0 9px', borderRadius: 999,
+                fontSize: 12, fontWeight: 700,
+                ...(estado === 'RASCUNHO' ? { backgroundColor: '#ffedd5', color: '#9a3412' }
+                  : estado === 'PRONTO' ? { backgroundColor: '#dcfce7', color: '#166534' }
+                  : estado === 'ENVIADO' ? { backgroundColor: '#1c1917', color: '#ffffff' }
+                  : { backgroundColor: '#f0efee', color: '#44403c' }),
+              }}
+            >
+              {estado === 'RASCUNHO' ? <Save aria-hidden="true" style={{ width: 11, height: 11 }} />
+                : estado === 'PRONTO' ? <CheckCircle2 aria-hidden="true" style={{ width: 11, height: 11 }} />
+                : estado === 'ENVIADO' ? <Lock aria-hidden="true" style={{ width: 11, height: 11 }} />
+                : <Info aria-hidden="true" style={{ width: 11, height: 11 }} />}
+              {UI_STATUS_LABEL[estado] ?? estado}
+            </span>
+
+            {/* A AÇÃO DO ESTADO, COM RÓTULO. Eram ícones de 13px sem texto, com
+                o significado só no `title`: um disquete e um avião de papel
+                lado a lado, e a diferença entre salvar e ENVIAR — que tira a
+                peça da tela — ficava por conta de quem adivinhasse. */}
+            {estado === 'RASCUNHO' && editavel && (
+              <button
+                type="button"
+                onClick={() => {
+                  const ch = pendingChanges[item.id];
+                  saveLinkingMutation.mutate([{ itemId: item.id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false }]);
+                }}
+                disabled={saveLinkingMutation.isPending}
+                data-testid={`button-save-item-${item.id}`}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: ALVO, padding: '0 12px', borderRadius: R.sm, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412', font: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+              >
+                <Save aria-hidden="true" style={{ width: 12, height: 12 }} />
+                Salvar
+              </button>
+            )}
+            {estado === 'PRONTO' && editavel && (
+              <button
+                type="button"
+                onClick={() => openSendModalForItem(item)}
+                disabled={sendToArteMutation.isPending}
+                data-testid={`button-send-item-${item.id}`}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: ALVO, padding: '0 12px', borderRadius: R.sm, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', color: '#166534', font: 'inherit', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+              >
+                <Send aria-hidden="true" style={{ width: 12, height: 12 }} />
+                Enviar
+              </button>
+            )}
+
+            {/* ── Ações secundárias ──
+                Eram links SUBLINHADOS de 11px em cinza dentro da célula de
+                vínculos ("sem pat." · "reaprov."), indistinguíveis de texto
+                morto — e "sem pat." apaga os patrocinadores da peça. Ação que
+                descarta trabalho não mora num link de 11px. */}
+            {editavel && (
+              <div style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setMenuDaLinha(menuAberto ? null : item.id)}
+                  aria-haspopup="menu"
+                  aria-expanded={menuAberto}
+                  aria-label={`Mais ações para ${item.displayId}`}
+                  title="Mais ações"
+                  data-testid={`menu-row-actions-${item.id}`}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: isMobile ? 44 : 26, height: isMobile ? 44 : 26, borderRadius: R.sm, border: '1px solid #e7e5e4', background: '#fff', color: '#57534e', cursor: 'pointer', padding: 0 }}
+                >
+                  <MoreHorizontal style={{ width: 14, height: 14 }} />
+                </button>
+                {menuAberto && (
+                  <div
+                    role="menu"
+                    onKeyDown={e => {
+                      if (e.key !== 'Escape') return;
+                      e.stopPropagation();
+                      setMenuDaLinha(null);
+                      // Devolve o foco ao gatilho — sem isto o foco cai no
+                      // <body> e o teclado recomeça do topo da tabela.
+                      document.querySelector<HTMLButtonElement>(`[data-testid="menu-row-actions-${item.id}"]`)?.focus();
+                    }}
+                    style={{
+                      position: 'absolute', right: 0, top: '100%', marginTop: 4, zIndex: 40,
+                      minWidth: 226, backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
+                      borderRadius: R.md, boxShadow: '0 10px 30px rgba(0,0,0,0.12)', padding: 4,
+                    }}
+                  >
+                    {[
+                      {
+                        rotulo: semPatrocinador ? 'Desmarcar "sem patrocinador"' : 'Marcar sem patrocinador',
+                        testId: `btn-skip-sponsor-${item.id}`,
+                        acao: () => toggleItemSkipApproval(item),
+                      },
+                      {
+                        rotulo: item.isReuse ? 'Desmarcar reaproveitamento' : 'Marcar reaproveitamento',
+                        testId: `btn-reuse-${item.id}`,
+                        acao: () => updateItemIsReuseMutation.mutate({ itemId: item.id, isReuse: !item.isReuse }),
+                      },
+                      {
+                        rotulo: 'Devolver para Criação',
+                        testId: `button-return-creation-${item.id}`,
+                        acao: () => setReturnModal(item),
+                      },
+                    ].map(op => (
+                      <button
+                        key={op.testId}
+                        type="button"
+                        role="menuitem"
+                        autoFocus={op.testId.startsWith('btn-skip-sponsor')}
+                        onClick={() => { setMenuDaLinha(null); op.acao(); }}
+                        data-testid={op.testId}
+                        style={{ display: 'block', width: '100%', minHeight: ALVO, padding: '0 12px', textAlign: 'left', border: 'none', background: 'none', borderRadius: R.sm, font: 'inherit', fontSize: 13, color: '#1c1917', cursor: 'pointer' }}
+                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f4f1'; }}
+                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
+                      >
+                        {op.rotulo}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  useEffect(() => { if (!sendConfirmModal) setSoSemPatrocinador(false); }, [sendConfirmModal]);
 
   const openSendModalForItem = (item: any, preSelectedSponsorId?: string) => {
     const pending: Set<string> = new Set();
@@ -1897,7 +1903,10 @@ export default function VincularPatrocinadores() {
           </div>
 
           {/* Footer */}
-          <div style={{ padding: '14px 24px', borderTop: '1px solid #f0efed', display: 'flex', justifyContent: 'flex-end', gap: 10, flexShrink: 0 }}>
+          <div style={{ padding: '14px 24px', borderTop: '1px solid #f0efed', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 10, flexShrink: 0 }}>
+            <p style={{ fontSize: 12, color: '#57534e', lineHeight: 1.45, flex: '1 1 auto', minWidth: 0, marginRight: 12 }}>
+              Nada é gravado até você confirmar. Os vínculos entram como rascunho.
+            </p>
             <button
               onClick={() => { setAutoLinkOpen(false); setAutoLinkPreview(null); }}
               disabled={autoLinkConfirming}
@@ -1952,7 +1961,9 @@ export default function VincularPatrocinadores() {
               data-testid="button-auto-link-confirm"
             >
               <Zap style={{ width: 13, height: 13 }} />
-              {autoLinkConfirming ? 'Vinculando...' : `Confirmar (${autoLinkPreview?.reduce((a: number, e: any) => a + e.items.length, 0) ?? 0})`}
+              {autoLinkConfirming
+                ? 'Vinculando...'
+                : `Confirmar ${autoLinkPreview?.reduce((a: number, e: any) => a + e.items.length, 0) ?? 0} vínculos`}
             </button>
           </div>
         </DialogContent>
@@ -2307,10 +2318,12 @@ export default function VincularPatrocinadores() {
               <div style={{ width: 40, height: 40, backgroundColor: '#c2410c', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, fontFamily: 'Space Grotesk, sans-serif', color: '#ffffff', flexShrink: 0 }}>
                 {selectedItemIds.size}
               </div>
-              <div>
-                <p style={{ fontSize: 13, fontWeight: 700, letterSpacing: '-0.01em', color: '#ffffff', marginBottom: 1 }}>{selectedItemIds.size} {selectedItemIds.size === 1 ? 'item selecionado' : 'itens selecionados'}</p>
-                <p style={{ fontSize: 11, fontWeight: 500, letterSpacing: '0.04em', color: 'rgba(255,255,255,0.6)' }}>Ação em lote</p>
-              </div>
+              {/* Uma frase só. A segunda linha era o rótulo "Ação em lote" —
+                  que não informa nada: a barra inteira é a ação em lote, e ela
+                  já custava a altura de duas linhas fixa no rodapé da tela. */}
+              <p style={{ fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em', color: '#ffffff', margin: 0 }}>
+                {selectedItemIds.size} {selectedItemIds.size === 1 ? 'peça selecionada' : 'peças selecionadas'}
+              </p>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <button
@@ -2836,8 +2849,9 @@ export default function VincularPatrocinadores() {
           <div style={{ flexShrink: 0, padding: '14px 20px', borderTop: '1px solid #f0efee', backgroundColor: '#fafaf9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#746e69' }}>
-                  {selectedSponsorIds.length} de {sponsors.length} selecionados
+                <span style={{ fontSize: 12, color: '#57534e', lineHeight: 1.45 }}>
+                  <strong style={{ fontWeight: 700, color: '#1c1917' }}>{selectedSponsorIds.length} de {sponsors.length} ativos.</strong>{' '}
+                  Só estes aparecem como opção nas peças.
                 </span>
               </div>
               <div style={{ height: 4, borderRadius: 999, backgroundColor: '#e7e5e4', overflow: 'hidden' }}>
@@ -3059,7 +3073,24 @@ export default function VincularPatrocinadores() {
             })()}
           </div>
 
-          <div style={{ flexShrink: 0, padding: '14px 24px', borderTop: '1px solid #eeeeed', backgroundColor: '#f3f4f3', display: 'flex', justifyContent: 'flex-end', gap: 8, borderRadius: '0 0 12px 12px' }}>
+          <div style={{ flexShrink: 0, padding: '14px 24px', borderTop: '1px solid #eeeeed', backgroundColor: '#f3f4f3', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, borderRadius: '0 0 12px 12px' }}>
+            {/* SOMA, NÃO SUBSTITUI. Sem esta frase não há como saber se aplicar
+                dois patrocinadores a vinte peças APAGA o que cada uma já tinha
+                — e, na dúvida, a saída segura é não usar o lote, aplicando um a
+                um vinte vezes. A variante do "sem patrocinador" diz o contrário
+                de propósito: essa opção REMOVE os vínculos, e é a única aqui
+                que descarta trabalho. */}
+            <p style={{ fontSize: 12, color: '#57534e', lineHeight: 1.45, flex: '1 1 auto', minWidth: 0, marginRight: 12 }}>
+              {(() => {
+                const pecas = `${selectedItemIds.size} ${selectedItemIds.size === 1 ? 'peça' : 'peças'}`;
+                if (bulkSkipApproval) {
+                  return `${pecas} ${selectedItemIds.size === 1 ? 'passa' : 'passam'} a não exigir patrocinador — os vínculos que ${selectedItemIds.size === 1 ? 'ela tiver é removido' : 'elas tiverem são removidos'}.`;
+                }
+                const n = bulkSelectedSponsors.length;
+                if (n === 0) return `Escolha os patrocinadores que entram nas ${pecas} selecionadas.`;
+                return `${n} ${n === 1 ? 'patrocinador entra' : 'patrocinadores entram'} nas ${pecas} selecionadas, somando aos vínculos que já existem.`;
+              })()}
+            </p>
             <button
               onClick={() => setBulkApplyDialogOpen(false)}
               style={{ padding: '9px 20px', background: '#ffffff', border: '1.5px solid #d6d3d1', borderRadius: 8, fontSize: 13, fontWeight: 600, color: '#44403c', cursor: 'pointer' }}
@@ -3182,10 +3213,33 @@ export default function VincularPatrocinadores() {
                   {withoutSponsors > 0 && (
                     <div style={{ flex: 1, padding: '9px 14px', background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                       <AlertTriangle style={{ width: 14, height: 14, color: '#fbbf24', flexShrink: 0 }} />
-                      <div>
+                      <div style={{ minWidth: 0 }}>
                         <p style={{ fontSize: 15, fontWeight: 700, color: '#fbbf24', lineHeight: 1, fontFamily: 'Space Grotesk, sans-serif' }}>{withoutSponsors}</p>
+                        {/* rgba(255,255,255,0.6) sobre este fundo escuro dá 6,2 —
+                            julgado contra o fundo certo, passa. */}
                         <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', letterSpacing: '0.04em', textTransform: 'uppercase' }}>sem patrocinador</p>
                       </div>
+                      {/* VER SÓ ESSAS. O aviso dizia "3 sem patrocinador" e
+                          deixava a conferência por conta de quem rolasse: numa
+                          lista de trinta, as três em âmbar ficam espalhadas.
+                          Enviar sem marca é decisão legítima — mas tem de ser
+                          uma decisão, e para isso precisa ser vista. */}
+                      <button
+                        type="button"
+                        onClick={() => setSoSemPatrocinador(v => !v)}
+                        aria-pressed={soSemPatrocinador}
+                        data-testid="button-so-sem-patrocinador"
+                        style={{
+                          marginLeft: 'auto', flexShrink: 0,
+                          height: isMobile ? 44 : 30, padding: '0 12px', borderRadius: R.sm,
+                          backgroundColor: soSemPatrocinador ? '#fbbf24' : 'rgba(255,255,255,0.1)',
+                          color: soSemPatrocinador ? '#1c1917' : '#ffffff',
+                          border: '1px solid rgba(251,191,36,0.4)', cursor: 'pointer',
+                          font: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {soSemPatrocinador ? 'Ver todas' : 'Ver só essas'}
+                      </button>
                     </div>
                   )}
                 </div>
@@ -3201,9 +3255,18 @@ export default function VincularPatrocinadores() {
               ScrollArea encolher abaixo dos 360 sob o teto do `modalSurface`. */}
           <ScrollArea style={{ maxHeight: 360, flex: '0 1 auto', minHeight: 0 }}>
             <div style={{ padding: '20px 32px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {sendConfirmModal?.items.map((item, idx) => {
+              {(sendConfirmModal?.items ?? [])
+                // O recorte não muda o que vai ser enviado — só o que está à
+                // vista. O rodapé continua contando a lista inteira.
+                .filter(item => {
+                  if (!soSemPatrocinador) return true;
+                  const confirmed = originalSponsorsMap[item.id] || [];
+                  const newOnes = Array.from(sendConfirmModal?.pendingByItem[item.id] || []);
+                  return [...confirmed, ...newOnes].length === 0;
+                })
+                .map((item, idx) => {
                 const confirmed = (originalSponsorsMap[item.id] || []);
-                const newOnes = Array.from(sendConfirmModal.pendingByItem[item.id] || []);
+                const newOnes = Array.from(sendConfirmModal?.pendingByItem[item.id] || []);
                 const allLinkedIds = Array.from(new Set([...confirmed, ...newOnes]));
                 const linkedSponsors = allLinkedIds
                   .map(sid => (sponsors as any[]).find((s: any) => s.id === sid))
@@ -3293,8 +3356,10 @@ export default function VincularPatrocinadores() {
 
           {/* ── Footer ── */}
           <div style={{ flexShrink: 0, padding: '18px 32px', borderTop: '1px solid #eeeeed', backgroundColor: '#fafaf9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-            <p style={{ fontSize: 11, color: '#746e69', lineHeight: 1.4, maxWidth: 260 }}>
-              Após o envio, os itens entrarão na fila de revisão da equipe de Arte.
+            {/* A consequência é a saída daqui, não só a chegada lá: a peça
+                deixa esta tela e não volta a aparecer nela. */}
+            <p style={{ fontSize: 12, color: '#57534e', lineHeight: 1.45, maxWidth: 320 }}>
+              As peças saem desta tela e entram na fila da Arte.
             </p>
             <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
               <button

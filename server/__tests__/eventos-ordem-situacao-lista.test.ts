@@ -249,6 +249,36 @@ describe("o modo lista", () => {
     expect(tela).toContain("const LARGURA_ACOES = 5 * 32 + 4 * 6 + 10;");
   });
 
+  it("ACOPLAMENTO INVISÍVEL: quem renderiza as ações tem um ancestral `group`", () => {
+    // `EventCardActions` se esconde com `opacity-0 group-hover:opacity-100`, e
+    // isso DEPENDE de um ancestral com a classe `group` do Tailwind.
+    //
+    // Tirar essa classe — num refactor do wrapper, ao trocar um <div> por
+    // outro, ao mexer no estilo — deixa os botões PERMANENTEMENTE invisíveis no
+    // mouse. E nada denuncia: sem erro, sem falha de tsc, sem teste. Eles
+    // continuam no DOM e continuam focáveis por Tab (o `focus-within` os traz
+    // de volta), então nem a navegação por teclado acusa. Só o mouse deixa de
+    // achá-los, que é como 99% das pessoas usa a tela.
+    //
+    // O acoplamento não dá para remover sem trocar a técnica de revelação
+    // inteira. Dá para travá-lo aqui.
+    const corpoDe = (nome: string) => {
+      const i = tela.indexOf(`function ${nome}(`);
+      expect(i, `não achei ${nome}`).toBeGreaterThan(-1);
+      // Até a próxima declaração de função no topo do arquivo.
+      const resto = tela.slice(i + 1);
+      const fim = resto.search(/\nfunction |\nexport default function /);
+      return fim < 0 ? resto : resto.slice(0, fim);
+    };
+
+    for (const nome of ["EventRow", "EventCard"]) {
+      const corpo = corpoDe(nome);
+      expect(corpo, `${nome} não renderiza as ações`).toContain("<EventCardActions");
+      expect(corpo, `${nome} perdeu o ancestral \`group\` — as ações ficam invisíveis no mouse`)
+        .toContain('className="group');
+    }
+  });
+
   it("desenha a MESMA barra segmentada por fase do cartão", () => {
     // A barra antiga media só `delivered` e mostrava 0% num evento todo
     // conferido. E a contagem virou função de módulo — duas implementações da

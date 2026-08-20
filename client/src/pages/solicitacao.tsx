@@ -1660,7 +1660,12 @@ export default function Solicitacao() {
           <div className="review-modal-columns" style={{ height: "100%" }}>
 
             {/* Left column — comparação aprovado × final (40%) */}
-            <div style={{ width: isMobile ? "100%" : "40%", backgroundColor: "#f5f5f4", display: "flex", flexDirection: "column", borderRight: "1px solid #e7e5e4", overflow: "hidden" }}>
+            {/* 56%, nao 40%. Este modal existe para UMA comparacao — o que o
+                patrocinador aprovou x o que a Arte finalizou — e os dois panes
+                lado a lado precisam de largura para valer alguma coisa. A
+                coluna da direita perde 16 pontos e nao sente: ela carrega
+                botoes e listas, que sao estreitos por natureza. */}
+            <div style={{ width: isMobile ? "100%" : "56%", backgroundColor: "#f5f5f4", display: "flex", flexDirection: "column", borderRight: "1px solid #e7e5e4", overflow: "hidden" }}>
               {/* Left header */}
               <div style={{ padding: "14px 18px", backgroundColor: "#1c1917", borderBottom: "2px solid #f97316", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
                 <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#fff" }}>Comparação de Arquivos</span>
@@ -1678,10 +1683,29 @@ export default function Solicitacao() {
                 )}
               </div>
 
-              {/* Left content — os dois arquivos empilhados, cada um com ~40%
-                  da altura da coluna: a decisão da tela É comparar o que o
-                  patrocinador aprovou com o que a Arte finalizou. */}
-              <div className="review-modal-scroll" style={{ flex: 1, padding: isMobile ? 14 : 20, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* ── A COMPARACAO, LADO A LADO ──
+
+                  Os dois arquivos ficavam EMPILHADOS, cada um com `height:
+                  32vh`, dentro de um container rolavel: era preciso ROLAR para
+                  ver o segundo. Uma comparacao que nao se ve de uma vez nao e
+                  comparacao — e lembrar do primeiro enquanto se olha o segundo.
+                  Numa janela de 540px de altura, 32vh + 32vh + rotulos + gap
+                  ja passava do que a coluna tinha.
+
+                  A FAIXA PRECISA DE PISO E DE `overflow: hidden`. Com `flex: 1
+                  1 auto; minHeight: 0` ela absorve todo o encolhimento e
+                  colapsa; com um piso grande demais (300px) empurra o resto
+                  abaixo da dobra em 540px. 200px fecha as duas contas.
+
+                  No celular empilha — e a unica situacao em que empilhar aqui
+                  e certo: lado a lado em 390px da dois panes de 180px. */}
+              <div style={{
+                flex: "1 1 auto", minHeight: 200, overflow: "hidden",
+                padding: isMobile ? 14 : 16,
+                display: "grid",
+                gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
+                gap: isMobile ? 12 : 14,
+              }}>
                 {[
                   { label: "Aprovado pelo patrocinador", url: selectedItem?.approvalThumbUrl, empty: "Sem thumb aprovado" },
                   { label: "Arquivo final da Arte", url: selectedItem?.finalFileUrl, empty: "A Arte ainda não subiu o arquivo final" },
@@ -1691,8 +1715,15 @@ export default function Solicitacao() {
                   // só o aviso apontando para o caminho copiável logo abaixo.
                   const caminhoDeRede = !!url && !isWebUrl(url);
                   return (
-                  <div key={label} style={{ display: "flex", flexDirection: "column", gap: 6, flexShrink: 0 }}>
-                    <p style={{ fontSize: 10, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em", margin: 0 }}>{label}</p>
+                  <div key={label} style={{ display: "flex", flexDirection: "column", gap: 6, minHeight: 0, overflow: "hidden" }}>
+                    {/* Ponto de estado no cabecalho do pane: verde quando o
+                        arquivo existe, laranja quando falta. E a mesma pergunta
+                        que a coluna nova da tabela responde, agora dentro da
+                        ficha. */}
+                    <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, color: "#57534e", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0, flexShrink: 0 }}>
+                      <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: url ? "#15803d" : "#c2410c", flexShrink: 0 }} />
+                      {label}
+                    </p>
                     {caminhoDeRede ? (
                       <div style={{ backgroundColor: "#fff", borderRadius: 8, border: "1px solid #e7e5e4", padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
                         <FileImage style={{ width: 20, height: 20, color: "#a8a29e", flexShrink: 0 }} />
@@ -1701,7 +1732,13 @@ export default function Solicitacao() {
                         </p>
                       </div>
                     ) : (
-                    <div style={{ height: isMobile ? 220 : "32vh", minHeight: 180, width: "100%", backgroundColor: "#fff", borderRadius: 8, overflow: "hidden", border: "1px solid #e7e5e4", boxShadow: "inset 0 1px 4px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    /* EIXO DEFINIDO. `max-width: 100%; max-height: 100%;
+                       aspect-ratio: 3/2` sem largura nem altura resolve para
+                       2px: `max-*` LIMITA um tamanho, nunca o produz. Aqui a
+                       moldura toma a altura que a faixa deu (`flex: 1` dentro
+                       de um pai de altura definida) e o conteudo cabe inteiro
+                       com `objectFit: contain`. */
+                    <div style={{ flex: "1 1 auto", minHeight: isMobile ? 180 : 140, width: "100%", backgroundColor: "#fff", borderRadius: 8, overflow: "hidden", border: "1px solid #e7e5e4", boxShadow: "inset 0 1px 4px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       {url ? (
                         <FilePreview url={url} noLink objectFit="contain" />
                       ) : (
@@ -1726,6 +1763,17 @@ export default function Solicitacao() {
                   );
                 })}
 
+              </div>
+
+              {/* ── A TIRA DE METADADOS ──
+
+                  Era uma grade de seis cartoes de 10px de padding ocupando a
+                  metade inferior da coluna — metade da altura util do modal
+                  para seis pares rotulo/valor que ninguem le ANTES de decidir,
+                  so confere depois. Numa faixa que nao encolhe, continuam a
+                  mao e devolvem a altura para a comparacao, que e o que a tela
+                  existe para mostrar. */}
+              <div className="review-modal-scroll" style={{ flexShrink: 0, maxHeight: "26vh", overflowY: "auto", padding: isMobile ? "0 14px 14px" : "0 16px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
                 {/* File path */}
                 <div>
                   <p style={{ fontSize: 10, fontWeight: 900, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Caminho do Arquivo Final</p>
@@ -1755,8 +1803,11 @@ export default function Solicitacao() {
                   )}
                 </div>
 
-                {/* Technical metadata grid */}
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {/* A ficha tecnica numa LINHA. Eram seis cartoes em grade de
+                    duas colunas — seis fundos, seis bordas e seis raios para
+                    seis pares rotulo/valor. Em linha eles cabem no respiro que
+                    a comparacao devolveu. */}
+                <div style={{ display: "flex", flexWrap: "wrap", gap: isMobile ? 10 : 16, alignItems: "flex-start" }}>
                   {[
                     { label: "Tipo", value: selectedItem?.type || "—" },
                     { label: "Material", value: selectedItem?.material || "—" },
@@ -1953,7 +2004,13 @@ export default function Solicitacao() {
                         ? motivoAcaoBloqueada(seloSelecionado.motivo, "liberar para produção")
                         : !selectedItem?.finalFileUrl ? "Arquivo final não enviado" : ""}
                       style={{
-                        flex: 1, padding: "14px 0", borderRadius: 6, border: "none",
+                        // `flex: 1 1 0` + `minWidth: 0` + `nowrap`: "Liberar
+                        // para Producao" em maiusculas com letterSpacing 0.12em
+                        // quebrava em duas linhas dentro dos 48px de altura, e
+                        // um rotulo quebrado num botao primario le-se como
+                        // defeito antes de se ler como texto.
+                        flex: "1 1 0", minWidth: 0, whiteSpace: "nowrap",
+                        padding: "14px 10px", borderRadius: 6, border: "none",
                         backgroundColor: seloSelecionado || !selectedItem?.finalFileUrl ? "#292524" : "#9d4300",
                         /* Desabilitado por evento finalizado é o único estado
                            "off" desta tela que carrega INFORMAÇÃO NOVA, então

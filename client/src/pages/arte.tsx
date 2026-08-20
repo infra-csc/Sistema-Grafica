@@ -20,6 +20,7 @@ import {
   isEventoFinalizado,
   motivoEventoFinalizado,
   avisoPecasOcultas,
+  getApprovalMeta,
   P,
   type EventoFinalizadoMotivo,
 } from "@/lib/status";
@@ -3975,7 +3976,12 @@ export default function Arte() {
       <Dialog open={!!correcaoItem} onOpenChange={(open) => { if (!open) fecharCorrecaoModal(); }}>
         {/* overflowY vence o overflow:hidden do modalSurface — este modal rola. */}
         <DialogContent
-          className={cn("p-0 gap-0 max-h-[90vh]", HIDE_NATIVE_CLOSE)}
+          // `max-h-[90vh]` saiu: o teto de altura mora no `modalSurface`
+          // (100vh − 48, simétrico porque o Radix centra o Content). Dois tetos
+          // no mesmo elemento é uma conta que ninguém revisa junto — e o daqui
+          // era mais frouxo, então prometia 10vh de respiro que a casca já
+          // tinha decidido que eram 48px.
+          className={cn("p-0 gap-0", HIDE_NATIVE_CLOSE)}
           style={{ ...modalSurface(472), overflowY: 'auto' }}
           // Com uma nova arte JÁ ENVIADA ao storage, um clique no overlay
           // (o Radix fecha por padrão) descartava o arquivo sem perguntar.
@@ -4198,10 +4204,14 @@ export default function Arte() {
                           key={approval.sponsorId}
                           style={{
                             display: 'flex', alignItems: 'center', gap: 10,
-                            padding: '10px 14px', borderRadius: 10, cursor: 'pointer', userSelect: 'none',
+                            // Raio 10 não existe em `R` (6/8/12/16/999), e
+                            // `#fff5f5` não existe em `P` — era um rosa a um
+                            // dígito do P.red.bg, perto o bastante para ninguém
+                            // notar e longe o bastante para não ser o mesmo.
+                            padding: '10px 14px', borderRadius: R.md, cursor: 'pointer', userSelect: 'none',
                             minHeight: 44,
-                            backgroundColor: isSelected ? '#fff5f5' : '#fafaf9',
-                            border: `1px solid ${isSelected ? '#fecaca' : '#ebe8e3'}`,
+                            backgroundColor: isSelected ? P.red.bg : '#fafaf9',
+                            border: `1px solid ${isSelected ? P.red.border : '#ebe8e3'}`,
                             transition: 'all 0.12s'
                           }}
                         >
@@ -4211,7 +4221,7 @@ export default function Arte() {
                               disparava junto com o da label e desfazia a marcação. */}
                           <div
                             aria-hidden="true"
-                            style={{ width: 18, height: 18, borderRadius: 6, flexShrink: 0, border: `2px solid ${isSelected ? '#dc2626' : '#d4d4d0'}`, background: isSelected ? '#dc2626' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.12s' }}
+                            style={{ width: 18, height: 18, borderRadius: R.sm, flexShrink: 0, border: `2px solid ${isSelected ? P.red.text : '#e7e5e4'}`, background: isSelected ? P.red.text : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.12s' }}
                           >
                             {isSelected && <Check style={{ width: 10, height: 10, color: '#fff' }} />}
                           </div>
@@ -4232,9 +4242,26 @@ export default function Arte() {
                             <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />
                           )}
                           <span style={{ fontSize: 13, fontWeight: 600, color: isSelected ? '#7f1d1d' : '#44403c', flex: 1, transition: 'color 0.12s' }}>{approval.sponsor?.name || 'Patrocinador'}</span>
-                          <span style={{ fontSize: 11, fontWeight: 700, color: '#dc2626', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 6, padding: '2px 8px', letterSpacing: '0.04em' }}>
-                            Pendente
-                          </span>
+                          {/* O CHIP DE ESTADO SAI DE `getApprovalMeta`.
+
+                              Ele estava pintado à mão em #dc2626 sobre #fee2e2 —
+                              a família certa (vermelha, porque `awaiting_arte`
+                              teve reprovação de fato) com os valores errados:
+                              nenhum dos dois existe em `P`, e o vermelho ficava
+                              um degrau mais claro que o dos outros chips do
+                              mesmo estado, na mesma tela.
+
+                              Vindo da fonte, ele também acompanha a nuance que
+                              o `APPROVAL` registra para este estado — campo
+                              vermelho, bolinha âmbar — se um dia ela mudar. */}
+                          {(() => {
+                            const est = getApprovalMeta(approval.status);
+                            return (
+                              <span style={{ fontSize: 11, fontWeight: 700, color: est?.text ?? P.red.text, background: est?.bg ?? P.red.bg, border: `1px solid ${est?.border ?? P.red.border}`, borderRadius: R.sm, padding: '2px 8px', letterSpacing: '0.04em' }}>
+                                Pendente
+                              </span>
+                            );
+                          })()}
                         </label>
                       );
                     })}

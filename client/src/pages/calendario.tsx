@@ -86,6 +86,25 @@ const MONTH_NAMES = [
 export default function Calendario() {
   const isMobile = useIsMobile();
   const [currentDate, setCurrentDate] = useState(new Date());
+
+  // ── A ESCALA ────────────────────────────────────────────────────────────
+  //
+  // Faltava a escala do meio: a faixa de alerta cobre 48h, a grade cobre o mês,
+  // e a operação trabalha por semana. E na grade de 90px o nome do evento em
+  // 10px trunca em ~80px — a pílula é quase decorativa.
+  //
+  // As abas Semana/Lista tinham sido removidas por serem ESTADO MORTO:
+  // trocavam um `activeView` que nada na tela lia. Semana volta porque agora
+  // tem conteúdo próprio, que era exatamente a condição registrada ali.
+  // "Lista" não volta — continua sem conteúdo que a grade já não dê.
+  //
+  // No celular a semana é a MELHOR das duas: a grade de 62px só mostra
+  // barrinhas de 4px, sem nome de evento nenhum.
+  const [escala, setEscala] = useState<"semana" | "mes">(() => {
+    const v = new URLSearchParams(window.location.search).get("escala");
+    if (v === "semana" || v === "mes") return v;
+    return typeof window !== "undefined" && window.innerWidth < 768 ? "semana" : "mes";
+  });
   const [, setLocation] = useLocation();
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -97,10 +116,11 @@ export default function Calendario() {
   useEffect(() => {
     const p = new URLSearchParams();
     if (searchTerm) p.set("busca", searchTerm);
+    if (escala === "semana") p.set("escala", "semana");
     const qs = p.toString();
     // + hash: replaceState com URL sem #... apagava o fragmento da barra.
     window.history.replaceState(null, "", (qs ? `?${qs}` : window.location.pathname) + window.location.hash);
-  }, [searchTerm]);
+  }, [searchTerm, escala]);
 
   // Atalho "/" foca a busca (paridade com eventos.tsx e Painel Geral).
   const searchRef = useRef<HTMLInputElement>(null);
@@ -183,6 +203,67 @@ export default function Calendario() {
     return map;
   }, [events]);
 
+  // ═══════════════════════════════════════════════════════════════════════
+  // A ORDEM DE URGÊNCIA DA CÉLULA
+  //
+  // A célula mostra 2 itens e o resto vira "+N mais". A ordem era a de
+  // INSERÇÃO: eventos primeiro (início antes de saída), prazos depois. Com 5
+  // prazos por evento mais início e saída, as células estouram com frequência
+  // — e o que ficava escondido era arbitrário. Um "Prod. Gráfica" que vence
+  // HOJE desaparecia atrás de duas pílulas de início de evento, que é a
+  // marcação que menos pede ação de alguém.
+  //
+  // A mesma ordem vale nas três leituras (grade, barrinhas do celular e
+  // dialog do dia): elas contam a mesma história ou não contam nenhuma.
+  // ═══════════════════════════════════════════════════════════════════════
+  const MS_DIA = 86_400_000;
+
+  /** Menor número = mais urgente = aparece primeiro e nunca é o cortado. */
+  function pesoDaUrgencia(item: { kind: string; ev?: any }, diaMs: number, agoraMs: number): number {
+    if (item.kind === "deadline") {
+      const hoje = new Date(agoraMs); hoje.setHours(0, 0, 0, 0);
+      if (diaMs === hoje.getTime()) return 0;   // vence hoje
+      if (diaMs < hoje.getTime()) return 1;     // já passou
+      return 4;                                  // prazo futuro
+    }
+    if (item.ev?._type === "departure") {
+      const horas = (toUTCDisplayDate(item.ev.truckDepartureDate).getTime() - agoraMs) / 3_600_000;
+      return horas > 0 && horas < 48 ? 2 : 3;   // saída em menos de 48h, ou normal
+    }
+    return 5;                                    // início de evento
+  }
+
+  /** Meia-noite do dia da célula, para comparar "vence hoje" contra ele. */
+  const meiaNoiteDe = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+
+  /** Domingo da semana que contém `d` — domingo-primeiro, como a grade. */
+  const domingoDa = (d: Date) => {
+    const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    x.setDate(x.getDate() - x.getDay());
+    return x;
+  };
+
+  /** Uma semana ou um mês, conforme a escala em vigor. */
+  const andar = (passo: number) => {
+    if (escala === "semana") {
+      const d = new Date(currentDate);
+      d.setDate(d.getDate() + passo * 7);
+      setCurrentDate(d);
+      return;
+    }
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + passo, 1));
+  };
+
+  const diasDaSemana = useMemo(() => {
+    const dom = domingoDa(currentDate);
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(dom);
+      d.setDate(d.getDate() + i);
+      return d;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentDate]);
+
   const getEventsForDate    = (date: Date) => byDay.get(date.toDateString())?.events ?? [];
   const getDeadlinesForDate = (date: Date) => byDay.get(date.toDateString())?.deadlines ?? [];
 
@@ -211,10 +292,38 @@ export default function Calendario() {
 
   /* Month stats — useMemo: era refiltrado a cada render (inclusive a cada
      tecla da busca), para um resultado que só muda com dados ou mês. */
-  const monthEvents = useMemo(() => events.filter(ev => {
-    const d = parseDateLocal(ev.startDate);
-    return d.getFullYear() === year && d.getMonth() === month;
-  }), [events, year, month]);
+  //
+  // O RESUMO CONTAVA UM MÊS E A GRADE DESENHAVA OUTRO.
+  //
+  // O filtro era pela DATA DE INÍCIO; a grade desenha marcadores ancorados na
+  // SAÍDA DO CAMINHÃO, e os cinco prazos saem dela. Um evento que começa em 12
+  // de setembro com caminhão em 9 de setembro tem três prazos em agosto:
+  // aparecia na grade de agosto e NÃO entrava no Resumo de agosto. Os dois
+  // números da mesma tela contavam meses diferentes.
+  //
+  // Agora entra todo evento com QUALQUER marcador no mês exibido — o mesmo
+  // conjunto que `byDay` desenhou. Isso muda completedCount, closedCount,
+  // urgentCount e ongoingCount junto, e esse é o ponto: as cinco linhas passam
+  // a descrever o que a pessoa está vendo.
+  const monthEvents = useMemo(() => {
+    const noMes = (d: Date | null) => !!d && d.getFullYear() === year && d.getMonth() === month;
+    return events.filter(ev => {
+      if (ev.startDate && noMes(parseDateLocal(ev.startDate))) return true;
+      if (!ev.truckDepartureDate) return false;
+      const saida = toUTCDisplayDate(ev.truckDepartureDate);
+      if (noMes(saida)) return true;
+      // Os cinco prazos, pela mesma âncora e pelos mesmos offsets que a grade
+      // usa — se um deles cai no mês, o evento está desenhado ali.
+      const base = toUTCDisplayDate(ev.truckDepartureDate);
+      base.setHours(0, 0, 0, 0);
+      return DEADLINE_TYPES.some(dt => {
+        const offset: number = (ev as any)[dt.key] ?? DEADLINE_DEFAULTS[dt.key];
+        const d = new Date(base);
+        d.setDate(d.getDate() + offset);
+        return noMes(d);
+      });
+    });
+  }, [events, year, month]);
   const completedCount = monthEvents.filter(e => e.status === "completed").length;
   // Encerrado à mão precisa de linha PRÓPRIA. Somado a "Concluídos" ele diria
   // "deu tudo certo" num evento fechado com peça em aberto; sem linha nenhuma
@@ -317,10 +426,13 @@ export default function Calendario() {
               {MONTH_NAMES[month]} {year}
             </h2>
             <div style={{ display: "flex", gap: 4 }}>
-              <NavBtn onClick={() => setCurrentDate(new Date(year, month - 1, 1))} testId="button-prev-month" big={isMobile} label="Mês anterior">
+              {/* O PASSO SEGUE A ESCALA. As setas so sabiam `month ± 1`: com a
+                  semana na tela, avancar um mes pula quatro semanas e a pessoa
+                  perde o lugar. */}
+              <NavBtn onClick={() => andar(-1)} testId="button-prev-month" big={isMobile} label={escala === "semana" ? "Semana anterior" : "Mês anterior"}>
                 <ChevronLeft style={{ width: 18, height: 18 }} />
               </NavBtn>
-              <NavBtn onClick={() => setCurrentDate(new Date(year, month + 1, 1))} testId="button-next-month" big={isMobile} label="Próximo mês">
+              <NavBtn onClick={() => andar(1)} testId="button-next-month" big={isMobile} label={escala === "semana" ? "Próxima semana" : "Próximo mês"}>
                 <ChevronRight style={{ width: 18, height: 18 }} />
               </NavBtn>
             </div>
@@ -338,11 +450,49 @@ export default function Calendario() {
             </div>
             {/* Alvo de toque: 44px no celular, como os demais controles de navegação. */}
             <button onClick={() => setCurrentDate(new Date())} data-testid="button-today"
+              title={escala === "semana" ? "Voltar para a semana corrente" : "Voltar para o mês corrente"}
               style={{ padding: "0 20px", height: isMobile ? 44 : 36, borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: P.text, fontSize: 13, fontWeight: 700, cursor: "pointer" }}
               onMouseEnter={e => (e.currentTarget.style.backgroundColor = P.bg)}
               onMouseLeave={e => (e.currentTarget.style.backgroundColor = "#ffffff")}>
               Hoje
             </button>
+
+            {/* SEMANA | MÊS — mesmo desenho dos outros segmented do app. */}
+            <div
+              role="radiogroup"
+              aria-label="Escala do calendário"
+              data-testid="segmented-escala"
+              style={{ display: "flex", backgroundColor: "#eeeeed", padding: 2, borderRadius: 8, flexShrink: 0 }}
+            >
+              {(["semana", "mes"] as const).map(v => {
+                const ativo = escala === v;
+                return (
+                  <button
+                    key={v}
+                    type="button"
+                    role="radio"
+                    aria-checked={ativo}
+                    tabIndex={ativo ? 0 : -1}
+                    onClick={() => setEscala(v)}
+                    onKeyDown={e => {
+                      if (e.key !== "ArrowLeft" && e.key !== "ArrowRight") return;
+                      e.preventDefault();
+                      setEscala(v === "semana" ? "mes" : "semana");
+                    }}
+                    style={{
+                      height: isMobile ? 40 : 32, padding: "0 14px", borderRadius: 6, border: "none",
+                      backgroundColor: ativo ? "#ffffff" : "transparent",
+                      boxShadow: ativo ? "0 1px 3px rgba(0,0,0,0.10)" : "none",
+                      color: ativo ? P.text : P.secondary,
+                      font: "inherit", fontSize: 13, fontWeight: ativo ? 700 : 600,
+                      cursor: "pointer", whiteSpace: "nowrap",
+                    }}
+                  >
+                    {v === "semana" ? "Semana" : "Mês"}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -358,6 +508,123 @@ export default function Calendario() {
               style={{ fontSize: 13, fontWeight: 700, color: "#fff", background: "#1c1917", border: "none", borderRadius: 8, padding: "9px 20px", cursor: "pointer" }}>
               Tentar novamente
             </button>
+          </div>
+        ) : escala === "semana" ? (
+          /* ══════════════════════════════════════════════════════════════
+             A SEMANA — sete linhas, domingo-primeiro.
+
+             A escala do meio que faltava: a faixa de alerta cobre 48h, a
+             grade cobre o mês, e a operação trabalha por semana. E aqui o
+             nome do evento cabe POR EXTENSO — na grade de 90px ele trunca em
+             ~80px e a pílula é quase decorativa.
+          ══════════════════════════════════════════════════════════════ */
+          <div>
+            {(() => {
+              const d1 = diasDaSemana[0], d7 = diasDaSemana[6];
+              const total = diasDaSemana.reduce((t, d) => {
+                const b = byDay.get(d.toDateString());
+                if (!b) return t;
+                const casa = (nome: string) => !searchTerm || nome.toLowerCase().includes(searchTerm.toLowerCase());
+                return t + b.events.filter(e => casa(e.name)).length
+                       + b.deadlines.filter(x => casa(x.event.name)).length;
+              }, 0);
+              const mesmoMes = d1.getMonth() === d7.getMonth();
+              const faixa = mesmoMes
+                ? `${d1.getDate()} a ${d7.getDate()} de ${MONTH_NAMES[d1.getMonth()]}`
+                : `${d1.getDate()} de ${MONTH_NAMES[d1.getMonth()]} a ${d7.getDate()} de ${MONTH_NAMES[d7.getMonth()]}`;
+              return (
+                <div style={{ padding: "12px 20px", borderBottom: "1px solid #eeeeed", backgroundColor: "#f9f9f8", display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                  <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 800, color: P.text }}>{faixa}</span>
+                  <span style={{ fontSize: 12, color: P.secondary }}>
+                    {total} {total === 1 ? "marcação" : "marcações"}
+                  </span>
+                </div>
+              );
+            })()}
+
+            {diasDaSemana.map(date => {
+              const hoje = date.toDateString() === new Date().toDateString();
+              const casa = (nome: string) => !searchTerm || nome.toLowerCase().includes(searchTerm.toLowerCase());
+              const b = byDay.get(date.toDateString());
+              const itens = [
+                ...(b?.events ?? []).filter(e => casa(e.name)).map(ev => ({ kind: "event" as const, ev })),
+                ...(b?.deadlines ?? []).filter(x => casa(x.event.name)).map(d => ({ kind: "deadline" as const, event: d.event, dtype: d.dtype })),
+              ]
+                // MESMA ORDEM da célula: as três leituras contam a mesma
+                // história ou não contam nenhuma.
+                .sort((a, c) => pesoDaUrgencia(a, meiaNoiteDe(date), now) - pesoDaUrgencia(c, meiaNoiteDe(date), now));
+
+              return (
+                <div
+                  key={date.toDateString()}
+                  data-testid={`week-day-${date.getDate()}`}
+                  style={{ display: "flex", gap: 0, borderBottom: "1px solid #f5f4f2", backgroundColor: hoje ? "#fffbf7" : "#ffffff" }}
+                >
+                  <div style={{ width: 92, flexShrink: 0, padding: "12px 14px", borderRight: "1px solid #f5f4f2" }}>
+                    <p style={{ margin: 0, fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.08em", color: hoje ? "#c2410c" : P.secondary }}>
+                      {WEEK_DAYS[date.getDay()]}
+                    </p>
+                    <p style={{ margin: "2px 0 0", fontFamily: "'Space Grotesk', sans-serif", fontSize: 20, fontWeight: 800, color: hoje ? "#c2410c" : P.text, lineHeight: 1 }}>
+                      {date.getDate()}
+                    </p>
+                  </div>
+
+                  <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+                    {itens.length === 0 ? (
+                      /* #78716c e nao #a8a29e: a casa proibe o segundo como
+                         cor de texto (2,52 sobre branco). */
+                      <p style={{ margin: 0, padding: "14px", fontSize: 13, color: "#78716c" }}>Nada marcado</p>
+                    ) : itens.map((item, i) => {
+                      const ev = item.kind === "event" ? item.ev : item.event;
+                      const meta = prioMeta(ev);
+                      const cor = item.kind === "deadline" ? item.dtype.color : meta.dot;
+                      const isStart = item.kind === "event" && item.ev._type === "start";
+                      const Icone = item.kind === "deadline" ? Flag : isStart ? Calendar : Truck;
+                      const tipo = item.kind === "deadline"
+                        ? `prazo · ${item.dtype.label}`
+                        : isStart ? "início do evento" : "saída do caminhão";
+                      const saida = item.kind === "event" && !isStart ? toUTCDisplayDate(ev.truckDepartureDate) : null;
+                      const restante = saida ? saida.getTime() - now : null;
+                      const urgente = restante !== null && restante > 0 && restante < 48 * 3_600_000;
+                      return (
+                        <button
+                          key={`${ev.id}-${item.kind}-${i}`}
+                          type="button"
+                          data-testid={`week-item-${ev.id}`}
+                          onClick={() => setLocation(`/eventos/${ev.id}`)}
+                          aria-label={`Abrir evento ${ev.name} — ${tipo}`}
+                          style={{
+                            display: "flex", alignItems: "center", gap: 10, width: "100%",
+                            minHeight: 44, padding: "8px 14px", textAlign: "left",
+                            background: "none", border: "none",
+                            borderLeft: item.kind === "deadline" ? `3px dashed ${cor}` : `3px solid ${cor}`,
+                            borderTop: i > 0 ? "1px solid #f9f9f8" : "none",
+                            font: "inherit", cursor: "pointer",
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.backgroundColor = P.bg)}
+                          onMouseLeave={e => (e.currentTarget.style.backgroundColor = "transparent")}
+                        >
+                          <Icone aria-hidden="true" style={{ width: 14, height: 14, color: cor, flexShrink: 0 }} />
+                          {/* O NOME POR EXTENSO — o motivo desta visao existir. */}
+                          <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: P.text }}>{ev.name}</span>
+                          <span style={{ fontSize: 12, color: P.secondary, whiteSpace: "nowrap", flexShrink: 0 }}>{tipo}</span>
+                          {saida && (
+                            <span style={{ fontFamily: "monospace", fontSize: 12, color: P.secondary, whiteSpace: "nowrap", flexShrink: 0 }}>
+                              {String(saida.getHours()).padStart(2, "0")}:{String(saida.getMinutes()).padStart(2, "0")}
+                            </span>
+                          )}
+                          {urgente && (
+                            <span style={{ fontSize: 11, fontWeight: 800, color: "#dc2626", whiteSpace: "nowrap", flexShrink: 0 }}>
+                              {msToHM(restante!)}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(0, 1fr))" }}>
@@ -413,7 +680,12 @@ export default function Calendario() {
               > = [
                 ...dayEvs.map(ev => ({ kind: "event" as const, ev })),
                 ...dayDeadlines.map(d => ({ kind: "deadline" as const, event: d.event, dtype: d.dtype })),
-              ];
+              ]
+                // POR URGENCIA, antes do corte em 2. Sem isto o que fica
+                // escondido no "+N mais" e arbitrario — e um prazo que vence
+                // HOJE desaparece atras de dois inicios de evento, que sao a
+                // marcacao que menos pede acao de alguem.
+                .sort((a, c) => pesoDaUrgencia(a, meiaNoiteDe(date), now) - pesoDaUrgencia(c, meiaNoiteDe(date), now));
               const isToday = date.toDateString() === new Date().toDateString();
               const hasAny  = allCellItems.length > 0;
 
@@ -665,9 +937,19 @@ export default function Calendario() {
         {/* Resumo do Mês */}
         <div style={{ backgroundColor: "#1c1917", borderRadius: 12, padding: 24, color: "#ffffff" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-            <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#ffffff", textTransform: "uppercase", letterSpacing: "-0.01em", fontFamily: "'Space Grotesk', sans-serif" }}>
-              Resumo do Mês
-            </h3>
+            <div>
+              <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: "#ffffff", textTransform: "uppercase", letterSpacing: "-0.01em", fontFamily: "'Space Grotesk', sans-serif" }}>
+                Resumo do Mês
+              </h3>
+              {/* A REGRA, ESCRITA. O filtro era pela data de INICIO e a grade
+                  desenha pela SAIDA DO CAMINHAO: um evento que comeca em 12/09
+                  com caminhao em 09/09 tem tres prazos em agosto — aparecia na
+                  grade de agosto e nao entrava no Resumo de agosto. Agora os
+                  dois contam o mesmo conjunto, e a linha diz qual e. */}
+              <p style={{ margin: "2px 0 0", fontSize: 11, color: "rgba(255,255,255,0.5)" }}>
+                Eventos que aparecem na grade
+              </p>
+            </div>
             <BarChart2 style={{ width: 18, height: 18, color: P.accent }} />
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
@@ -706,8 +988,17 @@ export default function Calendario() {
           <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
             {/* Mesmo filtro de busca da grade: a célula anunciava "2 itens"
                 (filtrados) e o dialog abria com todos — números que não batiam. */}
+            {/* MESMA REGUA DA CELULA, dentro da secao. O dialog separa eventos
+                de prazos em blocos proprios — essa divisao e do dialog e fica —,
+                entao a ordem de urgencia se aplica DENTRO de cada bloco: saida
+                em menos de 48h antes de saida normal, antes de inicio de
+                evento. As tres leituras contam a mesma historia ou nao contam
+                nenhuma. */}
             {selectedDate && getEventsForDate(selectedDate)
               .filter(ev => !searchTerm || ev.name.toLowerCase().includes(searchTerm.toLowerCase()))
+              .slice()
+              .sort((a, b) => pesoDaUrgencia({ kind: "event", ev: a }, meiaNoiteDe(selectedDate), now)
+                            - pesoDaUrgencia({ kind: "event", ev: b }, meiaNoiteDe(selectedDate), now))
               .map(ev => {
               const meta = prioMeta(ev);
               const isStart = ev._type === "start";

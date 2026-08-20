@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { CheckCircle, AlertCircle, Copy, Eye, Search, X, FileImage, Maximize2, Trash2, Paperclip, Recycle } from "lucide-react";
+import { CheckCircle, AlertCircle, Copy, Eye, Search, X, FileImage, Maximize2, Trash2, Paperclip, Recycle, Check, Clock, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, Truck } from "lucide-react";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { FilePreview, isWebUrl } from "@/components/file-preview";
@@ -115,6 +115,9 @@ export default function Solicitacao() {
   const { toast } = useToast();
   const { user } = useAuth();
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  // As duas facetas novas da barra de filtros.
+  const [soSemArquivo, setSoSemArquivo] = useState(false);
+  const [soEventoFinalizado, setSoEventoFinalizado] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const [returnObservations, setReturnObservations] = useState("");
   // PARA ONDE a peça volta — escolha de quem devolve (regra do dono, 17/08).
@@ -577,7 +580,7 @@ export default function Solicitacao() {
   // que a Gráfica já tinha corrigido em lib/grafica-filtros.
   //
   // Busca sem acento (`normalizarBusca`): "so quero" acha "SÓ QUERO PEDALAR SP".
-  const casaRecorte = (item: any, excluir?: 'evento' | 'tipo'): boolean => {
+  const casaRecorte = (item: any, excluir?: 'evento' | 'tipo' | 'sem-arquivo' | 'evento-finalizado'): boolean => {
     const q = normalizarBusca(searchTerm);
     if (q &&
         !normalizarBusca(item.type).includes(q) &&
@@ -586,12 +589,52 @@ export default function Solicitacao() {
         !normalizarBusca(item.event?.name).includes(q)) return false;
     if (excluir !== 'evento' && eventFilter.length > 0 && !eventFilter.includes(item.eventId)) return false;
     if (excluir !== 'tipo' && itemTypeFilter.length > 0 && !itemTypeFilter.includes(item.type)) return false;
+    if (excluir !== 'sem-arquivo' && soSemArquivo && !!item.finalFileUrl) return false;
+    if (excluir !== 'evento-finalizado' && soEventoFinalizado && !selosPorItem.has(item.id)) return false;
     return true;
   };
 
   const filteredItems = useMemo(() => pendingItems.filter(item => casaRecorte(item)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [pendingItems, searchTerm, eventFilter, itemTypeFilter]);
+    [pendingItems, searchTerm, eventFilter, itemTypeFilter, soSemArquivo, soEventoFinalizado, selosPorItem]);
+
+  // ── OS DOIS CHIPS DE FACETA ─────────────────────────────────────────────
+  //
+  // Mesma disciplina dos dropdowns: a contagem sai do pool com a PRÓPRIA
+  // dimensão excluída, então o número ao lado do chip é exatamente o número de
+  // linhas que o clique entrega. Contar sobre `filteredItems` faria o chip
+  // ligado mostrar a contagem de si mesmo e o desligado mostrar zero.
+  const contagemSemArquivo = useMemo(
+    () => pendingItems.filter(i => casaRecorte(i, 'sem-arquivo') && !i.finalFileUrl).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pendingItems, searchTerm, eventFilter, itemTypeFilter, soEventoFinalizado, selosPorItem],
+  );
+  const contagemEventoFinalizado = useMemo(
+    () => pendingItems.filter(i => casaRecorte(i, 'evento-finalizado') && selosPorItem.has(i.id)).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pendingItems, searchTerm, eventFilter, itemTypeFilter, soSemArquivo, selosPorItem],
+  );
+
+  // ── A FRASE DE RESOLUÇÃO ────────────────────────────────────────────────
+  //
+  // A legenda era a descrição da tela — a mesma frase todo dia, que quem chega
+  // aqui já sabe. No lugar dela, o que muda a cada visita: quantas dá para
+  // decidir AGORA, e quantas ainda dependem da Arte. São 74 peças: a diferença
+  // entre "tenho trabalho" e "tenho trabalho em 12 delas" é o dia inteiro.
+  const fraseDeResolucao = useMemo(() => {
+    const total = pendingItems.length;
+    if (total === 0) return "Nenhuma peça aguardando revisão.";
+    const semArquivo = pendingItems.filter(i => !i.finalFileUrl).length;
+    const prontas = total - semArquivo;
+    if (semArquivo === 0) {
+      return `${total === 1 ? "A única peça tem" : `Todas as ${total} peças têm`} arquivo final — é só decidir.`;
+    }
+    if (prontas === 0) {
+      return `${semArquivo === 1 ? "A única peça ainda espera" : `As ${semArquivo} peças ainda esperam`} o arquivo final da Arte.`;
+    }
+    return `${prontas} ${prontas === 1 ? "peça está pronta" : "peças estão prontas"} para decidir; `
+         + `${semArquivo} ainda ${semArquivo === 1 ? "espera" : "esperam"} o arquivo final da Arte.`;
+  }, [pendingItems]);
 
   // Seleção sobrevive ao filtro: quando a lista filtrada muda, mantém marcado
   // só o que continua visível — senão "Liberar Selecionadas" agiria sobre
@@ -817,8 +860,9 @@ export default function Solicitacao() {
             }}>
               Revisão
             </h1>
-            <p style={{ margin: "4px 0 0", fontSize: 13, color: TI.secondary }}>
-              A última conferência antes da produção — o que passa vai para a Gráfica, o que volta vai para a Arte.
+            {/* #57534e e não o TI.secondary: em 13px a régua da casa é 4,5:1. */}
+            <p data-testid="frase-resolucao" style={{ margin: "4px 0 0", fontSize: 13, color: "#57534e", maxWidth: 620, lineHeight: 1.5 }}>
+              {fraseDeResolucao}
             </p>
           </div>
         </div>
@@ -870,9 +914,48 @@ export default function Solicitacao() {
             triggerStyle={{ backgroundColor: "#f3f4f3", border: "none", fontSize: 13, color: TI.text, minWidth: 150 }}
           />
 
-          {(searchTerm || eventFilter.length > 0 || itemTypeFilter.length > 0) && (
+          {/* ── OS DOIS CHIPS DE FACETA ──
+              "Sem arquivo final" e "Evento finalizado" sao as duas perguntas
+              que a fila de 74 faz o tempo todo e que nenhum dropdown
+              respondia. A contagem sai do pool com a PROPRIA dimensao
+              excluida (ver `contagemSemArquivo`), entao o numero e exatamente
+              o de linhas que o clique entrega.
+
+              Estado sem nenhuma peca nao vira chip: o clique devolveria lista
+              vazia sem dizer por que. Fica se ja estiver ligado, senao o chip
+              sumiria com o filtro aceso e nao haveria como apaga-lo. */}
+          {([
+            { id: "sem-arquivo", rotulo: "Sem arquivo final", n: contagemSemArquivo, ligado: soSemArquivo, alterna: () => setSoSemArquivo(v => !v), cor: "#9a3412", testid: "chip-sem-arquivo" },
+            { id: "evento-finalizado", rotulo: "Evento finalizado", n: contagemEventoFinalizado, ligado: soEventoFinalizado, alterna: () => setSoEventoFinalizado(v => !v), cor: "#78716c", testid: "chip-evento-finalizado-faceta" },
+          ]).map(chip => {
+            if (chip.n === 0 && !chip.ligado) return null;
+            return (
+              <button
+                key={chip.id}
+                type="button"
+                onClick={chip.alterna}
+                aria-pressed={chip.ligado}
+                title={chip.ligado ? `Remover o filtro ${chip.rotulo}` : `Ver so ${chip.rotulo.toLowerCase()}`}
+                data-testid={chip.testid}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 7,
+                  height: 32, padding: "0 12px", borderRadius: 999,
+                  border: `1px solid ${chip.ligado ? "#1c1917" : "#e7e5e4"}`,
+                  backgroundColor: chip.ligado ? "#1c1917" : "#fff",
+                  color: chip.ligado ? "#fff" : "#44403c",
+                  cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap",
+                }}
+              >
+                <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: chip.ligado ? "#fff" : chip.cor, flexShrink: 0 }} />
+                {chip.rotulo}
+                <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, opacity: chip.ligado ? 1 : 0.75 }}>{chip.n}</span>
+              </button>
+            );
+          })}
+
+          {(searchTerm || eventFilter.length > 0 || itemTypeFilter.length > 0 || soSemArquivo || soEventoFinalizado) && (
             <button
-              onClick={() => { setSearchTerm(""); setEventFilter([]); setItemTypeFilter([]); }}
+              onClick={() => { setSearchTerm(""); setEventFilter([]); setItemTypeFilter([]); setSoSemArquivo(false); setSoEventoFinalizado(false); }}
               data-testid="button-clear-filters"
               style={{ fontSize: 11, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em", background: "none", border: "none", cursor: "pointer", padding: "0 8px" }}>
               Limpar filtros
@@ -1103,12 +1186,14 @@ export default function Solicitacao() {
                     />
                   </th>
                   {[
-                    { label: "ID", w: 120 },
-                    { label: "Tipo", w: 160 },
-                    { label: "Descrição da Peça", w: undefined },
-                    { label: "Qtd", w: 64, center: true },
-                    { label: "Dim (LxA)", w: 128 },
-                    { label: "M²", w: 80 },
+                    // DE SETE COLUNAS PARA QUATRO. ID, Tipo e Descrição
+                    // identificam a MESMA peça e viviam separados por duas
+                    // divisórias; Qtd, Dim e M² são a mesma medida contada de
+                    // três jeitos. Juntas, cabem numa linha — e sobra largura
+                    // para a coluna que faltava.
+                    { label: "Peça", w: undefined },
+                    { label: "Qtd · Dim · m²", w: 190 },
+                    { label: "Arquivo final", w: 140 },
                     { label: "Ações", w: 120, right: true },
                   ].map(col => (
                     <th
@@ -1116,10 +1201,13 @@ export default function Solicitacao() {
                       style={{
                         padding: "14px 16px",
                         width: col.w,
-                        textAlign: col.right ? "right" : col.center ? "center" : "left",
+                        textAlign: col.right ? "right" : "left",
                         fontSize: 10, fontWeight: 900,
                         textTransform: "uppercase", letterSpacing: "0.1em",
-                        color: "#746e69",
+                        // #746e69 sobre o #fafaf9 do thead da 4,55 — passa
+                        // raspando. #7a6154 da 5,49 e e o tom que as outras
+                        // telas ja usam em rotulo de coluna.
+                        color: "#7a6154",
                       }}
                     >
                       {col.label}
@@ -1247,13 +1335,16 @@ export default function Solicitacao() {
                               borderBottom: isLast ? "none" : "1px solid #f0efee",
                               backgroundColor: isSelected ? "#fff8f5" : "#fff",
                               transition: "background-color 0.1s",
-                              cursor: "default",
+                              cursor: "pointer",
                             }}
+                            onClick={() => openModal(item)}
                             onMouseEnter={e => { if (!isSelected) e.currentTarget.style.backgroundColor = "#fafaf9"; }}
                             onMouseLeave={e => { e.currentTarget.style.backgroundColor = isSelected ? "#fff8f5" : "#fff"; }}
                           >
-                            {/* Checkbox */}
-                            <td style={{ padding: "14px 24px", textAlign: "center" }}>
+                            {/* Checkbox. `stopPropagation` no <td>: a linha
+                                inteira abre o modal, e marcar para o lote não é
+                                pedir a ficha. */}
+                            <td onClick={e => e.stopPropagation()} style={{ padding: "14px 24px", textAlign: "center" }}>
                               <input
                                 type="checkbox"
                                 checked={isSelected}
@@ -1264,25 +1355,49 @@ export default function Solicitacao() {
                               />
                             </td>
 
-                            {/* ID */}
-                            <td style={{ padding: "14px 16px" }}>
-                              <span
-                                data-testid={`text-display-id-${item.id}`}
-                                style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: "#c2410c", letterSpacing: "-0.02em" }}
-                              >
-                                {item.displayId}
-                              </span>
-                            </td>
-
-                            {/* Tipo */}
-                            <td style={{ padding: "14px 16px" }}>
-                              <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                                <span style={{ fontSize: 11, fontWeight: 900, textTransform: "uppercase", color: TI.text, letterSpacing: "0.02em" }}>
+                            {/* ── Peça: ID · Tipo · Descrição ──
+                                Eram três colunas para identificar a MESMA
+                                peça, separadas por duas divisórias. Juntas,
+                                lêem-se como uma frase — e a largura que
+                                sobra vira a coluna que faltava. */}
+                            <td style={{ padding: "12px 16px", minWidth: 0 }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                                <span
+                                  data-testid={`text-display-id-${item.id}`}
+                                  style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color: "#c2410c", flexShrink: 0, whiteSpace: "nowrap" }}
+                                >
+                                  {item.displayId}
+                                </span>
+                                <span style={{ fontSize: 13, fontWeight: 700, color: TI.text, flexShrink: 0, whiteSpace: "nowrap" }}>
                                   {item.type}
                                 </span>
+                                {item.description && (
+                                  // flexShrink alto: falta largura, a descrição
+                                  // é que cede. ID e tipo identificam a peça.
+                                  <span title={item.description} style={{ fontSize: 12, color: "#57534e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flexShrink: 999, minWidth: 0 }}>
+                                    {item.description}
+                                  </span>
+                                )}
+
+                                {/* MARCADORES COMO ÍCONE. Eram pílulas com
+                                    texto ("Ref. visual", "Reaproveit.") do
+                                    tamanho da descrição, disputando com ela a
+                                    leitura — sendo que o que dizem é binário. */}
+                                {item.referenceUrl && (
+                                  <a
+                                    href={item.referenceUrl} target="_blank" rel="noopener noreferrer"
+                                    onClick={e => e.stopPropagation()}
+                                    title="Ver a referência visual do solicitante"
+                                    aria-label={`Referência visual de ${item.displayId}`}
+                                    data-testid={`link-reference-solicitacao-${item.id}`}
+                                    style={{ display: "inline-flex", color: "#2563eb", flexShrink: 0 }}
+                                  >
+                                    <Paperclip style={{ width: 13, height: 13 }} />
+                                  </a>
+                                )}
                                 {item.isReuse && (
-                                  <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "2px 7px" }}>
-                                    Reaproveit.
+                                  <span title="Reaproveitamento" aria-label="Reaproveitamento" style={{ display: "inline-flex", color: "#15803d", flexShrink: 0 }}>
+                                    <Recycle aria-hidden="true" style={{ width: 13, height: 13 }} />
                                   </span>
                                 )}
                                 {/* EVENTO FINALIZADO — sem este selo, a linha
@@ -1292,7 +1407,7 @@ export default function Solicitacao() {
                                   <span
                                     data-testid={`badge-evento-finalizado-${item.id}`}
                                     title={selo.hint}
-                                    style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: selo.bg, color: selo.text, border: `1px solid ${selo.border}`, borderRadius: 999, padding: "2px 7px", whiteSpace: "nowrap" }}
+                                    style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: selo.bg, color: selo.text, border: `1px solid ${selo.border}`, borderRadius: 999, padding: "2px 7px", whiteSpace: "nowrap", flexShrink: 0 }}
                                   >
                                     <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: selo.dot, flexShrink: 0 }} />
                                     {selo.label}
@@ -1301,42 +1416,40 @@ export default function Solicitacao() {
                               </div>
                             </td>
 
-                            {/* Descrição */}
-                            <td style={{ padding: "14px 16px" }}>
-                              <span style={{ fontSize: 13, fontWeight: 500, color: TI.secondary }}>
-                                {item.description || "—"}
+                            {/* ── Qtd · Dim · m² ──
+                                Eram três colunas para a mesma medida contada de
+                                três jeitos. Em DM Mono os números de linhas
+                                vizinhas se alinham e dá para comparar de
+                                relance, que é o que três colunas prometiam e
+                                não entregavam. */}
+                            <td style={{ padding: "12px 16px", whiteSpace: "nowrap" }}>
+                              <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: "#57534e" }}>
+                                {item.quantity ?? 0} un
+                                {item.fileWidth && item.fileHeight ? ` · ${item.fileWidth}×${item.fileHeight}` : ""}
+                                {item.calculatedM2 ? ` · ${item.calculatedM2} m²` : ""}
                               </span>
-                              {item.referenceUrl && (
-                                <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Ver referência visual" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10, fontWeight: 700, color: '#2563eb', textDecoration: 'none', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '2px 6px', marginTop: 4, marginLeft: 4 }} data-testid={`link-reference-solicitacao-${item.id}`}>
-                                  <Paperclip style={{ width: 9, height: 9 }} />
-                                  Ref. visual
-                                </a>
+                            </td>
+
+                            {/* ── Arquivo final ──
+                                Só se descobria que ele não chegou ABRINDO o
+                                modal e encontrando "Liberar" apagado: a
+                                informação que decide se a peça é revisável
+                                estava escondida atrás de um clique, numa fila
+                                de 74. */}
+                            <td data-testid={`cell-final-file-${item.id}`} style={{ padding: "12px 16px", whiteSpace: "nowrap" }}>
+                              {item.finalFileUrl ? (
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 9px", borderRadius: 999, backgroundColor: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", fontSize: 12, fontWeight: 700 }}>
+                                  <Check aria-hidden="true" style={{ width: 11, height: 11 }} /> Recebido
+                                </span>
+                              ) : (
+                                <span style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 9px", borderRadius: 999, backgroundColor: "#fff7ed", border: "1px solid #fed7aa", color: "#9a3412", fontSize: 12, fontWeight: 700 }}>
+                                  <Clock aria-hidden="true" style={{ width: 11, height: 11 }} /> Aguardando
+                                </span>
                               )}
                             </td>
 
-                            {/* Qtd */}
-                            <td style={{ padding: "14px 16px", textAlign: "center" }}>
-                              <span style={{ fontSize: 13, fontWeight: 700, color: TI.text }}>
-                                {item.quantity}
-                              </span>
-                            </td>
-
-                            {/* Dimensões */}
-                            <td style={{ padding: "14px 16px" }}>
-                              <span style={{ fontFamily: "monospace", fontSize: 11, color: TI.secondary }}>
-                                {item.fileWidth && item.fileHeight ? `${item.fileWidth}x${item.fileHeight}` : "—"}
-                              </span>
-                            </td>
-
-                            {/* M² */}
-                            <td style={{ padding: "14px 16px" }}>
-                              <span style={{ fontSize: 13, fontWeight: 900, color: item.calculatedM2 ? TI.text : "#78716c" }}>
-                                {item.calculatedM2 || "—"}
-                              </span>
-                            </td>
-
                             {/* Ação */}
-                            <td style={{ padding: "14px 16px", textAlign: "right" }}>
+                            <td onClick={e => e.stopPropagation()} style={{ padding: "12px 16px", textAlign: "right" }}>
                               <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 6 }}>
                                 <button
                                   onClick={() => openModal(item)}

@@ -1216,7 +1216,23 @@ export function ItemDetailsDialog({
                     ficha e a arte enviada num card no fim da coluna direita —
                     uma tela de rolagem entre as duas imagens que existem para
                     ser comparadas. */}
-                <div style={{ display: "grid", gridTemplateColumns: item.referenceUrl && thumbUrl ? "1fr 1fr" : "1fr", gap: 10 }}>
+                {/* ── A COMPARAÇÃO, com quantos panes houver ──
+
+                    Antes esta faixa mostrava ARTE APROVADA × FOTO DA
+                    CONFERÊNCIA — "o que o patrocinador aprovou" contra "o que
+                    saiu da impressora". A revisão trocou por REFERÊNCIA ×
+                    ARTE, que responde outra pergunta igualmente válida ("a
+                    Arte fez o que foi pedido?"), e ao trocar levou a primeira
+                    junto — sem que ninguém decidisse abrir mão dela.
+
+                    As duas cabem: são três momentos da mesma peça, na ordem em
+                    que acontecem. O terceiro pane só existe quando há foto de
+                    conferência, então na maior parte do fluxo a faixa continua
+                    com dois. */}
+                {(() => {
+                  const panes = [!!item.referenceUrl, !!thumbUrl, conferencePhotos.length > 0].filter(Boolean).length;
+                  return (
+                <div style={{ display: "grid", gridTemplateColumns: panes >= 3 ? "1fr 1fr 1fr" : panes === 2 ? "1fr 1fr" : "1fr", gap: 10 }}>
                   {item.referenceUrl && (
                     <div>
                       <a
@@ -1253,7 +1269,38 @@ export function ItemDetailsDialog({
                       <p style={{ fontSize: 12, color: "#57534e", margin: 0 }}>A Arte ainda não enviou</p>
                     </div>
                   )}
+
+                  {/* O QUE SAIU DA IMPRESSORA. Comparar isto com a arte
+                      aprovada ao lado é a conferência inteira — e era o que
+                      esta faixa fazia antes da revisão. */}
+                  {conferencePhotos.length > 0 && (
+                    <div>
+                      <a
+                        href={conferencePhotos[0]} target="_blank" rel="noopener noreferrer"
+                        title="Abrir a foto da conferência"
+                        data-testid="link-conferencia"
+                        style={{ display: "block", position: "relative", aspectRatio: "16/9", borderRadius: 10, overflow: "hidden", border: "1px solid #a5f3fc", backgroundColor: "#ecfeff" }}
+                      >
+                        <img
+                          src={conferencePhotos[0]} alt="Foto da conferência da gráfica"
+                          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                          onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                        />
+                        {conferencePhotos.length > 1 && (
+                          <span style={{ position: "absolute", bottom: 6, right: 6, backgroundColor: "rgba(14,116,144,0.92)", color: "#fff", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 999 }}>
+                            +{conferencePhotos.length - 1}
+                          </span>
+                        )}
+                      </a>
+                      <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "#0e7490", margin: "6px 0 0" }}>
+                        <Camera aria-hidden="true" style={{ width: 11, height: 11 }} />
+                        Conferido pela gráfica
+                      </p>
+                    </div>
+                  )}
                 </div>
+                  );
+                })()}
 
                 {thumbUrl && (
                   <div style={{ display: "flex", gap: 14, marginTop: 8, flexWrap: "wrap" }}>

@@ -285,8 +285,20 @@ describe("a grade de especificações não tem linha dupla", () => {
 });
 
 describe("referência e arte enviada ficam lado a lado", () => {
-  it("a comparação cabe numa grade de duas colunas", () => {
-    expect(modal).toContain('gridTemplateColumns: item.referenceUrl && thumbUrl ? "1fr 1fr" : "1fr"');
+  it("a comparação cabe numa grade que conta os panes", () => {
+    // Três momentos da mesma peça, na ordem em que acontecem: o que foi
+    // PEDIDO (referência), o que foi FEITO (arte) e o que SAIU DA IMPRESSORA
+    // (conferência). O terceiro só existe quando há foto, então na maior parte
+    // do fluxo a faixa continua com dois.
+    expect(modal).toContain('panes >= 3 ? "1fr 1fr 1fr" : panes === 2 ? "1fr 1fr" : "1fr"');
     expect(modal).toContain('data-testid="link-referencia"');
+  });
+
+  it("e a comparação arte × conferência não se perdeu na troca", () => {
+    // Ela existia aqui ANTES da revisão ("Arte aprovada" × "Conferido pela
+    // Gráfica") e saiu junto quando a faixa virou referência × arte — sem que
+    // ninguém decidisse abrir mão dela. As duas cabem.
+    expect(modal).toContain('data-testid="link-conferencia"');
+    expect(modal).toContain("Conferido pela gráfica");
   });
 });

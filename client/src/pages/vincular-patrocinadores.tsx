@@ -1049,6 +1049,20 @@ export default function VincularPatrocinadores() {
     });
   };
 
+  /** Marca (ou desmarca) todas as peças de um tipo dentro do grupo. */
+  const toggleTypeGroup = (typeItems: any[]) => {
+    const selecionaveis = typeItems.filter(item => {
+      const s = itemUIStates[item.id] || 'PENDENTE';
+      return s === 'PENDENTE' || s === 'RASCUNHO';
+    });
+    const todasMarcadas = selecionaveis.length > 0 && selecionaveis.every(item => selectedItemIds.has(item.id));
+    setSelectedItemIds(prev => {
+      const next = new Set(prev);
+      selecionaveis.forEach(item => { todasMarcadas ? next.delete(item.id) : next.add(item.id); });
+      return next;
+    });
+  };
+
   const handleOpenBulkApplyDialog = () => {
     setBulkSelectedSponsors([]);
     setBulkSkipApproval(false);
@@ -1413,6 +1427,56 @@ export default function VincularPatrocinadores() {
             <span style={{ fontSize: 12, color: '#57534e', fontStyle: 'italic' }}>Sem patrocinadores no evento</span>
           ) : (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
+              {/* ENVIADA SEM NENHUMA MARCA.
+
+                  Sem esta linha a celula fica VAZIA — e vazio se le como
+                  "ainda nao mexeram nisso", quando o que houve foi o oposto: a
+                  peca ja saiu, e saiu sem patrocinador nenhum. E cobranca que
+                  nao vai acontecer, e o unico lugar onde isso aparece.
+
+                  A arvore antiga dizia isso como "N enviadas sem vinculo" no
+                  cabecalho do grupo; ao fundir as duas visoes eu levei a frase
+                  junto sem perceber. */}
+              {estado === 'ENVIADO' && vinculados.length === 0 && (
+                <span
+                  data-testid={`sem-vinculo-enviada-${item.id}`}
+                  title="Esta peça foi enviada à Arte sem nenhum patrocinador vinculado — não vai passar por aprovação."
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 26, padding: '0 10px', borderRadius: 999, backgroundColor: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}
+                >
+                  Enviada sem patrocinador
+                </span>
+              )}
+              {/* TODOS — o atalho do caso comum. */}
+              {chips.length > 1 && editavel && estado !== 'ENVIADO' && (() => {
+                const idsDoEscopo = chips.map((sp: any) => sp.id);
+                const todosMarcados = idsDoEscopo.every((id: string) => vinculados.includes(id));
+                return (
+                  <button
+                    type="button"
+                    onClick={() => aplicarVinculo(
+                      item,
+                      todosMarcados
+                        ? vinculados.filter((id: string) => !idsDoEscopo.includes(id))
+                        : Array.from(new Set([...vinculados, ...idsDoEscopo])),
+                      false,
+                    )}
+                    aria-pressed={todosMarcados}
+                    title={todosMarcados ? 'Desvincular todos deste escopo' : 'Vincular todos os patrocinadores do evento'}
+                    data-testid={`btn-select-all-${item.id}`}
+                    style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 5,
+                      height: isMobile ? 44 : 26, padding: '0 10px', borderRadius: 999,
+                      border: `1px solid ${todosMarcados ? '#1c1917' : '#e7e5e4'}`,
+                      backgroundColor: todosMarcados ? '#1c1917' : '#f5f4f1',
+                      color: todosMarcados ? '#ffffff' : '#44403c',
+                      cursor: 'pointer', font: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {todosMarcados && <Check aria-hidden="true" style={{ width: 11, height: 11 }} />}
+                    Todos
+                  </button>
+                );
+              })()}
               {chips.map(sp => {
                 const marcado = vinculados.includes(sp.id);
                 // PEÇA ENVIADA mostra só o que ficou vinculado, em cinza e sem
@@ -1504,6 +1568,22 @@ export default function VincularPatrocinadores() {
                 o significado só no `title`: um disquete e um avião de papel
                 lado a lado, e a diferença entre salvar e ENVIAR — que tira a
                 peça da tela — ficava por conta de quem adivinhasse. */}
+            {estado === 'RASCUNHO' && editavel && (
+              <button
+                type="button"
+                onClick={() => {
+                  const originais = originalSponsorsMap[item.id] || [];
+                  setPendingChanges(prev => { const n = { ...prev }; delete n[item.id]; return n; });
+                  setItemSponsorsMap(prev => ({ ...prev, [item.id]: originais }));
+                }}
+                title="Descartar as alterações e voltar ao que está salvo"
+                aria-label={`Descartar as alterações de ${item.displayId}`}
+                data-testid={`button-discard-item-${item.id}`}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: ALVO, height: ALVO, borderRadius: R.sm, border: '1px solid #e7e5e4', backgroundColor: '#ffffff', color: '#57534e', cursor: 'pointer', padding: 0 }}
+              >
+                <X aria-hidden="true" style={{ width: 13, height: 13 }} />
+              </button>
+            )}
             {estado === 'RASCUNHO' && editavel && (
               <button
                 type="button"
@@ -2617,6 +2697,27 @@ export default function VincularPatrocinadores() {
                                depth exceeded". */
                             <tr key={`tipo-${item.id}`} style={{ borderLeft: `3px solid ${corDoLote}`, ...(isMobile ? { display: 'block', marginBottom: 8 } : {}) }}>
                               <td colSpan={5} style={{ padding: 0, backgroundColor: '#fafaf9', borderBottom: '1px solid #f0efee', ...(isMobile ? { display: 'block' } : {}) }}>
+                                <div style={{ display: 'flex', alignItems: 'center' }}>
+                                {/* O CHECKBOX DO TIPO. Numa fila de 1.120 peças,
+                                    marcar 14 "Placa KM" uma a uma é o gargalo
+                                    que a seleção em lote existe para tirar. Fora
+                                    do <button> de colapsar: um dentro do outro
+                                    é HTML inválido, e clicar no checkbox
+                                    fecharia o grupo junto. */}
+                                <span onClick={e => e.stopPropagation()} style={{ width: 46, flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
+                                  <Checkbox
+                                    checked={(() => {
+                                      const sel = doTipo.filter(i => { const st = itemUIStates[i.id] || 'PENDENTE'; return st === 'PENDENTE' || st === 'RASCUNHO'; });
+                                      if (sel.length === 0) return false;
+                                      const m = sel.filter(i => selectedItemIds.has(i.id)).length;
+                                      return m === sel.length ? true : m > 0 ? 'indeterminate' : false;
+                                    })()}
+                                    onCheckedChange={() => toggleTypeGroup(doTipo)}
+                                    disabled={doTipo.filter(i => { const st = itemUIStates[i.id] || 'PENDENTE'; return st === 'PENDENTE' || st === 'RASCUNHO'; }).length === 0}
+                                    aria-label={`Selecionar as peças do tipo ${item.type}`}
+                                    data-testid={`checkbox-group-${item.type}`}
+                                  />
+                                </span>
                                 <button
                                   type="button"
                                   onClick={() => setTiposColapsados(prev => {
@@ -2627,7 +2728,7 @@ export default function VincularPatrocinadores() {
                                   aria-expanded={!tipoFechado}
                                   data-testid={`toggle-tipo-${chaveTipo}`}
                                   style={{
-                                    width: '100%', minHeight: 34, padding: '6px 16px',
+                                    flex: 1, minWidth: 0, minHeight: 34, padding: '6px 16px 6px 0',
                                     display: 'flex', alignItems: 'center', gap: 8,
                                     background: 'none', border: 'none', cursor: 'pointer', font: 'inherit', textAlign: 'left',
                                   }}
@@ -2643,6 +2744,7 @@ export default function VincularPatrocinadores() {
                                     {textoDoLote}
                                   </span>
                                 </button>
+                                </div>
                               </td>
                             </tr>,
                           );

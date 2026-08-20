@@ -55,6 +55,48 @@ const IMPORT_QUOTA_COLORS: Record<string, { bg: string; color: string; border: s
   MINISTERIO: { bg: '#ecfdf5', color: '#047857', border: '#a7f3d0' },
 };
 
+/**
+ * O QUE FALTA NUMA LINHA, em uma função só.
+ *
+ * A triagem conta com ela e a linha se pinta com ela: dois cálculos do mesmo
+ * defeito divergiriam no primeiro ajuste, e o balde passaria a prometer um
+ * número que a tabela não entrega.
+ *
+ * A gravidade separa o que impede de produzir do que só muda o caminho da
+ * peça: sem medida ou sem m² a gráfica não tem o que imprimir; sem
+ * patrocinador a peça entra e segue, só não passa por aprovação.
+ */
+export type DefeitoImport = 'sem-patrocinador' | 'sem-medida' | 'm2-nao-fecha' | 'sem-material';
+
+export function defeitosDaLinha(row: any): DefeitoImport[] {
+  const out: DefeitoImport[] = [];
+  if ((row.suggestedSponsorIds ?? []).length === 0) out.push('sem-patrocinador');
+  // Medida de ARQUIVO — a visual não serve para produzir.
+  const temMedida = !!(parseFloat(row.fileWidth) && parseFloat(row.fileHeight));
+  if (!temMedida) out.push('sem-medida');
+  if (!(parseFloat(row.calculatedM2) > 0)) out.push('m2-nao-fecha');
+  if (!String(row.material ?? '').trim() || !String(row.finish ?? '').trim()) out.push('sem-material');
+  return out;
+}
+
+/** Vermelho impede produzir; âmbar muda o caminho da peça. */
+const DEFEITO_GRAVE = new Set<DefeitoImport>(['sem-medida', 'm2-nao-fecha']);
+
+export const DEFEITO_LABEL: Record<DefeitoImport, string> = {
+  'sem-patrocinador': 'Sem patrocinador',
+  'sem-medida': 'Sem medida',
+  'm2-nao-fecha': 'M² não fecha',
+  'sem-material': 'Sem material/acab.',
+};
+
+/** A frase por extenso de cada defeito — o `title` da linha. */
+const DEFEITO_FRASE: Record<DefeitoImport, string> = {
+  'sem-patrocinador': 'entra sem marca e não vai para aprovação',
+  'sem-medida': 'a planilha não trouxe largura ou altura de arquivo',
+  'm2-nao-fecha': 'o m² veio zerado ou não pôde ser calculado',
+  'sem-material': 'a gráfica não consegue produzir sem material e acabamento',
+};
+
 export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsList }: {
   row: any; idx: number;
   onChange: (updated: any) => void;
@@ -68,15 +110,27 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
     const updated = { ...row, [field]: value };
     if (['quantity', 'fileWidth', 'fileHeight', 'visualWidth', 'visualHeight'].includes(field)) {
       const qty = parseFloat(field === 'quantity' ? value : row.quantity) || 0;
-      const fw  = parseFloat(field === 'fileWidth'  ? value : (row.fileWidth  ?? row.visualWidth  ?? 0)) || 0;
-      const fh  = parseFloat(field === 'fileHeight' ? value : (row.fileHeight ?? row.visualHeight ?? 0)) || 0;
+      // O M² SAI DAS MEDIDAS DE ARQUIVO, e SÓ delas.
+      //
+      // Havia um `?? row.visualWidth` aqui: sem medida de arquivo, o cálculo
+      // caía para a visual e produzia um m² que não é o que vai ser impresso.
+      // Visual e arquivo são pares DISTINTOS — o visual é o que se vê na peça
+      // montada, o arquivo é o que a impressora recebe (com sangria, com
+      // sobra de acabamento), e é dele que sai o metro quadrado que a gráfica
+      // cobra. O fallback fazia a planilha sem medida de arquivo importar um
+      // orçamento errado sem avisar ninguém.
+      //
+      // Sem medida de arquivo o m² fica ZERO, e a triagem ao lado passa a
+      // dizer isso em voz alta.
+      const fw  = parseFloat(field === 'fileWidth'  ? value : (row.fileWidth  ?? 0)) || 0;
+      const fh  = parseFloat(field === 'fileHeight' ? value : (row.fileHeight ?? 0)) || 0;
       updated.calculatedM2 = fw && fh ? (qty * fw * fh).toFixed(2) : '0';
       if (fw && fh) updated.measurement = `${fw.toFixed(2)} × ${fh.toFixed(2)}`;
     }
     onChange(updated);
   };
 
-  const cell = (field: string, val: any, opts?: { dim?: boolean; mono?: boolean; wide?: boolean }) => {
+  const cell = (field: string, val: any, opts?: { dim?: boolean; mono?: boolean; wide?: boolean; alerta?: string }) => {
     const isEditing = editField === field;
     const display = val !== null && val !== undefined && val !== '' ? String(val) : '—';
     const rowBg = hovered ? '#f7f6f4' : (idx % 2 === 0 ? '#fff' : '#fafaf9');
@@ -117,11 +171,20 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
             whiteSpace: 'nowrap',
           }}>{display}</span>
         )}
+        {/* O PONTO DO DEFEITO. Fica na descrição porque é onde o olho já está
+            quando varre a lista — a faixa lateral de 3px só entra no campo de
+            visão de quem já está olhando para a esquerda da tabela. */}
+        {opts?.alerta && !isEditing && (
+          <span
+            aria-hidden="true"
+            style={{ display: 'inline-block', width: 7, height: 7, borderRadius: '50%', backgroundColor: opts.alerta, marginTop: 4 }}
+          />
+        )}
       </td>
     );
   };
 
-  const dimCell = (fieldW: string, fieldH: string, valW: any, valH: any, dimStyle?: boolean) => {
+  const dimCell = (fieldW: string, fieldH: string, valW: any, valH: any, dimStyle?: boolean, alerta?: boolean) => {
     const rowBg = hovered ? '#f7f6f4' : (idx % 2 === 0 ? '#fff' : '#fafaf9');
     const editingW = editField === fieldW;
     const editingH = editField === fieldH;
@@ -134,14 +197,14 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
             <input autoFocus defaultValue={valW ?? ''} onBlur={e => { update(fieldW, e.target.value); setEditField(null); }} onKeyDown={e => { if (e.key==='Enter'){update(fieldW,(e.target as HTMLInputElement).value);setEditField(null);} if(e.key==='Escape')setEditField(null); }}
               style={{ width: 44, border: 'none', borderBottom: '2px solid #f97316', fontSize: 11, padding: '0 2px', backgroundColor: 'transparent', fontFamily: 'DM Mono, monospace', color: '#1a1c1c' }} />
           ) : (
-            <span onClick={() => setEditField(fieldW)} tabIndex={0} role="button" onKeyDown={editableKeyDown(() => setEditField(fieldW))} title="Clique para editar" style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: dimStyle ? '#746e69' : '#1a1c1c', cursor: 'text', minWidth: 24 }}>{dispW}</span>
+            <span onClick={() => setEditField(fieldW)} tabIndex={0} role="button" onKeyDown={editableKeyDown(() => setEditField(fieldW))} title="Clique para editar" style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: alerta ? '#b91c1c' : dimStyle ? '#746e69' : '#1a1c1c', fontWeight: alerta ? 700 : undefined, cursor: 'text', minWidth: 24 }}>{dispW}</span>
           )}
           <span style={{ color: '#d0cdc9', fontSize: 10, userSelect: 'none' }}>×</span>
           {editingH ? (
             <input autoFocus defaultValue={valH ?? ''} onBlur={e => { update(fieldH, e.target.value); setEditField(null); }} onKeyDown={e => { if (e.key==='Enter'){update(fieldH,(e.target as HTMLInputElement).value);setEditField(null);} if(e.key==='Escape')setEditField(null); }}
               style={{ width: 44, border: 'none', borderBottom: '2px solid #f97316', fontSize: 11, padding: '0 2px', backgroundColor: 'transparent', fontFamily: 'DM Mono, monospace', color: '#1a1c1c' }} />
           ) : (
-            <span onClick={() => setEditField(fieldH)} tabIndex={0} role="button" onKeyDown={editableKeyDown(() => setEditField(fieldH))} title="Clique para editar" style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: dimStyle ? '#746e69' : '#1a1c1c', cursor: 'text', minWidth: 24 }}>{dispH}</span>
+            <span onClick={() => setEditField(fieldH)} tabIndex={0} role="button" onKeyDown={editableKeyDown(() => setEditField(fieldH))} title="Clique para editar" style={{ fontSize: 11, fontFamily: 'DM Mono, monospace', color: alerta ? '#b91c1c' : dimStyle ? '#746e69' : '#1a1c1c', fontWeight: alerta ? 700 : undefined, cursor: 'text', minWidth: 24 }}>{dispH}</span>
           )}
         </div>
       </td>
@@ -152,22 +215,48 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
   const m2Color = m2 > 30 ? '#dc2626' : m2 > 10 ? '#ea580c' : m2 > 0 ? '#16a34a' : '#d0cdc9';
 
   const hasSponsors = (row.suggestedSponsorIds ?? []).length > 0;
-  const rowBg = hovered ? '#f7f6f4' : (idx % 2 === 0 ? '#fff' : '#fafaf9');
+
+  // ── A LINHA SE ANUNCIA ──
+  //
+  // São 10 colunas. Achar o que falta exigia ler as dez, linha por linha, e
+  // decidir de cabeça se aquele branco importava — numa planilha de 60 peças
+  // isso não acontece: a pessoa importa e descobre depois, com a peça já no
+  // evento.
+  const defeitos = defeitosDaLinha(row);
+  const grave = defeitos.some(d => DEFEITO_GRAVE.has(d));
+  const corDoDefeito = defeitos.length === 0 ? null : grave ? '#dc2626' : '#d97706';
+  const fundoDoDefeito = defeitos.length === 0 ? null : grave ? '#fffbfa' : '#fffdf7';
+  const tituloDosDefeitos = defeitos.length === 0
+    ? undefined
+    : defeitos.map(d => `${DEFEITO_LABEL[d]}: ${DEFEITO_FRASE[d]}`).join(' · ');
+
+  const semMedida = defeitos.includes('sem-medida');
+  const semM2 = defeitos.includes('m2-nao-fecha');
+
+  const rowBg = hovered ? '#f7f6f4' : (fundoDoDefeito ?? (idx % 2 === 0 ? '#fff' : '#fafaf9'));
 
   return (
     <tr
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      style={{ transition: 'background 0.12s' }}
+      title={tituloDosDefeitos}
+      data-testid={`import-row-${idx}`}
+      style={{ transition: 'background 0.12s', boxShadow: corDoDefeito ? `inset 3px 0 0 ${corDoDefeito}` : undefined }}
     >
-      {cell('description', row.description, { wide: true })}
+      {/* O ponto ao lado da descrição: o defeito se anuncia onde o olho já
+          está, sem depender de a faixa lateral entrar no campo de visão. */}
+      {cell('description', row.description, { wide: true, alerta: corDoDefeito ?? undefined })}
       {cell('quantity', row.quantity, { mono: true })}
       {dimCell('visualWidth', 'visualHeight', row.visualWidth, row.visualHeight, true)}
-      {dimCell('fileWidth', 'fileHeight', row.fileWidth, row.fileHeight, false)}
+      {/* Só a de ARQUIVO acende: a visual pode faltar sem impedir nada. */}
+      {dimCell('fileWidth', 'fileHeight', row.fileWidth, row.fileHeight, false, semMedida)}
 
       {/* M² */}
       <td style={{ padding: '8px 10px', borderBottom: '1px solid #f0efed', whiteSpace: 'nowrap', backgroundColor: rowBg }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: m2Color, fontFamily: 'DM Mono, monospace', letterSpacing: '-0.02em' }}>
+        {/* Zerado, o m² fica VERMELHO e não no cinza da escala: um traço
+            cinza se lê como "não se aplica", e aqui se aplica — é orçamento
+            que não fecha. A escala de cor do valor positivo continua a mesma. */}
+        <span style={{ fontSize: 13, fontWeight: 700, color: semM2 ? '#b91c1c' : m2Color, fontFamily: 'DM Mono, monospace', letterSpacing: '-0.02em' }}>
           {m2 > 0 ? m2.toFixed(2) : '—'}
         </span>
       </td>
@@ -339,11 +428,26 @@ export function ImportXlsxDialog({
   // nativo destoava do produto (flagrado em produção).
   const [confirmDiscardOpen, setConfirmDiscardOpen] = useState(false);
 
+  // ── TRIAGEM ──────────────────────────────────────────────────────────────
+  //
+  // A barra lateral dizia "42% vinculados" e mais nada. Saber QUAIS linhas
+  // exigem atenção obrigava a ler as 10 colunas, linha por linha — e numa
+  // planilha de 60 peças isso não acontece: a pessoa importa e descobre
+  // depois, com a peça já no evento e o orçamento já errado.
+  const [triagem, setTriagem] = useState<DefeitoImport | null>(null);
+
   // Predicado único da busca do preview — usado na contagem, no "+ Todos" e
   // no empty-state de filtro sem resultado.
   const importQ = importSearch.toLowerCase();
   const matchesImportSearch = (i: any) =>
     !importSearch || i.description?.toLowerCase().includes(importQ) || i.type?.toLowerCase().includes(importQ);
+
+  // O RECORTE, uma função só: a busca E a triagem. A contagem de cada balde
+  // sai do MESMO predicado que a tabela aplica — com a própria dimensão de
+  // fora —, então o número do balde é exatamente o de linhas que o clique
+  // entrega.
+  const passaNaTriagem = (i: any) => !triagem || defeitosDaLinha(i).includes(triagem);
+  const matchesImportFiltros = (i: any) => matchesImportSearch(i) && passaNaTriagem(i);
 
   return (
     <Dialog open={open} onOpenChange={(v) => {
@@ -465,6 +569,66 @@ export function ImportXlsxDialog({
                     <div style={{ height: '100%', width: `${linkPct}%`, backgroundColor: linkPct === 100 ? '#16a34a' : '#d97706', borderRadius: 999, transition: 'width 0.4s' }} />
                   </div>
                 </div>
+
+                {/* ── ANTES DE IMPORTAR ──
+
+                    Quatro baldes clicáveis. A contagem sai do mesmo predicado
+                    da tabela (`defeitosDaLinha`), com a busca aplicada e a
+                    própria triagem de fora — o número é o de linhas que o
+                    clique entrega, não o de um pool vizinho.
+
+                    Balde zerado fica esmaecido e sem clique: um balde que
+                    devolve lista vazia é indistinguível de um filtro quebrado.
+                    E ele CONTINUA na lista em vez de sumir — "0 sem medida" é
+                    a boa notícia que a pessoa veio buscar. */}
+                {(() => {
+                  const naBusca = allItems.filter(matchesImportSearch);
+                  const baldes: { chave: DefeitoImport; cor: string }[] = [
+                    { chave: 'sem-patrocinador', cor: '#d97706' },
+                    { chave: 'sem-medida', cor: '#dc2626' },
+                    { chave: 'm2-nao-fecha', cor: '#dc2626' },
+                    { chave: 'sem-material', cor: '#d97706' },
+                  ];
+                  return (
+                    <div>
+                      <div style={{ fontSize: 11, color: '#746e69', fontWeight: 600, marginBottom: 6 }}>Antes de importar</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {baldes.map(({ chave, cor }) => {
+                          const n = naBusca.filter(i => defeitosDaLinha(i).includes(chave)).length;
+                          const ligado = triagem === chave;
+                          const vazio = n === 0;
+                          return (
+                            <button
+                              key={chave}
+                              type="button"
+                              onClick={vazio ? undefined : () => setTriagem(ligado ? null : chave)}
+                              aria-pressed={ligado}
+                              disabled={vazio}
+                              data-testid={`triagem-${chave}`}
+                              title={vazio
+                                ? `Nenhuma peça com este problema`
+                                : ligado ? 'Mostrar todas as peças de novo' : `Ver as ${n} com este problema`}
+                              style={{
+                                display: 'flex', alignItems: 'center', gap: 7, width: '100%',
+                                padding: '6px 9px', borderRadius: 7, textAlign: 'left',
+                                border: `1px solid ${ligado ? '#1c1917' : '#e7e5e4'}`,
+                                backgroundColor: ligado ? '#1c1917' : '#fff',
+                                color: ligado ? '#fff' : '#44403c',
+                                opacity: vazio ? 0.45 : 1,
+                                cursor: vazio ? 'default' : 'pointer',
+                                font: 'inherit', fontSize: 11, fontWeight: 600,
+                              }}
+                            >
+                              <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: ligado ? '#fff' : cor, flexShrink: 0 }} />
+                              <span style={{ flex: 1, minWidth: 0 }}>{DEFEITO_LABEL[chave]}</span>
+                              <span style={{ fontFamily: 'DM Mono, monospace', fontWeight: 700 }}>{n}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
               </>
             );
           })()}
@@ -558,11 +722,24 @@ export function ImportXlsxDialog({
                 />
               </div>
               <span style={{ fontSize: 11, color: '#746e69', whiteSpace: 'nowrap', fontWeight: 600 }}>
-                {importSearch
-                  ? `${importPreviewItems.filter(matchesImportSearch).length} de ${importPreviewItems.length}`
+                {importSearch || triagem
+                  ? `${importPreviewItems.filter(matchesImportFiltros).length} de ${importPreviewItems.length} peças`
                   : `${importPreviewItems.length} peças`
                 }
               </span>
+              {/* O "Limpar" da triagem: um balde ligado na barra lateral fica
+                  longe da tabela que ele recortou, e sem saída à mão a pessoa
+                  lê a lista curta como "a planilha tem 4 peças". */}
+              {triagem && (
+                <button
+                  type="button"
+                  onClick={() => setTriagem(null)}
+                  data-testid="button-limpar-triagem"
+                  style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', background: 'none', border: 'none', cursor: 'pointer', whiteSpace: 'nowrap', padding: 0 }}
+                >
+                  Limpar
+                </button>
+              )}
               {eventSponsorsList.length > 0 && (
                 <button
                   type="button"
@@ -606,7 +783,7 @@ export function ImportXlsxDialog({
                 </thead>
                 <tbody>
                   {(() => {
-                    const items = importPreviewItems.filter(matchesImportSearch);
+                    const items = importPreviewItems.filter(matchesImportFiltros);
                     const groupMap = new Map<string, any[]>();
                     for (const item of items) {
                       const t = item.type || '—';
@@ -662,13 +839,16 @@ export function ImportXlsxDialog({
               )}
               {/* Filtro sem resultado: antes a tabela simplesmente sumia,
                   sem dizer o porquê nem oferecer saída. */}
-              {importPreviewItems.length > 0 && importPreviewItems.filter(matchesImportSearch).length === 0 && (
+              {importPreviewItems.length > 0 && importPreviewItems.filter(matchesImportFiltros).length === 0 && (
                 <div style={{ padding: 60, textAlign: 'center', color: '#746e69', fontSize: 13 }}>
                   <Search style={{ width: 32, height: 32, color: '#a8a29e', margin: '0 auto 12px' }} />
                   <div style={{ fontWeight: 700, color: '#1a1c1c', marginBottom: 4 }}>Nenhuma peça corresponde ao filtro</div>
                   <div style={{ marginBottom: 14 }}>Tente outro termo ou limpe o filtro para ver as {importPreviewItems.length} peças.</div>
                   <button
-                    onClick={() => setImportSearch("")}
+                    // Limpa os DOIS recortes: com a triagem ligada, um
+                    // "Limpar filtro" que so apaga a busca deixa a tela
+                    // vazia depois de a pessoa ter pedido para limpar.
+                    onClick={() => { setImportSearch(""); setTriagem(null); }}
                     data-testid="button-clear-import-search"
                     style={{ padding: '8px 18px', backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 8, fontSize: 12, fontWeight: 700, color: '#1a1c1c', cursor: 'pointer' }}
                   >

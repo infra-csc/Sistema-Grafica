@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Package, Check, Calendar, Truck, AlertTriangle, CheckCircle2, X, Building2, Plus, Search, Users, ClipboardList, Save, Send, ChevronDown, Info, Lock, Paperclip, ExternalLink, RotateCcw, Zap } from "lucide-react";
+import { Package, Check, Calendar, Truck, AlertTriangle, CheckCircle2, X, Building2, Plus, Search, Users, ClipboardList, Save, Send, ChevronDown, Info, Lock, Paperclip, ExternalLink, RotateCcw, Zap, EyeOff, MoreHorizontal, Recycle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 // `isAfter`/`startOfDay` saíram junto com os dois recortes de data que esta
 // tela mantinha por conta própria — a comparação de dia agora é a do predicado
@@ -191,10 +191,24 @@ export default function VincularPatrocinadores() {
   const [refImgFailed, setRefImgFailed] = useState(false);
   useEffect(() => { setRefImgFailed(false); }, [previewRefUrl]);
 
-  // Vista principal: por-item (existente) | por-patrocinador (nova)
-  const [viewMode, setViewMode] = useState<"por-item" | "por-patrocinador">(
-    () => (initParams.get("view") === "por-patrocinador" ? "por-patrocinador" : "por-item")
-  );
+  // ── AGRUPAMENTO, não visão ───────────────────────────────────────────────
+  //
+  // Eram duas ABAS — "Por Item" e "Por Patrocinador" —, e por isso duas
+  // árvores de JSX quase completas com a mesma informação e conjuntos de ação
+  // DIFERENTES: a aba do patrocinador tinha Vincular/Desvincular/Enviar que a
+  // outra não tinha, e a do item tinha salvar e o menu de linha que faltavam
+  // na outra. Trocar de aba mudava o que dava para fazer, o que nenhuma aba
+  // deveria fazer.
+  //
+  // Agrupar é a operação de verdade: a tabela é a mesma, muda o cabeçalho do
+  // grupo e o escopo dos chips.
+  //
+  // O parâmetro de URL continua sendo `view` e ainda entende os dois valores
+  // antigos — link salvo por alguém não pode deixar de abrir.
+  const [agrupamento, setAgrupamento] = useState<"evento" | "patrocinador">(() => {
+    const v = initParams.get("view");
+    return v === "patrocinador" || v === "por-patrocinador" ? "patrocinador" : "evento";
+  });
 
   // Blocos (evento ou grupo de patrocinador) com todas as linhas visíveis
   const [showAllRows, setShowAllRows] = useState<Set<string>>(new Set());
@@ -207,10 +221,10 @@ export default function VincularPatrocinadores() {
     if (sponsorFilter.length) p.set("sp", sponsorFilter.join(","));
     if (itemFilter.length) p.set("tp", itemFilter.join(","));
     if (statusFilter.length) p.set("st", statusFilter.join(","));
-    if (viewMode !== "por-item") p.set("view", viewMode);
+    if (agrupamento !== "evento") p.set("view", agrupamento);
     const qs = p.toString();
     window.history.replaceState(null, "", qs ? `${window.location.pathname}?${qs}` : window.location.pathname);
-  }, [searchQuery, eventFilter, sponsorFilter, itemFilter, statusFilter, viewMode]);
+  }, [searchQuery, eventFilter, sponsorFilter, itemFilter, statusFilter, agrupamento]);
 
   // Atalho "/" foca a busca (padrão da casa)
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -636,10 +650,55 @@ export default function VincularPatrocinadores() {
       .map(v => ({ value: v, label: ROTULO[v], count: conta.get(v) ?? 0, pinned: true }));
   }, [contextVisibleItems, eventById, searchQuery, itemFilter, sponsorFilter, statusFilter, originalSponsorsMap, pendingChanges]);
 
-  // Contadores de contexto: sobre fullyFilteredItems (TODOS os filtros ativos).
-  // Antes usava contextVisibleItems (só filtro de evento) e a barra segmentada
-  // dos cartões somava mais que o total filtrado — estourava 100% e as ações
-  // em lote pegavam peças fora do filtro.
+  // ── AS DUAS CONTAGENS, e o papel de cada uma ─────────────────────────────
+  //
+  // `contagemPorEstado` sai do pool SEM a dimensão status — é a contagem de
+  // FACETA. Ela alimenta a barra segmentada, os quatro chips e a frase de
+  // resolução, e é o que faz valer a invariante que o resto do app já segue:
+  // o número ao lado de um filtro tem de ser o número de linhas que o clique
+  // entrega. Se saísse de fullyFilteredItems, clicar em "Pendente" zeraria os
+  // outros três chips e a barra viraria um bloco só — o mapa desapareceria
+  // junto com o recorte.
+  //
+  // `contextStatusCounts` continua saindo de fullyFilteredItems porque serve a
+  // outra coisa: o botão "Enviar N para Arte" AGE sobre as peças filtradas, e
+  // a contagem dele tem de ser a do que vai de fato sair.
+  const contagemPorEstado = useMemo(() => {
+    const c = { PENDENTE: 0, RASCUNHO: 0, PRONTO: 0, ENVIADO: 0 };
+    poolSemDimensao("status").forEach(i => {
+      const st = getItemUIStatus(i, originalSponsorsMap[i.id] || [], pendingChanges[i.id]);
+      c[st as keyof typeof c]++;
+    });
+    return c;
+  }, [contextVisibleItems, eventById, searchQuery, itemFilter, sponsorFilter, originalSponsorsMap, pendingChanges]);
+
+  const totalDoContexto = contagemPorEstado.PENDENTE + contagemPorEstado.RASCUNHO
+                        + contagemPorEstado.PRONTO + contagemPorEstado.ENVIADO;
+
+  // ── A FRASE DE RESOLUÇÃO ─────────────────────────────────────────────────
+  //
+  // Substitui três cartões de contagem. Os cartões diziam "12 pendentes, 3
+  // rascunhos, 5 prontos" e deixavam a soma mental por conta de quem lê: o que
+  // a pessoa quer saber ao abrir a tela é O QUE FAZER AGORA, e a resposta é
+  // sempre uma só — a primeira coisa da fila. A precedência é a do fluxo:
+  // vincular vem antes de salvar, que vem antes de enviar.
+  const fraseDeResolucao = (() => {
+    const { PENDENTE: pend, RASCUNHO: rasc, PRONTO: pron } = contagemPorEstado;
+    const pecas = (n: number) => `${n} ${n === 1 ? "peça" : "peças"}`;
+    if (pend > 0) {
+      const base = `${pecas(pend)} ainda ${pend === 1 ? "não tem" : "não têm"} patrocinador`;
+      return rasc > 0
+        ? `${base} e ${rasc} ${rasc === 1 ? "rascunho espera" : "rascunhos esperam"} ser ${rasc === 1 ? "salvo" : "salvos"}.`
+        : `${base}.`;
+    }
+    if (rasc > 0) return `${rasc} ${rasc === 1 ? "rascunho espera" : "rascunhos esperam"} ser ${rasc === 1 ? "salvo" : "salvos"} antes do envio à Arte.`;
+    if (pron > 0) return `Tudo vinculado. ${pecas(pron)} ${pron === 1 ? "pronta" : "prontas"} para enviar à Arte.`;
+    return "Tudo enviado à Arte. Nada pendente nesta tela.";
+  })();
+
+  const alternarStatus = (estado: string) =>
+    setStatusFilter(prev => prev.includes(estado) ? prev.filter(v => v !== estado) : [...prev, estado]);
+
   const contextStatusCounts = useMemo(() => {
     const counts = { RASCUNHO: 0, PRONTO: 0, ENVIADO: 0, PENDENTE: 0 };
     fullyFilteredItems.forEach(item => {
@@ -1659,8 +1718,13 @@ export default function VincularPatrocinadores() {
           <h1 style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 'clamp(1.5rem, 2.5vw, 1.875rem)', fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.1, color: '#1a1c1c', marginBottom: 6 }}>
             Vincular Patrocinadores
           </h1>
-          <p style={{ color: '#746e69', fontSize: 15, fontWeight: 500, lineHeight: 1.5, marginBottom: 10 }}>
-            Associe patrocinadores a cada item antes do envio à Arte.
+          {/* A legenda era a mesma frase todo dia: "Associe patrocinadores a
+              cada item antes do envio à Arte" — a descrição da tela, que quem
+              chega aqui já sabe. No lugar dela, o que muda a cada visita: o que
+              falta fazer agora. #57534e e não o #746e69 de antes — 4,4:1 não
+              passa a régua da casa. */}
+          <p data-testid="frase-resolucao" style={{ color: '#57534e', fontSize: 14, fontWeight: 500, lineHeight: 1.5, marginBottom: 10, maxWidth: 560 }}>
+            {fraseDeResolucao}
           </p>
         </div>
         <div style={{ display: 'flex', gap: 10, flexShrink: 0, flexWrap: 'wrap' }}>
@@ -1751,264 +1815,235 @@ export default function VincularPatrocinadores() {
             onMouseLeave={e => { if (contextStatusCounts.PRONTO > 0) e.currentTarget.style.backgroundColor = '#c2410c'; }}
           >
             <Send style={{ width: 14, height: 14, flexShrink: 0 }} />
-            Enviar para Arte
-            {contextStatusCounts.PRONTO > 0 && (
-              <span style={{ backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: R.sm, padding: '2px 7px', fontSize: 11, fontWeight: 800 }}>
-                {contextStatusCounts.PRONTO}
-              </span>
-            )}
+            {/* A CONTAGEM ENTRA NO RÓTULO. Era um selo separado ao lado dele:
+                dois elementos para uma informação só, e o rótulo sozinho não
+                dizia o tamanho do que ia acontecer. "Enviar 2 para Arte" é a
+                frase inteira — e some quando não há nada a enviar, porque aí o
+                que importa é o motivo, que está no title. */}
+            {contextStatusCounts.PRONTO > 0 ? `Enviar ${contextStatusCounts.PRONTO} para Arte` : 'Enviar para Arte'}
           </button>
           </span>
         </div>
       </div>
 
-      {/* ── Progress Section ── */}
-      <div style={{ backgroundColor: '#f3f4f3', borderRadius: 12, padding: '20px 24px', marginBottom: 32 }}>
-        {/* Row 1: título + número total */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 14 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#746e69' }}>Progresso de Envio</span>
-          <span style={{ fontFamily: 'Space Grotesk, sans-serif', fontSize: 22, fontWeight: 700, color: '#1a1c1c', letterSpacing: '-0.03em' }}>
-            {completedItems} <span style={{ color: '#746e69' }}>de</span> {totalItems}{' '}
-            <span style={{ fontSize: 11, fontWeight: 600, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.06em' }}>enviados</span>
+      {/* ══════════════════════════════════════════════════════════════════
+          BARRA DE STATUS — o mapa e o recorte, na mesma linha.
+
+          Eram três cartões de ~90px com contagem e legenda, dentro de um
+          painel de 20px de respiro. Custavam a altura de duas linhas da
+          tabela para dizer três números que ninguém pode CLICAR: para ver só
+          as pendentes era preciso descer até o menu de Status, abrir e
+          marcar. Agora o número é o próprio filtro.
+
+          A barra segmentada fica: ela responde "quanto falta no total", que
+          nenhum chip responde sozinho.
+      ══════════════════════════════════════════════════════════════════ */}
+      <div style={{
+        borderTop: '1px solid #ebe8e4', borderBottom: '1px solid #ebe8e4',
+        padding: '12px 0 14px', marginBottom: 20,
+        display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap',
+      }}>
+        {/* Proporção + total */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+          <div aria-hidden="true" style={{ width: 132, height: 8, backgroundColor: '#e7e5e4', borderRadius: 999, overflow: 'hidden', display: 'flex' }}>
+            {([
+              ['PENDENTE', '#78716c'],
+              ['RASCUNHO', '#c2410c'],
+              ['PRONTO',   '#15803d'],
+              ['ENVIADO',  '#1c1917'],
+            ] as const)
+              .map(([k, cor]) => ({ k, cor, pct: (contagemPorEstado[k] / (totalDoContexto || 1)) * 100 }))
+              .filter(seg => seg.pct > 0)
+              .map(seg => (
+                <div key={seg.k} style={{ width: `${seg.pct}%`, height: '100%', backgroundColor: seg.cor, transition: 'width 0.4s ease' }} />
+              ))}
+          </div>
+          <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: '#57534e', whiteSpace: 'nowrap' }}>
+            {contagemPorEstado.ENVIADO}/{totalDoContexto} enviadas
           </span>
         </div>
 
-        {/* Barra segmentada: PENDENTE | RASCUNHO | PRONTO | ENVIADO */}
-        {(() => {
-          const total = totalItems || 1;
-          // Os tons claros (#fb923c, #4ade80) ficavam em 1.4–1.8:1 contra o
-          // trilho: os segmentos quase sumiam. Usar os mesmos tons dos badges
-          // deixa a barra legível e faz "rascunho" e "pronto" terem aqui a
-          // mesma cor que têm no resto do sistema.
-          const segs = [
-            { key: 'PENDENTE', color: '#746e69', pct: (contextStatusCounts.PENDENTE / total) * 100 },
-            { key: 'RASCUNHO', color: '#c2410c', pct: (contextStatusCounts.RASCUNHO / total) * 100 },
-            { key: 'PRONTO',   color: '#15803d', pct: (contextStatusCounts.PRONTO   / total) * 100 },
-            { key: 'ENVIADO',  color: '#1c1917', pct: (contextStatusCounts.ENVIADO  / total) * 100 },
-          ].filter(s => s.pct > 0);
-          return (
-            <div style={{ width: '100%', height: 10, backgroundColor: '#e7e5e4', borderRadius: 6, overflow: 'hidden', display: 'flex' }}>
-              {segs.map((s, i) => (
-                <div key={s.key} style={{
-                  height: '100%', backgroundColor: s.color,
-                  width: `${s.pct}%`,
-                  transition: 'width 0.5s ease',
-                  borderRadius: i === 0 && segs.length === 1 ? 6 : i === 0 ? '6px 0 0 6px' : i === segs.length - 1 ? '0 6px 6px 0' : 0,
-                }} />
-              ))}
-            </div>
-          );
-        })()}
-
-
-        {/* Row 2: 3 cartões de status acionáveis */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginTop: 16 }}>
-
-          {/* PENDENTE — a borda de destaque agora usa a mesma cor do rótulo do
-              cartão. Antes borda e rótulo discordavam (#d4d0cc contra #746e69,
-              #fb923c contra #c2410c), o que fazia a faixa lateral parecer
-              decoração solta em vez de código de cor do status. */}
-          <div style={{ backgroundColor: '#ffffff', borderRadius: R.md, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, borderLeft: '3px solid #a8a29e' }}>
-            <div>
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 6px' }}>Sem ação</p>
-              <p style={{ fontSize: 22, fontWeight: 800, color: '#1a1c1c', lineHeight: 1, margin: 0, letterSpacing: '-0.03em' }}>
-                {contextStatusCounts.PENDENTE}
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#746e69', marginLeft: 5, letterSpacing: 0 }}>{contextStatusCounts.PENDENTE !== 1 ? 'itens' : 'item'}</span>
-              </p>
-              <p style={{ fontSize: 11, color: '#746e69', margin: '5px 0 0' }}>Aguardando vinculação</p>
-            </div>
-          </div>
-
-          {/* RASCUNHO */}
-          <div style={{ backgroundColor: '#ffffff', borderRadius: R.md, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, borderLeft: '3px solid #c2410c' }}>
-            <div>
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#c2410c', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 6px' }}>Rascunho</p>
-              <p style={{ fontSize: 22, fontWeight: 800, color: '#1a1c1c', lineHeight: 1, margin: 0, letterSpacing: '-0.03em' }}>
-                {contextStatusCounts.RASCUNHO}
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#746e69', marginLeft: 5, letterSpacing: 0 }}>{contextStatusCounts.RASCUNHO !== 1 ? 'itens' : 'item'}</span>
-              </p>
-              <p style={{ fontSize: 11, color: '#746e69', margin: '5px 0 0' }}>Patrocinador adicionado, não salvo</p>
-            </div>
-            {contextStatusCounts.RASCUNHO > 0 && (
+        {/* Os quatro estados, clicáveis */}
+        <div role="group" aria-label="Filtrar por situação" style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          {([
+            ['PENDENTE', 'Pendente', '#78716c'],
+            ['RASCUNHO', 'Rascunho', '#c2410c'],
+            ['PRONTO',   'Pronto',   '#15803d'],
+            ['ENVIADO',  'Enviado',  '#1c1917'],
+          ] as const).map(([estado, rotulo, cor]) => {
+            const n = contagemPorEstado[estado];
+            const marcado = statusFilter.includes(estado);
+            // Situação sem nenhuma peça sai da linha — o clique nela devolveria
+            // lista vazia sem dizer por quê. Fica se estiver marcada, senão o
+            // chip sumiria com o próprio filtro ligado e não haveria como
+            // desligá-lo.
+            if (n === 0 && !marcado) return null;
+            return (
               <button
-                onClick={() => {
-                  const rascunhoItems = fullyFilteredItems.filter(i => itemUIStates[i.id] === 'RASCUNHO');
-                  const payloads = rascunhoItems.map(i => {
-                    const ch = pendingChanges[i.id];
-                    return { itemId: i.id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false };
-                  });
-                  setSaveConfirmModal({ payloads, items: rascunhoItems });
+                key={estado}
+                type="button"
+                onClick={() => alternarStatus(estado)}
+                aria-pressed={marcado}
+                title={marcado ? `Remover o filtro ${rotulo}` : `Ver só ${rotulo.toLowerCase()}`}
+                data-testid={`chip-status-${estado.toLowerCase()}`}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 7,
+                  height: 32, padding: '0 12px', borderRadius: 999,
+                  border: marcado ? '1px solid #1c1917' : '1px solid #e7e5e4',
+                  backgroundColor: marcado ? '#1c1917' : '#ffffff',
+                  color: marcado ? '#ffffff' : '#44403c',
+                  cursor: 'pointer', font: 'inherit', fontSize: 13, fontWeight: 600,
+                  whiteSpace: 'nowrap', transition: 'background 0.15s, color 0.15s',
                 }}
-                disabled={saveLinkingMutation.isPending}
-                title="Salvar todos os rascunhos"
-                /* Só o `title` nomeava o botão: leitor de tela anunciava um
-                   botão sem rótulo. E 26px de alvo é pequeno demais para uma
-                   ação em lote — 34px é confortável sem virar destaque. */
-                aria-label="Salvar todos os rascunhos"
-                data-testid="button-save-all-drafts"
-                style={{ background: '#fff7ed', border: '1px solid #fed7aa', borderRadius: R.md, cursor: 'pointer', color: '#c2410c', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, flexShrink: 0 }}
               >
-                <Save style={{ width: 15, height: 15 }} />
+                <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: '50%', backgroundColor: marcado ? '#ffffff' : cor, flexShrink: 0 }} />
+                {rotulo}
+                <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, opacity: marcado ? 1 : 0.75 }}>{n}</span>
               </button>
-            )}
-          </div>
+            );
+          })}
+        </div>
 
-          {/* PRONTO */}
-          <div style={{ backgroundColor: '#ffffff', borderRadius: R.md, padding: '14px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, borderLeft: '3px solid #15803d' }}>
-            <div>
-              <p style={{ fontSize: 11, fontWeight: 700, color: '#166534', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 6px' }}>Pronto para envio</p>
-              <p style={{ fontSize: 22, fontWeight: 800, color: '#1a1c1c', lineHeight: 1, margin: 0, letterSpacing: '-0.03em' }}>
-                {contextStatusCounts.PRONTO}
-                <span style={{ fontSize: 11, fontWeight: 600, color: '#746e69', marginLeft: 5, letterSpacing: 0 }}>{contextStatusCounts.PRONTO !== 1 ? 'itens' : 'item'}</span>
-              </p>
-              <p style={{ fontSize: 11, color: '#746e69', margin: '5px 0 0' }}>Salvo, aguardando envio à Arte</p>
-            </div>
-            {contextStatusCounts.PRONTO > 0 && (
-              <button
-                onClick={() => {
-                  const prontoItems = fullyFilteredItems.filter(i => itemUIStates[i.id] === 'PRONTO');
-                  if (prontoItems.length === 0) return;
-                  const pendingByItem: Record<string, Set<string>> = {};
-                  prontoItems.forEach(i => { pendingByItem[i.id] = new Set(); });
-                  setSendConfirmModal({ items: prontoItems, pendingByItem });
-                }}
-                disabled={sendToArteMutation.isPending}
-                title="Enviar todos para Arte"
-                aria-label="Enviar todos os itens prontos para Arte"
-                data-testid="button-send-all-ready"
-                style={{ background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: R.md, cursor: 'pointer', color: '#166534', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, flexShrink: 0 }}
-              >
-                <Send style={{ width: 15, height: 15 }} />
-              </button>
-            )}
-          </div>
+        {/* Salvar rascunhos — a única ação que a barra carrega, e só quando há
+            o que salvar. */}
+        {contagemPorEstado.RASCUNHO > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              const rascunhoItems = fullyFilteredItems.filter(i => itemUIStates[i.id] === 'RASCUNHO');
+              if (rascunhoItems.length === 0) return;
+              const payloads = rascunhoItems.map(i => {
+                const ch = pendingChanges[i.id];
+                return { itemId: i.id, sponsorIds: ch?.sponsorIds ?? [], skipApproval: ch?.skipApproval ?? false };
+              });
+              setSaveConfirmModal({ payloads, items: rascunhoItems });
+            }}
+            disabled={saveLinkingMutation.isPending}
+            data-testid="button-save-all-drafts"
+            style={{
+              marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 7,
+              height: 32, padding: '0 14px', borderRadius: R.md,
+              backgroundColor: '#fff7ed', border: '1px solid #fed7aa', color: '#9a3412',
+              cursor: 'pointer', font: 'inherit', fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap',
+            }}
+          >
+            <Save style={{ width: 13, height: 13 }} />
+            {saveLinkingMutation.isPending
+              ? 'Salvando...'
+              : `Salvar ${contagemPorEstado.RASCUNHO} rascunho${contagemPorEstado.RASCUNHO !== 1 ? 's' : ''}`}
+          </button>
+        )}
+      </div>
 
+      {/* ══════════════════════════════════════════════════════════════════
+          BARRA DE FILTROS — uma linha.
+
+          Cada filtro vinha com um rótulo MAIÚSCULO em cima ("EVENTO",
+          "PATROCINADOR", "PEÇA", "STATUS"): 20px de altura em toda a largura
+          da tela para repetir o que o próprio valor do gatilho já diz — e o
+          gatilho fechado mostra "Todos os eventos", que nomeia o filtro
+          sozinho.
+      ══════════════════════════════════════════════════════════════════ */}
+      <div style={{
+        display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10,
+        marginBottom: 16,
+      }}>
+        {/* Busca */}
+        <div style={{ position: 'relative', flex: '1 1 220px', maxWidth: 320, minWidth: 180 }}>
+          <Search aria-hidden="true" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 15, height: 15, color: '#78716c', pointerEvents: 'none' }} />
+          <input
+            ref={searchInputRef}
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Peça, descrição ou evento   /"
+            aria-label="Buscar por peça, descrição ou evento"
+            data-testid="input-search-events"
+            style={{
+              width: '100%', height: 36, padding: '0 30px 0 34px',
+              borderRadius: R.md, border: '1px solid #e7e5e4', backgroundColor: '#ffffff',
+              font: 'inherit', fontSize: 13, color: '#1c1917', outline: 'none',
+            }}
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={() => { setSearchQuery(''); searchInputRef.current?.focus(); }}
+              aria-label="Limpar a busca"
+              style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', width: 24, height: 24, borderRadius: 999, border: 'none', background: 'none', color: '#78716c', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <X style={{ width: 13, height: 13 }} />
+            </button>
+          )}
+        </div>
+
+        {/* Filtros */}
+        <EventFilterDropdown values={eventFilter} onValuesChange={setEventFilter} options={eventFilterOptions} />
+        <FilterSelect
+          showAllLabelWhenEmpty hideWhenEmpty={false}
+          label="Patrocinador" allLabel="Todos os patrocinadores"
+          values={sponsorFilter} onValuesChange={setSponsorFilter}
+          options={sponsorFilterOptions}
+          searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador encontrado."
+          panelWidth={256} testId="select-sponsor-filter"
+        />
+        <FilterSelect
+          label="Peça" allLabel="Todas as peças"
+          values={itemFilter} onValuesChange={setItemFilter}
+          hideWhenEmpty={false} showAllLabelWhenEmpty
+          options={itemFilterOptions}
+          testId="select-item-filter"
+        />
+        {/* O menu de Status SAIU: os quatro chips da barra acima fazem o mesmo
+            recorte, com a contagem à vista e um clique em vez de três. Manter
+            os dois seria dar dois lugares para o mesmo estado — e eles
+            discordariam na primeira vez que alguém mexesse num só. */}
+
+        {/* Agrupamento */}
+        <div
+          role="radiogroup"
+          aria-label="Agrupar a lista por"
+          data-testid="segmented-group-by"
+          style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}
+        >
+          <span style={{ fontSize: 12, color: '#57534e', whiteSpace: 'nowrap' }}>Agrupar</span>
+          <div style={{ display: 'flex', backgroundColor: '#f3f4f3', padding: 2, borderRadius: R.md }}>
+            {([
+              ['evento',       'Evento',       Calendar],
+              ['patrocinador', 'Patrocinador', Building2],
+            ] as const).map(([valor, rotulo, Icone]) => {
+              const ativo = agrupamento === valor;
+              return (
+                <button
+                  key={valor}
+                  type="button"
+                  role="radio"
+                  aria-checked={ativo}
+                  tabIndex={ativo ? 0 : -1}
+                  onClick={() => setAgrupamento(valor)}
+                  onKeyDown={e => {
+                    if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+                    e.preventDefault();
+                    setAgrupamento(valor === 'evento' ? 'patrocinador' : 'evento');
+                  }}
+                  data-testid={`group-by-${valor}`}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    height: 32, padding: '0 12px', borderRadius: 6, border: 'none',
+                    backgroundColor: ativo ? '#ffffff' : 'transparent',
+                    boxShadow: ativo ? '0 1px 3px rgba(0,0,0,0.10)' : 'none',
+                    color: ativo ? '#1c1917' : '#57534e',
+                    cursor: 'pointer', font: 'inherit', fontSize: 13, fontWeight: ativo ? 700 : 600,
+                    whiteSpace: 'nowrap', transition: 'background 0.15s, color 0.15s',
+                  }}
+                >
+                  <Icone aria-hidden="true" style={{ width: 13, height: 13 }} />
+                  {rotulo}
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
-
-      {/* ── Tab Switcher (underline) ── */}
-      {/* role/aria-selected: eram dois <button> soltos. Sem a semântica de
-          abas, o leitor de tela anuncia "botão Por Item" sem dizer que existe
-          um par nem qual está ativo — exatamente a informação que a sublinha
-          entrega a quem enxerga. */}
-      <div role="tablist" aria-label="Modo de visualização" style={{ display: 'flex', borderBottom: '1px solid #e7e5e4', marginBottom: 20 }}>
-        {[
-          { id: "por-item",         label: "Por Item",         icon: <ClipboardList style={{ width: 14, height: 14 }} /> },
-          { id: "por-patrocinador", label: "Por Patrocinador", icon: <Building2 style={{ width: 14, height: 14 }} /> },
-        ].map(tab => {
-          const active = viewMode === tab.id;
-          return (
-            <button
-              key={tab.id}
-              role="tab"
-              id={`tab-btn-${tab.id}`}
-              aria-selected={active}
-              aria-controls={`tabpanel-${tab.id}`}
-              tabIndex={active ? 0 : -1}
-              data-testid={`tab-${tab.id}`}
-              onClick={() => setViewMode(tab.id as "por-item" | "por-patrocinador")}
-              onKeyDown={e => {
-                if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-                  e.preventDefault();
-                  const other = tab.id === 'por-item' ? 'por-patrocinador' : 'por-item';
-                  setViewMode(other as "por-item" | "por-patrocinador");
-                  document.getElementById(`tab-btn-${other}`)?.focus();
-                }
-              }}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '10px 28px', border: 'none', background: 'none',
-                cursor: 'pointer', fontSize: 13,
-                fontWeight: active ? 800 : 700,
-                letterSpacing: '-0.02em', textTransform: 'uppercase',
-                color: active ? '#1c1917' : '#746e69',
-                borderBottom: active ? '2px solid #1c1917' : '2px solid transparent',
-                marginBottom: -1,
-                transition: 'color 0.15s',
-              }}
-              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = '#1c1917'; }}
-              onMouseLeave={e => { if (!active) (e.currentTarget as HTMLButtonElement).style.color = '#746e69'; }}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Dialogs e Modals */}
-      <Card className="mb-6">
-        <CardContent className="p-4">
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end" }}>
-            {/* Filtro por Evento */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#746e69" }}>Evento</label>
-              <EventFilterDropdown
-                values={eventFilter}
-                onValuesChange={setEventFilter}
-                options={eventFilterOptions}
-              />
-            </div>
-
-            {/* Filtro por Patrocinador */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#746e69" }}>Patrocinador</label>
-              <FilterSelect
-                showAllLabelWhenEmpty hideWhenEmpty={false}
-                label="Patrocinador" allLabel="Todos os patrocinadores"
-                values={sponsorFilter} onValuesChange={setSponsorFilter}
-                options={sponsorFilterOptions}
-                searchPlaceholder="Buscar patrocinador..." emptyText="Nenhum patrocinador encontrado."
-                panelWidth={256} testId="select-sponsor-filter"
-              />
-            </div>
-
-            {/* Filtro por Item (tipo) */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#746e69" }}>Peça</label>
-              <FilterSelect
-                label="Peça" allLabel="Todas as peças"
-                values={itemFilter} onValuesChange={setItemFilter}
-                hideWhenEmpty={false} showAllLabelWhenEmpty
-                options={itemFilterOptions}
-                testId="select-item-filter"
-              />
-            </div>
-
-            {/* Filtro por Status */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              <label style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", color: "#746e69" }}>Status</label>
-              <FilterSelect
-                label="Status" allLabel="Todos os status"
-                values={statusFilter} onValuesChange={setStatusFilter}
-                hideWhenEmpty={false} showAllLabelWhenEmpty
-                options={statusFilterOptions}
-                testId="select-status-filter"
-              />
-            </div>
-
-            {/* Separador + Busca */}
-            <div style={{ display: 'flex', alignItems: 'flex-end', gap: 10 }}>
-              <div style={{ width: 1, height: 34, backgroundColor: '#e7e5e4', alignSelf: 'flex-end', flexShrink: 0 }} />
-              <div>
-                <label className="text-xs text-muted-foreground mb-1.5 block">Buscar</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    ref={searchInputRef}
-                    placeholder="Peça, descrição ou evento...  ( / )"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-9"
-                    aria-label="Buscar por peça, descrição ou evento"
-                    data-testid="input-search-events"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Toolbar de Seleção em Massa — Floating Bottom */}
       {selectedItemIds.size > 0 && (
@@ -2080,14 +2115,23 @@ export default function VincularPatrocinadores() {
         <div
           role="status"
           data-testid="aviso-eventos-encerrados"
-          style={{ background: '#f5f5f4', border: '1px solid #e7e5e4', borderRadius: 10, padding: '10px 14px', marginBottom: 16, fontSize: 13, color: '#44403c', lineHeight: 1.5 }}
+          style={{ background: '#fafaf9', border: '1px solid #ebe8e4', borderRadius: R.md, padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'flex-start', gap: 9, fontSize: 13, color: '#44403c', lineHeight: 1.5 }}
         >
-          <strong>{avisoOcultas.destaque}</strong>{' '}{avisoOcultas.texto}
+          <EyeOff aria-hidden="true" style={{ width: 15, height: 15, color: '#78716c', flexShrink: 0, marginTop: 2 }} />
+          <span>
+            <strong>{avisoOcultas.destaque}</strong>{' '}{avisoOcultas.texto}
+          </span>
+          {/* SEM botão "Mostrar". As peças escondidas são de evento
+              FINALIZADO, e o servidor barra a vinculação delas
+              (`barraEventoFinalizado`): revelá-las aqui seria oferecer um
+              trabalho que devolve 409. O aviso existe para que a fila vazia
+              não seja lida como "nada a fazer" por quem teve o trabalho
+              retirado — e isso ele faz sem botão nenhum. */}
         </div>
       )}
 
       {/* ── VIEW: POR ITEM (existente) ── */}
-      {viewMode === 'por-item' && (
+      {agrupamento === 'evento' && (
       <div className="space-y-6" role="tabpanel" id="tabpanel-por-item" aria-labelledby="tab-btn-por-item">
         {filteredEventEntries.map(([eventId, eventItems]) => {
           // eventById (todos os eventos), não events (só futuros): itens
@@ -2749,10 +2793,10 @@ export default function VincularPatrocinadores() {
           </div>
         )}
       </div>
-      )} {/* fim viewMode === 'por-item' */}
+      )} {/* fim agrupamento === 'evento' */}
 
       {/* ── VIEW: POR PATROCINADOR ── */}
-      {viewMode === 'por-patrocinador' && (
+      {agrupamento === 'patrocinador' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }} role="tabpanel" id="tabpanel-por-patrocinador" aria-labelledby="tab-btn-por-patrocinador">
 
           {/* ── Header de progresso global ── */}
@@ -3256,7 +3300,7 @@ export default function VincularPatrocinadores() {
             );
           })}
         </div>
-      )} {/* fim viewMode === 'por-patrocinador' */}
+      )} {/* fim agrupamento === 'patrocinador' */}
 
       {/* Dialog — Gerenciar Patrocinadores do Evento */}
       <Dialog open={sponsorDialogOpen} onOpenChange={(open) => { setSponsorDialogOpen(open); if (!open) setSponsorModalSearch(''); }}>

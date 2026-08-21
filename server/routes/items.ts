@@ -587,12 +587,19 @@ export function registerItemRoutes(app: Express): void {
       const sponsorById = new Map(allSponsors.map(s => [s.id, s]));
 
       const approvalsByItem = new Map<string, any[]>();
+      // TODAS as aprovações da peça, por item — o painel de reenvio precisa
+      // de quem já aprovou tanto quanto de quem reprovou: é a diferença
+      // entre "vai receber" e "mantém aprovação".
+      const todasPorItem = new Map<string, any[]>();
       for (const a of allItemSponsorApprovals) {
+        const t = todasPorItem.get(a.itemId);
+        if (t) t.push(a); else todasPorItem.set(a.itemId, [a]);
         if (a.status !== "awaiting_arte") continue;
         const list = approvalsByItem.get(a.itemId);
         if (list) list.push(a);
         else approvalsByItem.set(a.itemId, [a]);
       }
+      const comPatrocinador = (lista: any[]) => lista.map((a: any) => ({ ...a, sponsor: sponsorById.get(a.sponsorId) || null }));
 
       const result = [];
       for (const item of awaitingItems) {
@@ -602,10 +609,8 @@ export function registerItemRoutes(app: Express): void {
         result.push({
           ...item,
           event: eventById.get(item.eventId) || null,
-          awaitingArteApprovals: awaitingArte.map((a: any) => ({
-            ...a,
-            sponsor: sponsorById.get(a.sponsorId) || null,
-          })),
+          awaitingArteApprovals: comPatrocinador(awaitingArte),
+          aprovacoes: comPatrocinador(todasPorItem.get(item.id) ?? []),
         });
       }
 
@@ -627,10 +632,8 @@ export function registerItemRoutes(app: Express): void {
         result.push({
           ...item,
           event: eventById.get(item.eventId) || null,
-          awaitingArteApprovals: awaitingArte.map((a: any) => ({
-            ...a,
-            sponsor: sponsorById.get(a.sponsorId) || null,
-          })),
+          awaitingArteApprovals: comPatrocinador(awaitingArte),
+          aprovacoes: comPatrocinador(todasPorItem.get(item.id) ?? []),
         });
       }
 
@@ -2250,13 +2253,10 @@ export function registerItemRoutes(app: Express): void {
       }
 
       const { id: itemId } = req.params;
-      const { newThumbUrl, sponsorIds } = req.body as { newThumbUrl: string; sponsorIds: string[] };
+      const { newThumbUrl, sponsorIds: pedidos } = req.body as { newThumbUrl: string; sponsorIds?: string[] };
 
       if (!newThumbUrl) {
         return res.status(400).json({ error: "newThumbUrl é obrigatório" });
-      }
-      if (!sponsorIds || sponsorIds.length === 0) {
-        return res.status(400).json({ error: "Selecione pelo menos um patrocinador" });
       }
 
       const currentItem = await storage.getItem(itemId);
@@ -2270,7 +2270,30 @@ export function registerItemRoutes(app: Express): void {
         return res.status(409).json({ error: "Item não está aguardando aprovação do patrocinador" });
       }
 
-      // Update each selected sponsor approval: awaiting_arte → new_version_pending
+      // O REENVIO É DERIVADO, NÃO ESCOLHIDO (regra do dono): vai para quem
+      // ainda não aprovou — quem reprovou e quem está aguardando. Quem já
+      // aprovou mantém a aprovação e não recebe de novo. O cliente não
+      // manda mais seleção; se mandar (API antiga, script), só passa se for
+      // exatamente o conjunto derivado — o cliente derivar e o servidor
+      // aceitar qualquer subconjunto deixava a porta aberta para publicar a
+      // arte corrigida sem que a marca que a recusou voltasse a ver.
+      const aprovacoes = await storage.getItemSponsorApprovals(itemId);
+      const sponsorIds = aprovacoes.filter((a) => a.status !== "approved").map((a) => a.sponsorId);
+      if (sponsorIds.length === 0) {
+        return res.status(409).json({ error: "Nenhum patrocinador pendente para receber o reenvio — todos já aprovaram." });
+      }
+      if (Array.isArray(pedidos) && pedidos.length > 0) {
+        const a = new Set(pedidos), b = new Set(sponsorIds);
+        const igual = a.size === b.size && Array.from(a).every((x) => b.has(x));
+        if (!igual) {
+          return res.status(409).json({
+            error: "O reenvio vai sempre para quem ainda não aprovou — o servidor não aceita outro conjunto.",
+            esperado: sponsorIds,
+          });
+        }
+      }
+
+      // Cada aprovação reprovada volta para a fila do Atendimento: awaiting_arte → new_version_pending
       for (const sponsorId of sponsorIds) {
         const approval = await storage.getItemSponsorApproval(itemId, sponsorId);
         if (approval && approval.status === "awaiting_arte") {

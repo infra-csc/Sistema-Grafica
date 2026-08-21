@@ -3,7 +3,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, CheckSquare, Palette, ExternalLink, RefreshCw, MoreHorizontal, Lock, WifiOff, Zap } from "lucide-react";
+import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, CheckSquare, Palette, ExternalLink, RefreshCw, MoreHorizontal, Lock, WifiOff, Zap, Hourglass } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -194,6 +194,31 @@ type ArteCol = { label: string; w: number | string; right?: boolean; sep?: boole
 // isso o conserto tem DUAS metades, e esta é a menor — a que importa é o chip
 // passar a truncar com reticências (sponsor-chips.tsx), para que o que não
 // couber se anuncie em vez de ser decepado em silêncio.
+/**
+ * IDADE NA FASE — há quanto tempo a peça está parada onde está.
+ *
+ * Deriva de `statusChangedAt` (a última mudança de status, gravada pelo
+ * servidor a cada transição). Peça SEM esse registro não exibe idade:
+ * inferir da criação daria um número plausível e errado — uma peça criada há
+ * oito meses que entrou na fase ontem apareceria como "há 240d", e quem
+ * procura gargalo agiria sobre isso.
+ */
+function diasNaFase(item: any, hoje: Date): number | null {
+  const bruto = item?.statusChangedAt ?? item?.status_changed_at;
+  if (!bruto) return null;
+  const t = new Date(bruto).getTime();
+  if (!Number.isFinite(t)) return null;
+  return Math.max(0, Math.floor((hoje.getTime() - t) / 86400000));
+}
+/** A escala: até 7 dias é rotina; de 7 a 13 pede olhar; de 14 em diante é gargalo. */
+function tomDaIdade(dias: number): { cor: string; peso: number } {
+  if (dias >= 14) return { cor: "#b91c1c", peso: 700 };
+  if (dias >= 7) return { cor: "#b45309", peso: 700 };
+  return { cor: "#78716c", peso: 600 };
+}
+const PARADA_HA_MAIS_DE = 7;
+const estaParada = (item: any, hoje: Date) => (diasNaFase(item, hoje) ?? -1) > PARADA_HA_MAIS_DE;
+
 const ARTE_COLS: ArteCol[] = [
   { label: 'ID',            w: 84 },
   // QTD DE 44 PARA 56 — o cabeçalho não cabia no próprio cabeçalho.
@@ -535,7 +560,6 @@ export default function Arte() {
   const [correcaoItem, setCorrecaoItem] = useState<any>(null);
   const [correcaoThumbUrl, setCorrecaoThumbUrl] = useState<string>("");
   const [correcaoFileName, setCorrecaoFileName] = useState<string>("");
-  const [correcaoSelectedSponsorIds, setCorrecaoSelectedSponsorIds] = useState<Set<string>>(new Set());
   const [correcaoSponsorFilter, setCorrecaoSponsorFilter] = useState<string>("all");
   const [sponsorFilter, setSponsorFilter] = useState<string[]>(urlInicial.filters.sponsorIds);
   // Tri-estado no lugar dos pares "sem/com": ligados juntos, os dois booleanos
@@ -547,6 +571,10 @@ export default function Arte() {
   const [periodFilter, setPeriodFilter] = useState<PeriodFilter>(urlInicial.filters.period);
   // Só o que passou do marco da FASE — ver isAtrasadaNaFase em lib/arte-rules.
   const [atrasadoFilter, setAtrasadoFilter] = useState(urlInicial.filters.atrasado);
+  // "Paradas há mais de 7d nesta fase" — recorte local desta tela. Fica fora
+  // de ArteFilters porque lib/arte-rules é só leitura; a URL ganha o
+  // parâmetro aqui mesmo, ao lado dos outros.
+  const [paradasFilter, setParadasFilter] = useState<boolean>(() => new URLSearchParams(window.location.search).get("paradas") === "1");
 
   // Âncora de "hoje" ESTÁVEL. `makeDateBounds()` era chamada dentro de quatro
   // memos e de novo em cada passada de renderGroupedTable: a memoização era
@@ -866,7 +894,6 @@ export default function Arte() {
       setCorrecaoItem(null);
       setCorrecaoThumbUrl("");
       setCorrecaoFileName("");
-      setCorrecaoSelectedSponsorIds(new Set());
       toast({
         title: "Nova arte enviada",
         description: "O Atendimento foi notificado para revisar",
@@ -903,7 +930,6 @@ export default function Arte() {
       setCorrecaoItem(null);
       setCorrecaoThumbUrl("");
       setCorrecaoFileName("");
-      setCorrecaoSelectedSponsorIds(new Set());
       toast({
         title: "Nova arte enviada",
         description: "A peça voltou para a aprovação dos patrocinadores",
@@ -1354,7 +1380,6 @@ export default function Arte() {
     setCorrecaoItem(null);
     setCorrecaoThumbUrl("");
     setCorrecaoFileName("");
-    setCorrecaoSelectedSponsorIds(new Set());
   }, [correcaoThumbUrl]);
 
   const uniqueSponsors = useMemo(() => {
@@ -1456,8 +1481,8 @@ export default function Arte() {
     // O filtro local de patrocinador da aba Correção não aparecia nem nos chips
     // nem nesta conta, e combinado com o global produzia interseções que
     // nenhum dos dois controles refletia.
-    () => countActiveFilters(filters) + (correcaoSponsorFilter !== "all" ? 1 : 0),
-    [filters, correcaoSponsorFilter],
+    () => countActiveFilters(filters) + (correcaoSponsorFilter !== "all" ? 1 : 0) + (paradasFilter ? 1 : 0),
+    [filters, correcaoSponsorFilter, paradasFilter],
   );
 
   const clearAllFilters = useCallback(() => {
@@ -1473,6 +1498,7 @@ export default function Arte() {
     setUrgenteFilter(false);
     setPeriodFilter("Todos");
     setAtrasadoFilter(false);
+    setParadasFilter(false);
     setCorrecaoSponsorFilter("all");
   }, []);
 
@@ -1481,11 +1507,13 @@ export default function Arte() {
   // árvore React no Safari em outra tela.
   useEffect(() => {
     const timer = setTimeout(() => {
-      const qs = serializeArteFilters(filters, activeTab, sortMode);
+      const p = new URLSearchParams(serializeArteFilters(filters, activeTab, sortMode));
+      if (paradasFilter) p.set("paradas", "1");
+      const qs = p.toString();
       window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
     }, 300);
     return () => clearTimeout(timer);
-  }, [filters, activeTab, sortMode]);
+  }, [filters, activeTab, sortMode, paradasFilter]);
 
   // Aplica os filtros uma única vez e separa por aba. As contagens saem do
   // .length de cada balde; só a aba aberta paga o custo da ordenação.
@@ -1514,12 +1542,25 @@ export default function Arte() {
     return buckets;
   }, [allItems, filters, finalizadosTudo, dateBounds, hoje]);
 
-  const itemsByTab = useMemo(() => {
+  const itemsByTabSemParadas = useMemo(() => {
     if (!filters.atrasado) return itemsByTabBase;
     const out: Record<string, any[]> = {};
     for (const tab in itemsByTabBase) out[tab] = filtrarAtrasadasDaFase(itemsByTabBase[tab], tab, hoje);
     return out;
   }, [itemsByTabBase, filters.atrasado, hoje]);
+  // O recorte "paradas" entra por último, e a contagem do chip que o liga sai
+  // da camada ANTERIOR — é o que faz o número do chip ser exatamente o de
+  // linhas que o clique entrega (invariante das facetas).
+  const itemsByTab = useMemo(() => {
+    if (!paradasFilter) return itemsByTabSemParadas;
+    const out: Record<string, any[]> = {};
+    for (const tab in itemsByTabSemParadas) out[tab] = itemsByTabSemParadas[tab].filter((i: any) => estaParada(i, hoje));
+    return out;
+  }, [itemsByTabSemParadas, paradasFilter, hoje]);
+  const paradasNaAba = useMemo(
+    () => (itemsByTabSemParadas[activeTab] ?? []).filter((i: any) => estaParada(i, hoje)).length,
+    [itemsByTabSemParadas, activeTab, hoje],
+  );
 
   // Quantas peças a janela de 90 dias está escondendo (para o rótulo do "ver tudo").
   const finalizadosForaDaJanela = useMemo(() => {
@@ -1540,7 +1581,7 @@ export default function Arte() {
   // do recorte, não a identidade do objeto de baldes: `itemsByTab` é um objeto
   // novo a cada `item_updated` do WebSocket, e quem tinha clicado "Carregar
   // mais" três vezes perdia a posição sem ter feito nada.
-  const recorteKey = filtersKey(filters, activeTab) + (finalizadosTudo ? "~tudo" : "");
+  const recorteKey = filtersKey(filters, activeTab) + (finalizadosTudo ? "~tudo" : "") + (paradasFilter ? "~paradas" : "");
   useEffect(() => { setVisibleCount(ARTE_PAGE_SIZE); }, [recorteKey]);
 
   // Re-sincroniza o preview do thumb caso a query de items refaça o estado
@@ -1626,8 +1667,9 @@ export default function Arte() {
       lista = lista.filter((i: any) => dentroDaJanelaFinalizados(i, hoje));
     }
     if (f.atrasado) lista = filtrarAtrasadasDaFase(lista, activeTab, hoje);
+    if (paradasFilter) lista = lista.filter((i: any) => estaParada(i, hoje));
     return lista;
-  }, [filters, tabPoolItems, dateBounds, activeTab, finalizadosTudo, hoje]);
+  }, [filters, tabPoolItems, dateBounds, activeTab, finalizadosTudo, hoje, paradasFilter]);
 
   // Uma passada POR JANELA, e não um agrupamento único: as janelas são
   // cumulativas e se contêm ("7 dias" inclui "Hoje"), então não existe balde
@@ -1808,6 +1850,7 @@ export default function Arte() {
     if (periodFilter !== "Todos") chips.push({ kind: 'period', label: `Período: ${periodFilter}` });
     if (urgenteFilter) chips.push({ kind: 'urgente', label: "Urgente" });
     if (atrasadoFilter) chips.push({ kind: 'atrasado', label: "Só atrasadas" });
+    if (paradasFilter) chips.push({ kind: 'paradas', label: `Paradas há mais de ${PARADA_HA_MAIS_DE}d` });
     if (thumbFilter !== "todos") chips.push({ kind: 'thumb', label: thumbFilter === "sem" ? "Sem thumb" : "Com thumb" });
     if (finalFilter !== "todos") chips.push({ kind: 'final', label: finalFilter === "sem" ? "Sem arquivo final" : "Com arquivo final" });
     if (searchFilter) chips.push({ kind: 'search', label: `Busca: "${searchFilter}"` });
@@ -1819,7 +1862,7 @@ export default function Arte() {
       chips.push({ kind: 'correcaoSponsor', label: `Correção · ${nome || 'patrocinador'}` });
     }
     return chips;
-  }, [eventFilter, sponsorFilter, typeFilter, materialFilter, monthFilter, next10DaysFilter, periodFilter, urgenteFilter, atrasadoFilter, thumbFilter, finalFilter, searchFilter, correcaoSponsorFilter, correcaoItems, events, uniqueSponsors]);
+  }, [eventFilter, sponsorFilter, typeFilter, materialFilter, monthFilter, next10DaysFilter, periodFilter, urgenteFilter, atrasadoFilter, paradasFilter, thumbFilter, finalFilter, searchFilter, correcaoSponsorFilter, correcaoItems, events, uniqueSponsors]);
 
   const removeChipFilter = (chip: ActiveChip) => {
     switch (chip.kind) {
@@ -1832,6 +1875,7 @@ export default function Arte() {
       case 'period': setPeriodFilter("Todos"); break;
       case 'urgente': setUrgenteFilter(false); break;
       case 'atrasado': setAtrasadoFilter(false); break;
+      case 'paradas': setParadasFilter(false); break;
       case 'thumb': setThumbFilter("todos"); break;
       case 'final': setFinalFilter("todos"); break;
       case 'search': setSearchFilter(""); break;
@@ -1920,6 +1964,14 @@ export default function Arte() {
       isSkip,
     };
   };
+
+  /**
+   * O CONJUNTO DO REENVIO, derivado — corpo e rodapé leem daqui. `aprovacoes`
+   * vem da fila da Correção (todas as linhas de patrocinador da peça); nas
+   * respostas antigas sem esse campo, cai para as reprovadas.
+   */
+  const correcaoAprovacoes: any[] = correcaoItem?.aprovacoes ?? correcaoItem?.awaitingArteApprovals ?? [];
+  const correcaoDestinatarios: string[] = correcaoAprovacoes.filter((a: any) => a.status !== 'approved').map((a: any) => a.sponsorId);
 
   /** Menu "⋯": ver detalhes, exportar prova e dispensar. */
   const renderMenuAcoes = (item: any) => {
@@ -2064,13 +2116,30 @@ export default function Arte() {
    */
   const renderPrazo = (item: any, tabId: string, hoje: Date) => {
     const p = phaseDeadline(item.event, tabId, hoje);
+    // A IDADE NA FASE, abaixo da data. O prazo diz o marco (futuro); isto diz
+    // há quanto tempo a peça está parada onde está — numa fila que espera
+    // terceiros, é a pergunta. Sem `statusChangedAt`, sem idade (ver
+    // diasNaFase). Mesma família tipográfica do prazo: texto, não selo.
+    const dias = diasNaFase(item, hoje);
+    const tom = dias !== null ? tomDaIdade(dias) : null;
     return (
-      <PrazoInline
-        diff={p?.diff ?? null}
-        date={p?.date ?? null}
-        label={p?.label}
-        testId={`cell-prazo-${item.id}`}
-      />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <PrazoInline
+          diff={p?.diff ?? null}
+          date={p?.date ?? null}
+          label={p?.label}
+          testId={`cell-prazo-${item.id}`}
+        />
+        {dias !== null && tom && (
+          <span
+            data-testid={`cell-idade-${item.id}`}
+            title={`Há ${dias} ${dias === 1 ? 'dia' : 'dias'} nesta fase (desde ${new Date(item.statusChangedAt ?? item.status_changed_at).toLocaleDateString('pt-BR')})`}
+            style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: tom.peso, color: tom.cor, whiteSpace: 'nowrap' }}
+          >
+            há {dias}d na fase
+          </span>
+        )}
+      </div>
     );
   };
 
@@ -2267,7 +2336,8 @@ export default function Arte() {
           reticências DENTRO do chip dependem de sponsor-chips.tsx, componente
           compartilhado com outras telas — fica para quem for dono dele. */}
       <td style={{ padding: '9px 12px', overflow: 'hidden' }}>
-        <SponsorChips sponsors={item.sponsors ?? []} variant="orange" size="sm" />
+        {/* Na fila que espera patrocinador, o chip diz DE QUEM se espera. */}
+        <SponsorChips sponsors={item.sponsors ?? []} variant="orange" size="sm" destacarPendencia={tabId === "aguardando-patrocinador"} />
       </td>
       {/* Ações */}
       {/* flexWrap: 'nowrap' — com 'wrap', a ação primária que não coubesse na
@@ -2311,7 +2381,7 @@ export default function Arte() {
           <img src={item.approvalThumbUrl} alt="" style={{ maxWidth: 80, maxHeight: 60, borderRadius: 6, objectFit: 'cover' }} />
         </div>
       )}
-      <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={3} />
+      <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={3} destacarPendencia={tabId === "aguardando-patrocinador"} />
       {/* O card não oferecia NENHUMA ação: enviar e finalizar ainda davam pelo
           modal, mas dispensar e exportar prova simplesmente não existiam no
           celular. */}
@@ -2442,6 +2512,29 @@ export default function Arte() {
     // lá dentro, não em cada chamador.
     const atrasadas = items.filter(i => isAtrasadaNaFase(i, tabId, hoje)).length;
     const urgentes = items.filter(i => isUrgente(i.event?.priority)).length;
+    // Paradas há mais de 7d: a contagem vem da camada SEM o próprio recorte
+    // (paradasNaAba), para o número do chip ser o de linhas que o clique
+    // entrega — ligado ou desligado.
+    const paradas = tabId === activeTab ? paradasNaAba : items.filter(i => estaParada(i, hoje)).length;
+
+    // QUEM ESTÁ TRAVANDO — só na fila que espera patrocinador. Um chip por
+    // marca com aprovação pendente: nome, quantas peças e a espera mais antiga
+    // (a idade na fase da peça mais parada que a espera — a aprovação não
+    // traz carimbo próprio no payload, e a peça entrou na fase quando foi
+    // enviada a todos). Clicar filtra por ele — o `sponsorFilter` já existe.
+    const travando = tabId === "aguardando-patrocinador" ? (() => {
+      const m = new Map<string, { id: string; nome: string; pecas: number; espera: number }>();
+      for (const i of items) {
+        for (const s of (i.sponsors ?? [])) {
+          if (getApprovalMeta(s.approvalStatus)?.tone !== "waiting") continue;
+          const e = m.get(s.id) ?? { id: s.id, nome: s.name, pecas: 0, espera: 0 };
+          e.pecas += 1;
+          e.espera = Math.max(e.espera, diasNaFase(i, hoje) ?? 0);
+          m.set(s.id, e);
+        }
+      }
+      return Array.from(m.values()).sort((a, b) => b.espera - a.espera || b.pecas - a.pecas);
+    })() : [];
 
     // Só as primeiras linhas entram no DOM. Com quase mil peças numa aba, montar
     // a tabela inteira era o que travava a troca de aba e a digitação na busca.
@@ -2484,8 +2577,22 @@ export default function Arte() {
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-        {(atrasadas > 0 || urgentes > 0) && (
+        {(atrasadas > 0 || urgentes > 0 || paradas > 0) && (
           <div data-testid="faixa-diagnostico" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {paradas > 0 && (
+              <button
+                type="button"
+                onClick={() => setParadasFilter(v => !v)}
+                aria-pressed={paradasFilter}
+                data-testid="chip-paradas"
+                title={paradasFilter ? 'Mostrar todas as peças desta fase de novo' : `Ver só as ${paradas} ${paradas === 1 ? 'peça parada' : 'peças paradas'} há mais de ${PARADA_HA_MAIS_DE} dias nesta fase`}
+                /* #9a3412 sobre #fff7ed = 6,1:1. Ligado, inverte: branco sobre #9a3412. */
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 11px', borderRadius: 8, background: paradasFilter ? '#9a3412' : '#fff7ed', border: `1px solid ${paradasFilter ? '#9a3412' : '#fed7aa'}`, fontSize: 12, fontWeight: 700, color: paradasFilter ? '#ffffff' : '#9a3412', cursor: 'pointer', font: 'inherit' }}
+              >
+                <Hourglass style={{ width: 12, height: 12, flexShrink: 0 }} />
+                {paradas} {paradas === 1 ? 'parada' : 'paradas'} há mais de {PARADA_HA_MAIS_DE}d nesta fase
+              </button>
+            )}
             {atrasadas > 0 && (
               <span data-testid="chip-atrasadas" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 11px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', fontSize: 12, fontWeight: 700, color: '#991b1b' }}>
                 <AlertTriangle style={{ width: 12, height: 12, flexShrink: 0 }} />
@@ -2498,6 +2605,34 @@ export default function Arte() {
                 {urgentes} {urgentes === 1 ? 'peça de evento urgente' : 'peças de eventos urgentes'}
               </span>
             )}
+          </div>
+        )}
+
+        {travando.length > 0 && (
+          <div data-testid="faixa-travando" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '9px 14px', borderRadius: 10, background: '#fafaf9', border: '1px solid #e7e5e4' }}>
+            <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#57534e', whiteSpace: 'nowrap' }}>Quem está travando</span>
+            {travando.map(t => {
+              const ligado = sponsorFilter.length === 1 && sponsorFilter[0] === t.id;
+              const tom = tomDaIdade(t.espera);
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setSponsorFilter(ligado ? [] : [t.id])}
+                  aria-pressed={ligado}
+                  data-testid={`chip-travando-${t.id}`}
+                  title={ligado ? `Mostrar todas as peças de novo` : `Ver só as ${t.pecas} ${t.pecas === 1 ? 'peça que espera' : 'peças que esperam'} ${t.nome} — a mais antiga há ${t.espera}d`}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: isMobile ? 40 : 28, padding: '0 10px', borderRadius: 999, border: `1px solid ${ligado ? '#1c1917' : '#e7e5e4'}`, background: ligado ? '#1c1917' : '#ffffff', color: ligado ? '#ffffff' : '#1c1917', fontSize: 12, fontWeight: 700, cursor: 'pointer', font: 'inherit', whiteSpace: 'nowrap' }}
+                >
+                  <Clock style={{ width: 11, height: 11, flexShrink: 0, color: ligado ? '#ffffff' : '#b45309' }} />
+                  {t.nome}
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: ligado ? 'rgba(255,255,255,0.8)' : '#57534e' }}>{t.pecas}</span>
+                  {t.espera > 0 && (
+                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: tom.peso, color: ligado ? '#ffffff' : tom.cor }}>+{t.espera}d</span>
+                  )}
+                </button>
+              );
+            })}
           </div>
         )}
 
@@ -3170,7 +3305,6 @@ export default function Arte() {
                       setCorrecaoItem(item);
                       setCorrecaoThumbUrl("");
                       setCorrecaoFileName("");
-                      setCorrecaoSelectedSponsorIds(new Set(item.awaitingArteApprovals.map((a: any) => a.sponsorId)));
                     }}
                     data-testid={`button-open-correcao-${item.id}`}
                     style={{
@@ -4181,91 +4315,56 @@ export default function Arte() {
                   )}
                 </div>
 
-                {/* Sponsor checkboxes */}
-                <div style={{ marginBottom: 20 }}>
+                {/* ── PARA QUEM VAI O REENVIO — AUTOMÁTICO ──
+                    Regra do dono: o reenvio vai SEMPRE para quem ainda não
+                    aprovou — quem reprovou e quem está aguardando. Quem já
+                    aprovou mantém a aprovação e não recebe de novo. Isto era
+                    uma lista de caixas de seleção, e permitia um erro sem
+                    volta: desmarcar quem reprovou publicava a arte corrigida
+                    sem que a marca que a recusou voltasse a ver. Agora é
+                    painel de LEITURA: a tela mostra a conta, e o servidor
+                    (sponsor-approvals/resubmit) recusa qualquer outro conjunto. */}
+                <div style={{ marginBottom: 20 }} data-testid="painel-reenvio">
                   <label style={{ display: 'block', fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#57534e', marginBottom: 8 }}>
-                    Re-enviar para aprovação
+                    Para quem vai o reenvio — automático
                   </label>
-                  {/* Sem esta linha a seção aparecia VAZIA: um título e nada
-                      embaixo, com o botão morto logo abaixo e nenhuma pista do
-                      porquê. Agora diz o que está acontecendo e o que o envio
-                      vai fazer. #57534e sobre #fff = 7,4:1 ✓ */}
-                  {correcaoItem.awaitingArteApprovals.length === 0 && (
+                  {correcaoAprovacoes.length === 0 && (
                     <p style={{ fontSize: 12, color: '#57534e', margin: '0 0 4px', lineHeight: 1.45 }}>
                       Nenhum patrocinador reprovou individualmente — esta peça foi devolvida inteira.
                       O re-envio manda a arte nova para a aprovação de <strong>todos</strong> os patrocinadores dela.
                     </p>
                   )}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {correcaoItem.awaitingArteApprovals.map((approval: any) => {
-                      const isSelected = correcaoSelectedSponsorIds.has(approval.sponsorId);
+                    {correcaoAprovacoes.map((a: any) => {
+                      const est = getApprovalMeta(a.status);
+                      const recebe = a.status !== 'approved';
+                      const estadoTexto = est?.tone === 'approved' ? 'já aprovou' : est?.tone === 'waiting' ? 'aguardando' : 'reprovou';
                       return (
-                        <label
-                          key={approval.sponsorId}
-                          style={{
-                            display: 'flex', alignItems: 'center', gap: 10,
-                            // Raio 10 não existe em `R` (6/8/12/16/999), e
-                            // `#fff5f5` não existe em `P` — era um rosa a um
-                            // dígito do P.red.bg, perto o bastante para ninguém
-                            // notar e longe o bastante para não ser o mesmo.
-                            padding: '10px 14px', borderRadius: R.md, cursor: 'pointer', userSelect: 'none',
-                            minHeight: 44,
-                            backgroundColor: isSelected ? P.red.bg : '#fafaf9',
-                            border: `1px solid ${isSelected ? P.red.border : '#ebe8e3'}`,
-                            transition: 'all 0.12s'
-                          }}
+                        <div
+                          key={a.sponsorId}
+                          data-testid={`linha-reenvio-${a.sponsorId}`}
+                          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: R.md, minHeight: 44, backgroundColor: recebe ? '#fafaf9' : '#ffffff', border: `1px solid ${recebe ? '#e7e5e4' : '#f0efee'}`, opacity: recebe ? 1 : 0.7 }}
                         >
-                          {/* Visual do checkbox — só desenho; quem responde ao
-                              clique é o <input> abaixo, ativado pela <label>
-                              inteira. O onClick duplicado que existia aqui
-                              disparava junto com o da label e desfazia a marcação. */}
-                          <div
-                            aria-hidden="true"
-                            style={{ width: 18, height: 18, borderRadius: R.sm, flexShrink: 0, border: `2px solid ${isSelected ? P.red.text : '#e7e5e4'}`, background: isSelected ? P.red.text : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all 0.12s' }}
-                          >
-                            {isSelected && <Check style={{ width: 10, height: 10, color: '#fff' }} />}
-                          </div>
-                          {/* sr-only (não display:none): continua focável por
-                              teclado e visível para leitores de tela. */}
-                          <input
-                            type="checkbox"
-                            className="sr-only"
-                            checked={isSelected}
-                            onChange={(e) => {
-                              const next = new Set(correcaoSelectedSponsorIds);
-                              if (e.target.checked) next.add(approval.sponsorId); else next.delete(approval.sponsorId);
-                              setCorrecaoSelectedSponsorIds(next);
-                            }}
-                            data-testid={`checkbox-correcao-sponsor-${approval.sponsorId}`}
-                          />
-                          {approval.sponsor?.color && (
-                            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: approval.sponsor.color, flexShrink: 0 }} />
+                          {a.sponsor?.color && (
+                            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: a.sponsor.color, flexShrink: 0 }} />
                           )}
-                          <span style={{ fontSize: 13, fontWeight: 600, color: isSelected ? '#7f1d1d' : '#44403c', flex: 1, transition: 'color 0.12s' }}>{approval.sponsor?.name || 'Patrocinador'}</span>
-                          {/* O CHIP DE ESTADO SAI DE `getApprovalMeta`.
-
-                              Ele estava pintado à mão em #dc2626 sobre #fee2e2 —
-                              a família certa (vermelha, porque `awaiting_arte`
-                              teve reprovação de fato) com os valores errados:
-                              nenhum dos dois existe em `P`, e o vermelho ficava
-                              um degrau mais claro que o dos outros chips do
-                              mesmo estado, na mesma tela.
-
-                              Vindo da fonte, ele também acompanha a nuance que
-                              o `APPROVAL` registra para este estado — campo
-                              vermelho, bolinha âmbar — se um dia ela mudar. */}
-                          {(() => {
-                            const est = getApprovalMeta(approval.status);
-                            return (
-                              <span style={{ fontSize: 11, fontWeight: 700, color: est?.text ?? P.red.text, background: est?.bg ?? P.red.bg, border: `1px solid ${est?.border ?? P.red.border}`, borderRadius: R.sm, padding: '2px 8px', letterSpacing: '0.04em' }}>
-                                Pendente
-                              </span>
-                            );
-                          })()}
-                        </label>
+                          <span style={{ fontSize: 13, fontWeight: recebe ? 700 : 500, color: '#1c1917', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.sponsor?.name || 'Patrocinador'}</span>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: est?.text ?? '#57534e', background: est?.bg ?? '#f5f5f4', border: `1px solid ${est?.border ?? '#e7e5e4'}`, borderRadius: R.sm, padding: '2px 8px', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>
+                            {estadoTexto}
+                          </span>
+                          {/* #9a3412 sobre #fff7ed 6,1:1; #15803d sobre #f0fdf4 4,9:1. */}
+                          <span style={{ fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', color: recebe ? '#9a3412' : '#15803d', background: recebe ? '#fff7ed' : '#f0fdf4', border: `1px solid ${recebe ? '#fed7aa' : '#bbf7d0'}`, borderRadius: R.sm, padding: '2px 8px' }}>
+                            {recebe ? 'vai receber' : 'mantém aprovação'}
+                          </span>
+                        </div>
                       );
                     })}
                   </div>
+                  {correcaoAprovacoes.length > 0 && (
+                    <p data-testid="text-reenvio-total" style={{ margin: '10px 0 0', fontSize: 12, fontWeight: 700, color: '#44403c' }}>
+                      Vai para {correcaoDestinatarios.length} de {correcaoAprovacoes.length} {correcaoAprovacoes.length === 1 ? 'patrocinador' : 'patrocinadores'}
+                    </p>
+                  )}
                 </div>
               </>
             )}
@@ -4305,7 +4404,8 @@ export default function Arte() {
           const devolvidaInteira = correcaoItem.status === "awaiting_submission";
           const enviando = resubmitMutation.isPending || reenvioInteiroMutation.isPending;
           // Sem patrocinador para escolher, exigir escolha é exigir o impossível.
-          const faltaPatrocinador = !devolvidaInteira && correcaoSelectedSponsorIds.size === 0;
+          // Sem ninguém pendente não há para quem reenviar — e não é escolha de ninguém.
+          const faltaPatrocinador = !devolvidaInteira && correcaoDestinatarios.length === 0;
           const travado = !correcaoThumbUrl || faltaPatrocinador || enviando;
           return (
           <div style={{ padding: '16px 24px 24px', borderTop: '1px solid #f0eeec', flexShrink: 0 }}>
@@ -4317,7 +4417,7 @@ export default function Arte() {
                   reenvioInteiroMutation.mutate({ itemId: correcaoItem.id, approvalThumbUrl: correcaoThumbUrl });
                   return;
                 }
-                resubmitMutation.mutate({ itemId: correcaoItem.id, newThumbUrl: correcaoThumbUrl, sponsorIds: Array.from(correcaoSelectedSponsorIds) });
+                resubmitMutation.mutate({ itemId: correcaoItem.id, newThumbUrl: correcaoThumbUrl, sponsorIds: correcaoDestinatarios });
               }}
               data-testid="button-submit-correcao"
               style={{
@@ -4352,7 +4452,7 @@ export default function Arte() {
                 clicando num botão que não responde. */}
             {travado && !enviando && (
               <p style={{ margin: '8px 0 0', fontSize: 11, color: '#78716c', textAlign: 'center' }}>
-                {!correcaoThumbUrl ? 'Suba a nova versão para liberar o envio.' : 'Escolha ao menos um patrocinador para revisar.'}
+                {!correcaoThumbUrl ? 'Suba a nova versão para liberar o envio.' : 'Nenhum patrocinador pendente para receber o reenvio — todos já aprovaram.'}
               </p>
             )}
           </div>

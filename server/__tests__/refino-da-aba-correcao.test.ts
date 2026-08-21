@@ -38,7 +38,9 @@ const codigo = arte
 describe("1. os seletores da Correção continuam os mesmos", () => {
   const TESTIDS = [
     "card-correcao-", "button-open-correcao-", "filter-correcao-sponsor-",
-    "button-submit-correcao", "checkbox-correcao-sponsor-",
+    // `checkbox-correcao-sponsor-` saiu: o reenvio é derivado, não escolhido
+    // (painel-reenvio / linha-reenvio-). Ver arte-nota-10.test.ts.
+    "button-submit-correcao", "painel-reenvio", "linha-reenvio-",
     "button-remove-correcao-thumb", "uploader-correcao-thumb",
     "button-clear-filters-correcao", "correcao-sem-patrocinador-",
   ];
@@ -80,7 +82,7 @@ describe("3. o card diz de qual evento é e quando sai", () => {
 describe("4. o que estava mudo passou a falar", () => {
   it("o botão travado diz o que falta", () => {
     expect(arte).toContain("Suba a nova versão para liberar o envio.");
-    expect(arte).toContain("Escolha ao menos um patrocinador para revisar.");
+    expect(arte).toContain("Nenhum patrocinador pendente para receber o reenvio — todos já aprovaram.");
   });
 
   it("o carregando diz o que carrega", () => {

@@ -1,5 +1,6 @@
 import { useState, type CSSProperties } from "react";
 import { getApprovalMeta, getApprovalTitle, type ApprovalMeta, type ApprovalStatus } from "@/lib/status";
+import { Check, Clock } from "lucide-react";
 
 interface Sponsor {
   id: string;
@@ -43,6 +44,14 @@ interface SponsorChipsProps {
   variant?: "orange" | "gray" | "plain" | "dark" | "colored";
   size?: "xs" | "sm" | "md";
   emptyText?: string;
+  /**
+   * QUEM ESTÁ TRAVANDO. Na fila "Aguardando patrocinador" da Arte o dado
+   * acionável é DE QUEM se espera — e a cor por estado, sozinha, deixava os
+   * vinculados parecidos. Com esta prop: pendente ganha relógio e peso 700;
+   * aprovado recua (peso 500, opacidade 0,6, check verde); reprovado segue
+   * em vermelho. Atrás de prop para as outras telas não mudarem.
+   */
+  destacarPendencia?: boolean;
 }
 
 const VARIANT_STYLES = {
@@ -92,6 +101,7 @@ export function SponsorChips({
   variant = "gray",
   size = "sm",
   emptyText = "—",
+  destacarPendencia = false,
 }: SponsorChipsProps) {
   const [showAll, setShowAll] = useState(false);
 
@@ -152,6 +162,9 @@ export function SponsorChips({
         // reprovação: o chip voltava à cor da marca e quem JÁ REPROVOU ficava
         // igual — às vezes mais discreto — a quem nem tinha olhado a peça.
         const ap = getApprovalMeta(s.approvalStatus);
+        // Só com `destacarPendencia`: pendente em evidência, aprovado recuado.
+        const pendente = destacarPendencia && ap?.tone === "waiting";
+        const aprovado = destacarPendencia && ap?.tone === "approved";
         return (
           <span
             key={s.id}
@@ -180,6 +193,8 @@ export function SponsorChips({
               overflow: "hidden",
               textOverflow: "ellipsis",
               ...sz,
+              ...(pendente ? { fontWeight: 700 } : {}),
+              ...(aprovado ? { fontWeight: 500, opacity: 0.6 } : {}),
             }}
           >
             {/* A MARCA TEM FORMA, e não só cor.
@@ -213,6 +228,8 @@ export function SponsorChips({
               boxSizing: "border-box" as const,
             }} />
             {s.name}
+            {pendente && <Clock aria-hidden="true" style={{ width: 10, height: 10, flexShrink: 0 }} />}
+            {aprovado && <Check aria-hidden="true" style={{ width: 10, height: 10, flexShrink: 0, color: "#15803d" }} />}
             {ap && <span style={SR_ONLY}>{` — ${ap.label}`}</span>}
           </span>
         );

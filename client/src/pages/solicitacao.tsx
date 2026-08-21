@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { CheckCircle, AlertCircle, Copy, Eye, Search, X, FileImage, Maximize2, Trash2, Paperclip, Recycle, Check, Clock, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, Truck } from "lucide-react";
+import { CheckCircle, AlertCircle, Copy, Eye, Search, X, FileImage, Maximize2, Trash2, Paperclip, Recycle, Check, Clock, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, RotateCcw, Truck } from "lucide-react";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { FilePreview, isWebUrl } from "@/components/file-preview";
@@ -1690,78 +1690,151 @@ export default function Solicitacao() {
           <DialogDescription className="sr-only">
             Compare o thumb aprovado pelo patrocinador com o arquivo final da Arte e libere ou devolva a peça
           </DialogDescription>
-          <div className="review-modal-columns" style={{ height: "100%" }}>
+          {/* ── CINCO FAIXAS HORIZONTAIS, LARGURA CHEIA ──
 
-            {/* Left column — comparação aprovado × final (40%) */}
-            {/* 56%, nao 40%. Este modal existe para UMA comparacao — o que o
-                patrocinador aprovou x o que a Arte finalizou — e os dois panes
-                lado a lado precisam de largura para valer alguma coisa. A
-                coluna da direita perde 16 pontos e nao sente: ela carrega
-                botoes e listas, que sao estreitos por natureza. */}
-            <div style={{ width: isMobile ? "100%" : "56%", backgroundColor: "#f5f5f4", display: "flex", flexDirection: "column", borderRight: "1px solid #e7e5e4", overflow: "hidden" }}>
-              {/* Left header */}
-              <div style={{ padding: "14px 18px", backgroundColor: "#1c1917", borderBottom: "2px solid #f97316", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-                <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#fff" }}>Comparação de Arquivos</span>
-                {selectedItem?.finalFileUrl && isWebUrl(selectedItem.finalFileUrl) && (
-                  <a
-                    href={selectedItem.finalFileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    title="Abrir arquivo final em nova aba"
-                    aria-label="Abrir arquivo final em nova aba"
-                    style={{ display: "flex", padding: 4, borderRadius: 6, color: "rgba(255,255,255,0.7)" }}
-                  >
-                    <Maximize2 style={{ width: 16, height: 16 }} />
-                  </a>
+              A versão anterior era um layout de DUAS COLUNAS com estilo novo
+              por cima: a comparação numa coluna de 56% e a decisão num painel
+              à direita, com os botões empilhados numa caixa escura. Os
+              defeitos vistos em produção — botões se sobrepondo, metadados
+              cortados pela borda — eram CONSEQUÊNCIA dessa estrutura, não
+              bugs soltos: a coluna estreita nunca teve largura para dois
+              rótulos longos lado a lado, e a tira quebrava porque dividia 44%
+              do modal com tudo o mais.
+
+              Agora não existe divisão esquerda/direita no nível do modal:
+
+                1 · cabeçalho escuro (identidade da peça + fila + X)
+                2 · comparação — dois panes lado a lado, LARGURA CHEIA
+                3 · metadados numa linha
+                4 · decisão — botões + observações | patrocinadores/histórico
+                5 · rodapé de atalhos
+
+              Só a faixa 2 flexiona (flex: 1 1 auto, piso 200px); as outras
+              quatro têm flexShrink: 0 — numa janela de 540px de altura, a
+              comparação e os dois botões estão visíveis sem rolar, porque as
+              faixas fixas somam ~340px e o resto é da comparação. */}
+          <div style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+
+            {/* ── 1 · CABEÇALHO ── */}
+            <div style={{ flexShrink: 0, background: "linear-gradient(135deg, #1c1917, #2d2926)", padding: isMobile ? "12px 14px" : "14px 20px", display: "flex", alignItems: "center", gap: 14 }}>
+              {!isMobile && (
+                <div aria-hidden="true" style={{ width: 40, height: 40, borderRadius: 10, backgroundColor: "rgba(249,115,22,0.14)", border: "1px solid rgba(249,115,22,0.35)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <Eye style={{ width: 18, height: 18, color: "#fdba74" }} />
+                </div>
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0 }}>
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: "#fdba74", flexShrink: 0 }}>{selectedItem?.displayId}</span>
+                  <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 800, color: "#fff", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{selectedItem?.type}</span>
+                  {selectedItem?.isReuse && (
+                    <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "3px 10px", flexShrink: 0 }}>
+                      Reaproveitamento
+                    </span>
+                  )}
+                </div>
+                {selectedItem?.description && (
+                  <p style={{ margin: "1px 0 0", fontSize: 13, color: "rgba(255,255,255,0.72)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{selectedItem.description}</p>
                 )}
-              </div>
-
-              {/* ── A COMPARACAO, LADO A LADO ──
-
-                  Os dois arquivos ficavam EMPILHADOS, cada um com `height:
-                  32vh`, dentro de um container rolavel: era preciso ROLAR para
-                  ver o segundo. Uma comparacao que nao se ve de uma vez nao e
-                  comparacao — e lembrar do primeiro enquanto se olha o segundo.
-                  Numa janela de 540px de altura, 32vh + 32vh + rotulos + gap
-                  ja passava do que a coluna tinha.
-
-                  A FAIXA PRECISA DE PISO E DE `overflow: hidden`. Com `flex: 1
-                  1 auto; minHeight: 0` ela absorve todo o encolhimento e
-                  colapsa; com um piso grande demais (300px) empurra o resto
-                  abaixo da dobra em 540px. 200px fecha as duas contas.
-
-                  No celular empilha — e a unica situacao em que empilhar aqui
-                  e certo: lado a lado em 390px da dois panes de 180px. */}
-              <div style={{
-                flex: "1 1 auto", minHeight: 200, overflow: "hidden",
-                padding: isMobile ? 14 : 16,
-                display: "grid",
-                gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr",
-                gap: isMobile ? 12 : 14,
-              }}>
-                {[
-                  { label: "Aprovado pelo patrocinador", url: selectedItem?.approvalThumbUrl, empty: "Sem thumb aprovado" },
-                  { label: "Arquivo final da Arte", url: selectedItem?.finalFileUrl, empty: "A Arte ainda não subiu o arquivo final" },
-                ].map(({ label, url, empty }) => {
-                  // Caminho de rede/disco (\\10.100.1.7\...): o navegador não
-                  // abre nem pré-visualiza — sem caixa de preview e sem "Abrir",
-                  // só o aviso apontando para o caminho copiável logo abaixo.
-                  const caminhoDeRede = !!url && !isWebUrl(url);
+                {(() => {
+                  const ev: any = events.find((e: any) => e.id === selectedItem?.eventId);
+                  if (!ev) return null;
+                  const saida = ev.truckDepartureDate ? new Date(ev.truckDepartureDate) : null;
                   return (
+                    <p style={{ margin: "2px 0 0", fontSize: 11, color: "rgba(255,255,255,0.55)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {ev.name}
+                      {saida && " · caminhão " + saida.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", "").replace(" de ", " ") + " · " + saida.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                    </p>
+                  );
+                })()}
+              </div>
+              {/* ── A FILA mora no cabeçalho, não no corpo ──
+                  Sem isto o modal é uma ficha isolada quando o trabalho é uma
+                  fila de 74: decidir, o modal fecha, procurar a próxima na
+                  tabela, clicar de novo. E a tabela mudou entre uma e outra (a
+                  peça decidida saiu dela), então "procurar a próxima" nem é
+                  procurar a linha de baixo. */}
+              {filaIdx >= 0 && filteredItems.length > 1 && (
+                <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
+                  <button
+                    type="button"
+                    onClick={() => irParaFila(filaIdx - 1)}
+                    disabled={!temAnterior}
+                    title="Peça anterior (←)"
+                    aria-label="Peça anterior"
+                    data-testid="button-modal-prev"
+                    style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid rgba(255,255,255,0.22)", background: "transparent", color: temAnterior ? "#fff" : "rgba(255,255,255,0.35)", cursor: temAnterior ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                  >
+                    <ChevronLeft style={{ width: 15, height: 15 }} />
+                  </button>
+                  <span
+                    data-testid="text-queue-position"
+                    aria-live="polite"
+                    style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color: "rgba(255,255,255,0.85)", padding: "0 6px", whiteSpace: "nowrap" }}
+                  >
+                    {filaIdx + 1} / {filteredItems.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => irParaFila(filaIdx + 1)}
+                    disabled={!temProxima}
+                    title="Próxima peça (→)"
+                    aria-label="Próxima peça"
+                    data-testid="button-modal-next"
+                    style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid rgba(255,255,255,0.22)", background: "transparent", color: temProxima ? "#fff" : "rgba(255,255,255,0.35)", cursor: temProxima ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
+                  >
+                    <ChevronRight style={{ width: 15, height: 15 }} />
+                  </button>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                aria-label="Fechar"
+                style={{ width: 36, height: 36, borderRadius: 8, border: "none", background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.8)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}
+              >
+                <X style={{ width: 17, height: 17 }} />
+              </button>
+            </div>
+
+            {/* ── 2 · COMPARAÇÃO — a única faixa que flexiona ──
+                Os dois arquivos lado a lado na LARGURA INTEIRA do modal: é a
+                comparação que esta tela existe para mostrar, e antes ela vivia
+                espremida numa coluna de 56%. `min-height: 200` fecha as duas
+                contas — sem piso a faixa colapsa; com 300px ela empurra os
+                botões abaixo da dobra numa janela de 540px. No celular
+                empilha, a única situação em que empilhar aqui é certo. */}
+            <div style={{ flex: "1 1 auto", minHeight: 200, overflow: "hidden", backgroundColor: "#f5f5f4", padding: isMobile ? 12 : "14px 20px", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: isMobile ? 10 : 14 }}>
+              {[
+                { label: "Aprovado pelo patrocinador", url: selectedItem?.approvalThumbUrl, empty: "Sem thumb aprovado" },
+                { label: "Arquivo final da Arte", url: selectedItem?.finalFileUrl, empty: "A Arte ainda não subiu o arquivo final" },
+              ].map(({ label, url, empty }) => {
+                // Caminho de rede/disco (\\10.100.1.7\...): o navegador não
+                // abre nem pré-visualiza — sem moldura e sem "ampliar", só o
+                // aviso apontando para o caminho copiável na tira abaixo.
+                const caminhoDeRede = !!url && !isWebUrl(url);
+                return (
                   <div key={label} style={{ display: "flex", flexDirection: "column", gap: 6, minHeight: 0, overflow: "hidden" }}>
-                    {/* Ponto de estado no cabecalho do pane: verde quando o
-                        arquivo existe, laranja quando falta. E a mesma pergunta
-                        que a coluna nova da tabela responde, agora dentro da
-                        ficha. */}
                     <p style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 800, color: "#57534e", textTransform: "uppercase", letterSpacing: "0.08em", margin: 0, flexShrink: 0 }}>
                       <span aria-hidden="true" style={{ width: 7, height: 7, borderRadius: "50%", backgroundColor: url ? "#15803d" : "#c2410c", flexShrink: 0 }} />
-                      {label}
+                      <span style={{ flex: 1, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{label}</span>
+                      {url && isWebUrl(url) && (
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          title={"Ampliar: abrir " + label.toLowerCase() + " em nova aba"}
+                          aria-label={"Abrir " + label.toLowerCase() + " em nova aba"}
+                          style={{ display: "flex", padding: 4, borderRadius: 6, color: "#78716c", flexShrink: 0 }}
+                        >
+                          <Maximize2 style={{ width: 14, height: 14 }} />
+                        </a>
+                      )}
                     </p>
                     {caminhoDeRede ? (
                       <div style={{ backgroundColor: "#fff", borderRadius: 8, border: "1px solid #e7e5e4", padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
                         <FileImage style={{ width: 20, height: 20, color: "#a8a29e", flexShrink: 0 }} />
                         <p style={{ fontSize: 11, fontWeight: 600, color: TI.secondary, margin: 0 }}>
-                          Arquivo salvo na rede local — sem pré-visualização. Copie o caminho em "Caminho do Arquivo Final".
+                          Arquivo salvo na rede local — sem pré-visualização. Copie o caminho na tira abaixo.
                         </p>
                       </div>
                     ) : (
@@ -1769,7 +1842,7 @@ export default function Solicitacao() {
                        aspect-ratio: 3/2` sem largura nem altura resolve para
                        2px: `max-*` LIMITA um tamanho, nunca o produz. Aqui a
                        moldura toma a altura que a faixa deu (`flex: 1` dentro
-                       de um pai de altura definida) e o conteudo cabe inteiro
+                       de um pai de altura definida) e o conteúdo cabe inteiro
                        com `objectFit: contain`. */
                     <div style={{ flex: "1 1 auto", minHeight: isMobile ? 180 : 140, width: "100%", backgroundColor: "#fff", borderRadius: 8, overflow: "hidden", border: "1px solid #e7e5e4", boxShadow: "inset 0 1px 4px rgba(0,0,0,0.06)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                       {url ? (
@@ -1782,352 +1855,219 @@ export default function Solicitacao() {
                       )}
                     </div>
                     )}
-                    {url && !caminhoDeRede && (
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{ alignSelf: "flex-start", fontSize: 11, fontWeight: 700, color: "#c2410c", textDecoration: "none", borderBottom: "1px solid #fed7aa", paddingBottom: 1 }}
-                      >
-                        Abrir em nova aba
-                      </a>
-                    )}
                   </div>
-                  );
-                })}
-
-              </div>
-
-              {/* ── A TIRA DE METADADOS ──
-
-                  Era uma grade de seis cartoes de 10px de padding ocupando a
-                  metade inferior da coluna — metade da altura util do modal
-                  para seis pares rotulo/valor que ninguem le ANTES de decidir,
-                  so confere depois. Numa faixa que nao encolhe, continuam a
-                  mao e devolvem a altura para a comparacao, que e o que a tela
-                  existe para mostrar. */}
-              <div className="review-modal-scroll" style={{ flexShrink: 0, maxHeight: "26vh", overflowY: "auto", padding: isMobile ? "0 14px 14px" : "0 16px 14px", display: "flex", flexDirection: "column", gap: 12 }}>
-                {/* File path */}
-                <div>
-                  <p style={{ fontSize: 10, fontWeight: 900, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 6 }}>Caminho do Arquivo Final</p>
-                  {selectedItem?.finalFileUrl ? (
-                    <div style={{ display: "flex", alignItems: "stretch", gap: 6 }}>
-                      <div style={{ flex: 1, backgroundColor: "#e2e2e2", padding: "8px 10px", borderRadius: 6, fontFamily: "monospace", fontSize: 10, color: "#57534e", wordBreak: "break-all" }}>
-                        {selectedItem.finalFileUrl}
-                      </div>
-                      <button
-                        type="button"
-                        title="Copiar caminho"
-                        aria-label="Copiar caminho do arquivo final"
-                        onClick={() => {
-                          navigator.clipboard.writeText(selectedItem.finalFileUrl!)
-                            .then(() => toast({ title: "Caminho copiado", description: "Cole no Explorer para abrir o arquivo." }))
-                            .catch(() => toast({ title: "Não foi possível copiar", description: "Selecione o caminho e copie manualmente.", variant: "destructive" }));
-                        }}
-                        style={{ flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", width: 34, borderRadius: 6, border: "1px solid #d6d3d1", backgroundColor: "#fff", color: "#57534e", cursor: "pointer" }}
-                      >
-                        <Copy style={{ width: 14, height: 14 }} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div style={{ backgroundColor: "#fff0ee", border: "1px solid #fecaca", borderRadius: 6, padding: "8px 10px", fontSize: 11, color: "#b91c1c", fontWeight: 600 }}>
-                      Nenhum arquivo final enviado
-                    </div>
-                  )}
-                </div>
-
-                {/* A ficha tecnica numa LINHA. Eram seis cartoes em grade de
-                    duas colunas — seis fundos, seis bordas e seis raios para
-                    seis pares rotulo/valor. Em linha eles cabem no respiro que
-                    a comparacao devolveu. */}
-                {/* UMA LINHA SÓ. Com `flex-wrap: wrap`, a segunda linha
-                    nascia FORA do que a coluna reservou e era cortada pela
-                    borda — "QUANTIDADE · EDITAR" aparecia pela metade, visto
-                    em produção. Os cartões agora encolhem (`min-width: 0`,
-                    valor em elipse com o texto completo no title) em vez de
-                    quebrar. No celular, onde não há largura para seis, a
-                    tira rola na horizontal — cortar em silêncio é o único
-                    desfecho proibido. */}
-                <div style={{ display: "flex", flexWrap: "nowrap", gap: isMobile ? 8 : 10, alignItems: "stretch", overflowX: isMobile ? "auto" : "hidden" }}>
-                  {[
-                    { label: "Tipo", value: selectedItem?.type || "—" },
-                    { label: "Material", value: selectedItem?.material || "—" },
-                    { label: "Acabamento", value: selectedItem?.finish || "—" },
-                    { label: "Dimensões", value: selectedItem?.fileWidth && selectedItem?.fileHeight ? `${selectedItem.fileWidth}×${selectedItem.fileHeight}` : "—" },
-                    { label: "M²", value: selectedItem?.calculatedM2 || "—" },
-                  ].map(({ label, value }) => (
-                    <div key={label} style={{ flex: "1 1 0", minWidth: isMobile ? 72 : 0, backgroundColor: "#fff", padding: "10px 12px", borderRadius: 8, border: "1px solid #e7e5e4" }}>
-                      <p style={{ fontSize: 10, color: "#746e69", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0, whiteSpace: "nowrap" }}>{label}</p>
-                      <p title={String(value)} style={{ fontSize: 11, fontWeight: 700, color: TI.text, margin: "3px 0 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</p>
-                    </div>
-                  ))}
-
-                  {/* Quantidade — editável.
-                      Era um <div> com onClick: editar a quantidade só existia
-                      para quem usa mouse, e o "· editar" a 8px era o menor
-                      texto do app. */}
-                  {/* Em evento finalizado o cartão deixa de ser botão: PATCH
-                      /api/items/:id passa pela guarda, então abrir o campo só
-                      levaria a um 409 depois de digitar. O rótulo "· editar"
-                      sai junto — oferecer e negar é pior do que não oferecer. */}
-                  <div
-                    role={editingQuantity || seloSelecionado ? undefined : "button"}
-                    tabIndex={editingQuantity || seloSelecionado ? undefined : 0}
-                    aria-label={seloSelecionado ? undefined : "Editar quantidade"}
-                    style={{ flex: "1 1 0", minWidth: isMobile ? 104 : 96, backgroundColor: "#fff", padding: "10px 12px", borderRadius: 8, border: "1px solid #e7e5e4", cursor: seloSelecionado ? "default" : "pointer", position: "relative" }}
-                    onClick={() => {
-                      if (!editingQuantity && !seloSelecionado) {
-                        setEditingQuantity(true);
-                        setTimeout(() => quantityInputRef.current?.select(), 50);
-                      }
-                    }}
-                    onKeyDown={e => {
-                      if (editingQuantity || seloSelecionado) return;
-                      if (e.key === "Enter" || e.key === " ") {
-                        e.preventDefault();
-                        setEditingQuantity(true);
-                        setTimeout(() => quantityInputRef.current?.select(), 50);
-                      }
-                    }}
-                    title={seloSelecionado
-                      ? motivoAcaoBloqueada(seloSelecionado.motivo, "mudar a quantidade")
-                      : "Clique para editar a quantidade"}
-                  >
-                    <p style={{ fontSize: 10, color: "#746e69", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0, display: "flex", alignItems: "center", gap: 4 }}>
-                      Quantidade
-                      {!seloSelecionado && (
-                        <span style={{ fontSize: 10, color: "#c2410c", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em" }}>· editar</span>
-                      )}
-                    </p>
-                    {editingQuantity ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 3 }} onClick={e => e.stopPropagation()}>
-                        <input
-                          ref={quantityInputRef}
-                          type="number"
-                          min={1}
-                          value={quantityValue}
-                          onChange={e => setQuantityValue(Math.max(1, parseInt(e.target.value) || 1))}
-                          onKeyDown={e => {
-                            if (e.key === "Enter") {
-                              updateQuantityMutation.mutate({ itemId: selectedItem.id, quantity: quantityValue });
-                            }
-                            if (e.key === "Escape") {
-                              setQuantityValue(selectedItem.quantity ?? 1);
-                              setEditingQuantity(false);
-                            }
-                          }}
-                          style={{
-                            width: 52, padding: "2px 6px", fontSize: 13, fontWeight: 700,
-                            border: "1.5px solid #f97316", borderRadius: 6,
-                            color: TI.text, background: "#fff9f5",
-                          }}
-                          data-testid="input-quantity-edit"
-                          autoFocus
-                        />
-                        <button
-                          onClick={() => updateQuantityMutation.mutate({ itemId: selectedItem.id, quantity: quantityValue })}
-                          disabled={updateQuantityMutation.isPending}
-                          style={{ padding: "6px 10px", fontSize: 10, fontWeight: 800, backgroundColor: "#c2410c", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", textTransform: "uppercase" }}
-                          data-testid="button-confirm-quantity"
-                        >
-                          {updateQuantityMutation.isPending ? "..." : "OK"}
-                        </button>
-                        <button
-                          onClick={() => { setQuantityValue(selectedItem.quantity ?? 1); setEditingQuantity(false); }}
-                          style={{ padding: "6px 8px", fontSize: 10, fontWeight: 800, backgroundColor: "#f3f4f3", color: "#746e69", border: "none", borderRadius: 6, cursor: "pointer" }}
-                          data-testid="button-cancel-quantity"
-                        >
-                          ✕
-                        </button>
-                      </div>
-                    ) : (
-                      <p style={{ fontSize: 13, fontWeight: 700, color: TI.text, margin: "3px 0 0" }}>
-                        {selectedItem?.quantity ?? "—"}x
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
+                );
+              })}
             </div>
 
-            {/* Right column — decision & timeline (60%) */}
-            <div style={{ flex: 1, display: "flex", flexDirection: "column", backgroundColor: "#fafaf9", overflow: "hidden" }}>
-              {/* Right header — ModalHeader compartilhado (X com aria-label). */}
-              <div style={{ flexShrink: 0 }}>
-                <ModalHeader
-                  variant="confirm"
-                  icon={Eye}
-                  tint="#c2410c"
-                  title="Decisão de Revisão"
-                  subtitle={[selectedItem?.displayId && `ID: ${selectedItem.displayId}`, selectedItem?.type].filter(Boolean).join(" | ")}
-                  onClose={() => setModalOpen(false)}
-                  trailing={(
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-                      {selectedItem?.isReuse && (
-                        <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", backgroundColor: "#dcfce7", color: "#166534", borderRadius: 999, padding: "3px 10px", flexShrink: 0 }}>
-                          Reaproveitamento
-                        </span>
-                      )}
-                      {/* ── A FILA ──
-                          Sem isto o modal e uma ficha isolada quando o trabalho
-                          e uma fila de 74: decidir, o modal fecha, procurar a
-                          proxima na tabela, clicar de novo. E a tabela mudou
-                          entre uma e outra (a peca decidida saiu dela), entao
-                          "procurar a proxima" nem e procurar a linha de baixo. */}
-                      {filaIdx >= 0 && filteredItems.length > 1 && (
-                        <div style={{ display: "flex", alignItems: "center", gap: 2, flexShrink: 0 }}>
-                          <button
-                            type="button"
-                            onClick={() => irParaFila(filaIdx - 1)}
-                            disabled={!temAnterior}
-                            title="Peça anterior (←)"
-                            aria-label="Peça anterior"
-                            data-testid="button-modal-prev"
-                            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", color: temAnterior ? "#1c1917" : "#a8a29e", cursor: temAnterior ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
-                          >
-                            <ChevronLeft style={{ width: 15, height: 15 }} />
-                          </button>
-                          <span
-                            data-testid="text-queue-position"
-                            aria-live="polite"
-                            style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 700, color: "#57534e", padding: "0 6px", whiteSpace: "nowrap" }}
-                          >
-                            {filaIdx + 1} / {filteredItems.length}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => irParaFila(filaIdx + 1)}
-                            disabled={!temProxima}
-                            title="Próxima peça (→)"
-                            aria-label="Próxima peça"
-                            data-testid="button-modal-next"
-                            style={{ width: 30, height: 30, borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", color: temProxima ? "#1c1917" : "#a8a29e", cursor: temProxima ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
-                          >
-                            <ChevronRight style={{ width: 15, height: 15 }} />
-                          </button>
-                        </div>
-                      )}
-                    </div>
+            {/* ── 3 · METADADOS NUMA LINHA ──
+                Os cartões que quebravam em duas linhas (e a segunda era
+                cortada pela borda) viraram UMA linha de blocos separados por
+                filetes. Cada bloco encolhe (`min-width: 0`, valor em elipse
+                com o texto completo no title); no celular a linha rola na
+                horizontal — cortar em silêncio é o único desfecho proibido. */}
+            <div style={{ flexShrink: 0, borderTop: "1px solid #e7e5e4", backgroundColor: "#fff", padding: isMobile ? "8px 12px" : "8px 20px", display: "flex", alignItems: "center", overflowX: isMobile ? "auto" : "hidden" }}>
+              {[
+                { label: "Material", value: selectedItem?.material || "—" },
+                { label: "Acabamento", value: selectedItem?.finish || "—" },
+                { label: "Dimensões", value: selectedItem?.fileWidth && selectedItem?.fileHeight ? `${selectedItem.fileWidth}×${selectedItem.fileHeight}` : "—" },
+                { label: "M²", value: selectedItem?.calculatedM2 || "—" },
+              ].map(({ label, value }, i) => (
+                <div key={label} style={{ flex: "1 1 0", minWidth: isMobile ? 76 : 0, padding: "2px 14px 2px " + (i === 0 ? "0" : "14px"), borderLeft: i === 0 ? "none" : "1px solid #e7e5e4" }}>
+                  <p style={{ fontSize: 10, color: "#7a6154", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0, whiteSpace: "nowrap" }}>{label}</p>
+                  <p title={String(value)} style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", margin: "2px 0 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</p>
+                </div>
+              ))}
+
+              {/* Quantidade — editável por teclado (role="button" + Enter/Espaço).
+                  Em evento finalizado deixa de ser botão: PATCH /api/items/:id
+                  passa pela guarda, então abrir o campo só levaria a um 409
+                  depois de digitar. O rótulo "· editar" sai junto — oferecer e
+                  negar é pior do que não oferecer. */}
+              <div
+                role={editingQuantity || seloSelecionado ? undefined : "button"}
+                tabIndex={editingQuantity || seloSelecionado ? undefined : 0}
+                aria-label={seloSelecionado ? undefined : "Editar quantidade"}
+                style={{ flex: "1 1 0", minWidth: isMobile ? 104 : 96, padding: "2px 0 2px 14px", borderLeft: "1px solid #e7e5e4", cursor: seloSelecionado ? "default" : "pointer" }}
+                onClick={() => {
+                  if (!editingQuantity && !seloSelecionado) {
+                    setEditingQuantity(true);
+                    setTimeout(() => quantityInputRef.current?.select(), 50);
+                  }
+                }}
+                onKeyDown={e => {
+                  if (editingQuantity || seloSelecionado) return;
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setEditingQuantity(true);
+                    setTimeout(() => quantityInputRef.current?.select(), 50);
+                  }
+                }}
+                title={seloSelecionado
+                  ? motivoAcaoBloqueada(seloSelecionado.motivo, "mudar a quantidade")
+                  : "Clique para editar a quantidade"}
+              >
+                <p style={{ fontSize: 10, color: "#7a6154", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0, display: "flex", alignItems: "center", gap: 4, whiteSpace: "nowrap" }}>
+                  Qtd
+                  {!seloSelecionado && (
+                    <span style={{ fontSize: 10, color: "#c2410c", fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.04em" }}>· editar</span>
                   )}
-                />
+                </p>
+                {editingQuantity ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 4, marginTop: 2 }} onClick={e => e.stopPropagation()}>
+                    <input
+                      ref={quantityInputRef}
+                      type="number"
+                      min={1}
+                      value={quantityValue}
+                      onChange={e => setQuantityValue(Math.max(1, parseInt(e.target.value) || 1))}
+                      onKeyDown={e => {
+                        if (e.key === "Enter") {
+                          updateQuantityMutation.mutate({ itemId: selectedItem.id, quantity: quantityValue });
+                        }
+                        if (e.key === "Escape") {
+                          setQuantityValue(selectedItem.quantity ?? 1);
+                          setEditingQuantity(false);
+                        }
+                      }}
+                      style={{
+                        width: 52, padding: "2px 6px", fontSize: 13, fontWeight: 700,
+                        border: "1.5px solid #f97316", borderRadius: 6,
+                        color: TI.text, background: "#fff9f5",
+                      }}
+                      data-testid="input-quantity-edit"
+                      autoFocus
+                    />
+                    <button
+                      onClick={() => updateQuantityMutation.mutate({ itemId: selectedItem.id, quantity: quantityValue })}
+                      disabled={updateQuantityMutation.isPending}
+                      style={{ padding: "6px 10px", fontSize: 10, fontWeight: 800, backgroundColor: "#c2410c", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", textTransform: "uppercase" }}
+                      data-testid="button-confirm-quantity"
+                    >
+                      {updateQuantityMutation.isPending ? "..." : "OK"}
+                    </button>
+                    <button
+                      onClick={() => { setQuantityValue(selectedItem.quantity ?? 1); setEditingQuantity(false); }}
+                      style={{ padding: "6px 8px", fontSize: 10, fontWeight: 800, backgroundColor: "#f3f4f3", color: "#746e69", border: "none", borderRadius: 6, cursor: "pointer" }}
+                      data-testid="button-cancel-quantity"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <p style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", margin: "2px 0 0" }}>
+                    {selectedItem?.quantity ?? "—"}x
+                  </p>
+                )}
               </div>
 
-              {/* Right body */}
-              <div className="review-modal-scroll" style={{ flex: 1, overflowY: "auto", padding: isMobile ? "18px" : "24px 32px", display: "flex", flexDirection: "column", gap: 24 }}>
+              {/* Copiar caminho da rede — o único gesto útil para o TIF no
+                  servidor local; "Abrir" para caminho de rede é promessa que
+                  nunca funciona. */}
+              {selectedItem?.finalFileUrl && (
+                <button
+                  type="button"
+                  title={"Copiar caminho: " + selectedItem.finalFileUrl}
+                  aria-label="Copiar caminho do arquivo final"
+                  onClick={() => {
+                    navigator.clipboard.writeText(selectedItem.finalFileUrl!)
+                      .then(() => toast({ title: "Caminho copiado", description: "Cole no Explorer para abrir o arquivo." }))
+                      .catch(() => toast({ title: "Não foi possível copiar", description: "Selecione o caminho e copie manualmente.", variant: "destructive" }));
+                  }}
+                  style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 6, marginLeft: 14, padding: "8px 12px", borderRadius: 6, border: "1px solid #e7e5e4", backgroundColor: "#fff", color: "#57534e", cursor: "pointer", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap" }}
+                >
+                  <Copy style={{ width: 13, height: 13 }} />
+                  {!isMobile && "Copiar caminho da rede"}
+                </button>
+              )}
+            </div>
 
-                {/* Reuse banner */}
+            {/* ── 4 · DECISÃO — faixa clara, largura cheia ──
+                Nada de caixa escura em volta dos botões: o escuro é do
+                cabeçalho. À esquerda os dois botões LADO A LADO com as
+                observações abaixo; à direita patrocinadores e histórico. As
+                duas colunas com teto de 32vh e rolagem própria — sem o teto
+                elas crescem até a altura do conteúdo e o modal inteiro passa a
+                rolar, deixando as decisões fora de vista na abertura.
+
+                Sobre as maiúsculas: "LIBERAR PARA PRODUÇÃO" com letterSpacing
+                media ~40% mais que "Liberar para produção" e era o que
+                produzia a sobreposição dos botões. Caixa normal resolve na
+                origem — sem elipse, sem empilhar. */}
+            <div style={{ flexShrink: 0, borderTop: "1px solid #e7e5e4", backgroundColor: "#fafaf9", padding: isMobile ? 12 : "14px 20px", display: "flex", flexDirection: isMobile ? "column" : "row", gap: isMobile ? 12 : 24 }}>
+              <div className="review-modal-scroll" style={{ flex: isMobile ? undefined : "1 1 0", minWidth: 0, minHeight: 0, maxHeight: isMobile ? "34vh" : "32vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 10 }}>
+                {/* PATCH creator-review (liberar) e PATCH return-to-arte
+                    (devolver) são as duas rotas mais claramente barradas pela
+                    guarda de evento finalizado. Ficam visíveis e DESABILITADAS,
+                    com o motivo — sumi-las deixaria a ficha sem explicação
+                    nenhuma para a ausência. */}
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    onClick={() => { if (!seloSelecionado) setReleaseConfirmOpen(true); }}
+                    disabled={!!seloSelecionado || creatorReviewMutation.isPending || !selectedItem?.finalFileUrl}
+                    data-testid="button-release-modal"
+                    title={seloSelecionado
+                      ? motivoAcaoBloqueada(seloSelecionado.motivo, "liberar para produção")
+                      : !selectedItem?.finalFileUrl ? "Arquivo final não enviado" : ""}
+                    style={{
+                      flex: "1 1 0", minWidth: 0, height: 48,
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      borderRadius: 8,
+                      border: seloSelecionado || !selectedItem?.finalFileUrl ? "1px solid #e7e5e4" : "none",
+                      backgroundColor: seloSelecionado || !selectedItem?.finalFileUrl ? "#f5f5f4" : "#c2410c",
+                      /* #6f6a64 sobre #f5f5f4 → 4,91:1: o "off" continua legível
+                         porque desabilitado-por-evento-finalizado é o único
+                         estado off desta tela que carrega informação nova. */
+                      color: seloSelecionado || !selectedItem?.finalFileUrl ? "#6f6a64" : "#fff",
+                      fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap",
+                      cursor: seloSelecionado || !selectedItem?.finalFileUrl || creatorReviewMutation.isPending ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    <Check style={{ width: 16, height: 16, flexShrink: 0 }} />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>
+                      {creatorReviewMutation.isPending ? "Liberando..." : "Liberar para produção"}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => { if (!seloSelecionado) setReturnConfirmOpen(true); }}
+                    disabled={!!seloSelecionado}
+                    title={seloSelecionado ? motivoAcaoBloqueada(seloSelecionado.motivo, "devolver para a Arte") : undefined}
+                    data-testid="button-return-toggle"
+                    style={{
+                      flex: "1 1 0", minWidth: 0, height: 48,
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      borderRadius: 8, border: "1px solid #e7e5e4",
+                      backgroundColor: seloSelecionado ? "#f5f5f4" : "#fff",
+                      color: seloSelecionado ? "#6f6a64" : "#1c1917",
+                      fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap",
+                      cursor: seloSelecionado ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    <RotateCcw style={{ width: 15, height: 15, flexShrink: 0 }} />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>Devolver para Arte</span>
+                  </button>
+                </div>
+                {seloSelecionado && (
+                  <p
+                    role="status"
+                    data-testid="aviso-ficha-evento-finalizado"
+                    style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "#44403c", backgroundColor: "#f5f5f4", border: "1px solid #e7e5e4", borderRadius: 8, padding: "8px 12px" }}
+                  >
+                    <strong style={{ color: "#1c1917" }}>{seloSelecionado.label}.</strong>{" "}
+                    {seloSelecionado.hint}{" "}
+                    Nesta peça continua liberado apenas excluir.
+                  </p>
+                )}
                 {selectedItem?.isReuse && (
-                  <div style={{ backgroundColor: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, padding: "12px 16px", display: "flex", alignItems: "flex-start", gap: 12 }}>
-                    <Recycle style={{ width: 18, height: 18, color: "#15803d", flexShrink: 0, marginTop: 1 }} />
-                    <div>
-                      <p style={{ fontSize: 13, fontWeight: 800, color: "#166534", margin: 0, textTransform: "uppercase", letterSpacing: "0.05em" }}>Peça para Reaproveitamento</p>
-                      <p style={{ fontSize: 11, color: "#166534", margin: "3px 0 0", opacity: 0.8 }}>
-                        Esta peça não será enviada para nova produção gráfica. Verifique o arquivo de arte e libere normalmente.
-                      </p>
-                    </div>
-                  </div>
+                  <p style={{ margin: 0, fontSize: 11, lineHeight: 1.5, color: "#166534", backgroundColor: "#f0fdf4", border: "1px solid #86efac", borderRadius: 8, padding: "8px 12px", display: "flex", alignItems: "center", gap: 8 }}>
+                    <Recycle style={{ width: 14, height: 14, flexShrink: 0 }} />
+                    <span>Peça de reaproveitamento — não será enviada para nova produção gráfica. Verifique o arquivo e libere normalmente.</span>
+                  </p>
                 )}
 
-                {/* Action card (dark) */}
-                <div style={{ backgroundColor: "#1c1917", border: "1px solid #292524", padding: isMobile ? 18 : 24, borderRadius: 12, display: "flex", flexDirection: "column", gap: 18, boxShadow: "0 8px 20px rgba(12,10,9,.10)" }}>
-                  {/* PATCH creator-review (liberar) e PATCH return-to-arte
-                      (devolver) são as duas rotas mais claramente barradas pela
-                      guarda de evento finalizado: liberar manda imprimir e
-                      devolver manda a Arte trabalhar de novo. Ficam visíveis e
-                      DESABILITADAS, com o motivo — some-las deixaria a ficha
-                      sem explicação nenhuma para a ausência. */}
-                  {/* OS DOIS BOTÕES NUNCA SE SOBREPÕEM — visto em produção:
-                      "PRODUÇÃOD EVOLVER PARA ARTE", um rótulo impresso sobre
-                      o outro, nas duas ações mais importantes da tela.
-
-                      A receita anterior tinha `nowrap` no BOTÃO sem
-                      `overflow: hidden`: `min-width: 0` deixava o botão
-                      encolher, mas o texto que não coube continuava sendo
-                      PINTADO, invadindo o vizinho. As três pernas que
-                      fecham juntas:
-                      · `flex: 1 1 210px; min-width: 0` — dividem a largura;
-                      · o rótulo num <span> com `overflow: hidden` +
-                        `text-overflow: ellipsis` — o excesso corta em
-                        elipse em vez de vazar;
-                      · `flex-wrap: wrap` no contêiner — abaixo de ~430px os
-                        botões EMPILHAM em largura total, porque elipse em
-                        ação primária é a segunda pior saída. */}
-                  <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
-                    <button
-                      onClick={() => { if (!seloSelecionado) setReleaseConfirmOpen(true); }}
-                      disabled={!!seloSelecionado || creatorReviewMutation.isPending || !selectedItem?.finalFileUrl}
-                      data-testid="button-release-modal"
-                      title={seloSelecionado
-                        ? motivoAcaoBloqueada(seloSelecionado.motivo, "liberar para produção")
-                        : !selectedItem?.finalFileUrl ? "Arquivo final não enviado" : ""}
-                      style={{
-                        // O rotulo nao quebra (nowrap no <span>) nem invade o
-                        // vizinho (overflow hidden aqui) — as duas metades da
-                        // receita descrita no comentario acima do container.
-                        flex: "1 1 210px", minWidth: 0, overflow: "hidden",
-                        padding: "14px 10px", borderRadius: 6, border: "none",
-                        backgroundColor: seloSelecionado || !selectedItem?.finalFileUrl ? "#292524" : "#9d4300",
-                        /* Desabilitado por evento finalizado é o único estado
-                           "off" desta tela que carrega INFORMAÇÃO NOVA, então
-                           tem de continuar legível: #d6d3d1 sobre #292524 →
-                           10,18:1. (#a8a29e é proibido como cor de texto na
-                           casa, e #57534e — o "off" de arquivo faltando —
-                           reprovaria AA aqui.) O que sinaliza o estado é o
-                           fundo apagado, o cursor e o parágrafo logo abaixo. */
-                        color: seloSelecionado ? "#d6d3d1" : !selectedItem?.finalFileUrl ? "#57534e" : "#fff",
-                        fontSize: 13, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.12em",
-                        cursor: seloSelecionado || !selectedItem?.finalFileUrl || creatorReviewMutation.isPending ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      <span style={{ display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        {creatorReviewMutation.isPending ? "Liberando..." : "Liberar para Produção"}
-                      </span>
-                    </button>
-                    <button
-                      onClick={() => { if (!seloSelecionado) setReturnConfirmOpen(true); }}
-                      disabled={!!seloSelecionado}
-                      title={seloSelecionado ? motivoAcaoBloqueada(seloSelecionado.motivo, "devolver para a Arte") : undefined}
-                      data-testid="button-return-toggle"
-                      style={{
-                        flex: "1 1 210px", minWidth: 0, overflow: "hidden",
-                        padding: "14px 10px", borderRadius: 6,
-                        /* Este botão é outline: sem fundo, "desabilitado" não
-                           se vê. Ganha o mesmo #292524 do Liberar apagado, para
-                           os dois lerem como o mesmo estado. O texto continua
-                           #d6d3d1 (10,18:1) — ver o comentário ali. */
-                        border: "1px solid #44403c",
-                        backgroundColor: seloSelecionado ? "#292524" : "transparent",
-                        color: "#d6d3d1", fontSize: 13, fontWeight: 900,
-                        textTransform: "uppercase", letterSpacing: "0.12em",
-                        cursor: seloSelecionado ? "not-allowed" : "pointer",
-                      }}
-                    >
-                      <span style={{ display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                        Devolver para Arte
-                      </span>
-                    </button>
-                  </div>
-                  {seloSelecionado && (
-                    <p
-                      role="status"
-                      data-testid="aviso-ficha-evento-finalizado"
-                      /* #d6d3d1 sobre #1c1917 → 11,2:1 nos 12px. */
-                      style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "#d6d3d1" }}
-                    >
-                      <strong style={{ color: "#fff" }}>{seloSelecionado.label}.</strong>{" "}
-                      {seloSelecionado.hint}{" "}
-                      Nesta peça continua liberado apenas excluir.
-                    </p>
-                  )}
-                </div>
-
                 {/* Observações do item — campo próprio, sempre editável.
-                    Antes só existia como texto (se já houvesse algo escrito) e
-                    a única forma de gravar uma observação era pelo textarea
-                    de "Devolver para Arte", ou seja: só dava para anotar algo
-                    devolvendo a peça. Aqui a pessoa escreve e salva sem que
-                    isso implique liberar ou devolver nada. */}
-                <div style={{ backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "12px 14px", display: "flex", gap: 8 }}>
+                    Existe para anotar sem ter de devolver a peça. */}
+                <div style={{ backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "10px 12px", display: "flex", gap: 8 }}>
                   <AlertCircle style={{ width: 14, height: 14, color: "#d97706", flexShrink: 0, marginTop: 2 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{ fontSize: 11, fontWeight: 700, color: "#92400e", margin: "0 0 6px" }}>Observações do item</p>
@@ -2137,7 +2077,7 @@ export default function Solicitacao() {
                       onChange={e => setCardObservations(e.target.value)}
                       data-testid="textarea-item-observations"
                       style={{
-                        width: "100%", minHeight: 60, padding: "8px 10px", borderRadius: 6,
+                        width: "100%", minHeight: 48, padding: "8px 10px", borderRadius: 6,
                         border: "1px solid #fde68a", backgroundColor: "#fffdf5",
                         color: "#78350f", fontSize: 13, resize: "vertical",
                         fontFamily: "inherit", boxSizing: "border-box",
@@ -2156,7 +2096,7 @@ export default function Solicitacao() {
                             padding: "6px 14px", borderRadius: 6,
                             border: seloSelecionado ? "1px solid #e7e5e4" : "none",
                             backgroundColor: seloSelecionado ? "#f5f5f4" : "#d97706",
-                            color: seloSelecionado ? "#78716c" : "#fff",
+                            color: seloSelecionado ? "#6f6a64" : "#fff",
                             fontSize: 12, fontWeight: 700, cursor: seloSelecionado || updateObservationsMutation.isPending ? "not-allowed" : "pointer",
                           }}
                         >
@@ -2172,12 +2112,14 @@ export default function Solicitacao() {
                     )}
                   </div>
                 </div>
+              </div>
 
-                {/* Patrocinadores da peça — quem aprovou o thumb que está
-                    sendo comparado ali ao lado. Vem no payload de /api/items. */}
+              {/* Direita da faixa: patrocinadores e histórico, com o mesmo
+                  teto de 32vh — listas crescem, decisões não podem descer. */}
+              <div className="review-modal-scroll" style={{ flex: "1 1 0", minWidth: 0, minHeight: 0, maxHeight: isMobile ? "26vh" : "32vh", overflowY: "auto", display: "flex", flexDirection: "column", gap: 14 }}>
                 {(selectedItem?.sponsors?.length ?? 0) > 0 && (
                   <div>
-                    <h3 style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em", color: TI.secondary, paddingBottom: 10, borderBottom: "1px solid #f0efee", margin: "0 0 12px" }}>
+                    <h3 style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em", color: TI.secondary, paddingBottom: 8, borderBottom: "1px solid #f0efee", margin: "0 0 10px" }}>
                       PATROCINADORES DA PEÇA
                     </h3>
                     <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
@@ -2190,18 +2132,16 @@ export default function Solicitacao() {
                   </div>
                 )}
 
-                {/* History timeline */}
                 <div>
-                  <h3 style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em", color: TI.secondary, paddingBottom: 10, borderBottom: "1px solid #f0efee", margin: "0 0 20px" }}>
+                  <h3 style={{ fontSize: 10, fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.18em", color: TI.secondary, paddingBottom: 8, borderBottom: "1px solid #f0efee", margin: "0 0 14px" }}>
                     HISTÓRICO
                   </h3>
                   {itemAuditLogs.length === 0 ? (
-                    <p style={{ fontSize: 13, color: TI.secondary }}>Sem histórico disponível.</p>
+                    <p style={{ fontSize: 13, color: TI.secondary, margin: 0 }}>Sem histórico disponível.</p>
                   ) : (
                     <div style={{ position: "relative", paddingLeft: 24 }}>
-                      {/* Vertical line */}
                       <div style={{ position: "absolute", left: 11, top: 8, bottom: 0, width: 2, backgroundColor: "#f0efee" }} />
-                      <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
                         {itemAuditLogs.map((log: any, idx: number) => {
                           const cfg = getLogCfg(log);
                           return (
@@ -2233,28 +2173,28 @@ export default function Solicitacao() {
                   )}
                 </div>
               </div>
-
-              {/* Rodapé de atalhos: só no desktop — no mobile não há teclado
-                  físico e o rodapé roubava altura do modal. */}
-              {!isMobile && (
-                <div style={{ padding: "14px 24px", backgroundColor: "#fafaf9", borderTop: "1px solid #f0efee", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <span style={{ fontSize: 10, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em" }}>Atalhos:</span>
-                    {([
-                      ["Enter", "liberar"],
-                      ["D", "devolver"],
-                      ["← →", "peça anterior / próxima"],
-                      ["Esc", "fechar"],
-                    ] as const).map(([tecla, oque]) => (
-                      <Fragment key={tecla}>
-                        <span style={{ fontSize: 10, fontWeight: 900, backgroundColor: "#e7e5e4", padding: "2px 6px", borderRadius: 6, color: TI.text, whiteSpace: "nowrap" }}>{tecla}</span>
-                        <span style={{ fontSize: 10, color: TI.secondary, whiteSpace: "nowrap" }}>{oque}</span>
-                      </Fragment>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
+
+            {/* ── 5 · RODAPÉ de atalhos: só no desktop — no mobile não há
+                teclado físico e o rodapé roubava altura do modal. */}
+            {!isMobile && (
+              <div style={{ padding: "12px 20px", backgroundColor: "#fafaf9", borderTop: "1px solid #f0efee", display: "flex", justifyContent: "space-between", alignItems: "center", flexShrink: 0 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: TI.secondary, textTransform: "uppercase", letterSpacing: "0.08em" }}>Atalhos:</span>
+                  {([
+                    ["Enter", "liberar"],
+                    ["D", "devolver"],
+                    ["← →", "peça anterior / próxima"],
+                    ["Esc", "fechar"],
+                  ] as const).map(([tecla, oque]) => (
+                    <Fragment key={tecla}>
+                      <span style={{ fontSize: 10, fontWeight: 900, backgroundColor: "#e7e5e4", padding: "2px 6px", borderRadius: 6, color: TI.text, whiteSpace: "nowrap" }}>{tecla}</span>
+                      <span style={{ fontSize: 10, color: TI.secondary, whiteSpace: "nowrap" }}>{oque}</span>
+                    </Fragment>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
           </FreezeWhileClosing>
         </DialogContent>

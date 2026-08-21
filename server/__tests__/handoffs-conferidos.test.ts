@@ -84,13 +84,15 @@ describe("Revisão", () => {
     expect(REV).toContain('flex: "1 1 auto", minHeight: 200, overflow: "hidden"');
   });
 
-  it("7c · a coluna da decisão se contém em vez de crescer", () => {
-    // A estrutura aqui é de COLUNAS, não das faixas horizontais que o handoff
-    // descreve: a coluna se contém por `flex: 1 + overflowY: auto` dentro de um
-    // modal com teto de altura. O efeito é o mesmo que um `max-height` teria
-    // numa faixa — o modal não estoura, e os botões, que abrem o corpo dela,
-    // ficam visíveis. Em 540px: 470 de modal − 80 de cabeçalho = 390 de corpo.
-    expect(REV).toContain('style={{ flex: 1, overflowY: "auto"');
+  it("7c · a decisão se contém em vez de crescer", () => {
+    // A ressalva que vivia aqui ("a estrutura é de colunas, não de faixas")
+    // MORREU: o handoff seguinte pediu a reestruturação de verdade, e o
+    // modal virou as cinco faixas horizontais que este item descrevia. A
+    // contenção agora é a da especificação: as duas metades da faixa de
+    // decisão têm teto de 32vh com rolagem própria — sem o teto elas
+    // cresceriam até a altura do conteúdo e o modal inteiro rolaria,
+    // deixando as decisões fora de vista na abertura.
+    expect((REV.match(/maxHeight: isMobile \? "\d+vh" : "32vh", overflowY: "auto"/g) ?? []).length).toBe(2);
     expect(REV).toContain('height: isMobile ? "94dvh" : "87vh", maxHeight: 900');
   });
 

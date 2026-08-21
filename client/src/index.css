@@ -699,16 +699,16 @@
 .review-dialog-shell button:focus-visible,
 .review-dialog-shell textarea:focus-visible,
 .review-dialog-shell input:focus-visible { outline: 2px solid #f97316; outline-offset: 2px; }
+/* Scrollbar clara: as áreas roláveis do modal agora vivem em faixas claras
+   (o escuro ficou só no cabeçalho) — a scrollbar escura de antes desenhava
+   uma régua preta no meio de um painel branco. */
 .review-modal-scroll {
-  scrollbar-color: #57534e #1c1917;
+  scrollbar-color: #d6d3d1 #fafaf9;
 }
-.review-modal-columns { display: flex; height: 100%; overflow: hidden; }
-@media (max-width: 900px) {
-  .review-modal-columns { display: block; overflow-y: auto; }
-  .review-modal-columns > div { width: 100% !important; min-height: 0; }
-  .review-modal-columns > div:first-child { max-height: 52dvh; }
-  .review-modal-columns > div:last-child { min-height: 48dvh; overflow: visible !important; }
-}
+/* .review-modal-columns morreu com a reestruturação em faixas horizontais:
+   o modal deixou de ter divisão esquerda/direita, então não há mais colunas
+   para empilhar no celular — as faixas já são de largura cheia em qualquer
+   viewport. */
 .review-confirm-content {
   width: calc(100% - 32px);
   max-width: 470px;

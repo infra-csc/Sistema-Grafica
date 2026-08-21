@@ -43,28 +43,41 @@ const semCom = (s: string) =>
     .split("\n").map(l => l.replace(/^\s*\/\/.*$/, "")).join("\n");
 
 describe("1 · os botões de decisão nunca se sobrepõem", () => {
+  // Este describe tem TRÊS gerações, e vale a genealogia:
+  //   1ª — `nowrap` no botão curou a quebra em duas linhas e criou a
+  //        sobreposição (nada cortava o excesso);
+  //   2ª — overflow hidden + elipse + wrap curou por CONTENÇÃO, dentro da
+  //        coluna estreita que era a causa real;
+  //   3ª — a reestruturação em faixas horizontais tirou a causa: os botões
+  //        vivem numa faixa de LARGURA CHEIA, em caixa normal ("Liberar
+  //        para produção" mede ~40% menos que o mesmo rótulo em maiúsculas
+  //        com letterSpacing), fora de qualquer caixa escura.
   it("cada botão divide a largura e pode encolher", () => {
-    // As duas ações usam a MESMA receita — a versão anterior tinha uma perna
-    // em cada botão e o par colidia no meio.
-    expect((REV.match(/flex: "1 1 210px", minWidth: 0, overflow: "hidden"/g) ?? []).length).toBe(2);
+    expect((REV.match(/flex: "1 1 0", minWidth: 0, height: 48,/g) ?? []).length).toBe(2);
   });
 
-  it("o rótulo corta em elipse em vez de invadir o vizinho", () => {
-    // `nowrap` no rótulo, DENTRO de um botão com overflow hidden. `nowrap` no
-    // botão sem o hidden era exatamente a receita do defeito.
-    expect(
-      (REV.match(/<span style=\{\{ display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" \}\}>/g) ?? []).length,
-    ).toBe(2);
+  it("caixa normal e nowrap — o rótulo cabe em vez de ser contido", () => {
+    const i = REV.indexOf('data-testid="button-release-modal"');
+    const bloco = REV.slice(i, i + 3400);
+    expect(bloco).toContain("Liberar para produção");
+    expect(bloco).toContain("Devolver para Arte");
+    // Nenhum dos dois é uppercase — a régua de largura que produzia a
+    // colisão não existe mais.
+    expect(bloco).not.toContain('textTransform: "uppercase"');
+    // A elipse continua, de cinto de segurança, no span do rótulo.
+    expect((bloco.match(/overflow: "hidden", textOverflow: "ellipsis"/g) ?? []).length).toBe(2);
   });
 
-  it("abaixo de ~430px os botões empilham em largura total", () => {
-    // Elipse em ação primária é a segunda pior saída; numa faixa estreita os
-    // dois rótulos longos empilham (wrap + base de 210px cada).
-    expect(REV).toContain('<div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>');
+  it("lado a lado numa faixa clara — sem caixa escura em volta", () => {
+    const i = REV.indexOf("4 · DECISÃO");
+    expect(i).toBeGreaterThan(-1);
+    const faixa = REV.slice(i, i + 1200);
+    expect(faixa).toContain('backgroundColor: "#fafaf9"');
+    expect(semCom(faixa)).not.toContain('backgroundColor: "#1c1917"');
   });
 
   it("a receita quebrada não voltou", () => {
-    expect(semCom(REV)).not.toContain('minWidth: 0, whiteSpace: "nowrap",');
+    expect(semCom(REV)).not.toContain('flex: "1 1 0", minWidth: 0, whiteSpace: "nowrap",');
   });
 });
 
@@ -105,18 +118,22 @@ describe("3 · nenhum caminho oferece link que o navegador não abre", () => {
   });
 
   it("os dois painéis do modal continuam gateados", () => {
-    expect(REV).toContain("selectedItem?.finalFileUrl && isWebUrl(selectedItem.finalFileUrl) && (");
+    // Com a reestruturação, o "ampliar" mudou de lugar (do cabeçalho da
+    // coluna para o cabeçalho de cada pane) mas manteve o gate: só quando
+    // a URL é navegável.
+    expect(REV).toContain("{url && isWebUrl(url) && (");
     expect(REV).toContain("const caminhoDeRede = !!url && !isWebUrl(url);");
   });
 });
 
 describe("4 · a tira de metadados não é cortada pela borda", () => {
-  it("uma linha só, com os cartões encolhendo", () => {
-    expect(REV).toContain('flexWrap: "nowrap", gap: isMobile ? 8 : 10');
-    // Cada cartão pode encolher; o valor corta em elipse com o texto completo
-    // no title — cortar EM SILÊNCIO é o único desfecho proibido.
-    expect(REV).toContain('flex: "1 1 0", minWidth: isMobile ? 72 : 0');
+  it("uma linha só, com os blocos encolhendo", () => {
+    // Os cartões viraram blocos separados por filetes, numa faixa própria
+    // de largura cheia com flexShrink: 0 — a segunda linha que nascia fora
+    // da altura reservada não tem mais onde nascer.
+    expect(REV).toContain('flex: "1 1 0", minWidth: isMobile ? 76 : 0');
     expect(REV).toContain('title={String(value)}');
+    expect(REV).toContain('borderLeft: i === 0 ? "none" : "1px solid #e7e5e4"');
   });
 
   it("no celular a tira rola em vez de esconder", () => {

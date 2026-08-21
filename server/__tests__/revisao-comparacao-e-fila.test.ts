@@ -73,9 +73,13 @@ describe("a comparação se vê de uma vez", () => {
     expect(tela).toContain('objectFit="contain"');
   });
 
-  it("a coluna da comparação ganhou largura para dois panes", () => {
-    expect(tela).toContain('width: isMobile ? "100%" : "56%"');
-    expect(codigo).not.toContain('width: isMobile ? "100%" : "40%"');
+  it("a comparação tem a largura INTEIRA do modal", () => {
+    // Duas gerações desta asserção: primeiro a coluna foi de 40% para 56%;
+    // depois a reestruturação em faixas horizontais acabou com a coluna — a
+    // comparação é uma faixa de largura cheia, e é a única que flexiona.
+    expect(codigo).not.toContain('width: isMobile ? "100%" : "56%"');
+    expect(codigo).not.toContain("review-modal-columns");
+    expect(tela).toContain('flex: "1 1 auto", minHeight: 200, overflow: "hidden", backgroundColor: "#f5f5f4"');
   });
 
   it("cada pane declara se o arquivo existe", () => {
@@ -88,17 +92,20 @@ describe("a comparação se vê de uma vez", () => {
 });
 
 describe("o rótulo do primário não quebra nem invade", () => {
-  it("nowrap no rótulo, dentro de um botão com overflow hidden", () => {
-    // A primeira receita (`nowrap` no BOTÃO, `flex: 1 1 0`) resolveu a
-    // quebra em duas linhas e criou o defeito seguinte, visto em produção:
-    // "PRODUÇÃOD EVOLVER PARA ARTE" — o texto que não coube era pintado por
-    // cima do vizinho, porque `min-width: 0` deixa o botão encolher mas nada
-    // cortava o excesso. A receita inteira mora em
-    // modal-decisao-tres-defeitos.test.ts; aqui fica só a âncora.
+  it("o rótulo é caixa normal — a causa da colisão saiu na origem", () => {
+    // Três gerações: (1) `nowrap` no botão resolveu a quebra em duas linhas
+    // e criou a sobreposição — nada cortava o excesso; (2) overflow hidden +
+    // elipse curou a sobreposição por contenção; (3) a reestruturação tirou
+    // a CAUSA: "LIBERAR PARA PRODUÇÃO" com letterSpacing media ~40% mais
+    // que "Liberar para produção", e era isso que não cabia. Caixa normal
+    // numa faixa de largura cheia cabe — a elipse fica só de cinto de
+    // segurança. A receita completa mora em modal-decisao-tres-defeitos.
     const i = tela.indexOf('data-testid="button-release-modal"');
     expect(i).toBeGreaterThan(-1);
-    const bloco = tela.slice(i, i + 1700);
-    expect(bloco).toContain('flex: "1 1 210px", minWidth: 0, overflow: "hidden"');
+    const bloco = tela.slice(i, i + 1900);
+    expect(bloco).toContain('flex: "1 1 0", minWidth: 0, height: 48');
+    expect(bloco).toContain("Liberar para produção");
+    expect(bloco).not.toContain('textTransform: "uppercase"');
   });
 });
 
@@ -265,12 +272,14 @@ describe("as guardas de evento finalizado", () => {
     expect(tela).toContain('motivoAcaoBloqueada(seloSelecionado.motivo, "liberar para produção")');
   });
 
-  it("e o contraste calculado do estado 'off' não foi trocado", () => {
-    // #d6d3d1 sobre #292524 → 10,18:1. É o único "off" desta tela que carrega
-    // informação nova, então tem de continuar legível.
-    expect(tela).toContain('color: seloSelecionado ? "#d6d3d1"');
-    expect(contraste("#d6d3d1", "#292524")).toBeGreaterThanOrEqual(4.5);
-    expect(contraste("#ffffff", "#9d4300")).toBeGreaterThanOrEqual(4.5);
+  it("e o contraste calculado do estado 'off' segue ≥ 4,5:1 na faixa clara", () => {
+    // A faixa de decisão deixou de ser uma caixa escura, então o par de
+    // contraste trocou junto: era #d6d3d1 sobre #292524 (10,18:1); agora é
+    // #6f6a64 sobre #f5f5f4 (4,91:1) — o único "off" desta tela que carrega
+    // informação nova continua legível. O sólido virou #c2410c com branco.
+    expect(tela).toContain('color: seloSelecionado || !selectedItem?.finalFileUrl ? "#6f6a64" : "#fff"');
+    expect(contraste("#6f6a64", "#f5f5f4")).toBeGreaterThanOrEqual(4.5);
+    expect(contraste("#ffffff", "#c2410c")).toBeGreaterThanOrEqual(4.5);
   });
 });
 

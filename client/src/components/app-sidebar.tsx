@@ -2,7 +2,7 @@ import {
   Calendar, CalendarRange, Palette, Printer, Layers, LayoutDashboard,
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
   Link2, LogOut, Loader2, ScrollText, Archive, ScanSearch, Compass, Settings2, Camera, Wand2,
-  Timer,
+  Timer, GitBranch,
 } from "lucide-react";
 import { useId, useState } from "react";
 import { Link, useLocation } from "wouter";
@@ -44,6 +44,9 @@ const productionItems: MenuItem[] = [
   { title: "Modelos",                 url: "/modelos",                 icon: Layers,         roles: ["solicitacao", "admin"] },
   { title: "Calendário",              url: "/calendario",              icon: Calendar },
   { title: "Histórico",               url: "/historico",               icon: Activity },
+  // Qual versão cada patrocinador aprovou, e os books baixáveis — pedido do
+  // dono (21/08). Sem `roles`: quem aprova, quem desenha e quem revisa leem.
+  { title: "Versões aprovadas",       url: "/versoes",                 icon: GitBranch },
   // Registros fica aqui (e não dentro da Gráfica) porque a maioria dos perfis
   // não acessa a Gráfica e este acervo interessa a todos.
   { title: "Registros",               url: "/registros",               icon: Camera },

@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Plus, Layers, Search, Check, ChevronsUpDown, Pencil, Trash2, Ruler, X, Settings, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
+import { Plus, Layers, Search, Check, ChevronsUpDown, Pencil, Trash2, Ruler, X, Settings, ChevronLeft, ChevronRight, AlertTriangle, Copy } from "lucide-react";
 import { FilterSelect } from "@/components/filter-select";
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -59,6 +59,50 @@ function SearchableSelect({
 const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
 const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];
 const finishes = ["Dupla Face", "Ilhós", "Impressão UV", "Impresso", "Recorte", "Refile"];
+
+/**
+ * A SANGRIA, DERIVADA — e validada.
+ *
+ * VIS 3.00 × 2.40 e ARQ 3.05 × 2.45 ficavam lado a lado e a diferença — 5 cm,
+ * que é a sangria — o leitor calculava de cabeça. E nada impedia cadastrar
+ * arquivo MENOR que o visual, o que produz peça cortada.
+ *
+ * Três estados, por eixo e depois combinados: `menor` se QUALQUER eixo do
+ * arquivo é menor que o visual (é o que corta a peça); `sem` se os dois são
+ * iguais (sem margem para o refile); senão a folga em cm — um número só
+ * quando os eixos coincidem, "L/A" quando não. Null quando falta medida.
+ */
+type Sangria = { estado: "menor" | "sem" | "ok"; rotulo: string; title: string };
+function sangriaDe(visW: unknown, visH: unknown, arqW: unknown, arqH: unknown): Sangria | null {
+  const n = (v: unknown) => { const x = parseFloat(String(v ?? "")); return Number.isFinite(x) && x > 0 ? x : null; };
+  const vw = n(visW), vh = n(visH), aw = n(arqW), ah = n(arqH);
+  if (vw === null || vh === null || aw === null || ah === null) return null;
+  const dW = Math.round((aw - vw) * 100), dH = Math.round((ah - vh) * 100);
+  if (dW < 0 || dH < 0) {
+    return { estado: "menor", rotulo: "arquivo menor", title: "O arquivo é menor que o visual — a peça sairia cortada. Confira o cadastro." };
+  }
+  if (dW === 0 && dH === 0) {
+    return { estado: "sem", rotulo: "sem sangria", title: "Arquivo igual ao visual — sem margem para o refile" };
+  }
+  const rotulo = dW === dH ? `+${dW}cm` : `+${dW}/${dH}cm`;
+  const title = dW === dH ? `Sangria de ${dW} cm em cada eixo` : `Sangria de ${dW} cm na largura e ${dH} cm na altura`;
+  return { estado: "ok", rotulo, title };
+}
+/** O selo, na tabela e no formulário — uma casca só. Contrastes: #92400e/#fffbeb 6,6:1; #b91c1c/#fef2f2 6,5:1; #57534e/#f5f4f0 6,9:1. */
+const SANGRIA_TOM: Record<Sangria["estado"], { bg: string; border: string; color: string }> = {
+  ok:    { bg: "#f5f4f0", border: "#e7e5e4", color: "#57534e" },
+  sem:   { bg: "#fffbeb", border: "#fde68a", color: "#92400e" },
+  menor: { bg: "#fef2f2", border: "#fecaca", color: "#b91c1c" },
+};
+function ChipSangria({ s, testId }: { s: Sangria; testId: string }) {
+  const t = SANGRIA_TOM[s.estado];
+  return (
+    <span data-testid={testId} title={s.title} style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: 10, fontWeight: 700, letterSpacing: "0.04em", borderRadius: 6, padding: "1px 6px", backgroundColor: t.bg, border: `1px solid ${t.border}`, color: t.color, whiteSpace: "nowrap", fontFamily: s.estado === "ok" ? "monospace" : "inherit" }}>
+      {s.estado === "menor" && <AlertTriangle aria-hidden="true" style={{ width: 10, height: 10, flexShrink: 0 }} />}
+      {s.rotulo}
+    </span>
+  );
+}
 
 const EMPTY_FORM = {
   name: "",
@@ -181,6 +225,21 @@ export default function Modelos() {
   const [editingItem, setEditingItem] = useState<any>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<any>(null);
   const [formData, setFormData] = useState({ ...EMPTY_FORM });
+  // DUPLICAR abre o formulário COMO CRIAÇÃO, pré-preenchido, com o foco no
+  // nome e o texto selecionado — para trocar direto. Nada é salvo antes de
+  // confirmar. O flag só serve para o foco inicial.
+  const [duplicando, setDuplicando] = useState(false);
+  const nomeRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!open || !duplicando) return;
+    const t = window.setTimeout(() => { nomeRef.current?.focus(); nomeRef.current?.select(); }, 60);
+    return () => window.clearTimeout(t);
+  }, [open, duplicando]);
+  // O aviso de "arquivo menor" no formulário: aparece no blur dos campos de
+  // arquivo e exige ser VISTO — não bloqueia o salvamento (há recorte
+  // legítimo), mas o botão só libera depois que a pessoa marca que entendeu.
+  const [arqTocado, setArqTocado] = useState(false);
+  const [cienteDoCorte, setCienteDoCorte] = useState(false);
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
   // Manage modal
   const [manageOpen, setManageOpen] = useState(false);
@@ -324,6 +383,7 @@ export default function Modelos() {
       setOpen(false);
       setEditingItem(null);
       setFormData({ ...EMPTY_FORM });
+      setDuplicando(false); setArqTocado(false); setCienteDoCorte(false);
       toast({
         title: editingItem ? "Modelo atualizado" : "Modelo criado",
         description: editingItem ? "O modelo foi atualizado com sucesso" : "O modelo foi criado com sucesso",
@@ -346,8 +406,19 @@ export default function Modelos() {
     },
   });
 
+  const sangriaDoForm = formData.hasVariableMeasurement ? null : sangriaDe(formData.area, formData.visual, formData.fileWidth, formData.fileHeight);
+  const corteNoForm = sangriaDoForm?.estado === "menor";
+  // O aviso aparece no blur dos campos de arquivo OU quando a pessoa tenta
+  // salvar sem ter passado por eles — os dois caminhos terminam no mesmo lugar.
+  const mostrarAvisoDeCorte = corteNoForm && arqTocado;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (corteNoForm && !cienteDoCorte) {
+      // Não bloqueia de vez: força o aviso a aparecer e pede o "entendi".
+      setArqTocado(true);
+      return;
+    }
     const toStr = (v: string) => (v === "" || v === null || v === undefined) ? null : String(v);
     // Com medida variável, as medidas fixas saem no SUBMIT (viram null), não no
     // toggle: assim desligar o interruptor devolve os valores que a pessoa
@@ -369,6 +440,7 @@ export default function Modelos() {
   };
 
   const handleEdit = (item: any) => {
+    setDuplicando(false); setArqTocado(false); setCienteDoCorte(false);
     setEditingItem(item);
     setFormData({
       name: item.name,
@@ -387,10 +459,39 @@ export default function Modelos() {
     setOpen(true);
   };
 
+  /**
+   * DUPLICAR. Cadastrar "Pórtico chegada 6m" a partir do "Pórtico largada 8m"
+   * era redigitar sete campos. Abre o formulário de CRIAÇÃO (editingItem
+   * nulo → o submit faz POST), com todos os valores do original e o nome
+   * sufixado; o foco vai para o nome com o texto selecionado.
+   */
+  const handleDuplicate = (item: any) => {
+    setEditingItem(null);
+    setFormData({
+      name: `${item.name} (cópia)`,
+      type: item.type || "",
+      group: item.group || "",
+      area: item.area || "",
+      visual: item.visual || "",
+      visualWidth: item.visualWidth || "",
+      visualHeight: item.visualHeight || "",
+      fileWidth: item.fileWidth || "",
+      fileHeight: item.fileHeight || "",
+      material: item.material || "",
+      finish: item.finish || "",
+      hasVariableMeasurement: item.hasVariableMeasurement || false,
+    });
+    setArqTocado(false); setCienteDoCorte(false);
+    setDuplicando(true);
+    setOpen(true);
+  };
+
   const handleCloseDialog = () => {
     setOpen(false);
     setEditingItem(null);
     setFormData({ ...EMPTY_FORM });
+    setDuplicando(false);
+    setArqTocado(false); setCienteDoCorte(false);
   };
 
   // Opções de catálogo cadastradas avulsas (material/acabamento/grupo)
@@ -507,7 +608,7 @@ export default function Modelos() {
           {/* New Model Button */}
           <button
             data-testid="button-new-model"
-            onClick={() => { setEditingItem(null); setFormData({ ...EMPTY_FORM }); setOpen(true); }}
+            onClick={() => { setEditingItem(null); setFormData({ ...EMPTY_FORM }); setDuplicando(false); setArqTocado(false); setCienteDoCorte(false); setOpen(true); }}
             style={{ display: "flex", alignItems: "center", gap: 6, backgroundColor: "#1c1917", color: "#ffffff", border: "none", borderRadius: 12, padding: "0 18px", height: 40, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "'Space Grotesk', sans-serif" }}
             onMouseEnter={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#000000")}
             onMouseLeave={e => ((e.currentTarget as HTMLButtonElement).style.backgroundColor = "#1c1917")}
@@ -636,7 +737,7 @@ export default function Modelos() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ backgroundColor: "rgba(243,244,243,0.5)", borderBottom: "1px solid #e7e5e4" }}>
-                    {["Nome", "Grupo", "Tipo", "Medidas", "Material", "Acabamento", "Ações"].map(col => (
+                    {["Nome", "Grupo", "Tipo", "Medidas", "Uso", "Material", "Acabamento", "Ações"].map(col => (
                       <th key={col} scope="col" style={{
                         padding: "14px 24px",
                         textAlign: col === "Ações" ? "right" : "left",
@@ -708,12 +809,51 @@ export default function Modelos() {
                                   <span style={{ fontSize: 13, fontWeight: 600, color: "#57534e", fontFamily: "monospace" }}>
                                     {item.fileWidth ?? "—"} × {item.fileHeight ?? "—"}m
                                   </span>
+                                  {/* A sangria, calculada — e o arquivo menor, denunciado. */}
+                                  {(() => {
+                                    const s = sangriaDe(item.area, item.visual, item.fileWidth, item.fileHeight);
+                                    return s ? <ChipSangria s={s} testId={`chip-sangria-${item.id}`} /> : null;
+                                  })()}
                                 </div>
                               )}
                             </div>
                           ) : (
                             <span style={{ fontSize: 13, color: "#746e69" }}>—</span>
                           )}
+                        </td>
+
+                        {/* Uso — quantas peças usam este modelo. Duas medidas,
+                            rotuladas de forma diferente de propósito: "N peças"
+                            é vínculo gravado (criadas a partir); "~N compatíveis"
+                            é peça antiga sem vínculo que bate tipo, material e
+                            medidas — compatibilidade, não origem. A tela não
+                            promete o que não sabe. #0369a1/#f0f9ff 5,9:1. */}
+                        <td style={{ padding: "18px 24px", whiteSpace: "nowrap" }} data-testid={`cell-uso-${item.id}`}>
+                          {(() => {
+                            const uso = item.uso ?? { exato: 0, compativel: 0, ultimaEm: null };
+                            const nenhum = uso.exato === 0 && uso.compativel === 0;
+                            return (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                {uso.exato > 0 ? (
+                                  <span title={`${uso.exato} ${uso.exato === 1 ? 'peça já foi criada' : 'peças já foram criadas'} a partir deste modelo; excluí-lo não altera nenhuma delas`} style={{ display: "inline-flex", alignSelf: "flex-start", fontSize: 11, fontWeight: 700, backgroundColor: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd", borderRadius: 6, padding: "2px 8px", fontFamily: "monospace" }}>
+                                    {uso.exato} {uso.exato === 1 ? 'peça' : 'peças'}
+                                  </span>
+                                ) : nenhum ? (
+                                  <span title="Nenhuma peça foi criada a partir deste modelo — excluir não afeta nada" style={{ display: "inline-flex", alignSelf: "flex-start", fontSize: 11, fontWeight: 600, backgroundColor: "#f5f4f0", color: "#746e69", border: "1px solid #e7e5e4", borderRadius: 6, padding: "2px 8px" }}>
+                                    sem uso
+                                  </span>
+                                ) : null}
+                                {uso.compativel > 0 && (
+                                  <span title={`${uso.compativel} ${uso.compativel === 1 ? 'peça antiga' : 'peças antigas'} com o mesmo tipo, material e medidas — criadas antes de o vínculo existir. Compatibilidade, não origem.`} style={{ fontSize: 10, color: "#746e69", fontFamily: "monospace" }}>
+                                    ~{uso.compativel} compat.
+                                  </span>
+                                )}
+                                {uso.ultimaEm && (
+                                  <span style={{ fontSize: 10, color: "#746e69" }}>última em {new Date(uso.ultimaEm).toLocaleDateString("pt-BR")}</span>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
 
                         {/* Material */}
@@ -741,6 +881,14 @@ export default function Modelos() {
                               testId={`button-edit-model-${item.id}`}
                               title="Editar modelo"
                               ariaLabel={`Editar modelo ${item.name}`}
+                            />
+                            <HoverIconBtn
+                              icon={<Copy style={{ width: 16, height: 16 }} />}
+                              hoverBg="#f0f9ff" hoverColor="#0369a1"
+                              onClick={() => handleDuplicate(item)}
+                              testId={`button-duplicate-model-${item.id}`}
+                              title="Duplicar modelo"
+                              ariaLabel={`Duplicar modelo ${item.name}`}
                             />
                             <HoverIconBtn
                               icon={<Trash2 style={{ width: 16, height: 16 }} />}
@@ -831,6 +979,7 @@ export default function Modelos() {
                 <label htmlFor="model-name" style={labelStyle}>Nome do Modelo</label>
                 <input
                   id="model-name"
+                  ref={nomeRef}
                   value={formData.name}
                   onChange={e => setFormData({ ...formData, name: e.target.value })}
                   placeholder="Ex: Backdrop Premium v2"
@@ -1111,6 +1260,7 @@ export default function Modelos() {
                       type="number" step="0.01" min="0"
                       value={formData.fileWidth}
                       onChange={e => setFormData({ ...formData, fileWidth: e.target.value })}
+                      onBlur={() => setArqTocado(true)}
                       placeholder="0.00"
                       disabled={formData.hasVariableMeasurement}
                       data-testid="input-model-fileWidth"
@@ -1124,6 +1274,7 @@ export default function Modelos() {
                       type="number" step="0.01" min="0"
                       value={formData.fileHeight}
                       onChange={e => setFormData({ ...formData, fileHeight: e.target.value })}
+                      onBlur={() => setArqTocado(true)}
                       placeholder="0.00"
                       disabled={formData.hasVariableMeasurement}
                       data-testid="input-model-fileHeight"
@@ -1131,6 +1282,28 @@ export default function Modelos() {
                     />
                   </div>
                 </div>
+                {/* A MESMA conta da tabela, aqui: o aviso no formulário evita o
+                    cadastro errado; na tabela só o denuncia depois. Não bloqueia
+                    — há recorte legítimo — mas exige que a pessoa veja. */}
+                {sangriaDoForm && (arqTocado || sangriaDoForm.estado !== "ok") && (
+                  <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <ChipSangria s={sangriaDoForm} testId="chip-sangria-form" />
+                    {sangriaDoForm.estado === "sem" && (
+                      <span style={{ fontSize: 11, color: "#92400e" }}>Arquivo igual ao visual: sem margem para o refile.</span>
+                    )}
+                  </div>
+                )}
+                {mostrarAvisoDeCorte && (
+                  <div role="alert" data-testid="aviso-arquivo-menor" style={{ marginTop: 8, padding: "10px 12px", borderRadius: 8, backgroundColor: "#fef2f2", border: "1px solid #fecaca", display: "flex", flexDirection: "column", gap: 8 }}>
+                    <p style={{ margin: 0, fontSize: 12, lineHeight: 1.5, color: "#b91c1c" }}>
+                      <strong>O arquivo é menor que o visual</strong> — a peça sairia cortada. Confira o cadastro antes de salvar.
+                    </p>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#7f1d1d", cursor: "pointer" }}>
+                      <input type="checkbox" checked={cienteDoCorte} onChange={e => setCienteDoCorte(e.target.checked)} data-testid="checkbox-ciente-do-corte" />
+                      Entendi — o recorte é intencional, salvar assim mesmo
+                    </label>
+                  </div>
+                )}
               </div>
 
               {/* Material */}

@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
+import { TextoComLinks } from "@/components/texto-com-links";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
@@ -3559,6 +3560,11 @@ export default function Atendimento() {
                                 const isRejected = v.isRejected || v.isAwaitingArte;
                                 const isPending = status === 'pending' || isNewVersion;
                                 const isRejectingThis = rejectingSponsorId === sponsor.id;
+                                // Revogar (pedido do dono, 21/08): o Atendimento desfaz a
+                                // decisão enquanto a peça está em aprovação ou na finalização
+                                // da Arte; o admin, sempre. O servidor confere o mesmo.
+                                const podeRevogar = user?.role === "admin"
+                                  || (canDecide && (selectedItem.status === "awaiting_sponsor_approval" || selectedItem.status === "sponsor_approved"));
 
                                 return (
                                   <div
@@ -3637,13 +3643,14 @@ export default function Atendimento() {
                                         </div>
                                       )}
 
-                                      {/* Correção de admin: aprovou/reprovou o patrocinador errado por
-                                          engano — desfaz sem precisar mexer direto no banco. */}
-                                      {!isPending && !isRejectingThis && user?.role === "admin" && (
+                                      {/* Revogar a aprovação / reverter a reprovação: volta a
+                                          aguardar decisão. Se a peça já estava "aprovada por
+                                          todos", ela volta para a aprovação e a Arte é avisada. */}
+                                      {!isPending && !isRejectingThis && podeRevogar && (
                                         <button
                                           onClick={() => revertApprovalMutation.mutate({ itemId: selectedItem.id, sponsorId: sponsor.id })}
                                           disabled={revertApprovalMutation.isPending}
-                                          title={`Reverter para pendente (admin) — estava ${isApproved ? 'aprovado' : 'reprovado'}`}
+                                          title={`${isApproved ? 'Revogar a aprovação' : 'Reverter a reprovação'} — volta a aguardar decisão${selectedItem.status === 'sponsor_approved' ? '; a peça volta para a aprovação e a Arte é avisada' : ''}`}
                                           data-testid={`button-revert-approval-${sponsor.id}`}
                                           style={{
                                             display: 'flex', alignItems: 'center', gap: 6,
@@ -3658,7 +3665,7 @@ export default function Atendimento() {
                                           {revertApprovalMutation.isPending
                                             ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" />
                                             : <Undo2 style={{ width: 12, height: 12 }} />}
-                                          Reverter
+                                          {isApproved ? 'Revogar' : 'Reverter'}
                                         </button>
                                       )}
                                     </div>
@@ -3668,7 +3675,7 @@ export default function Atendimento() {
                                       <div style={{ marginTop: 10, padding: '10px 12px', backgroundColor: '#fff', borderRadius: 8, border: '1px solid #fecaca', borderLeft: '3px solid #dc2626' }}>
                                         <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#b91c1c', margin: '0 0 4px' }}>Motivo</p>
                                         <p style={{ fontSize: 13, fontStyle: 'italic', color: '#57534e', margin: 0, lineHeight: 1.5 }}>
-                                          "{approval.rejectionReason}"
+                                          "<TextoComLinks texto={approval.rejectionReason} />"
                                         </p>
                                       </div>
                                     )}
@@ -3876,7 +3883,7 @@ export default function Atendimento() {
           <div style={{ padding: '20px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
             <DialogDescription style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0 }}>
               Aprovar a arte para o patrocinador <strong style={{ color: '#1c1917' }}>{confirmApproveIndividual?.sponsorName}</strong>?
-              Somente um administrador pode reverter.
+              Dá para revogar depois, enquanto a peça estiver em aprovação ou na finalização da Arte.
             </DialogDescription>
           </div>
           <ModalFooter>
@@ -3924,7 +3931,7 @@ export default function Atendimento() {
           <div style={{ padding: '20px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
             <DialogDescription style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0 }}>
               Aprovar <strong style={{ color: '#1c1917' }}>{batchSelectedItemIds.size} {batchSelectedItemIds.size === 1 ? 'item' : 'itens'}</strong> para o patrocinador selecionado?
-              Somente um administrador pode reverter.
+              Dá para revogar depois, enquanto a peça estiver em aprovação ou na finalização da Arte.
             </DialogDescription>
           </div>
           <ModalFooter>

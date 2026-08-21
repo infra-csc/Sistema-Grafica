@@ -54,7 +54,8 @@ describe("Correção: o botão de re-envio tem sempre um destino válido", () =>
 
   it("ela não é barrada por falta de patrocinador selecionado", () => {
     // Exigir escolha onde não há o que escolher é o beco sem saída original.
-    expect(arte).toContain("const faltaPatrocinador = !devolvidaInteira && correcaoSelectedSponsorIds.size === 0;");
+    // O conjunto é DERIVADO (quem ainda não aprovou), não escolhido — ver arte-nota-10.
+    expect(arte).toContain("const faltaPatrocinador = !devolvidaInteira && correcaoDestinatarios.length === 0;");
   });
 
   it("ela vai para submit-for-approval, que aceita awaiting_submission", () => {
@@ -63,7 +64,7 @@ describe("Correção: o botão de re-envio tem sempre um destino válido", () =>
   });
 
   it("a devolução por patrocinador continua indo pela rota dela", () => {
-    expect(arte).toContain("resubmitMutation.mutate({ itemId: correcaoItem.id, newThumbUrl: correcaoThumbUrl, sponsorIds: Array.from(correcaoSelectedSponsorIds) })");
+    expect(arte).toContain("resubmitMutation.mutate({ itemId: correcaoItem.id, newThumbUrl: correcaoThumbUrl, sponsorIds: correcaoDestinatarios })");
   });
 
   it("a trava do botão é UMA expressão, e não seis cópias que divergem", () => {
@@ -81,7 +82,9 @@ describe("Correção: o botão de re-envio tem sempre um destino válido", () =>
 
 describe("Correção: a seção de patrocinadores nunca fica muda", () => {
   it("sem patrocinador reprovado, a tela explica o que o envio vai fazer", () => {
-    expect(arte).toContain("correcaoItem.awaitingArteApprovals.length === 0 && (");
+    // A lista que o painel lê passou a ser `correcaoAprovacoes` (todas as
+    // aprovações da peça, não só as reprovadas) — ver arte-nota-10.test.ts.
+    expect(arte).toContain("correcaoAprovacoes.length === 0 && (");
     expect(arte).toContain("esta peça foi devolvida inteira");
   });
 });

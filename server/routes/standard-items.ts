@@ -13,10 +13,43 @@ const requireCatalogWrite = requireRole("solicitacao", "admin");
 export function registerStandardItemRoutes(app: Express): void {
   // ============ STANDARD ITEMS ============
 
+  // O USO DE CADA MODELO vem junto com o catálogo — um agregado, não N
+  // requisições. Duas medidas, rotuladas de forma diferente na tela:
+  //   exato      → peças com standard_item_id apontando para o modelo
+  //                ("criadas a partir de"; o vínculo passou a ser gravado
+  //                quando a peça nasce de um modelo).
+  //   compativel → peças SEM vínculo com o mesmo tipo, material e medidas
+  //                de arquivo (legado anterior à coluna; "compatíveis", não
+  //                "criadas a partir" — a tela não promete o que não sabe).
+  // Peça excluída (soft delete) não conta em nenhuma das duas.
   app.get("/api/standard-items", requireAuth, async (req, res) => {
     try {
-      const items = await storage.getAllStandardItems();
-      res.json(items);
+      const [modelos, pecas] = await Promise.all([storage.getAllStandardItems(), storage.getAllItems()]);
+      const num = (v: unknown) => { const x = parseFloat(String(v ?? "")); return Number.isFinite(x) ? x : null; };
+      const chaveAssinatura = (type: unknown, material: unknown, fw: unknown, fh: unknown) =>
+        `${String(type ?? "").trim().toLowerCase()}|${String(material ?? "").trim().toLowerCase()}|${num(fw) ?? ""}|${num(fh) ?? ""}`;
+      const exato = new Map<string, { n: number; ultima: Date | null }>();
+      const compativel = new Map<string, number>();
+      for (const p of pecas) {
+        if ((p as any).deletedAt) continue;
+        const sid = (p as any).standardItemId as string | null | undefined;
+        if (sid) {
+          const e = exato.get(sid) ?? { n: 0, ultima: null };
+          e.n += 1;
+          const c = p.createdAt ? new Date(p.createdAt as any) : null;
+          if (c && (!e.ultima || c > e.ultima)) e.ultima = c;
+          exato.set(sid, e);
+        } else {
+          const k = chaveAssinatura(p.type, p.material, p.fileWidth, p.fileHeight);
+          compativel.set(k, (compativel.get(k) ?? 0) + 1);
+        }
+      }
+      res.json(modelos.map((m) => {
+        const e = exato.get(m.id);
+        // A peça grava `type = nome do modelo` (event-detail, Entrada Rápida).
+        const k = chaveAssinatura(m.name, m.material, m.fileWidth, m.fileHeight);
+        return { ...m, uso: { exato: e?.n ?? 0, compativel: compativel.get(k) ?? 0, ultimaEm: e?.ultima ?? null } };
+      }));
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

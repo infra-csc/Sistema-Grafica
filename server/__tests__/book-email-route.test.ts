@@ -95,6 +95,7 @@ beforeEach(() => {
   });
   H.storage.clearEventBookUrl = vi.fn().mockResolvedValue(3);
   H.storage.setItemsBookUrl = vi.fn().mockResolvedValue(2);
+  H.storage.createEventBook = vi.fn().mockResolvedValue({ id: "book-1" });
   H.notifyBookSaved.mockResolvedValue({ status: "disabled" });
   H.createAuditLog.mockResolvedValue(undefined);
 });

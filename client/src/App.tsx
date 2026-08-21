@@ -37,6 +37,7 @@ import Grafica from "@/pages/grafica";
 import Modelos from "@/pages/modelos";
 import Calendario from "@/pages/calendario";
 import Historico from "@/pages/historico";
+import Versoes from "@/pages/versoes";
 import Registros from "@/pages/registros";
 import VincularPatrocinadores from "@/pages/vincular-patrocinadores";
 import LogsSistema from "@/pages/logs-sistema";
@@ -92,6 +93,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/modelos": "Modelos",
   "/calendario": "Calendário",
   "/historico": "Histórico",
+  "/versoes": "Versões aprovadas",
   "/registros": "Registros",
   "/analises": "Análises",
   "/prazos": "Gestão de Prazos",
@@ -241,6 +243,9 @@ function Router() {
       </Route>
       <Route path="/historico">
         {() => <ProtectedRoute component={Historico} />}
+      </Route>
+      <Route path="/versoes">
+        {() => <ProtectedRoute component={Versoes} />}
       </Route>
       <Route path="/registros">
         {() => <ProtectedRoute component={Registros} />}

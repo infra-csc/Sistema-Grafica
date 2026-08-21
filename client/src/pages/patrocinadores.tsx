@@ -1,5 +1,6 @@
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { FreezeWhileClosing, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
+import { Link } from "wouter";
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -45,15 +46,18 @@ const PAGE_SIZE = 20;
 // `quota` (campo global legado) saiu do formulário de propósito: a cota real
 // vive por evento em event_sponsors. Como o modal não tinha campo para ela,
 // todo PATCH reenviava quota vazia e zerava o valor gravado no banco.
+// O FORMULÁRIO TEM TRÊS CAMPOS — nome, executivo responsável e cor — por
+// decisão do dono (ago/2026). Empresa, contato, telefone, e-mail e
+// observações saíram: o app não fala com o patrocinador por nenhum desses
+// canais (quem registra a aprovação é o Atendimento, em nome dele), e um
+// cadastro de oito campos para três que importam era atrito sem retorno. As
+// colunas continuam no banco e na tabela para o que já foi preenchido; o
+// PATCH parcial não as toca.
 const sponsorSchema = z.object({
   name:          z.string().min(1, "Nome obrigatório"),
-  email:         z.string().email("Email inválido").optional().or(z.literal("")),
-  phone:         z.string().optional(),
-  company:       z.string().optional(),
-  contactPerson: z.string().optional(),
-  notes:         z.string().optional(),
   color:         z.string().regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Cor deve ser um hex válido, ex.: #F97316"),
   accountExecutiveId: z.string().optional(),
+  strictApproval: z.boolean().optional(),
 });
 type SponsorForm = z.infer<typeof sponsorSchema>;
 
@@ -80,7 +84,7 @@ export default function Patrocinadores() {
   });
   // Quantos eventos/peças cada patrocinador tem — mostra quem está ativo e
   // quem nunca foi usado (candidato a limpeza).
-  const { data: usage = {}, isError: usageError, refetch: refetchUsage } = useQuery<Record<string, { events: number; items: number }>>({
+  const { data: usage = {}, isError: usageError, refetch: refetchUsage } = useQuery<Record<string, { events: number; items: number; pendencias?: number; mediaDias?: number | null }>>({
     queryKey: ["/api/sponsors/usage"],
   });
 
@@ -96,7 +100,7 @@ export default function Patrocinadores() {
 
   const form = useForm<SponsorForm>({
     resolver: zodResolver(sponsorSchema),
-    defaultValues: { name: "", email: "", phone: "", company: "", contactPerson: "", notes: "", color: "#f97316", accountExecutiveId: "" },
+    defaultValues: { name: "", color: "#f97316", accountExecutiveId: "", strictApproval: false },
   });
 
   const selectedColor = form.watch("color") || "#f97316";
@@ -142,13 +146,13 @@ export default function Patrocinadores() {
 
   const openCreate = () => {
     setEditingSponsor(null);
-    form.reset({ name: "", email: "", phone: "", company: "", contactPerson: "", notes: "", color: "#f97316", accountExecutiveId: "" });
+    form.reset({ name: "", color: "#f97316", accountExecutiveId: "", strictApproval: false });
     setModalOpen(true);
   };
 
   const openEdit = (s: Sponsor) => {
     setEditingSponsor(s);
-    form.reset({ name: s.name, email: s.email || "", phone: s.phone || "", company: s.company || "", contactPerson: s.contactPerson || "", notes: s.notes || "", color: s.color || "#f97316", accountExecutiveId: s.accountExecutiveId || "" });
+    form.reset({ name: s.name, color: s.color || "#f97316", accountExecutiveId: s.accountExecutiveId || "", strictApproval: !!s.strictApproval });
     setModalOpen(true);
   };
 
@@ -443,6 +447,7 @@ export default function Patrocinadores() {
                       </span>
                     </th>
                   ))}
+                  <th style={thStyle} title="Pendências de aprovação agora · tempo médio de resposta">Resposta</th>
                   <th style={thStyle}>Contato Responsável</th>
                   <th style={thStyle}>E-mail</th>
                   <th style={thStyle}>Telefone</th>
@@ -471,6 +476,14 @@ export default function Patrocinadores() {
                             style={{ fontSize: 13, fontWeight: 700, color: T.text, fontFamily: "'Space Grotesk', sans-serif" }}>
                             {sponsor.name}
                           </span>
+                          {sponsor.strictApproval && (
+                            /* #9a3412 sobre #fff7ed = 7,0:1 */
+                            <span data-testid={`tag-desaprovador-${sponsor.id}`}
+                              title="Patrocinador desaprovador: toda versão nova da arte revoga a aprovação dele, e a reprovação de outro patrocinador também"
+                              style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9a3412", backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>
+                              desaprovador
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -506,10 +519,42 @@ export default function Patrocinadores() {
                           if (!u || u.events === 0) {
                             return <span title="Nunca vinculado a um evento" style={{ fontSize: 10, fontWeight: 800, color: "#b45309", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: 6, padding: "2px 8px", whiteSpace: "nowrap" }}>sem evento</span>;
                           }
+                          // A informação mais densa da linha leva a algum lugar: o
+                          // Painel Geral já aceita ?patrocinador= no recorte. A linha
+                          // inteira abre a edição — daí o stopPropagation.
                           return (
-                            <span title={`${u.items} peça(s) vinculada(s)`} style={{ fontSize: 13, color: T.text, fontWeight: 700, whiteSpace: "nowrap" }}>
+                            <Link
+                              href={`/?patrocinador=${sponsor.id}`}
+                              onClick={e => e.stopPropagation()}
+                              data-testid={`link-uso-${sponsor.id}`}
+                              title={`Ver as ${u.items} ${u.items === 1 ? "peça" : "peças"} deste patrocinador no Painel Geral`}
+                              style={{ fontSize: 13, color: T.text, fontWeight: 700, whiteSpace: "nowrap", textDecoration: "none", borderBottom: "1px solid #fed7aa" }}
+                            >
                               {u.events} <span style={{ fontWeight: 500, color: T.second }}>{u.events === 1 ? "evento" : "eventos"}</span>
                               {u.items > 0 && <span style={{ color: T.second, fontWeight: 500 }}> · {u.items} pç</span>}
+                            </Link>
+                          );
+                        })()}
+                      </td>
+
+                      {/* Resposta — o app inteiro depende da resposta do
+                          patrocinador, e este cadastro não dizia nada sobre
+                          responder. Duas medidas na mesma célula: pendências
+                          AGORA e tempo MÉDIO de resposta. Sem histórico de
+                          decisão, a média é "—" (zero leria como "responde na
+                          hora"). Tons: #b45309 6,0:1, #b91c1c 6,5:1, #15803d 5,3:1. */}
+                      <td style={{ padding: "16px 20px", whiteSpace: "nowrap" }} data-testid={`cell-resposta-${sponsor.id}`}>
+                        {(() => {
+                          const u = usage[sponsor.id];
+                          const pend = u?.pendencias ?? 0;
+                          const media = u?.mediaDias ?? null;
+                          const corPend = pend === 0 ? "#15803d" : pend >= 5 ? "#b91c1c" : "#b45309";
+                          const corMedia = media === null ? T.second : media >= 14 ? "#b91c1c" : media >= 7 ? "#b45309" : "#57534e";
+                          const title = `${pend === 0 ? "Nenhuma peça esperando aprovação agora" : `${pend} ${pend === 1 ? "peça esperando" : "peças esperando"} aprovação agora`} · ${media === null ? "nunca respondeu a um pedido — sem média" : `leva ${media} ${media === 1 ? "dia" : "dias"} em média para responder`}`;
+                          return (
+                            <span title={title} style={{ display: "inline-flex", alignItems: "baseline", gap: 8 }}>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: corPend }}>{pend === 0 ? "em dia" : `${pend} pend.`}</span>
+                              <span style={{ fontSize: 12, fontWeight: 700, color: corMedia, fontFamily: "'DM Mono', monospace" }}>{media === null ? "—" : `${media}d`}</span>
                             </span>
                           );
                         })()}
@@ -711,24 +756,6 @@ export default function Patrocinadores() {
                             <FormMessage />
                           </FormItem>
                         )} />
-                        <FormField control={form.control} name="company" render={({ field }) => (
-                          <FormItem>
-                            <label htmlFor="sponsor-company" style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Empresa (Razão Social)</label>
-                            <FormControl>
-                              <input {...field} id="sponsor-company" placeholder="Razão Social Completa" data-testid="input-company"
-                                style={tiInput}
-                                onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
-                                onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                      </div>
-
-                      {/* Executivo responsável (a cota é definida por evento, em Configurar Cotas) */}
-                      {/* Uma coluna no celular, mesma conta da seção 01. */}
-                      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 20, marginTop: 20 }}>
                         <FormField control={form.control} name="accountExecutiveId" render={({ field }) => (
                           <FormItem>
                             <label htmlFor="sponsor-account-executive" style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Executivo responsável (interno)</label>
@@ -822,65 +849,32 @@ export default function Patrocinadores() {
                       </div>
                     </section>
 
-                    {/* ─ 03 Contato Executivo ─ */}
+                    {/* A regra de aprovação — pedido do dono (21/08): o
+                        "patrocinador desaprovador". Entra aqui, e não nos
+                        dados de contato que saíram do formulário: é uma
+                        regra do fluxo, não um dado cadastral. */}
                     <section>
-                      {sectionLabel("03", "Contato no Patrocinador")}
-                      {/* Uma coluna no celular, mesma conta da seção 01. */}
-                      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: 16 }}>
-                        <FormField control={form.control} name="contactPerson" render={({ field }) => (
-                          <FormItem>
-                            <label htmlFor="sponsor-contact-person" style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Pessoa de contato (lado do patrocinador)</label>
+                      {sectionLabel("03", "Regra de aprovação")}
+                      <FormField control={form.control} name="strictApproval" render={({ field }) => (
+                        <FormItem>
+                          <label htmlFor="sponsor-strict" style={{ display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer" }}>
                             <FormControl>
-                              <input {...field} id="sponsor-contact-person" placeholder="Ex.: gerente de marketing do patrocinador" data-testid="input-contact-person"
-                                style={tiInput}
-                                onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
-                                onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
-                              />
+                              <input type="checkbox" id="sponsor-strict" data-testid="checkbox-desaprovador"
+                                checked={!!field.value} onChange={e => field.onChange(e.target.checked)}
+                                style={{ width: 18, height: 18, marginTop: 2, accentColor: "#f97316", flexShrink: 0, cursor: "pointer" }} />
                             </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                        <FormField control={form.control} name="phone" render={({ field }) => (
-                          <FormItem>
-                            <label htmlFor="sponsor-phone" style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Telefone</label>
-                            <FormControl>
-                              <input {...field} id="sponsor-phone" placeholder="+55 (00) 00000-0000" data-testid="input-phone"
-                                style={tiInput}
-                                onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
-                                onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                        <FormField control={form.control} name="email" render={({ field }) => (
-                          <FormItem style={{ gridColumn: "1 / -1" }}>
-                            <label htmlFor="sponsor-email" style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>E-mail Institucional</label>
-                            <FormControl>
-                              <input {...field} id="sponsor-email" type="email" placeholder="contato@empresa.com" data-testid="input-email"
-                                style={tiInput}
-                                onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
-                                onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                        <FormField control={form.control} name="notes" render={({ field }) => (
-                          <FormItem style={{ gridColumn: "1 / -1" }}>
-                            <label htmlFor="sponsor-notes" style={{ fontSize: 10, fontWeight: 700, color: T.second, textTransform: "uppercase", letterSpacing: "0.1em", display: "block", marginBottom: 8 }}>Observações</label>
-                            <FormControl>
-                              <textarea {...field} id="sponsor-notes" rows={3} placeholder="Informações adicionais sobre o contrato ou parceria..." data-testid="input-notes"
-                                style={{ ...tiInput, resize: "none", lineHeight: 1.6 }}
-                                onFocus={e => { e.currentTarget.style.backgroundColor = "#fff"; e.currentTarget.style.boxShadow = "0 0 0 2px rgba(249,115,22,0.2)"; }}
-                                onBlur={e =>  { e.currentTarget.style.backgroundColor = "#f0efee"; e.currentTarget.style.boxShadow = "none"; }}
-                              />
-                            </FormControl>
-                            <FormMessage />
-                          </FormItem>
-                        )} />
-                      </div>
+                            <span>
+                              <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.text, fontFamily: "'Space Grotesk', sans-serif" }}>Patrocinador desaprovador</span>
+                              <span style={{ display: "block", fontSize: 12, color: "#57534e", lineHeight: 1.5, marginTop: 2 }}>
+                                A aprovação dele vale só para a versão que ele aprovou: toda versão nova da arte a revoga, e a reprovação de qualquer outro patrocinador também. Uso típico: Ministério.
+                              </span>
+                            </span>
+                          </label>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
                     </section>
+
                   </div>
                 </form>
               </Form>

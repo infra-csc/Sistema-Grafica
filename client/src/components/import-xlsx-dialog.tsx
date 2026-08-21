@@ -66,6 +66,42 @@ const IMPORT_QUOTA_COLORS: Record<string, { bg: string; color: string; border: s
  * peça: sem medida ou sem m² a gráfica não tem o que imprimir; sem
  * patrocinador a peça entra e segue, só não passa por aprovação.
  */
+/**
+ * A CHAVE DE GRUPO, num lugar só.
+ *
+ * A barra lateral conta grupos e a tabela desenha seções: se cada uma
+ * derivar a chave do seu jeito, o número e as seções divergem no primeiro
+ * ajuste. Quando a reimportação mostrou "145 grupos", os dois concordavam
+ * (145 = 145) — o erro estava no parser, que mandava o ID como tipo. Mas o
+ * acordo era coincidência de implementação; agora é contrato.
+ */
+export const tipoDoGrupo = (row: any): string => String(row?.type || '').trim() || '—';
+
+/**
+ * AS COLUNAS DA TABELA, com largura. `table-layout: fixed` + <colgroup>:
+ * a soma das larguras É a largura da tabela, então o painel ROLA quando
+ * não cabe em vez de a última coluna sair pela borda. Patrocinador é a
+ * coluna mais larga (contador, chips, "+ Adicionar", "Todos") e vem
+ * ANTES de Obs — no fim, sem largura garantida, era a que o corte comia.
+ */
+export function colunasDaImportacao(mostrarVisual: boolean) {
+  const cols: { label: string; tip: string; w: number }[] = [
+    { label: 'Descrição', tip: 'Nome da peça', w: 200 },
+    { label: 'Qtd', tip: 'Quantidade', w: 56 },
+  ];
+  if (mostrarVisual) cols.push({ label: 'Visual', tip: 'VIS. — o que se vê na peça montada (m)', w: 112 });
+  cols.push(
+    { label: 'Arquivo', tip: 'ARQ. — o que a impressora recebe (m); o m² sai daqui', w: 120 },
+    { label: 'M²', tip: 'Metros quadrados calculados', w: 72 },
+    { label: 'Material', tip: '', w: 104 },
+    { label: 'Acabamento', tip: '', w: 104 },
+    { label: 'Patrocinador', tip: 'Sugestão automática — clique para alterar', w: 250 },
+    { label: 'Obs', tip: 'Observações', w: 150 },
+    { label: '', tip: '', w: 36 },
+  );
+  return cols;
+}
+
 export type DefeitoImport =
   | 'sem-patrocinador' | 'sem-medida' | 'm2-nao-fecha' | 'sem-material' | 'ja-existe';
 
@@ -123,12 +159,14 @@ const DEFEITO_FRASE: Record<DefeitoImport, string> = {
   'ja-existe': 'uma peça com este mesmo tipo e descrição já foi importada para este evento',
 };
 
-export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsList, jaNoEvento }: {
+export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsList, jaNoEvento, mostrarVisual = true }: {
   row: any; idx: number;
   onChange: (updated: any) => void;
   onDelete: () => void;
   eventSponsorsList: { sponsorId: string; quota: string; name: string }[];
   jaNoEvento?: Set<string>;
+  /** Falso quando NENHUMA linha da planilha trouxe medida visual: a coluna some em vez de ocupar espaço com traços. */
+  mostrarVisual?: boolean;
 }) {
   const [editField, setEditField] = useState<string | null>(null);
   const [hovered, setHovered] = useState(false);
@@ -274,7 +312,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
           está, sem depender de a faixa lateral entrar no campo de visão. */}
       {cell('description', row.description, { wide: true, alerta: corDoDefeito ?? undefined })}
       {cell('quantity', row.quantity, { mono: true })}
-      {dimCell('visualWidth', 'visualHeight', row.visualWidth, row.visualHeight, true)}
+      {mostrarVisual && dimCell('visualWidth', 'visualHeight', row.visualWidth, row.visualHeight, true)}
       {/* Só a de ARQUIVO acende: a visual pode faltar sem impedir nada. */}
       {dimCell('fileWidth', 'fileHeight', row.fileWidth, row.fileHeight, false, semMedida)}
 
@@ -290,43 +328,8 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
 
       {cell('material', row.material)}
       {cell('finish', row.finish)}
-      {/* Obs cell with reuse toggle */}
-      <td
-        onClick={() => setEditField('observations')}
-        tabIndex={editField === 'observations' ? -1 : 0}
-        role="button"
-        onKeyDown={editField === 'observations' ? undefined : editableKeyDown(() => setEditField('observations'))}
-        title="Clique para editar"
-        style={{ padding: '8px 10px', borderBottom: '1px solid #f0efed', cursor: 'text', backgroundColor: editField === 'observations' ? '#fffbeb' : rowBg, maxWidth: 160 }}
-      >
-        {editField === 'observations' ? (
-          <input autoFocus defaultValue={row.observations ?? ''}
-            onBlur={e => { update('observations', e.target.value); setEditField(null); }}
-            onKeyDown={e => { if (e.key === 'Enter') { update('observations', (e.target as HTMLInputElement).value); setEditField(null); } if (e.key === 'Escape') setEditField(null); }}
-            style={{ width: '100%', border: 'none', borderBottom: '2px solid #f97316', padding: '0 2px', fontSize: 13, backgroundColor: 'transparent' }} />
-        ) : (
-          <span style={{ color: row.observations ? '#746e69' : '#a8a29e', fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {row.observations || '—'}
-          </span>
-        )}
-        {/* Reuse toggle */}
-        <button
-          onClick={e => { e.stopPropagation(); onChange({ ...row, reuse: !row.reuse }); }}
-          style={{
-            marginTop: 3, display: 'block',
-            fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 999, cursor: 'pointer',
-            border: `1px solid ${row.reuse ? '#22c55e' : '#e2deda'}`,
-            backgroundColor: row.reuse ? '#f0fdf4' : 'transparent',
-            color: row.reuse ? '#16a34a' : '#57534e',
-            letterSpacing: '0.04em', textTransform: 'uppercase', transition: 'all 0.15s',
-          }}
-        >
-          Reaproveitar
-        </button>
-      </td>
-
       {/* Sponsor multi-select cell */}
-      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0efed', backgroundColor: rowBg, minWidth: 230, verticalAlign: 'top' }}>
+      <td style={{ padding: '6px 8px', borderBottom: '1px solid #f0efed', backgroundColor: rowBg, verticalAlign: 'top' }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, alignItems: 'center' }}>
           {/* Chips for each selected sponsor */}
           {(row.suggestedSponsorIds ?? []).map((sid: string) => {
@@ -389,6 +392,41 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
             <span style={{ fontSize: 11, color: '#78716c', fontStyle: 'italic' }}>sem patrocinador</span>
           )}
         </div>
+      </td>
+
+      {/* Obs cell with reuse toggle */}
+      <td
+        onClick={() => setEditField('observations')}
+        tabIndex={editField === 'observations' ? -1 : 0}
+        role="button"
+        onKeyDown={editField === 'observations' ? undefined : editableKeyDown(() => setEditField('observations'))}
+        title="Clique para editar"
+        style={{ padding: '8px 10px', borderBottom: '1px solid #f0efed', cursor: 'text', backgroundColor: editField === 'observations' ? '#fffbeb' : rowBg, maxWidth: 160 }}
+      >
+        {editField === 'observations' ? (
+          <input autoFocus defaultValue={row.observations ?? ''}
+            onBlur={e => { update('observations', e.target.value); setEditField(null); }}
+            onKeyDown={e => { if (e.key === 'Enter') { update('observations', (e.target as HTMLInputElement).value); setEditField(null); } if (e.key === 'Escape') setEditField(null); }}
+            style={{ width: '100%', border: 'none', borderBottom: '2px solid #f97316', padding: '0 2px', fontSize: 13, backgroundColor: 'transparent' }} />
+        ) : (
+          <span style={{ color: row.observations ? '#746e69' : '#a8a29e', fontSize: 13, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {row.observations || '—'}
+          </span>
+        )}
+        {/* Reuse toggle */}
+        <button
+          onClick={e => { e.stopPropagation(); onChange({ ...row, reuse: !row.reuse }); }}
+          style={{
+            marginTop: 3, display: 'block',
+            fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 999, cursor: 'pointer',
+            border: `1px solid ${row.reuse ? '#22c55e' : '#e2deda'}`,
+            backgroundColor: row.reuse ? '#f0fdf4' : 'transparent',
+            color: row.reuse ? '#16a34a' : '#57534e',
+            letterSpacing: '0.04em', textTransform: 'uppercase', transition: 'all 0.15s',
+          }}
+        >
+          Reaproveitar
+        </button>
       </td>
 
       {/* Delete */}
@@ -480,6 +518,13 @@ export function ImportXlsxDialog({
   );
   const repetidas = (importPreviewItems ?? []).filter(i => chavesDoEvento.has(chaveDaPeca(i)));
 
+  // A coluna VISUAL só existe quando alguma linha trouxe medida visual. Numa
+  // planilha NORTE sem visual ela era 145 linhas de "— × —" ocupando
+  // 110px de uma tabela que já não cabia.
+  const mostrarVisual = (importPreviewItems ?? []).some(r => r.visualWidth || r.visualHeight);
+  const colunas = colunasDaImportacao(mostrarVisual);
+  const larguraDaTabela = colunas.reduce((s, c) => s + c.w, 0);
+
   // Predicado único da busca do preview — usado na contagem, no "+ Todos" e
   // no empty-state de filtro sem resultado.
   const importQ = importSearch.toLowerCase();
@@ -508,13 +553,20 @@ export function ImportXlsxDialog({
     }}>
       <DialogContent
         className="[&>button:last-child]:right-4 [&>button:last-child]:top-4 [&>button:last-child]:z-50"
-        style={{ maxWidth: '98vw', width: importPreviewItems ? 1320 : 540, maxHeight: '92vh', padding: 0, gap: 0, borderRadius: 12, overflow: 'visible', transition: 'width 0.3s' }}
+        /* Altura TRAVADA na janela: o modal era mais alto que a viewport e
+           o cartão do arquivo saía cortado pelo topo, com a barra lateral
+           rolando dentro do próprio recorte. Agora só a barra lateral e o
+           painel da tabela rolam; o cartão do arquivo e o botão de importar
+           — o começo e o fim da tarefa — ficam fixos. */
+        style={{ maxWidth: '98vw', width: importPreviewItems ? 1320 : 540, height: importPreviewItems ? 'calc(100vh - 48px)' : undefined, maxHeight: 'calc(100vh - 48px)', padding: 0, gap: 0, borderRadius: 12, overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'width 0.3s' }}
       >
         {/* Abaixo de 768px a sidebar empilha ACIMA da tabela (largura total) —
             lado a lado, os 260px fixos esmagavam o preview no celular. */}
-        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', height: '100%', maxHeight: '92vh', overflow: 'hidden', borderRadius: 12 }}>
+        <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', flex: 1, minHeight: 0, overflow: 'hidden', borderRadius: 12 }}>
         {/* ── Left sidebar ── */}
-        <div style={{ width: isMobile ? '100%' : 260, minWidth: isMobile ? 0 : 260, maxHeight: isMobile && importPreviewItems ? '42vh' : undefined, backgroundColor: '#ffffff', borderRight: isMobile ? 'none' : '1px solid #e7e5e4', borderBottom: isMobile ? '1px solid #e7e5e4' : 'none', display: 'flex', flexDirection: 'column', padding: '22px 18px', gap: 16, overflowY: 'auto', flexShrink: 0 }}>
+        <div style={{ width: isMobile ? '100%' : 260, minWidth: isMobile ? 0 : 260, maxHeight: isMobile && importPreviewItems ? '42vh' : undefined, backgroundColor: '#ffffff', borderRight: isMobile ? 'none' : '1px solid #e7e5e4', borderBottom: isMobile ? '1px solid #e7e5e4' : 'none', display: 'flex', flexDirection: 'column', overflow: 'hidden', flexShrink: 0 }}>
+          {/* TOPO FIXO: título e o cartão do arquivo — o começo da tarefa. */}
+          <div style={{ flexShrink: 0, padding: '22px 18px 0', display: 'flex', flexDirection: 'column', gap: 16 }}>
           {/* Title */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{ width: 30, height: 30, borderRadius: 8, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -581,13 +633,17 @@ export function ImportXlsxDialog({
             if (f) { setImportFile(f); setImportPreview(null); setImportPreviewItems(null); }
             e.target.value = "";
           }} />
+          </div>
+
+          {/* MEIO ROLÁVEL: resumo, triagem e a dica de formato. */}
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '16px 18px', display: 'flex', flexDirection: 'column', gap: 16 }}>
 
           {/* Stats (when preview is loaded) */}
           {importPreviewItems && (() => {
             const allItems = importPreviewItems;
             const totalM2 = allItems.reduce((s: number, i: any) => s + (parseFloat(i.calculatedM2) || 0), 0);
             const linked = allItems.filter((i: any) => (i.suggestedSponsorIds ?? []).length > 0).length;
-            const groups = new Set(allItems.map((i: any) => i.type)).size;
+            const groups = new Set(allItems.map(tipoDoGrupo)).size;
             const linkPct = allItems.length > 0 ? Math.round((linked / allItems.length) * 100) : 0;
             return (
               <>
@@ -687,9 +743,10 @@ export function ImportXlsxDialog({
             </div>
           </div>
 
-          <div style={{ flex: 1 }} />
+          </div>
 
-          {/* Action buttons */}
+          {/* PÉ FIXO: o botão de importar — o fim da tarefa — nunca sai de vista. */}
+          <div style={{ flexShrink: 0, padding: '12px 18px 18px', borderTop: '1px solid #f0efed', backgroundColor: '#fff' }}>
           {!importPreviewItems ? (
             <button
               disabled={!importFile || previewXlsxPending}
@@ -773,11 +830,12 @@ export function ImportXlsxDialog({
               </button>
             </div>
           )}
+          </div>
         </div>
 
         {/* ── Right panel: table ── */}
         {importPreviewItems && (
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0, overflow: 'hidden' }}>
             {/* Search bar. paddingRight extra: o X nativo do dialog vive em
                 right-4/top-4 e ficava POR CIMA do botão "+ Todos
                 patrocinadores" — colisão flagrada em produção. */}
@@ -830,24 +888,21 @@ export function ImportXlsxDialog({
               )}
             </div>
 
-            {/* Table */}
-            <div style={{ flex: 1, overflow: 'auto' }}>
-              <table style={{ width: '100%', minWidth: 900, borderCollapse: 'collapse', fontSize: 13 }}>
+            {/* A TABELA ROLA DENTRO DO PAINEL. Com layout automático, as
+                colunas eram espremidas até a última sair pela borda —
+                "0/1 vincu" — sem barra de rolagem, porque a tabela cabia
+                "tecnicamente". Com `table-layout: fixed` e um <colgroup>, a
+                soma das larguras É a largura da tabela: abaixo dela o
+                painel rola; nada é espremido, nada é cortado. */}
+            <div style={{ flex: 1, minHeight: 0, minWidth: 0, overflow: 'auto' }}>
+              <table style={{ tableLayout: 'fixed', width: '100%', minWidth: larguraDaTabela, borderCollapse: 'collapse', fontSize: 13 }}>
+                <colgroup>
+                  {colunas.map((c, i) => <col key={i} style={{ width: c.w }} />)}
+                </colgroup>
                 <thead>
                   <tr style={{ backgroundColor: '#f5f4f2', position: 'sticky', top: 0, zIndex: 2, boxShadow: '0 1px 0 #e8e6e3' }}>
-                    {[
-                      { label: 'Descrição', tip: 'Nome da peça' },
-                      { label: 'Qtd', tip: 'Quantidade' },
-                      { label: 'Visual', tip: 'VIS. — o que se vê na peça montada (m)' },
-                      { label: 'Arquivo', tip: 'ARQ. — o que a impressora recebe (m); o m² sai daqui' },
-                      { label: 'M²', tip: 'Metros quadrados calculados' },
-                      { label: 'Material', tip: '' },
-                      { label: 'Acabamento', tip: '' },
-                      { label: 'Obs', tip: 'Observações' },
-                      { label: 'Patrocinador', tip: 'Sugestão automática — clique para alterar' },
-                      { label: '', tip: '' },
-                    ].map((h, i) => (
-                      <th key={i} title={h.tip} style={{ padding: '9px 10px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap' }}>{h.label}</th>
+                    {colunas.map((h, i) => (
+                      <th key={i} title={h.tip} style={{ padding: '9px 10px', textAlign: 'left', fontWeight: 700, fontSize: 10, color: '#746e69', textTransform: 'uppercase', letterSpacing: '0.07em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{h.label}</th>
                     ))}
                   </tr>
                 </thead>
@@ -856,7 +911,7 @@ export function ImportXlsxDialog({
                     const items = importPreviewItems.filter(matchesImportFiltros);
                     const groupMap = new Map<string, any[]>();
                     for (const item of items) {
-                      const t = item.type || '—';
+                      const t = tipoDoGrupo(item);
                       if (!groupMap.has(t)) groupMap.set(t, []);
                       groupMap.get(t)!.push(item);
                     }
@@ -867,7 +922,7 @@ export function ImportXlsxDialog({
                       return (
                         <Fragment key={type}>
                           <tr>
-                            <td colSpan={10} style={{ padding: '9px 14px 8px', background: 'linear-gradient(90deg, #F0EEEC 0%, #F5F4F2 100%)', borderTop: gIdx > 0 ? '2px solid #E2DEDA' : undefined, borderBottom: '1px solid #e2deda' }}>
+                            <td colSpan={colunas.length} style={{ padding: '9px 14px 8px', background: 'linear-gradient(90deg, #F0EEEC 0%, #F5F4F2 100%)', borderTop: gIdx > 0 ? '2px solid #E2DEDA' : undefined, borderBottom: '1px solid #e2deda' }}>
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                   <div style={{ width: 3, height: 14, backgroundColor: '#D97A1E', borderRadius: 6 }} />
@@ -894,6 +949,7 @@ export function ImportXlsxDialog({
                               onDelete={() => setImportPreviewItems(prev => prev ? prev.filter(r => r._id !== row._id) : prev)}
                               eventSponsorsList={eventSponsorsList}
                               jaNoEvento={chavesDoEvento}
+                              mostrarVisual={mostrarVisual}
                             />
                           ))}
                         </Fragment>

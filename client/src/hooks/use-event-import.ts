@@ -73,11 +73,17 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
       const withIds = (data.items as any[]).map((item: any, i: number) => {
         const suggested = suggestSponsor(item);
         const autoReuse = /reaproveitar/i.test(item.observations ?? '');
+        // O parser já sugere os patrocinadores da peça (descrição + coluna
+        // "Patrocinadores" da exportação); o palpite por cota/descrição
+        // daqui só entra quando ele não achou nenhum.
+        const doParser: string[] = Array.isArray(item.suggestedSponsorIds) ? item.suggestedSponsorIds : [];
         return {
           ...item,
           _id: `row-${i}`,
-          suggestedSponsorIds: suggested ? [suggested] : [],
-          reuse: autoReuse,
+          suggestedSponsorIds: doParser.length > 0 ? doParser : (suggested ? [suggested] : []),
+          // A coluna "Reaprov." da exportação ("Sim") vale tanto quanto a
+          // palavra nas observações.
+          reuse: item.reuse === true || autoReuse,
         };
       });
       setImportPreviewItems(withIds);

@@ -106,9 +106,12 @@ const CONTRATO: Record<string, string[]> = {
     "button-save-item-",
     "button-discard-item-",     // desfazer o rascunho local
     "button-send-item-",
-    "btn-skip-sponsor-",
-    "btn-reuse-",
-    "button-return-creation-",
+    "btn-skip-sponsor-",        // agora é CHIP na linha, não item do menu
+    // `btn-reuse-` SAIU desta tela por decisão do dono: reaproveitar é
+    // decisão de quem monta a lista e de quem revisa, e o botão continua
+    // no Detalhe do Evento (button-reuse-item-) e na Revisão (button-reuse-).
+    // Não é perda de capacidade — é uma porta a menos para a mesma decisão.
+    "button-return-creation-",  // fica: só esta tela devolve para antes da vinculação
     "checkbox-sponsor-",
     "text-display-id-",
     "item-row-",

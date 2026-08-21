@@ -1582,6 +1582,33 @@ export default function VincularPatrocinadores() {
                   </button>
                 );
               })}
+              {/* SEM PATROCINADOR — um chip na própria linha, não um item
+                  escondido no "…". Era a terceira opção de um menu de três,
+                  e é a decisão mais comum depois de vincular: a peça que
+                  entra sem marca. Pedido do dono: "está difícil de fazer".
+                  Mesma casca dos chips ao lado (26px, raio 999), mas borda
+                  TRACEJADA quando desligado — não é uma marca, é a ausência
+                  declarada de todas. #92400e sobre #fffbeb = 6,6:1. */}
+              {editavel && estado !== 'ENVIADO' && (
+                <button
+                  type="button"
+                  onClick={() => toggleItemSkipApproval(item)}
+                  aria-pressed={semPatrocinador}
+                  title={semPatrocinador ? 'Desmarcar "sem patrocinador" — a peça volta a exigir vínculo' : 'Marcar sem patrocinador — a peça segue sem aprovação de marca'}
+                  data-testid={`btn-skip-sponsor-${item.id}`}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    height: isMobile ? 44 : 26, padding: '0 10px', borderRadius: 999,
+                    border: semPatrocinador ? '1px solid #fde68a' : '1px dashed #d6d3d1',
+                    backgroundColor: semPatrocinador ? '#fffbeb' : '#ffffff',
+                    color: semPatrocinador ? '#92400e' : '#57534e',
+                    cursor: 'pointer', font: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+                  }}
+                >
+                  <EyeOff aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />
+                  Sem patrocinador
+                </button>
+              )}
             </div>
           )}
         </td>
@@ -1658,8 +1685,18 @@ export default function VincularPatrocinadores() {
             {/* ── Ações secundárias ──
                 Eram links SUBLINHADOS de 11px em cinza dentro da célula de
                 vínculos ("sem pat." · "reaprov."), indistinguíveis de texto
-                morto — e "sem pat." apaga os patrocinadores da peça. Ação que
-                descarta trabalho não mora num link de 11px. */}
+                morto. Depois viraram um menu de três. Agora o menu tem UMA
+                entrada, e a genealogia importa:
+                · "Sem patrocinador" subiu para a linha, como chip — é a
+                  decisão mais comum depois de vincular, e estava escondida.
+                · "Marcar reaproveitamento" SAIU desta tela: reaproveitar é
+                  decisão de quem monta a lista (Detalhe do Evento) e de quem
+                  revisa (Revisão), e é lá que o botão continua. Aqui ele era
+                  uma segunda porta para a mesma decisão, numa tela cuja
+                  pergunta é outra.
+                · "Devolver para Criação" FICA, porque só existe aqui — é a
+                  única tela que devolve a peça para antes da vinculação. É
+                  rara, e menu é o lugar de ação rara. */}
             {editavel && (
               <div style={{ position: 'relative' }}>
                 <button
@@ -1693,26 +1730,16 @@ export default function VincularPatrocinadores() {
                   >
                     {[
                       {
-                        rotulo: semPatrocinador ? 'Desmarcar "sem patrocinador"' : 'Marcar sem patrocinador',
-                        testId: `btn-skip-sponsor-${item.id}`,
-                        acao: () => toggleItemSkipApproval(item),
-                      },
-                      {
-                        rotulo: item.isReuse ? 'Desmarcar reaproveitamento' : 'Marcar reaproveitamento',
-                        testId: `btn-reuse-${item.id}`,
-                        acao: () => updateItemIsReuseMutation.mutate({ itemId: item.id, isReuse: !item.isReuse }),
-                      },
-                      {
                         rotulo: 'Devolver para Criação',
                         testId: `button-return-creation-${item.id}`,
                         acao: () => setReturnModal(item),
                       },
-                    ].map(op => (
+                    ].map((op, i) => (
                       <button
                         key={op.testId}
                         type="button"
                         role="menuitem"
-                        autoFocus={op.testId.startsWith('btn-skip-sponsor')}
+                        autoFocus={i === 0}
                         onClick={() => { setMenuDaLinha(null); op.acao(); }}
                         data-testid={op.testId}
                         style={{ display: 'block', width: '100%', minHeight: ALVO, padding: '0 12px', textAlign: 'left', border: 'none', background: 'none', borderRadius: R.sm, font: 'inherit', fontSize: 13, color: '#1c1917', cursor: 'pointer' }}

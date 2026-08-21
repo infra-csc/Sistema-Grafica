@@ -2818,9 +2818,9 @@ export default function PainelGeral() {
                                       )}
                                       {isCompact && !isDeleted && ((item.visualWidth && item.visualHeight) || (item.fileWidth && item.fileHeight)) && (
                                         <span style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "#57534e", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                          {item.visualWidth && item.visualHeight
-                                            ? `VIS ${item.visualWidth} × ${item.visualHeight}`
-                                            : `ARQ ${item.fileWidth} × ${item.fileHeight}`}
+                                          {item.fileWidth && item.fileHeight
+                                            ? `ARQ ${item.fileWidth} × ${item.fileHeight}`
+                                            : `VIS ${item.visualWidth} × ${item.visualHeight}`}
                                         </span>
                                       )}
                                       {!isDeleted && item.isReuse && (
@@ -2882,19 +2882,23 @@ export default function PainelGeral() {
                                     <td style={{ padding: "10px 18px", overflow: "hidden" }}>
                                       {!isDeleted && ((item.visualWidth && item.visualHeight) || (item.fileWidth && item.fileHeight)) ? (
                                         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                                          {item.visualWidth && item.visualHeight && (
+                                          {/* ARQ primeiro e escuro: é o par que a
+                                              impressora recebe e o m² cobra — a mesma
+                                              ênfase da Gráfica, para as duas telas
+                                              contarem a mesma história. */}
+                                          {item.fileWidth && item.fileHeight && (
                                             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                              <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#746e69", width: 30, flexShrink: 0 }}>VIS</span>
+                                              <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#b45309", width: 30, flexShrink: 0 }}>ARQ</span>
                                               <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: "#44403c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                                {item.visualWidth} × {item.visualHeight}
+                                                {item.fileWidth} × {item.fileHeight}
                                               </span>
                                             </div>
                                           )}
-                                          {item.fileWidth && item.fileHeight && (
+                                          {item.visualWidth && item.visualHeight && (
                                             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
-                                              <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#746e69", width: 30, flexShrink: 0 }}>ARQ</span>
+                                              <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#746e69", width: 30, flexShrink: 0 }}>VIS</span>
                                               <span style={{ fontFamily: "monospace", fontSize: 13, fontWeight: 700, color: "#746e69", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                                {item.fileWidth} × {item.fileHeight}
+                                                {item.visualWidth} × {item.visualHeight}
                                               </span>
                                             </div>
                                           )}

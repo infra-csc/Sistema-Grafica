@@ -838,8 +838,8 @@ export function ImportXlsxDialog({
                     {[
                       { label: 'Descrição', tip: 'Nome da peça' },
                       { label: 'Qtd', tip: 'Quantidade' },
-                      { label: 'Visual', tip: 'Largura × Altura visual (m)' },
-                      { label: 'Arquivo', tip: 'Largura × Altura do arquivo (m)' },
+                      { label: 'Visual', tip: 'VIS. — o que se vê na peça montada (m)' },
+                      { label: 'Arquivo', tip: 'ARQ. — o que a impressora recebe (m); o m² sai daqui' },
                       { label: 'M²', tip: 'Metros quadrados calculados' },
                       { label: 'Material', tip: '' },
                       { label: 'Acabamento', tip: '' },

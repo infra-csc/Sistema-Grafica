@@ -709,9 +709,12 @@ export function ItemDetailsDialog({
     { label: "Acabamento", value: item.finish },
     { label: "Quantidade", value: item.quantity ? `${item.quantity} un.` : null },
     { label: "M²",         value: item.calculatedM2 ? `${item.calculatedM2} m²` : null },
-    { label: "Medida",     value: item.measurement },
-    { label: "Visual",     value: item.visualWidth && item.visualHeight ? `${item.visualWidth} × ${item.visualHeight}` : null },
-    { label: "Arquivo",    value: item.fileWidth && item.fileHeight ? `${item.fileWidth} × ${item.fileHeight}` : null },
+    // "Medida" (o texto) saiu da ficha: desde que o servidor a deriva das
+    // dimensões de arquivo, ela era a MESMA linha que "Arquivo" com outro
+    // nome — e quando divergia (peça #2472), era a linha errada. Três nomes
+    // para dois pares é exatamente a confusão que esta ficha não deve criar.
+    { label: "Arquivo (ARQ.)", value: item.fileWidth && item.fileHeight ? `${item.fileWidth} × ${item.fileHeight}` : (item.measurement || null) },
+    { label: "Visual (VIS.)",  value: item.visualWidth && item.visualHeight ? `${item.visualWidth} × ${item.visualHeight}` : null },
   ].filter(x => x.value);
   const vagasVazias = (colunasEspec - (dadosEspec.length % colunasEspec)) % colunasEspec;
 

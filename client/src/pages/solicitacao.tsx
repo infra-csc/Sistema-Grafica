@@ -1870,7 +1870,7 @@ export default function Solicitacao() {
               {[
                 { label: "Material", value: selectedItem?.material || "—" },
                 { label: "Acabamento", value: selectedItem?.finish || "—" },
-                { label: "Dimensões", value: selectedItem?.fileWidth && selectedItem?.fileHeight ? `${selectedItem.fileWidth}×${selectedItem.fileHeight}` : "—" },
+                { label: "Dimensões (ARQ.)", value: selectedItem?.fileWidth && selectedItem?.fileHeight ? `${selectedItem.fileWidth}×${selectedItem.fileHeight}` : "—" },
                 { label: "M²", value: selectedItem?.calculatedM2 || "—" },
               ].map(({ label, value }, i) => (
                 <div key={label} style={{ flex: "1 1 0", minWidth: isMobile ? 76 : 0, padding: "2px 14px 2px " + (i === 0 ? "0" : "14px"), borderLeft: i === 0 ? "none" : "1px solid #e7e5e4" }}>

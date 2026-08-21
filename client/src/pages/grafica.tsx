@@ -2685,7 +2685,7 @@ export default function Grafica() {
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ backgroundColor: TI.text }}>
-                {["ID", "Descrição", "QTD", "REAPROV.", "PROD", "Dimensões (V × A)", "M² a produzir", "Material", "Status", ""].map(col => (
+                {["ID", "Descrição", "QTD", "REAPROV.", "PROD", "Medidas (ARQ / VIS)", "M² a produzir", "Material", "Status", ""].map(col => (
                   /* A coluna de AÇÕES é `sticky right`: são 10 colunas e num
                      notebook 1366 (menos a sidebar fixa de 16rem sobram ~1110px)
                      ela ficava fora da vista. O usuário recorrente faz o mesmo
@@ -3014,16 +3014,30 @@ export default function Grafica() {
                       <td style={{ padding: "13px 16px", textAlign: "center", fontSize: 13, fontWeight: 700, color: item.quantityProduced > 0 ? "#c2410c" : TI.secondary }}>
                         {item.quantityProduced || "—"}
                       </td>
-                      {/* Dimensões */}
+                      {/* ── MEDIDAS: o ARQ vem primeiro e escuro ──
+
+                          Esta coluna mostrava o VISUAL em cima, escuro, e o
+                          arquivo embaixo, apagado — nesta tela, que é a que
+                          IMPRIME, e o que a impressora recebe é o ARQ (com
+                          sangria; é dele que sai o m² cobrado). A peça #2472
+                          teve o arquivo corrigido e a gráfica seguiu lendo a
+                          linha escura de cima, que era o outro par.
+
+                          E havia um buraco: o ARQ só aparecia SE o visual
+                          existisse — peça só com medida de arquivo mostrava
+                          "—" na tela de produção. Cada par agora se mostra
+                          por si. */}
                       <td style={{ padding: "13px 16px" }}>
-                        {item.visualWidth && item.visualHeight ? (
+                        {(item.fileWidth && item.fileHeight) || (item.visualWidth && item.visualHeight) ? (
                           <div>
-                            <div style={{ fontSize: 11, color: TI.text, fontFamily: "monospace", whiteSpace: "nowrap" }}>
-                              <span style={{ color: TI.secondary, fontWeight: 600 }}>V:</span> {item.visualWidth}×{item.visualHeight}
-                            </div>
                             {item.fileWidth && item.fileHeight && (
+                              <div style={{ fontSize: 11, color: TI.text, fontFamily: "monospace", whiteSpace: "nowrap" }}>
+                                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.06em", color: "#b45309" }}>ARQ</span> {item.fileWidth}×{item.fileHeight}
+                              </div>
+                            )}
+                            {item.visualWidth && item.visualHeight && (
                               <div style={{ fontSize: 11, color: TI.secondary, fontFamily: "monospace", whiteSpace: "nowrap" }}>
-                                <span style={{ fontWeight: 600 }}>A:</span> {item.fileWidth}×{item.fileHeight}
+                                <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.06em" }}>VIS</span> {item.visualWidth}×{item.visualHeight}
                               </div>
                             )}
                           </div>

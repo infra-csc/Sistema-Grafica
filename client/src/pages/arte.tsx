@@ -2198,10 +2198,10 @@ export default function Arte() {
                 é o principal antes de ler qualquer dígito. */}
             {item.fileWidth && item.fileHeight && (
               <span
-                title={`Sangria: ${item.fileWidth} × ${item.fileHeight}`}
+                title={`ARQ. (com sangria): ${item.fileWidth} × ${item.fileHeight} — é o que a impressora recebe`}
                 style={{ fontSize: 11, fontWeight: 400, color: '#746e69', fontVariantNumeric: 'tabular-nums', overflow: 'hidden', textOverflow: 'ellipsis' }}
               >
-                <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>sangria</span>
+                <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>arq.</span>
                 {' '}{item.fileWidth} × {item.fileHeight}
               </span>
             )}

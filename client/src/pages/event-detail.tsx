@@ -356,11 +356,15 @@ function ItemForm({
             Dimensões de Produção
           </div>
           <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "1fr 1fr 1fr 1fr", gap: "12px" }}>
+            {/* A bolinha LARANJA marca o par que alimenta o m² — e estava
+                no par ERRADO: laranja no visual, cinza no arquivo, com o
+                "M2 Total" laranja derivando do arquivo. O formulário
+                ensinava a olhar para o lado que não cobra. */}
             {[
-              { label: "Visual Larg.", key: "visualWidth", orange: true, testId: isEdit ? "input-edit-visual-width" : "input-visual-width" },
-              { label: "Visual Alt.", key: "visualHeight", orange: true, testId: isEdit ? "input-edit-visual-height" : "input-visual-height" },
-              { label: "Arquivo Larg.", key: "fileWidth", orange: false, testId: isEdit ? "input-edit-file-width" : "input-file-width" },
-              { label: "Arquivo Alt.", key: "fileHeight", orange: false, testId: isEdit ? "input-edit-file-height" : "input-file-height" },
+              { label: "VIS. Largura", key: "visualWidth", orange: false, testId: isEdit ? "input-edit-visual-width" : "input-visual-width" },
+              { label: "VIS. Altura", key: "visualHeight", orange: false, testId: isEdit ? "input-edit-visual-height" : "input-visual-height" },
+              { label: "ARQ. Largura", key: "fileWidth", orange: true, testId: isEdit ? "input-edit-file-width" : "input-file-width" },
+              { label: "ARQ. Altura", key: "fileHeight", orange: true, testId: isEdit ? "input-edit-file-height" : "input-file-height" },
             ].map((dim) => (
               <div key={dim.key} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
                 <label htmlFor={`item-${dim.key}`} style={{ fontSize: 11, fontWeight: 700, color: "#746e69", display: "flex", alignItems: "center", gap: "5px" }}>
@@ -374,7 +378,25 @@ function ItemForm({
                   min="0"
                   required={!isEdit}
                   value={(formData as any)[dim.key]}
-                  onChange={(e) => setFormData({ ...formData, [dim.key]: e.target.value })}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    // Digitar o VIS espelha no ARQ enquanto o ARQ estiver
+                    // vazio ou ainda for espelho do VIS antigo — a MESMA
+                    // regra do Modelos, que este formulário não tinha:
+                    // aqui era preciso digitar os quatro números, e quem
+                    // parava nos dois primeiros criava peça sem medida de
+                    // arquivo (m² zero, "sem medida" na importação). Um
+                    // ARQ personalizado (sangria) nunca é sobrescrito.
+                    if (dim.key === "visualWidth") {
+                      const espelho = !formData.fileWidth || formData.fileWidth === formData.visualWidth;
+                      setFormData({ ...formData, visualWidth: v, fileWidth: espelho ? v : formData.fileWidth });
+                    } else if (dim.key === "visualHeight") {
+                      const espelho = !formData.fileHeight || formData.fileHeight === formData.visualHeight;
+                      setFormData({ ...formData, visualHeight: v, fileHeight: espelho ? v : formData.fileHeight });
+                    } else {
+                      setFormData({ ...formData, [dim.key]: v });
+                    }
+                  }}
                   placeholder="0.00"
                   data-testid={dim.testId}
                   style={{ width: "100%", backgroundColor: "#ffffff", border: "none", borderRadius: "8px", padding: "8px 12px", fontSize: "15px", fontWeight: 500, color: "#1a1c1c", boxShadow: "0 1px 3px rgba(0,0,0,0.08)", transition: "box-shadow 0.15s" }}
@@ -384,6 +406,12 @@ function ItemForm({
               </div>
             ))}
           </div>
+          {/* A frase que faltava: qual par faz o quê. Sem ela, "Visual" e
+              "Arquivo" eram dois pares de números iguais com nomes opacos. */}
+          <p style={{ margin: "12px 0 0", fontSize: 11, lineHeight: 1.5, color: "#746e69" }}>
+            <strong style={{ color: "#b45309" }}>ARQ.</strong> é o que a impressora recebe (com sangria) — o m² e a gráfica usam ele.{" "}
+            <strong style={{ color: "#57534e" }}>VIS.</strong> é o que se vê na peça montada. Digitar o VIS. preenche o ARQ. igual; ajuste o ARQ. só quando houver sangria.
+          </p>
         </div>
 
         {/* Material | Acabamento */}

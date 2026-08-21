@@ -49,6 +49,7 @@ import {
   type EventInventoryAllocation,
   type EventQuotaRule,
   type ItemStatus,
+  itemArtVersions, eventBooks, type ItemArtVersion, type InsertItemArtVersion, type EventBook, type InsertEventBook,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, and, desc, asc, sql, or, lt, gte, ne, inArray, like } from "drizzle-orm";
@@ -371,6 +372,11 @@ export interface IStorage {
   
   // Item Sponsor Approvals (individual sponsor approval tracking)
   getAllItemSponsorApprovals(): Promise<ItemSponsorApproval[]>;
+  // Versões da arte e books — a história que a tela de Versões lê.
+  createItemArtVersion(v: InsertItemArtVersion): Promise<ItemArtVersion>;
+  getAllItemArtVersions(): Promise<ItemArtVersion[]>;
+  createEventBook(b: InsertEventBook): Promise<EventBook>;
+  getAllEventBooks(): Promise<EventBook[]>;
   getOpenItemSponsorApprovals(): Promise<ItemSponsorApproval[]>;
   getItemSponsorApprovals(itemId: string): Promise<ItemSponsorApproval[]>;
   getItemSponsorApproval(itemId: string, sponsorId: string): Promise<ItemSponsorApproval | undefined>;
@@ -1693,6 +1699,24 @@ export class DatabaseStorage implements IStorage {
         )
       );
     return approval;
+  }
+
+  async createItemArtVersion(v: InsertItemArtVersion): Promise<ItemArtVersion> {
+    const [row] = await db.insert(itemArtVersions).values(v).returning();
+    return row;
+  }
+
+  async getAllItemArtVersions(): Promise<ItemArtVersion[]> {
+    return await db.select().from(itemArtVersions).orderBy(itemArtVersions.createdAt);
+  }
+
+  async createEventBook(b: InsertEventBook): Promise<EventBook> {
+    const [row] = await db.insert(eventBooks).values(b).returning();
+    return row;
+  }
+
+  async getAllEventBooks(): Promise<EventBook[]> {
+    return await db.select().from(eventBooks).orderBy(desc(eventBooks.createdAt));
   }
 
   async createItemSponsorApproval(insertApproval: InsertItemSponsorApproval): Promise<ItemSponsorApproval> {

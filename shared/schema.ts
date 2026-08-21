@@ -126,6 +126,12 @@ export const itemSponsorApprovals = pgTable("item_sponsor_approvals", {
   rejectedBy: text("rejected_by"), // Nome do usuário que reprovou
   rejectedAt: timestamp("rejected_at"), // Quando foi reprovado
   rejectionReason: text("rejection_reason"), // Motivo da reprovação (se houver)
+  // QUAL THUMB FOI DECIDIDO. A aprovação dizia "aprovou" e "quando", mas não
+  // "o quê": com a Arte trocando o thumb depois, "aprovado" passava a apontar
+  // para uma arte que o patrocinador nunca viu. Gravado no approve/reject com
+  // o approvalThumbUrl da peça naquele instante. NULL nas decisões anteriores
+  // a esta coluna — a tela infere pela data e DIZ que inferiu.
+  decidedThumbUrl: text("decided_thumb_url"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 }, (table) => [
@@ -283,6 +289,38 @@ export const standardItems = pgTable("standard_items", {
 
 // Catálogo de opções (material, acabamento, grupo) — permite cadastrar valores
 // avulsos que existem por conta própria, sem depender de um modelo usá-los.
+// ── AS VERSÕES DA ARTE DE UMA PEÇA ──
+// Cada thumb que a Arte mandou para aprovação vira uma linha: no envio
+// (submit-for-approval), no reenvio da correção (resubmit) e na troca
+// (update-thumb). Antes a história morava só no texto da trilha de auditoria
+// ("Anterior: X → Novo: Y") e em `previousApprovalThumbUrl` — dois passos de
+// memória, não uma história. `origem` diz por onde a versão entrou.
+export const itemArtVersions = pgTable("item_art_versions", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  itemId: varchar("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),
+  thumbUrl: text("thumb_url").notNull(),
+  origem: text("origem").notNull(), // envio | reenvio | troca
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => [
+  index("IDX_item_art_versions_item_id").on(table.itemId),
+]);
+
+// ── OS BOOKS DE UM EVENTO, com história ──
+// `items.book_url` guarda só o book ATUAL (a rota limpa o anterior antes de
+// gravar o novo). Quem precisa do book que o patrocinador aprovou há dois
+// meses não tinha onde achar. Cada publicação vira uma linha aqui.
+export const eventBooks = pgTable("event_books", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  bookUrl: text("book_url").notNull(),
+  itemCount: integer("item_count").notNull().default(0),
+  createdBy: text("created_by"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+}, (table) => [
+  index("IDX_event_books_event_id").on(table.eventId),
+]);
+
 export const catalogOptions = pgTable("catalog_options", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   kind: text("kind").notNull(), // "material" | "finish" | "group"
@@ -697,6 +735,9 @@ export const insertItemSponsorApprovalSchema = createInsertSchema(itemSponsorApp
   updatedAt: true,
 });
 
+export const insertItemArtVersionSchema = createInsertSchema(itemArtVersions).omit({ id: true, createdAt: true });
+export const insertEventBookSchema = createInsertSchema(eventBooks).omit({ id: true, createdAt: true });
+
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
@@ -851,6 +892,11 @@ export type InsertItemSponsor = z.infer<typeof insertItemSponsorSchema>;
 
 export type ItemSponsorApproval = typeof itemSponsorApprovals.$inferSelect;
 export type InsertItemSponsorApproval = z.infer<typeof insertItemSponsorApprovalSchema>;
+
+export type ItemArtVersion = typeof itemArtVersions.$inferSelect;
+export type InsertItemArtVersion = z.infer<typeof insertItemArtVersionSchema>;
+export type EventBook = typeof eventBooks.$inferSelect;
+export type InsertEventBook = z.infer<typeof insertEventBookSchema>;
 
 export type InventoryAsset = typeof inventoryAssets.$inferSelect;
 export type InsertInventoryAsset = z.infer<typeof insertInventoryAssetSchema>;

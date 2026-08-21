@@ -1737,6 +1737,11 @@ export function registerItemRoutes(app: Express): void {
       if (!item) {
         return res.status(404).json({ error: "Item not found" });
       }
+      // A versão da arte que foi para aprovação — uma linha por envio. É o
+      // que deixa a tela de Versões dizer QUAL thumb cada patrocinador viu.
+      if (approvalThumbUrl) {
+        await storage.createItemArtVersion({ itemId: item.id, thumbUrl: approvalThumbUrl, origem: "envio", createdBy: req.userName ?? null });
+      }
       
       const event = await storage.getEvent(item.eventId);
       
@@ -1988,7 +1993,7 @@ export function registerItemRoutes(app: Express): void {
       }
       
       if (approval) {
-        // Update existing approval
+        // Update existing approval — com O QUE foi aprovado (o thumb de agora).
         approval = await storage.updateItemSponsorApproval(approval.id, {
           status: 'approved',
           approvedBy: req.userName,
@@ -1996,12 +2001,14 @@ export function registerItemRoutes(app: Express): void {
           rejectedBy: null,
           rejectedAt: null,
           rejectionReason: null,
+          decidedThumbUrl: currentItem.approvalThumbUrl ?? null,
         });
       } else {
         // Create new approval
         approval = await storage.createItemSponsorApproval({
           itemId,
           sponsorId,
+          decidedThumbUrl: currentItem.approvalThumbUrl ?? null,
           status: 'approved',
           approvedBy: req.userName,
           approvedAt: new Date(),
@@ -2112,6 +2119,7 @@ export function registerItemRoutes(app: Express): void {
       if (approval) {
         // Update existing approval
         approval = await storage.updateItemSponsorApproval(approval.id, {
+          decidedThumbUrl: currentItem.approvalThumbUrl ?? null,
           status: 'awaiting_arte',
           rejectedBy: req.userName,
           rejectedAt: new Date(),
@@ -2122,6 +2130,7 @@ export function registerItemRoutes(app: Express): void {
       } else {
         // Create new approval
         approval = await storage.createItemSponsorApproval({
+          decidedThumbUrl: currentItem.approvalThumbUrl ?? null,
           itemId,
           sponsorId,
           status: 'awaiting_arte',
@@ -2309,6 +2318,7 @@ export function registerItemRoutes(app: Express): void {
         approvalThumbUrl: newThumbUrl,
         rejectedBySponsor: false,
       });
+      await storage.createItemArtVersion({ itemId, thumbUrl: newThumbUrl, origem: "reenvio", createdBy: req.userName ?? null });
 
       const event = await storage.getEvent(currentItem.eventId);
 
@@ -2499,6 +2509,7 @@ export function registerItemRoutes(app: Express): void {
       if (!item) {
         return res.status(404).json({ error: "Item not found" });
       }
+      await storage.createItemArtVersion({ itemId: item.id, thumbUrl: approvalThumbUrl, origem: "troca", createdBy: req.userName ?? null });
 
       await createAuditLog(
         req,
@@ -4064,6 +4075,12 @@ export function registerItemRoutes(app: Express): void {
       // evitando que a exportação abra a versão antiga do book.
       await storage.clearEventBookUrl(req.params.eventId);
       const count = await storage.setItemsBookUrl(itemIds, bookUrl || null);
+      // A HISTÓRIA DO BOOK: `items.book_url` guarda só o atual (a linha acima
+      // acabou de apagar o anterior). Cada publicação vira uma linha própria —
+      // é o que deixa baixar o book que o patrocinador aprovou há dois meses.
+      if (bookUrl) {
+        await storage.createEventBook({ eventId: req.params.eventId, bookUrl, itemCount: count, createdBy: req.userName ?? null });
+      }
       await createAuditLog(
         req,
         'updated',

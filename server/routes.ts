@@ -25,6 +25,7 @@ import { registerAnaliseRoutes } from "./routes/analises";
 import { registerObjectRoutes } from "./routes/objects";
 import { registerInventoryRoutes } from "./routes/inventory";
 import { registerReparoMotivosRoutes } from "./routes/reparo-motivos";
+import { registerVersoesRoutes } from "./routes/versoes";
 import { startDeadlineAlerts } from "./services/deadlineAlerts";
 import { startInventoryLifecycle } from "./services/inventoryLifecycle";
 import { startPrazoSnapshots } from "./services/prazoSnapshots";
@@ -54,6 +55,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerEventRoutes(app);
   registerItemRoutes(app);
   registerStandardItemRoutes(app);
+  registerVersoesRoutes(app);
   registerNotificationRoutes(app);
   registerCommentRoutes(app);
   registerPhotoRoutes(app);

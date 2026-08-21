@@ -6,7 +6,11 @@
 // parar e perguntar — e o gate falhou: não existe rota de cobrança ao
 // patrocinador (ele não é usuário; o Atendimento registra por ele), e a única
 // "cobrança" do sistema é o registro gerencial da Gestão de Prazos, admin-only,
-// sem notificação a ninguém. Ficou para decisão do dono.
+// sem notificação a ninguém. Perguntado ao dono (21/08/2026), com as opções
+// na mesa — notificar o Atendimento, registrar na Gestão de Prazos, os dois —,
+// a decisão foi DEIXAR SEM "COBRAR": a faixa "Quem está travando" mostra o
+// problema e filtra por marca, e isso basta. O teste abaixo guarda a decisão
+// para ninguém "completar" o handoff por reflexo.
 //
 // 1 · IDADE NA FASE: abaixo da data do prazo, "há Nd na fase" — de
 //     `statusChangedAt`, nunca da criação (uma peça criada há oito meses que

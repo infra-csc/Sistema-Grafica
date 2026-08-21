@@ -1209,11 +1209,32 @@ export default function VincularPatrocinadores() {
     total: number;
   };
 
+  /**
+   * A ORDEM DE LEITURA DA PRODUÇÃO: grupo pai → tipo → ID.
+   *
+   * A tabela abre um cabeçalho de tipo sempre que o tipo MUDA em relação à
+   * linha anterior (`abreTipo`). Isso só agrupa se a lista chegar ordenada
+   * por tipo — e a ordenação caiu quando as duas árvores viraram uma: a
+   * lista passou a chegar em ordem de ID, os tipos intercalados, e cada
+   * cabeçalho dizia "TOTENS 6" com UMA linha embaixo, seguida de "QUADROS
+   * 4X3 6" com uma linha, e assim por diante — a contagem certa, a lista
+   * misturada. Visto em produção (Blue Night SP).
+   *
+   * Dentro do tipo, compareDisplayId (não replace(/\D/g,'')): o complemento
+   * "#0062-C1" virava 621 e desgrudava da peça original.
+   */
+  const ordenarParaLeitura = (lista: any[]) => [...lista].sort((a, b) => {
+    const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
+    if (ga !== gb) return COLLATOR_PTBR.compare(ga, gb);
+    if (a.type !== b.type) return COLLATOR_PTBR.compare(a.type || '', b.type || '');
+    return compareDisplayId(a.displayId, b.displayId);
+  });
+
   const gruposDaLista = useMemo<GrupoDaLista[]>(() => {
     if (agrupamento === 'evento') {
       return filteredEventEntries.map(([eventId, eventItems]) => {
         const event = eventById.get(eventId)!;
-        const itens = filterItems(eventItems as any[], event.name);
+        const itens = ordenarParaLeitura(filterItems(eventItems as any[], event.name));
         const progresso = calculateProgress(itens);
         return { chave: eventId, event, itens, vinculadas: progresso.completed, total: progresso.total };
       });
@@ -1224,7 +1245,7 @@ export default function VincularPatrocinadores() {
       if (eventFilter.length > 0 && !eventFilter.includes(eventId)) continue;
       const event = eventById.get(eventId);
       if (!event) continue;
-      const itens = filterItems(eventItems as any[], event.name);
+      const itens = ordenarParaLeitura(filterItems(eventItems as any[], event.name));
       if (itens.length === 0) continue;
       const doEvento = getEventSponsors(eventId)
         .filter(sp => sponsorFilter.length === 0 || sponsorFilter.includes(sp.id));
@@ -1236,7 +1257,7 @@ export default function VincularPatrocinadores() {
     return out;
   }, [agrupamento, filteredEventEntries, itemsByEvent, eventById, eventFilter, sponsorFilter,
       itemSponsorsMap, originalSponsorsMap, pendingChanges, searchQuery, itemFilter, statusFilter,
-      eventSponsorMap, sponsors]);
+      eventSponsorMap, sponsors, typeToGroup]);
 
   // Alvo dos controles dentro da linha. 44 no toque; no ponteiro a linha é
   // densa de proposito — esta tela existe para varrer dezenas de pecas — e o
@@ -2699,6 +2720,9 @@ export default function VincularPatrocinadores() {
                     <tbody style={{ display: isMobile ? 'block' : 'table-row-group' }}>
                       {renderizadas.map((item, idx) => {
                         const anterior = idx > 0 ? renderizadas[idx - 1] : null;
+                        // Só agrupa porque `itens` chega ordenada por tipo
+                        // (ordenarParaLeitura) — sem isso, este "abre ao
+                        // mudar" repete o cabeçalho a cada linha.
                         const abreTipo = !anterior || anterior.type !== item.type;
                         const chaveTipo = `${chave}:${item.type}`;
                         const tipoFechado = tiposColapsados.has(chaveTipo);

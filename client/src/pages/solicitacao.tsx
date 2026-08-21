@@ -2001,7 +2001,7 @@ export default function Solicitacao() {
                     guarda de evento finalizado. Ficam visíveis e DESABILITADAS,
                     com o motivo — sumi-las deixaria a ficha sem explicação
                     nenhuma para a ausência. */}
-                <div style={{ display: "flex", gap: 10 }}>
+                <div style={{ display: "flex", gap: 10, flexWrap: isMobile ? "wrap" : "nowrap" }}>
                   <button
                     onClick={() => { if (!seloSelecionado) setReleaseConfirmOpen(true); }}
                     disabled={!!seloSelecionado || creatorReviewMutation.isPending || !selectedItem?.finalFileUrl}
@@ -2045,6 +2045,47 @@ export default function Solicitacao() {
                   >
                     <RotateCcw style={{ width: 15, height: 15, flexShrink: 0 }} />
                     <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>Devolver para Arte</span>
+                  </button>
+                  {/* REAPROVEITAR, aqui também. O gesto existia só na linha da
+                      tabela; quem revisa em fila (26/48) decide dentro da
+                      ficha e não quer fechar, achar a linha, clicar. É o
+                      MESMO fluxo do botão da linha — abre o diálogo de
+                      total/parcial, ou desfaz a marcação — para não nascer
+                      um segundo caminho para a mesma decisão. Terceiro na
+                      ordem e mais estreito de propósito: é a decisão menos
+                      frequente das três, e os dois primeiros não podem
+                      perder largura (a colisão de rótulos já aconteceu). */}
+                  <button
+                    onClick={() => {
+                      if (seloSelecionado || !selectedItem) return;
+                      if (selectedItem.isReuse) {
+                        toggleReuseMutation.mutate({ itemId: selectedItem.id, isReuse: false });
+                      } else {
+                        setPartialReuseQty(Math.max(1, Number(selectedItem.quantity) - 1 || 1));
+                        setReuseDialogItemId(selectedItem.id);
+                      }
+                    }}
+                    disabled={!!seloSelecionado || toggleReuseMutation.isPending}
+                    title={seloSelecionado
+                      ? motivoAcaoBloqueada(seloSelecionado.motivo, "marcar reaproveitamento")
+                      : selectedItem?.isReuse ? "Remover marcação de reaproveitamento" : "Reaproveitar — total ou parte das unidades, sem nova produção"}
+                    aria-label={selectedItem?.isReuse ? "Remover marcação de reaproveitamento" : "Reaproveitar"}
+                    aria-pressed={!!selectedItem?.isReuse}
+                    data-testid="button-reuse-modal"
+                    style={{
+                      flex: isMobile ? "1 1 100%" : "0 0 auto", height: 48, padding: "0 16px",
+                      display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                      borderRadius: 8,
+                      border: seloSelecionado ? "1px solid #e7e5e4" : selectedItem?.isReuse ? "1px solid #86efac" : "1px solid #e7e5e4",
+                      backgroundColor: seloSelecionado ? "#f5f5f4" : selectedItem?.isReuse ? "#dcfce7" : "#fff",
+                      /* #15803d sobre #dcfce7 = 4,6:1; #1c1917 sobre branco. */
+                      color: seloSelecionado ? "#6f6a64" : selectedItem?.isReuse ? "#15803d" : "#1c1917",
+                      fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap",
+                      cursor: seloSelecionado ? "not-allowed" : "pointer",
+                    }}
+                  >
+                    <Recycle style={{ width: 15, height: 15, flexShrink: 0 }} />
+                    {selectedItem?.isReuse ? "Reaproveitada" : "Reaproveitar"}
                   </button>
                 </div>
                 {seloSelecionado && (
@@ -2398,6 +2439,9 @@ export default function Solicitacao() {
               {/* Opção: reaproveitar tudo */}
               <button
                 onClick={() => {
+                  // Aberto de dentro da ficha: decidir avança para a próxima da
+                  // fila, como Liberar e Devolver — ou fecha, se era a última.
+                  if (modalOpen && selectedItem?.id === dialogItem.id && !marcarAvanco()) { setModalOpen(false); setSelectedItem(null); }
                   toggleReuseMutation.mutate({ itemId: dialogItem.id, isReuse: true });
                   setReuseDialogItemId(null);
                 }}
@@ -2437,7 +2481,10 @@ export default function Solicitacao() {
                     As outras <strong>{qty - partialReuseQty}</strong> un. seguirão para produção normal.
                   </p>
                   <button
-                    onClick={() => partialReuseMutation.mutate({ itemId: dialogItem.id, reuseQty: partialReuseQty })}
+                    onClick={() => {
+                      if (modalOpen && selectedItem?.id === dialogItem.id && !marcarAvanco()) { setModalOpen(false); setSelectedItem(null); }
+                      partialReuseMutation.mutate({ itemId: dialogItem.id, reuseQty: partialReuseQty });
+                    }}
                     disabled={toggleReuseMutation.isPending || partialReuseMutation.isPending}
                     style={{
                       width: "100%", padding: "10px 16px",

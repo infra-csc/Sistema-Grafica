@@ -171,6 +171,7 @@ const CONTRATO: Record<string, string[]> = {
     "badge-evento-finalizado-",
     "button-release-modal",
     "button-return-toggle",
+    "button-reuse-modal",        // reaproveitar de dentro da ficha — mesmo fluxo do botão da linha
     "aviso-ficha-evento-finalizado",
     "input-quantity-edit",
     "button-confirm-quantity",

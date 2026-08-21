@@ -208,18 +208,19 @@ describe("a linha da peça cabe numa linha", () => {
     expect(bloco).not.toContain("#f5f4f1");
   });
 
-  it("as ações secundárias saíram dos links sublinhados para um menu", () => {
-    // "sem pat." APAGA os patrocinadores da peça, e era um link de 11px em
-    // cinza, indistinguível de texto morto.
+  it("as ações secundárias: dos links sublinhados ao menu, e do menu à linha", () => {
+    // Três gerações. (1) "sem pat." e "reaprov." eram links de 11px em cinza,
+    // indistinguíveis de texto morto — e "sem pat." APAGA os patrocinadores da
+    // peça. (2) Viraram um menu "…" de três entradas. (3) O menu SAIU por
+    // decisão do dono: "Sem patrocinador" subiu para a linha como chip (a
+    // decisão mais comum depois de vincular), "Marcar reaproveitamento" ficou
+    // onde a decisão pertence (Detalhe do Evento, Revisão) e "Devolver para
+    // Criação" foi retirada — ver vincular-sem-patrocinador-na-linha.test.ts.
     expect(codigo).not.toContain("sem pat.");
     expect(codigo).not.toContain("reaprov.");
-    expect(tela).toContain("menu-row-actions-");
-    expect(tela).toContain("Marcar sem patrocinador");
-    expect(tela).toContain("Devolver para Criação");
-    // Esc fecha e devolve o foco ao gatilho — sem isso o foco cai no <body> e
-    // o teclado recomeça do topo da tabela.
-    expect(tela).toContain("if (e.key !== 'Escape') return;");
-    expect(tela).toContain('[data-testid="menu-row-actions-${item.id}"]');
+    expect(codigo).not.toContain("menu-row-actions-");
+    expect(tela).toContain("data-testid={`btn-skip-sponsor-${item.id}`}");
+    expect(codigo).not.toContain("Devolver para Criação");
   });
 
   it("a cor de estado vai na borda, não no fundo da linha", () => {

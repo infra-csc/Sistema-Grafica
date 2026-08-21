@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Package, Check, Calendar, Truck, AlertTriangle, CheckCircle2, X, Building2, Plus, Search, Users, ClipboardList, Save, Send, ChevronDown, Info, Lock, Paperclip, ExternalLink, RotateCcw, Zap, EyeOff, MoreHorizontal, Recycle } from "lucide-react";
+import { Package, Check, Calendar, Truck, AlertTriangle, CheckCircle2, X, Building2, Plus, Search, Users, ClipboardList, Save, Send, ChevronDown, Info, Lock, Paperclip, ExternalLink, RotateCcw, Zap, EyeOff, Recycle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 // `isAfter`/`startOfDay` saíram junto com os dois recortes de data que esta
 // tela mantinha por conta própria — a comparação de dia agora é a do predicado
@@ -213,20 +213,10 @@ export default function VincularPatrocinadores() {
   // Blocos (evento ou grupo de patrocinador) com todas as linhas visíveis
   const [showAllRows, setShowAllRows] = useState<Set<string>>(new Set());
 
-  // Menu de ações secundárias da linha — um por vez, para que abrir o de uma
-  // peça feche o da anterior.
-  const [menuDaLinha, setMenuDaLinha] = useState<string | null>(null);
   // Cabeçalhos de tipo fechados, por `${grupo}:${tipo}`.
   const [tiposColapsados, setTiposColapsados] = useState<Set<string>>(new Set());
 
-  // Clique fora fecha o menu da linha. Sem isto, abrir um menu e clicar
-  // noutro lugar deixava o painel pendurado sobre a tabela.
-  useEffect(() => {
-    if (!menuDaLinha) return;
-    const fecha = () => setMenuDaLinha(null);
-    window.addEventListener("click", fecha);
-    return () => window.removeEventListener("click", fecha);
-  }, [menuDaLinha]);
+
 
   // Filtros e aba refletidos na URL via replaceState (não polui o histórico)
   useEffect(() => {
@@ -278,8 +268,6 @@ export default function VincularPatrocinadores() {
   type SaveModal = { payloads: SavePayload[]; items: any[] };
   const [saveConfirmModal, setSaveConfirmModal] = useState<SaveModal | null>(null);
 
-  // Modal de confirmação: devolver peça para Criação
-  const [returnModal, setReturnModal] = useState<any | null>(null); // item a devolver
 
   const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({
     queryKey: ["/api/items"],
@@ -974,34 +962,6 @@ export default function VincularPatrocinadores() {
     },
   });
 
-  // Mutation: devolver peça para Criação (Solicitação)
-  const returnToCreationMutation = useMutation({
-    mutationFn: async (itemId: string) => {
-      const res = await apiRequest("POST", `/api/items/${itemId}/return-to-creation`, {});
-      return res.json();
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
-      // Espelha o dropAffected do auto-vínculo: além do loadedItemIdsRef, os
-      // mapas locais e o rascunho precisam esquecer o item — o servidor zerou
-      // os vínculos, e a entrada antiga fazia a peça voltar com
-      // patrocinadores fantasma.
-      if (returnModal) {
-        const id = returnModal.id;
-        loadedItemIdsRef.current.delete(id);
-        setItemSponsorsMap(prev => { const n = { ...prev }; delete n[id]; return n; });
-        setOriginalSponsorsMap(prev => { const n = { ...prev }; delete n[id]; return n; });
-        setPendingChanges(prev => { const n = { ...prev }; delete n[id]; return n; });
-      }
-      setReturnModal(null);
-      toast({ title: "Peça devolvida para Criação", description: "O item voltou para a equipe de Solicitação." });
-    },
-    onError: (error: Error) => {
-      toast({ title: "Erro ao devolver peça", description: error.message, variant: "destructive" });
-    },
-  });
 
   const handleOpenSponsorDialog = (event: any) => {
     setSelectedEventForSponsors(event);
@@ -1333,7 +1293,6 @@ export default function VincularPatrocinadores() {
     const estado = optimisticSentIds.has(item.id) ? 'ENVIADO' : (itemUIStates[item.id] || 'PENDENTE');
     const selecionada = selectedItemIds.has(item.id);
     const podeSelecionar = estado === 'PENDENTE' || estado === 'RASCUNHO';
-    const menuAberto = menuDaLinha === item.id;
 
     // A COR DE ESTADO VAI NA BORDA, não no fundo. O fundo colorido da linha
     // inteira competia com os chips, que também são coloridos — e chip de
@@ -1682,77 +1641,14 @@ export default function VincularPatrocinadores() {
               </button>
             )}
 
-            {/* ── Ações secundárias ──
-                Eram links SUBLINHADOS de 11px em cinza dentro da célula de
-                vínculos ("sem pat." · "reaprov."), indistinguíveis de texto
-                morto. Depois viraram um menu de três. Agora o menu tem UMA
-                entrada, e a genealogia importa:
-                · "Sem patrocinador" subiu para a linha, como chip — é a
-                  decisão mais comum depois de vincular, e estava escondida.
-                · "Marcar reaproveitamento" SAIU desta tela: reaproveitar é
-                  decisão de quem monta a lista (Detalhe do Evento) e de quem
-                  revisa (Revisão), e é lá que o botão continua. Aqui ele era
-                  uma segunda porta para a mesma decisão, numa tela cuja
-                  pergunta é outra.
-                · "Devolver para Criação" FICA, porque só existe aqui — é a
-                  única tela que devolve a peça para antes da vinculação. É
-                  rara, e menu é o lugar de ação rara. */}
-            {editavel && (
-              <div style={{ position: 'relative' }}>
-                <button
-                  type="button"
-                  onClick={() => setMenuDaLinha(menuAberto ? null : item.id)}
-                  aria-haspopup="menu"
-                  aria-expanded={menuAberto}
-                  aria-label={`Mais ações para ${item.displayId}`}
-                  title="Mais ações"
-                  data-testid={`menu-row-actions-${item.id}`}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: isMobile ? 44 : 26, height: isMobile ? 44 : 26, borderRadius: R.sm, border: '1px solid #e7e5e4', background: '#fff', color: '#57534e', cursor: 'pointer', padding: 0 }}
-                >
-                  <MoreHorizontal style={{ width: 14, height: 14 }} />
-                </button>
-                {menuAberto && (
-                  <div
-                    role="menu"
-                    onKeyDown={e => {
-                      if (e.key !== 'Escape') return;
-                      e.stopPropagation();
-                      setMenuDaLinha(null);
-                      // Devolve o foco ao gatilho — sem isto o foco cai no
-                      // <body> e o teclado recomeça do topo da tabela.
-                      document.querySelector<HTMLButtonElement>(`[data-testid="menu-row-actions-${item.id}"]`)?.focus();
-                    }}
-                    style={{
-                      position: 'absolute', right: 0, top: '100%', marginTop: 4, zIndex: 40,
-                      minWidth: 226, backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
-                      borderRadius: R.md, boxShadow: '0 10px 30px rgba(0,0,0,0.12)', padding: 4,
-                    }}
-                  >
-                    {[
-                      {
-                        rotulo: 'Devolver para Criação',
-                        testId: `button-return-creation-${item.id}`,
-                        acao: () => setReturnModal(item),
-                      },
-                    ].map((op, i) => (
-                      <button
-                        key={op.testId}
-                        type="button"
-                        role="menuitem"
-                        autoFocus={i === 0}
-                        onClick={() => { setMenuDaLinha(null); op.acao(); }}
-                        data-testid={op.testId}
-                        style={{ display: 'block', width: '100%', minHeight: ALVO, padding: '0 12px', textAlign: 'left', border: 'none', background: 'none', borderRadius: R.sm, font: 'inherit', fontSize: 13, color: '#1c1917', cursor: 'pointer' }}
-                        onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f4f1'; }}
-                        onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'transparent'; }}
-                      >
-                        {op.rotulo}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+            {/* O menu "…" desta linha SAIU. Tinha três entradas: "Sem
+                patrocinador" subiu para a linha como chip; "Marcar
+                reaproveitamento" continua no Detalhe do Evento e na Revisão,
+                onde a decisão pertence; e "Devolver para Criação" foi retirada
+                por decisão do dono — era a única tela com essa ação, e a rota
+                POST /api/items/:id/return-to-creation continua no servidor
+                para o dia em que ela ganhar outra casa (o Detalhe do Evento é
+                a natural: quem monta a lista é quem desfaz a vinculação). */}
           </div>
         </td>
       </tr>
@@ -3677,60 +3573,6 @@ export default function VincularPatrocinadores() {
         </DialogContent>
       </Dialog>
 
-      {/* ── MODAL DE CONFIRMAÇÃO: DEVOLVER PARA CRIAÇÃO ── */}
-      <Dialog open={!!returnModal} onOpenChange={open => { if (!open && !returnToCreationMutation.isPending) setReturnModal(null); }}>
-        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(440)}>
-          {/* POR QUE congelar aqui: o onSuccess da devolução invalida três
-              chaves, apaga o item de quatro mapas locais, fecha e toasta no
-              mesmo commit — e é `returnModal` que escreve o ID e o tipo da
-              peça na caixa de destaque. Sem congelar, a caixa some no primeiro
-              frame do fade. */}
-          <FreezeWhileClosing open={!!returnModal}>
-          <DialogTitle className="sr-only">Devolver para Criação</DialogTitle>
-          <ModalHeader
-            variant="confirm"
-            icon={RotateCcw}
-            tint="#c2410c"
-            title="Devolver para Criação"
-            onClose={returnToCreationMutation.isPending ? undefined : () => setReturnModal(null)}
-          />
-          {/* ALTURA: cabeçalho 72 + este corpo 136 + rodapé 121 = 329px. Com o
-              respiro de 48 isso cabe até numa janela de 377, então este modal
-              NÃO cortava em nenhuma das alturas conferidas. A rolagem aqui é
-              preventiva e obrigatória: o `modalSurface` agora traz teto com
-              `overflow: hidden`, e sem um scrollport o texto seria recortado em
-              silêncio se algum dia crescer. */}
-          <div style={{ padding: '20px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
-            <DialogDescription style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0 }}>
-              A peça voltará para a equipe de Solicitação. Os patrocinadores vinculados serão
-              removidos e o item precisará passar pelo fluxo novamente.
-            </DialogDescription>
-            {returnModal && (
-              <div style={{ marginTop: 14, padding: '10px 14px', backgroundColor: '#fff7ed', borderRadius: R.md, border: '1px solid #fed7aa', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: '#c2410c' }}>{returnModal.displayId}</span>
-                <span style={{ fontSize: 13, fontWeight: 600, color: '#1a1c1c' }}>{returnModal.type}</span>
-              </div>
-            )}
-          </div>
-          <ModalFooter>
-            <button
-              onClick={() => returnModal && returnToCreationMutation.mutate(returnModal.id)}
-              disabled={returnToCreationMutation.isPending}
-              data-testid="button-confirm-return"
-              style={{ width: '100%', height: 44, borderRadius: R.md, border: 'none', backgroundColor: '#b91c1c', color: '#fff', fontSize: 13, fontWeight: 800, cursor: returnToCreationMutation.isPending ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, opacity: returnToCreationMutation.isPending ? 0.7 : 1 }}
-            >
-              <RotateCcw style={{ width: 15, height: 15 }} />
-              {returnToCreationMutation.isPending ? 'Devolvendo…' : 'Confirmar devolução'}
-            </button>
-            <button
-              onClick={() => setReturnModal(null)}
-              disabled={returnToCreationMutation.isPending}
-              style={{ width: '100%', height: 36, borderRadius: R.md, border: 'none', background: 'none', fontSize: 13, fontWeight: 600, color: '#746e69', cursor: 'pointer' }}
-            >Cancelar</button>
-          </ModalFooter>
-          </FreezeWhileClosing>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

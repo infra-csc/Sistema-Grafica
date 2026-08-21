@@ -11,9 +11,11 @@
 //   · "Marcar reaproveitamento" tem casa no Detalhe do Evento
 //     (button-reuse-item-) e na Revisão (button-reuse-). Aqui era uma segunda
 //     porta para a mesma decisão, numa tela cuja pergunta é outra. SAIU.
-//   · "Devolver para Criação" só existe AQUI — é a única tela que devolve a
-//     peça para antes da vinculação. Tirar daqui apagaria a capacidade do app.
-//     FICA no menu: é rara, e menu é o lugar de ação rara.
+//   · "Devolver para Criação" só existia AQUI — a única tela que devolvia a
+//     peça para antes da vinculação. Primeiro ficou no menu (ação rara, menu é
+//     o lugar de ação rara); depois o dono pediu para tirar, e saiu com o
+//     menu inteiro. A rota continua no servidor; a baixa está registrada no
+//     inventário de capacidades com o caminho de volta.
 //   · "Sem patrocinador" SUBIU para a linha, como chip ao lado dos chips de
 //     marca — mesma casca, borda tracejada quando desligado (não é uma marca,
 //     é a ausência declarada de todas).
@@ -50,16 +52,22 @@ describe("o chip 'Sem patrocinador' na linha", () => {
   });
 });
 
-describe("o menu '…' ficou só com o que não tem outra casa", () => {
-  const i = VP.indexOf("rotulo: 'Devolver para Criação'");
-  const menu = VP.slice(i - 400, i + 400);
-
-  it("'Devolver para Criação' continua — só esta tela devolve para antes da vinculação", () => {
-    expect(VP).toContain("testId: `button-return-creation-${item.id}`");
-    // E de fato não há outra tela com essa rota.
+describe("o menu '…' saiu inteiro", () => {
+  it("'Devolver para Criação' foi retirada por decisão do dono — e a rota continua no servidor", () => {
+    // Era a ÚNICA tela com essa ação (nenhuma outra chama return-to-creation).
+    // A retirada é decisão registrada, não efeito colateral: o inventário de
+    // capacidades tem a baixa com o motivo e o caminho de volta (o Detalhe do
+    // Evento é a casa natural — quem monta a lista é quem desfaz a vinculação).
+    const cru = semCom(VP);
+    expect(cru).not.toContain("button-return-creation-");
+    expect(cru).not.toContain("return-to-creation");
+    expect(cru).not.toContain("returnToCreationMutation");
+    expect(cru).not.toContain("returnModal");
     for (const tela of ["event-detail", "solicitacao", "painel-geral", "arte", "atendimento"]) {
       expect(ler(`client/src/pages/${tela}.tsx`)).not.toContain("return-to-creation");
     }
+    // O servidor não perdeu a capacidade — só a tela.
+    expect(ler("server/routes/sponsors.ts")).toContain('"/api/items/:id/return-to-creation"');
   });
 
   it("'Marcar reaproveitamento' saiu daqui — e continua onde é decisão de verdade", () => {
@@ -69,8 +77,11 @@ describe("o menu '…' ficou só com o que não tem outra casa", () => {
     expect(ler("client/src/pages/solicitacao.tsx")).toContain("button-reuse-");
   });
 
-  it("o item de 'sem patrocinador' não está mais no menu", () => {
-    expect(menu).not.toContain("Marcar sem patrocinador");
-    expect(semCom(VP)).not.toContain("rotulo: semPatrocinador ?");
+  it("sem menu, nada de gatilho '…' nem de estado de menu sobrando", () => {
+    const cru = semCom(VP);
+    expect(cru).not.toContain("menu-row-actions-");
+    expect(cru).not.toContain("menuDaLinha");
+    expect(cru).not.toContain("MoreHorizontal");
+    expect(cru).not.toContain("rotulo: semPatrocinador ?");
   });
 });

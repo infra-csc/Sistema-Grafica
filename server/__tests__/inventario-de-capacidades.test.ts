@@ -111,7 +111,12 @@ const CONTRATO: Record<string, string[]> = {
     // decisão de quem monta a lista e de quem revisa, e o botão continua
     // no Detalhe do Evento (button-reuse-item-) e na Revisão (button-reuse-).
     // Não é perda de capacidade — é uma porta a menos para a mesma decisão.
-    "button-return-creation-",  // fica: só esta tela devolve para antes da vinculação
+    // `button-return-creation-` SAIU por decisão do dono (ago/2026). Era a
+    // ÚNICA tela com "Devolver para Criação"; a rota POST
+    // /api/items/:id/return-to-creation continua no servidor, e se a ação
+    // voltar a ser necessária, a casa natural é o Detalhe do Evento — quem
+    // monta a lista é quem desfaz a vinculação. Registrado aqui para ninguém
+    // a "restaurar" nesta tela por engano.
     "checkbox-sponsor-",
     "text-display-id-",
     "item-row-",

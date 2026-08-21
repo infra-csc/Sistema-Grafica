@@ -229,6 +229,10 @@ const CONTRATO: Record<string, string[]> = {
   "client/src/components/item-details-dialog.tsx": [
     "chip-aprovacao-",
     "button-revert-approval-",
+    // O caminho do arquivo da gráfica é rede (\\10.100.1.7\…): o navegador
+    // não abre e a linha em elipse não deixava nem selecionar. Copiar é o
+    // único gesto que funciona — e não existia.
+    "button-copiar-caminho-final",
   ],
   "client/src/components/import-xlsx-dialog.tsx": [
     "dropzone-xlsx",

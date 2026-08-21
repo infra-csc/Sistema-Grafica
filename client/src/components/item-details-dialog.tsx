@@ -1,5 +1,5 @@
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { FilePreview } from "@/components/file-preview";
+import { FilePreview, isWebUrl } from "@/components/file-preview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
@@ -8,7 +8,7 @@ import { getApprovalMeta, getStatusLabel, marcoEventoFinalizado, todayBusinessMs
 import {
   Edit, Save, X, Check, Clock, Eye, ExternalLink, Camera, Paperclip,
   FileImage, FolderOpen, AlertTriangle, CheckCircle2, Recycle,
-  ChevronDown, Undo2, Truck,
+  ChevronDown, Undo2, Truck, Copy,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -1332,8 +1332,11 @@ export function ItemDetailsDialog({
                       <FolderOpen style={{ width: 15, height: 15 }} />
                     </span>
                     <div style={{ minWidth: 0, flex: "1 1 auto" }}>
-                      <p style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {item.finalFileUrl ? (item.finalFileName || "Arquivo final") : "Arquivo final"}
+                      {/* O caminho completo no title: a linha corta em elipse,
+                          e \\10.100.1.7\TTKGrafica\PROVAS 2026\… é longo por
+                          natureza. */}
+                      <p title={item.finalFileUrl || undefined} style={{ fontSize: 13, fontWeight: 700, color: "#1c1917", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {item.finalFileUrl ? (item.finalFileName || item.finalFileUrl) : "Arquivo final"}
                       </p>
                       <p style={{ fontSize: 12, color: "#57534e", margin: "2px 0 0" }}>
                         {item.finalFileUrl
@@ -1342,14 +1345,37 @@ export function ItemDetailsDialog({
                       </p>
                     </div>
                     {item.finalFileUrl ? (
-                      item.finalFileUrl.startsWith("http") && (
-                        <a
-                          href={item.finalFileUrl} target="_blank" rel="noopener noreferrer"
-                          style={{ display: "inline-flex", alignItems: "center", height: ALVO, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: "#1c1917", fontSize: 12, fontWeight: 700, textDecoration: "none", flexShrink: 0 }}
+                      <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                        {/* COPIAR é o gesto que faltava. O arquivo da gráfica
+                            é um caminho de rede (\\10.100.1.7\…): o navegador
+                            não abre, e a linha cortada em elipse não deixava
+                            nem selecionar o texto. Sem este botão, o caminho
+                            estava na tela e fora do alcance. */}
+                        <button
+                          type="button"
+                          data-testid="button-copiar-caminho-final"
+                          title={`Copiar caminho: ${item.finalFileUrl}`}
+                          aria-label="Copiar caminho do arquivo final"
+                          onClick={() => {
+                            navigator.clipboard.writeText(item.finalFileUrl!)
+                              .then(() => toast({ title: "Caminho copiado", description: isWebUrl(item.finalFileUrl!) ? "Cole no navegador para abrir." : "Cole no Explorer para abrir o arquivo." }))
+                              .catch(() => toast({ title: "Não foi possível copiar", description: "Selecione o caminho e copie manualmente.", variant: "destructive" }));
+                          }}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 6, height: ALVO, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: "#1c1917", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
                         >
-                          Abrir
-                        </a>
-                      )
+                          <Copy aria-hidden="true" style={{ width: 13, height: 13 }} />
+                          Copiar
+                        </button>
+                        {/* "Abrir" só quando o navegador consegue abrir. */}
+                        {isWebUrl(item.finalFileUrl) && (
+                          <a
+                            href={item.finalFileUrl} target="_blank" rel="noopener noreferrer"
+                            style={{ display: "inline-flex", alignItems: "center", height: ALVO, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", backgroundColor: "#ffffff", color: "#1c1917", fontSize: 12, fontWeight: 700, textDecoration: "none" }}
+                          >
+                            Abrir
+                          </a>
+                        )}
+                      </div>
                     ) : (
                       <span style={{ padding: "4px 10px", borderRadius: 999, backgroundColor: "#f5f4f1", border: "1px solid #e7e5e4", color: "#44403c", fontSize: 11, fontWeight: 700, flexShrink: 0 }}>
                         Pendente
@@ -1423,13 +1449,20 @@ export function ItemDetailsDialog({
                       </div>
                     )}
 
-                    {(conferencePhotos.length > 0 || item.conferenceNotes) && (
+                    {/* A FOTO DA CONFERÊNCIA MORA AO LADO DA ARTE — e só lá.
+                        Ela já aparece na faixa de comparação (é a conferência
+                        inteira: o que saiu da impressora contra o que foi
+                        aprovado), e aparecia DE NOVO aqui embaixo, a mesma
+                        imagem duas vezes na mesma ficha. Aqui ficam só o
+                        que NÃO está lá em cima: as fotos EXTRAS (a segunda em
+                        diante, que a faixa resume como "+N") e a observação. */}
+                    {(conferencePhotos.length > 1 || item.conferenceNotes) && (
                       <div>
                         <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "#0e7490", margin: "0 0 8px" }}>
                           <Camera aria-hidden="true" style={{ width: 12, height: 12 }} />
-                          Conferência{conferencePhotos.length > 1 ? ` · ${conferencePhotos.length} fotos` : ""}
+                          Conferência{conferencePhotos.length > 1 ? ` · mais ${conferencePhotos.length - 1} ${conferencePhotos.length - 1 === 1 ? "foto" : "fotos"}` : ""}
                         </p>
-                        {conferencePhotos.length > 0 && <PhotoGrid urls={conferencePhotos} alt="Foto da conferência" />}
+                        {conferencePhotos.length > 1 && <PhotoGrid urls={conferencePhotos.slice(1)} alt="Foto da conferência" />}
                         {item.conferenceNotes && (
                           <p style={{ fontSize: 12, color: "#57534e", fontStyle: "italic", lineHeight: 1.5, margin: "8px 0 0" }}>"{item.conferenceNotes}"</p>
                         )}

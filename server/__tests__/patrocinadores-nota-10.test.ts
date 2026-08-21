@@ -100,7 +100,10 @@ describe("o formulário tem três campos — adendo do dono", () => {
     for (const t of ["input-company", "input-contact-person", "input-phone", "input-email", "input-notes"]) {
       expect(cru).not.toContain(t);
     }
-    expect(cru).not.toContain('sectionLabel("03"');
+    // A seção 03 de CONTATO saiu; a 03 que existe hoje é a regra de aprovação
+    // (patrocinador desaprovador, pedido posterior do dono no mesmo dia).
+    expect(cru).toContain('sectionLabel("03", "Regra de aprovação")');
+    expect(cru).not.toContain('sectionLabel("03", "Contato")');
     // Os três que ficam.
     expect(P).toContain('data-testid="input-sponsor-name"');
     expect(P).toContain('testId="select-account-executive"');

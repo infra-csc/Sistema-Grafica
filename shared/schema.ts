@@ -83,6 +83,11 @@ export const sponsors = pgTable("sponsors", {
   notes: text("notes"), // Observações gerais
   color: text("color").default("#3b82f6"), // Cor personalizada do patrocinador (hex)
   quota: text("quota"), // MASTER, GOLD, SILVER, APOIO, MIDIA, MINISTERIO
+  // PATROCINADOR "DESAPROVADOR" (pedido do dono, 21/08/2026; caso típico:
+  // Ministério). Com a flag, a aprovação dele vale só para a versão que ele
+  // aprovou: toda versão nova da arte a revoga, e a reprovação de QUALQUER
+  // outro patrocinador também. Ver revogarAprovacoesEstritas em routes/items.ts.
+  strictApproval: boolean("strict_approval").notNull().default(false),
   // Executivo responsável pela conta (usuário do sistema). Se o usuário for
   // removido, o vínculo é apenas limpo — o patrocinador continua existindo.
   accountExecutiveId: varchar("account_executive_id").references(() => users.id, { onDelete: "set null" }),

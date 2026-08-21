@@ -57,6 +57,7 @@ const sponsorSchema = z.object({
   name:          z.string().min(1, "Nome obrigatório"),
   color:         z.string().regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, "Cor deve ser um hex válido, ex.: #F97316"),
   accountExecutiveId: z.string().optional(),
+  strictApproval: z.boolean().optional(),
 });
 type SponsorForm = z.infer<typeof sponsorSchema>;
 
@@ -99,7 +100,7 @@ export default function Patrocinadores() {
 
   const form = useForm<SponsorForm>({
     resolver: zodResolver(sponsorSchema),
-    defaultValues: { name: "", color: "#f97316", accountExecutiveId: "" },
+    defaultValues: { name: "", color: "#f97316", accountExecutiveId: "", strictApproval: false },
   });
 
   const selectedColor = form.watch("color") || "#f97316";
@@ -145,13 +146,13 @@ export default function Patrocinadores() {
 
   const openCreate = () => {
     setEditingSponsor(null);
-    form.reset({ name: "", color: "#f97316", accountExecutiveId: "" });
+    form.reset({ name: "", color: "#f97316", accountExecutiveId: "", strictApproval: false });
     setModalOpen(true);
   };
 
   const openEdit = (s: Sponsor) => {
     setEditingSponsor(s);
-    form.reset({ name: s.name, color: s.color || "#f97316", accountExecutiveId: s.accountExecutiveId || "" });
+    form.reset({ name: s.name, color: s.color || "#f97316", accountExecutiveId: s.accountExecutiveId || "", strictApproval: !!s.strictApproval });
     setModalOpen(true);
   };
 
@@ -475,6 +476,14 @@ export default function Patrocinadores() {
                             style={{ fontSize: 13, fontWeight: 700, color: T.text, fontFamily: "'Space Grotesk', sans-serif" }}>
                             {sponsor.name}
                           </span>
+                          {sponsor.strictApproval && (
+                            /* #9a3412 sobre #fff7ed = 7,0:1 */
+                            <span data-testid={`tag-desaprovador-${sponsor.id}`}
+                              title="Patrocinador desaprovador: toda versão nova da arte revoga a aprovação dele, e a reprovação de outro patrocinador também"
+                              style={{ fontSize: 9, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#9a3412", backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 4, padding: "2px 6px", whiteSpace: "nowrap" }}>
+                              desaprovador
+                            </span>
+                          )}
                         </div>
                       </td>
 
@@ -838,6 +847,32 @@ export default function Patrocinadores() {
                           </div>
                         </div>
                       </div>
+                    </section>
+
+                    {/* A regra de aprovação — pedido do dono (21/08): o
+                        "patrocinador desaprovador". Entra aqui, e não nos
+                        dados de contato que saíram do formulário: é uma
+                        regra do fluxo, não um dado cadastral. */}
+                    <section>
+                      {sectionLabel("03", "Regra de aprovação")}
+                      <FormField control={form.control} name="strictApproval" render={({ field }) => (
+                        <FormItem>
+                          <label htmlFor="sponsor-strict" style={{ display: "flex", alignItems: "flex-start", gap: 12, cursor: "pointer" }}>
+                            <FormControl>
+                              <input type="checkbox" id="sponsor-strict" data-testid="checkbox-desaprovador"
+                                checked={!!field.value} onChange={e => field.onChange(e.target.checked)}
+                                style={{ width: 18, height: 18, marginTop: 2, accentColor: "#f97316", flexShrink: 0, cursor: "pointer" }} />
+                            </FormControl>
+                            <span>
+                              <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: T.text, fontFamily: "'Space Grotesk', sans-serif" }}>Patrocinador desaprovador</span>
+                              <span style={{ display: "block", fontSize: 12, color: "#57534e", lineHeight: 1.5, marginTop: 2 }}>
+                                A aprovação dele vale só para a versão que ele aprovou: toda versão nova da arte a revoga, e a reprovação de qualquer outro patrocinador também. Uso típico: Ministério.
+                              </span>
+                            </span>
+                          </label>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
                     </section>
 
                   </div>

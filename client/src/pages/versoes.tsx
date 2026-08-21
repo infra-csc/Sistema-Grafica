@@ -317,11 +317,17 @@ function CartaoDaPeca({ p, isMobile }: { p: Peca; isMobile: boolean }) {
           const meta = getApprovalMeta(d.status);
           const tone = meta?.tone;
           const Icone = tone === "approved" ? Check : tone === "waiting" ? Clock : AlertTriangle;
+          // Revogação automática (patrocinador desaprovador): o motivo vem com
+          // o prefixo fixo do servidor; a versão mostrada é a que ele TINHA
+          // aprovado (decidedThumbUrl fica como estava).
+          const revogada = (d.motivo ?? "").startsWith("Aprovação revogada automaticamente");
           const frase = tone === "approved"
             ? `aprovou ${d.versao ? `a v${d.versao}` : "uma versão"}`
-            : tone === "waiting"
-              ? "aguardando"
-              : `reprovou ${d.versao ? `a v${d.versao}` : "uma versão"}`;
+            : revogada
+              ? `teve a aprovação revogada${d.versao ? ` (tinha aprovado a v${d.versao})` : ""}`
+              : tone === "waiting"
+                ? "aguardando"
+                : `reprovou ${d.versao ? `a v${d.versao}` : "uma versão"}`;
           return (
             <div key={d.sponsorId} data-testid={`decisao-${p.id}-${d.sponsorId}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "6px 10px", borderRadius: R.md, backgroundColor: meta?.bg ?? T.low, border: `1px solid ${meta?.border ?? T.border}` }}>
               <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: d.cor ?? T.muted, flexShrink: 0 }} />

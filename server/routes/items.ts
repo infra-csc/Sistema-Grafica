@@ -464,6 +464,67 @@ async function attachParents(list: any[]): Promise<any[]> {
   });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PATROCINADOR "DESAPROVADOR" — a aprovação dele vale só para a versão que
+// ele aprovou. Pedido do dono (21/08/2026), caso típico: Ministério.
+//
+// Dois gatilhos revogam a aprovação de quem tem `strictApproval`:
+//   · NOVA VERSÃO da arte (reenvio da correção, troca do thumb, reenvio do
+//     item inteiro) → a aprovação vira `new_version_pending`: o Atendimento
+//     reapresenta a versão nova e registra de novo.
+//   · REPROVAÇÃO por qualquer OUTRO patrocinador → vira `awaiting_arte`: a
+//     peça vai ser refeita, e a versão refeita passa por ele outra vez. Não
+//     vai para `pending`, senão o Atendimento poderia reaprovar por ele a
+//     versão velha antes de a nova existir.
+// `decidedThumbUrl` fica como estava — é a prova de QUAL versão ele tinha
+// aprovado; a tela de Versões lê o motivo e diz "teve a aprovação revogada".
+// Devolve os nomes revogados (para a rota decidir se volta o status da peça).
+// ─────────────────────────────────────────────────────────────────────────────
+export const MOTIVO_REVOGACAO_PREFIXO = "Aprovação revogada automaticamente";
+
+type GatilhoDeRevogacao =
+  | { tipo: "nova_versao" }
+  | { tipo: "reprovacao"; sponsorId: string; nome: string };
+
+export async function revogarAprovacoesEstritas(
+  req: any,
+  item: { id: string },
+  gatilho: GatilhoDeRevogacao,
+): Promise<string[]> {
+  const vinculos = await storage.getItemSponsors(item.id);
+  const aprovacoes = await storage.getItemSponsorApprovals(item.id);
+  const revogados: string[] = [];
+  for (const v of vinculos) {
+    if (gatilho.tipo === "reprovacao" && v.sponsorId === gatilho.sponsorId) continue;
+    const a = aprovacoes.find((x) => x.sponsorId === v.sponsorId);
+    if (!a || a.status !== "approved") continue;
+    const sp = await storage.getSponsor(v.sponsorId);
+    if (!sp?.strictApproval) continue;
+    const motivo = gatilho.tipo === "nova_versao"
+      ? `${MOTIVO_REVOGACAO_PREFIXO}: a Arte enviou uma nova versão — este patrocinador reaprova toda versão nova.`
+      : `${MOTIVO_REVOGACAO_PREFIXO}: "${gatilho.nome}" reprovou a peça — este patrocinador desaprova junto.`;
+    await storage.updateItemSponsorApproval(a.id, {
+      status: gatilho.tipo === "nova_versao" ? "new_version_pending" : "awaiting_arte",
+      approvedBy: null,
+      approvedAt: null,
+      rejectedBy: req.userName ?? null,
+      rejectedAt: new Date(),
+      rejectionReason: motivo,
+    });
+    revogados.push(sp.name);
+  }
+  if (revogados.length > 0) {
+    await createAuditLog(
+      req,
+      "updated",
+      "item",
+      item.id,
+      `Aprovação revogada de ${revogados.join(", ")} (patrocinador desaprovador): ${gatilho.tipo === "nova_versao" ? "nova versão da arte" : `"${gatilho.nome}" reprovou a peça`}`,
+    );
+  }
+  return revogados;
+}
+
 export function registerItemRoutes(app: Express): void {
   // ============ ITEMS ============
 
@@ -1708,8 +1769,10 @@ export function registerItemRoutes(app: Express): void {
       if (currentItem.status === "awaiting_submission" && nextStatus === "awaiting_sponsor_approval") {
         const existingApprovals = await storage.getItemSponsorApprovals(req.params.id);
         for (const approval of existingApprovals) {
-          // Reset any non-approved status back to pending
-          if (['awaiting_arte', 'new_version_pending', 'rejected'].includes(approval.status)) {
+          // Reset any non-approved status back to pending — e o desaprovador
+          // aprovado também: o item inteiro está voltando com versão nova.
+          const estritoAprovado = approval.status === 'approved' && !!(await storage.getSponsor(approval.sponsorId))?.strictApproval;
+          if (['awaiting_arte', 'new_version_pending', 'rejected'].includes(approval.status) || estritoAprovado) {
             await storage.updateItemSponsorApproval(approval.id, {
               status: 'pending',
               approvedBy: null,
@@ -2143,6 +2206,8 @@ export function registerItemRoutes(app: Express): void {
       // Get sponsor name for audit log and notification
       const sponsor = await storage.getSponsor(sponsorId);
       const event = await storage.getEvent(currentItem.eventId);
+      // Quem desaprova junto perde a aprovação agora — a peça vai ser refeita.
+      await revogarAprovacoesEstritas(req, currentItem, { tipo: "reprovacao", sponsorId, nome: sponsor?.name ?? sponsorId });
       
       // Item stays in awaiting_sponsor_approval — only leaves when ALL sponsors approve
       const item = (await storage.updateItem(itemId, {
@@ -2319,6 +2384,8 @@ export function registerItemRoutes(app: Express): void {
         rejectedBySponsor: false,
       });
       await storage.createItemArtVersion({ itemId, thumbUrl: newThumbUrl, origem: "reenvio", createdBy: req.userName ?? null });
+      // Versão nova: o desaprovador que já tinha aprovado volta para a fila.
+      await revogarAprovacoesEstritas(req, currentItem, { tipo: "nova_versao" });
 
       const event = await storage.getEvent(currentItem.eventId);
 
@@ -2510,6 +2577,27 @@ export function registerItemRoutes(app: Express): void {
         return res.status(404).json({ error: "Item not found" });
       }
       await storage.createItemArtVersion({ itemId: item.id, thumbUrl: approvalThumbUrl, origem: "troca", createdBy: req.userName ?? null });
+      // Versão nova enquanto a peça está em aprovação (ou já aprovada e na
+      // finalização da Arte): o desaprovador perde a aprovação — e se a peça
+      // já tinha sido dada como aprovada por todos, ela volta para a aprovação.
+      if (currentItem.status === "awaiting_sponsor_approval" || currentItem.status === "sponsor_approved") {
+        const revogados = await revogarAprovacoesEstritas(req, currentItem, { tipo: "nova_versao" });
+        if (revogados.length > 0 && currentItem.status === "sponsor_approved") {
+          const devolvido = await storage.updateItem(item.id, { status: "awaiting_sponsor_approval", rejectedBySponsor: false });
+          await createAuditLog(req, 'updated', 'item', item.id, `Status alterado: ${translateStatus("sponsor_approved")} → ${translateStatus("awaiting_sponsor_approval")} — ${revogados.join(", ")} precisa aprovar a nova versão`);
+          const event = await storage.getEvent(currentItem.eventId);
+          const notification = await storage.createNotification({
+            type: "itemRejected",
+            message: `Thumb trocado: ${revogados.join(", ")} precisa aprovar a nova versão. ${currentItem.type} - Evento: ${event?.name}`,
+            eventId: currentItem.eventId,
+            itemId: item.id,
+            targetRoles: ["atendimento"],
+          });
+          broadcast({ type: "notification_created", notification });
+          broadcast({ type: "item_updated", item: devolvido });
+          return res.json(devolvido);
+        }
+      }
 
       await createAuditLog(
         req,

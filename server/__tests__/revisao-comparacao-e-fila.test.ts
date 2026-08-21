@@ -87,15 +87,18 @@ describe("a comparação se vê de uma vez", () => {
   });
 });
 
-describe("o rótulo do primário não quebra", () => {
-  it("nowrap e base flexível de zero", () => {
-    // "Liberar para Produção" em maiúsculas com letterSpacing 0.12em quebrava
-    // em duas linhas dentro dos 48px de altura — e rótulo quebrado num botão
-    // primário lê-se como defeito antes de se ler como texto.
+describe("o rótulo do primário não quebra nem invade", () => {
+  it("nowrap no rótulo, dentro de um botão com overflow hidden", () => {
+    // A primeira receita (`nowrap` no BOTÃO, `flex: 1 1 0`) resolveu a
+    // quebra em duas linhas e criou o defeito seguinte, visto em produção:
+    // "PRODUÇÃOD EVOLVER PARA ARTE" — o texto que não coube era pintado por
+    // cima do vizinho, porque `min-width: 0` deixa o botão encolher mas nada
+    // cortava o excesso. A receita inteira mora em
+    // modal-decisao-tres-defeitos.test.ts; aqui fica só a âncora.
     const i = tela.indexOf('data-testid="button-release-modal"');
     expect(i).toBeGreaterThan(-1);
-    const bloco = tela.slice(i, i + 1400);
-    expect(bloco).toContain('flex: "1 1 0", minWidth: 0, whiteSpace: "nowrap"');
+    const bloco = tela.slice(i, i + 1700);
+    expect(bloco).toContain('flex: "1 1 210px", minWidth: 0, overflow: "hidden"');
   });
 });
 

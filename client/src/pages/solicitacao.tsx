@@ -1840,7 +1840,15 @@ export default function Solicitacao() {
                     duas colunas — seis fundos, seis bordas e seis raios para
                     seis pares rotulo/valor. Em linha eles cabem no respiro que
                     a comparacao devolveu. */}
-                <div style={{ display: "flex", flexWrap: "wrap", gap: isMobile ? 10 : 16, alignItems: "flex-start" }}>
+                {/* UMA LINHA SÓ. Com `flex-wrap: wrap`, a segunda linha
+                    nascia FORA do que a coluna reservou e era cortada pela
+                    borda — "QUANTIDADE · EDITAR" aparecia pela metade, visto
+                    em produção. Os cartões agora encolhem (`min-width: 0`,
+                    valor em elipse com o texto completo no title) em vez de
+                    quebrar. No celular, onde não há largura para seis, a
+                    tira rola na horizontal — cortar em silêncio é o único
+                    desfecho proibido. */}
+                <div style={{ display: "flex", flexWrap: "nowrap", gap: isMobile ? 8 : 10, alignItems: "stretch", overflowX: isMobile ? "auto" : "hidden" }}>
                   {[
                     { label: "Tipo", value: selectedItem?.type || "—" },
                     { label: "Material", value: selectedItem?.material || "—" },
@@ -1848,9 +1856,9 @@ export default function Solicitacao() {
                     { label: "Dimensões", value: selectedItem?.fileWidth && selectedItem?.fileHeight ? `${selectedItem.fileWidth}×${selectedItem.fileHeight}` : "—" },
                     { label: "M²", value: selectedItem?.calculatedM2 || "—" },
                   ].map(({ label, value }) => (
-                    <div key={label} style={{ backgroundColor: "#fff", padding: "10px 12px", borderRadius: 8, border: "1px solid #e7e5e4" }}>
-                      <p style={{ fontSize: 10, color: "#746e69", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0 }}>{label}</p>
-                      <p style={{ fontSize: 11, fontWeight: 700, color: TI.text, margin: "3px 0 0" }}>{value}</p>
+                    <div key={label} style={{ flex: "1 1 0", minWidth: isMobile ? 72 : 0, backgroundColor: "#fff", padding: "10px 12px", borderRadius: 8, border: "1px solid #e7e5e4" }}>
+                      <p style={{ fontSize: 10, color: "#746e69", textTransform: "uppercase", fontWeight: 700, letterSpacing: "0.06em", margin: 0, whiteSpace: "nowrap" }}>{label}</p>
+                      <p title={String(value)} style={{ fontSize: 11, fontWeight: 700, color: TI.text, margin: "3px 0 0", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{value}</p>
                     </div>
                   ))}
 
@@ -1866,7 +1874,7 @@ export default function Solicitacao() {
                     role={editingQuantity || seloSelecionado ? undefined : "button"}
                     tabIndex={editingQuantity || seloSelecionado ? undefined : 0}
                     aria-label={seloSelecionado ? undefined : "Editar quantidade"}
-                    style={{ backgroundColor: "#fff", padding: "10px 12px", borderRadius: 8, border: "1px solid #e7e5e4", cursor: seloSelecionado ? "default" : "pointer", position: "relative" }}
+                    style={{ flex: "1 1 0", minWidth: isMobile ? 104 : 96, backgroundColor: "#fff", padding: "10px 12px", borderRadius: 8, border: "1px solid #e7e5e4", cursor: seloSelecionado ? "default" : "pointer", position: "relative" }}
                     onClick={() => {
                       if (!editingQuantity && !seloSelecionado) {
                         setEditingQuantity(true);
@@ -2028,7 +2036,23 @@ export default function Solicitacao() {
                       devolver manda a Arte trabalhar de novo. Ficam visíveis e
                       DESABILITADAS, com o motivo — some-las deixaria a ficha
                       sem explicação nenhuma para a ausência. */}
-                  <div style={{ display: "flex", gap: 12 }}>
+                  {/* OS DOIS BOTÕES NUNCA SE SOBREPÕEM — visto em produção:
+                      "PRODUÇÃOD EVOLVER PARA ARTE", um rótulo impresso sobre
+                      o outro, nas duas ações mais importantes da tela.
+
+                      A receita anterior tinha `nowrap` no BOTÃO sem
+                      `overflow: hidden`: `min-width: 0` deixava o botão
+                      encolher, mas o texto que não coube continuava sendo
+                      PINTADO, invadindo o vizinho. As três pernas que
+                      fecham juntas:
+                      · `flex: 1 1 210px; min-width: 0` — dividem a largura;
+                      · o rótulo num <span> com `overflow: hidden` +
+                        `text-overflow: ellipsis` — o excesso corta em
+                        elipse em vez de vazar;
+                      · `flex-wrap: wrap` no contêiner — abaixo de ~430px os
+                        botões EMPILHAM em largura total, porque elipse em
+                        ação primária é a segunda pior saída. */}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
                     <button
                       onClick={() => { if (!seloSelecionado) setReleaseConfirmOpen(true); }}
                       disabled={!!seloSelecionado || creatorReviewMutation.isPending || !selectedItem?.finalFileUrl}
@@ -2037,12 +2061,10 @@ export default function Solicitacao() {
                         ? motivoAcaoBloqueada(seloSelecionado.motivo, "liberar para produção")
                         : !selectedItem?.finalFileUrl ? "Arquivo final não enviado" : ""}
                       style={{
-                        // `flex: 1 1 0` + `minWidth: 0` + `nowrap`: "Liberar
-                        // para Producao" em maiusculas com letterSpacing 0.12em
-                        // quebrava em duas linhas dentro dos 48px de altura, e
-                        // um rotulo quebrado num botao primario le-se como
-                        // defeito antes de se ler como texto.
-                        flex: "1 1 0", minWidth: 0, whiteSpace: "nowrap",
+                        // O rotulo nao quebra (nowrap no <span>) nem invade o
+                        // vizinho (overflow hidden aqui) — as duas metades da
+                        // receita descrita no comentario acima do container.
+                        flex: "1 1 210px", minWidth: 0, overflow: "hidden",
                         padding: "14px 10px", borderRadius: 6, border: "none",
                         backgroundColor: seloSelecionado || !selectedItem?.finalFileUrl ? "#292524" : "#9d4300",
                         /* Desabilitado por evento finalizado é o único estado
@@ -2057,7 +2079,9 @@ export default function Solicitacao() {
                         cursor: seloSelecionado || !selectedItem?.finalFileUrl || creatorReviewMutation.isPending ? "not-allowed" : "pointer",
                       }}
                     >
-                      {creatorReviewMutation.isPending ? "Liberando..." : "Liberar para Produção"}
+                      <span style={{ display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        {creatorReviewMutation.isPending ? "Liberando..." : "Liberar para Produção"}
+                      </span>
                     </button>
                     <button
                       onClick={() => { if (!seloSelecionado) setReturnConfirmOpen(true); }}
@@ -2065,7 +2089,8 @@ export default function Solicitacao() {
                       title={seloSelecionado ? motivoAcaoBloqueada(seloSelecionado.motivo, "devolver para a Arte") : undefined}
                       data-testid="button-return-toggle"
                       style={{
-                        flex: 1, padding: "14px 0", borderRadius: 6,
+                        flex: "1 1 210px", minWidth: 0, overflow: "hidden",
+                        padding: "14px 10px", borderRadius: 6,
                         /* Este botão é outline: sem fundo, "desabilitado" não
                            se vê. Ganha o mesmo #292524 do Liberar apagado, para
                            os dois lerem como o mesmo estado. O texto continua
@@ -2077,7 +2102,9 @@ export default function Solicitacao() {
                         cursor: seloSelecionado ? "not-allowed" : "pointer",
                       }}
                     >
-                      Devolver para Arte
+                      <span style={{ display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                        Devolver para Arte
+                      </span>
                     </button>
                   </div>
                   {seloSelecionado && (

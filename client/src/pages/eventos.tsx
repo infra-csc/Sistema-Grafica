@@ -1092,13 +1092,17 @@ export default function Eventos() {
   // das contagens fecha com o total. Alternadores e não radios — radios
   // prometem exclusão mútua, e aqui a pessoa combina baldes.
   //
-  // Padrão: Ativos + Pendências (a visão padrão de hoje). "Pendências" é
-  // `realizado`, o único balde em que sobrou trabalho — ele nunca some por
-  // decisão de ninguém, e por isso ARCHIVED_LIFECYCLES não o inclui.
+  // Padrão: SÓ Ativos. "Pendências" é `realizado` — evento cujo caminhão já
+  // saiu e ainda tem peça em aberto. Ele não é arquivo (sobrou trabalho, e
+  // por isso ARCHIVED_LIFECYCLES não o inclui), mas também não é o que a
+  // pessoa abre a tela para ver: com ele ligado por padrão, os três
+  // primeiros cartões da grade eram "REALIZADO COM PENDÊNCIAS · Saiu há
+  // 14d", e o evento que embarca amanhã ficava abaixo da dobra. Pedido do
+  // dono: realizados ocultos por padrão, a um clique no alternador.
   const [situacoes, setSituacoes] = useState<Set<string>>(() => {
     const v = urlParams.get("situacao");
     if (v) return new Set(v.split(",").filter(Boolean));
-    return new Set(["ativos", "pendencias"]);
+    return new Set(["ativos"]);
   });
   const alternarSituacao = (chave: string) => setSituacoes((prev) => {
     const n = new Set(prev);
@@ -1860,19 +1864,23 @@ export default function Eventos() {
   }, [situacoes, baldeDe]);
 
   /**
-   * Ordenação: RISCO primeiro, depois SAÍDA DO CAMINHÃO ascendente.
+   * Ordenação: RISCO ABERTO primeiro, depois SAÍDA DO CAMINHÃO ascendente.
    *
    * A saída é a âncora do negócio — todo prazo do sistema pende dela. A
    * prioridade deixa de ser o eixo primário e vira desempate + destaque
-   * visual. Os três baldes:
-   *   0 · risco — realizado com peça aberta, marco atrasado ou prioridade urgente
+   * visual. Os quatro baldes:
+   *   0 · risco ABERTO — marco atrasado ou prioridade urgente, com o caminhão
+   *       ainda por sair. É o que dá para salvar, e por isso vem primeiro.
    *   1 · em jogo
-   *   2 · concluído/encerrado (história; só aparece com "Ocultar concluídos" desligado)
+   *   2 · realizado com pendência — o caminhão já saiu; o que sobrou é
+   *       acerto de contas, não urgência. Ficava no balde 0 e empurrava
+   *       para baixo da dobra o evento que embarca amanhã.
+   *   3 · concluído/encerrado (história)
    */
   const sortRank = (event: any): number => {
     const lifecycle = readEventStats(event).lifecycle;
-    if (ARCHIVED_LIFECYCLES.has(lifecycle)) return 2;
-    if (lifecycle === 'realizado') return 0;
+    if (ARCHIVED_LIFECYCLES.has(lifecycle)) return 3;
+    if (lifecycle === 'realizado') return 2;
     if (event.nextMilestone?.state === 'overdue') return 0;
     if (event.priority === 'urgente') return 0;
     return 1;
@@ -3148,7 +3156,7 @@ export default function Eventos() {
             })}
           </div>
           <span style={{ fontSize: FS.small, color: T.second, minWidth: 0 }}>
-            {ordem === 'saida' ? 'marco atrasado primeiro, depois quem embarca antes'
+            {ordem === 'saida' ? 'marco atrasado primeiro, depois quem embarca antes; realizados por último'
               : ordem === 'marco' ? 'o marco mais perto de vencer no topo'
               : 'ordem alfabética'}
           </span>

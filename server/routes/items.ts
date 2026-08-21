@@ -205,6 +205,54 @@ function deriveCalculatedM2(data: {
   return undefined;
 }
 
+// `measurement` É TEXTO DENORMALIZADO — e por isso envelhece sozinho.
+//
+// Ele guarda "3.95 × 2.95" como TEXTO, ao lado das colunas fileWidth e
+// fileHeight que guardam os mesmos dois números. Enquanto o m² já era
+// recalculado no servidor (deriveCalculatedM2, logo acima), a medida não
+// era: editar as dimensões de uma peça mudava fileWidth/fileHeight e o m²,
+// e deixava o texto antigo para trás.
+//
+// O estrago não ficava na tela de quem editou. `measurement` é o que sai na
+// COLUNA "Medida" da planilha exportada para a gráfica (services/
+// xlsxExport.ts), na ficha da peça, na triagem e no estoque — a peça
+// #2472 foi corrigida de 3.95×2.95 para 7.55×2.25 às 14:36 e a gráfica
+// continuou lendo 3.95×2.95, sem nada na tela sugerindo divergência. Dois
+// números para o mesmo fato, um deles corrigido: o outro não fica
+// "desatualizado", fica ERRADO, e é o que a produção lê.
+function deriveMeasurement(
+  fileWidth?: string | number | null,
+  fileHeight?: string | number | null,
+): string | undefined {
+  const w = fileWidth != null ? parseFloat(String(fileWidth)) : NaN;
+  const h = fileHeight != null ? parseFloat(String(fileHeight)) : NaN;
+  if (Number.isFinite(w) && w > 0 && Number.isFinite(h) && h > 0) {
+    // Mesmo formato do importador da planilha (services/xlsxImport.ts), que
+    // é quem escreve a maioria esmagadora destes textos.
+    return `${w.toFixed(2)} × ${h.toFixed(2)}`;
+  }
+  return undefined;
+}
+
+/**
+ * A medida foi mexida NESTA requisição?
+ *
+ * A regra é deliberadamente estreita: só re-derivar quando as dimensões
+ * MUDAM. `measurement` é editável de propósito (a coluna do schema diz
+ * isso), e derivar sempre apagaria um texto escrito à mão — "3 peças de 2m",
+ * "conforme croqui" — que ninguém pediu para apagar. Mas no instante em que
+ * as dimensões mudam, o texto antigo deixa de ser uma escolha e passa a ser
+ * uma contradição.
+ */
+function medidaMudou(
+  atual: { fileWidth?: string | number | null; fileHeight?: string | number | null },
+  novoW: string | number | null | undefined,
+  novoH: string | number | null | undefined,
+): boolean {
+  const num = (v: any) => (v != null ? parseFloat(String(v)) : NaN);
+  return num(novoW) !== num(atual.fileWidth) || num(novoH) !== num(atual.fileHeight);
+}
+
 // Criação de itens: Solicitação/admin, ou o CRIADOR do evento (qualquer papel)
 // — espelha o gate canEditLists do client. Sem isto, Gráfica/Arte/Atendimento
 // criavam itens em eventos alheios direto pela API.
@@ -641,6 +689,12 @@ export function registerItemRoutes(app: Express): void {
       // Não confiar no m² do cliente — recalcular no servidor quando derivável.
       const derivedM2 = deriveCalculatedM2(validatedData);
       if (derivedM2 !== undefined) validatedData.calculatedM2 = derivedM2;
+      // Medida vazia nasce derivada — uma peça sem medida legível na planilha
+      // da gráfica é uma peça que volta como pergunta.
+      if (!String(validatedData.measurement ?? "").trim()) {
+        const medida = deriveMeasurement(validatedData.fileWidth, validatedData.fileHeight);
+        if (medida !== undefined) validatedData.measurement = medida;
+      }
 
       const event = await storage.getEvent(validatedData.eventId);
       if (!event) {
@@ -730,6 +784,10 @@ export function registerItemRoutes(app: Express): void {
           // Recalcular m² no servidor quando derivável (não confiar no cliente).
           const derivedM2 = deriveCalculatedM2(parsed);
           if (derivedM2 !== undefined) parsed.calculatedM2 = derivedM2;
+          if (!String(parsed.measurement ?? "").trim()) {
+            const medida = deriveMeasurement(parsed.fileWidth, parsed.fileHeight);
+            if (medida !== undefined) parsed.measurement = medida;
+          }
           return parsed;
         } catch (error: any) {
           throw new Error(`Validation error at item ${index + 1}: ${error.message}`);
@@ -1018,6 +1076,21 @@ export function registerItemRoutes(app: Express): void {
         if (derivado !== undefined) updatePayload.calculatedM2 = derivado;
       }
 
+      // E a MEDIDA junto com o m². Os dois nascem das mesmas duas colunas;
+      // recalcular um e deixar o outro é o que produziu a divergência da
+      // peça #2472 — m² certo, medida antiga, e a planilha da gráfica
+      // saindo com a medida antiga.
+      if ("fileWidth" in validatedData || "fileHeight" in validatedData) {
+        const novoW = "fileWidth" in validatedData ? validatedData.fileWidth : currentItem.fileWidth;
+        const novoH = "fileHeight" in validatedData ? validatedData.fileHeight : currentItem.fileHeight;
+        if (medidaMudou(currentItem, novoW, novoH)) {
+          const medida = deriveMeasurement(novoW, novoH);
+          // O cliente manda o `measurement` que carregou ao ABRIR o form —
+          // isto é, o antigo. Aqui ele é ignorado de propósito.
+          if (medida !== undefined) updatePayload.measurement = medida;
+        }
+      }
+
       const item = await storage.updateItem(req.params.id, updatePayload);
       if (!item) {
         return res.status(404).json({ error: "Item not found" });
@@ -1058,6 +1131,11 @@ export function registerItemRoutes(app: Express): void {
       if ('fileWidth' in validatedData || 'fileHeight' in validatedData) {
         if (item.fileWidth !== currentItem.fileWidth || item.fileHeight !== currentItem.fileHeight) {
           changedParts.push(`Dimensões: ${currentItem.fileWidth ?? '?'}×${currentItem.fileHeight ?? '?'} → ${item.fileWidth ?? '?'}×${item.fileHeight ?? '?'}`);
+        }
+        // A medida acompanha, e a trilha diz que acompanhou — é o campo que
+        // a gráfica lê na planilha, e antes ele ficava para trás em silêncio.
+        if (item.measurement !== currentItem.measurement) {
+          changedParts.push(`Medida: ${currentItem.measurement || '—'} → ${item.measurement || '—'}`);
         }
       }
       if ('observations' in validatedData && item.observations !== currentItem.observations) {
@@ -3146,6 +3224,15 @@ export function registerItemRoutes(app: Express): void {
       const effCalculatedM2 =
         derivedM2 ?? (calculatedM2 !== undefined ? calculatedM2 : currentItem.calculatedM2);
 
+      // A MEDIDA segue a mesma regra do m²: mudou dimensão, o texto é
+      // re-derivado e o `measurement` do corpo é ignorado — ele é o valor
+      // que o formulário carregou ao abrir, ou seja, o antigo.
+      const medidaDerivada = medidaMudou(currentItem, effFileWidth, effFileHeight)
+        ? deriveMeasurement(effFileWidth, effFileHeight)
+        : undefined;
+      const effMeasurement =
+        medidaDerivada ?? (measurement !== undefined ? measurement : currentItem.measurement);
+
       const item = await storage.updateItem(req.params.id, {
         type: type || currentItem.type,
         quantity: effQuantity,
@@ -3155,7 +3242,7 @@ export function registerItemRoutes(app: Express): void {
         material: material || currentItem.material,
         finish: finish || currentItem.finish,
         calculatedM2: effCalculatedM2,
-        measurement: measurement !== undefined ? measurement : currentItem.measurement,
+        measurement: effMeasurement,
       });
       
       if (!item) {
@@ -3168,7 +3255,7 @@ export function registerItemRoutes(app: Express): void {
       if (finish && finish !== currentItem.finish) editDetails.push(`Acabamento: ${currentItem.finish} → ${finish}`);
       if (quantity !== undefined && quantity !== currentItem.quantity) editDetails.push(`Quantidade: ${currentItem.quantity} → ${quantity}`);
       if (effCalculatedM2 !== currentItem.calculatedM2) editDetails.push(`m² Total: ${currentItem.calculatedM2} → ${effCalculatedM2}`);
-      if (measurement !== undefined && measurement !== currentItem.measurement) editDetails.push(`Medida: ${currentItem.measurement} → ${measurement}`);
+      if (item.measurement !== currentItem.measurement) editDetails.push(`Medida: ${currentItem.measurement} → ${item.measurement}`);
       
       await createAuditLog(
         req,

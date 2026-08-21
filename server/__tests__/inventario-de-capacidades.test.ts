@@ -234,7 +234,24 @@ const CONTRATO: Record<string, string[]> = {
     "dropzone-xlsx",
     "button-preview-import",
     "button-confirm-import",
-    "button-force-import",
+    // `button-force-import` SAIU, e esta é a única baixa do contrato que não
+    // é uma perda — o controle não existia de fato.
+    //
+    // Ele vivia dentro de um aviso de reimportação que nunca apareceu: o
+    // cliente esperava um 409 `duplicate_detected` que o servidor não manda
+    // nem nunca mandou (`confirm-import` lê `{ items, fileName }` e o `force`
+    // viajava e era ignorado). Um botão inalcançável não é uma capacidade; é
+    // a APARÊNCIA de uma, e era pior que a ausência, porque ocupava o lugar
+    // da detecção que ninguém foi escrever — reimportar a mesma planilha
+    // duplicava o evento inteiro em silêncio.
+    //
+    // A capacidade — avisar antes de duplicar — está viva pela primeira vez,
+    // nos três controles abaixo, e agora no PREVIEW: antes de importar,
+    // contra as peças que o evento já tem, dizendo QUAIS se repetem.
+    "aviso-reimportacao",
+    "button-ver-repetidas",
+    "button-remover-repetidas",
+    "triagem-",
   ],
 };
 

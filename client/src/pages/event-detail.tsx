@@ -769,8 +769,6 @@ export default function EventDetail() {
     setImportSearch,
     previewXlsxMutation,
     confirmImportMutation,
-    importDuplicateWarning,
-    setImportDuplicateWarning,
   } = useEventImport({ eventId, eventSponsorsList, eventQuotaRules });
 
   // Estado e mutation de clonagem de itens entre eventos (extraído para @/hooks/use-event-import)
@@ -3167,7 +3165,6 @@ export default function EventDetail() {
           setImportFile(null);
           setImportPreview(null);
           setImportPreviewItems(null);
-          setImportDuplicateWarning(null);
         }}
         importFile={importFile}
         setImportFile={setImportFile}
@@ -3181,9 +3178,11 @@ export default function EventDetail() {
         previewXlsxPending={previewXlsxMutation.isPending}
         onPreview={(file) => previewXlsxMutation.mutate({ file })}
         confirmImportPending={confirmImportMutation.isPending}
-        onConfirmImport={(items, fileName, force) => confirmImportMutation.mutate({ items, fileName, force })}
-        importDuplicateWarning={importDuplicateWarning}
-        setImportDuplicateWarning={setImportDuplicateWarning}
+        onConfirmImport={(items, fileName) => confirmImportMutation.mutate({ items, fileName })}
+        // As peças que o evento JÁ tem — sem elas o diálogo não teria contra
+        // o que medir a repetição, e reimportar a mesma planilha duplicava o
+        // evento inteiro em silêncio.
+        itensDoEvento={items}
       />
       {/* ── Dialog: Clonar Evento ──────────────────────────────────────────── */}
       <CloneItemsDialog

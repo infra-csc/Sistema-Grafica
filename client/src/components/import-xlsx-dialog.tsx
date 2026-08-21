@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import {
   Upload,
   List,
@@ -66,10 +66,29 @@ const IMPORT_QUOTA_COLORS: Record<string, { bg: string; color: string; border: s
  * peça: sem medida ou sem m² a gráfica não tem o que imprimir; sem
  * patrocinador a peça entra e segue, só não passa por aprovação.
  */
-export type DefeitoImport = 'sem-patrocinador' | 'sem-medida' | 'm2-nao-fecha' | 'sem-material';
+export type DefeitoImport =
+  | 'sem-patrocinador' | 'sem-medida' | 'm2-nao-fecha' | 'sem-material' | 'ja-existe';
 
-export function defeitosDaLinha(row: any): DefeitoImport[] {
+/**
+ * A IDENTIDADE DE UMA PEÇA, para efeito de reimportação.
+ *
+ * Tipo + descrição, sem acento, sem caixa, sem espaço duplo. Não entra a
+ * quantidade: reimportar a mesma lista com a quantidade corrigida continua
+ * sendo a MESMA peça — é justamente o caso mais comum de reimportação, e
+ * incluir a quantidade faria a repetida passar despercebida.
+ */
+export function chaveDaPeca(row: any): string {
+  const norm = (v: any) => String(v ?? '')
+    .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ').trim();
+  return norm(row.type) + '\u0000' + norm(row.description);
+}
+
+export function defeitosDaLinha(row: any, jaNoEvento?: Set<string>): DefeitoImport[] {
   const out: DefeitoImport[] = [];
+  // A repetida vem primeiro: é a única que não se conserta editando a
+  // célula — se resolve tirando a linha, e por isso precisa ser lida antes.
+  if (jaNoEvento?.has(chaveDaPeca(row))) out.push('ja-existe');
   if ((row.suggestedSponsorIds ?? []).length === 0) out.push('sem-patrocinador');
   // Medida de ARQUIVO — a visual não serve para produzir.
   const temMedida = !!(parseFloat(row.fileWidth) && parseFloat(row.fileHeight));
@@ -79,14 +98,20 @@ export function defeitosDaLinha(row: any): DefeitoImport[] {
   return out;
 }
 
-/** Vermelho impede produzir; âmbar muda o caminho da peça. */
-const DEFEITO_GRAVE = new Set<DefeitoImport>(['sem-medida', 'm2-nao-fecha']);
+/**
+ * Vermelho custa dinheiro; âmbar muda o caminho da peça.
+ *
+ * Sem medida ou sem m², a gráfica não tem o que imprimir. Repetida, ela
+ * imprime DUAS VEZES e cobra as duas — o mesmo prejuízo por outro caminho.
+ */
+const DEFEITO_GRAVE = new Set<DefeitoImport>(['sem-medida', 'm2-nao-fecha', 'ja-existe']);
 
 export const DEFEITO_LABEL: Record<DefeitoImport, string> = {
   'sem-patrocinador': 'Sem patrocinador',
   'sem-medida': 'Sem medida',
   'm2-nao-fecha': 'M² não fecha',
   'sem-material': 'Sem material/acab.',
+  'ja-existe': 'Já está no evento',
 };
 
 /** A frase por extenso de cada defeito — o `title` da linha. */
@@ -95,13 +120,15 @@ const DEFEITO_FRASE: Record<DefeitoImport, string> = {
   'sem-medida': 'a planilha não trouxe largura ou altura de arquivo',
   'm2-nao-fecha': 'o m² veio zerado ou não pôde ser calculado',
   'sem-material': 'a gráfica não consegue produzir sem material e acabamento',
+  'ja-existe': 'uma peça com este mesmo tipo e descrição já foi importada para este evento',
 };
 
-export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsList }: {
+export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsList, jaNoEvento }: {
   row: any; idx: number;
   onChange: (updated: any) => void;
   onDelete: () => void;
   eventSponsorsList: { sponsorId: string; quota: string; name: string }[];
+  jaNoEvento?: Set<string>;
 }) {
   const [editField, setEditField] = useState<string | null>(null);
   const [hovered, setHovered] = useState(false);
@@ -222,7 +249,7 @@ export function ImportPreviewRow({ row, idx, onChange, onDelete, eventSponsorsLi
   // decidir de cabeça se aquele branco importava — numa planilha de 60 peças
   // isso não acontece: a pessoa importa e descobre depois, com a peça já no
   // evento.
-  const defeitos = defeitosDaLinha(row);
+  const defeitos = defeitosDaLinha(row, jaNoEvento);
   const grave = defeitos.some(d => DEFEITO_GRAVE.has(d));
   const corDoDefeito = defeitos.length === 0 ? null : grave ? '#dc2626' : '#d97706';
   const fundoDoDefeito = defeitos.length === 0 ? null : grave ? '#fffbfa' : '#fffdf7';
@@ -393,9 +420,9 @@ interface ImportXlsxDialogProps {
   previewXlsxPending: boolean;
   onPreview: (file: File) => void;
   confirmImportPending: boolean;
-  onConfirmImport: (items: any[], fileName: string, force?: boolean) => void;
-  importDuplicateWarning?: { duplicateCount: number; totalCount: number } | null;
-  setImportDuplicateWarning?: (w: { duplicateCount: number; totalCount: number } | null) => void;
+  onConfirmImport: (items: any[], fileName: string) => void;
+  /** As peças que o evento JÁ tem — é contra elas que a repetição é medida. */
+  itensDoEvento?: { type?: string | null; description?: string | null }[];
 }
 
 // Extracted from event-detail.tsx: the "Importar Peças" split-panel dialog
@@ -418,8 +445,7 @@ export function ImportXlsxDialog({
   onPreview,
   confirmImportPending,
   onConfirmImport,
-  importDuplicateWarning,
-  setImportDuplicateWarning,
+  itensDoEvento = [],
 }: ImportXlsxDialogProps) {
   const { toast } = useToast();
   const isMobile = useIsMobile();
@@ -436,6 +462,24 @@ export function ImportXlsxDialog({
   // depois, com a peça já no evento e o orçamento já errado.
   const [triagem, setTriagem] = useState<DefeitoImport | null>(null);
 
+  // ── A REIMPORTAÇÃO, DETECTADA NO PREVIEW ─────────────────────────────
+  //
+  // Havia aqui um aviso de reimportação que NUNCA aparecia: o cliente
+  // esperava um 409 `duplicate_detected` do servidor, e o servidor não
+  // manda nem nunca mandou — `confirm-import` lê só `{ items, fileName }`,
+  // e o `force` viajava e era ignorado. Reimportar a mesma planilha
+  // duplicava o evento inteiro em silêncio.
+  //
+  // O aviso mudou de MOMENTO e de CONTEÚDO. De momento porque só serve
+  // antes de importar: descobrir depois é descobrir com a peça já dentro.
+  // De conteúdo porque um "12 de 40 já existem" não diz QUAIS — e sem os
+  // nomes restam duas saídas ruins, importar tudo ou desistir de tudo.
+  const chavesDoEvento = useMemo(
+    () => new Set(itensDoEvento.map(chaveDaPeca)),
+    [itensDoEvento],
+  );
+  const repetidas = (importPreviewItems ?? []).filter(i => chavesDoEvento.has(chaveDaPeca(i)));
+
   // Predicado único da busca do preview — usado na contagem, no "+ Todos" e
   // no empty-state de filtro sem resultado.
   const importQ = importSearch.toLowerCase();
@@ -446,7 +490,7 @@ export function ImportXlsxDialog({
   // sai do MESMO predicado que a tabela aplica — com a própria dimensão de
   // fora —, então o número do balde é exatamente o de linhas que o clique
   // entrega.
-  const passaNaTriagem = (i: any) => !triagem || defeitosDaLinha(i).includes(triagem);
+  const passaNaTriagem = (i: any) => !triagem || defeitosDaLinha(i, chavesDoEvento).includes(triagem);
   const matchesImportFiltros = (i: any) => matchesImportSearch(i) && passaNaTriagem(i);
 
   return (
@@ -588,13 +632,14 @@ export function ImportXlsxDialog({
                     { chave: 'sem-medida', cor: '#dc2626' },
                     { chave: 'm2-nao-fecha', cor: '#dc2626' },
                     { chave: 'sem-material', cor: '#d97706' },
+                    { chave: 'ja-existe', cor: '#dc2626' },
                   ];
                   return (
                     <div>
                       <div style={{ fontSize: 11, color: '#746e69', fontWeight: 600, marginBottom: 6 }}>Antes de importar</div>
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                         {baldes.map(({ chave, cor }) => {
-                          const n = naBusca.filter(i => defeitosDaLinha(i).includes(chave)).length;
+                          const n = naBusca.filter(i => defeitosDaLinha(i, chavesDoEvento).includes(chave)).length;
                           const ligado = triagem === chave;
                           const vazio = n === 0;
                           return (
@@ -660,40 +705,65 @@ export function ImportXlsxDialog({
             </button>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {/* Duplicate warning banner */}
-              {importDuplicateWarning && setImportDuplicateWarning && (
-                <div style={{ padding: '10px 12px', borderRadius: 8, background: '#fff7ed', border: '1px solid #fed7aa', fontSize: 11, color: '#c2410c', lineHeight: 1.5 }}>
-                  <div style={{ fontWeight: 700, marginBottom: 2 }}>Possível reimportação detectada</div>
-                  <div>{importDuplicateWarning.duplicateCount} de {importDuplicateWarning.totalCount} peças já existem neste evento. Tem certeza que deseja importar mesmo assim?</div>
+              {/* O AVISO DE REIMPORTAÇÃO — agora com nomes e com saída.
+
+                  Ele não BLOQUEIA: reimportar de propósito é legítimo (uma
+                  planilha corrigida, um lote que ficou de fora). O que ele
+                  faz é impedir que aconteça sem ninguém saber, e oferecer o
+                  atalho de quem já sabe — tirar as repetidas e importar o
+                  resto, que é o desfecho em quase todos os casos. */}
+              {repetidas.length > 0 && (
+                <div
+                  data-testid="aviso-reimportacao"
+                  style={{ padding: '10px 12px', borderRadius: 8, background: '#fff7ed', border: '1px solid #fed7aa', fontSize: 11, color: '#9a3412', lineHeight: 1.5 }}
+                >
+                  <div style={{ fontWeight: 700, marginBottom: 2, color: '#7c2d12' }}>
+                    {repetidas.length} de {importPreviewItems.length} já {repetidas.length === 1 ? 'está' : 'estão'} neste evento
+                  </div>
+                  <div>
+                    {repetidas.slice(0, 3).map((r: any) => r.description || r.type || 'sem descrição').join(' · ')}
+                    {repetidas.length > 3 ? ` · e mais ${repetidas.length - 3}` : ''}
+                  </div>
                   <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
                     <button
-                      onClick={() => setImportDuplicateWarning(null)}
-                      style={{ flex: 1, padding: '6px 0', background: '#fff', border: '1px solid #e7e5e4', borderRadius: 6, fontSize: 11, fontWeight: 600, color: '#57534e', cursor: 'pointer' }}
+                      type="button"
+                      onClick={() => setTriagem(triagem === 'ja-existe' ? null : 'ja-existe')}
+                      aria-pressed={triagem === 'ja-existe'}
+                      data-testid="button-ver-repetidas"
+                      style={{ flex: 1, padding: '6px 0', background: '#fff', border: '1px solid #fed7aa', borderRadius: 6, fontSize: 11, fontWeight: 700, color: '#9a3412', cursor: 'pointer' }}
                     >
-                      Cancelar
+                      {triagem === 'ja-existe' ? 'Ver todas de novo' : `Ver as ${repetidas.length}`}
                     </button>
                     <button
-                      onClick={() => { onConfirmImport(importPreviewItems!, importFileName, true); setImportDuplicateWarning(null); }}
-                      disabled={confirmImportPending}
-                      data-testid="button-force-import"
+                      type="button"
+                      onClick={() => {
+                        const fora = new Set(repetidas.map((r: any) => r._id));
+                        setImportPreviewItems(prev => prev ? prev.filter(r => !fora.has(r._id)) : prev);
+                        // A triagem ligada em 'ja-existe' deixaria a tabela
+                        // vazia logo depois da remoção — a lista some junto
+                        // com o motivo de ela estar recortada.
+                        if (triagem === 'ja-existe') setTriagem(null);
+                        toast({ title: `${fora.size} ${fora.size === 1 ? 'peça repetida removida' : 'peças repetidas removidas'}`, description: 'Elas continuam no evento; só saíram desta importação.' });
+                      }}
+                      data-testid="button-remover-repetidas"
                       style={{ flex: 1, padding: '6px 0', background: '#c2410c', border: 'none', borderRadius: 6, fontSize: 11, fontWeight: 700, color: '#fff', cursor: 'pointer' }}
                     >
-                      Importar mesmo assim
+                      Remover {repetidas.length === 1 ? 'a repetida' : `as ${repetidas.length}`}
                     </button>
                   </div>
                 </div>
               )}
               <button
-                onClick={() => { setImportPreviewItems(null); setImportSearch(""); setImportDuplicateWarning?.(null); }}
+                onClick={() => { setImportPreviewItems(null); setImportSearch(""); setTriagem(null); }}
                 style={{ width: '100%', padding: '9px 0', backgroundColor: 'transparent', color: '#746e69', border: '1px solid #e7e5e4', borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif" }}
               >
                 Trocar arquivo
               </button>
               <button
-                disabled={!importPreviewItems.length || confirmImportPending || !!importDuplicateWarning}
+                disabled={!importPreviewItems.length || confirmImportPending}
                 onClick={() => { if (importPreviewItems.length > 0) onConfirmImport(importPreviewItems, importFileName); }}
                 data-testid="button-confirm-import"
-                style={{ width: '100%', padding: '11px 0', backgroundColor: importDuplicateWarning ? '#8a847e' : '#1c1917', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: importDuplicateWarning ? 'not-allowed' : 'pointer', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+                style={{ width: '100%', padding: '11px 0', backgroundColor: '#1c1917', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif", display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
               >
                 {confirmImportPending ? (
                   <><Loader2 style={{ width: 15, height: 15, animation: 'spin 1s linear infinite' }} /> Importando...</>
@@ -823,6 +893,7 @@ export function ImportXlsxDialog({
                               onChange={(updated: any) => setImportPreviewItems(prev => prev ? prev.map(r => r._id === row._id ? updated : r) : prev)}
                               onDelete={() => setImportPreviewItems(prev => prev ? prev.filter(r => r._id !== row._id) : prev)}
                               eventSponsorsList={eventSponsorsList}
+                              jaNoEvento={chavesDoEvento}
                             />
                           ))}
                         </Fragment>

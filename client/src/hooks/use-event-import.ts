@@ -29,7 +29,6 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
   const [importPreviewOpen, setImportPreviewOpen] = useState(false);
   const [importFileName, setImportFileName] = useState<string>("");
   const [importSearch, setImportSearch] = useState("");
-  const [importDuplicateWarning, setImportDuplicateWarning] = useState<{ duplicateCount: number; totalCount: number } | null>(null);
 
   // ── Preview Excel mutation (parse → show review modal) ─────────────────
   const previewXlsxMutation = useMutation({
@@ -90,19 +89,25 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
     },
   });
 
-  // ── Confirm import mutation (save reviewed items) — with duplicate guard ──
+  // ── Confirm import mutation (save reviewed items) ─────────────────────
+  //
+  // A GUARDA DE DUPLICATA QUE MORAVA AQUI NUNCA RODOU.
+  //
+  // Este ramo esperava um 409 `duplicate_detected`, e o servidor nunca o
+  // manda: `confirm-import` lê `{ items, fileName }` e mais nada — o `force`
+  // viajava no corpo e era ignorado. Uma guarda que não roda é pior que
+  // guarda nenhuma, porque ocupa o lugar dela: enquanto o código dizia que a
+  // reimportação estava coberta, reimportar a mesma planilha duplicava o
+  // evento inteiro em silêncio.
+  //
+  // A detecção passou para o PREVIEW, no diálogo — antes de importar, contra
+  // as peças que o evento já tem, e dizendo QUAIS se repetem. Ver
+  // `chaveDaPeca` em components/import-xlsx-dialog.tsx.
   const confirmImportMutation = useMutation({
-    mutationFn: async ({ items, fileName, force }: { items: any[]; fileName: string; force?: boolean }) => {
-      const response = await apiRequest("POST", `/api/events/${eventId}/confirm-import`, { items, fileName, force });
+    mutationFn: async ({ items, fileName }: { items: any[]; fileName: string }) => {
+      const response = await apiRequest("POST", `/api/events/${eventId}/confirm-import`, { items, fileName });
       if (!response.ok) {
         const err = await response.json();
-        if (response.status === 409 && err.error === "duplicate_detected") {
-          const dupErr: any = new Error(err.message);
-          dupErr.isDuplicate = true;
-          dupErr.duplicateCount = err.duplicateCount;
-          dupErr.totalCount = err.totalCount;
-          throw dupErr;
-        }
         throw new Error(err.error || "Erro ao importar");
       }
       return response.json();
@@ -115,15 +120,10 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
       setImportFile(null);
       setImportFileName("");
       setImportSearch("");
-      setImportDuplicateWarning(null);
       toast({ title: `${data.imported} peças importadas com sucesso`, description: "Os itens foram adicionados ao evento." });
     },
     onError: (error: any) => {
-      if (error.isDuplicate) {
-        setImportDuplicateWarning({ duplicateCount: error.duplicateCount, totalCount: error.totalCount });
-      } else {
-        toast({ title: "Erro na importação", description: error.message, variant: "destructive" });
-      }
+      toast({ title: "Erro na importação", description: error.message, variant: "destructive" });
     },
   });
 
@@ -142,8 +142,6 @@ export function useEventImport({ eventId, eventSponsorsList, eventQuotaRules }: 
     setImportFileName,
     importSearch,
     setImportSearch,
-    importDuplicateWarning,
-    setImportDuplicateWarning,
     previewXlsxMutation,
     confirmImportMutation,
   };

@@ -156,6 +156,7 @@ const updateItemSchema = insertItemSchema
     finalFileUrl: true,
     finalFileName: true,
     referenceUrl: true,
+    standardItemId: true,
   })
   .partial();
 

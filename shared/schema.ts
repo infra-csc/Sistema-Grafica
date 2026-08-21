@@ -238,6 +238,13 @@ export const items = pgTable("items", {
   // etapa nao tem como saber. A tela nao exibe idade nessas linhas em vez de
   // mostrar a idade desde a criacao como se fosse tempo no estado.
   statusChangedAt: timestamp("status_changed_at"),
+  // DE QUAL MODELO A PEÇA NASCEU. Até aqui a peça só COPIAVA tipo, material e
+  // medidas do modelo e não guardava o vínculo — "quantas peças usam este
+  // modelo" era pergunta sem resposta, e excluir um modelo era decisão cega.
+  // NULL é legítimo: peça criada à mão, importada sem casar, ou anterior a
+  // esta coluna. Para essas a tela mostra COMPATIBILIDADE (mesmo tipo,
+  // material e medidas), rotulada como tal — nunca como origem.
+  standardItemId: varchar("standard_item_id").references((): any => standardItems.id, { onDelete: "set null" }),
   deliveredAt: timestamp("delivered_at"), // Timestamp quando foi entregue
   referenceUrl: text("reference_url"), // Anexo/referência de demonstração das peças (upload do Solicitante)
   bookUrl: text("book_url"), // PDF do book de aprovação (layout pronto) que cobre esta peça — enviado pela Arte para os patrocinadores

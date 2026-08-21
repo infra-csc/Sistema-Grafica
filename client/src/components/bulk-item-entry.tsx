@@ -31,6 +31,8 @@ interface BulkItemRow {
   calculatedM2: number;
   sponsorId: string;
   isReuse: boolean;
+  /** O modelo de que a linha nasceu — gravado na peça para o catálogo contar o uso. */
+  standardItemId: string;
 }
 
 interface StandardItem {
@@ -350,7 +352,7 @@ function createEmptyRow(): BulkItemRow {
     type: "", description: "", quantity: "1",
     visualWidth: "", visualHeight: "", fileWidth: "", fileHeight: "",
     material: "", finish: "", measurement: "", observations: "",
-    calculatedM2: 0, sponsorId: "", isReuse: false,
+    calculatedM2: 0, sponsorId: "", isReuse: false, standardItemId: "",
   };
 }
 
@@ -604,6 +606,7 @@ export function BulkItemEntry({
         u.visualWidth = ""; u.visualHeight = ""; u.fileWidth = ""; u.fileHeight = "";
         u.material = ""; u.finish = ""; u.measurement = ""; u.calculatedM2 = 0;
         const s = standardItems.find(s => s.name === value);
+        u.standardItemId = s ? s.id : "";
         if (s) {
           const vw = s.visualWidth ? String(s.visualWidth) : s.area ? String(s.area) : "";
           const vh = s.visualHeight ? String(s.visualHeight) : s.visual ? String(s.visual) : "";
@@ -696,6 +699,7 @@ export function BulkItemEntry({
         measurement: r.measurement || `${r.fileWidth} × ${r.fileHeight}`,
         observations: r.observations || "", calculatedM2: r.calculatedM2,
         isReuse: r.isReuse || false,
+        standardItemId: r.standardItemId || null,
       }));
     if (valid.length === 0) {
       setSubmitAttempted(true);

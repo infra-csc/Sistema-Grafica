@@ -144,6 +144,8 @@ const EMPTY_ITEM_FORM = {
   skipApproval: false,
   isReuse: false,
   referenceUrl: "",
+  // O modelo de que a peça nasce (id), ou "" quando o tipo foi digitado.
+  standardItemId: "",
 };
 
 type ItemFormData = typeof EMPTY_ITEM_FORM;
@@ -258,15 +260,17 @@ function ItemForm({
                 value={typeKnown ? formData.type : formData.type ? "__atual__" : ""}
                 onChange={(e) => {
                   const v = e.target.value;
-                  if (v === "__novo__") { setFormData({ ...formData, type: "" }); setCustomType(true); return; }
+                  if (v === "__novo__") { setFormData({ ...formData, type: "", standardItemId: "" }); setCustomType(true); return; }
                   if (v === "__atual__") return;
                   const model = standardItems.find((s: any) => s.name === v);
                   if (model) {
                     // Selecionar um Modelo pré-preenche dimensões/material/
-                    // acabamento — mesmo comportamento do Popover antigo.
+                    // acabamento — e GRAVA o vínculo: é o que deixa o catálogo
+                    // responder "quantas peças usam este modelo".
                     setFormData({
                       ...formData,
                       type: model.name,
+                      standardItemId: model.id,
                       visualWidth: model.visualWidth ? String(model.visualWidth) : (model.area ? String(model.area) : ""),
                       visualHeight: model.visualHeight ? String(model.visualHeight) : (model.visual ? String(model.visual) : ""),
                       fileWidth: model.fileWidth ? String(model.fileWidth) : "",
@@ -277,7 +281,7 @@ function ItemForm({
                     });
                     return;
                   }
-                  setFormData({ ...formData, type: v });
+                  setFormData({ ...formData, type: v, standardItemId: "" });
                 }}
                 data-testid="select-item-type"
                 style={{ ...FIELD_INPUT, cursor: "pointer" }}
@@ -1154,6 +1158,7 @@ export default function EventDetail() {
       const itemData: any = {
         ...data,
         eventId,
+        standardItemId: data.standardItemId || null,
         area: parseFloat(data.visualWidth),
         visual: parseFloat(data.visualHeight),
         calculatedM2,
@@ -1279,6 +1284,7 @@ export default function EventDetail() {
 
       const itemData: any = {
         ...data,
+        standardItemId: data.standardItemId || null,
         visualWidth: toNumStr(data.visualWidth),
         visualHeight: toNumStr(data.visualHeight),
         fileWidth: toNumStr(data.fileWidth),
@@ -1489,6 +1495,7 @@ export default function EventDetail() {
       skipApproval: item.skipApproval || false,
       isReuse: item.isReuse || false,
       referenceUrl: item.referenceUrl || "",
+      standardItemId: item.standardItemId || "",
     });
     setEditDialogOpen(true);
   };

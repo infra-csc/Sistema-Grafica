@@ -737,7 +737,7 @@ export default function Modelos() {
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr style={{ backgroundColor: "rgba(243,244,243,0.5)", borderBottom: "1px solid #e7e5e4" }}>
-                    {["Nome", "Grupo", "Tipo", "Medidas", "Material", "Acabamento", "Ações"].map(col => (
+                    {["Nome", "Grupo", "Tipo", "Medidas", "Uso", "Material", "Acabamento", "Ações"].map(col => (
                       <th key={col} scope="col" style={{
                         padding: "14px 24px",
                         textAlign: col === "Ações" ? "right" : "left",
@@ -820,6 +820,40 @@ export default function Modelos() {
                           ) : (
                             <span style={{ fontSize: 13, color: "#746e69" }}>—</span>
                           )}
+                        </td>
+
+                        {/* Uso — quantas peças usam este modelo. Duas medidas,
+                            rotuladas de forma diferente de propósito: "N peças"
+                            é vínculo gravado (criadas a partir); "~N compatíveis"
+                            é peça antiga sem vínculo que bate tipo, material e
+                            medidas — compatibilidade, não origem. A tela não
+                            promete o que não sabe. #0369a1/#f0f9ff 5,9:1. */}
+                        <td style={{ padding: "18px 24px", whiteSpace: "nowrap" }} data-testid={`cell-uso-${item.id}`}>
+                          {(() => {
+                            const uso = item.uso ?? { exato: 0, compativel: 0, ultimaEm: null };
+                            const nenhum = uso.exato === 0 && uso.compativel === 0;
+                            return (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                {uso.exato > 0 ? (
+                                  <span title={`${uso.exato} ${uso.exato === 1 ? 'peça já foi criada' : 'peças já foram criadas'} a partir deste modelo; excluí-lo não altera nenhuma delas`} style={{ display: "inline-flex", alignSelf: "flex-start", fontSize: 11, fontWeight: 700, backgroundColor: "#f0f9ff", color: "#0369a1", border: "1px solid #bae6fd", borderRadius: 6, padding: "2px 8px", fontFamily: "monospace" }}>
+                                    {uso.exato} {uso.exato === 1 ? 'peça' : 'peças'}
+                                  </span>
+                                ) : nenhum ? (
+                                  <span title="Nenhuma peça foi criada a partir deste modelo — excluir não afeta nada" style={{ display: "inline-flex", alignSelf: "flex-start", fontSize: 11, fontWeight: 600, backgroundColor: "#f5f4f0", color: "#746e69", border: "1px solid #e7e5e4", borderRadius: 6, padding: "2px 8px" }}>
+                                    sem uso
+                                  </span>
+                                ) : null}
+                                {uso.compativel > 0 && (
+                                  <span title={`${uso.compativel} ${uso.compativel === 1 ? 'peça antiga' : 'peças antigas'} com o mesmo tipo, material e medidas — criadas antes de o vínculo existir. Compatibilidade, não origem.`} style={{ fontSize: 10, color: "#746e69", fontFamily: "monospace" }}>
+                                    ~{uso.compativel} compat.
+                                  </span>
+                                )}
+                                {uso.ultimaEm && (
+                                  <span style={{ fontSize: 10, color: "#746e69" }}>última em {new Date(uso.ultimaEm).toLocaleDateString("pt-BR")}</span>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </td>
 
                         {/* Material */}

@@ -102,8 +102,22 @@ describe("o que NÃO mexer continua", () => {
     expect(M).toContain("de {filteredItems.length} modelos");
   });
 
-  it("Mudança 1 ficou para decisão: nenhuma coluna Uso, nenhum 'criadas a partir'", () => {
-    expect(M).not.toContain("cell-uso-");
-    expect(M).not.toContain("criadas a partir");
+  it("Mudança 1, decidida: o vínculo passou a ser gravado, e o legado é COMPATIBILIDADE", () => {
+    // O gate falhou (items não guardava standardItemId); o dono escolheu
+    // gravar o vínculo daqui em diante e estimar o legado por assinatura —
+    // rotulado como compatibilidade, nunca como origem.
+    expect(M).toContain("data-testid={`cell-uso-${item.id}`}");
+    expect(M).toContain("a partir deste modelo; excluí-lo não altera nenhuma delas");
+    expect(M).toContain("Compatibilidade, não origem.");
+    expect(M).toContain('title="Nenhuma peça foi criada a partir deste modelo — excluir não afeta nada"');
+    const schema = readFileSync(path.resolve(__dirname, "../../shared/schema.ts"), "utf8");
+    expect(schema).toContain('standardItemId: varchar("standard_item_id").references((): any => standardItems.id, { onDelete: "set null" }),');
+    const rota = readFileSync(path.resolve(__dirname, "../../server/routes/standard-items.ts"), "utf8");
+    // Um agregado no endpoint do catálogo — não N requisições.
+    expect(rota).toContain("uso: { exato: e?.n ?? 0, compativel: compativel.get(k) ?? 0, ultimaEm: e?.ultima ?? null }");
+    expect(rota).toContain("if ((p as any).deletedAt) continue;");
+    // Quem cria a partir de modelo grava o vínculo — nos dois fluxos.
+    expect(readFileSync(path.resolve(__dirname, "../../client/src/pages/event-detail.tsx"), "utf8")).toContain("standardItemId: model.id,");
+    expect(readFileSync(path.resolve(__dirname, "../../client/src/components/bulk-item-entry.tsx"), "utf8")).toContain('u.standardItemId = s ? s.id : "";');
   });
 });

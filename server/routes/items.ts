@@ -253,6 +253,35 @@ function medidaMudou(
   return num(novoW) !== num(atual.fileWidth) || num(novoH) !== num(atual.fileHeight);
 }
 
+// `area` e `visual` SÃO `visual_width` e `visual_height` — de novo.
+//
+// A mesma doença de `measurement`, na dupla ao lado e por outro motivo
+// histórico: `area`/`visual` são as colunas ORIGINAIS da medida visual, e
+// `visual_width`/`visual_height` vieram depois. As quatro guardam dois
+// números. Na criação nascem juntas (`area: parseFloat(data.visualWidth)`);
+// na edição o formulário manda só o par novo, e o par velho congela.
+//
+// Não é coluna morta: `area`/`visual` são NOT NULL, o formulário de edição
+// as usa como fallback quando o par novo é nulo (acervo antigo), e a
+// linha do tempo da peça IMPRIME `${item.area} × ${item.visual}` na cara do
+// usuário. Editar a medida visual de uma peça deixava a linha do tempo
+// mostrando a medida de antes — sem nada indicando qual das duas vale.
+//
+// Enquanto as quatro colunas existirem, elas se movem juntas. Apagar as
+// duas velhas é a correção de verdade, mas é migração destrutiva com
+// acervo dependendo delas — e sincronizar não impede fazê-la depois.
+function derivarAreaVisual(
+  visualWidth: string | number | null | undefined,
+  visualHeight: string | number | null | undefined,
+): { area: string; visual: string } | undefined {
+  const w = visualWidth != null ? parseFloat(String(visualWidth)) : NaN;
+  const h = visualHeight != null ? parseFloat(String(visualHeight)) : NaN;
+  if (Number.isFinite(w) && w > 0 && Number.isFinite(h) && h > 0) {
+    return { area: w.toFixed(2), visual: h.toFixed(2) };
+  }
+  return undefined;
+}
+
 // Criação de itens: Solicitação/admin, ou o CRIADOR do evento (qualquer papel)
 // — espelha o gate canEditLists do client. Sem isto, Gráfica/Arte/Atendimento
 // criavam itens em eventos alheios direto pela API.
@@ -1091,6 +1120,18 @@ export function registerItemRoutes(app: Express): void {
         }
       }
 
+      // E o par velho da medida VISUAL anda com o par novo. Mesma doença,
+      // dupla ao lado: o formulário manda visualWidth/visualHeight e deixa
+      // area/visual congelados, e é `area × visual` que a linha do tempo da
+      // peça imprime.
+      if ("visualWidth" in validatedData || "visualHeight" in validatedData) {
+        const par = derivarAreaVisual(
+          "visualWidth" in validatedData ? validatedData.visualWidth : currentItem.visualWidth,
+          "visualHeight" in validatedData ? validatedData.visualHeight : currentItem.visualHeight,
+        );
+        if (par) { updatePayload.area = par.area; updatePayload.visual = par.visual; }
+      }
+
       const item = await storage.updateItem(req.params.id, updatePayload);
       if (!item) {
         return res.status(404).json({ error: "Item not found" });
@@ -1136,6 +1177,11 @@ export function registerItemRoutes(app: Express): void {
         // a gráfica lê na planilha, e antes ele ficava para trás em silêncio.
         if (item.measurement !== currentItem.measurement) {
           changedParts.push(`Medida: ${currentItem.measurement || '—'} → ${item.measurement || '—'}`);
+        }
+      }
+      if ('visualWidth' in validatedData || 'visualHeight' in validatedData) {
+        if (item.visualWidth !== currentItem.visualWidth || item.visualHeight !== currentItem.visualHeight) {
+          changedParts.push(`Medida visual: ${currentItem.visualWidth ?? '?'}×${currentItem.visualHeight ?? '?'} → ${item.visualWidth ?? '?'}×${item.visualHeight ?? '?'}`);
         }
       }
       if ('observations' in validatedData && item.observations !== currentItem.observations) {

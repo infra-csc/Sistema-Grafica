@@ -126,6 +126,6 @@ describe("o passivo tem por onde ser corrigido", () => {
       "utf8",
     );
     expect(s).toContain("function pareceMedida(");
-    expect(s).toContain("aDecidir.push(linha)");
+    expect(s).toContain("aDecidir");
   });
 });

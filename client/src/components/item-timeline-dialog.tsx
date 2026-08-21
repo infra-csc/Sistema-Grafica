@@ -118,9 +118,25 @@ export function ItemTimelineDialog({ item, auditLogs, open, onOpenChange }: Item
               </div>
               <div>
                 <span className="text-muted-foreground">Área:</span>{" "}
-                <span className="font-medium">{item.area} × {item.visual}</span>
+                {/* O par NOVO primeiro, o velho como reserva.
+
+                    `area`/`visual` são as colunas originais da medida
+                    visual e `visual_width`/`visual_height` vieram depois —
+                    quatro colunas para dois números. O servidor agora as
+                    mantém juntas, mas as peças editadas ANTES disso ficaram
+                    com o par velho congelado, e era ele que esta linha
+                    imprimia. Lendo o novo primeiro, elas leem certo mesmo
+                    sem passar pelo script de correção. */}
+                <span className="font-medium">
+                  {(item.visualWidth ?? item.area)} × {(item.visualHeight ?? item.visual)}
+                </span>
               </div>
-              {item.measurement && item.measurement !== `${item.area} × ${item.visual}` && (
+              {/* A comparação usa o mesmo par que a linha acima imprime —
+                  antes ela media `measurement` contra as colunas velhas,
+                  ou seja, dois campos que derivavam separado: bastava um
+                  dos dois envelhecer para a linha "Medida" aparecer ou
+                  sumir sem nada ter mudado na peça. */}
+              {item.measurement && item.measurement !== `${item.visualWidth ?? item.area} × ${item.visualHeight ?? item.visual}` && (
                 <div className="col-span-2">
                   <span className="text-muted-foreground">Medida:</span>{" "}
                   <span className="font-medium">{item.measurement}</span>

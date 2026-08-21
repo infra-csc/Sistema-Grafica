@@ -911,23 +911,24 @@ export default function VincularPatrocinadores() {
       // Atualização otimista: marca visualmente como ENVIADO antes da resposta do servidor
       setOptimisticSentIds(prev => new Set(Array.from(prev).concat(itemIds)));
     },
-    onSuccess: (data, itemIds) => {
-      // Invalida em background — não bloqueia. Audit-logs e notificações
-      // também: o envio gera as duas coisas no servidor.
-      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+    onSuccess: async (data, itemIds) => {
+      setSelectedItemIds(new Set());
+      setSendConfirmModal(null);
+      // Audit-logs e notificações recarregam em background.
       queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
-      setSelectedItemIds(new Set());
-      // Limpa só os otimistas DESTE envio — zerar tudo apagava o estado de um
-      // segundo envio ainda em voo.
-      setOptimisticSentIds(prev => {
-        const next = new Set(prev);
-        itemIds.forEach(id => next.delete(id));
-        return next;
-      });
-      setSendConfirmModal(null);
-      
-      if (data.errors && data.errors.length > 0) {
+
+      // O TOAST antes da espera: o usuário vê o resultado na hora; o que
+      // espera é só a limpeza da marca otimista, logo abaixo.
+      const jaEnviadas = (data.errors ?? []).filter((e: string) => e.includes('já foi enviado')).length;
+      if (data.sent === 0 && data.errors && data.errors.length > 0 && jaEnviadas === data.errors.length) {
+        // O caso do clique repetido: nada a fazer, e a frase diz isso em
+        // vez de listar N "erros" que não são erros de ninguém.
+        toast({
+          title: jaEnviadas === 1 ? "Essa peça já tinha sido enviada" : `Essas ${jaEnviadas} peças já tinham sido enviadas`,
+          description: "Por outro envio ou por outra pessoa — elas já estão na fila da Arte. A lista foi atualizada.",
+        });
+      } else if (data.errors && data.errors.length > 0) {
         toast({
           title: `${data.sent} item${data.sent !== 1 ? 's' : ''} enviado${data.sent !== 1 ? 's' : ''} para Arte`,
           description: `Alguns itens tiveram erros: ${data.errors.join(', ')}`,
@@ -939,6 +940,24 @@ export default function VincularPatrocinadores() {
           description: `${data.sent} item${data.sent !== 1 ? 's' : ''} enviado${data.sent !== 1 ? 's' : ''} com sucesso.`,
         });
       }
+
+      // A JANELA DE CORRIDA, fechada. A marca otimista "enviado" era
+      // apagada AQUI, na hora, enquanto a recarga de /api/items (a tabela
+      // inteira) ainda estava em voo. Nessa janela — um ou dois segundos
+      // para 56 peças — as peças recém-enviadas voltavam a aparecer como
+      // "Pronto" com o status antigo, o botão reabilitava, e um segundo
+      // clique mandava tudo de novo: "0 items enviados para Arte — Item
+      // #4099 não está no status correto…", 56 vezes. Agora a marca só cai
+      // quando a lista nova CHEGOU — `invalidateQueries` devolve uma
+      // promessa que resolve depois do refetch.
+      await queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      // Limpa só os otimistas DESTE envio — zerar tudo apagava o estado de
+      // um segundo envio ainda em voo.
+      setOptimisticSentIds(prev => {
+        const next = new Set(prev);
+        itemIds.forEach(id => next.delete(id));
+        return next;
+      });
     },
     onError: (error: Error, itemIds: string[]) => {
       // Reverter estado otimista
@@ -1714,14 +1733,30 @@ export default function VincularPatrocinadores() {
   // Confirma e executa o envio com os patrocinadores finais do modal
   const handleModalConfirmSend = async () => {
     if (!sendConfirmModal || isSending) return;
-    const { items, pendingByItem } = sendConfirmModal;
+    const { items: doModal, pendingByItem } = sendConfirmModal;
+    // O modal carrega uma FOTO da lista de quando foi aberto. Entre abrir e
+    // confirmar, outra pessoa (ou outro envio desta tela) pode ter mandado
+    // parte dela: o que já tem status além da vinculação sai do lote AQUI,
+    // na hora do clique, em vez de ir ao servidor para voltar como erro.
+    const statusAtual = new Map(items.map((i: any) => [i.id, i.status]));
+    const jaEnviadas = doModal.filter(i => DOWNSTREAM_STATUSES.includes(statusAtual.get(i.id) ?? i.status));
+    const paraEnviar = doModal.filter(i => !jaEnviadas.includes(i));
+    if (paraEnviar.length === 0) {
+      setSendConfirmModal(null);
+      toast({
+        title: jaEnviadas.length === 1 ? "Essa peça já tinha sido enviada" : `Essas ${jaEnviadas.length} peças já tinham sido enviadas`,
+        description: "Por outro envio ou por outra pessoa — elas já estão na fila da Arte.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      return;
+    }
     setIsSending(true);
 
     try {
       // Sincroniza os itens que ganharam patrocinadores no modal OU que têm
       // rascunho local não salvo — antes, enviar um rascunho descartava as
       // edições não salvas em silêncio (o sync usava só o que estava salvo).
-      const toSync = items.filter(item => {
+      const toSync = paraEnviar.filter(item => {
         const draft = pendingChanges[item.id];
         const existing = draft?.sponsorIds ?? originalSponsorsMap[item.id] ?? [];
         const newOnes = Array.from(pendingByItem[item.id] || []);
@@ -1743,7 +1778,7 @@ export default function VincularPatrocinadores() {
         setItemSponsorsMap(prev => ({ ...prev, [item.id]: merged }));
         if (draft) setPendingChanges(prev => { const n = { ...prev }; delete n[item.id]; return n; });
       });
-      const itemIds = items.map(i => i.id);
+      const itemIds = paraEnviar.map(i => i.id);
       setOptimisticSentIds(prev => new Set(Array.from(prev).concat(itemIds)));
       // Espera o resultado de verdade: com mutate() fire-and-forget o modal
       // fechava antes da resposta e, em erro, o usuário perdia o contexto.

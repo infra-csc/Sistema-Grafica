@@ -570,9 +570,16 @@ export function registerSponsorRoutes(app: Express): void {
             continue;
           }
 
-          // Items with status 'awaiting_linking' can be sent to Arte (submitted by creator)
+          // Só peça em vinculação ('awaiting_linking') vai para a Arte. A
+          // mensagem distingue os dois lados, porque pedem ações opostas:
+          // "já foi enviada" (por outro envio ou outra pessoa — é o caso
+          // do clique repetido) não tem o que fazer; "ainda não chegou"
+          // pede voltar à Solicitação. "Status incorreto" não dizia nenhum.
           if (item.status !== 'awaiting_linking') {
-            errors.push(`Item ${item.displayId} não está no status correto para envio`);
+            const aindaNaoChegou = ['draft', 'requested'].includes(item.status);
+            errors.push(aindaNaoChegou
+              ? `Item ${item.displayId} ainda não chegou à vinculação (está em "${translateStatus(item.status)}")`
+              : `Item ${item.displayId} já foi enviado (está em "${translateStatus(item.status)}")`);
             continue;
           }
           

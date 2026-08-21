@@ -30,7 +30,10 @@ describe("notificação de e-mail do book", () => {
       subject: "Book enviado · Corrida <Especial>",
     });
     expect(message?.text).toContain("https://app.nortemkt.com/objects/books/evento-1.pdf");
+    expect(message?.text).toContain("entre no sistema com sua conta");
     expect(message?.html).toContain("Corrida &lt;Especial&gt;");
+    expect(message?.html).toContain("O acesso ao book exige login no sistema.");
+    expect(message?.html).toContain("Abrir book no sistema");
     expect(message?.html).toContain('href="https://app.nortemkt.com/objects/books/evento-1.pdf"');
   });
 

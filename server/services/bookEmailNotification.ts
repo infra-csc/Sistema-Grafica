@@ -57,7 +57,8 @@ function normalizedAppUrl(value: string | undefined): string | undefined {
 function bookLink(bookUrl: string, appUrl?: string): string | undefined {
   // O endpoint de book é uma API e não pode transformar qualquer URL recebida
   // em um link de e-mail assinado pela NORTE. O upload normal guarda os objetos
-  // privados como /objects/...; somente esse caminho interno é promovido.
+  // privados como /objects/...; somente esse caminho interno pode ser aberto
+  // pelo app, que continuará exigindo a sessão do destinatário.
   if (!appUrl || !bookUrl.startsWith("/objects/")) return undefined;
 
   return new URL(bookUrl, `${appUrl}/`).toString();
@@ -101,7 +102,8 @@ export function buildBookEmailMessage(input: BookEmailInput, config: BookEmailCo
       `O book de aprovação do evento ${eventName} foi enviado.`,
       `Peças vinculadas: ${itemLabel}.`,
       "",
-      `Abrir book: ${link}`,
+      "Para abrir o book, entre no sistema com sua conta:",
+      link,
     ].join("\n"),
     html: [
       "<!doctype html>",
@@ -111,7 +113,8 @@ export function buildBookEmailMessage(input: BookEmailInput, config: BookEmailCo
       "<h1 style=\"margin:0 0 16px;font-size:24px;line-height:1.25;\">Book de aprovação enviado</h1>",
       `<p style="margin:0 0 8px;">O book do evento <strong>${safeEventName}</strong> foi salvo com sucesso.</p>`,
       `<p style="margin:0 0 24px;">Peças vinculadas: <strong>${safeItemLabel}</strong>.</p>`,
-      `<a href="${safeLink}" style="display:inline-block;padding:12px 18px;background:#111827;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:700;">Abrir book</a>`,
+       '<p style="margin:0 0 16px;color:#4b5563;">O acesso ao book exige login no sistema.</p>',
+       `<a href="${safeLink}" style="display:inline-block;padding:12px 18px;background:#111827;color:#ffffff;text-decoration:none;border-radius:8px;font-weight:700;">Abrir book no sistema</a>`,
       "</main></body></html>",
     ].join(""),
   };
@@ -138,7 +141,7 @@ async function deliver(message: BookEmailMessage): Promise<void> {
  * - BOOK_EMAIL_NOTIFICATIONS_ENABLED=true
  * - BOOK_EMAIL_FROM=remetente@dominio-verificado
  * - BOOK_EMAIL_TO=destinatario@empresa.com
- * - BOOK_EMAIL_APP_URL=https://url-publica-do-app
+ * - BOOK_EMAIL_APP_URL=https://url-do-app
  *
  * BOOK_EMAIL_DRY_RUN=true registra a preparação sem enviar e-mail.
  */

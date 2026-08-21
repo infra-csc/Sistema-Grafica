@@ -55,7 +55,8 @@ defaultBucketID = "replit-objstore-c4b4879f-ce65-4fb1-891e-2d8c9642fe0e"
 [userenv]
 
 [userenv.shared]
-BOOK_EMAIL_DRY_RUN = "true"
+BOOK_EMAIL_DRY_RUN = "false"
 BOOK_EMAIL_FROM = "sistemagrafica@nortemkt.com"
-BOOK_EMAIL_NOTIFICATIONS_ENABLED = "false"
+BOOK_EMAIL_NOTIFICATIONS_ENABLED = "true"
 BOOK_EMAIL_TO = "yan.araujo@nortemkt.com"
+BOOK_EMAIL_APP_URL = "https://print-flow-manager-infraestrutura2.replit.app"

@@ -89,6 +89,17 @@ describe("as três telas leem a mesma lista", () => {
     expect(ev).not.toContain("{ field: 'deadlineListaImagens',   key: 'listaImagens'");
   });
 
+  it("nem a timeline do Detalhe do Evento — a QUARTA cópia, também com cinco", () => {
+    // Descoberta ao aplicar o handoff "Detalhe do Evento nota 10": a lista
+    // "não mexer" falava em seis marcos, e a timeline tinha cinco escritos à
+    // mão — a Finalização (−10) faltava aqui também. Três cópias corrigidas e
+    // a quarta esquecida é exatamente o que este arquivo existe para impedir.
+    const ed = ler("client/src/pages/event-detail.tsx");
+    expect(ed).toContain("const marcos = MARCOS_DO_EVENTO.map((m) => {");
+    expect(ed).toContain("const days: number = (event as any)[m.campo] ?? m.offset;");
+    expect(ed).not.toContain("{ label: 'Lista de Imagens',    days: event.deadlineListaImagens    ?? -25, allDays: false },");
+  });
+
   it("o servidor continua cobrando os seis — é o que torna o resto obrigatório", () => {
     const srv = ler("server/routes/events.ts");
     for (const m of MARCOS_DO_EVENTO) {

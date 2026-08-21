@@ -2,7 +2,9 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
 import { faseDaArte } from "@/components/prazos/tokens";
-import { getStatusLabel, getStatusMeta, FINAL_STATUSES, PRODUCTION_STATUSES, motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
+import { getStatusLabel, getStatusMeta, FINAL_STATUSES, PRODUCTION_STATUSES, STATUS, motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
+import { PHASES, contarPorFase } from "@/lib/fases";
+import { MARCOS_DO_EVENTO } from "@shared/prazo-dates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, Building2, Loader2, User, History, Lock, Unlock, Paperclip, ExternalLink, X, RotateCcw, Recycle, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, Search } from "lucide-react";
@@ -43,6 +45,67 @@ import { ImportXlsxDialog, ImportPreviewRow } from "@/components/import-xlsx-dia
 import { CloneItemsDialog } from "@/components/clone-items-dialog";
 import { useEventImport, useEventClone } from "@/hooks/use-event-import";
 import { useEventReference } from "@/hooks/use-event-reference";
+
+/**
+ * QUAL ETAPA CADA STATUS JÁ CUMPRIU — a régua da timeline.
+ *
+ * Os seis marcos (lista de imagens 0, layouts 1, aprovação 2, finalização 3,
+ * revisão 4, produção 5) são datas; as peças têm status. Esta tabela liga os
+ * dois: uma peça está ATRÁS do marco `i` quando a etapa que ela cumpriu é
+ * menor que `i + 1`. Os pontos de ancoragem vêm do handoff — aguardando
+ * envio 0, aguardando aprovação 2, aguardando revisão 3, pronto para produção
+ * 4, em produção 5, entregue 6 — e os status intermediários entram na
+ * posição monotônica entre eles. Cancelada/excluída não está atrás de nada.
+ */
+const ETAPA_CUMPRIDA: Record<string, number> = {
+  awaiting_linking: 0, awaiting_submission: 0,
+  awaiting_approval: 2, awaiting_sponsor_approval: 2, sponsor_approved: 2, awaiting_finalization: 2,
+  awaiting_creator_review: 3, awaiting_final_review: 3, awaiting_review: 3, in_review: 3,
+  ready_for_production: 4, pronto_para_producao: 4, approved: 4, liberado: 4,
+  inProduction: 5, em_producao: 5, produced: 5, produzido: 5, conferred: 5,
+  delivered: 6, entregue: 6, canceled: 6, deleted: 6,
+};
+const etapaCumprida = (status: string) => ETAPA_CUMPRIDA[status] ?? 0;
+/** A peça ainda não passou pelo marco `i`? */
+const estaAtrasDoMarco = (status: string, i: number) => etapaCumprida(status) < i + 1;
+
+/** A ordem do fluxo, para as seções do modo Status: a ordem das chaves de STATUS em lib/status. */
+const ORDEM_DO_FLUXO = new Map(Object.keys(STATUS).map((k, i) => [k, i]));
+
+type Marco = { key: string; label: string; date: Date; adjusted: 'fri' | 'mon' | null; isPast: boolean; isOverdue: boolean };
+
+/**
+ * OS SEIS MARCOS, derivados da fonte única (@shared/prazo-dates) e ancorados
+ * na SAÍDA DO CAMINHÃO: sábado→sexta, domingo→segunda, e `todosOsDias` só na
+ * Produção Gráfica. Esta lista era escrita à mão aqui com CINCO marcos —
+ * faltava a Finalização (−10), a mesma divergência que o Calendário teve.
+ *
+ * Função pura, fora do componente: o cabeçalho (frase de resolução) e a
+ * timeline leem o MESMO resultado, em vez de cada um calcular o seu.
+ */
+function calcularMarcos(event: any, today: Date): { marcos: Marco[]; countdownDays: number } {
+  const departure = new Date(event.truckDepartureDate);
+  const depDay = new Date(departure); depDay.setHours(0, 0, 0, 0);
+  const countdownDays = Math.ceil((depDay.getTime() - today.getTime()) / 86400000);
+  const adjustWeekend = (date: Date, skip: boolean): { date: Date; adjusted: 'fri' | 'mon' | null } => {
+    if (skip) return { date, adjusted: null };
+    const dow = date.getDay();
+    if (dow === 6) { const d = new Date(date); d.setDate(d.getDate() - 1); return { date: d, adjusted: 'fri' }; }
+    if (dow === 0) { const d = new Date(date); d.setDate(d.getDate() + 1); return { date: d, adjusted: 'mon' }; }
+    return { date, adjusted: null };
+  };
+  const marcos = MARCOS_DO_EVENTO.map((m) => {
+    const days: number = (event as any)[m.campo] ?? m.offset;
+    const raw = new Date(departure); raw.setDate(raw.getDate() + days);
+    const { date, adjusted } = adjustWeekend(raw, m.todosOsDias);
+    const isPast = date < today;
+    const isOverdue = isPast && countdownDays > 0;
+    return { key: m.key, label: m.label, date, adjusted, isPast, isOverdue };
+  });
+  return { marcos, countdownDays };
+}
+
+const plural = (n: number, um: string, muitos: string) => (n === 1 ? um : muitos);
 import { useEventItemFlags } from "@/hooks/use-event-item-flags";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
@@ -637,6 +700,22 @@ export default function EventDetail() {
   };
   const [itemSearch, setItemSearch] = useState("");
   const [showAllItems, setShowAllItems] = useState(false);
+  // Agrupar por TIPO (como a produção lê) ou por STATUS (para achar o que
+  // travou), e o marco clicado na timeline — os dois na URL, para a leitura
+  // sobreviver ao refresh e poder ser mandada por link.
+  const [agrupar, setAgrupar] = useState<'tipo' | 'status'>(() =>
+    new URLSearchParams(window.location.search).get('agrupar') === 'status' ? 'status' : 'tipo');
+  const [marcoFiltro, setMarcoFiltro] = useState<number | null>(() => {
+    const v = new URLSearchParams(window.location.search).get('marco');
+    return v !== null && /^[0-5]$/.test(v) ? Number(v) : null;
+  });
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    if (agrupar === 'status') p.set('agrupar', 'status'); else p.delete('agrupar');
+    if (marcoFiltro !== null) p.set('marco', String(marcoFiltro)); else p.delete('marco');
+    const q = p.toString();
+    window.history.replaceState(null, '', `${window.location.pathname}${q ? `?${q}` : ''}${window.location.hash}`);
+  }, [agrupar, marcoFiltro]);
   const [showAllDrafts, setShowAllDrafts] = useState(false);
   // Filtro por status via chips do cabeçalho — compõe com a busca textual.
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
@@ -685,7 +764,10 @@ export default function EventDetail() {
     if (!pendingDeepLinkItem.current || loadingItems) return;
     const target = rawItems.find((i: any) => i.id === pendingDeepLinkItem.current);
     pendingDeepLinkItem.current = null;
-    window.history.replaceState(null, "", window.location.pathname);
+    // Tira SÓ o ?item= — `agrupar` e `marco` são do usuário e ficam.
+    const p = new URLSearchParams(window.location.search); p.delete('item');
+    const q = p.toString();
+    window.history.replaceState(null, "", `${window.location.pathname}${q ? `?${q}` : ''}${window.location.hash}`);
     if (target) setSelectedItemForDetails(target);
   }, [rawItems, loadingItems]);
 
@@ -731,6 +813,39 @@ export default function EventDetail() {
     () => items.filter((i: any) => !!i.parentItemId).length,
     [items],
   );
+
+  // ── A TIMELINE DIZ QUANTAS PEÇAS ESTÃO ATRÁS DE CADA MARCO ──
+  // Os marcos (datas) e as peças atrás de cada um (status), calculados uma
+  // vez e lidos pelo cabeçalho, pela timeline e pelo filtro da lista.
+  const hoje = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
+  const marcosDoEvento = useMemo(
+    () => (event?.truckDepartureDate ? calcularMarcos(event, hoje) : null),
+    [event, hoje],
+  );
+  const atrasDoMarco = useMemo(
+    () => MARCOS_DO_EVENTO.map((_, i) => mainItems.filter(it => estaAtrasDoMarco(it.status, i)).length),
+    [mainItems],
+  );
+  // Fases de produção — a MESMA contagem do cartão de Eventos (lib/fases).
+  const fases = useMemo(() => contarPorFase(mainItems), [mainItems]);
+  const entregues = useMemo(() => mainItems.filter(i => i.status === 'delivered' || i.status === 'entregue').length, [mainItems]);
+  // A frase de resolução: onde o evento está, em uma linha derivada dos dados.
+  const fraseResolucao = useMemo(() => {
+    const t = mainItems.length;
+    if (t === 0) return null;
+    if (entregues === t) return `Todas as ${t} ${plural(t, 'peça entregue', 'peças entregues')}.`;
+    const d = marcosDoEvento?.countdownDays ?? null;
+    const caminhao = d === null ? '' : d < 0 ? ` O caminhão saiu há ${Math.abs(d)} ${plural(Math.abs(d), 'dia', 'dias')}.` : d === 0 ? ' O caminhão sai hoje.' : ` O caminhão sai em ${d} ${plural(d, 'dia', 'dias')}.`;
+    const vencidos = (marcosDoEvento?.marcos ?? []).map((m, i) => ({ m, i })).filter(({ m, i }) => m.isOverdue && atrasDoMarco[i] > 0);
+    if (vencidos.length > 0) {
+      // As peças atrás de um marco são subconjunto das atrás do seguinte:
+      // o total "atrás" é o do marco vencido mais avançado.
+      const p = atrasDoMarco[vencidos[vencidos.length - 1].i];
+      const n = vencidos.length;
+      return `${n} ${plural(n, 'marco já venceu', 'marcos já venceram')} com ${p} ${plural(p, 'peça atrás', 'peças atrás')}.${caminhao}`;
+    }
+    return `${entregues} de ${t} ${plural(t, 'peça entregue', 'peças entregues')} ·${caminhao ? caminhao.replace(/^ /, ' ').replace(/^ O/, ' o') : ' sem data de saída.'}`;
+  }, [mainItems.length, entregues, marcosDoEvento, atrasDoMarco]);
 
   const { data: standardItems = [] } = useQuery<any[]>({
     queryKey: ["/api/standard-items"],
@@ -1437,6 +1552,8 @@ export default function EventDetail() {
   const searchedItems = useMemo(() => {
     let base = mainItems;
     if (statusFilter.length > 0) base = base.filter(item => statusFilter.includes(item.status));
+    // O gargalo clicado na timeline: as peças que AINDA NÃO passaram por ele.
+    if (marcoFiltro !== null) base = base.filter(item => estaAtrasDoMarco(item.status, marcoFiltro));
     if (itemSearchLower) {
       base = base.filter((item: any) =>
         (item.displayId || "").toLowerCase().includes(itemSearchLower) ||
@@ -1445,7 +1562,7 @@ export default function EventDetail() {
         getStatusLabel(item.status).toLowerCase().includes(itemSearchLower));
     }
     return base;
-  }, [mainItems, statusFilter, itemSearchLower]);
+  }, [mainItems, statusFilter, itemSearchLower, marcoFiltro]);
 
   // Renderização incremental (mesmo padrão do Painel Geral): até 50 linhas;
   // o restante entra sob demanda — mantém o DOM leve em eventos grandes.
@@ -1470,6 +1587,17 @@ export default function EventDetail() {
     });
     return { groupMap: map, sortedGroups: groups };
   }, [visibleEventItems, groupOf]);
+
+  // Modo STATUS: a chave é a etapa, não a produção — sem grupo pai, seções na
+  // ordem do fluxo (a ordem das chaves de STATUS em lib/status).
+  const secoesPorStatus = useMemo(() => {
+    const map = new Map<string, typeof visibleEventItems>();
+    visibleEventItems.forEach(item => {
+      if (!map.has(item.status)) map.set(item.status, []);
+      map.get(item.status)!.push(item);
+    });
+    return Array.from(map.entries()).sort(([a], [b]) => (ORDEM_DO_FLUXO.get(a) ?? 999) - (ORDEM_DO_FLUXO.get(b) ?? 999));
+  }, [visibleEventItems]);
 
   if (loadingEvent || loadingItems) {
     return (
@@ -1622,6 +1750,35 @@ export default function EventDetail() {
                   lista (lá o badge existe; aqui o status ficava invisível). */}
               <StatusBadge status={event.status} />
             </div>
+            {/* A FRASE DE RESOLUÇÃO e a BARRA DE FASES. O cartão da lista de
+                Eventos tem a barra; a tela que DETÉM as peças não tinha
+                leitura de progresso nenhuma — era somar os chips de cabeça. A
+                barra usa a MESMA contagem do cartão (lib/fases), não um
+                derivado local. */}
+            {fraseResolucao && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap', marginTop: 10 }}>
+                <p data-testid="text-resolucao" style={{ margin: 0, fontSize: 13, color: '#57534e', lineHeight: 1.5 }}>
+                  {fraseResolucao}
+                </p>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <span
+                    data-testid="bar-fases"
+                    role="img"
+                    aria-label={PHASES.map((p, i) => `${fases[i]} ${p.noun}`).join(', ')}
+                    style={{ display: 'flex', width: 120, height: 9, borderRadius: 999, overflow: 'hidden', backgroundColor: '#f0efee', flexShrink: 0 }}
+                  >
+                    {mainItems.length > 0 && PHASES.map((fase, i) => (
+                      fases[i] > 0
+                        ? <span key={fase.key} title={`${fases[i]} ${fase.noun}`} style={{ width: `${(fases[i] / mainItems.length) * 100}%`, backgroundColor: fase.color }} />
+                        : null
+                    ))}
+                  </span>
+                  <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, color: '#57534e', whiteSpace: 'nowrap' }}>
+                    {entregues}/{mainItems.length}
+                  </span>
+                </span>
+              </div>
+            )}
             {/* Chips de status: "onde está minha lista" num relance — total,
                 m² e um chip clicável por status presente (filtra a listagem). */}
             {items.length > 0 && (
@@ -1903,29 +2060,10 @@ export default function EventDetail() {
           // entrega string — em runtime é identidade.
           const startLabel = parseDateLocal(String(event.startDate)).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
-          const adjustWeekend = (date: Date, skip: boolean): { date: Date; adjusted: 'fri' | 'mon' | null } => {
-            if (skip) return { date, adjusted: null };
-            const dow = date.getDay();
-            if (dow === 6) { const d = new Date(date); d.setDate(d.getDate() - 1); return { date: d, adjusted: 'fri' }; }
-            if (dow === 0) { const d = new Date(date); d.setDate(d.getDate() + 1); return { date: d, adjusted: 'mon' }; }
-            return { date, adjusted: null };
-          };
-
-          const rawDeadlines = [
-            { label: 'Lista de Imagens',    days: event.deadlineListaImagens    ?? -25, allDays: false },
-            { label: 'Entrega de Layouts',  days: event.deadlineEntregaLayouts  ?? -20, allDays: false },
-            { label: 'Aprovação de Layout', days: event.deadlineAprovacaoLayout ?? -12, allDays: false },
-            { label: 'Revisão de Lista',    days: event.deadlineRevisaoLista    ?? -8,  allDays: false },
-            { label: 'Produção Gráfica',    days: event.deadlineProducaoGrafica ?? -1,  allDays: true  },
-          ];
-
-          const milestones = rawDeadlines.map(({ label, days, allDays }) => {
-            const raw = new Date(departure); raw.setDate(raw.getDate() + days);
-            const { date, adjusted } = adjustWeekend(raw, allDays);
-            const isPast = date < today;
-            const isOverdue = isPast && countdownDays > 0;
-            return { label, date, adjusted, isPast, isOverdue };
-          });
+          // Os SEIS marcos vêm de calcularMarcos (fonte única @shared/prazo-dates),
+          // já calculados no memo que o cabeçalho também lê. A lista escrita à
+          // mão que vivia aqui tinha CINCO — faltava a Finalização (−10).
+          const milestones = marcosDoEvento?.marcos ?? [];
 
           const nextIndex = milestones.findIndex(m => !m.isPast);
           const progressFrac = nextIndex === -1 ? 1 : nextIndex === 0 ? 0 : nextIndex / (milestones.length - 1);
@@ -2041,9 +2179,26 @@ export default function EventDetail() {
                       }} />
                     )}
 
-                    {milestones.map(({ label, date, adjusted, isPast, isOverdue }, i) => {
+                    {milestones.map(({ key: marcoKey, label, date, adjusted, isPast, isOverdue }, i) => {
                       const isNext = i === nextIndex;
                       const dateStr = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+                      // Quantas peças AINDA NÃO passaram por este marco, e o tom:
+                      // vencido com peça atrás é atraso real (vermelho); o atual
+                      // é o trabalho de agora (laranja); futuro é só contagem.
+                      const atras = atrasDoMarco[i] ?? 0;
+                      const selecionado = marcoFiltro === i;
+                      const clicavel = atras > 0 && !isHistorical;
+                      const tomPilula = isOverdue && atras > 0
+                        ? { color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' }
+                        : isNext
+                        ? { color: '#9a3412', bg: '#fff7ed', border: '#fed7aa' }
+                        : { color: '#57534e', bg: '#f5f5f4', border: '#e7e5e4' };
+                      const tituloMarco = (() => {
+                        const base = adjusted === 'fri' ? `${label} — movido de sáb para sex` : adjusted === 'mon' ? `${label} — movido de dom para seg` : label;
+                        if (atras === 0) return `${base} — nenhuma peça atrás deste marco`;
+                        const frase = `${atras} ${plural(atras, 'peça ainda não passou', 'peças ainda não passaram')} por este marco`;
+                        return clicavel ? `${base} — ${frase}. ${selecionado ? 'Clique para ver todas as peças de novo' : 'Clique para ver só essas'}` : `${base} — ${frase}`;
+                      })();
 
                       let dotBg: string, dotBorder: string, dotSize: number;
                       let labelCol: string, dateCol: string, labelW: number;
@@ -2074,9 +2229,21 @@ export default function EventDetail() {
 
                       return (
                         <div
-                          key={label}
-                          title={adjusted === 'fri' ? `${label} — movido de sáb para sex` : adjusted === 'mon' ? `${label} — movido de dom para seg` : label}
-                          style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', zIndex: 2 }}
+                          key={marcoKey}
+                          title={tituloMarco}
+                          role={clicavel ? 'button' : undefined}
+                          tabIndex={clicavel ? 0 : undefined}
+                          aria-pressed={clicavel ? selecionado : undefined}
+                          data-testid={`marco-${marcoKey}`}
+                          onClick={clicavel ? () => setMarcoFiltro(selecionado ? null : i) : undefined}
+                          onKeyDown={clicavel ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setMarcoFiltro(selecionado ? null : i); } } : undefined}
+                          style={{
+                            flex: 1, minWidth: 96, display: 'flex', flexDirection: 'column', alignItems: 'center', position: 'relative', zIndex: 2,
+                            padding: '4px 4px 8px', borderRadius: 10,
+                            backgroundColor: selecionado ? '#fff7ed' : 'transparent',
+                            boxShadow: selecionado ? 'inset 0 0 0 1px #fed7aa' : 'none',
+                            cursor: clicavel ? 'pointer' : 'default',
+                          }}
                         >
                           {/* Dot — 40px container so all centers align on track */}
                           <div style={{ width: '40px', height: '40px', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', marginBottom: '10px' }}>
@@ -2111,6 +2278,16 @@ export default function EventDetail() {
                           }}>
                             {dateStr}
                           </span>
+                          {/* A pílula: quantas peças ainda não passaram por aqui.
+                              Sem peça atrás, nenhuma pílula — zero não é notícia. */}
+                          {atras > 0 && (
+                            <span
+                              data-testid={`chip-atras-${marcoKey}`}
+                              style={{ marginTop: 6, fontSize: 11, fontWeight: 800, fontFamily: "'DM Mono', monospace", color: tomPilula.color, backgroundColor: tomPilula.bg, border: `1px solid ${tomPilula.border}`, borderRadius: 999, padding: '1px 8px', whiteSpace: 'nowrap', lineHeight: 1.5 }}
+                            >
+                              {atras} {plural(atras, 'peça', 'peças')}
+                            </span>
+                          )}
                         </div>
                       );
                     })}
@@ -2488,55 +2665,60 @@ export default function EventDetail() {
                 style={{ width: '100%', height: 34, paddingLeft: 32, paddingRight: 12, border: '1px solid #e7e5e4', borderRadius: 999, backgroundColor: '#ffffff', fontSize: 13, color: '#1c1917', fontFamily: 'inherit' }}
               />
             </div>
-            {(itemSearchLower || statusFilter.length > 0) && (
-              <span style={{ fontSize: 12, fontWeight: 700, color: '#746e69' }}>
-                {searchedItems.length} de {mainItems.length} peças
-                <button onClick={() => { setItemSearch(""); setStatusFilter([]); }} style={{ marginLeft: 10, background: 'none', border: 'none', padding: 0, fontSize: 12, fontWeight: 700, color: '#c2410c', cursor: 'pointer' }}>× Limpar</button>
-              </span>
+            {/* AGRUPAR POR TIPO OU POR STATUS. Por tipo é como a produção lê;
+                por status é como se acha o que travou — com 40 peças em seis
+                tipos, procurar "o que está parado" exigia varrer as seções. */}
+            <div role="radiogroup" aria-label="Agrupar a lista por" style={{ display: 'inline-flex', backgroundColor: '#f3f4f3', borderRadius: 8, padding: 3, gap: 2 }}>
+              {([['tipo', 'Tipo'], ['status', 'Status']] as const).map(([valor, rotulo]) => {
+                const ativo = agrupar === valor;
+                return (
+                  <button
+                    key={valor}
+                    type="button"
+                    role="radio"
+                    aria-checked={ativo}
+                    data-testid={`toggle-agrupar-${valor}`}
+                    onClick={() => setAgrupar(valor)}
+                    style={{ height: isMobile ? 38 : 28, padding: '0 14px', borderRadius: 6, border: 'none', fontSize: 12, fontWeight: 700, color: ativo ? '#1c1917' : '#57534e', backgroundColor: ativo ? '#ffffff' : 'transparent', boxShadow: ativo ? '0 1px 3px rgba(0,0,0,0.10)' : 'none', cursor: 'pointer', fontFamily: 'inherit' }}
+                  >
+                    {rotulo}
+                  </button>
+                );
+              })}
+            </div>
+            <span style={{ fontSize: 12, color: '#746e69' }}>
+              {agrupar === 'tipo' ? 'por grupo pai e tipo de peça, como a produção lê' : 'pela etapa em que cada peça está — para achar o que travou'}
+            </span>
+            {(itemSearchLower || statusFilter.length > 0 || marcoFiltro !== null) && (
+              <button
+                type="button"
+                onClick={() => { setItemSearch(""); setStatusFilter([]); setMarcoFiltro(null); }}
+                data-testid="button-limpar-filtros-pecas"
+                style={{ marginLeft: 'auto', background: 'none', border: 'none', padding: 0, fontSize: 12, fontWeight: 700, color: '#c2410c', cursor: 'pointer' }}
+              >
+                Limpar filtros ({searchedItems.length} de {mainItems.length})
+              </button>
             )}
           </div>
 
           {searchedItems.length === 0 && (
             <div style={{ backgroundColor: '#ffffff', border: '1px solid #e7e5e4', borderRadius: 12, padding: '40px 24px', textAlign: 'center' }}>
               <p style={{ color: '#1c1917', fontSize: 14, fontWeight: 700, margin: '0 0 4px' }}>
-                {statusFilter.length > 0 ? 'Nenhuma peça corresponde aos filtros' : 'Nenhuma peça corresponde à busca'}
+                {statusFilter.length > 0 || marcoFiltro !== null ? 'Nenhuma peça corresponde aos filtros' : 'Nenhuma peça corresponde à busca'}
               </p>
               <p style={{ color: '#746e69', fontSize: 13, margin: 0 }}>
-                {statusFilter.length > 0 ? 'Tente outro termo, ou limpe a busca ou o filtro de status.' : 'Tente outro termo ou limpe a busca.'}
+                {statusFilter.length > 0 || marcoFiltro !== null ? 'Tente outro termo, ou limpe a busca, o filtro de status ou o marco.' : 'Tente outro termo ou limpe a busca.'}
               </p>
             </div>
           )}
 
-          {sortedGroups.map(group => (
-            <Fragment key={group || '__nogroup'}>
-              {/* ── Grupo Pai header ── */}
-              {group && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px', marginTop: '8px' }}>
-                  <span style={{
-                    backgroundColor: '#dbeafe', color: '#1d4ed8',
-                    fontSize: '11px', fontWeight: '900', letterSpacing: '0.12em',
-                    textTransform: 'uppercase', padding: '4px 14px', borderRadius: '999px',
-                    fontFamily: "'Space Grotesk', sans-serif", whiteSpace: 'nowrap',
-                  }}>
-                    {group}
-                  </span>
-                  <div style={{ flex: 1, height: '1px', backgroundColor: '#bfdbfe' }} />
-                </div>
-              )}
-
-              {Object.entries(groupMap[group]).map(([type, typeItems]) => (
-              <section key={type} style={{ marginBottom: group ? '32px' : '48px' }}>
-                {/* Cabeçalho do tipo */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
-                  <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: group ? '16px' : '22px', fontWeight: '700', letterSpacing: '-0.03em', color: '#1a1c1c', margin: 0, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
-                    {type}
-                  </h2>
-                  <div style={{ flex: 1, height: '2px', backgroundColor: '#f0efee' }} />
-                  <span style={{ backgroundColor: '#f3f4f3', color: '#746e69', fontSize: '10px', fontWeight: '700', padding: '4px 12px', borderRadius: '999px', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
-                    {typeItems.length} {typeItems.length === 1 ? 'ITEM' : 'ITENS'}
-                  </span>
-                </div>
-
+          {/* A LINHA É A MESMA NOS DOIS MODOS: o bloco da tabela (cabeçalho,
+              linhas, cartões do celular) é UMA função, chamada pela montagem
+              por tipo e pela montagem por status — senão as colunas divergem
+              no primeiro ajuste que só uma delas recebe. */}
+          {(() => {
+            const renderTabelaDeItens = (typeItems: typeof visibleEventItems) => (
+              <>
                 {/* Tabela do grupo */}
                 <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', overflow: 'hidden' }}>
                   {isMobile ? (
@@ -2615,19 +2797,23 @@ export default function EventDetail() {
                   // linha da Descrição (11→9 colunas), o que baixou o minWidth
                   // de 1120 para 840.
                   <div style={{ overflowX: 'auto' }}>
-                  <table style={{ width: '100%', minWidth: 840, borderCollapse: 'collapse', textAlign: 'left', tableLayout: 'fixed' }}>
+                  {/* PORCENTAGENS SOMANDO 100. Com `table-layout: fixed`, uma
+                      coluna `auto` ao lado de oito em px resolve para ZERO —
+                      a Descrição sumia em telas estreitas. Status leva 19%
+                      para a pílula caber numa linha. */}
+                  <table style={{ width: '100%', minWidth: 960, borderCollapse: 'collapse', textAlign: 'left', tableLayout: 'fixed' }}>
                     <thead>
                       <tr>
                         {([
-                          ['ID', 76],
-                          ['Referência', 96],
-                          ['Descrição', undefined],
-                          ['Qtd', 52],
-                          ['Dimensões (V / A)', 168],
-                          ['M²', 64],
-                          ['Patrocinador', 130],
-                          ['Status', 150],
-                          ['Ações', 110],
+                          ['ID', '7%'],
+                          ['Referência', '8%'],
+                          ['Descrição', '19%'],
+                          ['Qtd', '5%'],
+                          ['Dimensões (V / A)', '13%'],
+                          ['M²', '7%'],
+                          ['Patrocinador', '11%'],
+                          ['Status', '19%'],
+                          ['Ações', '11%'],
                         ] as const).map(([col, width]) => (
                           <th
                             key={col}
@@ -2836,7 +3022,7 @@ export default function EventDetail() {
                               não há hover), mas SÓ para quem edita a lista: o
                               mesmo gate canEditLists do mobile. Antes o desktop
                               não tinha gate nenhum. */}
-                          <td style={{ padding: '14px 14px', width: 110 }}>
+                          <td style={{ padding: '14px 14px' }}>
                             {canEditLists && (
                             <div style={{ display: 'flex', gap: '4px', justifyContent: 'flex-end', alignItems: 'center' }}>
                               {/* Aumentar quantidade — só depois que a peça entrou
@@ -2928,10 +3114,66 @@ export default function EventDetail() {
                   </div>
                   )}
                 </div>
+              </>
+            );
+
+            if (agrupar === 'status') {
+              return secoesPorStatus.map(([status, lista]) => {
+                const m = getStatusMeta(status);
+                return (
+                  <section key={status} style={{ marginBottom: '40px' }} data-testid={`secao-status-${status}`}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+                      <h2 style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: "'Space Grotesk', sans-serif", fontSize: '18px', fontWeight: '700', letterSpacing: '-0.02em', color: '#1a1c1c', margin: 0, whiteSpace: 'nowrap' }}>
+                        <span aria-hidden="true" style={{ width: 9, height: 9, borderRadius: '50%', backgroundColor: m.dot, flexShrink: 0 }} />
+                        {m.label}
+                      </h2>
+                      <div style={{ flex: 1, height: '2px', backgroundColor: '#f0efee' }} />
+                      <span style={{ backgroundColor: '#f3f4f3', color: '#746e69', fontSize: '10px', fontWeight: '700', padding: '4px 12px', borderRadius: '999px', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+                        {lista.length} {lista.length === 1 ? 'ITEM' : 'ITENS'}
+                      </span>
+                    </div>
+                    {renderTabelaDeItens(lista)}
+                  </section>
+                );
+              });
+            }
+
+            return sortedGroups.map(group => (
+            <Fragment key={group || '__nogroup'}>
+              {/* ── Grupo Pai header ── */}
+              {group && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px', marginTop: '8px' }}>
+                  <span style={{
+                    backgroundColor: '#dbeafe', color: '#1d4ed8',
+                    fontSize: '11px', fontWeight: '900', letterSpacing: '0.12em',
+                    textTransform: 'uppercase', padding: '4px 14px', borderRadius: '999px',
+                    fontFamily: "'Space Grotesk', sans-serif", whiteSpace: 'nowrap',
+                  }}>
+                    {group}
+                  </span>
+                  <div style={{ flex: 1, height: '1px', backgroundColor: '#bfdbfe' }} />
+                </div>
+              )}
+
+              {Object.entries(groupMap[group]).map(([type, typeItems]) => (
+              <section key={type} style={{ marginBottom: group ? '32px' : '48px' }}>
+                {/* Cabeçalho do tipo */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px' }}>
+                  <h2 style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: group ? '16px' : '22px', fontWeight: '700', letterSpacing: '-0.03em', color: '#1a1c1c', margin: 0, textTransform: 'uppercase', whiteSpace: 'nowrap' }}>
+                    {type}
+                  </h2>
+                  <div style={{ flex: 1, height: '2px', backgroundColor: '#f0efee' }} />
+                  <span style={{ backgroundColor: '#f3f4f3', color: '#746e69', fontSize: '10px', fontWeight: '700', padding: '4px 12px', borderRadius: '999px', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>
+                    {typeItems.length} {typeItems.length === 1 ? 'ITEM' : 'ITENS'}
+                  </span>
+                </div>
+
+                {renderTabelaDeItens(typeItems)}
               </section>
             ))}
             </Fragment>
-          ))}
+          ));
+          })()}
           {hiddenItemCount > 0 && (
             <button
               onClick={() => setShowAllItems(true)}

@@ -41,6 +41,7 @@ import {
   PRIORITY, getPriorityMeta, getStatusMeta, PRODUCTION_STATUSES,
   motivoEventoFinalizado, todayBusinessMs,
 } from "@/lib/status";
+import { PHASES, contarPorFaseDoEvento as contarPorFase } from "@/lib/fases";
 import { T, FS, R, SHADOW } from "@/lib/theme";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import {
@@ -293,27 +294,9 @@ function getPriorityConfig(priority: string | null | undefined): { label: string
 }
 
 // ── Barra de progresso segmentada por FASE ───────────────────────────────────
-// Deriva de PRODUCTION_STATUSES (lib/status) para não inventar vocabulário: a
-// barra antiga só enxergava `delivered`, então um evento com tudo produzido e
-// conferido aparecia com 0% — visualmente idêntico a um evento travado.
-const PHASE_ALIASES: Record<string, string[]> = {
-  inProduction: ['inProduction', 'em_producao'],
-  produced:     ['produced', 'produzido'],
-  conferred:    ['conferred'],
-  delivered:    ['delivered', 'entregue'],
-};
-const PHASE_NOUN: Record<string, string> = {
-  inProduction: 'em produção',
-  produced:     'produzidas',
-  conferred:    'conferidas',
-  delivered:    'entregues',
-};
-const PHASES = PRODUCTION_STATUSES.map((key) => ({
-  key,
-  color: getStatusMeta(key).dot,
-  statuses: PHASE_ALIASES[key],
-  noun: PHASE_NOUN[key],
-}));
+// PHASES e a contagem moram em lib/fases.ts: o Detalhe do Evento desenha a
+// MESMA barra, e duas implementações da mesma conta divergem no primeiro
+// ajuste que só uma recebe. Ver o comentário de lá.
 
 const MONTH_NAMES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
@@ -393,21 +376,7 @@ const MILESTONE_TONE = {
 const LARGURA_ACOES = 5 * 32 + 4 * 6 + 10;
 const GRADE_LISTA = `4px 1fr 132px 190px 108px 92px ${LARGURA_ACOES}px`;
 
-/**
- * Peças por fase, na ordem de PHASES. Era um derivado local do cartão; virou
- * função de módulo quando a lista passou a desenhar a mesma barra — duas
- * implementações da mesma contagem divergem no primeiro ajuste que só uma
- * delas recebe.
- */
-function contarPorFase(event: any): number[] {
-  const counts = new Array(PHASES.length).fill(0) as number[];
-  const items: any[] = Array.isArray(event.items) ? event.items : [];
-  for (const it of items) {
-    const idx = PHASES.findIndex((p) => p.statuses.includes(it.status));
-    if (idx >= 0) counts[idx] += 1;
-  }
-  return counts;
-}
+// contarPorFase: ver lib/fases.ts (importado acima como contarPorFaseDoEvento).
 
 /** Rótulo de coluna. #7a6154 sobre #fafaf9 dá 5,49. */
 const TH_LISTA: React.CSSProperties = {

@@ -281,9 +281,12 @@ describe("o modo lista", () => {
 
   it("desenha a MESMA barra segmentada por fase do cartão", () => {
     // A barra antiga media só `delivered` e mostrava 0% num evento todo
-    // conferido. E a contagem virou função de módulo — duas implementações da
-    // mesma conta divergem no primeiro ajuste.
-    expect(tela).toContain("function contarPorFase(event: any): number[]");
+    // conferido. A contagem virou função de módulo, e depois foi para
+    // lib/fases.ts quando o Detalhe do Evento passou a desenhar a MESMA
+    // barra — três telas, uma conta. Aqui ela entra por import, e o nome
+    // local continua `contarPorFase` para o cartão e a linha lerem igual.
+    expect(tela).toContain('import { PHASES, contarPorFaseDoEvento as contarPorFase } from "@/lib/fases";');
+    expect(tela).not.toContain("function contarPorFase(event: any): number[]");
     const usos = tela.split("contarPorFase(event)").length - 1;
     expect(usos).toBe(2); // o cartão e a linha
   });

@@ -6,7 +6,7 @@ import {
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, Link2, FileText,
   RefreshCw, RotateCcw, Download, X, Copy, Check, Trash2, Undo2, Pencil,
   ShieldAlert, Flag, CalendarClock, CopyPlus, ArrowUpToLine, Lock,
-  Users, SlidersHorizontal, ChevronDown,
+  Users, SlidersHorizontal, ChevronDown, Route,
 } from "lucide-react";
 import { useLocation } from "wouter";
 import { format, formatDistanceToNow, subDays, startOfDay, isToday, isYesterday } from "date-fns";
@@ -174,6 +174,28 @@ function cutoff(p: string): Date | null {
 }
 
 const PAGE_SIZES = [25, 50, 100];
+
+/**
+ * DURAÇÃO COMO A PESSOA LÊ: minutos abaixo de 1h, horas abaixo de 24h, depois
+ * dias com as horas restantes — nunca minutos crus. "+1.240min" obriga a
+ * dividir de cabeça; "+20h" não.
+ */
+function fmtDuracao(ms: number): string {
+  const min = Math.round(ms / 60000);
+  if (min < 60) return `${Math.max(0, min)}min`;
+  const h = Math.floor(min / 60);
+  if (h < 24) return `${h}h`;
+  const d = Math.floor(h / 24);
+  const hr = h % 24;
+  return hr > 0 ? `${d}d ${hr}h` : `${d}d`;
+}
+
+/** Tom do intervalo: até 24h é rotina; acima, o gargalo começa a aparecer. */
+function tomDoIntervalo(ms: number): string {
+  const h = ms / 3600000;
+  // #746e69 sobre branco 4,74:1 e sobre #f9f9f8 4,58:1; #b45309 6,0:1; #b91c1c 6,5:1.
+  return h > 48 ? "#b91c1c" : h > 24 ? "#b45309" : "#746e69";
+}
 
 /* ── Completar a trilha ─────────────────────────────────────────────────────
    A tela recebia os 500 registros mais recentes do sistema INTEIRO e montava o
@@ -642,6 +664,17 @@ export default function Historico() {
     return Number.isFinite(n) && n >= 1 ? n : 1;
   });
 
+  /* ── MODO TRILHA: só os registros de UMA peça, em ordem de fluxo ──
+     A pergunta mais frequente de uma auditoria é sobre uma peça, e não havia
+     filtro de peça: sobrava a busca em texto livre, com os registros dela
+     espalhados por dias e páginas. Na URL vai o CÓDIGO (?peca=0041 — é o que
+     se cola num chat); no dado o recorte é por itemId, para a trilha não
+     quebrar se o display mudar. O itemId é resolvido a partir do código na
+     primeira linha carregada que o tenha. */
+  const [trilha, setTrilha] = useState<{ itemId: string | null; display: string } | null>(() => {
+    const v = urlParams.get("peca")?.trim();
+    return v ? { itemId: null, display: v.startsWith("#") ? v : `#${v}` } : null;
+  });
   const [detail, setDetail] = useState<TimelineEvent | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   // Gaveta de filtros do celular. Fechada por padrão: em 375px, quatro caixas
@@ -875,7 +908,23 @@ export default function Historico() {
   }, []);
 
   /* ── Filtros — memoizados à parte: mudar filtro não reconstrói a timeline ── */
+  // Resolve o itemId da trilha aberta por link (só o código veio na URL).
+  const trilhaItemId = useMemo(() => {
+    if (!trilha) return null;
+    if (trilha.itemId) return trilha.itemId;
+    return displayed.find(e => e.itemDisplayId === trilha.display && e.itemId)?.itemId ?? null;
+  }, [trilha, displayed]);
+
   const filtered = useMemo(() => {
+    // A TRILHA ignora os outros recortes de propósito: "trilha completa" com
+    // um período de 7 dias aplicado por cima seria uma trilha com buracos —
+    // e a pessoa não saberia que são buracos. Ordem de FLUXO (mais antigo
+    // primeiro): é a leitura de "por onde a peça passou"; de trás para
+    // frente inverteria a história.
+    if (trilha) {
+      if (!trilhaItemId) return [];
+      return displayed.filter(e => e.itemId === trilhaItemId).slice().reverse();
+    }
     let list = displayed;
     const cut = cutoff(period);
     if (cut) list = list.filter(e => e.timestamp >= cut);
@@ -892,7 +941,7 @@ export default function Historico() {
       list = list.filter(e => e.searchBlob.includes(q));
     }
     return list;
-  }, [displayed, period, eventFilter, actionFilter, authorFilter, searchFilter]);
+  }, [displayed, period, eventFilter, actionFilter, authorFilter, searchFilter, trilha, trilhaItemId]);
 
   // Dois contadores, de propósito. `recorteCount` conta só as quatro dimensões
   // que vivem nos dropdowns — é o número do botão "Filtros" do celular, que
@@ -904,11 +953,51 @@ export default function Historico() {
     (actionFilter.length > 0 ? 1 : 0) +
     (authorFilter.length > 0 ? 1 : 0) +
     (period !== "all" ? 1 : 0);
-  const activeFilterCount = recorteCount + (searchFilter.trim() ? 1 : 0);
+  const activeFilterCount = recorteCount + (searchFilter.trim() ? 1 : 0) + (trilha ? 1 : 0);
   const hasActiveFilters = activeFilterCount > 0;
   const clearFilters = () => {
     setEventFilter([]); setActionFilter([]); setAuthorFilter([]);
-    setPeriod("all"); setSearchFilter(""); setPage(1);
+    setPeriod("all"); setSearchFilter(""); setTrilha(null); setPage(1);
+  };
+
+  /* ── O TEMPO ENTRE PASSOS ──
+     Numa trilha o que informa é o INTERVALO, não o instante. "Aprovado 14:32 →
+     arquivo final 11:05 do dia seguinte" são 20h de espera, e a tela mostrava
+     os dois horários e nunca a distância — que é onde o gargalo aparece.
+     `filtered` está em ordem de fluxo no modo trilha, então o passo anterior
+     é o índice anterior. O primeiro passo não tem intervalo. */
+  const intervalos = useMemo(() => {
+    const m = new Map<string, number>();
+    if (!trilha) return m;
+    for (let i = 1; i < filtered.length; i++) {
+      m.set(filtered[i].id, filtered[i].timestamp.getTime() - filtered[i - 1].timestamp.getTime());
+    }
+    return m;
+  }, [filtered, trilha]);
+
+  const resumoTrilha = useMemo(() => {
+    if (!trilha) return null;
+    const n = filtered.length;
+    const partes = [`${n} ${n === 1 ? "registro" : "registros"}`];
+    const criacao = filtered.find(e => e.type === "item_created");
+    const liberacao = filtered.find(e => e.type === "item_released");
+    const entrega = filtered.find(e => e.type === "item_delivered");
+    if (criacao && liberacao && liberacao.timestamp > criacao.timestamp) {
+      partes.push(`da criação à liberação em ${fmtDuracao(liberacao.timestamp.getTime() - criacao.timestamp.getTime())}`);
+    } else if (criacao && entrega && entrega.timestamp > criacao.timestamp) {
+      partes.push(`da criação à entrega em ${fmtDuracao(entrega.timestamp.getTime() - criacao.timestamp.getTime())}`);
+    }
+    let maior = 0;
+    intervalos.forEach(v => { if (v > maior) maior = v; });
+    if (maior > 0) partes.push(`maior espera: ${fmtDuracao(maior)}`);
+    return partes.join(" · ");
+  }, [trilha, filtered, intervalos]);
+
+  const abrirTrilha = (e: TimelineEvent) => {
+    if (!e.itemId || !e.itemDisplayId) return;
+    setTrilha({ itemId: e.itemId, display: e.itemDisplayId });
+    setPage(1);
+    scrollRef.current?.scrollTo({ top: 0 });
   };
 
   /* ── Opções de filtro derivadas dos DADOS (com contagem) ──
@@ -1039,11 +1128,13 @@ export default function Historico() {
       if (period !== "all") p.set("periodo", period);
       if (pageSize !== 25) p.set("tam", String(pageSize));
       if (safePage > 1) p.set("pagina", String(safePage));
+      // A trilha de uma peça é exatamente o tipo de link que se cola num chat.
+      if (trilha) p.set("peca", trilha.display.replace(/^#/, ""));
       const qs = p.toString();
       window.history.replaceState(null, "", (qs ? `?${qs}` : window.location.pathname) + window.location.hash);
     }, 250);
     return () => window.clearTimeout(t);
-  }, [searchFilter, actionFilter, eventFilter, authorFilter, period, pageSize, safePage, isLoading]);
+  }, [searchFilter, actionFilter, eventFilter, authorFilter, period, pageSize, safePage, isLoading, trilha]);
 
   const handleFilterChange = (setter: (v: string[]) => void) => (v: string[]) => {
     setter(v);
@@ -1119,17 +1210,18 @@ export default function Historico() {
   const grupos = useMemo(() => {
     // `offset` mantém o data-testid `timeline-event-N` contínuo na página
     // inteira — reiniciar a contagem a cada dia criaria ids repetidos.
-    const out: { chave: string; rotulo: string; offset: number; itens: TimelineEvent[] }[] = [];
+    const out: { chave: string; rotulo: string; offset: number; itens: TimelineEvent[]; excecoes: number }[] = [];
     pageItems.forEach((e, i) => {
       const chave = format(e.timestamp, "yyyy-MM-dd");
       const ultimo = out[out.length - 1];
-      if (ultimo && ultimo.chave === chave) { ultimo.itens.push(e); return; }
+      const excecao = EXCECAO_TYPES.includes(e.type) ? 1 : 0;
+      if (ultimo && ultimo.chave === chave) { ultimo.itens.push(e); ultimo.excecoes += excecao; return; }
       const rotulo = isToday(e.timestamp)
         ? "Hoje"
         : isYesterday(e.timestamp)
           ? "Ontem"
           : format(e.timestamp, "d 'de' MMMM 'de' yyyy", { locale: ptBR });
-      out.push({ chave, rotulo, offset: i, itens: [e] });
+      out.push({ chave, rotulo, offset: i, itens: [e], excecoes: excecao });
     });
     return out;
   }, [pageItems]);
@@ -1360,7 +1452,16 @@ export default function Historico() {
         data-testid="text-resumo-filtros"
         style={{ fontSize: 12, color: P.second, fontWeight: 600, whiteSpace: "nowrap" }}
       >
-        {hasActiveFilters ? (
+        {trilha ? (
+          <>
+            {"trilha de "}
+            <strong style={{ color: "#c2410c", fontFamily: "'DM Mono', monospace" }}>{trilha.display}</strong>
+            {" · "}
+            <strong style={{ color: P.text, fontFamily: "'DM Mono', monospace" }}>{filtered.length}</strong>
+            {" de "}
+            <span style={{ fontFamily: "'DM Mono', monospace" }}>{displayed.length}</span>
+          </>
+        ) : hasActiveFilters ? (
           <>
             {activeFilterCount} filtro{activeFilterCount === 1 ? "" : "s"} ativo{activeFilterCount === 1 ? "" : "s"}
             {" · "}
@@ -1578,6 +1679,44 @@ export default function Historico() {
             )}
           </div>
 
+          {/* ── A FAIXA DA TRILHA ── Dentro do sticky, para o ResizeObserver
+              medir a altura dela junto e os separadores de dia pararem abaixo. */}
+          {trilha && (
+            <div
+              data-testid="faixa-trilha"
+              role="status"
+              style={{
+                display: "flex", flexDirection: isMobile ? "column" : "row",
+                alignItems: isMobile ? "stretch" : "center", gap: isMobile ? 10 : 14,
+                padding: isMobile ? "10px 14px" : "10px 24px",
+                backgroundColor: "#fff7ed", borderBottom: "1px solid #fed7aa",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0, flex: 1 }}>
+                <Route aria-hidden="true" style={{ width: 15, height: 15, color: "#c2410c", flexShrink: 0 }} />
+                <span style={{ fontSize: 10, fontWeight: 900, color: "#9a3412", textTransform: "uppercase", letterSpacing: "0.12em", whiteSpace: "nowrap" }}>Trilha da peça</span>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 13, fontWeight: 700, color: "#c2410c", whiteSpace: "nowrap" }}>{trilha.display}</span>
+                {/* #9a3412 sobre #fff7ed = 6,1:1. */}
+                <span style={{ fontSize: 12, color: "#9a3412", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: isMobile ? "normal" : "nowrap" }}>
+                  {trilhaItemId ? resumoTrilha : (isLoading ? "carregando…" : `nenhum registro carregado para ${trilha.display}`)}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setTrilha(null); setPage(1); }}
+                data-testid="button-sair-trilha"
+                style={{
+                  height: isMobile ? 40 : 30, padding: "0 12px", borderRadius: 7,
+                  border: "1px solid #fed7aa", backgroundColor: "#ffffff", color: "#9a3412",
+                  fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em",
+                  cursor: "pointer", whiteSpace: "nowrap", flexShrink: 0,
+                }}
+              >
+                Sair da trilha
+              </button>
+            </div>
+          )}
+
           {/* Table header — no celular/tablet as linhas viram cards empilhados,
               então o cabeçalho de colunas deixa de fazer sentido. */}
           {!isCompact && (
@@ -1675,6 +1814,15 @@ export default function Historico() {
                   <span style={{ fontWeight: 700, letterSpacing: "0.04em", marginLeft: 8, textTransform: "none" }}>
                     · {grupo.itens.length} registro{grupo.itens.length === 1 ? "" : "s"}
                   </span>
+                  {/* A FORMA DO DIA: varrer os separadores procurando o vermelho
+                      é a leitura que se quer numa trilha de auditoria, e ela não
+                      custa clique. Some no modo trilha: ali o dia tem um ou dois
+                      passos e o número não informa. */}
+                  {!trilha && grupo.excecoes > 0 && (
+                    <span data-testid={`text-excecoes-dia-${grupo.chave}`} style={{ fontWeight: 800, letterSpacing: "0.04em", marginLeft: 6, textTransform: "none", color: "#b91c1c" }}>
+                      · {grupo.excecoes} {grupo.excecoes === 1 ? "exceção" : "exceções"}
+                    </span>
+                  )}
                 </div>
 
                 {grupo.itens.map((entry, idx) => (
@@ -1687,6 +1835,8 @@ export default function Historico() {
                     onOpen={() => setDetail(entry)}
                     onCopy={copiar}
                     copied={copied}
+                    onTrilha={!trilha && entry.itemId && entry.itemDisplayId ? () => abrirTrilha(entry) : undefined}
+                    gapMs={trilha ? (intervalos.get(entry.id) ?? null) : null}
                   />
                 ))}
               </div>
@@ -1829,9 +1979,13 @@ function Sk({ w, h, r = 6 }: { w: number | string; h: number; r?: number }) {
 }
 
 /* ── Linha ── */
-function Row({ entry, idx, isCompact, nav, onOpen, onCopy, copied }: {
+function Row({ entry, idx, isCompact, nav, onOpen, onCopy, copied, onTrilha, gapMs }: {
   entry: TimelineEvent; idx: number; isCompact: boolean; nav: Nav;
   onOpen: () => void; onCopy: (t: string, k: string) => void; copied: string | null;
+  /** Abre a trilha desta peça — só em linha que TEM peça; registro de evento não tem trilha para seguir. */
+  onTrilha?: () => void;
+  /** No modo trilha: ms desde o passo anterior; null no primeiro passo. */
+  gapMs?: number | null;
 }) {
   const cfg = cfgFor(entry.type);
   const Icon = cfg.icon;
@@ -1880,6 +2034,24 @@ function Row({ entry, idx, isCompact, nav, onOpen, onCopy, copied }: {
     </button>
   );
 
+  // O botão da trilha: 28px na coluna de ações (44px no celular, na linha da
+  // pill). #c2410c sobre branco = 5,2:1.
+  const trilhaBtn = onTrilha ? (
+    <button
+      type="button"
+      onClick={e => { e.stopPropagation(); onTrilha(); }}
+      aria-label={`Ver a trilha completa de ${entry.itemDisplayId}`}
+      title={`Ver a trilha completa de ${entry.itemDisplayId}`}
+      data-testid={`button-trilha-${idx}`}
+      style={{
+        width: isCompact ? 44 : 28, height: isCompact ? 44 : 28, borderRadius: 6, border: "none", background: "none",
+        cursor: "pointer", color: "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0,
+      }}
+    >
+      <Route aria-hidden="true" style={{ width: 14, height: 14 }} />
+    </button>
+  ) : null;
+
   const copiarBtn = entry.itemDisplayId ? (
     <button
       type="button"
@@ -1911,13 +2083,13 @@ function Row({ entry, idx, isCompact, nav, onOpen, onCopy, copied }: {
       >
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
           {pill}
-          {detalhesBtn}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 2, flexShrink: 0 }}>{trilhaBtn}{detalhesBtn}</span>
         </div>
         <div style={{ fontSize: 13, color: P.second, lineHeight: 1.45 }}>
           {buildDescription(entry, nav)}{copiarBtn}
         </div>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-          <TimeCell ts={entry.timestamp} inline />
+          <TimeCell ts={entry.timestamp} inline gapMs={gapMs} gapTestId={`text-gap-${idx}`} />
           <UserAvatar name={entry.userName} source={entry.authorSource} />
         </div>
       </div>
@@ -1942,9 +2114,9 @@ function Row({ entry, idx, isCompact, nav, onOpen, onCopy, copied }: {
       <div style={{ fontSize: 13, color: P.second, lineHeight: 1.45, minWidth: 0 }}>
         {buildDescription(entry, nav)}{copiarBtn}
       </div>
-      <TimeCell ts={entry.timestamp} />
+      <TimeCell ts={entry.timestamp} gapMs={gapMs} gapTestId={`text-gap-${idx}`} />
       <div style={{ minWidth: 0 }}><UserAvatar name={entry.userName} source={entry.authorSource} /></div>
-      <div>{detalhesBtn}</div>
+      <div style={{ display: "flex", alignItems: "center", gap: 2 }}>{trilhaBtn}{detalhesBtn}</div>
     </div>
   );
 }
@@ -1953,15 +2125,26 @@ function Row({ entry, idx, isCompact, nav, onOpen, onCopy, copied }: {
    Sem segundos, duas ações do mesmo minuto não desempatavam — numa trilha de
    auditoria a ordem É a informação. E nas últimas 24h o que a pessoa quer saber
    é "há quanto tempo", não o horário absoluto. O ano vive no separador de dia. */
-function TimeCell({ ts, inline = false }: { ts: Date; inline?: boolean }) {
+function TimeCell({ ts, inline = false, gapMs = null, gapTestId }: { ts: Date; inline?: boolean; gapMs?: number | null; gapTestId?: string }) {
   const recente = Date.now() - ts.getTime() < 24 * 60 * 60 * 1000;
   const completo = format(ts, "dd/MM/yyyy HH:mm:ss", { locale: ptBR });
   return (
-    <div title={completo} style={inline ? { display: "flex", alignItems: "center", gap: 8 } : undefined}>
+    <div title={completo} style={inline ? { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" } : undefined}>
       <div style={{ fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 600, color: P.text }}>
         {format(ts, "HH:mm:ss", { locale: ptBR })}
       </div>
-      {recente && (
+      {/* O INTERVALO desde o passo anterior (só no modo trilha). A unidade é a
+          que a pessoa lê; o tom diz se é rotina ou espera. */}
+      {gapMs !== null && gapMs !== undefined && (
+        <div
+          data-testid={gapTestId}
+          title={`A peça esperou ${fmtDuracao(gapMs)} entre o passo anterior e este`}
+          style={{ fontFamily: "'DM Mono', monospace", fontSize: 10, fontWeight: 700, color: tomDoIntervalo(gapMs), marginTop: inline ? 0 : 2 }}
+        >
+          +{fmtDuracao(gapMs)}
+        </div>
+      )}
+      {recente && gapMs === null && (
         <div style={{ fontSize: 10, color: P.label, marginTop: inline ? 0 : 2 }}>
           {formatDistanceToNow(ts, { locale: ptBR, addSuffix: true })}
         </div>

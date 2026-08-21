@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
+import { TextoComLinks } from "@/components/texto-com-links";
 import { SponsorChips } from "@/components/sponsor-chips";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -3290,7 +3291,7 @@ export default function Arte() {
                             {/* Sem itálico: as aspas já marcam a citação, e
                                 itálico em 12px pesa a leitura do texto que a
                                 pessoa veio ler. */}
-                            <p style={{ fontSize: 12, color: '#44403c', margin: 0, lineHeight: 1.5 }}>"{approval.rejectionReason}"</p>
+                            <p style={{ fontSize: 12, color: '#44403c', margin: 0, lineHeight: 1.5 }}>"<TextoComLinks texto={approval.rejectionReason} />"</p>
                           </div>
                         )}
                       </div>
@@ -4201,7 +4202,7 @@ export default function Arte() {
                           inclinado sobre rosa. As aspas já marcam a citação. */}
                       <div style={{ backgroundColor: '#ffffff', padding: '10px 14px 8px' }}>
                         <p style={{ fontSize: 12, color: '#44403c', margin: 0, lineHeight: 1.55 }}>
-                          {approval.rejectionReason ? `"${approval.rejectionReason}"` : <span style={{ color: '#78716c' }}>Sem motivo informado.</span>}
+                          {approval.rejectionReason ? <>"<TextoComLinks texto={approval.rejectionReason} />"</> : <span style={{ color: '#78716c' }}>Sem motivo informado.</span>}
                         </p>
                         {(approval.rejectedBy || approval.rejectedAt) && (
                           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 6 }}>

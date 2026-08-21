@@ -281,10 +281,19 @@ app.use((req, res, next) => {
   next();
 });
 
+async function runStartupMaintenance() {
+  try {
+    await seedUsers();
+    await fixSsoMustChangePassword();
+    await fixStandardItemsMissingMaterial();
+  } catch (error) {
+    // Essas rotinas são correções idempotentes de dados existentes. Não devem
+    // impedir que o servidor responda ao health check caso o banco demore.
+    console.error("[startup-maintenance] failed", error);
+  }
+}
+
 (async () => {
-  await seedUsers();
-  await fixSsoMustChangePassword();
-  await fixStandardItemsMissingMaterial();
   const server = await registerRoutes(app);
 
   app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
@@ -326,5 +335,9 @@ app.use((req, res, next) => {
     reusePort: true,
   }, () => {
     log(`serving on port ${port}`);
+     // O Autoscale exige que GET / responda logo após o processo iniciar.
+     // Executar a manutenção depois do listen evita que consultas idempotentes
+     // ao banco atrasem a prontidão do serviço.
+     void runStartupMaintenance();
   });
 })();

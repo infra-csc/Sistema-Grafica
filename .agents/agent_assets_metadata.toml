@@ -6,3 +6,10 @@ id = "ThYApeMml8b-XcAmL5AFy"
 uri = "file://attached_assets/image_1780497223496.png"
 type = "image"
 title = "Logo NORTE"
+
+[[outputs]]
+id = "u8V6BKjp9xv7g6sPRYEH8"
+uri = "file://artifacts/email-preview/current-book-email.html"
+type = "text"
+title = "Prévia do e-mail atual de book"
+description = "Layout atualmente enviado pelo Resend. Nenhum e-mail novo foi disparado; esta é apenas uma prévia visual."

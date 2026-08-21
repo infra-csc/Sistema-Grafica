@@ -1576,18 +1576,38 @@ export class DatabaseStorage implements IStorage {
    * Quantos eventos e peças cada patrocinador tem. Duas queries agregadas —
    * evita carregar os vínculos todos só para contar.
    */
-  async getSponsorUsage(): Promise<Record<string, { events: number; items: number }>> {
-    const [evRows, itRows] = await Promise.all([
+  async getSponsorUsage(): Promise<Record<string, { events: number; items: number; pendencias: number; mediaDias: number | null }>> {
+    // A RESPOSTA DO PATROCINADOR, no mesmo agregado — não em N requisições.
+    //   pendencias → aprovações ainda sem decisão (pending, new_version_pending)
+    //   mediaDias  → média, em dias, entre o envio (created_at da aprovação) e
+    //                a decisão (approved_at ou rejected_at), só nas já
+    //                resolvidas. NULL quando nunca houve decisão: zero leria
+    //                como "responde na hora", que é o oposto.
+    const [evRows, itRows, pendRows, respRows] = await Promise.all([
       db.select({ sponsorId: eventSponsors.sponsorId, n: sql<number>`count(*)::int` })
         .from(eventSponsors).groupBy(eventSponsors.sponsorId),
       db.select({ sponsorId: itemSponsors.sponsorId, n: sql<number>`count(*)::int` })
         .from(itemSponsors).groupBy(itemSponsors.sponsorId),
+      db.select({ sponsorId: itemSponsorApprovals.sponsorId, n: sql<number>`count(*)::int` })
+        .from(itemSponsorApprovals)
+        .where(sql`${itemSponsorApprovals.status} in ('pending', 'new_version_pending')`)
+        .groupBy(itemSponsorApprovals.sponsorId),
+      db.select({
+        sponsorId: itemSponsorApprovals.sponsorId,
+        media: sql<number>`avg(extract(epoch from (coalesce(${itemSponsorApprovals.approvedAt}, ${itemSponsorApprovals.rejectedAt}) - ${itemSponsorApprovals.createdAt})) / 86400.0)`,
+      })
+        .from(itemSponsorApprovals)
+        .where(sql`coalesce(${itemSponsorApprovals.approvedAt}, ${itemSponsorApprovals.rejectedAt}) is not null`)
+        .groupBy(itemSponsorApprovals.sponsorId),
     ]);
-    const out: Record<string, { events: number; items: number }> = {};
-    for (const r of evRows) out[r.sponsorId] = { events: Number(r.n) || 0, items: 0 };
-    for (const r of itRows) {
-      if (!out[r.sponsorId]) out[r.sponsorId] = { events: 0, items: 0 };
-      out[r.sponsorId].items = Number(r.n) || 0;
+    const out: Record<string, { events: number; items: number; pendencias: number; mediaDias: number | null }> = {};
+    const novo = () => ({ events: 0, items: 0, pendencias: 0, mediaDias: null as number | null });
+    for (const r of evRows) { (out[r.sponsorId] ??= novo()).events = Number(r.n) || 0; }
+    for (const r of itRows) { (out[r.sponsorId] ??= novo()).items = Number(r.n) || 0; }
+    for (const r of pendRows) { (out[r.sponsorId] ??= novo()).pendencias = Number(r.n) || 0; }
+    for (const r of respRows) {
+      const m = Number(r.media);
+      (out[r.sponsorId] ??= novo()).mediaDias = Number.isFinite(m) ? Math.max(0, Math.round(m)) : null;
     }
     return out;
   }

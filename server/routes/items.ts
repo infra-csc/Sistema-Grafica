@@ -25,6 +25,7 @@ import {
 import { runInventoryCron } from "../services/inventoryLifecycle";
 import { handlePreviewXlsx, handleConfirmImport } from "../services/xlsxImport";
 import { handleExportItemsXlsx, handleExportSelectedItemsXlsx } from "../services/xlsxExport";
+import { notifyBookSaved } from "../services/bookEmailNotification";
 
 // ─── MOTIVO das devoluções ──────────────────────────────────────────────────
 //
@@ -4029,7 +4030,8 @@ export function registerItemRoutes(app: Express): void {
       // aprovação. E a rota LIMPA o bookUrl de todas as peças do evento antes
       // de gravar, então em evento finalizado ela também apagaria o book
       // arquivado. Na dúvida entre "arquivo" e "trabalho", barra.
-      const fechadoBook = motivoEventoFechado(await storage.getEvent(req.params.eventId));
+      const event = await storage.getEvent(req.params.eventId);
+      const fechadoBook = motivoEventoFechado(event);
       if (fechadoBook) {
         return res.status(409).json({
           error: erroEventoFechado(fechadoBook), code: "EVENT_FINALIZED", reason: fechadoBook,
@@ -4040,13 +4042,33 @@ export function registerItemRoutes(app: Express): void {
       // evitando que a exportação abra a versão antiga do book.
       await storage.clearEventBookUrl(req.params.eventId);
       const count = await storage.setItemsBookUrl(itemIds, bookUrl || null);
-      await createAuditLog(
-        req,
-        'updated',
-        'event',
-        req.params.eventId,
-        bookUrl ? `Book de aprovação vinculado a ${count} peça(s)` : `Book removido de ${count} peça(s)`
-      );
+      if (bookUrl) {
+        // A notificação acontece só depois de o book estar persistido. Ela não
+        // participa da resposta nem pode fazer a Arte perder um book já salvo.
+        void notifyBookSaved({
+          eventId: req.params.eventId,
+          eventName: event?.name ?? "Evento sem nome",
+          itemCount: count,
+          bookUrl,
+        });
+      }
+      // Uma falha de auditoria não deve fazer a tela afirmar que o book não
+      // foi salvo — a gravação acima já aconteceu. O erro continua visível nos
+      // logs para correção, mas não desfaz nem bloqueia o fluxo principal.
+      try {
+        await createAuditLog(
+          req,
+          'updated',
+          'event',
+          req.params.eventId,
+          bookUrl ? `Book de aprovação vinculado a ${count} peça(s)` : `Book removido de ${count} peça(s)`
+        );
+      } catch (error) {
+        console.error("[book] falha ao registrar auditoria", {
+          eventId: req.params.eventId,
+          reason: error instanceof Error ? error.message : "erro desconhecido",
+        });
+      }
       broadcast({ type: "items_book_updated", eventId: req.params.eventId, count });
       res.json({ updated: count });
     } catch (error: any) {

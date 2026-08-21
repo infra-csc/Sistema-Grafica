@@ -6,3 +6,4 @@
 - [Partial-publish branches](partial-publish-branches.md) — main = published base + book only; full features on `todas-mudancas-completas`; never push reverts to origin.
 - [Merge conflict resolution strategy](merge-conflict-strategy.md) — HEAD wins for: export route, awaiting_creator_review gates, draft+requested compat, 680px send-confirm dialog. REMOTE wins for: LINKING_STATUSES/DOWNSTREAM_STATUSES constants, "Solicitado" translation, awaiting_creator_review→awaiting_final_review bucket.
 - [DB Architecture](db-architecture.md) — server uses DATABASE_URL only; prod DB is separate and only reachable via Publish flow (not via shell ALTER TABLE).
+- [Resend sender setup](resend-sender-setup.md) — current Resend connector can send only; authenticate domains in its dashboard before enabling app notifications.

@@ -2243,13 +2243,20 @@ export function registerItemRoutes(app: Express): void {
     }
   });
 
-  // Admin reverts an individual sponsor approval back to "pending" — for when
-  // atendimento aprovou/reprovou o patrocinador errado por engano. Reabre o
-  // item para aprovação se ele já havia avançado por essa aprovação.
+  // REVOGAR uma aprovação (ou reverter uma reprovação) de UM patrocinador,
+  // de volta a "pending". Reabre o item para aprovação se ele já havia
+  // avançado por essa aprovação.
+  //
+  // Nasceu como correção de admin ("aprovou o patrocinador errado"). Pedido
+  // do dono (21/08/2026): o ATENDIMENTO também revoga — enquanto a peça está
+  // em aprovação ou na finalização da Arte (sponsor_approved). Depois disso
+  // (arquivo final, produção) continua sendo coisa de admin: revogar uma
+  // aprovação com a peça já na gráfica é desfazer trabalho, não decisão.
+  const STATUS_REVOGAVEL = ["awaiting_sponsor_approval", "sponsor_approved"];
   app.post("/api/items/:id/sponsor-approvals/:sponsorId/revert", requireAuth, async (req, res) => {
     try {
-      if (req.userRole !== "admin") {
-        return res.status(403).json({ error: "Apenas administradores podem reverter uma aprovação" });
+      if (req.userRole !== "admin" && req.userRole !== "atendimento") {
+        return res.status(403).json({ error: "Apenas Atendimento e administradores podem revogar uma aprovação" });
       }
 
       const { id: itemId, sponsorId } = req.params;
@@ -2267,6 +2274,13 @@ export function registerItemRoutes(app: Express): void {
       // Vale a regra do dono para os casos duvidosos: barra — o admin que
       // precisar mesmo corrigir reabre o evento, que é barato.
       if (await barraEventoFinalizado(currentItem, res)) return;
+
+      if (req.userRole !== "admin" && !STATUS_REVOGAVEL.includes(currentItem.status)) {
+        return res.status(409).json({
+          error: `Só dá para revogar enquanto a peça está em aprovação ou na finalização da Arte. Status atual: ${translateStatus(currentItem.status)}`,
+        });
+      }
+      const motivo = typeof req.body?.motivo === "string" ? req.body.motivo.trim().slice(0, 500) : "";
 
       const approval = await storage.getItemSponsorApproval(itemId, sponsorId);
       if (!approval) {
@@ -2306,11 +2320,22 @@ export function registerItemRoutes(app: Express): void {
         'updated',
         'item',
         itemId,
-        `Administrador reverteu a aprovação de "${sponsor?.name || sponsorId}" para pendente (estava: ${previousStatus})${item.status !== currentItem.status ? `. Item reaberto: ${translateStatus(currentItem.status)} → ${translateStatus(item.status)}` : ''}`
+        `${req.userRole === "admin" ? "Administrador" : "Atendimento"} revogou a ${previousStatus === "approved" ? "aprovação" : "decisão"} de "${sponsor?.name || sponsorId}" — volta a pendente (estava: ${previousStatus})${motivo ? `. Motivo: ${motivo}` : ''}${item.status !== currentItem.status ? `. Item reaberto: ${translateStatus(currentItem.status)} → ${translateStatus(item.status)}` : ''}`
       );
 
       broadcast({ type: "sponsor_approval_updated", itemId, approval: updatedApproval });
       if (item.status !== currentItem.status) {
+        // A Arte estava finalizando uma peça "aprovada por todos": precisa
+        // saber que a aprovação caiu antes de mandar o arquivo final.
+        const event = await storage.getEvent(currentItem.eventId);
+        const notification = await storage.createNotification({
+          type: "itemRejected",
+          message: `Aprovação de "${sponsor?.name || sponsorId}" revogada — segure a finalização: ${currentItem.type} - Evento: ${event?.name}`,
+          eventId: currentItem.eventId,
+          itemId,
+          targetRoles: ["arte"],
+        });
+        broadcast({ type: "notification_created", notification });
         broadcast({ type: "item_updated", item });
       }
 

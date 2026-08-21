@@ -1117,14 +1117,15 @@ export function ItemDetailsDialog({
                           </div>
 
                           <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                            {/* Correção de admin: desfaz uma aprovação/reprovação
-                                feita por engano, sem mexer direto no banco. */}
-                            {user?.role === "admin" && approval && approval.status !== "pending" && (
+                            {/* Revogar a aprovação / reverter a reprovação. Admin
+                                sempre; Atendimento enquanto a peça está em aprovação
+                                ou na finalização da Arte (pedido do dono, 21/08). */}
+                            {(user?.role === "admin" || (user?.role === "atendimento" && (rawStatus === "awaiting_sponsor_approval" || rawStatus === "sponsor_approved"))) && approval && approval.status !== "pending" && (
                               <button
                                 type="button"
                                 onClick={() => handleRevertApproval(s.id, s.name)}
                                 disabled={revertingSponsorId === s.id}
-                                title={`Reverter para pendente (admin) — estava ${meta.label.toLowerCase()}`}
+                                title={`${approval.status === "approved" ? "Revogar a aprovação" : "Reverter a decisão"} — volta a aguardar (estava ${meta.label.toLowerCase()})`}
                                 aria-label={`Reverter a decisão de ${s.name}`}
                                 data-testid={`button-revert-approval-${s.id}`}
                                 style={{

@@ -58,7 +58,7 @@ export function registerAuditLogRoutes(app: Express): void {
   //   ?paged=1      → { logs, nextCursor }   (sem o count(*), que varre a tabela)
   app.get("/api/audit-logs", requireAuth, async (req, res) => {
     try {
-      const { entityType, entityId, limit, withTotal, paged, cursor } = req.query;
+      const { entityType, entityId, limit, withTotal, paged, cursor, busca } = req.query;
 
       let cursorParsed: AuditLogCursor | null = null;
       if (typeof cursor === "string" && cursor.trim()) {
@@ -77,7 +77,7 @@ export function registerAuditLogRoutes(app: Express): void {
       const logs = await storage.getAuditLogs(
         entityType as string | undefined,
         entityId as string | undefined,
-        { limit: tamanho, cursor: cursorParsed },
+        { limit: tamanho, cursor: cursorParsed, busca: typeof busca === "string" ? busca : undefined },
       );
 
       // Página cheia = pode haver mais. Página curta = acabou, e o cliente para
@@ -96,6 +96,7 @@ export function registerAuditLogRoutes(app: Express): void {
           const total = await storage.getAuditLogsCount(
             entityType as string | undefined,
             entityId as string | undefined,
+            typeof busca === "string" ? busca : undefined,
           );
           return res.json({ logs, total, nextCursor });
         }

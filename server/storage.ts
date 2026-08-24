@@ -52,7 +52,7 @@ import {
   itemArtVersions, eventBooks, type ItemArtVersion, type InsertItemArtVersion, type EventBook, type InsertEventBook,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc, sql, or, lt, gte, ne, inArray, like } from "drizzle-orm";
+import { eq, and, desc, asc, sql, or, lt, gte, ne, inArray, like, ilike } from "drizzle-orm";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // VOCABULÁRIO DE displayId — lado SERVIDOR.
@@ -166,6 +166,8 @@ export interface AuditLogCursor {
 }
 
 export interface AuditLogQuery {
+  /** Termo de busca livre (ILIKE em details, user_name e entity_id). */
+  busca?: string | null;
   /** Tamanho da página. Ausente = AUDIT_LOGS_DEFAULT_LIMIT. */
   limit?: number;
   /** Continuação: devolve só o que é ANTERIOR a este registro. */
@@ -186,6 +188,35 @@ export const AUDIT_LOGS_DEFAULT_LIMIT = 500;
 export const AUDIT_LOGS_MAX_LIMIT = 2000;
 
 /** Normaliza o `limit` recebido de fora: só inteiro positivo dentro do teto. */
+/**
+ * BUSCA NA TRILHA, no SQL — o que liberta a busca do teto da janela.
+ *
+ * O Histórico caminha a trilha por cursor até 20.000 registros e filtra no
+ * navegador; a busca só enxergava essa janela. Uma peça de 7 de agosto que
+ * ficasse além dela "não existia" — resposta errada por omissão, na tela cujo
+ * trabalho é responder "o que aconteceu com X".
+ *
+ * ILIKE em três colunas: o texto do registro, quem fez e o entity_id (que
+ * carrega ids e, nos lotes, listas deles). Sem índice de trigram, e de
+ * propósito: a tabela tem dezenas de milhares de linhas — um seq scan aqui
+ * custa milissegundos, e um índice GIN custaria manutenção em TODA escrita da
+ * trilha, que acontece em cada ação do sistema.
+ *
+ * O termo é literal: %_\ são escapados para o usuário que busca "100%" não
+ * receber tudo.
+ */
+function auditLogsBusca(termo?: string | null) {
+  const t = termo?.trim();
+  if (!t) return undefined;
+  const escapado = t.replace(/[\\%_]/g, (c) => "\\" + c);
+  const padrao = `%${escapado}%`;
+  return or(
+    ilike(auditLogs.details, padrao),
+    ilike(auditLogs.userName, padrao),
+    ilike(auditLogs.entityId, padrao),
+  );
+}
+
 export function clampAuditLogLimit(limit?: number | null): number {
   if (limit == null || !Number.isFinite(limit)) return AUDIT_LOGS_DEFAULT_LIMIT;
   const n = Math.floor(limit);
@@ -1378,7 +1409,7 @@ export class DatabaseStorage implements IStorage {
     // devolve undefined — é o que dispensa os quatro ramos que este método
     // tinha (um por combinação de entityType/entityId/cursor).
     const conditions = and(
-      ...[auditLogsFilter(entityType, entityId), auditLogsBefore(opts.cursor)]
+      ...[auditLogsFilter(entityType, entityId), auditLogsBefore(opts.cursor), auditLogsBusca(opts.busca)]
         .filter((c): c is NonNullable<typeof c> => c !== undefined),
     );
 
@@ -1395,8 +1426,11 @@ export class DatabaseStorage implements IStorage {
   // NÃO é chamada a cada página de propósito: `count(*)` sem filtro varre a
   // tabela inteira, e cobrar essa varredura por página transformaria a leitura
   // da trilha num custo quadrático. A rota só a executa com ?withTotal=1.
-  async getAuditLogsCount(entityType?: string, entityId?: string): Promise<number> {
-    const conditions = auditLogsFilter(entityType, entityId);
+  async getAuditLogsCount(entityType?: string, entityId?: string, busca?: string): Promise<number> {
+    const conditions = and(
+      ...[auditLogsFilter(entityType, entityId), auditLogsBusca(busca)]
+        .filter((c): c is NonNullable<typeof c> => c !== undefined),
+    );
     const base = db.select({ total: sql<number>`count(*)::int` }).from(auditLogs);
     const [row] = conditions ? await base.where(conditions) : await base;
     return row?.total ?? 0;

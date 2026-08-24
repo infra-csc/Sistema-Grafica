@@ -177,7 +177,24 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
   // para o caso oposto, o evento com peça parada em quatro etapas, em que
   // achar a que interessa custava rolagem. Vive no componente e não na URL
   // de propósito: é arrumação de leitura, não recorte compartilhável.
-  const [recolhidas, setRecolhidas] = useState<Set<string>>(new Set());
+  const [recolhidas, setRecolhidas] = useState<Set<string>>(new Set());
+
+  /**
+   * Etapas cuja lista está ABERTA POR INTEIRO.
+   *
+   * O corte em `ROW_CAP` existe para o modal não virar uma tabela de 50
+   * linhas assim que abre. Mas o rodapé mandava as restantes para a tela do
+   * evento — trocava a pergunta ("quais são as 44?") por uma mudança de tela,
+   * perdendo o recorte da etapa e o lugar na rolagem. Quem clica ali quer ver
+   * as peças, não sair daqui.
+   */
+  const [abertas, setAbertas] = useState<Set<string>>(new Set());
+  const alternarTodas = (key: string) =>
+    setAbertas((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
   const alternarEtapa = (chave: string) =>
     setRecolhidas((antes) => {
       const proximo = new Set(antes);
@@ -275,8 +292,9 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
         // Pior primeiro; sem carimbo por último (é ausência de informação,
         // não espera zero — e a lista é de cobrança).
         const sorted = [...items].sort((a, b) => (b.waitingDays ?? -1) - (a.waitingDays ?? -1));
-        const shown = sorted.slice(0, ROW_CAP);
-        const hidden = sorted.length - shown.length;
+        const tudoAberto = abertas.has(stage.key);
+        const shown = tudoAberto ? sorted : sorted.slice(0, ROW_CAP);
+        const acimaDoCorte = sorted.length - ROW_CAP;
         // O grão do link segue o grão do grupo. Grupo com VÁRIAS peças é um
         // recorte de evento + etapa (e é isso que a URL carrega); grupo com
         // UMA peça tem nome e sobrenome, então o link abre a peça — havia
@@ -366,7 +384,7 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
                 ))}
               </ul>
             ) : (
-              <div style={{ border: `1px solid ${TI.border}`, borderRadius: R.md, backgroundColor: TI.card, overflow: "hidden" }}>
+              <div id={`drill-tabela-${ev.id}-${stage.key}`} style={{ border: `1px solid ${TI.border}`, borderRadius: R.md, backgroundColor: TI.card, overflow: "hidden" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", tableLayout: "fixed" }}>
                   <colgroup>
                     <col style={{ width: COL_PECA }} />
@@ -383,8 +401,8 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
                       <th scope="col" style={DRILL_TH}>Peça</th>
                       <th scope="col" style={{ ...DRILL_TH, textAlign: "left" }}>Descrição</th>
                       <th scope="col" style={DRILL_TH}>Qtd</th>
-                      <th scope="col" style={DRILL_TH} title="Dias desde a última alteração da peça — qualquer edição atualiza este relógio">
-                        Sem movimento
+                      <th scope="col" style={DRILL_TH} title="Dias desde a última MUDANÇA DE ETAPA da peça. Editar a peça não mexe neste relógio; '—' significa que não há registro de quando ela entrou aqui.">
+                        Nesta etapa
                       </th>
                       {isAprovacao && <th scope="col" style={{ ...DRILL_TH, textAlign: "left" }}>Aprovação com quem</th>}
                     </tr>
@@ -471,13 +489,44 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
               </div>
             )}
 
-            {hidden > 0 && (
-              <Link
-                href={`/eventos/${ev.id}`}
-                style={{ display: "inline-block", marginTop: 6, fontSize: 11, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
-              >
-                +{hidden} peça{hidden !== 1 ? "s" : ""} nesta etapa — ver todas no evento →
-              </Link>
+            {acimaDoCorte > 0 && (
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 6, flexWrap: "wrap" }}>
+                {/* AÇÃO PRIMÁRIA: abrir aqui. Botão, não link — não navega. */}
+                <button
+                  type="button"
+                  onClick={() => alternarTodas(stage.key)}
+                  aria-expanded={tudoAberto}
+                  aria-controls={`drill-tabela-${ev.id}-${stage.key}`}
+                  data-testid={`ver-todas-${ev.id}-${stage.key}`}
+                  style={{
+                    display: "inline-flex", alignItems: "center", gap: 5,
+                    minHeight: 30, padding: "0 10px", borderRadius: R.sm,
+                    border: `1px solid ${TI.border}`, backgroundColor: TI.card,
+                    font: "inherit", fontSize: 11, fontWeight: 700, color: TI.strong,
+                    cursor: "pointer",
+                  }}
+                >
+                  <ChevronDown
+                    aria-hidden="true"
+                    style={{
+                      width: 13, height: 13, flexShrink: 0,
+                      transform: tudoAberto ? "rotate(180deg)" : "none",
+                      transition: "transform 0.15s",
+                    }}
+                  />
+                  {tudoAberto
+                    ? `Mostrar só as primeiras ${ROW_CAP}`
+                    : `Ver as ${acimaDoCorte} restantes aqui`}
+                </button>
+                {/* A saída para o evento continua, agora como o que ela é: o
+                    caminho para EDITAR as peças, não para vê-las. */}
+                <Link
+                  href={`/eventos/${ev.id}`}
+                  style={{ fontSize: 11, fontWeight: 600, color: TI.secondary, textDecoration: "none" }}
+                >
+                  Abrir no evento →
+                </Link>
+              </div>
             )}
             </div>
           </div>

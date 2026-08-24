@@ -123,7 +123,10 @@ describe("4 · a prova do que ele tinha aprovado fica", () => {
   });
 
   it("a tela de Versões lê o prefixo e diz 'teve a aprovação revogada'", () => {
-    expect(VERSOES).toContain('const revogada = (d.motivo ?? "").startsWith("Aprovação revogada automaticamente");');
-    expect(VERSOES).toContain("? `teve a aprovação revogada${d.versao ? ` (tinha aprovado a v${d.versao})` : \"\"}`");
+    // O prefixo virou constante na tela (revisão de 24/08), e o motivo deixou
+    // de ser repetido entre aspas — a frase já diz que foi revogada.
+    expect(VERSOES).toContain('const PREFIXO_REVOGACAO = "Aprovação revogada automaticamente";');
+    expect(VERSOES).toContain('const revogada = (d.motivo ?? "").startsWith(PREFIXO_REVOGACAO);');
+    expect(VERSOES).toContain("revogada ? `teve a aprovação revogada${d.versao ? ` (tinha aprovado a v${d.versao})` : \"\"}`");
   });
 });

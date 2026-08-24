@@ -26,6 +26,11 @@ import { runInventoryCron } from "../services/inventoryLifecycle";
 import { handlePreviewXlsx, handleConfirmImport } from "../services/xlsxImport";
 import { handleExportItemsXlsx, handleExportSelectedItemsXlsx } from "../services/xlsxExport";
 import { notifyBookSaved } from "../services/bookEmailNotification";
+// A tela de Versões guarda o quadro calculado por 30 s. Toda escrita que mude
+// versão, decisão ou book derruba esse cache na hora — senão o Atendimento
+// revoga uma aprovação e continua vendo o quadro velho numa tela cujo trabalho
+// é justamente conferir o que está valendo agora.
+import { invalidarCacheDeVersoes } from "./versoes";
 
 // ─── MOTIVO das devoluções ──────────────────────────────────────────────────
 //
@@ -523,6 +528,7 @@ export async function revogarAprovacoesEstritas(
       `Aprovação revogada de ${revogados.join(", ")} (patrocinador desaprovador): ${gatilho.tipo === "nova_versao" ? "nova versão da arte" : `"${gatilho.nome}" reprovou a peça`}`,
     );
   }
+  if (revogados.length > 0) invalidarCacheDeVersoes();
   return revogados;
 }
 
@@ -1805,6 +1811,7 @@ export function registerItemRoutes(app: Express): void {
       // que deixa a tela de Versões dizer QUAL thumb cada patrocinador viu.
       if (approvalThumbUrl) {
         await storage.createItemArtVersion({ itemId: item.id, thumbUrl: approvalThumbUrl, origem: "envio", createdBy: req.userName ?? null });
+        invalidarCacheDeVersoes();
       }
       
       const event = await storage.getEvent(item.eventId);
@@ -2092,6 +2099,7 @@ export function registerItemRoutes(app: Express): void {
       
       // Check if ALL sponsors have approved
       const allApprovals = await storage.getItemSponsorApprovals(itemId);
+      invalidarCacheDeVersoes();
       const allApproved = itemSponsors.every(is => {
         const sponsorApproval = allApprovals.find(a => a.sponsorId === is.sponsorId);
         return sponsorApproval && sponsorApproval.status === 'approved';
@@ -2207,6 +2215,7 @@ export function registerItemRoutes(app: Express): void {
       // Get sponsor name for audit log and notification
       const sponsor = await storage.getSponsor(sponsorId);
       const event = await storage.getEvent(currentItem.eventId);
+      invalidarCacheDeVersoes();
       // Quem desaprova junto perde a aprovação agora — a peça vai ser refeita.
       await revogarAprovacoesEstritas(req, currentItem, { tipo: "reprovacao", sponsorId, nome: sponsor?.name ?? sponsorId });
       
@@ -2301,6 +2310,7 @@ export function registerItemRoutes(app: Express): void {
         rejectionReason: null,
       });
 
+      invalidarCacheDeVersoes();
       // Se o item já havia avançado por conta desta aprovação (todos aprovados),
       // reabre para aprovação do patrocinador — senão o item ficaria "aprovado"
       // com um patrocinador pendente por baixo.
@@ -2410,6 +2420,7 @@ export function registerItemRoutes(app: Express): void {
         rejectedBySponsor: false,
       });
       await storage.createItemArtVersion({ itemId, thumbUrl: newThumbUrl, origem: "reenvio", createdBy: req.userName ?? null });
+      invalidarCacheDeVersoes();
       // Versão nova: o desaprovador que já tinha aprovado volta para a fila.
       await revogarAprovacoesEstritas(req, currentItem, { tipo: "nova_versao" });
 
@@ -2603,6 +2614,7 @@ export function registerItemRoutes(app: Express): void {
         return res.status(404).json({ error: "Item not found" });
       }
       await storage.createItemArtVersion({ itemId: item.id, thumbUrl: approvalThumbUrl, origem: "troca", createdBy: req.userName ?? null });
+      invalidarCacheDeVersoes();
       // Versão nova enquanto a peça está em aprovação (ou já aprovada e na
       // finalização da Arte): o desaprovador perde a aprovação — e se a peça
       // já tinha sido dada como aprovada por todos, ela volta para a aprovação.
@@ -4192,6 +4204,7 @@ export function registerItemRoutes(app: Express): void {
       const count = await storage.setItemsBookUrl(itemIds, bookUrl || null);
       if (bookUrl) {
         await storage.createEventBook({ eventId: req.params.eventId, bookUrl, itemCount: count, createdBy: req.userName ?? null });
+        invalidarCacheDeVersoes();
         // items.book_url guarda apenas a versão atual; event_books preserva
         // cada publicação anterior para consulta e download futuros.
         // A notificação acontece só depois de o book estar persistido. Ela não

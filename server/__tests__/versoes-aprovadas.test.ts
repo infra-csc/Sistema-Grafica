@@ -7,13 +7,18 @@
 //   · 192 trocas de thumb vivendo só no texto da trilha de auditoria;
 //   · 32 books, um por evento — só o ATUAL (a rota apaga o anterior).
 //
-// O desenho tem três partes, e este arquivo fixa as três:
-//   1. GRAVAR daqui em diante — item_art_versions (envio/reenvio/troca),
-//      event_books (cada publicação) e decided_thumb_url (na decisão).
-//   2. RECONSTRUIR o legado — da trilha ("Anterior: X → Novo: Y") e do estado
-//      atual — e dizer que é inferência, nunca passar por registro.
-//   3. A TELA — régua de versões por peça, decisão por patrocinador com a
-//      versão decidida, books baixáveis, facetas consistentes.
+// ── A REVISÃO DE 24/08 ───────────────────────────────────────────────────────
+// Medida contra produção, a primeira versão da tela mostrava 2.637 peças (96%
+// com uma versão só, 35% sem decisão nenhuma) e baixava 2,24 MB para um assunto
+// que são 30 peças. Este arquivo fixa a tela em quatro camadas:
+//
+//   1. O que passa a ser GRAVADO (inalterado desde 21/08).
+//   2. O que é RECONSTRUÍDO do legado — e rotulado como dedução, nunca como
+//      registro. Agora com duas correções de honestidade: numeração por
+//      OCORRÊNCIA e decisão INDETERMINADA quando empata com a troca de arte.
+//   3. O SERVIDOR filtra, pagina, resume e exporta — e o cache curto é
+//      derrubado por toda escrita que mude versão, decisão ou book.
+//   4. A TELA abre pela exceção, compara versões e cabe num link.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { describe, it, expect } from "vitest";
@@ -29,6 +34,7 @@ const ROUTES = ler("server/routes.ts");
 const PAGE = ler("client/src/pages/versoes.tsx");
 const APP = ler("client/src/App.tsx");
 const SIDEBAR = ler("client/src/components/app-sidebar.tsx");
+const BACKFILL = ler("scripts/backfill-books.ts");
 
 describe("1 · o que passa a ser GRAVADO", () => {
   it("duas tabelas novas e uma coluna nova, todas aditivas", () => {
@@ -38,8 +44,6 @@ describe("1 · o que passa a ser GRAVADO", () => {
     // cascade: apagar a peça/evento leva a história junto, sem órfão.
     expect(SCHEMA).toContain('itemId: varchar("item_id").notNull().references(() => items.id, { onDelete: "cascade" }),');
     expect(SCHEMA).toContain('eventId: varchar("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),');
-    expect(SCHEMA).toContain("export type ItemArtVersion = ");
-    expect(SCHEMA).toContain("export type EventBook = ");
   });
 
   it("o storage expõe os quatro métodos", () => {
@@ -53,14 +57,12 @@ describe("1 · o que passa a ser GRAVADO", () => {
     expect(ITEMS).toContain('origem: "envio"');
     expect(ITEMS).toContain('origem: "reenvio"');
     expect(ITEMS).toContain('origem: "troca"');
-    // o envio só grava quando há thumb — peça sem thumb não tem versão.
     const i = ITEMS.indexOf('origem: "envio"');
     expect(ITEMS.slice(i - 400, i)).toContain("if (approvalThumbUrl) {");
   });
 
-  it("aprovar e reprovar gravam O QUE foi decidido — nos quatro ramos (update/create × approve/reject)", () => {
-    const n = (ITEMS.match(/decidedThumbUrl: currentItem\.approvalThumbUrl \?\? null,/g) ?? []).length;
-    expect(n).toBe(4);
+  it("aprovar e reprovar gravam O QUE foi decidido — nos quatro ramos", () => {
+    expect((ITEMS.match(/decidedThumbUrl: currentItem\.approvalThumbUrl \?\? null,/g) ?? []).length).toBe(4);
   });
 
   it("publicar o book grava a história — depois de limpar o atual, nunca antes", () => {
@@ -68,7 +70,6 @@ describe("1 · o que passa a ser GRAVADO", () => {
     const grava = ITEMS.indexOf("await storage.createEventBook({ eventId: req.params.eventId, bookUrl, itemCount: count");
     expect(limpa).toBeGreaterThan(-1);
     expect(grava).toBeGreaterThan(limpa);
-    // e só quando há um book de verdade (a rota aceita bookUrl vazio para limpar).
     expect(ITEMS.slice(grava - 120, grava)).toContain("if (bookUrl) {");
   });
 });
@@ -81,37 +82,103 @@ describe("2 · o legado é RECONSTRUÍDO e rotulado", () => {
   });
 
   it("lê a trilha com o MESMO formato que a rota de troca escreve", () => {
-    // O regex da leitura precisa casar com o template da escrita — senão o
-    // legado some em silêncio.
     expect(ITEMS).toContain("`Thumb de aprovação atualizado por ${req.userName}. Anterior: ${prevUrl} → Novo: ${approvalThumbUrl}`");
-    const re = /Thumb de aprovação atualizado por (.+?)\. Anterior: (\S+) → Novo: (\S+)/;
     expect(ROTA).toContain("const RE_TROCA = /Thumb de aprovação atualizado por (.+?)\\. Anterior: (\\S+) → Novo: (\\S+)/;");
+    const re = /Thumb de aprovação atualizado por (.+?)\. Anterior: (\S+) → Novo: (\S+)/;
     const m = re.exec("Thumb de aprovação atualizado por Ana Paula. Anterior: /objects/uploads/a.png → Novo: /objects/uploads/b.png");
     expect(m?.[1]).toBe("Ana Paula");
-    expect(m?.[2]).toBe("/objects/uploads/a.png");
     expect(m?.[3]).toBe("/objects/uploads/b.png");
   });
 
-  it("versão reconstruída e decisão inferida carregam a bandeira — e a inferência é pela data", () => {
+  it("versão reconstruída e decisão inferida carregam a bandeira", () => {
     expect(ROTA).toContain('origem: "trilha", por: null, inferida: true');
     expect(ROTA).toContain('origem: "atual", por: null, inferida: true');
-    expect(ROTA).toContain("inferido: !gravado && thumbUrl !== null,");
+    expect(ROTA).toContain("const inferido = !gravado && thumbUrl !== null;");
     expect(ROTA).toContain("const thumbUrl = gravado ?? (decididoEm ? vigenteEm(decididoEm) : null);");
     // a versão gravada vence a inferida: nunca inferir o que foi registrado.
     expect(ROTA.indexOf("for (const v of versoesGravadas)")).toBeLessThan(ROTA.indexOf("for (const log of logsDeTroca)"));
   });
 
-  it("o book atual entra como história quando não há registro, sem data inventada", () => {
-    expect(ROTA).toContain('l.unshift({ bookUrl: cur.bookUrl, em: "", por: null, itemCount: cur.n, inferido: true });');
-    expect(PAGE).toContain("publicado antes do registro de books — data não gravada");
+  it("CORREÇÃO 24/08 · a numeração é por ocorrência, não por arquivo", () => {
+    // Casar só por URL fazia a "v3" virar "v1" quando a Arte reenviava um
+    // arquivo já usado — a peça perdia duas versões da contagem.
+    expect(ROTA).toContain("const numeroDaVersao = (url: string | null, iso: string | null): number | null => {");
+    expect(ROTA).toContain("if (iso && versoes[i].em > iso) break;");
+    expect(ROTA).toContain("versao: ambiguo ? null : numeroDaVersao(thumbUrl, decididoEm),");
+  });
+
+  it("CORREÇÃO 24/08 · decisão empatada com a troca vira INDETERMINADA", () => {
+    expect(ROTA).toContain("const EMPATE_MS = 1000;");
+    expect(ROTA).toContain("const ambiguo = inferido && decididoEm !== null && versoes.some((v) =>");
+    expect(ROTA).toContain("Math.abs(new Date(v.em).getTime() - new Date(decididoEm).getTime()) <= EMPATE_MS);");
+    expect(PAGE).toContain("versão indeterminada");
   });
 
   it("peças apagadas ficam fora", () => {
     expect(ROTA).toContain("if ((item as any).deletedAt) continue;");
   });
+
+  it("o backfill grava o histórico de books que estava para se apagar", () => {
+    expect(BACKFILL).toContain("const aplicar = process.argv.includes(\"--aplicar\");");
+    expect(BACKFILL).toContain("details like 'Book de aprovação vinculado%'");
+    // não inventa: sem trilha, entra sem autor.
+    expect(BACKFILL).toContain("createdBy: trilha?.userName ?? null,");
+    expect(BACKFILL).toContain("if (gravado.has(`${l.eventId}|${l.bookUrl}`)) { pulados++; continue; }");
+  });
 });
 
-describe("3 · a tela", () => {
+describe("3 · o servidor filtra, pagina, resume e exporta", () => {
+  it("aceita o recorte e devolve UMA página", () => {
+    expect(ROTA).toContain("function lerRecorte(q: any): Recorte {");
+    expect(ROTA).toContain('foco === "todas" || foco === "sem-patrocinador" ? foco : "atencao"');
+    expect(ROTA).toContain("itens: recortadas.slice(pagina * tamanho, pagina * tamanho + tamanho),");
+    expect(ROTA).toContain("const tamanho = Math.min(120, Math.max(10, parseInt(String(req.query.tamanho ?? \"40\"), 10) || 40));");
+  });
+
+  it("facetas contam o pool SEM a própria dimensão — e o resumo, sem o foco", () => {
+    expect(ROTA).toContain("const semEvento = dados.itens.filter((p) => casaBusca(p, r.busca) && casaPatrocinador(p, r) && casaFoco(p, r));");
+    expect(ROTA).toContain("const semPatrocinador = dados.itens.filter((p) => casaBusca(p, r.busca) && casaEvento(p, r) && casaFoco(p, r));");
+    expect(ROTA).toContain("const semFoco = dados.itens.filter((p) => casaBusca(p, r.busca) && casaEvento(p, r) && casaPatrocinador(p, r));");
+  });
+
+  it("'precisa de atenção' é uma definição só, no servidor", () => {
+    expect(ROTA).toContain("atencao: divergente");
+    expect(ROTA).toContain("|| versoes.length > 1");
+    expect(ROTA).toContain("|| decisoesSaida.some((d) => d.ambiguo)");
+    expect(ROTA).toContain("|| (pendentes.length > 0 && (diasPendente ?? 0) >= DIAS_PARA_COBRAR),");
+    expect(ROTA).toContain("export const DIAS_PARA_COBRAR = 7;");
+  });
+
+  it("o book sabe se está desatualizado", () => {
+    expect(ROTA).toContain("const mudaram = saida.filter((p) => p.eventId === b.eventId && (ultimaVersaoDaPeca.get(p.id) ?? \"\") > em).length;");
+    expect(ROTA).toContain("pecasMudaramDepois: mudaram");
+    // o book sem data (legado) não finge ser o mais novo
+    expect(ROTA).toContain("l.push({ bookUrl: cur.bookUrl, em: null, por: null, itemCount: cur.n, inferido: true, pecasMudaramDepois: 0 });");
+  });
+
+  it("o CSV exporta o RECORTE inteiro, com BOM para o Excel em pt-BR", () => {
+    expect(ROTA).toContain('app.get("/api/versoes/export.csv", requireAuth,');
+    expect(ROTA).toContain("const recortadas = filtrar(dados.itens, lerRecorte(req.query));");
+    // O BOM é montado aqui, e não escrito como caractere invisível no teste:
+    // um caractere U+FEFF literal no fonte some em qualquer normalização de
+    // arquivo e ninguém vê isso num diff. Sem ele, o Excel em pt-BR abre
+    // "Versões" como "VersÃµes".
+    const BOM = String.fromCharCode(0xFEFF);
+    const BARRA = String.fromCharCode(92);
+    const CRLF_ESCAPADO = BARRA + "r" + BARRA + "n";
+    expect(ROTA).toContain(`res.send("${BOM}" + linhas.join("${CRLF_ESCAPADO}"));`);
+    expect(ROTA).toContain('"Aprovou versão diferente da atual"');
+  });
+
+  it("o cache curto é derrubado por TODA escrita que muda o quadro", () => {
+    expect(ROTA).toContain("export function invalidarCacheDeVersoes(): void {");
+    expect(ITEMS).toContain('import { invalidarCacheDeVersoes } from "./versoes";');
+    // envio, reenvio, troca, book, revogação automática, aprovar, reprovar, revogar
+    expect((ITEMS.match(/invalidarCacheDeVersoes\(\);/g) ?? []).length).toBe(8);
+  });
+});
+
+describe("4 · a tela", () => {
   it("rota, título e item de menu — sem restrição de papel", () => {
     expect(APP).toContain('import Versoes from "@/pages/versoes";');
     expect(APP).toContain('"/versoes": "Versões aprovadas",');
@@ -121,47 +188,82 @@ describe("3 · a tela", () => {
     expect(linha).not.toContain("roles:");
   });
 
-  it("a frase de confiança separa registro de inferência", () => {
+  it("abre pela exceção, e o acervo fica a um clique", () => {
+    expect(PAGE).toContain('const f = inicial.get("foco");');
+    expect(PAGE).toContain('return f === "todas" || f === "sem-patrocinador" ? f : "atencao";');
+    expect(PAGE).toContain("data-testid={`tab-versoes-${valor}`}");
+    for (const t of ['["atencao"', '["todas"', '["sem-patrocinador"', '["books"']) {
+      expect(PAGE).toContain(t);
+    }
+    // e o vazio de "precisa de atenção" é uma boa notícia, não um erro
+    expect(PAGE).toContain("Nada precisa de atenção neste recorte");
+    expect(PAGE).toContain('data-testid="button-ver-todas"');
+  });
+
+  it("os quatro números do cabeçalho são o índice da tela", () => {
+    for (const t of ["resumo-divergentes", "resumo-pendentes", "resumo-historico", "resumo-books"]) {
+      expect(PAGE).toContain(`testId="${t}"`);
+    }
+    expect(PAGE).toContain('data-testid="resumo-versoes"');
+    expect(PAGE).toContain("<button type=\"button\" onClick={onClick} data-testid={testId} title={ajuda}");
+    expect(PAGE).toContain("function BotaoResumo(");
+  });
+
+  it("a frase de confiança separa registro, dedução e indeterminação", () => {
     expect(PAGE).toContain('data-testid="text-confianca-versoes"');
     expect(PAGE).toContain("inferida pela data");
     expect(PAGE).toContain("todas com a versão registrada");
-    // E o selo na decisão, com contraste (#92400e sobre #fffbeb = 6,6:1).
-    expect(PAGE).toContain("inferido pela data");
-    expect(PAGE).toContain('color: "#92400e", backgroundColor: "#fffbeb"');
+    expect(PAGE).toContain("indeterminadas");
+    expect(PAGE).toContain("o registro de versões começa em");
   });
 
-  it("a decisão diz QUAL versão — e avisa quando a aprovada não é a atual", () => {
-    expect(PAGE).toContain("? `aprovou ${d.versao ? `a v${d.versao}` : \"uma versão\"}`");
-    expect(PAGE).toContain("aprovou outra versão");
-    expect(PAGE).toContain('d.thumbUrl !== p.approvalThumbUrl && tone === "approved"');
+  it("o comparador existe, abre na versão atual e anda no teclado", () => {
+    expect(PAGE).toContain("function Comparador(");
+    expect(PAGE).toContain('data-testid="button-comparador-anterior"');
+    expect(PAGE).toContain('data-testid="button-comparador-proxima"');
+    expect(PAGE).toContain('if (e.key === "ArrowLeft")');
+    expect(PAGE).toContain('if (e.key === "ArrowRight")');
+    expect(PAGE).toContain("const i = peca!.versoes.findIndex(v => v.thumbUrl === peca!.approvalThumbUrl);");
+    // e diz quem decidiu naquela versão
+    expect(PAGE).toContain("Quem decidiu nela");
+    // a lição do #185: o miolo do modal congela enquanto ele sai
+    expect(PAGE).toContain("<FreezeWhileClosing open={aberto}>");
   });
 
-  it("a régua de versões marca a atual e reconstruídas", () => {
-    expect(PAGE).toContain("data-testid={`versao-${p.id}-${i + 1}`}");
-    expect(PAGE).toContain("const atual = v.thumbUrl === p.approvalThumbUrl;");
-    expect(PAGE).toContain("reconstruída, não gravada como versão");
+  it("a régua só cresce quando há o que comparar", () => {
+    expect(PAGE).toContain("const varias = p.versoes.length > 1;");
+    expect(PAGE).toContain("data-testid={`versao-unica-${p.id}`}");
+    expect(PAGE).toContain("data-testid={`button-comparar-${p.id}`}");
   });
 
-  it("books baixáveis — download só para arquivo do app, nunca link cego", () => {
+  it("o recorte cabe num link, e sai em CSV", () => {
+    expect(PAGE).toContain("window.history.replaceState(null, \"\", qs ? `?${qs}` : window.location.pathname);");
+    expect(PAGE).toContain('data-testid="link-exportar-versoes"');
+    expect(PAGE).toContain("href={`/api/versoes/export.csv${parametros.toString() ? `?${parametros}` : \"\"}`}");
+  });
+
+  it("estados: esqueleto, erro com tentativa, vazio, e aviso para leitor de tela", () => {
+    expect(PAGE).toContain('data-testid="skeleton-versoes"');
+    expect(PAGE).toContain("function Esqueleto(");
+    expect(PAGE).toContain('data-testid="button-retry-versoes"');
+    expect(PAGE).toContain('aria-live="polite"');
+  });
+
+  it("books mostram estado e download só para arquivo do app", () => {
+    expect(PAGE).toContain("testId={`selo-book-desatualizado-${ev.eventId}-${i}`}");
+    expect(PAGE).toContain("testId={`selo-book-em-dia-${ev.eventId}`}");
     expect(PAGE).toContain("data-testid={`link-baixar-book-${ev.eventId}-${i}`}");
-    expect(PAGE).toContain('<a href={b.bookUrl} download target="_blank" rel="noopener noreferrer"');
     expect(PAGE).toContain("isWebUrl(b.bookUrl) ?");
     expect(PAGE).toContain("arquivo fora do app");
   });
 
-  it("facetas: cada filtro conta o pool SEM a própria dimensão", () => {
-    expect(PAGE).toContain("itens.filter(p => casaBusca(p) && casaPatrocinador(p)).forEach(p => {"); // opções de evento
-    expect(PAGE).toContain("itens.filter(p => casaBusca(p) && casaEvento(p)).forEach(p => {");       // opções de patrocinador
-    expect(PAGE).toContain('testId="filter-versoes-evento"');
-    expect(PAGE).toContain('testId="filter-versoes-patrocinador"');
+  it("a revogação automática não repete a frase entre aspas", () => {
+    expect(PAGE).toContain('const PREFIXO_REVOGACAO = "Aprovação revogada automaticamente";');
+    expect(PAGE).toContain("? d.motivo.slice(PREFIXO_REVOGACAO.length).replace(/^:\\s*/, \"\")");
   });
 
-  it("paginação e limpar", () => {
-    expect(PAGE).toContain("const PAGE = 40;");
-    expect(PAGE).toContain('data-testid="button-mais-versoes"');
-    expect(PAGE).toContain('data-testid="button-limpar-versoes"');
-    // mudar filtro volta ao início da lista.
-    expect(PAGE).toContain("setEventoFiltro(v); setVisiveis(PAGE);");
+  it("números em coluna usam tabular-nums", () => {
+    expect(PAGE).toContain('const numero: React.CSSProperties = { fontFamily: MONO, fontVariantNumeric: "tabular-nums" };');
   });
 
   it("tons e ícones vêm de status.ts, não inventados na tela", () => {

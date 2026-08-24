@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { AppSidebar } from "@/components/app-sidebar";
 import { NotificationBell, type Notification } from "@/components/notification-bell";
+import { BuscaGlobal, abrirBuscaGlobal } from "@/components/busca-global";
+import { Search } from "lucide-react";
 import { AuthProvider, useAuth } from "@/contexts/auth-context";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { roleLabel, userInitials } from "@/lib/utils";
@@ -370,6 +372,8 @@ function AuthenticatedLayout() {
   return (
     <div className="flex h-dvh w-full">
       <AppSidebar />
+      {/* Paleta Ctrl+K — montada uma vez, para toda tela autenticada. */}
+      <BuscaGlobal />
       {/* O header fica FORA do SidebarInset: o inset é o <main> da página e
           um banner dentro de main deixa de ser landmark de topo — a página
           fica com 1 main e 1 banner. */}
@@ -426,8 +430,21 @@ function AuthenticatedLayout() {
             )}
           </div>
 
-          {/* Right: notifications + avatar */}
+          {/* Right: busca + notifications + avatar */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            {/* A porta VISÍVEL da busca global — o Ctrl+K existe, mas atalho
+                sem botão é recurso que só quem já sabe usa. Mesma peça dos
+                vizinhos: 36 no ponteiro, 44 no toque, contorno e raio 9. */}
+            <button
+              type="button"
+              onClick={abrirBuscaGlobal}
+              data-testid="button-busca-global"
+              title={`Buscar peça ou evento (${IS_MAC ? "⌘K" : "Ctrl+K"})`}
+              aria-label="Buscar peça ou evento"
+              className="h-9 w-9 max-md:h-11 max-md:w-11 rounded-[9px] border border-[#e7e5e4] bg-white shrink-0 flex items-center justify-center cursor-pointer"
+            >
+              <Search aria-hidden="true" style={{ width: 16, height: 16, color: "#57534e" }} />
+            </button>
             <NotificationBell
               notifications={notifications}
               isLoading={notificationsLoading}

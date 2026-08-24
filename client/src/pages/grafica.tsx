@@ -24,6 +24,7 @@ import type { SeloPecaEventoFinalizado } from "@/lib/status";
 import { StatusPill } from "@/components/status-pill";
 import { useAuth } from "@/contexts/auth-context";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
+import { GalpaoFila, type GalpaoDados } from "@/components/galpao-fila";
 // Aritmética de saldo: fonte única em lib/saldo.ts. Estes onze cálculos
 // (quanto falta produzir, conferir, entregar, reaproveitar; quanto de m²
 // realmente vai para a impressora) viviam duplicados como consts locais no
@@ -618,6 +619,42 @@ export default function Grafica() {
   const [bulkConferPhotos, setBulkConferPhotos] = useState<string[]>([]);
   const addBulkConferPhoto = (url: string) => setBulkConferPhotos(prev => [...prev, convertGCSUrlToLocalPath(url)]);
   const isMobile = useIsMobile();
+
+  /**
+   * MODO GALPÃO (celular): conferir/entregar em fila, uma peça por vez.
+   *
+   * As mutações daqui não passam pelas useMutation dos modais de propósito:
+   * o onSuccess delas fecha modal, zera fotos e dispara um toast por peça —
+   * efeitos do fluxo de bancada. Na fila, o avanço é do componente e o resumo
+   * é um só, na saída.
+   */
+  const [galpao, setGalpao] = useState<null | "confer" | "deliver">(null);
+  const registrarNoGalpao = async (item: any, dados: GalpaoDados) => {
+    if (galpao === "confer") {
+      await apiRequest("POST", `/api/items/${item.id}/confer`, {
+        conferencePhotoUrl: dados.photoUrl, qty: dados.qty, notes: "",
+      });
+    } else {
+      await apiRequest("PATCH", `/api/items/${item.id}/deliver`, {
+        photoUrl: dados.photoUrl, receivedBy: dados.receivedBy ?? "", notes: "",
+      });
+    }
+    // Invalidação POR PEÇA, não só na saída: esta é a tela em que duas pessoas
+    // trabalham a mesma fila ao mesmo tempo — o computador da bancada precisa
+    // ver a peça sumir enquanto o conferente anda com o celular.
+    queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+  };
+  const fecharGalpao = (feitas: number) => {
+    const modo = galpao;
+    setGalpao(null);
+    if (feitas > 0) {
+      toast({
+        title: modo === "confer" ? "Conferência registrada" : "Entrega registrada",
+        description: `${feitas} peça${feitas !== 1 ? "s" : ""} ${modo === "confer" ? "conferida" : "entregue"}${feitas !== 1 ? "s" : ""} pela fila.`,
+      });
+    }
+  };
   const { data: pecasDoServidor = [], isLoading, isError, error, refetch, isFetching, dataUpdatedAt } = useQuery<any[]>({
     queryKey: ["/api/items/approved"],
     // Override LOCAL do default global (staleTime: Infinity, sem refetch em
@@ -1835,6 +1872,25 @@ export default function Grafica() {
               {stats.liberados} peça{stats.liberados !== 1 ? "s" : ""} aguardando produção
             </span>
           )}
+          {/* CONFERIR EM FILA — o caminho do celular. O lote continua sendo
+              o da bancada (uma foto para várias peças); a fila é uma foto POR
+              peça, que é o registro que a conferência de material pede. */}
+          {isMobile && podeConferir && conferableInFilter.length > 0 && !bulkOn && (
+            <button
+              onClick={() => setGalpao("confer")}
+              data-testid="button-fila-conferir"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                backgroundColor: '#0e7490', color: '#fff',
+                border: 'none', borderRadius: 8, padding: '11px 16px',
+                fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em',
+                cursor: 'pointer', boxShadow: '0 2px 8px rgba(14,116,144,0.3)',
+              }}
+            >
+              <Camera style={{ width: 16, height: 16 }} />
+              Conferir em fila ({conferableInFilter.length})
+            </button>
+          )}
           {/* Botão Conferência em Lote — só para quem pode conferir (gate do servidor) */}
           {podeConferir && conferableInFilter.length > 0 && !bulkOn && (
             <button
@@ -1857,6 +1913,22 @@ export default function Grafica() {
               <CheckCircle style={{ width: 13, height: 13 }} />
               {isMobile ? 'Lote ativo' : 'Modo conferência em lote ativo'}
             </span>
+          )}
+          {isMobile && deliverableInFilter.length > 0 && !bulkOn && (
+            <button
+              onClick={() => setGalpao("deliver")}
+              data-testid="button-fila-entregar"
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                backgroundColor: '#15803d', color: '#fff',
+                border: 'none', borderRadius: 8, padding: '11px 16px',
+                fontSize: 13, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em',
+                cursor: 'pointer', boxShadow: '0 2px 8px rgba(21,128,61,0.3)',
+              }}
+            >
+              <Camera style={{ width: 16, height: 16 }} />
+              Entregar em fila ({deliverableInFilter.length})
+            </button>
           )}
           {/* Botão Entrega em Lote */}
           {deliverableInFilter.length > 0 && !bulkOn && (
@@ -4097,6 +4169,15 @@ export default function Grafica() {
       {/* Devolver para a Revisão — o motivo é obrigatório pela mesma régua das
           outras devoluções: quem recebe a peça de volta precisa saber o que
           refazer, senão é ida e volta garantida. */}
+      {galpao && (
+        <GalpaoFila
+          mode={galpao}
+          itens={galpao === "confer" ? conferableInFilter : deliverableInFilter}
+          onClose={fecharGalpao}
+          onConfirmar={registrarNoGalpao}
+        />
+      )}
+
       <Dialog open={!!devolverItem} onOpenChange={o => { if (!o) { setDevolverItem(null); setDevolverMotivo(""); } }}>
         <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(460)}>
           <DialogTitle className="sr-only">Devolver peça para a Revisão</DialogTitle>

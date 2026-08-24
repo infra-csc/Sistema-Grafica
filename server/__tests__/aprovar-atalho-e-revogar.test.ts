@@ -46,7 +46,9 @@ describe("2 · a revogação reabre o estado incoerente em vez de dar 409", () =
   const REVOGAR = rota('sponsor-approvals/:sponsorId/revert"', 7000);
 
   it("linha pendente + peça avançada = reabrir, não recusar", () => {
-    expect(REVOGAR).toContain('const reabrirIncoerente = approval.status === "pending" && currentItem.status === "sponsor_approved";');
+    // alargado no mesmo dia: a peça incoerente ANDA (arquivo final → revisão →
+    // devolvida) sem fechar a rodada — o #4176 estava em Finalização de novo.
+    expect(REVOGAR).toContain('const reabrirIncoerente = approval.status === "pending" && POS_APROVACAO.includes(currentItem.status);');
     expect(REVOGAR).toContain('if (approval.status === "pending" && !reabrirIncoerente) {');
   });
 
@@ -64,7 +66,7 @@ describe("2 · a revogação reabre o estado incoerente em vez de dar 409", () =
   });
 
   it("a reabertura usa o MESMO caminho de sempre (status volta, Arte avisada)", () => {
-    expect(REVOGAR).toContain('if (currentItem.status === "sponsor_approved") {');
+    expect(REVOGAR).toContain('if (POS_APROVACAO.includes(currentItem.status)) {');
     expect(REVOGAR).toContain('status: "awaiting_sponsor_approval",');
     expect(REVOGAR).toContain("segure a finalização");
   });

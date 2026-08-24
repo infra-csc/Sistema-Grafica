@@ -111,7 +111,7 @@ function lerDestinoDevolucao(req: any): DestinoDevolucao {
  *
  * `finalizacao` mantem o thumb JA APROVADO e so limpa o arquivo final.
  */
-function camposDoDestino(destino: DestinoDevolucao) {
+function camposDoDestino(destino: DestinoDevolucao, rodadaAprovada: boolean) {
   if (destino === "arte") {
     return {
       status: "awaiting_submission",
@@ -122,9 +122,28 @@ function camposDoDestino(destino: DestinoDevolucao) {
     };
   }
   return {
-    status: "sponsor_approved",
+    // A REGRA DO DONO (24/08, caso #4176): linha de patrocinador "Aguardando"
+    // ⇒ a peça volta PENDENTE no Atendimento. Este destino devolvia SEMPRE a
+    // `sponsor_approved` — inclusive com a rodada de aprovação aberta por
+    // baixo (aprovação revogada no meio do caminho): a peça pulava a fila do
+    // Atendimento e ficava "aprovada" com patrocinador pendente, sem nenhum
+    // botão que a trouxesse de volta.
+    status: rodadaAprovada ? "sponsor_approved" : "awaiting_sponsor_approval",
     finalFileUrl: null,
   };
+}
+
+/**
+ * A rodada de aprovação desta peça está fechada? (todas as linhas aprovadas;
+ * peça isenta ou sem patrocinador conta como fechada — não há quem aprovar.)
+ * É o que decide se a devolução para "finalizacao" pode pousar em
+ * `sponsor_approved` ou se a peça tem de voltar à fila do Atendimento.
+ */
+async function rodadaDeAprovacaoFechada(item: { id: string; skipApproval?: boolean | null }): Promise<boolean> {
+  if (item.skipApproval) return true;
+  const linhas = await storage.getItemSponsorApprovals(item.id);
+  if (linhas.length === 0) return true;
+  return linhas.every((l) => l.status === "approved");
 }
 
 /** A frase da auditoria — o destino escolhido precisa ficar no registro. */
@@ -2437,12 +2456,17 @@ export function registerItemRoutes(app: Express): void {
       if (!approval) {
         return res.status(404).json({ error: "Aprovação não encontrada para este patrocinador" });
       }
+      // TODA a família pós-aprovação, não só sponsor_approved: a peça
+      // incoerente ANDA (arquivo final → revisão → devolvida) sem fechar a
+      // rodada por baixo — o caso #4176 estava em Finalização de novo quando
+      // o dono tentou revogar pela segunda vez.
+      const POS_APROVACAO = ["sponsor_approved", "awaiting_finalization", "awaiting_final_review", "awaiting_review", "in_review"];
       // Linha já pendente COM a peça já avançada é o estado incoerente que o
       // atalho de aprovação deixava antes de 24/08 (caso #4176): não há o que
       // revogar NA LINHA, mas há o que REABRIR — e é para isso que quem
       // clicou veio aqui. Pendente com a peça ainda em aprovação continua 409:
       // aí não há mesmo nada a fazer.
-      const reabrirIncoerente = approval.status === "pending" && currentItem.status === "sponsor_approved";
+      const reabrirIncoerente = approval.status === "pending" && POS_APROVACAO.includes(currentItem.status);
       if (approval.status === "pending" && !reabrirIncoerente) {
         return res.status(409).json({ error: "Esta aprovação já está pendente" });
       }
@@ -2460,9 +2484,12 @@ export function registerItemRoutes(app: Express): void {
       invalidarCacheDeVersoes();
       // Se o item já havia avançado por conta desta aprovação (todos aprovados),
       // reabre para aprovação do patrocinador — senão o item ficaria "aprovado"
-      // com um patrocinador pendente por baixo.
+      // com um patrocinador pendente por baixo. A REGRA DO DONO (24/08): linha
+      // "Aguardando" ⇒ a peça volta pendente no Atendimento — de qualquer
+      // status pós-aprovação, não só do primeiro degrau. O arquivo final que a
+      // Arte já subiu FICA: revogar reabre a decisão, não apaga trabalho.
       let item = currentItem;
-      if (currentItem.status === "sponsor_approved") {
+      if (POS_APROVACAO.includes(currentItem.status)) {
         item = (await storage.updateItem(itemId, {
           status: "awaiting_sponsor_approval",
           sponsorApprovedBy: null,
@@ -3066,7 +3093,7 @@ export function registerItemRoutes(app: Express): void {
         // etapa que precisa ser refeita, com a aprovacao preservada.
         // O DESTINO e escolha de quem devolve (ver lerDestinoDevolucao):
         // "arte" refaz do zero, "finalizacao" so troca o arquivo final.
-        ...camposDoDestino(destino),
+        ...camposDoDestino(destino, await rodadaDeAprovacaoFechada(currentItem)),
         creatorReviewedAt: null,
         rejectedByCreator: true, // Flag indicando que foi reprovado pelo criador
         rejectionReason: motivo.motivo,
@@ -3083,7 +3110,7 @@ export function registerItemRoutes(app: Express): void {
         'rejected',
         'item',
         item.id,
-        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(camposDoDestino(destino).status)} (reprovado pelo criador — ${textoDoDestino(destino)}). Motivo: ${motivo.motivo}`
+        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(camposDoDestino(destino, await rodadaDeAprovacaoFechada(currentItem)).status)} (reprovado pelo criador — ${textoDoDestino(destino)}). Motivo: ${motivo.motivo}`
       );
       
       // Notifica Arte para refazer o trabalho
@@ -3236,7 +3263,7 @@ export function registerItemRoutes(app: Express): void {
         // etapa que precisa ser refeita, com a aprovacao preservada.
         // O DESTINO e escolha de quem devolve (ver lerDestinoDevolucao):
         // "arte" refaz do zero, "finalizacao" so troca o arquivo final.
-        ...camposDoDestino(destino),
+        ...camposDoDestino(destino, await rodadaDeAprovacaoFechada(currentItem)),
         creatorReviewedAt: null,
         rejectedByCreator: true,
         // O motivo da devolução SUBSTITUI a observação: motivo vazio não pode
@@ -3417,7 +3444,7 @@ export function registerItemRoutes(app: Express): void {
           // etapa que precisa ser refeita, com a aprovacao preservada.
           // O DESTINO e escolha de quem devolve (ver lerDestinoDevolucao):
           // "arte" refaz do zero, "finalizacao" so troca o arquivo final.
-          ...camposDoDestino(destino),
+          ...camposDoDestino(destino, await rodadaDeAprovacaoFechada(currentItem)),
           creatorReviewedAt: null,
           rejectedByCreator: true,
           // (e não `|| currentItem.observations`): o return individual
@@ -3690,7 +3717,7 @@ export function registerItemRoutes(app: Express): void {
           // etapa que precisa ser refeita, com a aprovacao preservada.
           // O DESTINO e escolha de quem devolve (ver lerDestinoDevolucao):
           // "arte" refaz do zero, "finalizacao" so troca o arquivo final.
-          ...camposDoDestino(destino),
+          ...camposDoDestino(destino, await rodadaDeAprovacaoFechada(currentItem)),
           creatorReviewedAt: null,
           rejectedByCreator: true,
           rejectionReason: motivo.motivo,
@@ -3706,7 +3733,7 @@ export function registerItemRoutes(app: Express): void {
             'rejected',
             'item',
             item.id,
-            `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(camposDoDestino(destino).status)} (reprovado pelo criador em lote — ${textoDoDestino(destino)}). Motivo: ${motivo.motivo}`
+            `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(camposDoDestino(destino, await rodadaDeAprovacaoFechada(currentItem)).status)} (reprovado pelo criador em lote — ${textoDoDestino(destino)}). Motivo: ${motivo.motivo}`
           );
           
           broadcast({ type: "item_updated", item });

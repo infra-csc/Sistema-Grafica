@@ -29,7 +29,9 @@ const DIALOG = ler("client/src/components/item-details-dialog.tsx");
 
 const rota = () => {
   const i = ITEMS.indexOf('app.post("/api/items/:id/sponsor-approvals/:sponsorId/revert"');
-  return ITEMS.slice(i, i + 5200);
+  // 8000: a rota cresceu em 24/08 (reabertura do estado incoerente + regra
+  // do dono comentada) e a janela antiga cortava o bloco de notificação.
+  return ITEMS.slice(i, i + 8000);
 };
 
 describe("1 · quem pode, e quando", () => {
@@ -69,7 +71,9 @@ describe("2 · a trilha diz quem, o quê e por quê", () => {
 describe("3 · a peça aprovada por todos volta, e a Arte fica sabendo", () => {
   it("reabre de sponsor_approved para awaiting_sponsor_approval (capacidade antiga, preservada)", () => {
     const r = rota();
-    expect(r).toContain('if (currentItem.status === "sponsor_approved") {');
+    // 24/08: reabre de QUALQUER status pós-aprovação — regra do dono: linha
+    // "Aguardando" ⇒ a peça volta pendente no Atendimento.
+    expect(r).toContain('if (POS_APROVACAO.includes(currentItem.status)) {');
     expect(r).toContain('status: "awaiting_sponsor_approval",');
     expect(r).toContain("sponsorApprovedBy: null,");
   });
@@ -77,7 +81,7 @@ describe("3 · a peça aprovada por todos volta, e a Arte fica sabendo", () => {
   it("e só nesse caso notifica a Arte para segurar a finalização", () => {
     const r = rota();
     const i = r.indexOf("if (item.status !== currentItem.status) {");
-    const bloco = r.slice(i, i + 900);
+    const bloco = r.slice(i, i + 1800);
     expect(bloco).toContain('targetRoles: ["arte"]');
     expect(bloco).toContain("revogada — segure a finalização");
     expect(bloco).toContain('broadcast({ type: "notification_created", notification });');

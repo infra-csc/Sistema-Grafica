@@ -94,14 +94,27 @@ export type PecaDeVersoes = {
   atencao: boolean;
 };
 
+export type PecaQueMudou = { id: string; displayId: string; eventId: string; em: string };
+
 export type BookDoEvento = {
   bookUrl: string;
   em: string | null;
   por: string | null;
   itemCount: number;
   inferido: boolean;
-  /** Peças do book que ganharam versão nova DEPOIS desta publicação. */
+  /**
+   * Dá para saber QUAIS peças estão neste book?
+   *
+   * Só do book ATUAL: a associação peça↔book vive em `items.book_url`, que
+   * guarda um endereço por peça — publicar um book novo sobrescreve o anterior.
+   * Para os books já substituídos sobrou a contagem (`itemCount`), não a lista.
+   * Sem isso não se pode afirmar que uma peça "estava naquele book".
+   */
+  membrosConhecidos: boolean;
+  /** Peças DO BOOK que ganharam versão nova depois desta publicação. */
   pecasMudaramDepois: number;
+  /** Quais são — para a tela responder "mudaram quantas?" com nome e sobrenome. */
+  pecasMudaram: PecaQueMudou[];
 };
 
 type DadosDeVersoes = {
@@ -289,14 +302,39 @@ async function carregar(): Promise<DadosDeVersoes> {
     const ultima = p.versoes[p.versoes.length - 1];
     if (ultima) ultimaVersaoDaPeca.set(p.id, ultima.em);
   }
+  // AS PEÇAS QUE ESTÃO EM CADA BOOK. Só o book atual tem essa lista: a
+  // associação mora em `items.book_url`, e publicar um book novo sobrescreve
+  // o anterior.
+  const pecasDoBook = new Map<string, PecaDeVersoes[]>();
+  for (const p of saida) {
+    if (!p.bookUrl) continue;
+    const l = pecasDoBook.get(p.bookUrl) ?? [];
+    l.push(p);
+    pecasDoBook.set(p.bookUrl, l);
+  }
+
   const booksPorEvento = new Map<string, BookDoEvento[]>();
   for (const b of booksGravados) {
     const l = booksPorEvento.get(b.eventId) ?? [];
     const em = new Date(b.createdAt).toISOString();
-    // "Desatualizado": peça do evento cuja arte mudou DEPOIS de o book sair.
-    // É a pergunta que o comercial faz — "o book que mandei ainda vale?".
-    const mudaram = saida.filter((p) => p.eventId === b.eventId && (ultimaVersaoDaPeca.get(p.id) ?? "") > em).length;
-    l.push({ bookUrl: b.bookUrl, em, por: b.createdBy ?? null, itemCount: b.itemCount, inferido: false, pecasMudaramDepois: mudaram });
+    // "Desatualizado": peça DO BOOK cuja arte mudou depois de o book sair.
+    //
+    // Contava as peças do EVENTO, e não as do book — e por isso um book de 26
+    // peças chegou a dizer "34 peças mudaram", que é impossível e destrói a
+    // confiança no resto do número. Quem não está no book não pode
+    // desatualizá-lo.
+    const doBook = pecasDoBook.get(b.bookUrl) ?? null;
+    const mudaram = (doBook ?? [])
+      .filter((p) => (ultimaVersaoDaPeca.get(p.id) ?? "") > em)
+      .map((p): PecaQueMudou => ({ id: p.id, displayId: p.displayId, eventId: p.eventId, em: ultimaVersaoDaPeca.get(p.id)! }))
+      .sort((a, b2) => b2.em.localeCompare(a.em));
+    l.push({
+      bookUrl: b.bookUrl, em, por: b.createdBy ?? null, itemCount: b.itemCount, inferido: false,
+      membrosConhecidos: doBook !== null,
+      pecasMudaramDepois: mudaram.length,
+      // Teto para o payload não crescer sem limite; a contagem acima é inteira.
+      pecasMudaram: mudaram.slice(0, 60),
+    });
     booksPorEvento.set(b.eventId, l);
   }
   // O book atual sem registro (legado) entra sem data — e sem fingir uma.
@@ -310,7 +348,7 @@ async function carregar(): Promise<DadosDeVersoes> {
   for (const [eventId, cur] of Array.from(atualPorEvento.entries())) {
     const l = booksPorEvento.get(eventId) ?? [];
     if (!l.some((b) => b.bookUrl === cur.bookUrl)) {
-      l.push({ bookUrl: cur.bookUrl, em: null, por: null, itemCount: cur.n, inferido: true, pecasMudaramDepois: 0 });
+      l.push({ bookUrl: cur.bookUrl, em: null, por: null, itemCount: cur.n, inferido: true, membrosConhecidos: true, pecasMudaramDepois: 0, pecasMudaram: [] });
       booksPorEvento.set(eventId, l);
     }
   }

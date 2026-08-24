@@ -149,11 +149,28 @@ describe("3 · o servidor filtra, pagina, resume e exporta", () => {
     expect(ROTA).toContain("export const DIAS_PARA_COBRAR = 7;");
   });
 
-  it("o book sabe se está desatualizado", () => {
-    expect(ROTA).toContain("const mudaram = saida.filter((p) => p.eventId === b.eventId && (ultimaVersaoDaPeca.get(p.id) ?? \"\") > em).length;");
-    expect(ROTA).toContain("pecasMudaramDepois: mudaram");
-    // o book sem data (legado) não finge ser o mais novo
-    expect(ROTA).toContain("l.push({ bookUrl: cur.bookUrl, em: null, por: null, itemCount: cur.n, inferido: true, pecasMudaramDepois: 0 });");
+  it("o book sabe se está desatualizado — contando as peças DELE, não do evento", () => {
+    // O primeiro cálculo contava as peças do EVENTO: um book de 26 peças
+    // chegou a dizer "34 peças mudaram", que é impossível e derruba a
+    // confiança no resto do número. Quem não está no book não o desatualiza.
+    expect(ROTA).toContain("const doBook = pecasDoBook.get(b.bookUrl) ?? null;");
+    expect(ROTA).toContain("const mudaram = (doBook ?? [])");
+    expect(ROTA).not.toContain("saida.filter((p) => p.eventId === b.eventId &&");
+    expect(ROTA).toContain("pecasMudaramDepois: mudaram.length,");
+  });
+
+  it("e diz QUAIS peças mudaram, com teto de payload", () => {
+    expect(ROTA).toContain("pecasMudaram: mudaram.slice(0, 60),");
+    expect(ROTA).toContain("export type PecaQueMudou = { id: string; displayId: string; eventId: string; em: string };");
+  });
+
+  it("book já substituído admite que não dá para saber quais peças eram dele", () => {
+    // A associação peça↔book vive em items.book_url, que guarda um endereço
+    // por peça: publicar um book novo apaga o anterior. Sobra a contagem.
+    expect(ROTA).toContain("membrosConhecidos: doBook !== null,");
+    expect(PAGE).toContain("não dá para saber");
+    // e o book sem data (legado) continua sem fingir que é o mais novo
+    expect(ROTA).toContain('l.push({ bookUrl: cur.bookUrl, em: null, por: null, itemCount: cur.n, inferido: true, membrosConhecidos: true, pecasMudaramDepois: 0, pecasMudaram: [] });');
   });
 
   it("o CSV exporta o RECORTE inteiro, com BOM para o Excel em pt-BR", () => {
@@ -250,8 +267,14 @@ describe("4 · a tela", () => {
   });
 
   it("books mostram estado e download só para arquivo do app", () => {
-    expect(PAGE).toContain("testId={`selo-book-desatualizado-${ev.eventId}-${i}`}");
+    // O selo de "desatualizado" virou BOTÃO: número sem nome não vira ação.
+    expect(PAGE).toContain("data-testid={`selo-book-desatualizado-${ev.eventId}-${i}`}");
+    expect(PAGE).toContain("data-testid={`lista-mudaram-${ev.eventId}-${i}`}");
+    expect(PAGE).toContain("data-testid={`link-mudou-${pm.id}`}");
+    expect(PAGE).toContain("arte trocada em");
     expect(PAGE).toContain("testId={`selo-book-em-dia-${ev.eventId}`}");
+    // o número aparece com o denominador, para "34 de 26" nunca mais existir
+    expect(PAGE).toContain("{b.pecasMudaramDepois} de {b.itemCount}");
     expect(PAGE).toContain("data-testid={`link-baixar-book-${ev.eventId}-${i}`}");
     expect(PAGE).toContain("isWebUrl(b.bookUrl) ?");
     expect(PAGE).toContain("arquivo fora do app");

@@ -66,7 +66,11 @@ type Peca = {
   versoes: Versao[]; decisoes: Decisao[];
   divergente: boolean; pendente: boolean; diasPendente: number | null; atencao: boolean;
 };
-type Book = { bookUrl: string; em: string | null; por: string | null; itemCount: number; inferido: boolean; pecasMudaramDepois: number };
+type PecaQueMudou = { id: string; displayId: string; eventId: string; em: string };
+type Book = {
+  bookUrl: string; em: string | null; por: string | null; itemCount: number; inferido: boolean;
+  membrosConhecidos: boolean; pecasMudaramDepois: number; pecasMudaram: PecaQueMudou[];
+};
 type BooksDoEvento = { eventId: string; eventName: string; truckDepartureDate: string | null; books: Book[] };
 type Faceta = { value: string; label: string; count: number };
 type Resumo = {
@@ -1076,50 +1080,10 @@ function AbaBooks({ eventos, isMobile, alturaControle, podeAvisar }: { eventos: 
             <span style={{ fontSize: FS.small, color: T.second }}>{ev.books.length} {ev.books.length === 1 ? "publicação" : "publicações"}</span>
           </div>
           <div>
-            {ev.books.map((b, i) => {
-              const desatualizado = b.pecasMudaramDepois > 0;
-              return (
-                <div key={`${b.bookUrl}-${i}`} data-testid={`book-${ev.eventId}-${i}`}
-                  style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 18px", borderBottom: i < ev.books.length - 1 ? `1px solid ${T.low}` : "none", flexWrap: "wrap" }}>
-                  <span aria-hidden="true" style={{ width: 30, height: 30, borderRadius: R.md, backgroundColor: "#faf5ff", color: "#7e22ce", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <FileText style={{ width: 15, height: 15 }} />
-                  </span>
-                  <div style={{ flex: 1, minWidth: 200 }}>
-                    <p style={{ margin: 0, fontSize: FS.body, fontWeight: 700, color: T.text, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-                      {i === 0 ? "Book atual" : "Publicação anterior"}
-                      <span style={{ fontWeight: 500, color: T.second }}>{b.itemCount} {b.itemCount === 1 ? "peça" : "peças"}</span>
-                      {desatualizado ? (
-                        <Selo testId={`selo-book-desatualizado-${ev.eventId}-${i}`} cor="#b45309" fundo="#fffbeb" borda="#fde68a"
-                          titulo="Peças deste evento ganharam versão nova depois desta publicação — o book pode não corresponder à arte atual">
-                          desatualizado · {b.pecasMudaramDepois} {b.pecasMudaramDepois === 1 ? "peça mudou" : "peças mudaram"}
-                        </Selo>
-                      ) : b.em && i === 0 ? (
-                        <Selo testId={`selo-book-em-dia-${ev.eventId}`} cor="#15803d" fundo="#f0fdf4" borda="#bbf7d0"
-                          titulo="Nenhuma peça do evento mudou de versão depois desta publicação">em dia</Selo>
-                      ) : null}
-                    </p>
-                    <p style={{ margin: "2px 0 0", fontSize: FS.small, color: T.second }}>
-                      {b.em ? <>publicado em <span style={numero}>{fmtData(b.em)}</span>{b.por ? ` por ${b.por}` : ""}</>
-                        : "publicado antes de o registro de books existir — data não gravada"}
-                    </p>
-                  </div>
-                  {/* Reenviar o aviso: só faz sentido para o book ATUAL — é
-                      dele que o e-mail fala. */}
-                  {podeAvisar && i === 0 && <BotaoReenviarAviso eventId={ev.eventId} altura={alturaControle} />}
-                  {isWebUrl(b.bookUrl) ? (
-                    <a href={b.bookUrl} download target="_blank" rel="noopener noreferrer" data-testid={`link-baixar-book-${ev.eventId}-${i}`}
-                      style={{ display: "inline-flex", alignItems: "center", gap: 6, height: alturaControle, padding: "0 14px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: "#ffffff", color: T.text, fontSize: FS.small, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", textDecoration: "none", whiteSpace: "nowrap" }}>
-                      <Download style={{ width: 13, height: 13 }} /> Baixar
-                    </a>
-                  ) : (
-                    <span title={b.bookUrl} style={{ fontSize: FS.small, color: T.second, display: "inline-flex", alignItems: "center", gap: 5 }}>
-                      <HelpCircle style={{ width: 13, height: 13 }} /> arquivo fora do app
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+            {ev.books.map((b, i) => (
+              <LinhaDoBook key={`${b.bookUrl}-${i}`} b={b} ev={ev} i={i} total={ev.books.length}
+                isMobile={isMobile} alturaControle={alturaControle} podeAvisar={podeAvisar} />
+            ))}          </div>
         </section>
       ))}
     </div>
@@ -1157,5 +1121,96 @@ function BotaoReenviarAviso({ eventId, altura }: { eventId: string; altura: numb
         : <Send style={{ width: 13, height: 13 }} />}
       Reenviar aviso
     </button>
+  );
+}
+
+/**
+ * UMA LINHA DE BOOK — e a resposta para "mudaram quantas? quais?".
+ *
+ * O selo dizia só o número, e número sem nome não vira ação: para descobrir
+ * quais peças mudaram depois da publicação era preciso conferir o book
+ * inteiro contra a lista, peça por peça. Agora o selo ABRE a lista, com a
+ * data em que cada arte mudou e o caminho para a peça.
+ */
+function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar }: {
+  b: Book; ev: BooksDoEvento; i: number; total: number;
+  isMobile: boolean; alturaControle: number; podeAvisar: boolean;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const desatualizado = b.pecasMudaramDepois > 0;
+  const listadas = b.pecasMudaram.length;
+  const escondidas = b.pecasMudaramDepois - listadas;
+
+  return (
+    <div data-testid={`book-${ev.eventId}-${i}`}
+      style={{ borderBottom: i < total - 1 ? `1px solid ${T.low}` : "none" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 18px", flexWrap: "wrap" }}>
+        <span aria-hidden="true" style={{ width: 30, height: 30, borderRadius: R.md, backgroundColor: "#faf5ff", color: "#7e22ce", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <FileText style={{ width: 15, height: 15 }} />
+        </span>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <p style={{ margin: 0, fontSize: FS.body, fontWeight: 700, color: T.text, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            {i === 0 ? "Book atual" : "Publicação anterior"}
+            <span style={{ fontWeight: 500, color: T.second }}>{b.itemCount} {b.itemCount === 1 ? "peça" : "peças"}</span>
+
+            {desatualizado ? (
+              // O selo é BOTÃO: o número sozinho não dizia o que fazer.
+              <button type="button" onClick={() => setAberto(a => !a)}
+                data-testid={`selo-book-desatualizado-${ev.eventId}-${i}`}
+                aria-expanded={aberto}
+                title="Ver quais peças deste book ganharam arte nova depois da publicação"
+                style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: FS.micro, fontWeight: 700, color: "#b45309", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderRadius: R.sm, padding: "2px 8px", textTransform: "uppercase", letterSpacing: "0.04em", cursor: "pointer", fontFamily: "inherit", minHeight: isMobile ? 32 : undefined }}>
+                desatualizado · {b.pecasMudaramDepois} de {b.itemCount} {b.pecasMudaramDepois === 1 ? "peça mudou" : "peças mudaram"}
+                <ChevronRight aria-hidden="true" style={{ width: 11, height: 11, transform: aberto ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
+              </button>
+            ) : !b.membrosConhecidos ? (
+              // Honestidade: do book já substituído sobrou a contagem, não a
+              // lista de peças — não dá para afirmar que ele está em dia.
+              <Selo testId={`selo-book-indeterminado-${ev.eventId}-${i}`} cor="#57534e" fundo={T.low} borda={T.border}
+                titulo="Este book foi substituído: o sistema guardou quantas peças ele tinha, não quais — então não dá para dizer se alguma mudou depois">
+                não dá para saber
+              </Selo>
+            ) : b.em && i === 0 ? (
+              <Selo testId={`selo-book-em-dia-${ev.eventId}`} cor="#15803d" fundo="#f0fdf4" borda="#bbf7d0"
+                titulo="Nenhuma peça deste book ganhou arte nova depois da publicação">em dia</Selo>
+            ) : null}
+          </p>
+          <p style={{ margin: "2px 0 0", fontSize: FS.small, color: T.second }}>
+            {b.em ? <>publicado em <span style={numero}>{fmtData(b.em)}</span>{b.por ? ` por ${b.por}` : ""}</>
+              : "publicado antes de o registro de books existir — data não gravada"}
+          </p>
+        </div>
+
+        {podeAvisar && i === 0 && <BotaoReenviarAviso eventId={ev.eventId} altura={alturaControle} />}
+        {isWebUrl(b.bookUrl) ? (
+          <a href={b.bookUrl} download target="_blank" rel="noopener noreferrer" data-testid={`link-baixar-book-${ev.eventId}-${i}`}
+            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: alturaControle, padding: "0 14px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: "#ffffff", color: T.text, fontSize: FS.small, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", textDecoration: "none", whiteSpace: "nowrap" }}>
+            <Download style={{ width: 13, height: 13 }} /> Baixar
+          </a>
+        ) : (
+          <span title={b.bookUrl} style={{ fontSize: FS.small, color: T.second, display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <HelpCircle style={{ width: 13, height: 13 }} /> arquivo fora do app
+          </span>
+        )}
+      </div>
+
+      {/* QUAIS. Cada peça com a data em que a arte mudou, e o caminho para ela. */}
+      {aberto && desatualizado && (
+        <div data-testid={`lista-mudaram-${ev.eventId}-${i}`}
+          style={{ padding: "0 18px 12px 60px", display: "flex", flexDirection: "column", gap: 4 }}>
+          {b.pecasMudaram.map(pm => (
+            <Link key={pm.id} href={`/eventos/${pm.eventId}?item=${pm.id}`}
+              data-testid={`link-mudou-${pm.id}`}
+              style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: FS.small, color: T.text, textDecoration: "none", padding: "3px 0" }}>
+              <span style={{ ...numero, fontWeight: 700, color: T.accentText }}>{pm.displayId}</span>
+              <span style={{ color: T.second }}>arte trocada em <span style={numero}>{fmtData(pm.em)}</span></span>
+            </Link>
+          ))}
+          {escondidas > 0 && (
+            <span style={{ fontSize: FS.small, color: T.second }}>e mais {escondidas} — abra o evento para ver a lista inteira.</span>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

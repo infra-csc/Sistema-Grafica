@@ -357,8 +357,6 @@ export default function Atendimento() {
   // Modal Exportar PDF
   const [showExportPDFModal, setShowExportPDFModal] = useState(false);
 
-  const [approvedGroupExpanded, setApprovedGroupExpanded] = useState(false);
-
   // Lote por Patrocinador + Evento
   const [batchSponsorId, setBatchSponsorId]           = useState<string>("");
   const [batchEventId, setBatchEventId]               = useState<string>("");
@@ -1005,11 +1003,7 @@ export default function Atendimento() {
     return { chave: "", num: prazo ? prazo.diff : Number.MAX_SAFE_INTEGER };
   }, [ordemPendentes, itemApprovalsMap, eventoPorId, hoje]);
 
-  const approvedGroup = useMemo(() => {
-    if (loadingSponsors) return [];
-    return filteredItems.filter(item => isItemFullyApproved(item));
-  }, [filteredItems, itemApprovalsMap, itemSponsorsMap, loadingSponsors]);
-
+  
   const actionableCount = useMemo(() => {
     if (loadingSponsors) return null;
     return pendingGroup.filter(item => {
@@ -2710,97 +2704,11 @@ export default function Atendimento() {
               lista parcial responde errado. O Histórico mantém a paginação:
               lá a lista é ilimitada e ninguém a varre inteira. */}
 
-          {/* Grupo: Aprovados (colapsável) */}
-          {approvedGroup.length > 0 && (
-            <div>
-              <button
-                onClick={() => setApprovedGroupExpanded(v => !v)}
-                data-testid="row-approved-group-header"
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-                  padding: '12px 16px', borderRadius: 8, cursor: 'pointer',
-                  backgroundColor: '#f0fdf4', border: '1px solid #86efac',
-                  marginBottom: approvedGroupExpanded ? 12 : 0,
-                }}
-              >
-                {approvedGroupExpanded
-                  ? <ChevronDown style={{ width: 14, height: 14, color: '#15803d' }} />
-                  : <ChevronRight style={{ width: 14, height: 14, color: '#15803d' }} />}
-                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, textAlign: 'left' }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                    Aprovados — {approvedGroup.length} {approvedGroup.length === 1 ? 'item' : 'itens'}
-                  </span>
-                  {/* O rótulo sozinho não explicava O QUE é este grupo nem por
-                      que ele fica no fim da fila (pergunta real do dono,
-                      24/08). #15803d sobre #f0fdf4 = 4,54:1 ✓ nos 11px. */}
-                  <span style={{ fontSize: 11, fontWeight: 400, color: '#15803d', textTransform: 'none', letterSpacing: 0 }}>
-                    {approvedGroup.length === 1
-                      ? 'Todos os patrocinadores desta peça já aprovaram — nada a decidir aqui. Ela fica visível para conferência e para revogar uma decisão, e sai quando avança de etapa.'
-                      : 'Todos os patrocinadores destas peças já aprovaram — nada a decidir aqui. Elas ficam visíveis para conferência e para revogar uma decisão, e saem quando avançam de etapa.'}
-                  </span>
-                </span>
-              </button>
-              {approvedGroupExpanded && (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                  {approvedGroup.map(item => {
-                    return (
-                      <div
-                        key={item.id}
-                        data-testid={`row-approved-item-${item.id}`}
-                        style={{
-                          backgroundColor: '#ffffff', borderRadius: 12,
-                          boxShadow: '0 1px 3px rgba(0,0,0,0.04), inset 4px 0 0 #d6d3d1',
-                          overflow: 'hidden', opacity: 0.7,
-                        }}
-                      >
-                        <div style={{ display: 'flex', alignItems: 'center', padding: '14px 20px', gap: 20 }}>
-                          <div style={{ width: 48, height: 48, flexShrink: 0, borderRadius: 6, backgroundColor: '#f5f5f4', overflow: 'hidden', filter: 'grayscale(1)', position: 'relative' }}>
-                            {item.approvalThumbUrl
-                              ? <>
-                                  <img
-                                    src={item.approvalThumbUrl}
-                                    alt=""
-                                    loading="lazy"
-                                    decoding="async"
-                                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                                    onError={(e) => {
-                                      (e.currentTarget as HTMLImageElement).style.display = 'none';
-                                      const fb = (e.currentTarget as HTMLImageElement).nextElementSibling as HTMLElement | null;
-                                      if (fb?.dataset.fallback) fb.style.display = 'flex';
-                                    }}
-                                  />
-                                  <div data-fallback="1" style={{ display: 'none', position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', background: '#f5f5f4' }}>
-                                    <FileText style={{ width: 18, height: 18, color: '#a8a29e' }} />
-                                  </div>
-                                </>
-                              : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FileText style={{ width: 18, height: 18, color: '#a8a29e' }} /></div>}
-                          </div>
-                          <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr auto', gap: 12, alignItems: 'center', minWidth: 0 }}>
-                            <div>
-                              <h5 style={{ fontSize: 13, fontWeight: 600, color: '#746e69', margin: 0 }}>{item.type}</h5>
-                              <p style={{ fontSize: 11, color: '#746e69', margin: '2px 0 0' }}>{item.displayId}</p>
-                            </div>
-                            {/* Mesma linguagem dos cards pendentes: chips já com o
-                                status de cada patrocinador (todos aprovados aqui). */}
-                            <SponsorChips sponsors={sponsorsWithStatus(item)} variant="colored" size="sm" />
-                            <span data-testid={`badge-aprovado-${item.id}`} style={{
-                              display: 'inline-flex', alignItems: 'center', gap: 4,
-                              fontSize: 11, fontWeight: 700, color: '#15803d',
-                              backgroundColor: '#f0fdf4', border: '1px solid #86efac',
-                              padding: '3px 10px', borderRadius: 6,
-                            }}>
-                              <CheckCircle style={{ width: 11, height: 11 }} /> APROVADO
-                            </span>
-                            <span />
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+          {/* O grupo "Aprovados" FOI REMOVIDO (dono, 24/08): peça com todos os
+                        patrocinadores aprovados já aparece na aba Histórico — que é o
+                        lugar dela — e o grupo verde no fim da fila era a mesma
+                        informação dita duas vezes, sem dizer o que era. Revogar uma
+                        decisão continua possível pelo Histórico. */}
         </div>
       )}
       </div>}

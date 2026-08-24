@@ -91,9 +91,11 @@ describe("o custo de desenhar tudo foi tratado onde ele mora", () => {
   });
 
   it("as thumbs das listas longas carregam sob demanda", () => {
-    // Três listas: pendentes, aprovados e histórico. Os modais NÃO entram —
-    // lá a imagem é o próprio conteúdo, e esperar seria pior.
-    expect(TELA.match(/loading="lazy"/g)?.length).toBe(3);
-    expect(TELA.match(/decoding="async"/g)?.length).toBe(3);
+    // Duas listas: pendentes e histórico (o grupo "Aprovados" foi removido —
+    // a peça toda aprovada vive na aba Histórico, que é o lugar dela). Os
+    // modais NÃO entram: lá a imagem é o próprio conteúdo.
+    expect(TELA.match(/loading="lazy"/g)?.length).toBe(2);
+    expect(TELA.match(/decoding="async"/g)?.length).toBe(2);
+    expect(TELA).not.toContain("approvedGroup");
   });
 });

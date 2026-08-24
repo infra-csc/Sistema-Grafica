@@ -2726,8 +2726,18 @@ export default function Atendimento() {
                 {approvedGroupExpanded
                   ? <ChevronDown style={{ width: 14, height: 14, color: '#15803d' }} />
                   : <ChevronRight style={{ width: 14, height: 14, color: '#15803d' }} />}
-                <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                  Aprovados — {approvedGroup.length} {approvedGroup.length === 1 ? 'item' : 'itens'}
+                <span style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 2, textAlign: 'left' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: '#15803d', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                    Aprovados — {approvedGroup.length} {approvedGroup.length === 1 ? 'item' : 'itens'}
+                  </span>
+                  {/* O rótulo sozinho não explicava O QUE é este grupo nem por
+                      que ele fica no fim da fila (pergunta real do dono,
+                      24/08). #15803d sobre #f0fdf4 = 4,54:1 ✓ nos 11px. */}
+                  <span style={{ fontSize: 11, fontWeight: 400, color: '#15803d', textTransform: 'none', letterSpacing: 0 }}>
+                    {approvedGroup.length === 1
+                      ? 'Todos os patrocinadores desta peça já aprovaram — nada a decidir aqui. Ela fica visível para conferência e para revogar uma decisão, e sai quando avança de etapa.'
+                      : 'Todos os patrocinadores destas peças já aprovaram — nada a decidir aqui. Elas ficam visíveis para conferência e para revogar uma decisão, e saem quando avançam de etapa.'}
+                  </span>
                 </span>
               </button>
               {approvedGroupExpanded && (

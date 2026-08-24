@@ -94,7 +94,9 @@ describe("a tela da Arte oferece o mesmo que a rota aceita", () => {
     // de novo em qualquer um deles é o que quebra aqui.
     const SHARED = readFileSync(new URL("../../shared/fluxo-peca.ts", import.meta.url), "utf8");
     expect(SHARED).toContain('export const DEPOIS_DA_ARTE');
-    expect(ITEMS).toContain('import { DEPOIS_DA_ARTE } from "@shared/fluxo-peca";');
+    // O import pode crescer (EM_REVISAO entrou em 24/08) — o que importa é a
+    // lista vir de shared, não a forma exata da linha.
+    expect(ITEMS).toMatch(/import \{ DEPOIS_DA_ARTE[^}]*\} from "@shared\/fluxo-peca";/);
     expect(ARTE).toContain('import { DEPOIS_DA_ARTE, naoDevolvivel } from "@shared/fluxo-peca";');
     expect(ITEMS).not.toContain("const DEPOIS_DA_ARTE = new Set");
     expect(ARTE).not.toContain("const DEPOIS_DA_ARTE = new Set");

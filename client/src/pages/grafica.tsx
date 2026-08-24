@@ -25,6 +25,7 @@ import { StatusPill } from "@/components/status-pill";
 import { useAuth } from "@/contexts/auth-context";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { GalpaoFila, type GalpaoDados } from "@/components/galpao-fila";
+import { EM_REVISAO } from "@shared/fluxo-peca";
 // Aritmética de saldo: fonte única em lib/saldo.ts. Estes onze cálculos
 // (quanto falta produzir, conferir, entregar, reaproveitar; quanto de m²
 // realmente vai para a impressora) viviam duplicados como consts locais no
@@ -1068,6 +1069,7 @@ export default function Grafica() {
   // "ready_for_production" — a faceta tem de somá-las numa opção só, senão a
   // contagem mentiria por baixo (é o que `casaStatus` faz do outro lado).
   const STATUS_DA_FILA = [
+    { value: "awaiting_final_review", label: "Em Revisão" },
     { value: "ready_for_production", label: "Pronto p/ Produção" },
     { value: "approved",             label: "Liberados" },
     { value: "inProduction",         label: "Em Produção" },
@@ -1079,7 +1081,9 @@ export default function Grafica() {
     const conta = new Map<string, number>();
     gFacetPool('status').forEach((i: any) => {
       const s = String(i.status ?? "");
-      const chave = s === "pronto_para_producao" ? "ready_for_production" : s;
+      const chave = s === "pronto_para_producao" ? "ready_for_production"
+        : (s === "awaiting_review" || s === "in_review") ? "awaiting_final_review"
+        : s;
       conta.set(chave, (conta.get(chave) ?? 0) + 1);
     });
     return STATUS_DA_FILA
@@ -1152,6 +1156,7 @@ export default function Grafica() {
     produzidos: statsPool.filter((i: any) => i.status === 'produced').length,
     conferidos: statsPool.filter((i: any) => i.status === 'conferred').length,
     entregues:  statsPool.filter((i: any) => i.status === 'delivered').length,
+    revisao:    statsPool.filter((i: any) => EM_REVISAO.has(i.status)).length,
     total:      statsPool.length,
   };
 
@@ -1532,12 +1537,14 @@ export default function Grafica() {
   //
   // Items que podem ser entregues no filtro atual
   const deliverableInFilter = useMemo(
-    () => (filteredItems as any[]).filter(i => canDeliver(i)),
+    () => (filteredItems as any[]).filter(i => canDeliver(i) && !EM_REVISAO.has(i.status)),
     [filteredItems],
   );
   // Conferíveis no filtro atual (para o modo conferência em lote)
+  // !EM_REVISAO: peça em revisão com reaproveitamento marcado passaria no
+  // canConfer (o reuso não olha status) — e ela está aqui só para ser VISTA.
   const conferableInFilter = useMemo(
-    () => (filteredItems as any[]).filter(i => canConfer(i)),
+    () => (filteredItems as any[]).filter(i => canConfer(i) && !EM_REVISAO.has(i.status)),
     [filteredItems],
   );
   // Um modo de lote por vez; a lista elegível depende do modo ativo.
@@ -1985,6 +1992,9 @@ export default function Grafica() {
         {[
           // O KPI Liberados agrega dois status; ele seleciona os DOIS valores
           // no filtro (o filtro em si é estrito — ver matchesFilters).
+          // "Em Revisão" vem ANTES de Liberados porque é o degrau anterior
+          // do fluxo: é o trabalho CHEGANDO — visível, sem ação da Gráfica.
+          { label: "Em Revisão",   value: stats.revisao,    sub: "Chegando",         testId: "stat-revisao",    filterVals: ["awaiting_final_review"] },
           { label: "Liberados",    value: stats.liberados,  sub: "Aguard. produção", testId: "stat-approved",   filterVals: ["ready_for_production", "approved"] },
           { label: "Em Produção",  value: stats.emProducao, sub: "Ativo",            testId: "stat-production", filterVals: ["inProduction"] },
           { label: "Produzidos",   value: stats.produzidos, sub: "Ag. conferência",  testId: "stat-produced",   filterVals: ["produced"] },
@@ -2341,8 +2351,10 @@ export default function Grafica() {
               const corte = cortePorItem.get(item.id);
               const showEvHeader = !prev || prev.event?.name !== item.event?.name;
               const isSelected = bulkSelectedIds.has(item.id);
-              const canDeliverItem = canDeliver(item);
-              const canConferItem = canConfer(item);
+              // Em revisão = só leitura: o trabalho está CHEGANDO, não chegou.
+              const emRevisao = EM_REVISAO.has(item.status);
+              const canDeliverItem = canDeliver(item) && !emRevisao;
+              const canConferItem = canConfer(item) && !emRevisao;
               const bulkEligible = bulkDeliveryMode ? canDeliverItem : bulkConferMode ? canConferItem : false;
               // ── Complemento: os mesmos três números do desktop ──
               const ehComplemento = isComplement(item);
@@ -2354,7 +2366,7 @@ export default function Grafica() {
               // (sólidos, o que a Gráfica faz com a peça) e CONTRATO (tintados,
               // o que muda o pedido — papel admin|solicitacao).
               const mostraAumentar = !bulkOn && podeAumentarQuantidade(item, podeMexerQtd);
-              const podeProduzirAqui = canProduce && coAberto && !isProduced(item) && !isConferred(item) && !item.isReuse && remainingProduce(item) > 0;
+              const podeProduzirAqui = !emRevisao && canProduce && coAberto && !isProduced(item) && !isConferred(item) && !item.isReuse && remainingProduce(item) > 0;
               const podeCancelarCompl = podeMexerQtd && ehComplemento && complementUntouched(item);
               // Evento finalizado: o botão continua na tela, DESABILITADO com o
               // motivo — sumir devolveria o buraco que esconder a peça criava
@@ -2571,6 +2583,11 @@ export default function Grafica() {
                           {qtyOf(item)}
                           <span style={{ fontSize: 11, fontWeight: 600, color: TI.secondary, marginLeft: 3 }}>un.</span>
                         </span>
+                        {emRevisao && (
+                          <span data-testid={`chip-revisao-${item.id}`} style={qtyChip('#a21caf', '#fdf4ff')} title="Esta peça ainda está na Revisão — aparece aqui para a Gráfica ver o que está chegando. As ações liberam quando a Revisão aprovar.">
+                            EM REVISÃO
+                          </span>
+                        )}
                         {reusedTotalOf(item) > 0 && (
                           <span style={qtyChip('#047857', '#dcfce7')} title={item.isReuse ? 'Peça inteira reaproveitada' : `${reusedTotalOf(item)} de ${qtyOf(item)} un. reaproveitadas`}>
                             REAPROV. {reusedTotalOf(item)}
@@ -2784,7 +2801,8 @@ export default function Grafica() {
                 // Mesmo padrão do mobile: elegível conforme o modo de lote
                 // ativo — antes só a entrega em lote tinha checkbox na tabela.
                 const isSelected = bulkSelectedIds.has(item.id);
-                const bulkEligible = bulkDeliveryMode ? canDeliver(item) : bulkConferMode ? canConfer(item) : false;
+                const emRevisao = EM_REVISAO.has(item.status);
+                const bulkEligible = !emRevisao && (bulkDeliveryMode ? canDeliver(item) : bulkConferMode ? canConfer(item) : false);
                 // ── Complemento ──
                 // ehComplemento: esta linha nasceu de um aumento de quantidade.
                 // coAberto: o realce FORTE ainda vale (não foi entregue).
@@ -3413,7 +3431,12 @@ export default function Grafica() {
                             </button>
                           )}
 
-                          {!bulkOn && podeConferir && canConfer(item) && (
+                          {emRevisao && (
+                            <span data-testid={`selo-revisao-${item.id}`} title="Esta peça ainda está na Revisão — aparece aqui para a Gráfica ver o que está chegando. As ações liberam quando a Revisão aprovar." style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '4px 9px', borderRadius: 999, backgroundColor: '#fdf4ff', border: '1px solid #f5d0fe', color: '#a21caf', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
+                              <Eye style={{ width: 11, height: 11 }} /> Em revisão
+                            </span>
+                          )}
+                          {!bulkOn && !emRevisao && podeConferir && canConfer(item) && (
                             <button
                               onClick={() => openConferenceModal(item)}
                               title={`Conferir (faltam ${remainingConfer(item)} de ${qtyOf(item)})`}
@@ -3453,7 +3476,7 @@ export default function Grafica() {
                             </div>
                           )}
                           {/* Entregar — reaproveitamento: direto; normal: o que já foi conferido */}
-                          {!bulkOn && canDeliver(item) && (
+                          {!bulkOn && !emRevisao && canDeliver(item) && (
                             <button
                               onClick={() => openDeliveryModal(item)}
                               title={`Entregar (${remainingDeliver(item)} conferido(s) pendente(s))`}

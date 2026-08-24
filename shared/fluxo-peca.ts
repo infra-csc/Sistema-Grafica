@@ -32,3 +32,17 @@ export const DEPOIS_DA_ARTE: ReadonlySet<string> = new Set([
  * já está na criação não muda nada — e ainda zeraria os campos de aprovação.
  */
 export const naoDevolvivel = (status: string): boolean => status === "draft";
+
+/**
+ * Peça NA REVISÃO — o degrau imediatamente antes de ser liberada para a
+ * Gráfica (os mesmos três status da etapa "revisao" do funil de prazos).
+ *
+ * Pedido do dono (24/08): a Gráfica passa a VER essas peças na fila dela —
+ * é o trabalho que está chegando — mas não pode agir sobre elas. O gate vale
+ * nos dois lados: a tela esconde as ações, e o servidor recusa a conferência
+ * (uma peça em revisão com reaproveitamento marcado passava pelo caminho do
+ * reuso, que não olha status).
+ */
+export const EM_REVISAO: ReadonlySet<string> = new Set([
+  "awaiting_final_review", "awaiting_review", "in_review",
+]);

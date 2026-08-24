@@ -74,7 +74,9 @@ describe("o cliente espelha os DOIS gates, e não confunde um com o outro", () =
   });
 
   it("o botão de produzir continua no gate de produzir", () => {
-    expect(tela).toContain("const podeProduzirAqui = canProduce &&");
+    // !emRevisao veio na frente em 24/08 — a revisão ficou visível na
+    // Gráfica, e produzir peça que a Revisão não liberou não é opção.
+    expect(tela).toContain("const podeProduzirAqui = !emRevisao && canProduce &&");
   });
 });
 
@@ -83,7 +85,9 @@ describe("a entrega não tem gate de papel no cliente", () => {
     // `canDeliver(item)` é conta de saldo. O papel é barrado no servidor, que é
     // onde ele precisa ser barrado; duplicar aqui só criaria uma segunda regra
     // para divergir da primeira.
-    expect(tela).toContain("{!bulkOn && canDeliver(item) && (");
+    // O !emRevisao NÃO é gate de papel: é a peça que a Revisão ainda não
+    // liberou — visível na fila, sem ação (decisão do dono, 24/08).
+    expect(tela).toContain("{!bulkOn && !emRevisao && canDeliver(item) && (");
   });
 });
 

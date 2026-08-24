@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { storage, assetPrefix, assetSeqOf, isDisplayIdConflictError } from "../storage";
 import type { Item } from "@shared/schema";
-import { DEPOIS_DA_ARTE } from "@shared/fluxo-peca";
+import { DEPOIS_DA_ARTE, EM_REVISAO } from "@shared/fluxo-peca";
 import {
   insertItemSchema,
   publicInsertItemSchema,
@@ -2026,10 +2026,30 @@ export function registerItemRoutes(app: Express): void {
         // Limpa flag de reprovação pelo patrocinador quando aprovado
         rejectedBySponsor: false,
       });
-      
+
       if (!item) {
         return res.status(404).json({ error: "Item not found" });
       }
+
+      // O ATALHO APROVA A PEÇA INTEIRA — então as LINHAS acompanham (24/08,
+      // caso #4176). Este caminho mudava só o STATUS: o patrocinador ficava
+      // "Aguardando" numa peça já em Finalização, o modal mostrava "0 de 1
+      // aprovaram" numa peça aprovada, e a revogação seguinte respondia "já
+      // está pendente" — a peça ficava presa fora da fila do Atendimento,
+      // sem nenhum botão que a trouxesse de volta.
+      const linhasDaPeca = await storage.getItemSponsorApprovals(req.params.id);
+      for (const linha of linhasDaPeca) {
+        if (linha.status === "approved") continue;
+        await storage.updateItemSponsorApproval(linha.id, {
+          status: "approved",
+          approvedBy: req.userName ?? "Atendimento",
+          approvedAt: new Date(),
+          rejectedBy: null,
+          rejectedAt: null,
+          rejectionReason: null,
+        });
+      }
+      invalidarCacheDeVersoes();
       
       const event = await storage.getEvent(item.eventId);
       
@@ -2417,12 +2437,18 @@ export function registerItemRoutes(app: Express): void {
       if (!approval) {
         return res.status(404).json({ error: "Aprovação não encontrada para este patrocinador" });
       }
-      if (approval.status === "pending") {
+      // Linha já pendente COM a peça já avançada é o estado incoerente que o
+      // atalho de aprovação deixava antes de 24/08 (caso #4176): não há o que
+      // revogar NA LINHA, mas há o que REABRIR — e é para isso que quem
+      // clicou veio aqui. Pendente com a peça ainda em aprovação continua 409:
+      // aí não há mesmo nada a fazer.
+      const reabrirIncoerente = approval.status === "pending" && currentItem.status === "sponsor_approved";
+      if (approval.status === "pending" && !reabrirIncoerente) {
         return res.status(409).json({ error: "Esta aprovação já está pendente" });
       }
 
       const previousStatus = approval.status;
-      const updatedApproval = await storage.updateItemSponsorApproval(approval.id, {
+      const updatedApproval = reabrirIncoerente ? approval : await storage.updateItemSponsorApproval(approval.id, {
         status: "pending",
         approvedBy: null,
         approvedAt: null,
@@ -2452,7 +2478,9 @@ export function registerItemRoutes(app: Express): void {
         'updated',
         'item',
         itemId,
-        `${req.userRole === "admin" ? "Administrador" : "Atendimento"} revogou a ${previousStatus === "approved" ? "aprovação" : "decisão"} de "${sponsor?.name || sponsorId}" — volta a pendente (estava: ${previousStatus})${motivo ? `. Motivo: ${motivo}` : ''}${item.status !== currentItem.status ? `. Item reaberto: ${translateStatus(currentItem.status)} → ${translateStatus(item.status)}` : ''}`
+        reabrirIncoerente
+          ? `${req.userRole === "admin" ? "Administrador" : "Atendimento"} reabriu a aprovação de "${sponsor?.name || sponsorId}" — a linha já estava pendente com a peça avançada (estado herdado do atalho de aprovação)${motivo ? `. Motivo: ${motivo}` : ''}. Item reaberto: ${translateStatus(currentItem.status)} → ${translateStatus(item.status)}`
+          : `${req.userRole === "admin" ? "Administrador" : "Atendimento"} revogou a ${previousStatus === "approved" ? "aprovação" : "decisão"} de "${sponsor?.name || sponsorId}" — volta a pendente (estava: ${previousStatus})${motivo ? `. Motivo: ${motivo}` : ''}${item.status !== currentItem.status ? `. Item reaberto: ${translateStatus(currentItem.status)} → ${translateStatus(item.status)}` : ''}`
       );
 
       broadcast({ type: "sponsor_approval_updated", itemId, approval: updatedApproval });
@@ -4141,6 +4169,13 @@ export function registerItemRoutes(app: Express): void {
       // `produced` continua liberando o caminho normal; o reuso abre o dele.
       // Sem este "ou", a peça de acervo levava 409 para sempre — 72 delas em
       // produção. O saldo (`remaining`) continua sendo quem limita quantas.
+      // Peça NA REVISÃO não confere — nem pelo caminho do reuso, que não
+      // olha status. Ela agora APARECE na fila da Gráfica (feed inclui a
+      // revisão como "chegando"), então o buraco ficou alcançável: uma peça
+      // com reaproveitamento marcado e ainda em revisão passaria por aqui.
+      if (EM_REVISAO.has(current.status)) {
+        return res.status(409).json({ error: `Esta peça ainda está na Revisão — a Gráfica confere depois que a Revisão liberar. Status: ${translateStatus(current.status)}` });
+      }
       const podeConferir = current.status === "produced" || reusedTotal > 0;
       if (!podeConferir || remaining <= 0) {
         return res.status(409).json({ error: `Nada a conferir. Status: ${translateStatus(current.status)} (${alreadyConferred}/${current.quantity})` });

@@ -607,11 +607,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getApprovedItems(): Promise<Item[]> {
+    // Os três primeiros são a REVISÃO — entram no feed da Gráfica como
+    // "chegando" (decisão do dono, 24/08): visíveis, sem ação. Quem esconde
+    // as ações é a tela (EM_REVISAO de shared/fluxo-peca) e quem barra de
+    // verdade é a rota de conferência.
     return await db
       .select()
       .from(items)
       .where(and(
-        sql`${items.status} IN ('ready_for_production', 'pronto_para_producao', 'approved', 'inProduction', 'produced', 'conferred', 'delivered')`,
+        sql`${items.status} IN ('awaiting_final_review', 'awaiting_review', 'in_review', 'ready_for_production', 'pronto_para_producao', 'approved', 'inProduction', 'produced', 'conferred', 'delivered')`,
         sql`${items.deletedAt} IS NULL`
       ))
       .orderBy(desc(items.createdAt));

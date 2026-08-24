@@ -264,10 +264,17 @@ export interface OpcoesCasamento {
   excluir?: FacetaGrafica;
 }
 
-/** "ready_for_production" e "pronto_para_producao" são a MESMA etapa (grafia legada). */
+/**
+ * Duas famílias de mesma etapa: "ready_for_production" cobre a grafia legada
+ * "pronto_para_producao", e "awaiting_final_review" representa a REVISÃO
+ * inteira (com awaiting_review e in_review) — os três são o mesmo degrau
+ * "chegando" na fila da Gráfica, e uma opção por grafia mentiria por baixo.
+ */
 const casaStatus = (statusDoItem: string, escolhido: string): boolean =>
   escolhido === "ready_for_production"
     ? statusDoItem === "ready_for_production" || statusDoItem === "pronto_para_producao"
+    : escolhido === "awaiting_final_review"
+    ? statusDoItem === "awaiting_final_review" || statusDoItem === "awaiting_review" || statusDoItem === "in_review"
     : statusDoItem === escolhido;
 
 /**

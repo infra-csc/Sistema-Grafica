@@ -514,11 +514,16 @@ export async function destinatariosDoEvento(eventId: string): Promise<string[]> 
 // ─────────────────────────────────────────────────────────────────────────────
 // QUEM RECEBE O AVISO DO BOOK — decisão do dono em 24/08.
 //
-// Regra atual: DUAS pessoas nomeadas. Nem por papel, nem por evento.
+// Regra atual: o ATENDIMENTO inteiro recebe de frente, e duas pessoas
+// nomeadas acompanham em cópia oculta. Nem por papel aberto, nem por evento.
 //
-// Ninguém recebe por ser admin: as contas de admin incluem conta de sistema e
-// gente que não acompanha a produção no dia a dia, e book para todas elas
-// seria ruído. E Solicitação NÃO entra — decisão do dono em 24/08.
+// Por que Atendimento e Arte no "Para": o Atendimento conversa com o
+// patrocinador e registra aprovação; a Arte publica o book e precisa da
+// confirmação de que ele saiu, com a contagem de peças, para conferir se saiu
+// o que devia. Para os dois o book pronto é notícia de trabalho, não recado.
+// Ninguém recebe por ser admin (as contas de admin incluem conta de sistema e
+// gente que não acompanha a produção no dia a dia), e Solicitação NÃO entra —
+// decisão do dono em 24/08.
 //
 // Por que também não é por evento: a regra por executivo de conta existe e
 // funciona (`destinatariosDoEvento`), mas hoje só 41 dos 147 patrocinadores
@@ -533,25 +538,26 @@ export async function destinatariosDoEvento(eventId: string): Promise<string[]> 
 export const USAR_EXECUTIVOS_DO_EVENTO = false;
 
 /**
- * Papéis que recebem por inteiro. VAZIO hoje: o dono decidiu que Solicitação
- * não entra por enquanto. Não é código morto — é o lugar declarado da decisão,
- * e voltar atrás é acrescentar uma palavra.
+ * Papéis que recebem de frente. Solicitação ficou de fora por decisão do dono;
+ * a lista existe justamente para essa escolha ser explícita e reversível numa
+ * palavra, em vez de virar um `if` escondido.
  */
-export const PAPEIS_QUE_RECEBEM: string[] = [];
+export const PAPEIS_QUE_RECEBEM = ["atendimento", "arte"];
 
-/** Quem recebe por nome, independentemente do papel. */
+/** Quem acompanha, por nome, independentemente do papel. Vai em cópia oculta. */
 export const DESTINATARIOS_NOMEADOS = ["pedro@nortemkt.com", "yan.araujo@nortemkt.com"];
 
-export async function destinatariosDaEquipe(): Promise<string[]> {
+async function porFiltro(teste: (u: { email: string; role: string }) => boolean): Promise<string[]> {
   const usuarios = await storage.getAllUsers();
-  return usuarios
-    .filter((u) => {
-      if (!u.email) return false;
-      if (PAPEIS_QUE_RECEBEM.includes(u.role)) return true;
-      return DESTINATARIOS_NOMEADOS.includes(u.email.trim().toLowerCase());
-    })
-    .map((u) => u.email);
+  return usuarios.filter((u) => !!u.email && teste(u as any)).map((u) => u.email);
 }
+
+/** O time que trabalha com o book. */
+export const destinatariosPorPapel = () => porFiltro((u) => PAPEIS_QUE_RECEBEM.includes(u.role));
+
+/** Quem acompanha de longe. */
+export const destinatariosNomeados = () =>
+  porFiltro((u) => DESTINATARIOS_NOMEADOS.includes(u.email.trim().toLowerCase()));
 
 /**
  * Monta e dispara o aviso do book, e devolve a descrição do que aconteceu.
@@ -566,17 +572,20 @@ export async function avisarBookPorEmail(
 ): Promise<BookEmailResult> {
   try {
     const evento = await storage.getEvent(eventId);
-    const [porEvento, equipe, doEvento, books] = await Promise.all([
+    const [porEvento, porPapel, nomeados, doEvento, books] = await Promise.all([
       USAR_EXECUTIVOS_DO_EVENTO ? destinatariosDoEvento(eventId) : Promise.resolve([]),
-      destinatariosDaEquipe(),
+      destinatariosPorPapel(),
+      destinatariosNomeados(),
       storage.getItemsByEvent(eventId),
       storage.getAllEventBooks(),
     ]);
-    // Com a regra por evento desligada, a lista nomeada vai inteira no "Para":
-    // são poucas pessoas da mesma casa, e ver quem mais foi avisado evita o
-    // telefone sem fio de "será que fulano viu?".
-    const principais = USAR_EXECUTIVOS_DO_EVENTO && porEvento.length > 0 ? porEvento : equipe;
-    const copias = USAR_EXECUTIVOS_DO_EVENTO && porEvento.length > 0 ? equipe : [];
+    // NO "PARA" quem trabalha com o book; em CÓPIA OCULTA quem acompanha. E a
+    // rede de segurança: se por algum motivo o time ficar vazio (papel
+    // renomeado, cadastro apagado), quem acompanha sobe para o "Para" — o
+    // aviso nunca sai sem destinatário.
+    const time = Array.from(new Set([...porEvento, ...porPapel]));
+    const principais = time.length > 0 ? time : nomeados;
+    const copias = time.length > 0 ? nomeados : [];
     return await notifyBookSaved({
       eventId,
       eventName: evento?.name ?? "Evento sem nome",

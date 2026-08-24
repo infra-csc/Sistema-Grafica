@@ -189,9 +189,15 @@ export function buildBookEmailMessage(
     : `${input.itemCount} ${input.itemCount === 1 ? "peça" : "peças"}`;
   const saida = fmtDia(input.saidaDoCaminhao);
 
+  // O EVENTO VEM PRIMEIRO. Assunto não aceita negrito: a única forma de
+  // destaque é a posição, e a caixa de entrada corta o fim — no celular sobram
+  // uns 35 caracteres. Com "Book de aprovação · " na frente, todas as
+  // mensagens começavam iguais e a pessoa tinha de abrir para saber de qual
+  // evento era. Agora o nome do evento é a primeira coisa que ela lê.
+  const quantasPecas = `${input.itemCount} ${input.itemCount === 1 ? "peça" : "peças"}`;
   const subject = atualizacao
-    ? `Book atualizado · ${eventName} · ${input.itemCount} ${input.itemCount === 1 ? "peça" : "peças"}`
-    : `Book de aprovação · ${eventName} · ${input.itemCount} ${input.itemCount === 1 ? "peça" : "peças"}`;
+    ? `${eventName} · BOOK ATUALIZADO · ${quantasPecas}`
+    : `${eventName} · Book de aprovação · ${quantasPecas}`;
 
   const preheader = `${pecas}${saida ? ` · caminhão sai em ${saida}` : ""}${input.publicadoPor ? ` · publicado por ${input.publicadoPor}` : ""}`;
 

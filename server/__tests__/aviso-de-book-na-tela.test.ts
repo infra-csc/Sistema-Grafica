@@ -61,12 +61,12 @@ describe("2 · reenviar o aviso sai da tela de Versões", () => {
 });
 
 describe("3 · quem recebe o aviso", () => {
-  it("duas pessoas NOMEADAS — nem por papel, nem por evento (decisão do dono, 24/08)", () => {
+  it("Atendimento e Arte de frente, dois nomeados em cópia — e Solicitação fora (dono, 24/08)", () => {
+    expect(ITEMS).toContain('export const PAPEIS_QUE_RECEBEM = ["atendimento", "arte"];');
     expect(ITEMS).toContain('export const DESTINATARIOS_NOMEADOS = ["pedro@nortemkt.com", "yan.araujo@nortemkt.com"];');
-    // Solicitação fora por enquanto: a lista de papéis existe e está vazia, de
-    // propósito — é o lugar declarado da decisão, não código morto.
-    expect(ITEMS).toContain("export const PAPEIS_QUE_RECEBEM: string[] = [];");
-    expect(ITEMS).toContain("if (PAPEIS_QUE_RECEBEM.includes(u.role)) return true;");
+    // Solicitação não aparece em lugar nenhum da regra de destinatário.
+    const i = ITEMS.indexOf("export const PAPEIS_QUE_RECEBEM");
+    expect(ITEMS.slice(i, i + 400)).not.toContain("solicitacao");
   });
 
   it("a regra por evento fica desligada enquanto o cadastro não melhora", () => {
@@ -76,13 +76,20 @@ describe("3 · quem recebe o aviso", () => {
     expect(ITEMS).toContain("export async function destinatariosDoEvento(eventId: string)");
   });
 
-  it("com a regra por evento desligada, todos vão no Para e ninguém em cópia", () => {
-    expect(ITEMS).toContain("const principais = USAR_EXECUTIVOS_DO_EVENTO && porEvento.length > 0 ? porEvento : equipe;");
-    expect(ITEMS).toContain("const copias = USAR_EXECUTIVOS_DO_EVENTO && porEvento.length > 0 ? equipe : [];");
+  it("quem trabalha vai no Para; quem acompanha, em cópia oculta", () => {
+    expect(ITEMS).toContain("const time = Array.from(new Set([...porEvento, ...porPapel]));");
+    expect(ITEMS).toContain("const principais = time.length > 0 ? time : nomeados;");
+    expect(ITEMS).toContain("const copias = time.length > 0 ? nomeados : [];");
+  });
+
+  it("rede de segurança: time vazio faz quem acompanha subir para o Para", () => {
+    // Papel renomeado ou cadastro apagado não pode transformar o aviso num
+    // e-mail sem destinatário.
+    expect(ITEMS).toContain("time.length > 0 ? time : nomeados");
   });
 
   it("e-mail em branco no cadastro não vira destinatário vazio", () => {
-    expect(ITEMS).toContain("if (!u.email) return false;");
+    expect(ITEMS).toContain("usuarios.filter((u) => !!u.email && teste(u as any)).map((u) => u.email);");
   });
 });
 

@@ -126,12 +126,14 @@ beforeEach(() => {
   H.storage.getSponsor = vi.fn(async (id: string) => ({ id, accountExecutiveId: id === "s1" ? "u9" : null }));
   H.storage.getUser = vi.fn().mockResolvedValue({ id: "u9", email: "exec@nortemkt.com" });
   H.storage.getAllUsers = vi.fn().mockResolvedValue([
-    { id: "u1", email: "pedro@nortemkt.com", role: "admin" },        // nomeado
-    { id: "u2", email: "yan.araujo@nortemkt.com", role: "admin" },   // nomeado
-    { id: "u3", email: "chefe@nortemkt.com", role: "admin" },        // admin NÃO nomeado
-    { id: "u4", email: "pedido@nortemkt.com", role: "solicitacao" }, // papel fora hoje
-    { id: "u5", email: "arte@nortemkt.com", role: "arte" },
-    { id: "u6", email: "", role: "admin" },
+    { id: "u1", email: "atend1@nortemkt.com", role: "atendimento" }, // trabalham com o book
+    { id: "u2", email: "atend2@nortemkt.com", role: "atendimento" },
+    { id: "u3", email: "pedro@nortemkt.com", role: "admin" },        // nomeado, acompanha
+    { id: "u4", email: "yan.araujo@nortemkt.com", role: "admin" },   // nomeado, acompanha
+    { id: "u5", email: "chefe@nortemkt.com", role: "admin" },        // admin NÃO nomeado
+    { id: "u6", email: "pedido@nortemkt.com", role: "solicitacao" }, // papel fora hoje
+    { id: "u7", email: "arte@nortemkt.com", role: "arte" },        // publica o book
+    { id: "u8", email: "", role: "atendimento" },                    // sem e-mail
   ]);
   H.notifyBookSaved.mockResolvedValue({ status: "disabled" });
   H.createAuditLog.mockResolvedValue(undefined);
@@ -166,11 +168,11 @@ describe("e-mail ao salvar book", () => {
       publicadoPor: "Ana Arte",
       saidaDoCaminhao: "2026-09-05T11:00:00.000Z",
       publicacao: 1,
-      // Decisão do dono (24/08): DUAS pessoas nomeadas, nem por papel nem por
-      // evento. Admin não nomeado fica de fora, Solicitação também, e usuário
-      // sem e-mail cadastrado não vira endereço vazio.
-      destinatariosPrincipais: ["pedro@nortemkt.com", "yan.araujo@nortemkt.com"],
-      destinatariosDeCopia: [],
+      // Decisão do dono (24/08): Atendimento e Arte de frente, e as duas
+      // pessoas nomeadas em cópia. Admin não nomeado fica de fora, Solicitação
+      // também, e usuário sem e-mail não vira endereço vazio.
+      destinatariosPrincipais: ["atend1@nortemkt.com", "atend2@nortemkt.com", "arte@nortemkt.com"],
+      destinatariosDeCopia: ["pedro@nortemkt.com", "yan.araujo@nortemkt.com"],
     }));
   });
 

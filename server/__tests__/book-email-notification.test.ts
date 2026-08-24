@@ -56,7 +56,9 @@ describe("a mensagem", () => {
     const { message } = montar();
     expect(message.from).toBe("sistemagrafica@nortemkt.com");
     expect(message.to).toEqual(["yan.araujo@nortemkt.com"]);
-    expect(message.subject).toBe("Book de aprovação · Corrida <Especial> · 2 peças");
+    // O evento primeiro: é o que sobrevive ao corte da caixa de entrada.
+    expect(message.subject).toBe("Corrida <Especial> · Book de aprovação · 2 peças");
+    expect(message.subject.startsWith(BOOK.eventName)).toBe(true);
     expect(message.html).toContain("Corrida &lt;Especial&gt;");
     expect(message.text).toContain("2 de 5 peças do evento");
     expect(message.html).toContain("2 de 5 peças do evento");
@@ -84,7 +86,7 @@ describe("a mensagem", () => {
     expect(message.text).toContain("Publicado por: Ana Arte");
     expect(message.text).toContain("Saída do caminhão: 05/09/2026");
     const atualizado = montar({ ...BOOK, publicacao: 3 } as any).message;
-    expect(atualizado.subject).toBe("Book atualizado · Corrida <Especial> · 2 peças");
+    expect(atualizado.subject).toBe("Corrida <Especial> · BOOK ATUALIZADO · 2 peças");
     expect(atualizado.html).toContain("3ª publicação");
   });
 

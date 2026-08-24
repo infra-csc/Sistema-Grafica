@@ -1119,13 +1119,29 @@ export function ItemDetailsDialog({
                           <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
                             {/* Revogar a aprovação / reverter a reprovação. Admin
                                 sempre; Atendimento enquanto a peça está em aprovação
-                                ou na finalização da Arte (pedido do dono, 21/08). */}
-                            {(user?.role === "admin" || (user?.role === "atendimento" && (rawStatus === "awaiting_sponsor_approval" || rawStatus === "sponsor_approved"))) && approval && approval.status !== "pending" && (
+                                ou na finalização da Arte (pedido do dono, 21/08).
+
+                                LINHA PENDENTE também mostra o botão quando a peça
+                                JÁ AVANÇOU (caso #4176, 24/08): é o estado incoerente
+                                herdado do atalho antigo — "Aguardando" com a peça em
+                                Finalização — e o servidor sabe REABRIR a partir dele.
+                                Sem o botão aqui, o conserto existia e não havia onde
+                                clicar: a peça seguia presa fora da fila do
+                                Atendimento. Pendente com a peça ainda em aprovação
+                                continua sem botão — aí não há mesmo o que fazer. */}
+                            {(() => {
+                              const pecaAvancada = ["sponsor_approved", "awaiting_finalization", "awaiting_final_review", "awaiting_review", "in_review"].includes(rawStatus);
+                              const reabrirIncoerente = approval?.status === "pending" && pecaAvancada;
+                              const podeAgir = user?.role === "admin" || (user?.role === "atendimento" && (rawStatus === "awaiting_sponsor_approval" || rawStatus === "sponsor_approved"));
+                              return podeAgir && approval && (approval.status !== "pending" || reabrirIncoerente);
+                            })() && (
                               <button
                                 type="button"
                                 onClick={() => handleRevertApproval(s.id, s.name)}
                                 disabled={revertingSponsorId === s.id}
-                                title={`${approval.status === "approved" ? "Revogar a aprovação" : "Reverter a decisão"} — volta a aguardar (estava ${meta.label.toLowerCase()})`}
+                                title={approval.status === "pending"
+                                  ? "Reabrir a aprovação — a peça avançou com este patrocinador ainda aguardando; ela volta pendente na fila do Atendimento"
+                                  : `${approval.status === "approved" ? "Revogar a aprovação" : "Reverter a decisão"} — volta a aguardar (estava ${meta.label.toLowerCase()})`}
                                 aria-label={`Reverter a decisão de ${s.name}`}
                                 data-testid={`button-revert-approval-${s.id}`}
                                 style={{

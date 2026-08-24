@@ -107,7 +107,11 @@ describe("4 · o cliente mostra o botão pela mesma regra", () => {
   });
 
   it("Detalhe da peça: a mesma regra, lendo o status cru da peça", () => {
-    expect(DIALOG).toContain('{(user?.role === "admin" || (user?.role === "atendimento" && (rawStatus === "awaiting_sponsor_approval" || rawStatus === "sponsor_approved"))) && approval && approval.status !== "pending" && (');
-    expect(DIALOG).toContain('title={`${approval.status === "approved" ? "Revogar a aprovação" : "Reverter a decisão"} — volta a aguardar (estava ${meta.label.toLowerCase()})`}');
+    // Reescrito em 24/08 (caso #4176): a condição virou um bloco nomeado para
+    // caber o caso incoerente — linha pendente com a peça avançada também
+    // mostra o botão, agora como "reabrir". Papéis continuam os mesmos.
+    expect(DIALOG).toContain('const podeAgir = user?.role === "admin" || (user?.role === "atendimento" && (rawStatus === "awaiting_sponsor_approval" || rawStatus === "sponsor_approved"));');
+    expect(DIALOG).toContain('return podeAgir && approval && (approval.status !== "pending" || reabrirIncoerente);');
+    expect(DIALOG).toContain(': `${approval.status === "approved" ? "Revogar a aprovação" : "Reverter a decisão"} — volta a aguardar (estava ${meta.label.toLowerCase()})`}');
   });
 });

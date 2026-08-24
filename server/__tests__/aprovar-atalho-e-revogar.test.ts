@@ -71,3 +71,53 @@ describe("2 · a revogação reabre o estado incoerente em vez de dar 409", () =
     expect(REVOGAR).toContain("segure a finalização");
   });
 });
+describe("3 · e a TELA oferece o clique no estado incoerente", () => {
+  // O conserto do servidor existia e não havia onde clicar: o botão de
+  // revogar só aparecia com a linha não-pendente. No estado herdado
+  // ("Aguardando" + peça avançada) ele agora aparece, com o título dizendo
+  // o que vai acontecer.
+  const DIALOGO = readFileSync(new URL("../../client/src/components/item-details-dialog.tsx", import.meta.url), "utf8");
+
+  it("linha pendente + peça avançada mostra o botão de reabrir", () => {
+    expect(DIALOGO).toContain('const reabrirIncoerente = approval?.status === "pending" && pecaAvancada;');
+    expect(DIALOGO).toContain('(approval.status !== "pending" || reabrirIncoerente)');
+    expect(DIALOGO).toContain("a peça avançou com este patrocinador ainda aguardando");
+  });
+
+  it("a família de status é a MESMA do servidor", () => {
+    expect(DIALOGO).toContain('["sponsor_approved", "awaiting_finalization", "awaiting_final_review", "awaiting_review", "in_review"]');
+  });
+
+  it("pendente com a peça ainda em aprovação continua sem botão", () => {
+    // pecaAvancada não inclui awaiting_sponsor_approval — nesse caso não há
+    // mesmo o que fazer, e botão que só devolve 409 é armadilha.
+    const i = DIALOGO.indexOf("const pecaAvancada = ");
+    expect(DIALOGO.slice(i, i + 160)).not.toContain("awaiting_sponsor_approval");
+  });
+});
+describe("4 · o reparo em massa drena o estoque de peças presas", () => {
+  // O dono não deveria caçar peça por peça para clicar em reabrir: o script
+  // devolve TODAS as incoerentes à fila do Atendimento de uma vez.
+  const SCRIPT = readFileSync(new URL("../../scripts/reparar-aprovacao-incoerente.ts", import.meta.url), "utf8");
+
+  it("o critério é o invariante do dono, com as exceções certas", () => {
+    expect(SCRIPT).toContain('return ls.some((s) => s !== "approved");');
+    expect(SCRIPT).toContain("if (c.skipApproval) return false;");
+    expect(SCRIPT).toContain("if (!temVinculo.has(c.id)) return false;");
+    expect(SCRIPT).toContain("if (ls.length === 0) return false;");
+  });
+
+  it("devolve à fila sem apagar trabalho, e não atropela decisão nova", () => {
+    expect(SCRIPT).toContain("SET status = 'awaiting_sponsor_approval',");
+    expect(SCRIPT).toContain("WHERE id = ${p.id} AND status = ${p.status}");
+    expect(SCRIPT).not.toContain("final_file_url");
+    expect(SCRIPT).not.toContain("approval_thumb_url");
+  });
+
+  it("deixa rastro na trilha e é ensaio por padrão", () => {
+    expect(SCRIPT).toContain('peça pendente no Atendimento');
+    expect(SCRIPT).toContain('process.argv.includes("--aplicar")');
+  });
+});
+
+

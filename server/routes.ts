@@ -27,6 +27,7 @@ import { registerInventoryRoutes } from "./routes/inventory";
 import { registerReparoMotivosRoutes } from "./routes/reparo-motivos";
 import { registerVersoesRoutes } from "./routes/versoes";
 import { registerBuscaRoutes } from "./routes/busca";
+import { registerRelatorioRoutes } from "./routes/relatorio";
 import { startRevisaoDigest } from "./services/revisaoDigest";
 import { startDeadlineAlerts } from "./services/deadlineAlerts";
 import { startInventoryLifecycle } from "./services/inventoryLifecycle";
@@ -59,6 +60,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerStandardItemRoutes(app);
   registerVersoesRoutes(app);
   registerBuscaRoutes(app);
+  registerRelatorioRoutes(app);
   registerNotificationRoutes(app);
   registerCommentRoutes(app);
   registerPhotoRoutes(app);

@@ -32,6 +32,7 @@ import PainelGeral from "@/pages/painel-geral";
 import DashboardAnalises from "@/pages/dashboard-analises";
 import Eventos from "@/pages/eventos";
 import EventDetail from "@/pages/event-detail";
+import RelatorioEvento from "@/pages/relatorio-evento";
 import Arte from "@/pages/arte";
 import Atendimento from "@/pages/atendimento";
 import Solicitacao from "@/pages/solicitacao";
@@ -218,6 +219,10 @@ function Router() {
       </Route>
       <Route path="/eventos">
         {() => <ProtectedRoute component={Eventos} />}
+      </Route>
+      {/* Duas segmentos — declarada antes da genérica por clareza. */}
+      <Route path="/eventos/:id/relatorio">
+        {() => <ProtectedRoute component={RelatorioEvento} />}
       </Route>
       <Route path="/eventos/:id">
         {() => <ProtectedRoute component={EventDetail} />}

@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { useRoute, Link } from "wouter";
+import { useRoute, Link, useLocation } from "wouter";
 import { StatusBadge } from "@/components/status-badge";
 import { faseDaArte } from "@/components/prazos/tokens";
 import { getStatusLabel, getStatusMeta, FINAL_STATUSES, PRODUCTION_STATUSES, STATUS, motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
@@ -7,7 +7,7 @@ import { PHASES, contarPorFase } from "@/lib/fases";
 import { MARCOS_DO_EVENTO } from "@shared/prazo-dates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, Building2, Loader2, User, History, Lock, Unlock, Paperclip, ExternalLink, X, RotateCcw, Recycle, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, Search } from "lucide-react";
+import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, Building2, Loader2, User, History, Lock, Unlock, Paperclip, ExternalLink, X, RotateCcw, Recycle, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, FileText, Search } from "lucide-react";
 import { Fragment, useState, useEffect, useMemo, useRef } from "react";
 import type { Sponsor, Item, Event as EventRecord } from "@shared/schema";
 import {
@@ -679,6 +679,7 @@ function ItemForm({
 export default function EventDetail() {
   const { hasPermission, user } = useAuth();
   const [, params] = useRoute("/eventos/:id");
+  const [, setLocation] = useLocation();
   const eventId = params?.id;
   const [open, setOpen] = useState(false);
   const [localRefPreview, setLocalRefPreview] = useState<string>("");
@@ -1877,6 +1878,20 @@ export default function EventDetail() {
                 {isEventClosed ? 'Reabrir Evento' : 'Encerrar Evento'}
               </button>
             )}
+
+            {/* Relatório do evento — leitura, todos os perfis. O status
+                report de uma página (funil, atrasos, aprovações, fotos) que
+                era montado à mão com prints; imprime/PDF pelo navegador. */}
+            <button
+              onClick={() => setLocation(`/eventos/${eventId}/relatorio`)}
+              data-testid="button-relatorio-evento"
+              style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
+            >
+              <FileText className="h-4 w-4" style={{ color: '#c2410c' }} />
+              Relatório
+            </button>
 
             {/* Exportar Excel — leitura, disponível para todos os perfis */}
             <button

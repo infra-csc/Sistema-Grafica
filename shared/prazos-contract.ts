@@ -64,8 +64,8 @@ export interface PrazoPendingItem {
    *
    * Difere na peça isenta da aprovação do patrocinador (`items.skipApproval`):
    * ela não passa pela etapa de aprovação, então o marco que vale para ela é a
-   * Aprovação de Layout — quem não precisa de aprovação tem que estar pronto
-   * até lá. É por `marcoIndex` que `stages[].pendingCount` conta.
+   * FINALIZAÇÃO — a primeira etapa por onde ela realmente passa. É por
+   * `marcoIndex` que `stages[].pendingCount` conta.
    */
   marcoIndex: number;
   type: string;

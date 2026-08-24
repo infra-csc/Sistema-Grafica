@@ -11,13 +11,15 @@
 //   Lista: são dois trabalhos, de dois setores, com dois prazos.
 //
 // REGRA 2 — Peça isenta da aprovação do patrocinador (`items.skipApproval`) é
-//   cobrada pelo prazo de APROVAÇÃO DE LAYOUT. Ela não passa pela etapa de
-//   aprovação, então é esse o marco que vale para ela.
+//   cobrada pelo prazo de FINALIZAÇÃO (decisão do dono, 24/08 — antes era o de
+//   Aprovação de Layout). Ela não passa pela etapa de aprovação, e a
+//   Finalização é a primeira etapa por onde ela REALMENTE passa: cobrá-la pela
+//   aprovação era medi-la por um marco que ela nunca cumpre.
 //
 // Nenhum teste lê o relógio: `today` é sempre injetado.
 import { describe, it, expect } from "vitest";
 import {
-  APROVACAO_STAGE_INDEX,
+  FINALIZACAO_STAGE_INDEX,
   STAGE_DEFS,
   STATUS_STAGE_RANK,
   buildEventPrazo,
@@ -146,19 +148,27 @@ describe("REGRA 1 — Finalização é etapa do fluxo, entre Aprovação e Revis
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
-// REGRA 2 — peça sem aprovação é cobrada pelo prazo de Aprovação
+// REGRA 2 — peça sem aprovação é cobrada pelo prazo de FINALIZAÇÃO
+//
+// Revista em 24/08. Antes o marco era o da Aprovação de Layout (−12), e isso
+// media a peça por uma etapa por onde ela nunca passa: ela ia de
+// `awaiting_submission` direto para `awaiting_creator_review`, que é
+// Finalização. O vermelho acendia dois dias antes de existir trabalho atrasado.
 // ═════════════════════════════════════════════════════════════════════════════
-describe("REGRA 2 — skipApproval é medida pelo marco de Aprovação de Layout", () => {
-  it("marcoIndexFor promove só a peça isenta que está ANTES da aprovação", () => {
-    // Antes da aprovação: promovida ao marco da aprovação.
-    expect(marcoIndexFor("draft", true)).toBe(APROVACAO_STAGE_INDEX);
-    expect(marcoIndexFor("awaiting_submission", true)).toBe(APROVACAO_STAGE_INDEX);
+describe("REGRA 2 — skipApproval é medida pelo marco de Finalização", () => {
+  it("marcoIndexFor promove só a peça isenta que está ANTES da finalização", () => {
+    // Antes da finalização: promovida ao marco da finalização.
+    expect(marcoIndexFor("draft", true)).toBe(FINALIZACAO_STAGE_INDEX);
+    expect(marcoIndexFor("awaiting_submission", true)).toBe(FINALIZACAO_STAGE_INDEX);
+    // Inclusive a que ficou parada num status de aprovação (peça que foi
+    // enviada com patrocinador e depois virou isenta): ela também não vai
+    // esperar decisão nenhuma.
+    expect(marcoIndexFor("awaiting_sponsor_approval", true)).toBe(FINALIZACAO_STAGE_INDEX);
     // Sem a flag, nada muda — é a regra da peça isenta, não de todas.
     expect(marcoIndexFor("awaiting_submission", false)).toBe(idxDe("layouts"));
     expect(marcoIndexFor("awaiting_submission")).toBe(idxDe("layouts"));
-    // Na aprovação ou depois dela, a flag não adianta prazo nenhum: a peça
-    // isenta que já está na finalização é cobrada pela FINALIZAÇÃO (−10), que
-    // vence depois — promover para trás seria inventar um atraso.
+    // Na finalização ou depois dela, a flag não adianta prazo nenhum —
+    // promover para trás seria inventar um atraso.
     expect(marcoIndexFor("awaiting_creator_review", true)).toBe(idxDe("finalizacao"));
     expect(marcoIndexFor("ready_for_production", true)).toBe(idxDe("producao"));
     // Status fora do funil continua fora.
@@ -166,17 +176,18 @@ describe("REGRA 2 — skipApproval é medida pelo marco de Aprovação de Layout
     expect(marcoIndexFor("canceled", true)).toBeUndefined();
   });
 
-  it("peça isenta em etapa anterior é medida contra deadlineAprovacaoLayout", () => {
-    // Hoje 13/08: layouts (−20 → 10/08) JÁ venceu; aprovação (−12 → 18/08)
-    // ainda não. Uma peça normal em `awaiting_submission` deixaria o evento
-    // atrasado; a isenta é cobrada só no 18/08.
+  it("peça isenta em etapa anterior é medida contra deadlineFinalizacao", () => {
+    // Hoje 13/08: layouts (−20 → 10/08) JÁ venceu e aprovação (−12 → 18/08)
+    // também está à frente; a isenta é cobrada só na finalização, 20/08.
     const isenta = montar(evento(), [peca({ status: "awaiting_submission", skipApproval: true })]);
 
     expect(etapa(isenta, "layouts").pendingCount).toBe(0);
     expect(etapa(isenta, "layouts").state).toBe("done");
-    expect(etapa(isenta, "aprovacao").directCount).toBe(1);
-    expect(etapa(isenta, "aprovacao").deadline).toBe("2026-08-18");
-    expect(etapa(isenta, "aprovacao").state).toBe("upcoming");
+    // A APROVAÇÃO tampouco a conta — é a etapa que ela não cumpre.
+    expect(etapa(isenta, "aprovacao").directCount).toBe(0);
+    expect(etapa(isenta, "finalizacao").directCount).toBe(1);
+    expect(etapa(isenta, "finalizacao").deadline).toBe("2026-08-20");
+    expect(etapa(isenta, "finalizacao").state).toBe("upcoming");
     expect(isenta.categoria).toBe("emDia");
 
     // Controle: a MESMA peça sem a isenção é cobrada no marco de layouts.
@@ -186,28 +197,41 @@ describe("REGRA 2 — skipApproval é medida pelo marco de Aprovação de Layout
     expect(normal.categoria).toBe("atrasado");
   });
 
-  it("passado o marco de aprovação, a peça isenta acende vermelho lá", () => {
-    // Hoje 19/08: o marco da aprovação (18/08) venceu há 1 dia.
+  it("no dia 19/08 ela ainda NÃO está atrasada — era aqui que a regra antiga acendia", () => {
+    // O marco da aprovação (18/08) venceu há 1 dia e não cobra mais esta peça.
     const ev = montar(
       evento(),
       [peca({ status: "awaiting_submission", skipApproval: true })],
       dia("2026-08-19"),
     );
-    expect(etapa(ev, "aprovacao").diffDays).toBe(-1);
-    expect(etapa(ev, "aprovacao").state).toBe("overdue");
+    expect(etapa(ev, "aprovacao").pendingCount).toBe(0);
+    expect(etapa(ev, "finalizacao").state).toBe("warning"); // vence amanhã
+    expect(ev.categoria).toBe("emDia");
+    expect(ev.pecasEmAtraso).toBe(0);
+  });
+
+  it("passado o marco de finalização, a peça isenta acende vermelho lá", () => {
+    // Hoje 21/08: o marco da finalização (20/08) venceu há 1 dia.
+    const ev = montar(
+      evento(),
+      [peca({ status: "awaiting_submission", skipApproval: true })],
+      dia("2026-08-21"),
+    );
+    expect(etapa(ev, "finalizacao").diffDays).toBe(-1);
+    expect(etapa(ev, "finalizacao").state).toBe("overdue");
     expect(ev.categoria).toBe("atrasado");
     expect(ev.pecasEmAtraso).toBe(1);
   });
 
   it("a peça isenta continua no drill-down, com a bola no setor certo", () => {
     // `stageIndex` (quem tem a bola — a Arte, em layouts) e `marcoIndex` (quem
-    // cobra o prazo — a Aprovação) são coisas diferentes e viajam separados: o
-    // resumo por setor atribui pela etapa REAL, senão a cobrança iria para o
-    // Atendimento por uma peça que está na mesa da Arte.
+    // cobra o prazo — a Finalização) são coisas diferentes e viajam separados:
+    // o resumo por setor atribui pela etapa REAL, senão a cobrança iria parar
+    // em quem não tem a peça na mesa.
     const ev = montar(evento(), [peca({ status: "awaiting_submission", skipApproval: true })]);
     expect(ev.pendingItems).toHaveLength(1);
     expect(ev.pendingItems[0].stageIndex).toBe(idxDe("layouts"));
-    expect(ev.pendingItems[0].marcoIndex).toBe(idxDe("aprovacao"));
+    expect(ev.pendingItems[0].marcoIndex).toBe(idxDe("finalizacao"));
   });
 
   it("sem a flag, marcoIndex e stageIndex são o mesmo índice em todo o funil", () => {
@@ -230,10 +254,12 @@ describe("REGRA 2 — skipApproval é medida pelo marco de Aprovação de Layout
     const somaDireta = ev.stages.reduce((acc, s) => acc + s.directCount, 0);
     expect(somaDireta).toBe(ev.pendingItems.length);
     expect(somaDireta).toBe(4);
-    // As duas isentas anteriores caem na aprovação; a normal fica em layouts.
+    // As duas isentas anteriores caem na FINALIZAÇÃO, junto da que já estava
+    // lá; a normal fica em layouts. A aprovação zera: nenhuma delas passa por
+    // ela, e essa é a mudança.
     expect(etapa(ev, "layouts").directCount).toBe(1);
-    expect(etapa(ev, "aprovacao").directCount).toBe(2);
-    expect(etapa(ev, "finalizacao").directCount).toBe(1);
+    expect(etapa(ev, "aprovacao").directCount).toBe(0);
+    expect(etapa(ev, "finalizacao").directCount).toBe(3);
     // E o gate acumulado continua fechando no último marco.
     expect(ev.stages.at(-1)!.pendingCount).toBe(4);
   });

@@ -502,18 +502,21 @@ describe("GET /api/prazos — payload e placar", () => {
     expect(p.stageMeta.map((m) => m.key)).toEqual(ev.stages.map((s) => s.key));
   });
 
-  it("peça isenta de aprovação viaja com marcoIndex no marco de Aprovação", async () => {
-    // Marco de layouts (−20 → 10/08) já vencido hoje (13/08); o de aprovação
-    // (−12 → 18/08) não. A isenta é cobrada pelo segundo — o evento não entra
-    // no placar de atrasados por causa dela.
+  it("peça isenta de aprovação viaja com marcoIndex no marco de Finalização", async () => {
+    // Marco de layouts (−20 → 10/08) já vencido hoje (13/08); o de finalização
+    // (−10 → 20/08) não. A isenta é cobrada pelo segundo — o evento não entra
+    // no placar de atrasados por causa dela. A aprovação não a conta: é a
+    // etapa por onde ela não passa, e cobrá-la ali era medir por um marco que
+    // ela nunca cumpre.
     cadastrar(evento({ id: "ISENTA" }), [{ status: "awaiting_submission", skipApproval: true }]);
     const p = await pegarPayload();
 
     const ev = p.events.find((e) => e.id === "ISENTA")!;
     const idx = (k: string) => ev.stages.findIndex((s) => s.key === k);
     expect(ev.pendingItems[0].stageIndex).toBe(idx("layouts"));
-    expect(ev.pendingItems[0].marcoIndex).toBe(idx("aprovacao"));
+    expect(ev.pendingItems[0].marcoIndex).toBe(idx("finalizacao"));
     expect(ev.stages[idx("layouts")].state).toBe("done");
+    expect(ev.stages[idx("aprovacao")].directCount).toBe(0);
     expect(ev.categoria).toBe("emDia");
   });
 

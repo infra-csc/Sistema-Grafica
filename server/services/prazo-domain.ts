@@ -121,23 +121,29 @@ export const DELIVERED = new Set(["delivered", "entregue"]);
 export const STATUS_STAGE_RANK: Record<string, number> = {};
 STAGE_DEFS.forEach((s, i) => s.pendingStatuses.forEach((st) => { STATUS_STAGE_RANK[st] = i; }));
 
-/** Índice da Aprovação de Layout — o marco que cobra a peça isenta de aprovação. */
+/** Índice da Aprovação de Layout. */
 export const APROVACAO_STAGE_INDEX = STAGE_DEFS.findIndex((s) => s.key === "aprovacao");
+
+/** Índice da Finalização — o marco que cobra a peça isenta de aprovação. */
+export const FINALIZACAO_STAGE_INDEX = STAGE_DEFS.findIndex((s) => s.key === "finalizacao");
 
 /**
  * Marco que MEDE o prazo de uma peça — nem sempre é a etapa em que ela está.
  *
- * REGRA DO DONO: peça marcada para pular a aprovação do patrocinador
- * (`items.skipApproval`) é cobrada pelo prazo de APROVAÇÃO DE LAYOUT. Ela não
- * passa pela etapa de aprovação — o fluxo manda `awaiting_submission` direto
- * para `awaiting_creator_review` (server/routes/items.ts:1335) — então o marco
- * que vale para ela é a data de aprovação: quem não precisa de aprovação tem
- * que estar pronto até lá.
+ * REGRA DO DONO (revista em 24/08): peça marcada para pular a aprovação do
+ * patrocinador (`items.skipApproval`) é cobrada pelo prazo de FINALIZAÇÃO.
+ * Ela não passa pela etapa de aprovação — o fluxo manda `awaiting_submission`
+ * direto para `awaiting_creator_review` (server/routes/items.ts:1891) —, e a
+ * Finalização é a primeira etapa por onde ela REALMENTE passa. Cobrá-la pela
+ * Aprovação de Layout, como antes, era medi-la por um marco que ela nunca
+ * cumpre: a peça aparecia atrasada dois dias antes de existir trabalho
+ * atrasado, e o vermelho não correspondia a nada que alguém pudesse resolver.
  *
- * CONSEQUÊNCIA ACEITA: enquanto está numa etapa ANTERIOR à aprovação, a peça
- * isenta sai da contagem daquelas etapas — a Lista de Imagens não fica vermelha
- * por causa dela, a Aprovação fica. É a folga que o dono escolheu dar em troca
- * de um único marco cobrando essas peças.
+ * CONSEQUÊNCIA ACEITA: enquanto está numa etapa ANTERIOR à Finalização, a peça
+ * isenta sai da contagem daquelas etapas — nem a Lista de Imagens nem a
+ * Aprovação ficam vermelhas por causa dela; a Finalização fica. É a folga que
+ * o dono escolheu dar em troca de um único marco cobrando essas peças, e ela
+ * ficou dois dias maior que na regra anterior.
  *
  * `stageIndex` (onde a peça ESTÁ, e portanto de quem é a bola) continua o de
  * `STATUS_STAGE_RANK`: quem atribui setor no resumo de gargalos precisa da
@@ -146,7 +152,7 @@ export const APROVACAO_STAGE_INDEX = STAGE_DEFS.findIndex((s) => s.key === "apro
 export function marcoIndexFor(status: string, skipApproval?: boolean | null): number | undefined {
   const rank = STATUS_STAGE_RANK[status];
   if (rank === undefined) return undefined;
-  if (skipApproval && rank < APROVACAO_STAGE_INDEX) return APROVACAO_STAGE_INDEX;
+  if (skipApproval && rank < FINALIZACAO_STAGE_INDEX) return FINALIZACAO_STAGE_INDEX;
   return rank;
 }
 

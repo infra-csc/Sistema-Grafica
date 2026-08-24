@@ -120,31 +120,43 @@ describe("computePecasAtrasadas — o que entra na lista", () => {
 
 describe("peça isenta da aprovação do patrocinador", () => {
   // As duas estão em RASCUNHO (etapa 0, prazo vencido há 15 dias). A isenta é
-  // cobrada pelo prazo da APROVAÇÃO (18/08, vencido há 2 dias): é a folga que
-  // o dono escolheu dar. Se a lista medisse pela etapa, as duas apareceriam
-  // com 15 dias e a regra do dono sumiria da tela mais visível do assunto.
+  // cobrada pelo prazo da FINALIZAÇÃO (20/08): é a folga que o dono escolheu
+  // dar. Se a lista medisse pela etapa, as duas apareceriam com 15 dias e a
+  // regra do dono sumiria da tela mais visível do assunto.
   const ev = montar(evento(), [
     peca({ id: "normal", displayId: "#N1", status: "draft" }),
     peca({ id: "isenta", displayId: "#I1", status: "draft", skipApproval: true }),
   ]);
   const lista = computePecasAtrasadas([ev]);
 
-  it("é medida pelo prazo da Aprovação de Layout, não pelo da etapa em que está", () => {
-    const isenta = lista.find((p) => p.item.id === "isenta");
-    expect(isenta?.diasAtraso).toBe(2);
-    expect(isenta?.marco.key).toBe("aprovacao");
-    expect(isenta?.cobradaPorOutraEtapa).toBe(true);
+  it("no dia do marco ela NÃO está atrasada — e a normal, ao lado, está", () => {
+    // Hoje é 20/08, o dia da finalização: vence hoje não é vencido. A isenta
+    // simplesmente não é linha de cobrança ainda, e essa é a folga.
+    expect(lista.find((p) => p.item.id === "isenta")).toBeUndefined();
 
     const normal = lista.find((p) => p.item.id === "normal");
     expect(normal?.diasAtraso).toBe(15);
     expect(normal?.cobradaPorOutraEtapa).toBe(false);
   });
 
+  it("um dia depois ela entra, cobrada pela Finalização e não pela etapa em que está", () => {
+    const depois = montar(evento(), [
+      peca({ id: "isenta2", displayId: "#I2", status: "draft", skipApproval: true }),
+    ], dia("2026-08-21"));
+    const isenta = computePecasAtrasadas([depois]).find((p) => p.item.id === "isenta2");
+    expect(isenta?.diasAtraso).toBe(1);
+    expect(isenta?.marco.key).toBe("finalizacao");
+    expect(isenta?.cobradaPorOutraEtapa).toBe(true);
+  });
+
   it("continua atribuída ao setor da etapa em que ESTÁ (de quem é a bola)", () => {
     // O marco diz QUANDO cobrar; a etapa diz DE QUEM cobrar. Unificar os dois
-    // campos mandaria o diretor cobrar o Atendimento por uma peça que ainda
-    // está na mesa de quem cadastra.
-    const isenta = lista.find((p) => p.item.id === "isenta");
+    // campos mandaria o diretor cobrar a Arte por uma peça que ainda está na
+    // mesa de quem cadastra.
+    const depois = montar(evento(), [
+      peca({ id: "isenta3", displayId: "#I3", status: "draft", skipApproval: true }),
+    ], dia("2026-08-21"));
+    const isenta = computePecasAtrasadas([depois]).find((p) => p.item.id === "isenta3");
     expect(isenta?.stage.key).toBe("listaImagens");
     expect(isenta?.setor).toBe("Solicitação");
   });
@@ -222,7 +234,9 @@ describe("a lista fecha com o placar", () => {
       montar(evento({ id: "ev-4" }), [peca({ status: "in_review" })]),
     ];
     const kpis = computeKpis(eventos);
-    expect(kpis.pecasAtrasadas).toBe(3);
+    // DUAS, não três: a isenta em rascunho passou a ser cobrada pela
+    // Finalização (20/08), que vence hoje e portanto ainda não é atraso.
+    expect(kpis.pecasAtrasadas).toBe(2);
     expect(computePecasAtrasadas(eventos)).toHaveLength(kpis.pecasAtrasadas);
   });
 

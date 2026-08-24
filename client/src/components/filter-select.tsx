@@ -434,11 +434,21 @@ export function FilterSelect({
       const left = Math.max(caixa.left + RESPIRO, Math.min(preferido, maximo));
       // Coordenadas do MODAL quando estamos dentro dele (o painel é absolute
       // ali), e da janela quando estamos fora (o painel é fixed).
-      setPos({
+      const novo = {
         top: rect.bottom + 6 - (dentroDeModal ? caixa.top : 0),
         left: left - (dentroDeModal ? caixa.left : 0),
         minWidth: piso,
-      });
+      };
+      // IDENTIDADE ESTÁVEL. `measure` roda a cada scroll (fase de captura) e a
+      // cada resize; gravar um objeto novo em toda passada re-renderizava o
+      // painel mesmo quando nada tinha mudado de lugar. Rolar a página com um
+      // filtro aberto virava uma enxurrada de renders — e render que chega numa
+      // subárvore em desmontagem é a primeira metade do #185. Só grava quando
+      // algum número muda de verdade.
+      setPos((antes) =>
+        antes && antes.top === novo.top && antes.left === novo.left && antes.minWidth === novo.minWidth
+          ? antes
+          : novo);
     };
     measure();
     window.addEventListener("resize", measure);

@@ -167,3 +167,44 @@ describe("popover de data: o miolo para de renderizar enquanto o popover sai", (
     expect(contador.n).toBe(0);
   }, 40000);
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A MESMA CURA, NAS OUTRAS TELAS.
+//
+// O mecanismo não é de Eventos: é de qualquer popover que feche enquanto a
+// página continua renderizando. Depois do terceiro relato de #185 em produção,
+// os popovers controlados restantes receberam o mesmo congelamento. Este teste
+// é a rede: quem acrescentar um popover controlado dentro de um formulário
+// precisa congelá-lo, ou este arquivo passa a falhar.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("os popovers controlados das outras telas também congelam", () => {
+  const ler = (rel: string) => require("fs").readFileSync(require("path").resolve(__dirname, "../../", rel), "utf8");
+
+  it("Modelos: os quatro seletores do formulário", () => {
+    const M = ler("client/src/pages/modelos.tsx");
+    for (const estado of ["typePopoverOpen", "groupPopoverOpen", "materialPopoverOpen", "finishPopoverOpen"]) {
+      expect(M).toContain(`<FreezeWhileClosing open={${estado}}>`);
+    }
+  });
+
+  it("Estoque: a edição rápida de condição", () => {
+    const E = ler("client/src/pages/estoque.tsx");
+    expect(E).toContain('<FreezeWhileClosing open={quickEdit?.assetId === asset.id && quickEdit.field === "condition"}>');
+  });
+
+  it("Eventos: os três do formulário de evento (a cura original)", () => {
+    const EV = ler("client/src/pages/eventos.tsx");
+    expect(EV).toContain("<FreezeWhileClosing open={openStartDate}>");
+    expect(EV).toContain("<FreezeWhileClosing open={openTruckDate}>");
+    expect(EV).toContain("<FreezeWhileClosing open={openPrazoKey === key}>");
+  });
+
+  it("FilterSelect: a posição do painel tem identidade estável", () => {
+    // Sem isto, cada evento de scroll com um filtro aberto gravava um objeto
+    // novo e re-renderizava o painel — render que chega em subárvore saindo é
+    // a primeira metade do #185.
+    const F = ler("client/src/components/filter-select.tsx");
+    expect(F).toContain("setPos((antes) =>");
+    expect(F).toContain("antes.minWidth === novo.minWidth");
+  });
+});

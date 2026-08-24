@@ -19,7 +19,7 @@ import {
   AlertDialog, AlertDialogContent, AlertDialogTitle, AlertDialogDescription,
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
+import { HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { CONDITIONS, CONDITION_META, conditionMeta, type Condition } from "@/lib/inventory-meta";
 
 // ─── Status meta ─────────────────────────────────────────────────────────────
@@ -1422,6 +1422,9 @@ export default function Estoque() {
                             style={{ minWidth: 130, borderRadius: 10, display: "flex", flexDirection: "column", gap: 2, boxShadow: "0 8px 24px rgba(0,0,0,0.12)" }}
                             onClick={e => e.stopPropagation()}
                           >
+                            {/* Congelado enquanto SAI: o painel fecha e a página
+                                continua renderizando — ver popover-congelado.test.ts. */}
+                            <FreezeWhileClosing open={quickEdit?.assetId === asset.id && quickEdit.field === "condition"}>
                             {CONDITIONS.map(c => {
                               const meta = CONDITION_META[c];
                               return (
@@ -1433,6 +1436,7 @@ export default function Estoque() {
                                 </button>
                               );
                             })}
+                          </FreezeWhileClosing>
                           </PopoverContent>
                         </Popover>
                       </td>

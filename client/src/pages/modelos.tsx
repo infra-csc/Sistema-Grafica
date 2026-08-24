@@ -1011,6 +1011,9 @@ export default function Modelos() {
                     </button>
                   </PopoverTrigger>
                   <PopoverContent style={{ width: 300, padding: 0 }} align="start">
+                    {/* Congelado enquanto SAI: o popover fecha com o modal
+                        ainda aberto — ver popover-congelado.test.ts. */}
+                    <FreezeWhileClosing open={typePopoverOpen}>
                     <Command>
                       <CommandInput placeholder="Buscar ou criar tipo..." value={customTypeInput} onValueChange={setCustomTypeInput} />
                       <CommandList>
@@ -1052,6 +1055,7 @@ export default function Modelos() {
                         )}
                       </CommandList>
                     </Command>
+                  </FreezeWhileClosing>
                   </PopoverContent>
                 </Popover>
                 {formData.type && (
@@ -1098,6 +1102,9 @@ export default function Modelos() {
                     </button>
                   </PopoverTrigger>
                   <PopoverContent style={{ width: 300, padding: 0 }} align="start">
+                    {/* Congelado enquanto SAI: o popover fecha com o modal
+                        ainda aberto — ver popover-congelado.test.ts. */}
+                    <FreezeWhileClosing open={groupPopoverOpen}>
                     <Command>
                       <CommandInput
                         placeholder="Buscar ou criar grupo..."
@@ -1156,6 +1163,7 @@ export default function Modelos() {
                         )}
                       </CommandList>
                     </Command>
+                  </FreezeWhileClosing>
                   </PopoverContent>
                 </Popover>
                 {formData.group && (
@@ -1325,6 +1333,9 @@ export default function Modelos() {
                     </button>
                   </PopoverTrigger>
                   <PopoverContent style={{ width: 300, padding: 0 }} align="start">
+                    {/* Congelado enquanto SAI: o popover fecha com o modal
+                        ainda aberto — ver popover-congelado.test.ts. */}
+                    <FreezeWhileClosing open={materialPopoverOpen}>
                     <Command>
                       <CommandInput placeholder="Buscar ou criar material..." value={customMaterialInput} onValueChange={setCustomMaterialInput} />
                       <CommandList>
@@ -1367,6 +1378,7 @@ export default function Modelos() {
                         )}
                       </CommandList>
                     </Command>
+                  </FreezeWhileClosing>
                   </PopoverContent>
                 </Popover>
                 {formData.material && (
@@ -1396,6 +1408,9 @@ export default function Modelos() {
                     </button>
                   </PopoverTrigger>
                   <PopoverContent style={{ width: 300, padding: 0 }} align="start">
+                    {/* Congelado enquanto SAI: o popover fecha com o modal
+                        ainda aberto — ver popover-congelado.test.ts. */}
+                    <FreezeWhileClosing open={finishPopoverOpen}>
                     <Command>
                       <CommandInput placeholder="Buscar ou criar acabamento..." value={customFinishInput} onValueChange={setCustomFinishInput} />
                       <CommandList>
@@ -1438,6 +1453,7 @@ export default function Modelos() {
                         )}
                       </CommandList>
                     </Command>
+                  </FreezeWhileClosing>
                   </PopoverContent>
                 </Popover>
                 {formData.finish && (

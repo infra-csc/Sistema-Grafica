@@ -55,65 +55,50 @@ describe("1 · a gravidade vem do status da peça", () => {
   });
 });
 
-describe("2 · a faixa de resolução", () => {
-  it("só aparece quando há o que resolver", () => {
-    expect(PAGE).toContain("if (!divergente && !ambigua && !parada) return null;");
+describe("2 · a faixa do achado", () => {
+  it("só aparece quando há o que dizer", () => {
+    expect(PAGE).toContain("if (!divergente && !ambigua) return null;");
     expect(PAGE).toContain("data-testid={`faixa-resolucao-${p.id}`}");
   });
 
-  it("o texto sai dos DADOS: nome, versão, data e dias parados", () => {
-    expect(PAGE).toContain("${divergente.nome} aprovou a ${vDele}, e a peça está na ${vAgora}");
-    expect(PAGE).toContain("Parada há ${p.diasPendente} dias esperando ${parada.nome}");
+  it("o texto sai dos DADOS: nome, versão e data", () => {
+    expect(PAGE).toContain("${divergente.nome} aprovou ${vDele}, e a peça está na ${vAgora}");
     expect(PAGE).toContain("Não dá para afirmar qual versão ${ambigua!.nome} decidiu");
     expect(PAGE).toContain("Dá para parar a produção enquanto ainda há tempo.");
     expect(PAGE).toContain("Confira o registro de entrega antes de decidir o que fazer.");
   });
 
-  it("as ações reaproveitam mutações existentes — nenhuma rota nova", () => {
-    expect(PAGE).toContain("`/api/items/${p.id}/update-thumb`");
-    expect(PAGE).toContain("`/api/items/${p.id}/sponsor-approvals/${sponsorId}/revert`");
-    expect(PAGE).not.toMatch(/api\/(cobranca|lembrete|notificar-patrocinador)/);
+  it("A TELA NÃO EXECUTA: os botões de ação saíram (decisão do dono, 24/08)", () => {
+    // Ela nasceu com "Voltar para a vN" e "Pedir aprovação da vN". O dono
+    // cortou os dois: esta tela AUDITA. Quem troca a arte é a Arte; quem
+    // reabre aprovação é o Atendimento — nas telas onde essas ações têm
+    // contexto, permissão e histórico. Painel que também executa é painel em
+    // que ninguém confia para só olhar.
+    expect(PAGE).not.toContain("Pedir aprovação");
+    expect(PAGE).not.toContain("Voltar para a");
+    expect(PAGE).not.toContain("/update-thumb");
+    expect(PAGE).not.toContain("/revert");
+    expect(PAGE).not.toContain("button-resolucao-");
   });
 
-  it("o botão segue a MESMA régua de papel do servidor, em vez de existir para dar 409", () => {
-    expect(PAGE).toContain('const podeTrocarArte = papel === "arte" || papel === "admin";');
-    expect(PAGE).toContain('|| (papel === "atendimento" && (p.status === "awaiting_sponsor_approval" || p.status === "sponsor_approved"));');
-    expect(PAGE).toContain("if (podeRevogar) {");
+  it("o que fica é o caminho para onde a coisa se resolve", () => {
+    expect(PAGE).toContain("data-testid={`link-abrir-peca-${p.id}`}");
+    expect(PAGE).toContain("onde a Arte troca a arte e o Atendimento reabre a aprovação");
   });
 
-  it("voltar para a versão aprovada PERGUNTA antes — descarta a arte atual", () => {
-    expect(PAGE).toContain("data-testid={`confirma-voltar-${p.id}`}");
-    expect(PAGE).toContain("data-testid={`button-resolucao-confirmar-${p.id}`}");
-    expect(PAGE).toContain("data-testid={`button-resolucao-cancelar-${p.id}`}");
-    expect(PAGE).toContain("será substituída pela que {divergente.nome} aprovou");
-  });
-
-  it("NÃO existe botão de cobrar patrocinador — decisão do dono de 21/08", () => {
-    // O app não fala com o patrocinador; quem fala é o Atendimento, fora do
-    // sistema. A pendência leva ao lugar onde a resposta é registrada.
-    // "diasParaCobrar" é campo do contrato do servidor; o que não pode existir
-    // é um botão de cobrança dirigido ao patrocinador.
-    expect(PAGE).not.toMatch(/rotulo: `Cobrar/);
-    expect(PAGE).not.toContain("button-resolucao-cobrar");
-    expect(PAGE).toContain("testId: `button-resolucao-atendimento-${p.id}`");
-    expect(PAGE).toContain("Quando a resposta chegar, é o Atendimento que a registra.");
-  });
-
-  it("a versão indeterminada manda para a trilha, que tem a ordem exata dos registros", () => {
-    expect(PAGE).toContain("testId: `button-resolucao-trilha-${p.id}`");
-    expect(PAGE).toContain("data-testid={a.testId}");
-    // o Histórico casa por displayId, não por id — o `?peca=` vai sem o "#".
-    expect(PAGE).toContain("`/historico?peca=${encodeURIComponent(p.displayId.replace(/^#/, \"\"))}`");
+  it("prazo não mora nesta tela", () => {
+    // Cobrar decisão parada é do Atendimento e da Gestão de Prazos: duas
+    // telas cobrando a mesma pendência com contas próprias é como um número
+    // passa a discordar do outro.
+    expect(PAGE).not.toContain("Parada há");
+    expect(PAGE).not.toContain("selo-parada-");
+    expect(PAGE).not.toContain("diasPendente");
   });
 
   it("contraste do texto miúdo nas faixas", () => {
     // #7f1d1d sobre #fef2f2 = 8,9:1 · #78350f sobre #fffbeb = 9,4:1
     expect(PAGE).toContain('texto: "#7f1d1d"');
     expect(PAGE).toContain('texto: "#78350f"');
-  });
-
-  it("alvo de 44px no celular", () => {
-    expect(PAGE).toContain("const alturaAcao = isMobile ? 44 : 32;");
   });
 });
 
@@ -170,7 +155,7 @@ describe("o que NÃO podia mudar continua de pé", () => {
     for (const t of [
       'data-testid="title-versoes"', 'data-testid="resumo-versoes"', 'testId="resumo-divergentes"',
       'data-testid="input-busca-versoes"', 'data-testid="link-exportar-versoes"',
-      "data-testid={`selo-divergente-${p.id}`}", "testId={`selo-parada-${p.id}`}",
+      "data-testid={`selo-divergente-${p.id}`}", "data-testid={`selo-status-${p.id}`}",
       'data-testid="img-comparador"', 'data-testid="button-comparador-anterior"',
       "data-testid={`button-reenviar-aviso-${eventId}`}", 'data-testid="skeleton-versoes"',
     ]) {

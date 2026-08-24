@@ -141,12 +141,15 @@ describe("3 · o servidor filtra, pagina, resume e exporta", () => {
     expect(ROTA).toContain("const semFoco = dados.itens.filter((p) => casaBusca(p, r.busca) && casaEvento(p, r) && casaPatrocinador(p, r));");
   });
 
-  it("'precisa de atenção' é uma definição só, no servidor", () => {
-    expect(ROTA).toContain("atencao: divergente");
-    expect(ROTA).toContain("|| versoes.length > 1");
-    expect(ROTA).toContain("|| decisoesSaida.some((d) => d.ambiguo)");
-    expect(ROTA).toContain("|| (pendentes.length > 0 && (diasPendente ?? 0) >= DIAS_PARA_COBRAR),");
-    expect(ROTA).toContain("export const DIAS_PARA_COBRAR = 7;");
+  it("'precisa de atenção' é sobre VERSÃO — prazo não mora aqui", () => {
+    // Decisão do dono (24/08): cobrar decisão parada é do Atendimento e da
+    // Gestão de Prazos, que já têm régua, histórico e gente. Duas telas
+    // cobrando a mesma pendência com contas próprias é como um número passa a
+    // discordar do outro.
+    expect(ROTA).toContain("atencao: divergente || versoes.length > 1 || indeterminada,");
+    expect(ROTA).toContain("// PRAZO NÃO MORA AQUI (decisão do dono, 24/08)");
+    expect(ROTA).not.toContain("DIAS_PARA_COBRAR");
+    expect(ROTA).not.toContain("diasPendente");
   });
 
   it("o book sabe se está desatualizado — contando as peças DELE, não do evento", () => {
@@ -159,16 +162,43 @@ describe("3 · o servidor filtra, pagina, resume e exporta", () => {
     expect(ROTA).toContain("pecasMudaramDepois: mudaram.length,");
   });
 
-  it("e diz QUAIS peças mudaram, com teto de payload", () => {
+  it("e diz QUAIS peças mudaram — com identidade, não só o id", () => {
     expect(ROTA).toContain("pecasMudaram: mudaram.slice(0, 60),");
-    expect(ROTA).toContain("export type PecaQueMudou = { id: string; displayId: string; eventId: string; em: string };");
+    expect(ROTA).toContain("export type PecaQueMudou = {");
+    for (const campo of ["displayId", "type", "description", "status", "por", "versao"]) {
+      expect(ROTA).toContain(campo + ":");
+    }
   });
 
-  it("book já substituído admite que não dá para saber quais peças eram dele", () => {
+  it("os membros do book saem de TODOS os itens, não só dos que têm versão", () => {
+    // O Eco Run Palmas publicou um book com 45 peças que nunca foram a
+    // aprovação nenhuma: usar a lista filtrada fazia o book dizer que não
+    // sabia quais peças eram as dele, com elas ali, inteiras.
+    expect(ROTA).toContain("for (const item of itens) {");
+    expect(ROTA).toContain("l.push({ id: item.id, peca: porId.get(item.id) });");
+  });
+
+  it("só conta como TROCA o que tem prova de arte nova", () => {
+    // A última versão de uma peça sem histórico é reconstruída do estado
+    // atual e, sem carimbo de thumb, herda o `updated_at` — que muda ao
+    // corrigir uma descrição. Contar isso como troca de arte inflava o número:
+    // 32 dos 35 books apareciam "desatualizados"; com a prova exigida, 8.
+    expect(ROTA).toContain("const pecasComCarimbo = new Set<string>();");
+    expect(ROTA).toContain("if (item.approvalThumbUpdatedAt) pecasComCarimbo.add(item.id);");
+    expect(ROTA).toContain('const comProva = p.versoes.filter((v) => v.origem !== "atual" || pecasComCarimbo.has(p.id));');
+  });
+
+  it("nenhum selo enigmático: publicação substituída fica em silêncio", () => {
+    // "não dá para saber" num selo era pior que nada — o motivo passou para a
+    // linha da publicação, em português.
+    expect(PAGE).not.toContain("selo-book-indeterminado");
+    expect(PAGE).toContain("esta publicação foi substituída; o sistema guardou quantas peças ela tinha, não quais");
+  });
+
+  it("o book continua sabendo de si", () => {
     // A associação peça↔book vive em items.book_url, que guarda um endereço
     // por peça: publicar um book novo apaga o anterior. Sobra a contagem.
     expect(ROTA).toContain("membrosConhecidos: doBook !== null,");
-    expect(PAGE).toContain("não dá para saber");
     // e o book sem data (legado) continua sem fingir que é o mais novo
     expect(ROTA).toContain('l.push({ bookUrl: cur.bookUrl, em: null, por: null, itemCount: cur.n, inferido: true, membrosConhecidos: true, pecasMudaramDepois: 0, pecasMudaram: [] });');
   });
@@ -218,7 +248,7 @@ describe("4 · a tela", () => {
   });
 
   it("os quatro números do cabeçalho são o índice da tela", () => {
-    for (const t of ["resumo-divergentes", "resumo-pendentes", "resumo-historico", "resumo-books"]) {
+    for (const t of ["resumo-divergentes", "resumo-indeterminadas", "resumo-historico", "resumo-books"]) {
       expect(PAGE).toContain(`testId="${t}"`);
     }
     expect(PAGE).toContain('data-testid="resumo-versoes"');
@@ -271,7 +301,7 @@ describe("4 · a tela", () => {
     expect(PAGE).toContain("data-testid={`selo-book-desatualizado-${ev.eventId}-${i}`}");
     expect(PAGE).toContain("data-testid={`lista-mudaram-${ev.eventId}-${i}`}");
     expect(PAGE).toContain("data-testid={`link-mudou-${pm.id}`}");
-    expect(PAGE).toContain("arte trocada em");
+    expect(PAGE).toContain("data-testid={`link-mudou-${pm.id}`}");
     expect(PAGE).toContain("testId={`selo-book-em-dia-${ev.eventId}`}");
     // o número aparece com o denominador, para "34 de 26" nunca mais existir
     expect(PAGE).toContain("{b.pecasMudaramDepois} de {b.itemCount}");

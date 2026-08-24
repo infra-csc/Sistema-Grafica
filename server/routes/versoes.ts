@@ -89,12 +89,26 @@ export type PecaDeVersoes = {
   // Marcas calculadas uma vez no servidor — o cliente filtra e ordena por elas
   // sem repetir a conta em cada render.
   divergente: boolean;
-  pendente: boolean;
-  diasPendente: number | null;
+  /** Alguma decisão desta peça não dá para amarrar a uma versão. */
+  indeterminada: boolean;
   atencao: boolean;
 };
 
-export type PecaQueMudou = { id: string; displayId: string; eventId: string; em: string };
+export type PecaQueMudou = {
+  id: string;
+  displayId: string;
+  eventId: string;
+  /** Quando a arte foi trocada. */
+  em: string;
+  type: string;
+  description: string | null;
+  /** Onde a peça está HOJE: trocar arte de peça já produzida é outro problema. */
+  status: string;
+  /** Quem trocou, quando o registro sabe. */
+  por: string | null;
+  /** Em que versão ela está agora. */
+  versao: number;
+};
 
 export type BookDoEvento = {
   bookUrl: string;
@@ -126,8 +140,11 @@ type DadosDeVersoes = {
 
 const RE_TROCA = /Thumb de aprovação atualizado por (.+?)\. Anterior: (\S+) → Novo: (\S+)/;
 
-/** Uma decisão parada há mais de isto entra em "precisa de atenção". */
-export const DIAS_PARA_COBRAR = 7;
+// PRAZO NÃO MORA AQUI (decisão do dono, 24/08). Esta tela responde "qual
+// versão foi aprovada e é ela que está indo para a gráfica"; cobrar decisão
+// parada é trabalho do Atendimento e da Gestão de Prazos, que já têm a régua,
+// o histórico de cobrança e as pessoas. Duas telas cobrando a mesma pendência
+// com contas próprias é como um número passa a discordar do outro.
 
 /** Empate menor que isto entre decisão e troca de arte é indeterminável. */
 const EMPATE_MS = 1000;
@@ -197,6 +214,7 @@ async function carregar(): Promise<DadosDeVersoes> {
     aprovPorItem.set(a.itemId, l);
   }
 
+  const pecasComCarimbo = new Set<string>();
   const saida: PecaDeVersoes[] = [];
   for (const item of itens) {
     if ((item as any).deletedAt) continue;
@@ -208,6 +226,10 @@ async function carregar(): Promise<DadosDeVersoes> {
       const em = item.approvalThumbUpdatedAt ?? item.updatedAt ?? item.createdAt;
       versoes = [...versoes, { thumbUrl: item.approvalThumbUrl, em: new Date(em as any).toISOString(), origem: "atual", por: null, inferida: true }];
     }
+    // A data acima pode ser `updatedAt`, que muda por QUALQUER edição da peça
+    // (descrição, quantidade, medida). Isso serve para ordenar a régua, mas não
+    // serve como prova de arte nova — e é essa prova que o book precisa.
+    if (item.approvalThumbUpdatedAt) pecasComCarimbo.add(item.id);
     if (decisoes.length === 0 && versoes.length === 0) continue;
     versoes.sort((a, b) => a.em.localeCompare(b.em));
 
@@ -261,12 +283,8 @@ async function carregar(): Promise<DadosDeVersoes> {
     });
 
     const ev = eventoPorId.get(item.eventId);
-    const pendentes = decisoesSaida.filter((d) => !d.decididoEm || d.status === "pending" || d.status === "new_version_pending");
-    const desde = (item as any).statusChangedAt ?? item.updatedAt ?? item.createdAt;
-    const diasPendente = pendentes.length > 0 && desde
-      ? Math.floor((agora - new Date(desde as any).getTime()) / 86400000)
-      : null;
     const divergente = decisoesSaida.some((d) => d.divergente);
+    const indeterminada = decisoesSaida.some((d) => d.ambiguo);
     saida.push({
       id: item.id,
       displayId: item.displayId,
@@ -281,12 +299,11 @@ async function carregar(): Promise<DadosDeVersoes> {
       versoes,
       decisoes: decisoesSaida,
       divergente,
-      pendente: pendentes.length > 0,
-      diasPendente,
-      atencao: divergente
-        || versoes.length > 1
-        || decisoesSaida.some((d) => d.ambiguo)
-        || (pendentes.length > 0 && (diasPendente ?? 0) >= DIAS_PARA_COBRAR),
+      indeterminada,
+      // O que pede atenção AQUI é o que diz respeito a versão: alguém aprovou
+      // uma arte que não é a que está na peça, a peça tem história para
+      // comparar, ou a decisão não se amarra a nenhuma versão.
+      atencao: divergente || versoes.length > 1 || indeterminada,
     });
   }
 
@@ -297,20 +314,39 @@ async function carregar(): Promise<DadosDeVersoes> {
     || a.displayId.localeCompare(b.displayId));
 
   // ── books por evento ──
+  // QUANDO A ARTE DESTA PEÇA MUDOU DE VERDADE.
+  //
+  // Não é "quando a peça mudou": a última versão de uma peça sem histórico é
+  // reconstruída do estado atual e, sem `approval_thumb_updated_at`, herda o
+  // `updated_at` — que muda ao corrigir uma descrição. Usar isso fazia o book
+  // acusar "arte trocada" para peça que ninguém tocou na arte, com "v1" e sem
+  // autor, que era o sinal de que o número estava errado.
+  //
+  // Vale como troca: versão GRAVADA (envio, reenvio, troca), versão
+  // reconstruída da TRILHA de auditoria, ou a versão atual quando a peça tem
+  // carimbo de troca de thumb.
   const ultimaVersaoDaPeca = new Map<string, string>();
   for (const p of saida) {
-    const ultima = p.versoes[p.versoes.length - 1];
+    const comProva = p.versoes.filter((v) => v.origem !== "atual" || pecasComCarimbo.has(p.id));
+    const ultima = comProva[comProva.length - 1];
     if (ultima) ultimaVersaoDaPeca.set(p.id, ultima.em);
   }
   // AS PEÇAS QUE ESTÃO EM CADA BOOK. Só o book atual tem essa lista: a
   // associação mora em `items.book_url`, e publicar um book novo sobrescreve
   // o anterior.
-  const pecasDoBook = new Map<string, PecaDeVersoes[]>();
-  for (const p of saida) {
-    if (!p.bookUrl) continue;
-    const l = pecasDoBook.get(p.bookUrl) ?? [];
-    l.push(p);
-    pecasDoBook.set(p.bookUrl, l);
+  //
+  // A lista sai de TODOS os itens, não de `saida` — que descarta peça sem
+  // versão e sem decisão. Um book pode ser publicado com peças que ainda não
+  // foram a aprovação nenhuma (o Eco Run Palmas tinha 45 assim), e usar a
+  // lista filtrada fazia o book dizer "não dá para saber quais peças são as
+  // minhas" quando elas estavam ali, inteiras.
+  const porId = new Map(saida.map((p) => [p.id, p]));
+  const pecasDoBook = new Map<string, { id: string; peca: PecaDeVersoes | undefined }[]>();
+  for (const item of itens) {
+    if (!item.bookUrl || (item as any).deletedAt) continue;
+    const l = pecasDoBook.get(item.bookUrl) ?? [];
+    l.push({ id: item.id, peca: porId.get(item.id) });
+    pecasDoBook.set(item.bookUrl, l);
   }
 
   const booksPorEvento = new Map<string, BookDoEvento[]>();
@@ -324,9 +360,26 @@ async function carregar(): Promise<DadosDeVersoes> {
     // confiança no resto do número. Quem não está no book não pode
     // desatualizá-lo.
     const doBook = pecasDoBook.get(b.bookUrl) ?? null;
+    // Peça sem versão registrada não pode ter trocado de arte — ela entra na
+    // contagem de membros do book, nunca na de "mudaram depois".
     const mudaram = (doBook ?? [])
-      .filter((p) => (ultimaVersaoDaPeca.get(p.id) ?? "") > em)
-      .map((p): PecaQueMudou => ({ id: p.id, displayId: p.displayId, eventId: p.eventId, em: ultimaVersaoDaPeca.get(p.id)! }))
+      .map((m) => m.peca)
+      .filter((peca): peca is PecaDeVersoes => !!peca && (ultimaVersaoDaPeca.get(peca.id) ?? "") > em)
+      .map((peca): PecaQueMudou => {
+        const trocaEm = ultimaVersaoDaPeca.get(peca.id)!;
+        const ultima = peca.versoes[peca.versoes.length - 1];
+        return {
+          id: peca.id,
+          displayId: peca.displayId,
+          eventId: peca.eventId,
+          em: trocaEm,
+          type: peca.type,
+          description: peca.description,
+          status: peca.status,
+          por: ultima?.por ?? null,
+          versao: peca.versoes.length,
+        };
+      })
       .sort((a, b2) => b2.em.localeCompare(a.em));
     l.push({
       bookUrl: b.bookUrl, em, por: b.createdBy ?? null, itemCount: b.itemCount, inferido: false,
@@ -437,8 +490,7 @@ export function registerVersoesRoutes(app: Express): void {
         atencao: semFoco.filter((p) => p.atencao).length,
         divergentes: semFoco.filter((p) => p.divergente).length,
         comHistorico: semFoco.filter((p) => p.versoes.length > 1).length,
-        pendentes: semFoco.filter((p) => p.pendente).length,
-        pendentesAntigas: semFoco.filter((p) => p.pendente && (p.diasPendente ?? 0) >= DIAS_PARA_COBRAR).length,
+        indeterminadas: semFoco.filter((p) => p.indeterminada).length,
         semPatrocinador: semFoco.filter((p) => p.decisoes.length === 0).length,
         decisoesTomadas: decisoesTomadas.length,
         decisoesInferidas: decisoesTomadas.filter((d) => d.inferido).length,
@@ -450,7 +502,6 @@ export function registerVersoesRoutes(app: Express): void {
       res.json({
         resumo,
         registroDesde: dados.registroDesde,
-        diasParaCobrar: DIAS_PARA_COBRAR,
         facetas: {
           eventos: Array.from(contaEventos.entries()).map(([value, v]) => ({ value, label: v.label, count: v.count }))
             .sort((a, b) => a.label.localeCompare(b.label, "pt-BR")),

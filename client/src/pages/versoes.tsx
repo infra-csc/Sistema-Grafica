@@ -30,11 +30,11 @@
 // existe para evitar.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   GitBranch, Search, X, Download, FileText, Check, Clock, AlertTriangle,
   ExternalLink, ChevronLeft, ChevronRight, Layers, HelpCircle, Table2, Send, Loader2,
-  Undo2, MessageSquareWarning, Columns2, Square, ArrowRight,
+  MessageSquareWarning, Columns2, Square,
 } from "lucide-react";
 import { Link } from "wouter";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -64,9 +64,12 @@ type Peca = {
   eventId: string; eventName: string; truckDepartureDate: string | null;
   approvalThumbUrl: string | null; bookUrl: string | null;
   versoes: Versao[]; decisoes: Decisao[];
-  divergente: boolean; pendente: boolean; diasPendente: number | null; atencao: boolean;
+  divergente: boolean; indeterminada: boolean; atencao: boolean;
 };
-type PecaQueMudou = { id: string; displayId: string; eventId: string; em: string };
+type PecaQueMudou = {
+  id: string; displayId: string; eventId: string; em: string;
+  type: string; description: string | null; status: string; por: string | null; versao: number;
+};
 type Book = {
   bookUrl: string; em: string | null; por: string | null; itemCount: number; inferido: boolean;
   membrosConhecidos: boolean; pecasMudaramDepois: number; pecasMudaram: PecaQueMudou[];
@@ -75,11 +78,11 @@ type BooksDoEvento = { eventId: string; eventName: string; truckDepartureDate: s
 type Faceta = { value: string; label: string; count: number };
 type Resumo = {
   total: number; atencao: number; divergentes: number; comHistorico: number;
-  pendentes: number; pendentesAntigas: number; semPatrocinador: number;
+  indeterminadas: number; semPatrocinador: number;
   decisoesTomadas: number; decisoesInferidas: number; decisoesAmbiguas: number;
 };
 type Payload = {
-  resumo: Resumo; registroDesde: string | null; diasParaCobrar: number;
+  resumo: Resumo; registroDesde: string | null;
   facetas: { eventos: Faceta[]; patrocinadores: Faceta[] };
   total: number; pagina: number; tamanho: number;
   itens: Peca[]; books: BooksDoEvento[];
@@ -262,12 +265,16 @@ export default function Versoes() {
                 ativo={foco === "atencao"}
                 onClick={() => trocarFoco("atencao")}
               />
+              {/* Prazo saiu daqui (decisão do dono, 24/08): cobrar pendência é
+                  do Atendimento e da Gestão de Prazos. O que entra no lugar é
+                  a pergunta desta tela — decisão que não se amarra a nenhuma
+                  versão, que é onde a auditoria trava. */}
               <BotaoResumo
-                testId="resumo-pendentes"
-                valor={resumo.pendentesAntigas}
-                rotulo={`paradas há +${data?.diasParaCobrar ?? 7} dias`}
-                ajuda="Peças com decisão de patrocinador pendente há mais de uma semana"
-                tom={resumo.pendentesAntigas > 0 ? "alerta" : "calmo"}
+                testId="resumo-indeterminadas"
+                valor={resumo.indeterminadas}
+                rotulo="com versão indeterminada"
+                ajuda="A arte foi trocada no mesmo instante da decisão: não dá para afirmar qual versão o patrocinador decidiu"
+                tom={resumo.indeterminadas > 0 ? "alerta" : "calmo"}
                 ativo={foco === "atencao"}
                 onClick={() => trocarFoco("atencao")}
               />
@@ -536,10 +543,7 @@ function CartaoDaPeca({ p, isMobile, onComparar }: { p: Peca; isMobile: boolean;
               titulo="Alguém aprovou uma arte diferente da que está na peça hoje">aprovou outra versão</Selo>
           ) : null}
 
-          {p.pendente && (p.diasPendente ?? 0) >= 7 && (
-            <Selo testId={`selo-parada-${p.id}`} cor="#b45309" fundo="#fffbeb" borda="#fde68a"
-              titulo="Há decisão de patrocinador pendente há mais de uma semana">parada há {p.diasPendente}d</Selo>
-          )}
+
         </span>
       </div>
 
@@ -609,135 +613,54 @@ function CartaoDaPeca({ p, isMobile, onComparar }: { p: Peca; isMobile: boolean;
   );
 }
 // ─────────────────────────────────────────────────────────────────────────────
-// A FAIXA DE RESOLUÇÃO — a tela detectava bem e resolvia nada.
+// A FAIXA DO ACHADO — o que esta peça tem de errado, em uma frase.
 //
-// Quem descobria que o patrocinador aprovou a v2 enquanto a peça está na v3
-// precisava sair daqui, abrir o evento e refazer o pedido de aprovação na mão.
-// O achado mais valioso do sistema não tinha ação ao lado.
+// Ela nasceu com botões de ação (voltar a arte, pedir aprovação de novo) e o
+// dono cortou os dois, com razão: esta tela AUDITA. Quem troca a arte é a
+// Arte; quem reabre uma aprovação é o Atendimento — nas telas em que essas
+// ações têm contexto, permissão e histórico. Um painel de auditoria que
+// também executa é um painel em que ninguém confia para só olhar.
 //
-// A faixa só aparece quando há o que resolver, e o texto sai dos DADOS — nome
-// do patrocinador, número da versão, data, dias parados. Frase genérica em
-// faixa de alerta é ruído: se ela não disser o que houve, não vale a área.
-//
-// As ações reaproveitam mutações que já existem — nenhuma rota nova:
-//   · "Voltar para a vN"  → PATCH /api/items/:id/update-thumb (Arte e admin),
-//     com confirmação, porque descarta a arte atual;
-//   · "Pedir aprovação da vN" → POST …/sponsor-approvals/:sponsorId/revert,
-//     que devolve a decisão daquele patrocinador para pendente — é literalmente
-//     "ele precisa decidir de novo, agora sobre a arte de hoje". O servidor só
-//     aceita de admin, ou de Atendimento enquanto a peça está em aprovação ou
-//     na finalização; o botão segue a MESMA régua e some quando não caberia,
-//     em vez de existir para dar 409.
-//
-// NÃO existe botão de cobrar patrocinador, e é decisão do dono (21/08): o app
-// não fala com o patrocinador — quem fala é o Atendimento, fora do sistema.
-// A pendência parada leva ao lugar onde a resposta é registrada.
+// O que fica é a frase, montada com os DADOS (nome do patrocinador, número
+// da versão, data), e o caminho para a peça. A gravidade vem do status: a
+// mesma divergência é conserto barato antes da gráfica e material impresso
+// errado depois dela.
 // ─────────────────────────────────────────────────────────────────────────────
-type Acao = { rotulo: string; testId: string; href?: string; onClick?: () => void; icone: any; ocupado?: boolean };
-
 function FaixaDeResolucao({ p, isMobile }: { p: Peca; isMobile: boolean }) {
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [confirmando, setConfirmando] = useState(false);
-
-  const papel = user?.role ?? "";
-  const podeTrocarArte = papel === "arte" || papel === "admin";
-  const podeRevogar = papel === "admin"
-    || (papel === "atendimento" && (p.status === "awaiting_sponsor_approval" || p.status === "sponsor_approved"));
-
-  const recarregar = () => {
-    queryClient.invalidateQueries({ predicate: q => String(q.queryKey[0] ?? "").startsWith("/api/versoes") });
-    queryClient.invalidateQueries({ queryKey: ["/api/items"] });
-  };
-
-  const voltarArte = useMutation({
-    mutationFn: async (thumbUrl: string) =>
-      await apiRequest("PATCH", `/api/items/${p.id}/update-thumb`, { approvalThumbUrl: thumbUrl }),
-    onSuccess: () => { recarregar(); setConfirmando(false); toast({ title: "Arte trocada", description: "A peça voltou para a versão aprovada." }); },
-    onError: (e: any) => toast({ title: "Não foi possível trocar a arte", description: e.message, variant: "destructive" }),
-  });
-
-  const pedirAprovacao = useMutation({
-    mutationFn: async (sponsorId: string) =>
-      await apiRequest("POST", `/api/items/${p.id}/sponsor-approvals/${sponsorId}/revert`, {}),
-    onSuccess: () => { recarregar(); toast({ title: "Aprovação reaberta", description: "O patrocinador volta a aguardar decisão sobre a arte atual." }); },
-    onError: (e: any) => toast({ title: "Não foi possível reabrir", description: e.message, variant: "destructive" }),
-  });
-
-  // ── Qual é o problema desta peça, em ordem de gravidade ──
   const divergente = p.decisoes.find(d => d.divergente);
   const ambigua = p.decisoes.find(d => d.ambiguo);
-  const parada = p.pendente && (p.diasPendente ?? 0) >= 7
-    ? p.decisoes.find(d => !d.decididoEm) ?? null
-    : null;
-  if (!divergente && !ambigua && !parada) return null;
+  if (!divergente && !ambigua) return null;
 
   const versaoAtual = p.versoes.findIndex(v => v.thumbUrl === p.approvalThumbUrl) + 1;
   const naGrafica = jaFoiParaGrafica(p.status);
   const entregue = gravidadeDe(p.status) === "impressa";
-  const trilha = `/historico?peca=${encodeURIComponent(p.displayId.replace(/^#/, ""))}`;
 
   let tom: { barra: string; fundo: string; texto: string };
   let frase: string;
   let detalhe: string;
-  const acoes: Acao[] = [];
 
   if (divergente) {
-    const vDele = divergente.versao ? `v${divergente.versao}` : "uma versão anterior";
+    const vDele = divergente.versao ? `a v${divergente.versao}` : "uma versão anterior";
     const vAgora = versaoAtual > 0 ? `v${versaoAtual}` : "a atual";
     if (naGrafica) {
       // #7f1d1d sobre #fef2f2 = 8,9:1
       tom = { barra: "#dc2626", fundo: "#fef2f2", texto: "#7f1d1d" };
       frase = `A peça está ${entregue ? "produzida" : "em produção"} com uma arte que ${divergente.nome} não aprovou`;
-      detalhe = `Aprovou a ${vDele}${divergente.decididoEm ? ` em ${fmtData(divergente.decididoEm)}` : ""}; a arte foi trocada depois, para ${vAgora}. `;
+      detalhe = `Aprovou ${vDele}${divergente.decididoEm ? ` em ${fmtData(divergente.decididoEm)}` : ""}; a arte foi trocada depois, para a ${vAgora}. `;
       detalhe += entregue
         ? "Confira o registro de entrega antes de decidir o que fazer."
         : "Dá para parar a produção enquanto ainda há tempo.";
-      acoes.push({ rotulo: "Ver o que foi produzido", testId: `button-resolucao-ver-${p.id}`, href: `/eventos/${p.eventId}?item=${p.id}`, icone: ExternalLink });
     } else {
       // #78350f sobre #fffbeb = 9,4:1
       tom = { barra: "#f59e0b", fundo: "#fffbeb", texto: "#78350f" };
-      frase = `${divergente.nome} aprovou a ${vDele}, e a peça está na ${vAgora}`;
-      detalhe = "Ou a peça volta para a arte aprovada, ou o patrocinador decide sobre a arte de agora.";
-      if (podeTrocarArte && divergente.thumbUrl && divergente.thumbUrl !== p.approvalThumbUrl) {
-        acoes.push({
-          rotulo: `Voltar para a ${vDele}`,
-          testId: `button-resolucao-voltar-${p.id}`,
-          onClick: () => setConfirmando(true),
-          icone: Undo2,
-          ocupado: voltarArte.isPending,
-        });
-      }
+      frase = `${divergente.nome} aprovou ${vDele}, e a peça está na ${vAgora}`;
+      detalhe = `Aprovou${divergente.decididoEm ? ` em ${fmtData(divergente.decididoEm)}` : ""}, e a arte foi trocada depois. Ainda dá para acertar antes da gráfica.`;
     }
-    if (podeRevogar) {
-      acoes.push({
-        rotulo: `Pedir aprovação da ${vAgora}`,
-        testId: `button-resolucao-pedir-${p.id}`,
-        onClick: () => pedirAprovacao.mutate(divergente.sponsorId),
-        icone: ArrowRight,
-        ocupado: pedirAprovacao.isPending,
-      });
-    }
-  } else if (parada) {
-    tom = { barra: "#f59e0b", fundo: "#fffbeb", texto: "#78350f" };
-    frase = `Parada há ${p.diasPendente} dias esperando ${parada.nome}`;
-    detalhe = "Nada avança até a decisão sair. Quando a resposta chegar, é o Atendimento que a registra.";
-    acoes.push({ rotulo: "Abrir no Atendimento", testId: `button-resolucao-atendimento-${p.id}`, href: "/atendimento", icone: ExternalLink });
   } else {
     tom = { barra: "#f59e0b", fundo: "#fffbeb", texto: "#78350f" };
     frase = `Não dá para afirmar qual versão ${ambigua!.nome} decidiu`;
-    detalhe = "A arte foi trocada no mesmo instante da decisão. A trilha da peça mostra a ordem exata dos dois registros — confirmar sai mais barato que reimprimir.";
-    acoes.push({ rotulo: "Ver a trilha da peça", testId: `button-resolucao-trilha-${p.id}`, href: trilha, icone: ExternalLink });
+    detalhe = "A arte foi trocada no mesmo instante da decisão. A trilha da peça mostra a ordem exata dos dois registros.";
   }
-
-  const alturaAcao = isMobile ? 44 : 32;
-  const estiloAcao: React.CSSProperties = {
-    display: "inline-flex", alignItems: "center", gap: 6, height: alturaAcao, padding: "0 12px",
-    borderRadius: R.md, border: `1px solid ${tom.barra}33`, backgroundColor: "#ffffff",
-    color: tom.texto, fontSize: FS.small, fontWeight: 700, fontFamily: "inherit",
-    textDecoration: "none", cursor: "pointer", whiteSpace: "nowrap",
-  };
 
   return (
     <div data-testid={`faixa-resolucao-${p.id}`}
@@ -746,43 +669,14 @@ function FaixaDeResolucao({ p, isMobile }: { p: Peca; isMobile: boolean }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: tom.texto, lineHeight: 1.35 }}>{frase}</p>
         <p style={{ margin: "3px 0 0", fontSize: 11, color: tom.texto, opacity: 0.85, lineHeight: 1.45 }}>{detalhe}</p>
-        {acoes.length > 0 && (
-          <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-            {acoes.slice(0, 2).map(a => a.href ? (
-              <Link key={a.testId} href={a.href} data-testid={a.testId} style={estiloAcao}>
-                <a.icone style={{ width: 13, height: 13 }} /> {a.rotulo}
-              </Link>
-            ) : (
-              <button key={a.testId} type="button" onClick={a.onClick} disabled={a.ocupado} data-testid={a.testId}
-                style={{ ...estiloAcao, opacity: a.ocupado ? 0.6 : 1 }}>
-                {a.ocupado ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" /> : <a.icone style={{ width: 13, height: 13 }} />}
-                {a.rotulo}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Trocar a arte DESCARTA a atual: pergunta antes. */}
-        {confirmando && divergente?.thumbUrl && (
-          <div data-testid={`confirma-voltar-${p.id}`} style={{ marginTop: 8, padding: "8px 10px", backgroundColor: "#ffffff", border: `1px solid ${tom.barra}55`, borderRadius: R.md }}>
-            <p style={{ margin: 0, fontSize: 12, color: tom.texto, lineHeight: 1.45 }}>
-              A arte que está na peça hoje será substituída pela que {divergente.nome} aprovou. A troca fica registrada na trilha, e quem já tinha aprovado a arte atual precisará decidir de novo.
-            </p>
-            <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-              <button type="button" onClick={() => voltarArte.mutate(divergente.thumbUrl!)} disabled={voltarArte.isPending}
-                data-testid={`button-resolucao-confirmar-${p.id}`}
-                style={{ ...estiloAcao, backgroundColor: tom.barra, color: "#ffffff", border: "none" }}>
-                {voltarArte.isPending ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" /> : <Undo2 style={{ width: 13, height: 13 }} />}
-                Trocar mesmo assim
-              </button>
-              <button type="button" onClick={() => setConfirmando(false)} data-testid={`button-resolucao-cancelar-${p.id}`}
-                style={{ ...estiloAcao, border: "none", backgroundColor: "transparent" }}>
-                Cancelar
-              </button>
-            </div>
-          </div>
-        )}
       </div>
+      {/* O caminho para onde a coisa se resolve — a peça, no evento. */}
+      <Link href={`/eventos/${p.eventId}?item=${p.id}`}
+        data-testid={`link-abrir-peca-${p.id}`}
+        title="Abrir a peça no evento, onde a Arte troca a arte e o Atendimento reabre a aprovação"
+        style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 5, height: isMobile ? 44 : 30, padding: "0 12px", borderRadius: R.md, border: `1px solid ${tom.barra}33`, backgroundColor: "#ffffff", color: tom.texto, fontSize: FS.small, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}>
+        <ExternalLink style={{ width: 13, height: 13 }} /> Abrir a peça
+      </Link>
     </div>
   );
 }
@@ -1164,14 +1058,7 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar }: 
                 desatualizado · {b.pecasMudaramDepois} de {b.itemCount} {b.pecasMudaramDepois === 1 ? "peça mudou" : "peças mudaram"}
                 <ChevronRight aria-hidden="true" style={{ width: 11, height: 11, transform: aberto ? "rotate(90deg)" : "none", transition: "transform 0.15s" }} />
               </button>
-            ) : !b.membrosConhecidos ? (
-              // Honestidade: do book já substituído sobrou a contagem, não a
-              // lista de peças — não dá para afirmar que ele está em dia.
-              <Selo testId={`selo-book-indeterminado-${ev.eventId}-${i}`} cor="#57534e" fundo={T.low} borda={T.border}
-                titulo="Este book foi substituído: o sistema guardou quantas peças ele tinha, não quais — então não dá para dizer se alguma mudou depois">
-                não dá para saber
-              </Selo>
-            ) : b.em && i === 0 ? (
+            ) : b.membrosConhecidos && b.em && i === 0 ? (
               <Selo testId={`selo-book-em-dia-${ev.eventId}`} cor="#15803d" fundo="#f0fdf4" borda="#bbf7d0"
                 titulo="Nenhuma peça deste book ganhou arte nova depois da publicação">em dia</Selo>
             ) : null}
@@ -1179,6 +1066,15 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar }: 
           <p style={{ margin: "2px 0 0", fontSize: FS.small, color: T.second }}>
             {b.em ? <>publicado em <span style={numero}>{fmtData(b.em)}</span>{b.por ? ` por ${b.por}` : ""}</>
               : "publicado antes de o registro de books existir — data não gravada"}
+            {/* Publicação já substituída não recebe selo de estado NENHUM: a
+                associação peça↔book vive em items.book_url, que guarda um
+                endereço por peça, então do book antigo sobrou a contagem e não
+                a lista. Dizer "em dia" seria afirmar sem base, e um selo
+                enigmático é pior que o silêncio — o motivo fica aqui, em
+                português, para quem for atrás. */}
+            {!b.membrosConhecidos && (
+              <span style={{ color: T.muted }}> · esta publicação foi substituída; o sistema guardou quantas peças ela tinha, não quais</span>
+            )}
           </p>
         </div>
 
@@ -1199,14 +1095,29 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar }: 
       {aberto && desatualizado && (
         <div data-testid={`lista-mudaram-${ev.eventId}-${i}`}
           style={{ padding: "0 18px 12px 60px", display: "flex", flexDirection: "column", gap: 4 }}>
-          {b.pecasMudaram.map(pm => (
-            <Link key={pm.id} href={`/eventos/${pm.eventId}?item=${pm.id}`}
-              data-testid={`link-mudou-${pm.id}`}
-              style={{ display: "flex", alignItems: "baseline", gap: 8, fontSize: FS.small, color: T.text, textDecoration: "none", padding: "3px 0" }}>
-              <span style={{ ...numero, fontWeight: 700, color: T.accentText }}>{pm.displayId}</span>
-              <span style={{ color: T.second }}>arte trocada em <span style={numero}>{fmtData(pm.em)}</span></span>
-            </Link>
-          ))}
+          {b.pecasMudaram.map(pm => {
+            const gv = GRAVIDADE_VISUAL[gravidadeDe(pm.status)];
+            return (
+              <Link key={pm.id} href={`/eventos/${pm.eventId}?item=${pm.id}`}
+                data-testid={`link-mudou-${pm.id}`}
+                title={`${pm.displayId} · ${pm.type}${pm.description ? ` — ${pm.description}` : ""}`}
+                style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", fontSize: FS.small, color: T.text, textDecoration: "none", padding: "4px 0", borderBottom: `1px solid ${T.low}` }}>
+                <span style={{ ...numero, fontWeight: 700, color: T.accentText, flexShrink: 0 }}>{pm.displayId}</span>
+                <span style={{ fontWeight: 700, flexShrink: 0 }}>{pm.type}</span>
+                {pm.description && (
+                  <span style={{ color: "#57534e", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 260 }}>{pm.description}</span>
+                )}
+                {/* ONDE ELA ESTÁ. Arte trocada em peça que já foi para a
+                    gráfica é outro problema — e é o que decide a urgência. */}
+                <span style={{ flexShrink: 0, fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.04em", color: gv.cor, backgroundColor: gv.fundo, border: `1px solid ${gv.borda}`, borderRadius: R.sm, padding: "1px 6px" }}>
+                  {gv.rotulo}
+                </span>
+                <span style={{ marginLeft: "auto", color: T.second, whiteSpace: "nowrap" }}>
+                  v{pm.versao} · <span style={numero}>{fmtData(pm.em)}</span>{pm.por ? ` · ${pm.por}` : ""}
+                </span>
+              </Link>
+            );
+          })}
           {escondidas > 0 && (
             <span style={{ fontSize: FS.small, color: T.second }}>e mais {escondidas} — abra o evento para ver a lista inteira.</span>
           )}

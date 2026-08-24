@@ -1,25 +1,28 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// A FILA DO ATENDIMENTO CHEGA INTEIRA E ABERTA.
+// A FILA DO ATENDIMENTO: LISTA INTEIRA, GRUPOS FECHADOS.
 //
-// Duas decisões do dono no mesmo dia (24/08), a segunda revendo a primeira:
-// primeiro os eventos passaram a abrir recolhidos (a rolagem era enorme), e
-// depois voltaram a abrir expandidos — porque a lista existe para VARRER o que
-// espera decisão, e fechada ela obrigava a clicar evento por evento para
-// descobrir onde estava o trabalho.
+// São DUAS coisas, e confundi-las custou uma ida e volta. O pedido do dono
+// (24/08) é: todos os eventos presentes, sem "carregar mais" — e cada evento
+// recolhido, para ele abrir o que interessa.
 //
-// O que sustentava "fechado" era o custo de desenhar tudo. Esse custo foi
-// tratado onde ele mora, e é isso que este arquivo guarda:
+//   LISTA  = quais eventos existem na tela.  Antes: cortada.
+//   GRUPO  = se as peças do evento aparecem. Antes: sempre abertas.
+//
+// O "Carregar mais" era o defeito mais silencioso: paginava as PEÇAS antes do
+// agrupamento, então não escondia linhas — escondia EVENTOS INTEIROS. Com 231
+// pendências a tela mostrava meia dúzia de eventos, e o botão não avisa que o
+// que falta são eventos.
+//
+// Com a lista inteira, desenhar tudo passa a custar. Isso foi tratado onde o
+// custo mora, e é o que a última seção guarda:
 //
 //   · `content-visibility: auto` no grupo — o que está fora da tela não é
 //     desenhado, mas continua no DOM (Ctrl+F, leitor de tela e links seguem
 //     funcionando, o que uma lista virtualizada quebraria);
 //   · `contain-intrinsic-size` com estimativa real, senão a barra de rolagem
 //     pula enquanto se rola e o remédio fica pior que a doença;
-//   · `loading="lazy"` nas thumbs das listas longas — 227 linhas abertas de
-//     uma vez são 227 downloads simultâneos.
-//
-// E o "Carregar mais" da fila saiu: ele paginava PEÇAS antes do agrupamento,
-// então não escondia linhas — escondia EVENTOS INTEIROS.
+//   · `loading="lazy"` nas thumbs das listas longas — 231 linhas abertas de
+//     uma vez seriam 231 downloads simultâneos.
 // ─────────────────────────────────────────────────────────────────────────────
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "fs";
@@ -48,15 +51,26 @@ describe("a fila chega inteira", () => {
   });
 });
 
-describe("e chega aberta", () => {
-  it("o estado guarda quem está RECOLHIDO: vazio = tudo aberto", () => {
-    expect(TELA).toContain("const [collapsedEvents, setCollapsedEvents] = useState<Set<string>>(new Set());");
-    expect(TELA).toContain("const eventoAberto = (id: string) => !collapsedEvents.has(id);");
+describe("e cada grupo chega FECHADO — são duas coisas diferentes", () => {
+  // Aqui eu já errei uma vez: "vir todos os eventos" é sobre a LISTA estar
+  // completa; "fechados" é sobre cada GRUPO. Uma coisa não implica a outra, e
+  // o pedido do dono é lista inteira + grupos recolhidos.
+  it("o estado guarda quem está ABERTO: vazio = tudo fechado", () => {
+    expect(TELA).toContain("const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());");
+    expect(TELA).toContain("const eventoAberto = (id: string) => expandedEvents.has(id);");
+    // O sentido invertido é o único que tem valor inicial para "tudo fechado":
+    // a lista de eventos muda a cada filtro e não é conhecida no useState.
+    expect(TELA).not.toContain("collapsedEvents");
   });
 
-  it("e o toggle continua, para quem quiser fechar o que não interessa", () => {
+  it("e o toggle continua, para abrir o evento que interessa", () => {
     expect(TELA).toContain("onClick={() => toggleEventCollapsed(eventId)}");
     expect(TELA).toContain("aria-expanded={eventoAberto(eventId)}");
+  });
+
+  it("o cabeçalho fechado já carrega o que decide", () => {
+    // Se fosse preciso abrir para saber se vale abrir, recolher não ajudaria.
+    expect(TELA).toContain("faixa-jornada-");
   });
 });
 

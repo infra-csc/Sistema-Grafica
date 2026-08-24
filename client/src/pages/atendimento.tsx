@@ -332,25 +332,27 @@ export default function Atendimento() {
   const [batchPreviewItem, setBatchPreviewItem] = useState<any>(null);
 
   /**
-   * Eventos RECOLHIDOS na aba Pendentes (o cabeçalho vira um card clicável).
+   * Eventos ABERTOS na aba Pendentes (o cabeçalho vira um card clicável).
    *
-   * COMEÇA TUDO ABERTO (decisão do dono, 24/08, revendo a de horas antes). A
-   * tentativa de abrir fechado resolvia a rolagem e criava um problema pior:
-   * a lista existe para varrer o que espera decisão, e fechada ela obrigava a
-   * clicar evento por evento para descobrir onde estava o trabalho.
+   * COMEÇA TUDO FECHADO (decisão do dono, 24/08). São duas coisas diferentes,
+   * e vale não confundi-las de novo: a LISTA vem completa — todos os eventos,
+   * sem "carregar mais" — e cada GRUPO vem recolhido. O cabeçalho fechado já
+   * carrega o que decide (nome, mês, prazo de Aprovação de Layout e quantas
+   * peças), e quem quiser as peças abre o evento que interessa.
    *
-   * O que sustentava "fechado" era o custo de desenhar tudo. Isso foi tratado
-   * onde o problema mora — `content-visibility` no grupo, ver o container de
-   * cada evento —, e não fazendo a pessoa clicar.
+   * O conjunto guarda quem está ABERTO, não quem está fechado: com o padrão
+   * invertido não existe valor inicial que signifique "tudo fechado" — a lista
+   * de eventos não é conhecida aqui e muda a cada filtro, e um evento novo
+   * entraria aberto por omissão.
    */
-  const [collapsedEvents, setCollapsedEvents] = useState<Set<string>>(new Set());
+  const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
   const toggleEventCollapsed = (id: string) =>
-    setCollapsedEvents(prev => {
+    setExpandedEvents(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
-  const eventoAberto = (id: string) => !collapsedEvents.has(id);
+  const eventoAberto = (id: string) => expandedEvents.has(id);
 
   // Modal Exportar PDF
   const [showExportPDFModal, setShowExportPDFModal] = useState(false);

@@ -91,7 +91,20 @@ describe("a mensagem", () => {
   it("tem pré-cabeçalho e trava o esquema claro (senão o cartão some no modo escuro)", () => {
     const { message } = montar();
     expect(message.html).toContain('<meta name="color-scheme" content="light">');
-    expect(message.html).toContain("display:none;max-height:0;overflow:hidden;opacity:0;");
+    expect(message.html).toContain("display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;");
+  });
+
+  it("o layout é de TABELA, 600px — o Outlook renderiza com o motor do Word", () => {
+    const { message } = montar();
+    expect(message.html).toContain('<table role="presentation" width="600"');
+    expect(message.html).toContain("max-width:100%");
+    // nada de layout moderno, que o Outlook ignora
+    expect(message.html).not.toContain("display:flex");
+    expect(message.html).not.toContain("display:grid");
+    // faixa da marca, quadro de dados e botão
+    expect(message.html).toContain(">NORTE</td>");
+    expect(message.html).toContain("Peças no book");
+    expect(message.html).toContain("Abrir o evento no sistema</a>");
   });
 
   it("Reply-To entra quando configurado, e só se for válido", () => {
@@ -114,8 +127,33 @@ describe("os destinatários", () => {
       getBookEmailConfig(VALID_ENV),
     );
     if ("erro" in r) throw new Error("não deveria falhar por causa de um endereço");
-    expect(r.message.to).toEqual(["ok@nortemkt.com", "yan.araujo@nortemkt.com"]);
+    expect(r.message.to).toEqual(["ok@nortemkt.com"]);
     expect(r.descartados).toEqual(["quebrado @ errado"]);
+  });
+
+  it("responsável no PARA, equipe em cópia oculta — e ninguém aparece duas vezes", () => {
+    const r = buildBookEmailMessage(
+      {
+        ...BOOK,
+        destinatariosDoEvento: ["exec@nortemkt.com"],
+        destinatariosDeCopia: ["pedido@nortemkt.com", "EXEC@nortemkt.com", "chefe@nortemkt.com"],
+      } as any,
+      getBookEmailConfig(VALID_ENV),
+    );
+    if ("erro" in r) throw new Error("não deveria falhar");
+    // Quem responde pelo evento fica visível; quem acompanha vai oculto.
+    expect(r.message.to).toEqual(["exec@nortemkt.com"]);
+    expect(r.message.bcc).toEqual(["pedido@nortemkt.com", "chefe@nortemkt.com", "yan.araujo@nortemkt.com"]);
+  });
+
+  it("evento SEM executivo de conta: a equipe sobe para o Para, e não fica sem aviso", () => {
+    const r = buildBookEmailMessage(
+      { ...BOOK, destinatariosDoEvento: [], destinatariosDeCopia: ["pedido@nortemkt.com"] } as any,
+      getBookEmailConfig(VALID_ENV),
+    );
+    if ("erro" in r) throw new Error("não deveria falhar");
+    expect(r.message.to).toEqual(["pedido@nortemkt.com", "yan.araujo@nortemkt.com"]);
+    expect(r.message.bcc).toBeUndefined();
   });
 
   it("sem NENHUM destinatário válido, aí sim não monta", () => {
@@ -147,6 +185,7 @@ describe("o disparo", () => {
     await expect(notifyBookSaved(BOOK as any, VALID_ENV)).resolves.toEqual({
       status: "dry-run",
       para: ["yan.araujo@nortemkt.com"],
+      copia: [],
       descartados: [],
     });
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -165,9 +204,11 @@ describe("o disparo", () => {
 describe("a frase que vai para a trilha e para a tela", () => {
   it("diz o desfecho em português, incluindo os descartes", () => {
     expect(descreverEnvio({ status: "disabled" })).toContain("desligado");
-    expect(descreverEnvio({ status: "sent", para: ["a@b.com"], descartados: [] }))
+    expect(descreverEnvio({ status: "sent", para: ["a@b.com"], copia: [], descartados: [] }))
       .toBe("Aviso por e-mail enviado para a@b.com.");
-    expect(descreverEnvio({ status: "sent", para: ["a@b.com"], descartados: ["torto"] }))
+    expect(descreverEnvio({ status: "sent", para: ["a@b.com"], copia: ["c@d.com", "e@f.com"], descartados: [] }))
+      .toBe("Aviso por e-mail enviado para a@b.com, com cópia oculta para 2 pessoas.");
+    expect(descreverEnvio({ status: "sent", para: ["a@b.com"], copia: [], descartados: ["torto"] }))
       .toContain("endereços inválidos descartados: torto");
     expect(descreverEnvio({ status: "failed", reason: "HTTP 429" }))
       .toBe("Aviso por e-mail NÃO enviado: HTTP 429.");

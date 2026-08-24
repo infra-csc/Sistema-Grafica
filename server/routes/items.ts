@@ -512,6 +512,20 @@ export async function destinatariosDoEvento(eventId: string): Promise<string[]> 
 }
 
 /**
+ * Quem ACOMPANHA a produção e recebe em cópia oculta: Solicitação (quem pediu
+ * as peças) e admin. Decisão do dono em 24/08 — o book pronto é a notícia que
+ * fecha o ciclo de quem abriu o pedido.
+ */
+export const PAPEIS_EM_COPIA = ["solicitacao", "admin"];
+
+export async function destinatariosDeCopia(): Promise<string[]> {
+  const usuarios = await storage.getAllUsers();
+  return usuarios
+    .filter((u) => PAPEIS_EM_COPIA.includes(u.role) && !!u.email)
+    .map((u) => u.email);
+}
+
+/**
  * Monta e dispara o aviso do book, e devolve a descrição do que aconteceu.
  * Uma falha aqui NUNCA desfaz o book — mas, ao contrário da primeira versão,
  * também não some: quem chama grava na trilha e conta para a tela.
@@ -524,8 +538,9 @@ export async function avisarBookPorEmail(
 ): Promise<BookEmailResult> {
   try {
     const evento = await storage.getEvent(eventId);
-    const [destinatarios, doEvento, books] = await Promise.all([
+    const [destinatarios, copias, doEvento, books] = await Promise.all([
       destinatariosDoEvento(eventId),
+      destinatariosDeCopia(),
       storage.getItemsByEvent(eventId),
       storage.getAllEventBooks(),
     ]);
@@ -539,6 +554,7 @@ export async function avisarBookPorEmail(
       saidaDoCaminhao: evento?.truckDepartureDate ? new Date(evento.truckDepartureDate as any).toISOString() : null,
       publicacao: books.filter((b) => b.eventId === eventId).length || 1,
       destinatariosDoEvento: destinatarios,
+      destinatariosDeCopia: copias,
     });
   } catch (error) {
     const reason = error instanceof Error ? error.message : "erro desconhecido";

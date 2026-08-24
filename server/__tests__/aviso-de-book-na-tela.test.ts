@@ -60,7 +60,19 @@ describe("2 · reenviar o aviso sai da tela de Versões", () => {
   });
 });
 
-describe("3 · o e-mail nunca acontece antes do registro interno", () => {
+describe("3 · quem acompanha a produção entra em cópia", () => {
+  it("Solicitação e admin são os papéis em cópia — decisão do dono (24/08)", () => {
+    expect(ITEMS).toContain('export const PAPEIS_EM_COPIA = ["solicitacao", "admin"];');
+    expect(ITEMS).toContain("PAPEIS_EM_COPIA.includes(u.role) && !!u.email");
+  });
+
+  it("a lista de cópia é resolvida junto com o resto, não em série", () => {
+    expect(ITEMS).toContain("const [destinatarios, copias, doEvento, books] = await Promise.all([");
+    expect(ITEMS).toContain("destinatariosDeCopia(),");
+  });
+});
+
+describe("4 · o e-mail nunca acontece antes do registro interno", () => {
   it("na publicação, o aviso vem depois da auditoria do book", () => {
     const auditoriaDoBook = ITEMS.indexOf("`Book de aprovação vinculado a ${count} peça(s)`");
     const aviso = ITEMS.indexOf("aviso = await avisarBookPorEmail(req, req.params.eventId, bookUrl, count);");

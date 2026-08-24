@@ -125,6 +125,12 @@ beforeEach(() => {
   H.storage.getEventSponsors = vi.fn().mockResolvedValue([{ sponsorId: "s1" }, { sponsorId: "s2" }]);
   H.storage.getSponsor = vi.fn(async (id: string) => ({ id, accountExecutiveId: id === "s1" ? "u9" : null }));
   H.storage.getUser = vi.fn().mockResolvedValue({ id: "u9", email: "exec@nortemkt.com" });
+  H.storage.getAllUsers = vi.fn().mockResolvedValue([
+    { id: "u1", email: "pedido@nortemkt.com", role: "solicitacao" },
+    { id: "u2", email: "chefe@nortemkt.com", role: "admin" },
+    { id: "u3", email: "arte@nortemkt.com", role: "arte" },
+    { id: "u4", email: "", role: "solicitacao" },
+  ]);
   H.notifyBookSaved.mockResolvedValue({ status: "disabled" });
   H.createAuditLog.mockResolvedValue(undefined);
 });
@@ -159,15 +165,18 @@ describe("e-mail ao salvar book", () => {
       saidaDoCaminhao: "2026-09-05T11:00:00.000Z",
       publicacao: 1,
       destinatariosDoEvento: ["exec@nortemkt.com"],
+      // Solicitação e admin acompanham; Arte e Gráfica não entram, e o
+      // usuário sem e-mail cadastrado não vira endereço vazio.
+      destinatariosDeCopia: ["pedido@nortemkt.com", "chefe@nortemkt.com"],
     }));
   });
 
   it("o desfecho do envio volta na resposta e vai para a trilha", async () => {
-    H.notifyBookSaved.mockResolvedValue({ status: "sent", para: ["exec@nortemkt.com"], descartados: [] });
+    H.notifyBookSaved.mockResolvedValue({ status: "sent", para: ["exec@nortemkt.com"], copia: [], descartados: [] });
 
     const r = await callBookRoute({ bookUrl: "/objects/books/corrida.pdf", itemIds: ["item-1"] });
 
-    expect(r.body.aviso).toEqual({ status: "sent", para: ["exec@nortemkt.com"], descartados: [] });
+    expect(r.body.aviso).toEqual({ status: "sent", para: ["exec@nortemkt.com"], copia: [], descartados: [] });
     expect(H.createAuditLog).toHaveBeenCalledWith(
       expect.anything(), "updated", "event", "evento-1", "desfecho:sent",
     );
@@ -221,7 +230,7 @@ describe("reenviar o aviso", () => {
   });
 
   it("usa o book ATUAL do evento e devolve a frase do desfecho", async () => {
-    H.notifyBookSaved.mockResolvedValue({ status: "sent", para: ["exec@nortemkt.com"], descartados: [] });
+    H.notifyBookSaved.mockResolvedValue({ status: "sent", para: ["exec@nortemkt.com"], copia: [], descartados: [] });
 
     const r = await reenviar("atendimento");
 

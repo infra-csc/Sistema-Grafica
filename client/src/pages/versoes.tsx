@@ -30,10 +30,11 @@
 // existe para evitar.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   GitBranch, Search, X, Download, FileText, Check, Clock, AlertTriangle,
   ExternalLink, ChevronLeft, ChevronRight, Layers, HelpCircle, Table2, Send, Loader2,
+  Undo2, MessageSquareWarning, Columns2, Square, ArrowRight,
 } from "lucide-react";
 import { Link } from "wouter";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -88,6 +89,51 @@ const ORIGEM_LABEL: Record<Versao["origem"], string> = {
   troca: "trocada pela Arte",
   trilha: "reconstruída da trilha de auditoria",
   atual: "arte que está na peça hoje",
+};
+
+// ── A GRAVIDADE DA PEÇA ─────────────────────────────────────────────────────
+// O mesmo desencontro de versão é coisa diferente conforme onde a peça está:
+// em aprovação é conserto de dez minutos; depois da gráfica é arte impressa
+// errada. O subtítulo da tela promete dizer "se é ela que está indo para a
+// gráfica" — sem o status, essa metade da pergunta ficava sem resposta.
+type Gravidade = "aprovacao" | "liberada" | "producao" | "impressa";
+
+const GRAVIDADE: Record<string, Gravidade> = {
+  draft: "aprovacao", requested: "aprovacao", awaiting_linking: "aprovacao",
+  awaiting_submission: "aprovacao", awaiting_approval: "aprovacao",
+  awaiting_sponsor_approval: "aprovacao", awaiting_review: "aprovacao", in_review: "aprovacao",
+  sponsor_approved: "liberada", awaiting_finalization: "liberada", awaiting_creator_review: "liberada",
+  awaiting_final_review: "liberada", ready_for_production: "liberada", pronto_para_producao: "liberada",
+  approved: "liberada", liberado: "liberada",
+  inProduction: "producao", em_producao: "producao",
+  produced: "impressa", produzido: "impressa", conferred: "impressa",
+  delivered: "impressa", entregue: "impressa",
+};
+
+const GRAVIDADE_VISUAL: Record<Gravidade, { rotulo: string; cor: string; fundo: string; borda: string; consequencia: string }> = {
+  aprovacao: {
+    rotulo: "em aprovação", cor: "#b45309", fundo: "#fffbeb", borda: "#fde68a",
+    consequencia: "A peça ainda está em aprovação — divergência aqui é conserto barato.",
+  },
+  liberada: {
+    rotulo: "liberada", cor: "#0f766e", fundo: "#f0fdfa", borda: "#99f6e4",
+    consequencia: "A peça já foi liberada e está a caminho da gráfica — ainda dá para segurar.",
+  },
+  producao: {
+    rotulo: "em produção", cor: "#c2410c", fundo: "#fff7ed", borda: "#fed7aa",
+    consequencia: "A peça já foi para a gráfica — divergência aqui é arte impressa errada.",
+  },
+  impressa: {
+    rotulo: "produzida", cor: "#047857", fundo: "#ecfdf5", borda: "#a7f3d0",
+    consequencia: "A peça já foi produzida — divergência aqui é material impresso errado.",
+  },
+};
+
+const gravidadeDe = (status: string): Gravidade => GRAVIDADE[status] ?? "aprovacao";
+/** Passou da gráfica: o erro deixou de ser corrigível de graça. */
+const jaFoiParaGrafica = (status: string) => {
+  const g = gravidadeDe(status);
+  return g === "producao" || g === "impressa";
 };
 
 const fmtData = (iso: string | null) => {
@@ -442,9 +488,18 @@ function Esqueleto({ isMobile }: { isMobile: boolean }) {
 /** Um cartão por peça: a decisão em primeiro plano; a régua só cresce quando há o que comparar. */
 function CartaoDaPeca({ p, isMobile, onComparar }: { p: Peca; isMobile: boolean; onComparar: () => void }) {
   const varias = p.versoes.length > 1;
+  const g = gravidadeDe(p.status);
+  const gv = GRAVIDADE_VISUAL[g];
+  const impressaErrada = p.divergente && jaFoiParaGrafica(p.status);
+
   return (
     <article data-testid={`versoes-peca-${p.id}`}
-      style={{ backgroundColor: "#ffffff", border: `1px solid ${p.divergente ? "#fecaca" : T.border}`, borderRadius: R.lg, boxShadow: SHADOW.sm, padding: isMobile ? 12 : "14px 18px" }}>
+      style={{
+        backgroundColor: "#ffffff",
+        // A borda sobe de tom quando o erro já saiu do papel.
+        border: `1px solid ${impressaErrada ? "#fca5a5" : p.divergente ? "#fecaca" : T.border}`,
+        borderRadius: R.lg, boxShadow: SHADOW.sm, padding: isMobile ? 12 : "14px 18px",
+      }}>
 
       <div style={{ display: "flex", alignItems: "baseline", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
         <Link href={`/eventos/${p.eventId}?item=${p.id}`} data-testid={`link-peca-${p.id}`}
@@ -455,11 +510,27 @@ function CartaoDaPeca({ p, isMobile, onComparar }: { p: Peca; isMobile: boolean;
         {p.description && (
           <span style={{ fontSize: FS.body, color: "#57534e", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.description}</span>
         )}
-        <span style={{ marginLeft: "auto", display: "inline-flex", gap: 6, flexWrap: "wrap" }}>
-          {p.divergente && (
+        <span style={{ marginLeft: "auto", display: "inline-flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+          {/* ONDE A PEÇA ESTÁ — vem antes dos selos de exceção porque é ele
+              que diz o tamanho do problema que vem em seguida. */}
+          <span data-testid={`selo-status-${p.id}`} title={gv.consequencia}
+            style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: FS.micro, fontWeight: 700, color: gv.cor, backgroundColor: gv.fundo, border: `1px solid ${gv.borda}`, borderRadius: R.sm, padding: "1px 7px", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>
+            <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: gv.cor, flexShrink: 0 }} />
+            {gv.rotulo}
+          </span>
+
+          {/* Dois problemas com nomes diferentes porque são dois problemas. */}
+          {impressaErrada ? (
+            <span data-testid={`selo-divergente-${p.id}`}
+              title="A arte que já foi para a gráfica não é a que o patrocinador aprovou"
+              style={{ fontSize: FS.micro, fontWeight: 800, color: "#ffffff", backgroundColor: "#b91c1c", border: "1px solid #b91c1c", borderRadius: R.sm, padding: "1px 7px", textTransform: "uppercase", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>
+              produzida na versão errada
+            </span>
+          ) : p.divergente ? (
             <Selo testId={`selo-divergente-${p.id}`} cor="#b91c1c" fundo="#fef2f2" borda="#fecaca"
               titulo="Alguém aprovou uma arte diferente da que está na peça hoje">aprovou outra versão</Selo>
-          )}
+          ) : null}
+
           {p.pendente && (p.diasPendente ?? 0) >= 7 && (
             <Selo testId={`selo-parada-${p.id}`} cor="#b45309" fundo="#fffbeb" borda="#fde68a"
               titulo="Há decisão de patrocinador pendente há mais de uma semana">parada há {p.diasPendente}d</Selo>
@@ -521,12 +592,193 @@ function CartaoDaPeca({ p, isMobile, onComparar }: { p: Peca; isMobile: boolean;
         </div>
       )}
 
+      {/* ── O que fazer a respeito ── */}
+      <FaixaDeResolucao p={p} isMobile={isMobile} />
+
       {/* ── A decisão de cada patrocinador ── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
         {p.decisoes.length === 0 && <span style={{ fontSize: FS.small, color: T.second }}>Sem patrocinador em aprovação.</span>}
         {p.decisoes.map(d => <LinhaDaDecisao key={d.sponsorId} d={d} pecaId={p.id} />)}
       </div>
     </article>
+  );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+// A FAIXA DE RESOLUÇÃO — a tela detectava bem e resolvia nada.
+//
+// Quem descobria que o patrocinador aprovou a v2 enquanto a peça está na v3
+// precisava sair daqui, abrir o evento e refazer o pedido de aprovação na mão.
+// O achado mais valioso do sistema não tinha ação ao lado.
+//
+// A faixa só aparece quando há o que resolver, e o texto sai dos DADOS — nome
+// do patrocinador, número da versão, data, dias parados. Frase genérica em
+// faixa de alerta é ruído: se ela não disser o que houve, não vale a área.
+//
+// As ações reaproveitam mutações que já existem — nenhuma rota nova:
+//   · "Voltar para a vN"  → PATCH /api/items/:id/update-thumb (Arte e admin),
+//     com confirmação, porque descarta a arte atual;
+//   · "Pedir aprovação da vN" → POST …/sponsor-approvals/:sponsorId/revert,
+//     que devolve a decisão daquele patrocinador para pendente — é literalmente
+//     "ele precisa decidir de novo, agora sobre a arte de hoje". O servidor só
+//     aceita de admin, ou de Atendimento enquanto a peça está em aprovação ou
+//     na finalização; o botão segue a MESMA régua e some quando não caberia,
+//     em vez de existir para dar 409.
+//
+// NÃO existe botão de cobrar patrocinador, e é decisão do dono (21/08): o app
+// não fala com o patrocinador — quem fala é o Atendimento, fora do sistema.
+// A pendência parada leva ao lugar onde a resposta é registrada.
+// ─────────────────────────────────────────────────────────────────────────────
+type Acao = { rotulo: string; testId: string; href?: string; onClick?: () => void; icone: any; ocupado?: boolean };
+
+function FaixaDeResolucao({ p, isMobile }: { p: Peca; isMobile: boolean }) {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [confirmando, setConfirmando] = useState(false);
+
+  const papel = user?.role ?? "";
+  const podeTrocarArte = papel === "arte" || papel === "admin";
+  const podeRevogar = papel === "admin"
+    || (papel === "atendimento" && (p.status === "awaiting_sponsor_approval" || p.status === "sponsor_approved"));
+
+  const recarregar = () => {
+    queryClient.invalidateQueries({ predicate: q => String(q.queryKey[0] ?? "").startsWith("/api/versoes") });
+    queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+  };
+
+  const voltarArte = useMutation({
+    mutationFn: async (thumbUrl: string) =>
+      await apiRequest("PATCH", `/api/items/${p.id}/update-thumb`, { approvalThumbUrl: thumbUrl }),
+    onSuccess: () => { recarregar(); setConfirmando(false); toast({ title: "Arte trocada", description: "A peça voltou para a versão aprovada." }); },
+    onError: (e: any) => toast({ title: "Não foi possível trocar a arte", description: e.message, variant: "destructive" }),
+  });
+
+  const pedirAprovacao = useMutation({
+    mutationFn: async (sponsorId: string) =>
+      await apiRequest("POST", `/api/items/${p.id}/sponsor-approvals/${sponsorId}/revert`, {}),
+    onSuccess: () => { recarregar(); toast({ title: "Aprovação reaberta", description: "O patrocinador volta a aguardar decisão sobre a arte atual." }); },
+    onError: (e: any) => toast({ title: "Não foi possível reabrir", description: e.message, variant: "destructive" }),
+  });
+
+  // ── Qual é o problema desta peça, em ordem de gravidade ──
+  const divergente = p.decisoes.find(d => d.divergente);
+  const ambigua = p.decisoes.find(d => d.ambiguo);
+  const parada = p.pendente && (p.diasPendente ?? 0) >= 7
+    ? p.decisoes.find(d => !d.decididoEm) ?? null
+    : null;
+  if (!divergente && !ambigua && !parada) return null;
+
+  const versaoAtual = p.versoes.findIndex(v => v.thumbUrl === p.approvalThumbUrl) + 1;
+  const naGrafica = jaFoiParaGrafica(p.status);
+  const entregue = gravidadeDe(p.status) === "impressa";
+  const trilha = `/historico?peca=${encodeURIComponent(p.displayId.replace(/^#/, ""))}`;
+
+  let tom: { barra: string; fundo: string; texto: string };
+  let frase: string;
+  let detalhe: string;
+  const acoes: Acao[] = [];
+
+  if (divergente) {
+    const vDele = divergente.versao ? `v${divergente.versao}` : "uma versão anterior";
+    const vAgora = versaoAtual > 0 ? `v${versaoAtual}` : "a atual";
+    if (naGrafica) {
+      // #7f1d1d sobre #fef2f2 = 8,9:1
+      tom = { barra: "#dc2626", fundo: "#fef2f2", texto: "#7f1d1d" };
+      frase = `A peça está ${entregue ? "produzida" : "em produção"} com uma arte que ${divergente.nome} não aprovou`;
+      detalhe = `Aprovou a ${vDele}${divergente.decididoEm ? ` em ${fmtData(divergente.decididoEm)}` : ""}; a arte foi trocada depois, para ${vAgora}. `;
+      detalhe += entregue
+        ? "Confira o registro de entrega antes de decidir o que fazer."
+        : "Dá para parar a produção enquanto ainda há tempo.";
+      acoes.push({ rotulo: "Ver o que foi produzido", testId: `button-resolucao-ver-${p.id}`, href: `/eventos/${p.eventId}?item=${p.id}`, icone: ExternalLink });
+    } else {
+      // #78350f sobre #fffbeb = 9,4:1
+      tom = { barra: "#f59e0b", fundo: "#fffbeb", texto: "#78350f" };
+      frase = `${divergente.nome} aprovou a ${vDele}, e a peça está na ${vAgora}`;
+      detalhe = "Ou a peça volta para a arte aprovada, ou o patrocinador decide sobre a arte de agora.";
+      if (podeTrocarArte && divergente.thumbUrl && divergente.thumbUrl !== p.approvalThumbUrl) {
+        acoes.push({
+          rotulo: `Voltar para a ${vDele}`,
+          testId: `button-resolucao-voltar-${p.id}`,
+          onClick: () => setConfirmando(true),
+          icone: Undo2,
+          ocupado: voltarArte.isPending,
+        });
+      }
+    }
+    if (podeRevogar) {
+      acoes.push({
+        rotulo: `Pedir aprovação da ${vAgora}`,
+        testId: `button-resolucao-pedir-${p.id}`,
+        onClick: () => pedirAprovacao.mutate(divergente.sponsorId),
+        icone: ArrowRight,
+        ocupado: pedirAprovacao.isPending,
+      });
+    }
+  } else if (parada) {
+    tom = { barra: "#f59e0b", fundo: "#fffbeb", texto: "#78350f" };
+    frase = `Parada há ${p.diasPendente} dias esperando ${parada.nome}`;
+    detalhe = "Nada avança até a decisão sair. Quando a resposta chegar, é o Atendimento que a registra.";
+    acoes.push({ rotulo: "Abrir no Atendimento", testId: `button-resolucao-atendimento-${p.id}`, href: "/atendimento", icone: ExternalLink });
+  } else {
+    tom = { barra: "#f59e0b", fundo: "#fffbeb", texto: "#78350f" };
+    frase = `Não dá para afirmar qual versão ${ambigua!.nome} decidiu`;
+    detalhe = "A arte foi trocada no mesmo instante da decisão. A trilha da peça mostra a ordem exata dos dois registros — confirmar sai mais barato que reimprimir.";
+    acoes.push({ rotulo: "Ver a trilha da peça", testId: `button-resolucao-trilha-${p.id}`, href: trilha, icone: ExternalLink });
+  }
+
+  const alturaAcao = isMobile ? 44 : 32;
+  const estiloAcao: React.CSSProperties = {
+    display: "inline-flex", alignItems: "center", gap: 6, height: alturaAcao, padding: "0 12px",
+    borderRadius: R.md, border: `1px solid ${tom.barra}33`, backgroundColor: "#ffffff",
+    color: tom.texto, fontSize: FS.small, fontWeight: 700, fontFamily: "inherit",
+    textDecoration: "none", cursor: "pointer", whiteSpace: "nowrap",
+  };
+
+  return (
+    <div data-testid={`faixa-resolucao-${p.id}`}
+      style={{ display: "flex", gap: 10, alignItems: "flex-start", backgroundColor: tom.fundo, borderRadius: R.md, padding: "10px 12px", marginBottom: 10, borderLeft: `3px solid ${tom.barra}` }}>
+      <MessageSquareWarning aria-hidden="true" style={{ width: 15, height: 15, color: tom.barra, flexShrink: 0, marginTop: 1 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: tom.texto, lineHeight: 1.35 }}>{frase}</p>
+        <p style={{ margin: "3px 0 0", fontSize: 11, color: tom.texto, opacity: 0.85, lineHeight: 1.45 }}>{detalhe}</p>
+        {acoes.length > 0 && (
+          <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+            {acoes.slice(0, 2).map(a => a.href ? (
+              <Link key={a.testId} href={a.href} data-testid={a.testId} style={estiloAcao}>
+                <a.icone style={{ width: 13, height: 13 }} /> {a.rotulo}
+              </Link>
+            ) : (
+              <button key={a.testId} type="button" onClick={a.onClick} disabled={a.ocupado} data-testid={a.testId}
+                style={{ ...estiloAcao, opacity: a.ocupado ? 0.6 : 1 }}>
+                {a.ocupado ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" /> : <a.icone style={{ width: 13, height: 13 }} />}
+                {a.rotulo}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Trocar a arte DESCARTA a atual: pergunta antes. */}
+        {confirmando && divergente?.thumbUrl && (
+          <div data-testid={`confirma-voltar-${p.id}`} style={{ marginTop: 8, padding: "8px 10px", backgroundColor: "#ffffff", border: `1px solid ${tom.barra}55`, borderRadius: R.md }}>
+            <p style={{ margin: 0, fontSize: 12, color: tom.texto, lineHeight: 1.45 }}>
+              A arte que está na peça hoje será substituída pela que {divergente.nome} aprovou. A troca fica registrada na trilha, e quem já tinha aprovado a arte atual precisará decidir de novo.
+            </p>
+            <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+              <button type="button" onClick={() => voltarArte.mutate(divergente.thumbUrl!)} disabled={voltarArte.isPending}
+                data-testid={`button-resolucao-confirmar-${p.id}`}
+                style={{ ...estiloAcao, backgroundColor: tom.barra, color: "#ffffff", border: "none" }}>
+                {voltarArte.isPending ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" /> : <Undo2 style={{ width: 13, height: 13 }} />}
+                Trocar mesmo assim
+              </button>
+              <button type="button" onClick={() => setConfirmando(false)} data-testid={`button-resolucao-cancelar-${p.id}`}
+                style={{ ...estiloAcao, border: "none", backgroundColor: "transparent" }}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -595,9 +847,23 @@ function LinhaDaDecisao({ d, pecaId }: { d: Decisao; pecaId: string }) {
   );
 }
 
-/** Comparador: as versões da peça no mesmo lugar, alternáveis por ←/→. */
+/**
+ * COMPARADOR — as versões da peça no mesmo lugar.
+ *
+ * Nasceu alternando uma por vez com ←/→, e isso resolve o caso grosseiro (a
+ * arte mudou inteira). Não resolve o caso típico: um logo que mudou de tamanho
+ * entre duas artes quase idênticas — alternar depende da memória, e a memória
+ * não pega diferença de dois milímetros. Por isso o modo LADO A LADO, em que a
+ * direita é sempre a arte que está na peça HOJE: a pergunta da tela não é
+ * "como eram as versões", é "o que está indo para a gráfica bate com o que foi
+ * aprovado".
+ *
+ * No celular os dois painéis empilhariam e o modo perderia o sentido — lá fica
+ * só "uma por vez".
+ */
 function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: () => void; isMobile: boolean }) {
   const [indice, setIndice] = useState(0);
+  const [modo, setModo] = useState<"uma" | "lado">("uma");
   const total = peca?.versoes.length ?? 0;
   const aberto = !!peca && total > 0;
   const anterior = useCallback(() => setIndice(i => (i - 1 + total) % total), [total]);
@@ -611,7 +877,7 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
       setIndice(i >= 0 ? i : total - 1);
       jaAbriu.current = true;
     }
-    if (!aberto) jaAbriu.current = false;
+    if (!aberto) { jaAbriu.current = false; setModo("uma"); }
   }, [aberto, peca, total]);
 
   useEffect(() => {
@@ -624,12 +890,30 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
     return () => window.removeEventListener("keydown", onKey);
   }, [aberto, anterior, proxima]);
 
-  const v = peca?.versoes[indice];
+  const versoes = peca?.versoes ?? [];
+  const iAtual = versoes.findIndex(v => v.thumbUrl === peca?.approvalThumbUrl);
+  // Comparar a atual com ela mesma não diz nada: quando o foco JÁ é a atual,
+  // a esquerda mostra a anterior.
+  const iEsquerda = modo === "lado" && indice === iAtual && total > 1
+    ? (indice - 1 + total) % total
+    : indice;
+  const iDireita = iAtual >= 0 ? iAtual : total - 1;
+  const v = versoes[modo === "lado" ? iEsquerda : indice];
   const decisoesDaVersao = (peca?.decisoes ?? []).filter(d => d.thumbUrl === v?.thumbUrl && d.decididoEm);
+  const ladoALado = modo === "lado" && !isMobile && total > 1;
+
+  const quemAprovou = (indiceDaVersao: number) => {
+    const url = versoes[indiceDaVersao]?.thumbUrl;
+    const nomes = (peca?.decisoes ?? [])
+      .filter(d => d.thumbUrl === url && d.status === "approved")
+      .map(d => d.nome);
+    if (nomes.length === 0) return "Nenhuma aprovação nesta versão";
+    return `${nomes.join(", ")} aprovou esta`;
+  };
 
   return (
     <Dialog open={aberto} onOpenChange={o => { if (!o) onClose(); }}>
-      <DialogContent className={`${HIDE_NATIVE_CLOSE} p-0 gap-0`} style={modalSurface(920)}>
+      <DialogContent className={`${HIDE_NATIVE_CLOSE} p-0 gap-0`} style={modalSurface(ladoALado ? 1040 : 920)}>
         {/* Congelado enquanto sai — a lição do #185 (ver popover-congelado.test.ts). */}
         <FreezeWhileClosing open={aberto}>
           <DialogTitle className="sr-only">Comparar versões da peça {peca?.displayId}</DialogTitle>
@@ -643,25 +927,72 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
           />
           <div style={{ flex: "1 1 auto", minHeight: 0, overflowY: "auto", padding: isMobile ? 12 : 18, display: "flex", flexDirection: isMobile ? "column" : "row", gap: 16 }}>
             <div style={{ flex: "1 1 auto", minWidth: 0 }}>
-              <div style={{ position: "relative", backgroundColor: "#fafaf9", border: `1px solid ${T.border}`, borderRadius: R.lg, height: isMobile ? 260 : 420, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                {v && isWebUrl(v.thumbUrl)
-                  ? <img key={v.thumbUrl} src={v.thumbUrl} alt={`Versão ${indice + 1} de ${peca?.displayId}`} data-testid="img-comparador"
-                      style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block" }} />
-                  : <span style={{ fontSize: FS.body, color: T.second }}>Sem prévia para esta versão</span>}
-                {total > 1 && (
-                  <>
-                    <button type="button" onClick={anterior} aria-label="Versão anterior" data-testid="button-comparador-anterior" style={setaComparador("left")}>
-                      <ChevronLeft style={{ width: 18, height: 18 }} />
-                    </button>
-                    <button type="button" onClick={proxima} aria-label="Próxima versão" data-testid="button-comparador-proxima" style={setaComparador("right")}>
-                      <ChevronRight style={{ width: 18, height: 18 }} />
-                    </button>
-                  </>
-                )}
-              </div>
+
+              {/* Como olhar. Some no celular, onde os painéis empilhariam. */}
+              {!isMobile && total > 1 && (
+                <div role="tablist" aria-label="Modo de comparação" data-testid="segmented-modo-comparador"
+                  style={{ display: "inline-flex", backgroundColor: "#f3f4f3", borderRadius: R.md, padding: 3, gap: 2, marginBottom: 10 }}>
+                  {([["uma", "Uma por vez", Square], ["lado", "Lado a lado", Columns2]] as const).map(([valor, rotulo, Icone]) => {
+                    const ativo = modo === valor;
+                    return (
+                      <button key={valor} type="button" role="tab" aria-selected={ativo} data-testid={`button-modo-${valor}`}
+                        onClick={() => setModo(valor)}
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, padding: "0 12px", borderRadius: R.sm, border: "none", fontSize: FS.small, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", color: ativo ? T.text : "#57534e", backgroundColor: ativo ? "#ffffff" : "transparent", boxShadow: ativo ? "0 1px 2px rgba(28,25,23,0.06)" : "none" }}>
+                        <Icone style={{ width: 13, height: 13 }} /> {rotulo}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {ladoALado ? (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  {([[iEsquerda, "esquerda"], [iDireita, "direita"]] as const).map(([idx, lado]) => {
+                    const versao = versoes[idx];
+                    const ehAtual = idx === iAtual;
+                    return (
+                      <div key={lado} data-testid={`painel-lado-${lado}`}
+                        style={{ border: `1px solid ${ehAtual ? "#fed7aa" : T.border}`, borderRadius: R.lg, overflow: "hidden", backgroundColor: "#fafaf9" }}>
+                        <div style={{ padding: "8px 10px", backgroundColor: ehAtual ? "#fff7ed" : "#ffffff", borderBottom: `1px solid ${ehAtual ? "#fed7aa" : T.low}` }}>
+                          <p style={{ margin: 0, fontSize: FS.body, fontWeight: 800, color: ehAtual ? "#9a3412" : T.text }}>
+                            v{idx + 1}{ehAtual ? " · atual" : ""}
+                          </p>
+                          <p style={{ margin: "1px 0 0", ...numero, fontSize: FS.micro, color: T.second }}>{fmtData(versao?.em ?? null)}</p>
+                        </div>
+                        <div style={{ height: isMobile ? 220 : 340, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#ffffff" }}>
+                          {versao && isWebUrl(versao.thumbUrl)
+                            ? <img src={versao.thumbUrl} alt={`Versão ${idx + 1}`} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block" }} />
+                            : <span style={{ fontSize: FS.small, color: T.second }}>Sem prévia</span>}
+                        </div>
+                        <p style={{ margin: 0, padding: "7px 10px", fontSize: FS.small, color: "#57534e", borderTop: `1px solid ${T.low}`, backgroundColor: "#ffffff" }}>
+                          {quemAprovou(idx)}
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{ position: "relative", backgroundColor: "#fafaf9", border: `1px solid ${T.border}`, borderRadius: R.lg, height: isMobile ? 260 : 420, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                  {v && isWebUrl(v.thumbUrl)
+                    ? <img key={v.thumbUrl} src={v.thumbUrl} alt={`Versão ${indice + 1} de ${peca?.displayId}`} data-testid="img-comparador"
+                        style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain", display: "block" }} />
+                    : <span style={{ fontSize: FS.body, color: T.second }}>Sem prévia para esta versão</span>}
+                  {total > 1 && (
+                    <>
+                      <button type="button" onClick={anterior} aria-label="Versão anterior" data-testid="button-comparador-anterior" style={setaComparador("left")}>
+                        <ChevronLeft style={{ width: 18, height: 18 }} />
+                      </button>
+                      <button type="button" onClick={proxima} aria-label="Próxima versão" data-testid="button-comparador-proxima" style={setaComparador("right")}>
+                        <ChevronRight style={{ width: 18, height: 18 }} />
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+
               <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-                {(peca?.versoes ?? []).map((x, i) => {
-                  const ativo = i === indice;
+                {versoes.map((x, i) => {
+                  const ativo = i === (ladoALado ? iEsquerda : indice);
                   return (
                     <button key={`${x.thumbUrl}-${i}`} type="button" onClick={() => setIndice(i)} data-testid={`button-comparador-v${i + 1}`}
                       style={{ height: 30, padding: "0 12px", borderRadius: R.md, cursor: "pointer", fontFamily: "inherit", fontSize: FS.small, fontWeight: 700,
@@ -675,8 +1006,10 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
 
             <aside style={{ width: isMobile ? "100%" : 260, flexShrink: 0, display: "flex", flexDirection: "column", gap: 10 }}>
               <div>
-                <p style={{ margin: 0, fontSize: FS.micro, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: T.second }}>Esta versão</p>
-                <p style={{ margin: "4px 0 0", fontSize: FS.body, fontWeight: 700, color: T.text }}>v{indice + 1} de {total}</p>
+                <p style={{ margin: 0, fontSize: FS.micro, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: T.second }}>
+                  {ladoALado ? "Painel da esquerda" : "Esta versão"}
+                </p>
+                <p style={{ margin: "4px 0 0", fontSize: FS.body, fontWeight: 700, color: T.text }}>v{(ladoALado ? iEsquerda : indice) + 1} de {total}</p>
                 <p style={{ margin: "2px 0 0", ...numero, fontSize: FS.small, color: T.second }}>{fmtData(v?.em ?? null)}</p>
                 <p style={{ margin: "2px 0 0", fontSize: FS.small, color: T.second }}>
                   {v ? ORIGEM_LABEL[v.origem] : ""}{v?.por ? ` · ${v.por}` : ""}
@@ -716,7 +1049,6 @@ function Comparador({ peca, onClose, isMobile }: { peca: Peca | null; onClose: (
     </Dialog>
   );
 }
-
 const setaComparador = (lado: "left" | "right"): React.CSSProperties => ({
   position: "absolute", [lado]: 8, top: "50%", transform: "translateY(-50%)",
   width: 36, height: 36, borderRadius: "50%", border: `1px solid ${T.border}`,

@@ -327,33 +327,30 @@ export default function Atendimento() {
   // centenas de peças o navegador engasgava ao montar tudo de uma vez.
   const PAGE_SIZE = 25;
   const [histVisible, setHistVisible] = useState(PAGE_SIZE);
-  const [pendVisible, setPendVisible] = useState(PAGE_SIZE);
 
   // Peça em preview no lote (clique na arte abre grande, sem mexer na seleção).
   const [batchPreviewItem, setBatchPreviewItem] = useState<any>(null);
 
   /**
-   * Eventos ABERTOS na aba Pendentes (o cabeçalho vira um card clicável).
+   * Eventos RECOLHIDOS na aba Pendentes (o cabeçalho vira um card clicável).
    *
-   * COMEÇA TUDO FECHADO (decisão do dono, 24/08). Com 251 peças em dezenas de
-   * eventos, abrir todos empilhava uma tela de rolagem infinita em que o
-   * primeiro passo era recolher o que não interessava — trabalho antes do
-   * trabalho. Fechado, o cabeçalho de cada evento já carrega o que decide:
-   * nome, mês, prazo de Aprovação de Layout e quantas peças.
+   * COMEÇA TUDO ABERTO (decisão do dono, 24/08, revendo a de horas antes). A
+   * tentativa de abrir fechado resolvia a rolagem e criava um problema pior:
+   * a lista existe para varrer o que espera decisão, e fechada ela obrigava a
+   * clicar evento por evento para descobrir onde estava o trabalho.
    *
-   * O conjunto guarda quem está ABERTO, não quem está fechado: com o padrão
-   * invertido não existe valor inicial que signifique "tudo fechado" — a lista
-   * de eventos não é conhecida aqui e muda a cada filtro, e um evento novo
-   * entraria aberto por omissão.
+   * O que sustentava "fechado" era o custo de desenhar tudo. Isso foi tratado
+   * onde o problema mora — `content-visibility` no grupo, ver o container de
+   * cada evento —, e não fazendo a pessoa clicar.
    */
-  const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
+  const [collapsedEvents, setCollapsedEvents] = useState<Set<string>>(new Set());
   const toggleEventCollapsed = (id: string) =>
-    setExpandedEvents(prev => {
+    setCollapsedEvents(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
-  const eventoAberto = (id: string) => expandedEvents.has(id);
+  const eventoAberto = (id: string) => !collapsedEvents.has(id);
 
   // Modal Exportar PDF
   const [showExportPDFModal, setShowExportPDFModal] = useState(false);
@@ -1263,8 +1260,14 @@ export default function Atendimento() {
   const itemsByEvent = useMemo(() => {
     const map = new Map<string, any[]>();
     const sorted = [...pendingGroup].sort(comparaPecas);
-    // Renderiza só os primeiros; o resto entra via "Carregar mais".
-    sorted.slice(0, pendVisible).forEach(item => {
+    // TODAS as peças entram. O corte em 25 fatiava as PEÇAS antes de agrupar,
+    // então ele não escondia só linhas: escondia EVENTOS INTEIROS. Com 227
+    // pendências, a tela mostrava meia dúzia de eventos e dava a impressão de
+    // que o resto não existia — e "Carregar mais" não anuncia que o que falta
+    // são eventos, não peças.
+    //
+    // O custo disso é desenhar tudo; ver `content-visibility` no grupo.
+    sorted.forEach(item => {
       const eid = item.eventId || '__none__';
       if (!map.has(eid)) map.set(eid, []);
       map.get(eid)!.push(item);
@@ -1274,7 +1277,7 @@ export default function Atendimento() {
       const wa = pesoDoEvento(ea, pa), wb = pesoDoEvento(eb, pb);
       return wa.num - wb.num || COLLATOR.compare(wa.chave, wb.chave);
     }));
-  }, [pendingGroup, pendVisible, comparaPecas, pesoDoEvento]);
+  }, [pendingGroup, comparaPecas, pesoDoEvento]);
 
   // Mantém a seleção em sincronia com o conjunto elegível: se uma peça sai do
   // lote (decidida em outro lugar), ela some da seleção também. Só entram
@@ -1302,7 +1305,6 @@ export default function Atendimento() {
   }, [batchSponsorId, batchEventId, batchEligibleItems]);
 
   // Ao trocar de aba ou mexer nos filtros, volta a listagem para o topo.
-  useEffect(() => { setPendVisible(PAGE_SIZE); }, [activeTab, searchTerm, eventFilter, itemTypeFilter, sponsorFilter, atrasadosFilter]);
 
   // O recorte de atrasados vive na URL, como nas demais telas: é o link que se
   // manda para o colega ("olha o que já venceu"). replaceState com debounce de
@@ -2275,8 +2277,30 @@ export default function Atendimento() {
 
           {pendingGroup.length > 0 && Array.from(itemsByEvent.entries()).map(([eventId, eventItems]) => {
             const ev = getEventInfo(eventId);
+            // ALTURA ESTIMADA do grupo, para o navegador reservar o espaço sem
+            // desenhar o conteúdo. Sem uma estimativa próxima, a barra de
+            // rolagem pula enquanto se rola — o remédio ficaria pior que a
+            // doença. 128px é o cabeçalho do evento; ~104px é a altura média de
+            // uma linha de peça com thumb.
+            // Recolhido, o grupo é só o cabeçalho: reservar a altura das peças
+            // deixaria um buraco do tamanho do evento embaixo dele.
+            const alturaEstimada = eventoAberto(eventId)
+              ? 128 + eventItems.length * 104
+              : 128;
             return (
-              <div key={eventId}>
+              /* CONTENT-VISIBILITY: AUTO — o grupo fora da tela não é
+                 desenhado, mas CONTINUA NO DOM. É o que permite abrir todos os
+                 eventos de uma vez sem travar: o navegador pula layout e pintura
+                 do que ninguém está vendo, e o Ctrl+F, o leitor de tela e os
+                 links continuam funcionando — o que uma lista virtualizada
+                 quebraria. */
+              <div
+                key={eventId}
+                style={{
+                  contentVisibility: "auto",
+                  containIntrinsicSize: `auto ${alturaEstimada}px`,
+                } as React.CSSProperties}
+              >
                 {/* Group Header — recolhe/expande o evento.
                     Era só onClick num <div>: recolher grupo, que é o principal
                     recurso de navegação desta tela, existia apenas para quem
@@ -2468,6 +2492,8 @@ export default function Atendimento() {
                                 <img
                                   src={item.approvalThumbUrl}
                                   alt=""
+                                  loading="lazy"
+                                  decoding="async"
                                   style={{
                                     width: '100%', height: '100%', objectFit: 'cover',
                                     filter: isFullyApproved ? 'grayscale(1)' : 'grayscale(0)',
@@ -2676,15 +2702,11 @@ export default function Atendimento() {
             );
           })}
 
-          {pendingGroup.length > pendVisible && (
-            <button
-              onClick={() => setPendVisible(v => v + PAGE_SIZE)}
-              data-testid="button-load-more-pending"
-              style={{ marginTop: 4, marginBottom: 8, padding: '12px 0', width: '100%', borderRadius: 12, border: '1px solid #e7e5e4', background: '#ffffff', color: '#c2410c', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
-            >
-              Carregar mais ({pendingGroup.length - pendVisible} restantes)
-            </button>
-          )}
+          {/* Sem "Carregar mais" na fila: a lista chega inteira. O botão
+              paginava PEÇAS antes do agrupamento, então escondia eventos —
+              e a pergunta desta tela é "onde há coisa esperando", que uma
+              lista parcial responde errado. O Histórico mantém a paginação:
+              lá a lista é ilimitada e ninguém a varre inteira. */}
 
           {/* Grupo: Aprovados (colapsável) */}
           {approvedGroup.length > 0 && (
@@ -2726,6 +2748,8 @@ export default function Atendimento() {
                                   <img
                                     src={item.approvalThumbUrl}
                                     alt=""
+                                    loading="lazy"
+                                    decoding="async"
                                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                     onError={(e) => {
                                       (e.currentTarget as HTMLImageElement).style.display = 'none';
@@ -3017,6 +3041,8 @@ export default function Atendimento() {
                                   <img
                                     src={item.approvalThumbUrl || item.finalPreviewUrl}
                                     alt=""
+                                    loading="lazy"
+                                    decoding="async"
                                     style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                                     onError={(e) => {
                                       (e.currentTarget as HTMLImageElement).style.display = 'none';

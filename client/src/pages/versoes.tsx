@@ -161,9 +161,10 @@ const lerCsv = (p: URLSearchParams, chave: string) =>
 export default function Versoes() {
   const isMobile = useIsMobile();
   const { user } = useAuth();
-  // Reenviar o aviso é ação de quem publica (Arte) e de quem descobre que não
-  // chegou (Atendimento) — a mesma régua do servidor.
-  const podeAvisar = ["arte", "admin", "atendimento"].includes(user?.role ?? "");
+  // Reenviar dispara e-mail de verdade para a lista inteira e não tem
+  // desfazer: é ação de admin (decisão do dono, 24/08). A mesma régua do
+  // servidor — o botão some para os demais em vez de existir para dar 403.
+  const podeAvisar = user?.role === "admin";
 
   // ── Estado: nasce da URL e volta para ela (recorte compartilhável) ──
   const inicial = useMemo(() => new URLSearchParams(window.location.search), []);

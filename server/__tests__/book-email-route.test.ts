@@ -227,19 +227,19 @@ describe("e-mail ao salvar book", () => {
 describe("reenviar o aviso", () => {
   const reenviar = (papel: string) => chamar("POST /api/events/:eventId/book/notify", {}, papel);
 
-  it("Arte, Atendimento e admin podem; os outros não", async () => {
-    for (const papel of ["arte", "atendimento", "admin"]) {
-      const r = await reenviar(papel);
-      expect(r.status).toBe(200);
+  it("SÓ admin reenvia — decisão do dono (24/08)", async () => {
+    // Disparo que sai do sistema passa pelo dono: são 26 destinatários e não
+    // há desfazer. Começou aberta a Arte e Atendimento; foi fechada.
+    expect((await reenviar("admin")).status).toBe(200);
+    for (const papel of ["arte", "atendimento", "grafica", "solicitacao"]) {
+      expect((await reenviar(papel)).status).toBe(403);
     }
-    const negado = await reenviar("grafica");
-    expect(negado.status).toBe(403);
   });
 
   it("usa o book ATUAL do evento e devolve a frase do desfecho", async () => {
     H.notifyBookSaved.mockResolvedValue({ status: "sent", para: ["exec@nortemkt.com"], copia: [], descartados: [] });
 
-    const r = await reenviar("atendimento");
+    const r = await reenviar("admin");
 
     expect(H.notifyBookSaved).toHaveBeenCalledWith(expect.objectContaining({
       bookUrl: "/objects/books/corrida.pdf",
@@ -253,7 +253,7 @@ describe("reenviar o aviso", () => {
 
   it("evento sem book publicado responde 409, não um e-mail vazio", async () => {
     H.storage.getItemsByEvent.mockResolvedValue([{ id: "item-1", bookUrl: null }]);
-    const r = await reenviar("arte");
+    const r = await reenviar("admin");
     expect(r.status).toBe(409);
     expect(H.notifyBookSaved).not.toHaveBeenCalled();
   });

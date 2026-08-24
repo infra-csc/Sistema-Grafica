@@ -4369,12 +4369,18 @@ export function registerItemRoutes(app: Express): void {
 
   // REENVIAR o aviso do book atual. Nasceu da revisão de 24/08: com o envio
   // agora registrado, "não chegou" deixou de ser um mistério — e reenviar
-  // deixou de exigir republicar o book inteiro. Atendimento entra junto com a
-  // Arte porque é quem descobre que o e-mail não chegou.
+  // deixou de exigir republicar o book inteiro.
+  //
+  // SÓ ADMIN (decisão do dono, 24/08). Começou aberta a Arte e Atendimento —
+  // quem publica o book e quem descobre que o e-mail não chegou. O dono
+  // preferiu que todo disparo que SAI DO SISTEMA passe por ele: um reenvio
+  // manda e-mail de verdade para as 26 pessoas da lista, e não tem desfazer.
+  // Quem precisar reenviar pede a um admin; o registro na trilha diz quem
+  // mandou e quando.
   app.post("/api/events/:eventId/book/notify", requireAuth, async (req, res) => {
     try {
-      if (!["arte", "admin", "atendimento"].includes(String(req.userRole))) {
-        return res.status(403).json({ error: "Sem permissão para reenviar o aviso do book" });
+      if (req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas administradores podem reenviar o aviso do book" });
       }
       const event = await storage.getEvent(req.params.eventId);
       if (!event) return res.status(404).json({ error: "Evento não encontrado" });

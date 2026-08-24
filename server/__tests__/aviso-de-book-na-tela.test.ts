@@ -38,15 +38,16 @@ describe("1 · a Arte vê o que aconteceu com o aviso", () => {
 });
 
 describe("2 · reenviar o aviso sai da tela de Versões", () => {
-  it("o botão existe, só para o book atual e só para quem pode", () => {
+  it("o botão existe, só para o book atual e só para admin", () => {
     expect(VERSOES).toContain("function BotaoReenviarAviso(");
     expect(VERSOES).toContain("data-testid={`button-reenviar-aviso-${eventId}`}");
     expect(VERSOES).toContain("{podeAvisar && i === 0 && <BotaoReenviarAviso eventId={ev.eventId} altura={alturaControle} />}");
-    expect(VERSOES).toContain('const podeAvisar = ["arte", "admin", "atendimento"].includes(user?.role ?? "");');
+    expect(VERSOES).toContain('const podeAvisar = user?.role === "admin";');
   });
 
-  it("a régua de papel do cliente é a MESMA do servidor", () => {
-    expect(ITEMS).toContain('if (!["arte", "admin", "atendimento"].includes(String(req.userRole))) {');
+  it("a régua de papel do cliente é a MESMA do servidor — o botão some, não dá 403", () => {
+    const i = ITEMS.indexOf('app.post("/api/events/:eventId/book/notify"');
+    expect(ITEMS.slice(i, i + 400)).toContain('if (req.userRole !== "admin") {');
   });
 
   it("o toast do reenvio distingue enviado de não enviado", () => {

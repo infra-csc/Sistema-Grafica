@@ -60,15 +60,29 @@ describe("2 · reenviar o aviso sai da tela de Versões", () => {
   });
 });
 
-describe("3 · quem acompanha a produção entra em cópia", () => {
-  it("Solicitação e admin são os papéis em cópia — decisão do dono (24/08)", () => {
-    expect(ITEMS).toContain('export const PAPEIS_EM_COPIA = ["solicitacao", "admin"];');
-    expect(ITEMS).toContain("PAPEIS_EM_COPIA.includes(u.role) && !!u.email");
+describe("3 · quem recebe o aviso", () => {
+  it("duas pessoas NOMEADAS — nem por papel, nem por evento (decisão do dono, 24/08)", () => {
+    expect(ITEMS).toContain('export const DESTINATARIOS_NOMEADOS = ["pedro@nortemkt.com", "yan.araujo@nortemkt.com"];');
+    // Solicitação fora por enquanto: a lista de papéis existe e está vazia, de
+    // propósito — é o lugar declarado da decisão, não código morto.
+    expect(ITEMS).toContain("export const PAPEIS_QUE_RECEBEM: string[] = [];");
+    expect(ITEMS).toContain("if (PAPEIS_QUE_RECEBEM.includes(u.role)) return true;");
   });
 
-  it("a lista de cópia é resolvida junto com o resto, não em série", () => {
-    expect(ITEMS).toContain("const [destinatarios, copias, doEvento, books] = await Promise.all([");
-    expect(ITEMS).toContain("destinatariosDeCopia(),");
+  it("a regra por evento fica desligada enquanto o cadastro não melhora", () => {
+    expect(ITEMS).toContain("export const USAR_EXECUTIVOS_DO_EVENTO = false;");
+    // e a função continua viva, atrás do interruptor — não foi apagada
+    expect(ITEMS).toContain("USAR_EXECUTIVOS_DO_EVENTO ? destinatariosDoEvento(eventId) : Promise.resolve([])");
+    expect(ITEMS).toContain("export async function destinatariosDoEvento(eventId: string)");
+  });
+
+  it("com a regra por evento desligada, todos vão no Para e ninguém em cópia", () => {
+    expect(ITEMS).toContain("const principais = USAR_EXECUTIVOS_DO_EVENTO && porEvento.length > 0 ? porEvento : equipe;");
+    expect(ITEMS).toContain("const copias = USAR_EXECUTIVOS_DO_EVENTO && porEvento.length > 0 ? equipe : [];");
+  });
+
+  it("e-mail em branco no cadastro não vira destinatário vazio", () => {
+    expect(ITEMS).toContain("if (!u.email) return false;");
   });
 });
 

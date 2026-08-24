@@ -126,10 +126,12 @@ beforeEach(() => {
   H.storage.getSponsor = vi.fn(async (id: string) => ({ id, accountExecutiveId: id === "s1" ? "u9" : null }));
   H.storage.getUser = vi.fn().mockResolvedValue({ id: "u9", email: "exec@nortemkt.com" });
   H.storage.getAllUsers = vi.fn().mockResolvedValue([
-    { id: "u1", email: "pedido@nortemkt.com", role: "solicitacao" },
-    { id: "u2", email: "chefe@nortemkt.com", role: "admin" },
-    { id: "u3", email: "arte@nortemkt.com", role: "arte" },
-    { id: "u4", email: "", role: "solicitacao" },
+    { id: "u1", email: "pedro@nortemkt.com", role: "admin" },        // nomeado
+    { id: "u2", email: "yan.araujo@nortemkt.com", role: "admin" },   // nomeado
+    { id: "u3", email: "chefe@nortemkt.com", role: "admin" },        // admin NÃO nomeado
+    { id: "u4", email: "pedido@nortemkt.com", role: "solicitacao" }, // papel fora hoje
+    { id: "u5", email: "arte@nortemkt.com", role: "arte" },
+    { id: "u6", email: "", role: "admin" },
   ]);
   H.notifyBookSaved.mockResolvedValue({ status: "disabled" });
   H.createAuditLog.mockResolvedValue(undefined);
@@ -164,10 +166,11 @@ describe("e-mail ao salvar book", () => {
       publicadoPor: "Ana Arte",
       saidaDoCaminhao: "2026-09-05T11:00:00.000Z",
       publicacao: 1,
-      destinatariosDoEvento: ["exec@nortemkt.com"],
-      // Solicitação e admin acompanham; Arte e Gráfica não entram, e o
-      // usuário sem e-mail cadastrado não vira endereço vazio.
-      destinatariosDeCopia: ["pedido@nortemkt.com", "chefe@nortemkt.com"],
+      // Decisão do dono (24/08): DUAS pessoas nomeadas, nem por papel nem por
+      // evento. Admin não nomeado fica de fora, Solicitação também, e usuário
+      // sem e-mail cadastrado não vira endereço vazio.
+      destinatariosPrincipais: ["pedro@nortemkt.com", "yan.araujo@nortemkt.com"],
+      destinatariosDeCopia: [],
     }));
   });
 
@@ -206,7 +209,9 @@ describe("e-mail ao salvar book", () => {
 
   it("uma falha ao PREPARAR o aviso não derruba o book", async () => {
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    H.storage.getEventSponsors.mockRejectedValue(new Error("banco fora"));
+    // O que resolve os destinatários hoje é getAllUsers (a regra por evento
+    // está desligada) — é ele que precisa falhar para exercitar o caminho.
+    H.storage.getAllUsers.mockRejectedValue(new Error("banco fora"));
 
     const r = await callBookRoute({ bookUrl: "/objects/books/corrida.pdf", itemIds: ["item-1"] });
 

@@ -116,14 +116,14 @@ describe("a mensagem", () => {
 });
 
 describe("os destinatários", () => {
-  it("junta os do evento com a cópia global, sem repetir e sem ligar para maiúsculas", () => {
-    const { message } = montar({ ...BOOK, destinatariosDoEvento: ["exec@nortemkt.com", "YAN.ARAUJO@nortemkt.com"] } as any);
+  it("junta os principais com a cópia global, sem repetir e sem ligar para maiúsculas", () => {
+    const { message } = montar({ ...BOOK, destinatariosPrincipais: ["exec@nortemkt.com", "YAN.ARAUJO@nortemkt.com"] } as any);
     expect(message.to).toEqual(["exec@nortemkt.com", "YAN.ARAUJO@nortemkt.com"]);
   });
 
   it("UM endereço inválido não derruba o aviso dos outros — e o descarte é reportado", () => {
     const r = buildBookEmailMessage(
-      { ...BOOK, destinatariosDoEvento: ["ok@nortemkt.com", "quebrado @ errado"] } as any,
+      { ...BOOK, destinatariosPrincipais: ["ok@nortemkt.com", "quebrado @ errado"] } as any,
       getBookEmailConfig(VALID_ENV),
     );
     if ("erro" in r) throw new Error("não deveria falhar por causa de um endereço");
@@ -135,7 +135,7 @@ describe("os destinatários", () => {
     const r = buildBookEmailMessage(
       {
         ...BOOK,
-        destinatariosDoEvento: ["exec@nortemkt.com"],
+        destinatariosPrincipais: ["exec@nortemkt.com"],
         destinatariosDeCopia: ["pedido@nortemkt.com", "EXEC@nortemkt.com", "chefe@nortemkt.com"],
       } as any,
       getBookEmailConfig(VALID_ENV),
@@ -146,9 +146,9 @@ describe("os destinatários", () => {
     expect(r.message.bcc).toEqual(["pedido@nortemkt.com", "chefe@nortemkt.com", "yan.araujo@nortemkt.com"]);
   });
 
-  it("evento SEM executivo de conta: a equipe sobe para o Para, e não fica sem aviso", () => {
+  it("sem lista principal, a cópia sobe para o Para — ninguém fica sem aviso", () => {
     const r = buildBookEmailMessage(
-      { ...BOOK, destinatariosDoEvento: [], destinatariosDeCopia: ["pedido@nortemkt.com"] } as any,
+      { ...BOOK, destinatariosPrincipais: [], destinatariosDeCopia: ["pedido@nortemkt.com"] } as any,
       getBookEmailConfig(VALID_ENV),
     );
     if ("erro" in r) throw new Error("não deveria falhar");

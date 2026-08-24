@@ -511,17 +511,45 @@ export async function destinatariosDoEvento(eventId: string): Promise<string[]> 
   return emails;
 }
 
-/**
- * Quem ACOMPANHA a produção e recebe em cópia oculta: Solicitação (quem pediu
- * as peças) e admin. Decisão do dono em 24/08 — o book pronto é a notícia que
- * fecha o ciclo de quem abriu o pedido.
- */
-export const PAPEIS_EM_COPIA = ["solicitacao", "admin"];
+// ─────────────────────────────────────────────────────────────────────────────
+// QUEM RECEBE O AVISO DO BOOK — decisão do dono em 24/08.
+//
+// Regra atual: DUAS pessoas nomeadas. Nem por papel, nem por evento.
+//
+// Ninguém recebe por ser admin: as contas de admin incluem conta de sistema e
+// gente que não acompanha a produção no dia a dia, e book para todas elas
+// seria ruído. E Solicitação NÃO entra — decisão do dono em 24/08.
+//
+// Por que também não é por evento: a regra por executivo de conta existe e
+// funciona (`destinatariosDoEvento`), mas hoje só 41 dos 147 patrocinadores
+// têm executivo preenchido, e quatro dos eventos com book não resolveriam
+// ninguém. Ligar isso agora deixaria o aviso mudo justamente onde ele importa.
+// O interruptor abaixo espera o cadastro melhorar; quando ligar, os executivos
+// entram no "Para" e a lista nomeada desce para a cópia oculta.
+//
+// PARA MUDAR QUEM RECEBE, é aqui: acrescentar um endereço em
+// DESTINATARIOS_NOMEADOS, ou um papel inteiro em PAPEIS_QUE_RECEBEM.
+// ─────────────────────────────────────────────────────────────────────────────
+export const USAR_EXECUTIVOS_DO_EVENTO = false;
 
-export async function destinatariosDeCopia(): Promise<string[]> {
+/**
+ * Papéis que recebem por inteiro. VAZIO hoje: o dono decidiu que Solicitação
+ * não entra por enquanto. Não é código morto — é o lugar declarado da decisão,
+ * e voltar atrás é acrescentar uma palavra.
+ */
+export const PAPEIS_QUE_RECEBEM: string[] = [];
+
+/** Quem recebe por nome, independentemente do papel. */
+export const DESTINATARIOS_NOMEADOS = ["pedro@nortemkt.com", "yan.araujo@nortemkt.com"];
+
+export async function destinatariosDaEquipe(): Promise<string[]> {
   const usuarios = await storage.getAllUsers();
   return usuarios
-    .filter((u) => PAPEIS_EM_COPIA.includes(u.role) && !!u.email)
+    .filter((u) => {
+      if (!u.email) return false;
+      if (PAPEIS_QUE_RECEBEM.includes(u.role)) return true;
+      return DESTINATARIOS_NOMEADOS.includes(u.email.trim().toLowerCase());
+    })
     .map((u) => u.email);
 }
 
@@ -538,12 +566,17 @@ export async function avisarBookPorEmail(
 ): Promise<BookEmailResult> {
   try {
     const evento = await storage.getEvent(eventId);
-    const [destinatarios, copias, doEvento, books] = await Promise.all([
-      destinatariosDoEvento(eventId),
-      destinatariosDeCopia(),
+    const [porEvento, equipe, doEvento, books] = await Promise.all([
+      USAR_EXECUTIVOS_DO_EVENTO ? destinatariosDoEvento(eventId) : Promise.resolve([]),
+      destinatariosDaEquipe(),
       storage.getItemsByEvent(eventId),
       storage.getAllEventBooks(),
     ]);
+    // Com a regra por evento desligada, a lista nomeada vai inteira no "Para":
+    // são poucas pessoas da mesma casa, e ver quem mais foi avisado evita o
+    // telefone sem fio de "será que fulano viu?".
+    const principais = USAR_EXECUTIVOS_DO_EVENTO && porEvento.length > 0 ? porEvento : equipe;
+    const copias = USAR_EXECUTIVOS_DO_EVENTO && porEvento.length > 0 ? equipe : [];
     return await notifyBookSaved({
       eventId,
       eventName: evento?.name ?? "Evento sem nome",
@@ -553,7 +586,7 @@ export async function avisarBookPorEmail(
       publicadoPor: req.userName ?? null,
       saidaDoCaminhao: evento?.truckDepartureDate ? new Date(evento.truckDepartureDate as any).toISOString() : null,
       publicacao: books.filter((b) => b.eventId === eventId).length || 1,
-      destinatariosDoEvento: destinatarios,
+      destinatariosPrincipais: principais,
       destinatariosDeCopia: copias,
     });
   } catch (error) {

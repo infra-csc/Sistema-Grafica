@@ -12,9 +12,10 @@
 //  1. UM DESTINATÁRIO SÓ, IGUAL PARA TODOS OS EVENTOS. `BOOK_EMAIL_TO` é uma
 //     variável global; todo book de todos os 38 eventos avisava a mesma
 //     pessoa, que passava a repassar e-mail na mão — o trabalho que a
-//     automação deveria eliminar. Agora a rota resolve os EXECUTIVOS DE CONTA
-//     dos patrocinadores do evento e eles entram como destinatários; o
-//     endereço global continua, como cópia fixa.
+//     automação deveria eliminar. Quem recebe passou a ser decidido pela rota
+//     (ver DESTINATARIOS em routes/items.ts); o endereço global continua, como
+//     cópia fixa. O serviço só monta e entrega: ele aceita dois níveis
+//     ("Para" e cópia oculta) e não sabe de onde a lista veio.
 //  2. O ÚNICO BOTÃO PODIA CAIR NUM JSON DE ERRO. O link apontava para
 //     `/objects/…`, rota protegida que responde `{"error":"Não autenticado"}`
 //     em texto puro para quem não tem sessão — no celular, sem tela de login e
@@ -53,9 +54,9 @@ export type BookEmailInput = {
   saidaDoCaminhao?: string | null;
   /** 1 = primeira publicação; 2+ = atualização. */
   publicacao?: number | null;
-  /** Quem é RESPONSÁVEL por este evento: executivos de conta dos patrocinadores. Vão no "Para". */
-  destinatariosDoEvento?: string[];
-  /** Quem ACOMPANHA a produção: Solicitação e admin. Vão em cópia oculta. */
+  /** Quem recebe de frente, no "Para". */
+  destinatariosPrincipais?: string[];
+  /** Quem recebe em cópia oculta (quando houver dois níveis). */
   destinatariosDeCopia?: string[];
 };
 
@@ -156,7 +157,7 @@ export function buildBookEmailMessage(
   // em cópia OCULTA, a equipe que acompanha a produção (Solicitação e admin) e
   // a cópia fixa da configuração. Sem isso o e-mail chegaria com uma dúzia de
   // endereços expostos no cabeçalho e ninguém saberia de quem é a vez de agir.
-  const principais = separarDestinatarios(input.destinatariosDoEvento ?? []);
+  const principais = separarDestinatarios(input.destinatariosPrincipais ?? []);
   const copias = separarDestinatarios([
     ...(input.destinatariosDeCopia ?? []),
     ...config.recipients,

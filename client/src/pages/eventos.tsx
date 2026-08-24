@@ -2308,13 +2308,21 @@ export default function Eventos() {
                         </button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start" style={{ zIndex: 9999 }}>
-                        <CalendarUI
-                          mode="single"
-                          selected={parseDateStr(formData.startDate)}
-                          onSelect={date => { if (date) { setFormData({ ...formData, startDate: toDateStr(date) }); setOpenStartDate(false); } }}
-                          locale={ptBR}
-                          classNames={{ day_selected: 'bg-[#f97316] text-white hover:bg-[#ea580c] hover:text-white focus:bg-[#f97316] focus:text-white', day_today: 'bg-orange-50 font-semibold' }}
-                        />
+                        {/* Congelado enquanto SAI: ver popover-congelado.test.ts.
+                            Escolher a data fecha o popover com o modal ainda
+                            aberto — fora do alcance do FreezeWhileClosing do
+                            modal — e cada render da página mandava uma rodada
+                            de desanexa/reanexa de ref para dentro da subárvore
+                            morrendo, até o React estourar o #185. */}
+                        <FreezeWhileClosing open={openStartDate}>
+                          <CalendarUI
+                            mode="single"
+                            selected={parseDateStr(formData.startDate)}
+                            onSelect={date => { if (date) { setFormData({ ...formData, startDate: toDateStr(date) }); setOpenStartDate(false); } }}
+                            locale={ptBR}
+                            classNames={{ day_selected: 'bg-[#f97316] text-white hover:bg-[#ea580c] hover:text-white focus:bg-[#f97316] focus:text-white', day_today: 'bg-orange-50 font-semibold' }}
+                          />
+                        </FreezeWhileClosing>
                       </PopoverContent>
                     </Popover>
                   </div>
@@ -2336,6 +2344,8 @@ export default function Eventos() {
                         </button>
                       </PopoverTrigger>
                       <PopoverContent className="w-auto p-0" align="start" style={{ zIndex: 9999 }}>
+                        {/* Mesma cura do popover de início. */}
+                        <FreezeWhileClosing open={openTruckDate}>
                         <CalendarUI
                           mode="single"
                           selected={parseDateStr(formData.truckDepartureDate?.slice(0, 10) || '')}
@@ -2408,6 +2418,7 @@ export default function Eventos() {
                             Ok
                           </button>
                         </div>
+                      </FreezeWhileClosing>
                       </PopoverContent>
                     </Popover>
                     {(() => {
@@ -2523,6 +2534,9 @@ export default function Eventos() {
                                   </PopoverTrigger>
                                   {!noStart && (
                                     <PopoverContent className="w-auto p-0" align={isMobile ? 'start' : 'end'} style={{ zIndex: 9999 }}>
+                                      {/* Mesma cura: seis destes abrem e fecham
+                                          com o modal aberto. */}
+                                      <FreezeWhileClosing open={openPrazoKey === key}>
                                       <CalendarUI
                                         mode="single"
                                         selected={parseDateStr(dateVal)}
@@ -2536,6 +2550,7 @@ export default function Eventos() {
                                         locale={ptBR}
                                         classNames={{ day_selected: 'bg-[#f97316] text-white hover:bg-[#ea580c] hover:text-white focus:bg-[#f97316] focus:text-white', day_today: 'bg-orange-50 font-semibold' }}
                                       />
+                                      </FreezeWhileClosing>
                                     </PopoverContent>
                                   )}
                                 </Popover>

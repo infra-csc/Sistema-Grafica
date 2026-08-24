@@ -602,10 +602,18 @@ export default function Arte() {
   /** Mesma régua do servidor (lerMotivoDevolucao, routes/items.ts). */
   const MOTIVO_MIN = 10;
   const motivoCurto = (t: string) => t.trim().replace(/\s+/g, " ").length < MOTIVO_MIN;
-  /** Antes da produção — depois disso a peça já existe no mundo. */
-  const DEVOLVIVEIS = new Set([
-    "awaiting_submission", "awaiting_approval", "awaiting_sponsor_approval",
-    "awaiting_finalization", "awaiting_final_review",
+  /**
+   * Devolver vale de QUALQUER estado (decisão do dono, 24/08) — menos do
+   * próprio rascunho, que já é o destino. A trava anterior parava nos cinco
+   * status pré-produção e obrigava a chamar um admin justamente no caso em que
+   * devolver mais importa: o arquivo errado descoberto depois da produção.
+   */
+  const naoDevolvivel = (status: string) => status === "draft";
+  /** Já saiu da mesa da Arte: devolver daqui tira uma linha da fila de outra
+   *  equipe, e o diálogo precisa dizer isso antes do clique. */
+  const DEPOIS_DA_ARTE = new Set([
+    "ready_for_production", "approved", "inProduction",
+    "produced", "conferred", "delivered", "canceled", "archived",
   ]);
   // Trava só a linha em curso: o estado da mutação é compartilhado, então
   // enquanto um envio direto corria TODAS as linhas ficavam desabilitadas.
@@ -1996,7 +2004,7 @@ export default function Arte() {
   /** Menu "⋯": ver detalhes, exportar prova e dispensar. */
   const renderMenuAcoes = (item: any) => {
     const podeDispensar = podeEditar && DISPENSAVEIS_STATUSES.includes(item.status);
-    const podeDevolver = podeEditar && DEVOLVIVEIS.has(item.status);
+    const podeDevolver = podeEditar && !naoDevolvivel(item.status);
     return (
       <Popover>
         <PopoverTrigger asChild>
@@ -4060,7 +4068,11 @@ export default function Arte() {
                 <div>
                   {/* #78350f sobre #fffbeb = 9,7:1 ✓ · #92400e = 6,5:1 ✓ */}
                   <p style={{ fontSize: 12, fontWeight: 700, color: '#78350f', margin: '0 0 2px' }}>{devolverItem.displayId} — {devolverItem.type}</p>
-                  <p style={{ fontSize: 11, color: '#92400e', margin: 0 }}>Ela sai da fila da Arte e reaparece como rascunho no evento. O thumb e o arquivo final que você já subiu ficam guardados.</p>
+                  <p style={{ fontSize: 11, color: '#92400e', margin: 0 }}>
+                    {DEPOIS_DA_ARTE.has(devolverItem.status)
+                      ? `Atenção: esta peça está em "${getStatusLabel(devolverItem.status)}" — ela já saiu da mesa da Arte. Devolver tira a linha da fila de quem está com ela agora, e o que já foi produzido continua produzido. O thumb e o arquivo final ficam guardados.`
+                      : "Ela sai da fila da Arte e reaparece como rascunho no evento. O thumb e o arquivo final que você já subiu ficam guardados."}
+                  </p>
                 </div>
               </div>
             )}

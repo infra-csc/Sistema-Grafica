@@ -3087,6 +3087,16 @@ export function registerItemRoutes(app: Express): void {
   // O thumb e o arquivo final NÃO são apagados. A peça pode voltar igual, e
   // jogar fora o trabalho da Arte por precaução obrigaria a refazê-lo à toa;
   // se o solicitante mudar tipo ou medida, o fluxo normal já pede arte nova.
+  /**
+   * Estados em que a peça JÁ SAIU da mesa da Arte. Devolver daqui é legítimo
+   * (decisão do dono), mas não é rotina: some uma linha da fila de outra
+   * equipe, então a trilha marca esses casos para quem for ler depois.
+   */
+  const DEPOIS_DA_ARTE = new Set([
+    "ready_for_production", "approved", "inProduction",
+    "produced", "conferred", "delivered", "canceled", "archived",
+  ]);
+
   app.patch("/api/items/:id/arte-reject", requireAuth, async (req, res) => {
     try {
       if (req.userRole !== "arte" && req.userRole !== "admin") {
@@ -3102,18 +3112,25 @@ export function registerItemRoutes(app: Express): void {
       // solicitante, numa fila que não mostra mais essa peça.
       if (await barraEventoFinalizado(currentItem, res)) return;
 
-      // Só antes da produção. Depois que a Gráfica encostou na peça, "volta
-      // para rascunho" apagaria da tela um trabalho que já existe no mundo.
-      const ANTES_DA_PRODUCAO = new Set([
-        "awaiting_submission",
-        "awaiting_approval",
-        "awaiting_sponsor_approval",
-        "awaiting_finalization",
-        "awaiting_final_review",
-      ]);
-      if (!ANTES_DA_PRODUCAO.has(currentItem.status)) {
+      // DE QUALQUER ESTADO (decisão do dono, 24/08).
+      //
+      // A trava anterior era de cinco status pré-produção: depois que a Gráfica
+      // encostava na peça, a Arte não conseguia mais mandá-la de volta. A
+      // objeção que a sustentava continua verdadeira — uma peça em produção
+      // existe no mundo, e voltar para rascunho tira da fila da Gráfica um
+      // trabalho que talvez já esteja impresso — mas quem opera decidiu que
+      // errar o arquivo depois da produção é justamente quando devolver mais
+      // importa, e a trava obrigava a pedir para um admin.
+      //
+      // O que NÃO é apagado: nada de produção. O status volta, o histórico
+      // fica, e a trilha nomeia de onde a peça veio — é o que permite entender
+      // depois por que a Gráfica perdeu uma linha da fila.
+      //
+      // O único estado recusado é o próprio rascunho: devolver o que já está na
+      // criação não muda nada e ainda zeraria os campos de aprovação abaixo.
+      if (currentItem.status === "draft") {
         return res.status(409).json({
-          error: `Esta peça já passou da Arte (status: ${translateStatus(currentItem.status)}) — devolver para rascunho só vale antes da produção.`,
+          error: "Esta peça já está na criação (Rascunho) — não há para onde devolver.",
         });
       }
 
@@ -3144,7 +3161,7 @@ export function registerItemRoutes(app: Express): void {
         'rejected',
         'item',
         item.id,
-        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("draft")} (devolvida pela Arte ao solicitante). Motivo: ${motivo.motivo}`
+        `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus("draft")} (devolvida pela Arte ao solicitante${DEPOIS_DA_ARTE.has(currentItem.status) ? ", JÁ FORA DA ARTE" : ""}). Motivo: ${motivo.motivo}`
       );
 
       const notification = await storage.createNotification({

@@ -132,12 +132,15 @@ function PecaCartao({ eventId, it, isAprovacao }: {
         >
           {it.displayId}
         </Link>
-        <span style={{
-          fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
-          color: dayColor(it.waitingDays),
-        }}>
-          {it.waitingDays === 0 ? "sem movimento hoje" : `${it.waitingDays}d sem movimento`}
-        </span>
+        {/* Sem carimbo de etapa, sem idade — ver `waitingDays` no contrato. */}
+        {it.waitingDays !== null && (
+          <span style={{
+            fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
+            color: dayColor(it.waitingDays),
+          }}>
+            {it.waitingDays === 0 ? "entrou nesta etapa hoje" : `${it.waitingDays}d nesta etapa`}
+          </span>
+        )}
       </div>
       <span style={{ display: "block", fontSize: 10, color: TI.label, marginTop: 1 }}>
         {getStatusLabel(it.status)} · Qtd {it.quantity}
@@ -269,7 +272,9 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
         const st = STAGE_STYLE[stage.state];
         const recolhida = recolhidas.has(stage.key);
         // Pior primeiro: a lista é de cobrança, quem espera há mais tempo abre.
-        const sorted = [...items].sort((a, b) => b.waitingDays - a.waitingDays);
+        // Pior primeiro; sem carimbo por último (é ausência de informação,
+        // não espera zero — e a lista é de cobrança).
+        const sorted = [...items].sort((a, b) => (b.waitingDays ?? -1) - (a.waitingDays ?? -1));
         const shown = sorted.slice(0, ROW_CAP);
         const hidden = sorted.length - shown.length;
         // O grão do link segue o grão do grupo. Grupo com VÁRIAS peças é um
@@ -448,9 +453,11 @@ export function EventDrilldown({ ev, cobranca, today, showCobranca = true }: {
                         <td style={{
                           padding: "6px 10px", textAlign: "center", whiteSpace: "nowrap",
                           fontSize: 12, fontWeight: 700,
-                          color: dayColor(it.waitingDays),
+                          color: it.waitingDays === null ? TI.label : dayColor(it.waitingDays),
                         }}>
-                          {it.waitingDays === 0 ? "hoje" : `${it.waitingDays}d`}
+                          {it.waitingDays === null
+                            ? <span title="Esta peça é anterior ao registro de mudança de etapa — não há como saber há quanto tempo ela está parada aqui.">—</span>
+                            : it.waitingDays === 0 ? "hoje" : `${it.waitingDays}d`}
                         </td>
                         {isAprovacao && (
                           <td style={{ padding: "6px 10px", fontSize: 12, color: TI.strong }}>

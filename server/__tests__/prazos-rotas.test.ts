@@ -697,10 +697,13 @@ describe("T16 — cobranças no payload", () => {
   });
 
   it("houveMovimento é TRUE quando alguma peça andou depois da cobrança", async () => {
-    // Cobrança há 5 dias (08/08); uma peça tocada há 2 dias (11/08).
+    // Cobrança há 5 dias (08/08); uma peça que ANDOU há 2 dias (11/08).
+    // "Andou" é mudança de etapa (`statusChangedAt`), não escrita qualquer:
+    // era exatamente isso que `updatedAt` confundia, afirmando movimento onde
+    // o histórico da peça não tinha nada.
     cadastrar(evento({ id: "EV1" }), [
-      { status: "draft", updatedAt: meioDia("2026-08-01") },
-      { status: "draft", updatedAt: meioDia("2026-08-11") },
+      { status: "draft", statusChangedAt: meioDia("2026-08-01") },
+      { status: "draft", statusChangedAt: meioDia("2026-08-11") },
     ]);
     mundo.cobrancas.push(cobranca());
 

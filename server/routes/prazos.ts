@@ -288,9 +288,12 @@ export function registerPrazoRoutes(app: Express): void {
         for (const ev of events) {
           const entry = cobrancas[`event:${ev.id}`];
           if (!entry) continue;
+          // Peça sem carimbo não vota: não dá para dizer que ela se moveu
+          // nem que ficou parada, e esta é uma afirmação factual sobre a
+          // equipe, exibida com nome e sobrenome de quem cobrou.
           entry.houveMovimento = entry.daysAgo === 0
             ? null
-            : ev.pendingItems.some((it) => it.waitingDays < entry.daysAgo);
+            : ev.pendingItems.some((it) => it.waitingDays !== null && it.waitingDays < entry.daysAgo);
         }
       } catch (e) {
         console.error("prazo_cobrancas indisponível (rode npm run db:push):", (e as Error).message);

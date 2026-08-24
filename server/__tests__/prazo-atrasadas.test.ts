@@ -153,9 +153,9 @@ describe("peça isenta da aprovação do patrocinador", () => {
 describe("ordem e destino de cada linha", () => {
   it("pior atraso primeiro; empate desempata por quem está parada há mais tempo", () => {
     const ev = montar(evento(), [
-      peca({ id: "a", status: "awaiting_submission", updatedAt: "2026-08-19T12:00:00.000Z" }),
-      peca({ id: "b", status: "awaiting_submission", updatedAt: "2026-08-01T12:00:00.000Z" }),
-      peca({ id: "c", status: "draft", updatedAt: "2026-08-19T12:00:00.000Z" }),
+      peca({ id: "a", status: "awaiting_submission", statusChangedAt: "2026-08-19T12:00:00.000Z" }),
+      peca({ id: "b", status: "awaiting_submission", statusChangedAt: "2026-08-01T12:00:00.000Z" }),
+      peca({ id: "c", status: "draft", statusChangedAt: "2026-08-19T12:00:00.000Z" }),
     ]);
     const lista = computePecasAtrasadas([ev]);
     // "c" está na etapa mais antiga (15d de atraso) e abre a lista; entre as

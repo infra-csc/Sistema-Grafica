@@ -57,6 +57,7 @@ export function computeSectorSummary(
     url: urlSetor(m.key),
     count: 0,
     totalDays: 0,
+    comCarimbo: 0,
     maxDays: 0,
     producedCount: 0,
     eventIds: new Set<string>(),
@@ -74,8 +75,14 @@ export function computeSectorSummary(
       const s = acc[idx];
       if (!s) continue;
       s.count += 1;
-      s.totalDays += it.waitingDays;
-      s.maxDays = Math.max(s.maxDays, it.waitingDays);
+      // A peça entra na CONTAGEM (ela está mesmo parada nesta etapa), mas só
+      // entra na média e no máximo se houver carimbo: somar 0 por não saber
+      // diluiria a média do gargalo justamente onde há peça antiga.
+      if (it.waitingDays !== null) {
+        s.totalDays += it.waitingDays;
+        s.maxDays = Math.max(s.maxDays, it.waitingDays);
+        s.comCarimbo += 1;
+      }
       s.eventIds.add(ev.id);
       if (stageMeta[idx]?.key === "producao" && PRODUCED.has(it.status)) s.producedCount += 1;
     }
@@ -90,7 +97,9 @@ export function computeSectorSummary(
     count: s.count,
     maxDays: s.maxDays,
     producedCount: s.producedCount,
-    avgDays: s.count > 0 ? Math.round(s.totalDays / s.count) : 0,
+    // Divide por quem TEM carimbo, não por todas: a média é dos dias
+    // conhecidos, e peça sem registro não é peça com zero dia.
+    avgDays: s.comCarimbo > 0 ? Math.round(s.totalDays / s.comCarimbo) : 0,
     eventCount: s.eventIds.size,
     isWorst: worst > 0 && s.count === worst && tied < 3,
   }));

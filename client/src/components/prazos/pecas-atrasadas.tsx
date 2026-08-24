@@ -272,10 +272,15 @@ function CartaoPeca({ p, onAbrirEvento }: {
         {textoPeca(p)}
       </span>
       <span style={{ display: "block", fontSize: 11, color: TI.secondary, marginTop: 3 }}>
-        {p.stage.label} · {getStatusLabel(p.item.status)} ·{" "}
-        <span style={{ color: dayColor(p.item.waitingDays), fontWeight: 700 }}>
-          {p.item.waitingDays === 0 ? "sem movimento hoje" : `${p.item.waitingDays}d sem movimento`}
-        </span>
+        {p.stage.label} · {getStatusLabel(p.item.status)}
+        {p.item.waitingDays !== null && (
+          <>
+            {" · "}
+            <span style={{ color: dayColor(p.item.waitingDays), fontWeight: 700 }}>
+              {p.item.waitingDays === 0 ? "entrou nesta etapa hoje" : `${p.item.waitingDays}d nesta etapa`}
+            </span>
+          </>
+        )}
       </span>
       <NotaMarco p={p} />
       <div style={{ marginTop: 8 }}>
@@ -545,9 +550,11 @@ export function PecasAtrasadas({
                       {!comEtapa && (
                         <span style={{ color: TI.secondary }}>{p.stage.label} · </span>
                       )}
-                      <span style={{ color: dayColor(p.item.waitingDays), fontWeight: 700 }}>
-                        {p.item.waitingDays === 0 ? "sem movimento hoje" : `${p.item.waitingDays}d sem movimento`}
-                      </span>
+                      {p.item.waitingDays !== null && (
+                        <span style={{ color: dayColor(p.item.waitingDays), fontWeight: 700 }}>
+                          {p.item.waitingDays === 0 ? "entrou nesta etapa hoje" : `${p.item.waitingDays}d nesta etapa`}
+                        </span>
+                      )}
                     </span>
                     {!comEtapa && <NotaMarco p={p} />}
                   </td>

@@ -231,6 +231,12 @@ export interface DomainItem {
   skipApproval?: boolean | null;
   updatedAt?: Date | string | null;
   createdAt?: Date | string | null;
+  /**
+   * Desde quando a peça está no status atual. É o relógio da espera — não
+   * `updatedAt`, que qualquer escrita encosta. `null`/ausente em peça
+   * anterior à coluna, e nesse caso a espera não é calculada.
+   */
+  statusChangedAt?: Date | string | null;
 }
 
 export interface DomainApproval {
@@ -379,12 +385,26 @@ export function buildEventPrazo(
   const pendingItems: PrazoPendingItem[] = eventItems
     .filter((it) => STATUS_STAGE_RANK[it.status] !== undefined)
     .map((it) => {
-      // APROXIMAÇÃO documentada: updatedAt é tocado por QUALQUER
-      // edição (inclusive atribuir book, que varre o evento inteiro),
-      // não só por transição de status. Por isso a UI rotula "sem
-      // movimento há Xd" — não "parada no status há Xd". O relógio
-      // exato pede uma coluna statusChangedAt (dívida registrada).
-      const waitingDays = daysSince(it.updatedAt ?? it.createdAt, today);
+      // O RELÓGIO É `statusChangedAt`, não `updatedAt`.
+      //
+      // A dívida que este ponto registrava ("o relógio exato pede uma coluna
+      // statusChangedAt") foi paga: a coluna existe (schema.ts) e o storage a
+      // grava só quando o status muda de verdade (`IS DISTINCT FROM`). O que
+      // ficou para trás foi este uso.
+      //
+      // `updatedAt` é tocado por qualquer escrita — atribuir book, corrigir
+      // uma observação, uma rotina que varre o evento inteiro — e várias delas
+      // nem geram linha no histórico. O resultado era a tela afirmar "sem
+      // movimento hoje" sobre uma peça parada há semanas, com o histórico da
+      // peça vazio no dia: o número contradizendo o único registro conferível.
+      //
+      // Sem carimbo, o valor é `null` e a tela CALA. Cair para `createdAt`
+      // daria um número plausível e errado — uma peça criada há oito meses que
+      // entrou na etapa ontem viraria "há 240d", e quem procura gargalo agiria
+      // sobre isso.
+      const waitingDays = it.statusChangedAt
+        ? daysSince(it.statusChangedAt, today)
+        : null;
       let sponsors: PrazoPendingSponsor[] | undefined;
       if (AWAITING_SPONSOR.has(it.status)) {
         const open = deps.openApprovalsByItem?.get(it.id) ?? [];
@@ -471,8 +491,14 @@ export function buildEventPrazo(
 
   // Separa o evento atrasado mas FERVENDO do evento atrasado e ABANDONADO —
   // são duas cobranças completamente diferentes.
-  const piorEsperaDias = pendingItems.length
-    ? Math.max(...pendingItems.map((it) => it.waitingDays))
+  // Só as peças COM carimbo entram na pior espera: uma peça sem registro não
+  // é uma peça que andou hoje, e contá-la como 0 puxaria o pior caso para
+  // baixo — justamente no evento antigo, que é onde há peças sem carimbo.
+  const esperasConhecidas = pendingItems
+    .map((it) => it.waitingDays)
+    .filter((d): d is number => d !== null);
+  const piorEsperaDias = esperasConhecidas.length
+    ? Math.max(...esperasConhecidas)
     : 0;
 
   return {

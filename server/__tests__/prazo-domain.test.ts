@@ -249,8 +249,18 @@ describe("campos derivados por evento", () => {
 
   it("piorEsperaDias é o maior waitingDays entre as pendentes", () => {
     const ev = montar(evento(), [
-      peca({ status: "draft", updatedAt: new Date("2026-08-10T12:00:00.000Z") }),
-      peca({ status: "draft", updatedAt: new Date("2026-08-04T12:00:00.000Z") }),
+      peca({ status: "draft", statusChangedAt: new Date("2026-08-10T12:00:00.000Z") }),
+      peca({ status: "draft", statusChangedAt: new Date("2026-08-04T12:00:00.000Z") }),
+    ]);
+    expect(ev.piorEsperaDias).toBe(9);
+  });
+
+  it("e peça SEM carimbo não puxa a pior espera para baixo", () => {
+    // Sem carimbo não é espera zero: contá-la como 0 mascararia o pior caso
+    // justamente no evento antigo, que é onde há peça sem registro.
+    const ev = montar(evento(), [
+      peca({ status: "draft", statusChangedAt: new Date("2026-08-04T12:00:00.000Z") }),
+      peca({ status: "draft" }),
     ]);
     expect(ev.piorEsperaDias).toBe(9);
   });

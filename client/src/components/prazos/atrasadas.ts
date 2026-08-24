@@ -124,7 +124,7 @@ export function computePecasAtrasadas(events: PrazoEvent[]): PecaAtrasada[] {
   }
   return out.sort((a, b) =>
     b.diasAtraso - a.diasAtraso
-    || b.item.waitingDays - a.item.waitingDays
+    || (b.item.waitingDays ?? -1) - (a.item.waitingDays ?? -1)
     || a.eventName.localeCompare(b.eventName, "pt-BR")
     || a.item.displayId.localeCompare(b.item.displayId, "pt-BR"));
 }

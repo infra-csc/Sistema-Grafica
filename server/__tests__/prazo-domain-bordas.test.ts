@@ -433,14 +433,35 @@ describe("T13 — daysSince nunca devolve negativo", () => {
   });
 
   it("o piso 0 chega até `waitingDays` do drill (é lá que viraria 'parada há -1d')", () => {
-    const ev = montar(evento(), [peca({ status: "draft", updatedAt: new Date("2026-08-30T00:00:00.000Z") })]);
+    const ev = montar(evento(), [peca({ status: "draft", statusChangedAt: new Date("2026-08-30T00:00:00.000Z") })]);
     expect(ev.pendingItems[0].waitingDays).toBe(0);
     expect(ev.piorEsperaDias).toBe(0);
   });
 
-  it("sem timestamp algum, a espera é 0 e não NaN", () => {
+  it("SEM CARIMBO DE ETAPA a espera é null — não 0, que diria 'andou hoje'", () => {
+    // Mudou de propósito. A espera passou a sair de `statusChangedAt`, e a
+    // peça anterior a essa coluna não tem como saber há quanto tempo está
+    // parada. Zero seria a pior resposta possível: é a afirmação de que ela
+    // acabou de andar, dita justamente sobre a peça mais antiga do banco.
     const ev = montar(evento(), [peca({ status: "draft", updatedAt: null, createdAt: null })]);
-    expect(ev.pendingItems[0].waitingDays).toBe(0);
+    expect(ev.pendingItems[0].waitingDays).toBeNull();
+  });
+
+  it("e `updatedAt` recente NÃO ressuscita a espera — era daí que vinha a mentira", () => {
+    // O caso de campo: peça parada em "Aguardando Envio" desde 7 de agosto,
+    // tocada hoje por uma escrita que nem gera linha no histórico. A tela
+    // dizia "hoje"; agora cala, porque não sabe.
+    const ev = montar(evento(), [peca({ status: "draft", updatedAt: new Date("2026-08-13T12:00:00.000Z") })]);
+    expect(ev.pendingItems[0].waitingDays).toBeNull();
+  });
+
+  it("com carimbo, conta do carimbo e ignora `updatedAt`", () => {
+    const ev = montar(evento(), [peca({
+      status: "draft",
+      statusChangedAt: new Date("2026-08-04T12:00:00.000Z"),
+      updatedAt: new Date("2026-08-13T12:00:00.000Z"),
+    })]);
+    expect(ev.pendingItems[0].waitingDays).toBe(9);
   });
 });
 

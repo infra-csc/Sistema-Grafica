@@ -71,8 +71,21 @@ export interface PrazoPendingItem {
   type: string;
   description: string | null;
   quantity: number;
-  /** Dias sem movimento (aproximação por updatedAt — ver comentário no domínio). */
-  waitingDays: number;
+  /**
+   * Dias PARADA NA ETAPA ATUAL, de `items.statusChangedAt`.
+   *
+   * `null` quando a peça não tem esse carimbo (anterior à coluna). É um valor
+   * legítimo e as telas têm de exibi-lo como ausência, não como zero: zero diz
+   * "andou hoje", e essa é exatamente a afirmação falsa que este campo passou
+   * a existir para não fazer.
+   *
+   * ANTES media `updatedAt`, que é tocado por QUALQUER escrita — inclusive
+   * por rotinas que não geram linha no histórico. Uma peça parada em
+   * "Aguardando Envio" desde 7 de agosto aparecia como "hoje", e o histórico
+   * da própria peça não tinha nada no dia: o número contradizia o único
+   * registro que dá para conferir.
+   */
+  waitingDays: number | null;
   sponsors?: PrazoPendingSponsor[];
 }
 

@@ -537,6 +537,7 @@ const SEM_GUARDA_POR_DESENHO: Record<string, string> = {
   "POST /api/items/:id/confer": "exige a peça em Produzido: registra contagem, não produz nada",
   "PATCH /api/items/:id/deliver": "teto é o já conferido; a papelada da entrega chega depois do evento",
   // Não mudam estado de peça.
+  "POST /api/events/:eventId/book/notify": "reenvia por e-mail o aviso de um book que JÁ existe; não grava peça nem evento (só a trilha do reenvio) — e é justamente em evento antigo que alguém pede o book de novo, então barrar fecharia a porta exatamente onde ela é útil",
   "POST /api/items/export-xlsx": "só lê e devolve arquivo",
   "POST /api/events/:id/preview-xlsx": "faz o parse da planilha sem salvar nada",
   "POST /api/items/:id/production": "rota aposentada, responde 410 sem tocar em nada",

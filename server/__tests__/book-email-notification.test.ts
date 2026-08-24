@@ -1,8 +1,29 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// AVISO DE BOOK POR E-MAIL — a montagem da mensagem.
+//
+// Este arquivo nasceu com o módulo (21/08) e foi REESCRITO na revisão de 24/08.
+// As intenções originais continuam todas fixadas — escapar HTML, não assinar
+// link de fora com o domínio da NORTE, e simular sem chamar o provedor. O que
+// mudou, e por quê:
+//
+//  · o CTA deixou de apontar para `/objects/…`. Aquela rota responde
+//    `{"error":"Não autenticado"}` em JSON puro para quem não tem sessão: o
+//    único botão do e-mail podia terminar num erro técnico, no celular, sem
+//    tela de login. Agora aponta para `/eventos/:id`, e o link do arquivo fica
+//    como secundário — só quando o book mora no próprio app.
+//  · um endereço inválido no meio da lista derrubava o e-mail INTEIRO. Com
+//    destinatários vindos do evento, um espaço a mais num cadastro apagaria o
+//    aviso de todo mundo, em silêncio. Agora o inválido é descartado e
+//    REPORTADO.
+//  · "Peças vinculadas: 56" não tinha denominador.
+// ─────────────────────────────────────────────────────────────────────────────
 import { describe, expect, it, vi } from "vitest";
 import {
   buildBookEmailMessage,
   getBookEmailConfig,
   notifyBookSaved,
+  separarDestinatarios,
+  descreverEnvio,
 } from "../services/bookEmailNotification";
 
 const VALID_ENV = {
@@ -17,56 +38,138 @@ const BOOK = {
   eventId: "evento-1",
   eventName: "Corrida <Especial>",
   itemCount: 2,
+  totalDoEvento: 5,
   bookUrl: "/objects/books/evento-1.pdf",
+  publicadoPor: "Ana Arte",
+  saidaDoCaminhao: "2026-09-05T11:00:00.000Z",
+  publicacao: 1,
 };
 
-describe("notificação de e-mail do book", () => {
-  it("monta e-mail com link público e escapa o nome do evento", () => {
-    const message = buildBookEmailMessage(BOOK, getBookEmailConfig(VALID_ENV));
+const montar = (input = BOOK, env = VALID_ENV) => {
+  const r = buildBookEmailMessage(input as any, getBookEmailConfig(env));
+  if ("erro" in r) throw new Error(`esperava mensagem, veio erro: ${r.erro}`);
+  return r;
+};
 
-    expect(message).toMatchObject({
-      from: "sistemagrafica@nortemkt.com",
-      to: ["yan.araujo@nortemkt.com"],
-      subject: "Book enviado · Corrida <Especial>",
+describe("a mensagem", () => {
+  it("escapa o nome do evento e diz peças COM denominador", () => {
+    const { message } = montar();
+    expect(message.from).toBe("sistemagrafica@nortemkt.com");
+    expect(message.to).toEqual(["yan.araujo@nortemkt.com"]);
+    expect(message.subject).toBe("Book de aprovação · Corrida <Especial> · 2 peças");
+    expect(message.html).toContain("Corrida &lt;Especial&gt;");
+    expect(message.text).toContain("2 de 5 peças do evento");
+    expect(message.html).toContain("2 de 5 peças do evento");
+  });
+
+  it("o botão abre a TELA DO EVENTO, não a rota de arquivo", () => {
+    const { message } = montar();
+    expect(message.html).toContain('href="https://app.nortemkt.com/eventos/evento-1"');
+    expect(message.text).toContain("https://app.nortemkt.com/eventos/evento-1");
+    // o arquivo continua acessível, como link secundário
+    expect(message.html).toContain('href="https://app.nortemkt.com/objects/books/evento-1.pdf"');
+  });
+
+  it("book publicado por link externo: sem link de arquivo, e o e-mail SAI mesmo assim", () => {
+    const { message } = montar({ ...BOOK, bookUrl: "https://drive.google.com/x" } as any);
+    expect(message.html).not.toContain("drive.google.com");
+    expect(message.html).toContain("publicado por um link externo");
+    // o aviso continua existindo: antes, o e-mail simplesmente não saía e
+    // ninguém ficava sabendo.
+    expect(message.html).toContain("https://app.nortemkt.com/eventos/evento-1");
+  });
+
+  it("contexto: quem publicou, quando o caminhão sai, e o aviso de atualização", () => {
+    const { message } = montar();
+    expect(message.text).toContain("Publicado por: Ana Arte");
+    expect(message.text).toContain("Saída do caminhão: 05/09/2026");
+    const atualizado = montar({ ...BOOK, publicacao: 3 } as any).message;
+    expect(atualizado.subject).toBe("Book atualizado · Corrida <Especial> · 2 peças");
+    expect(atualizado.html).toContain("3ª publicação");
+  });
+
+  it("tem pré-cabeçalho e trava o esquema claro (senão o cartão some no modo escuro)", () => {
+    const { message } = montar();
+    expect(message.html).toContain('<meta name="color-scheme" content="light">');
+    expect(message.html).toContain("display:none;max-height:0;overflow:hidden;opacity:0;");
+  });
+
+  it("Reply-To entra quando configurado, e só se for válido", () => {
+    const com = montar(BOOK, { ...VALID_ENV, BOOK_EMAIL_REPLY_TO: "atendimento@nortemkt.com" } as any).message;
+    expect(com.reply_to).toBe("atendimento@nortemkt.com");
+    const invalido = montar(BOOK, { ...VALID_ENV, BOOK_EMAIL_REPLY_TO: "sem-arroba" } as any).message;
+    expect(invalido.reply_to).toBeUndefined();
+  });
+});
+
+describe("os destinatários", () => {
+  it("junta os do evento com a cópia global, sem repetir e sem ligar para maiúsculas", () => {
+    const { message } = montar({ ...BOOK, destinatariosDoEvento: ["exec@nortemkt.com", "YAN.ARAUJO@nortemkt.com"] } as any);
+    expect(message.to).toEqual(["exec@nortemkt.com", "YAN.ARAUJO@nortemkt.com"]);
+  });
+
+  it("UM endereço inválido não derruba o aviso dos outros — e o descarte é reportado", () => {
+    const r = buildBookEmailMessage(
+      { ...BOOK, destinatariosDoEvento: ["ok@nortemkt.com", "quebrado @ errado"] } as any,
+      getBookEmailConfig(VALID_ENV),
+    );
+    if ("erro" in r) throw new Error("não deveria falhar por causa de um endereço");
+    expect(r.message.to).toEqual(["ok@nortemkt.com", "yan.araujo@nortemkt.com"]);
+    expect(r.descartados).toEqual(["quebrado @ errado"]);
+  });
+
+  it("sem NENHUM destinatário válido, aí sim não monta", () => {
+    const r = buildBookEmailMessage(BOOK as any, getBookEmailConfig({ ...VALID_ENV, BOOK_EMAIL_TO: "" }));
+    expect("erro" in r && r.erro).toBe("nenhum destinatário válido");
+  });
+
+  it("sem URL pública do app não há para onde apontar — e o e-mail não sai", () => {
+    const r = buildBookEmailMessage(BOOK as any, getBookEmailConfig({ ...VALID_ENV, BOOK_EMAIL_APP_URL: "" }));
+    expect("erro" in r && r.erro).toContain("BOOK_EMAIL_APP_URL ausente");
+  });
+
+  it("separarDestinatarios é a régua, e é testável sozinha", () => {
+    expect(separarDestinatarios([" a@b.com ", "a@B.com", "", "torto"])).toEqual({
+      validos: ["a@b.com"],
+      descartados: ["torto"],
     });
-    expect(message?.text).toContain("https://app.nortemkt.com/objects/books/evento-1.pdf");
-    expect(message?.text).toContain("entre no sistema com sua conta");
-    expect(message?.html).toContain("Corrida &lt;Especial&gt;");
-    expect(message?.html).toContain("O acesso ao book exige login no sistema.");
-    expect(message?.html).toContain("Abrir book no sistema");
-    expect(message?.html).toContain('href="https://app.nortemkt.com/objects/books/evento-1.pdf"');
+  });
+});
+
+describe("o disparo", () => {
+  it("desligado não monta nada", async () => {
+    await expect(notifyBookSaved(BOOK as any, { ...VALID_ENV, BOOK_EMAIL_NOTIFICATIONS_ENABLED: "false" }))
+      .resolves.toEqual({ status: "disabled" });
   });
 
-  it("não monta e-mail sem URL pública para caminho privado do book", () => {
-    const env = { ...VALID_ENV };
-    delete env.BOOK_EMAIL_APP_URL;
-
-    expect(buildBookEmailMessage(BOOK, getBookEmailConfig(env))).toBeUndefined();
+  it("simulação não chama o provedor, mas já diz PARA QUEM iria", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    await expect(notifyBookSaved(BOOK as any, VALID_ENV)).resolves.toEqual({
+      status: "dry-run",
+      para: ["yan.araujo@nortemkt.com"],
+      descartados: [],
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
   });
 
-  it("não transforma URL externa em link de um e-mail assinado pela NORTE", () => {
-    expect(buildBookEmailMessage({
-      ...BOOK,
-      bookUrl: "https://site-nao-confiavel.example/book.pdf",
-    }, getBookEmailConfig(VALID_ENV))).toBeUndefined();
+  it("configuração incompleta vira 'failed' com motivo — nunca silêncio", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const r = await notifyBookSaved(BOOK as any, { ...VALID_ENV, BOOK_EMAIL_FROM: "" });
+    expect(r).toMatchObject({ status: "failed" });
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
+});
 
-  it("permite validar o envio em simulação, sem chamar o provedor", async () => {
-    const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
-
-    await expect(notifyBookSaved(BOOK, VALID_ENV)).resolves.toEqual({ status: "dry-run" });
-    expect(info).toHaveBeenCalledWith("[book-email] simulação concluída", expect.objectContaining({
-      eventId: "evento-1",
-      subject: "Book enviado · Corrida <Especial>",
-    }));
-
-    info.mockRestore();
-  });
-
-  it("permanece desativado até a ativação explícita", async () => {
-    await expect(notifyBookSaved(BOOK, {
-      ...VALID_ENV,
-      BOOK_EMAIL_NOTIFICATIONS_ENABLED: "false",
-    })).resolves.toEqual({ status: "disabled" });
+describe("a frase que vai para a trilha e para a tela", () => {
+  it("diz o desfecho em português, incluindo os descartes", () => {
+    expect(descreverEnvio({ status: "disabled" })).toContain("desligado");
+    expect(descreverEnvio({ status: "sent", para: ["a@b.com"], descartados: [] }))
+      .toBe("Aviso por e-mail enviado para a@b.com.");
+    expect(descreverEnvio({ status: "sent", para: ["a@b.com"], descartados: ["torto"] }))
+      .toContain("endereços inválidos descartados: torto");
+    expect(descreverEnvio({ status: "failed", reason: "HTTP 429" }))
+      .toBe("Aviso por e-mail NÃO enviado: HTTP 429.");
   });
 });

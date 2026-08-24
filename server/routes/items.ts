@@ -25,7 +25,7 @@ import {
 import { runInventoryCron } from "../services/inventoryLifecycle";
 import { handlePreviewXlsx, handleConfirmImport } from "../services/xlsxImport";
 import { handleExportItemsXlsx, handleExportSelectedItemsXlsx } from "../services/xlsxExport";
-import { notifyBookSaved } from "../services/bookEmailNotification";
+import { notifyBookSaved, descreverEnvio, type BookEmailResult } from "../services/bookEmailNotification";
 // A tela de Versões guarda o quadro calculado por 30 s. Toda escrita que mude
 // versão, decisão ou book derruba esse cache na hora — senão o Atendimento
 // revoga uma aprovação e continua vendo o quadro velho numa tela cujo trabalho
@@ -486,6 +486,67 @@ async function attachParents(list: any[]): Promise<any[]> {
 // aprovado; a tela de Versões lê o motivo e diz "teve a aprovação revogada".
 // Devolve os nomes revogados (para a rota decidir se volta o status da peça).
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// QUEM RECEBE O AVISO DO BOOK.
+//
+// Antes: uma variável de ambiente com um endereço, igual para os 38 eventos —
+// a mesma pessoa recebia tudo e repassava na mão. Agora o aviso vai para quem
+// cuida DAQUELE evento: os executivos de conta dos patrocinadores vinculados.
+// O endereço global continua configurado e entra como cópia fixa (é o serviço
+// que junta os dois). Endereço faltando não é erro: o evento pode não ter
+// executivo definido, e aí resta a cópia global.
+// ─────────────────────────────────────────────────────────────────────────────
+export async function destinatariosDoEvento(eventId: string): Promise<string[]> {
+  const vinculos = await storage.getEventSponsors(eventId);
+  const executivos = new Set<string>();
+  for (const v of vinculos) {
+    const sponsor = await storage.getSponsor(v.sponsorId);
+    if (sponsor?.accountExecutiveId) executivos.add(sponsor.accountExecutiveId);
+  }
+  const emails: string[] = [];
+  for (const id of Array.from(executivos)) {
+    const user = await storage.getUser(id);
+    if (user?.email) emails.push(user.email);
+  }
+  return emails;
+}
+
+/**
+ * Monta e dispara o aviso do book, e devolve a descrição do que aconteceu.
+ * Uma falha aqui NUNCA desfaz o book — mas, ao contrário da primeira versão,
+ * também não some: quem chama grava na trilha e conta para a tela.
+ */
+export async function avisarBookPorEmail(
+  req: any,
+  eventId: string,
+  bookUrl: string,
+  count: number,
+): Promise<BookEmailResult> {
+  try {
+    const evento = await storage.getEvent(eventId);
+    const [destinatarios, doEvento, books] = await Promise.all([
+      destinatariosDoEvento(eventId),
+      storage.getItemsByEvent(eventId),
+      storage.getAllEventBooks(),
+    ]);
+    return await notifyBookSaved({
+      eventId,
+      eventName: evento?.name ?? "Evento sem nome",
+      itemCount: count,
+      totalDoEvento: doEvento.length,
+      bookUrl,
+      publicadoPor: req.userName ?? null,
+      saidaDoCaminhao: evento?.truckDepartureDate ? new Date(evento.truckDepartureDate as any).toISOString() : null,
+      publicacao: books.filter((b) => b.eventId === eventId).length || 1,
+      destinatariosDoEvento: destinatarios,
+    });
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "erro desconhecido";
+    console.error("[book-email] falha ao preparar o aviso", { eventId, reason });
+    return { status: "failed", reason };
+  }
+}
+
 export const MOTIVO_REVOGACAO_PREFIXO = "Aprovação revogada automaticamente";
 
 type GatilhoDeRevogacao =
@@ -4207,14 +4268,6 @@ export function registerItemRoutes(app: Express): void {
         invalidarCacheDeVersoes();
         // items.book_url guarda apenas a versão atual; event_books preserva
         // cada publicação anterior para consulta e download futuros.
-        // A notificação acontece só depois de o book estar persistido. Ela não
-        // participa da resposta nem pode fazer a Arte perder um book já salvo.
-        void notifyBookSaved({
-          eventId: req.params.eventId,
-          eventName: event?.name ?? "Evento sem nome",
-          itemCount: count,
-          bookUrl,
-        });
       }
       // Uma falha de auditoria não deve fazer a tela afirmar que o book não
       // foi salvo — a gravação acima já aconteceu. O erro continua visível nos
@@ -4233,8 +4286,58 @@ export function registerItemRoutes(app: Express): void {
           reason: error instanceof Error ? error.message : "erro desconhecido",
         });
       }
+      // O AVISO vem depois de o book estar salvo E auditado: um efeito externo
+      // nunca deve acontecer antes de existir registro interno dele. E o
+      // resultado não some — vai para a trilha e para a resposta, para a tela
+      // poder dizer "avisado" ou "não avisado, por isto".
+      let aviso: BookEmailResult | null = null;
+      if (bookUrl) {
+        aviso = await avisarBookPorEmail(req, req.params.eventId, bookUrl, count);
+        try {
+          await createAuditLog(req, 'updated', 'event', req.params.eventId, descreverEnvio(aviso));
+        } catch (error) {
+          console.error("[book-email] falha ao registrar o aviso na trilha", {
+            eventId: req.params.eventId,
+            reason: error instanceof Error ? error.message : "erro desconhecido",
+          });
+        }
+      }
       broadcast({ type: "items_book_updated", eventId: req.params.eventId, count });
-      res.json({ updated: count });
+      res.json({ updated: count, aviso });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // REENVIAR o aviso do book atual. Nasceu da revisão de 24/08: com o envio
+  // agora registrado, "não chegou" deixou de ser um mistério — e reenviar
+  // deixou de exigir republicar o book inteiro. Atendimento entra junto com a
+  // Arte porque é quem descobre que o e-mail não chegou.
+  app.post("/api/events/:eventId/book/notify", requireAuth, async (req, res) => {
+    try {
+      if (!["arte", "admin", "atendimento"].includes(String(req.userRole))) {
+        return res.status(403).json({ error: "Sem permissão para reenviar o aviso do book" });
+      }
+      const event = await storage.getEvent(req.params.eventId);
+      if (!event) return res.status(404).json({ error: "Evento não encontrado" });
+
+      const doEvento = await storage.getItemsByEvent(req.params.eventId);
+      const comBook = doEvento.filter((i) => i.bookUrl);
+      const bookUrl = comBook[0]?.bookUrl ?? null;
+      if (!bookUrl) {
+        return res.status(409).json({ error: "Este evento não tem book publicado para avisar." });
+      }
+
+      const aviso = await avisarBookPorEmail(req, req.params.eventId, bookUrl, comBook.length);
+      try {
+        await createAuditLog(req, 'updated', 'event', req.params.eventId, `Reenvio manual. ${descreverEnvio(aviso)}`);
+      } catch (error) {
+        console.error("[book-email] falha ao registrar o reenvio na trilha", {
+          eventId: req.params.eventId,
+          reason: error instanceof Error ? error.message : "erro desconhecido",
+        });
+      }
+      res.json({ aviso, mensagem: descreverEnvio(aviso) });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

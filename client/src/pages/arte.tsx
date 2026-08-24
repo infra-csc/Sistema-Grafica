@@ -1181,15 +1181,34 @@ export default function Arte() {
   };
 
   const saveBookMutation = useMutation({
-    mutationFn: async () =>
-      await apiRequest("POST", `/api/events/${bookEventId}/book`, {
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/events/${bookEventId}/book`, {
         bookUrl: bookFileUrl,
         itemIds: Array.from(bookSelectedIds),
-      }),
-    onSuccess: () => {
+      });
+      return await res.json() as { updated: number; aviso: { status: string; para?: string[]; reason?: string } | null };
+    },
+    // O AVISO POR E-MAIL DEIXA DE SER INVISÍVEL. Antes ele saía sozinho, sem
+    // await e sem registro: se o provedor recusasse, a tela dizia "Book salvo"
+    // do mesmo jeito e a Arte ia embora achando que tinha avisado. Agora o
+    // servidor devolve o desfecho e o toast conta — inclusive quando falhou,
+    // porque aí alguém precisa avisar na mão.
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setShowBookModal(false);
-      toast({ title: "Book salvo", description: `${bookSelectedIds.size} peça(s) vinculada(s) ao book.` });
+      const a = data?.aviso;
+      const quantas = `${bookSelectedIds.size} peça(s) vinculada(s) ao book.`;
+      if (a?.status === "sent") {
+        toast({ title: "Book salvo e avisado", description: `${quantas} Aviso enviado para ${(a.para ?? []).join(", ")}.` });
+      } else if (a?.status === "failed") {
+        toast({
+          title: "Book salvo — mas o aviso NÃO saiu",
+          description: `${quantas} Motivo: ${a.reason ?? "desconhecido"}. Avise a equipe por outro caminho.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Book salvo", description: quantas });
+      }
     },
     onError: (e: any) => toast({ title: "Erro ao salvar book", description: e.message, variant: "destructive" }),
   });

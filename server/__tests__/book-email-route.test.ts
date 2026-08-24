@@ -1,3 +1,20 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// AVISO DE BOOK — a costura com a rota que publica o book.
+//
+// Arquivo original de 21/08, reescrito na revisão de 24/08. As três garantias
+// originais continuam fixadas: o e-mail sai SÓ depois de o book estar salvo,
+// não sai quando o book é removido, e uma falha de auditoria não derruba nem o
+// book nem o aviso. O que mudou:
+//
+//  · o resultado do envio PARA DE SUMIR. Era `void notifyBookSaved(...)`: sem
+//    espera, sem trilha, sem resposta — se o provedor recusasse, a Arte achava
+//    que tinha avisado. Agora o desfecho vai para a trilha do evento e volta
+//    na resposta da rota, para a tela poder dizer o que aconteceu.
+//  · os destinatários vêm do EVENTO (executivos de conta dos patrocinadores),
+//    e não mais de uma variável global igual para todos os eventos.
+//  · existe uma rota de REENVIO, para "não chegou" não exigir republicar o
+//    book inteiro.
+// ─────────────────────────────────────────────────────────────────────────────
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const H = vi.hoisted(() => ({
@@ -43,6 +60,7 @@ vi.mock("../services/xlsxExport", () => ({
 }));
 vi.mock("../services/bookEmailNotification", () => ({
   notifyBookSaved: (...args: any[]) => H.notifyBookSaved(...args),
+  descreverEnvio: (r: any) => `desfecho:${r.status}`,
 }));
 
 const { registerItemRoutes } = await import("../routes/items");
@@ -58,17 +76,17 @@ for (const method of ["get", "post", "patch", "put", "delete"]) {
 }
 registerItemRoutes(app);
 
-async function callBookRoute(body: unknown): Promise<{ status: number; body: unknown }> {
-  const handlers = routes.get("POST /api/events/:eventId/book");
-  if (!handlers) throw new Error("Rota de book não registrada");
+async function chamar(rota: string, body: unknown, userRole = "arte"): Promise<{ status: number; body: any }> {
+  const handlers = routes.get(rota);
+  if (!handlers) throw new Error(`Rota não registrada: ${rota}`);
 
   const req: any = {
     params: { eventId: "evento-1" },
     body,
-    userRole: "arte",
+    userRole,
     userId: "user-1",
     userName: "Ana Arte",
-    session: { userId: "user-1", userRole: "arte" },
+    session: { userId: "user-1", userRole: userRole },
   };
   const res: any = {
     statusCode: 200,
@@ -82,9 +100,10 @@ async function callBookRoute(body: unknown): Promise<{ status: number; body: unk
     await handler(req, res, () => { nextCalled = true; });
     if (res.body !== undefined || !nextCalled) break;
   }
-
   return { status: res.statusCode, body: res.body };
 }
+
+const callBookRoute = (body: unknown) => chamar("POST /api/events/:eventId/book", body);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -92,60 +111,134 @@ beforeEach(() => {
     id: "evento-1",
     name: "Corrida NORTE",
     status: "created",
+    truckDepartureDate: new Date("2026-09-05T11:00:00.000Z"),
   });
   H.storage.clearEventBookUrl = vi.fn().mockResolvedValue(3);
   H.storage.setItemsBookUrl = vi.fn().mockResolvedValue(2);
   H.storage.createEventBook = vi.fn().mockResolvedValue({ id: "book-1" });
+  H.storage.getAllEventBooks = vi.fn().mockResolvedValue([{ eventId: "evento-1", bookUrl: "/objects/books/corrida.pdf" }]);
+  H.storage.getItemsByEvent = vi.fn().mockResolvedValue([
+    { id: "item-1", bookUrl: "/objects/books/corrida.pdf" },
+    { id: "item-2", bookUrl: "/objects/books/corrida.pdf" },
+    { id: "item-3", bookUrl: null },
+  ]);
+  H.storage.getEventSponsors = vi.fn().mockResolvedValue([{ sponsorId: "s1" }, { sponsorId: "s2" }]);
+  H.storage.getSponsor = vi.fn(async (id: string) => ({ id, accountExecutiveId: id === "s1" ? "u9" : null }));
+  H.storage.getUser = vi.fn().mockResolvedValue({ id: "u9", email: "exec@nortemkt.com" });
   H.notifyBookSaved.mockResolvedValue({ status: "disabled" });
   H.createAuditLog.mockResolvedValue(undefined);
 });
 
 describe("e-mail ao salvar book", () => {
-  it("dispara somente depois de persistir um book", async () => {
-    const sequence: string[] = [];
-    H.storage.setItemsBookUrl.mockImplementation(async () => {
-      sequence.push("persistiu");
-      return 2;
+  it("dispara só depois de o book estar persistido E auditado", async () => {
+    const sequencia: string[] = [];
+    H.storage.setItemsBookUrl.mockImplementation(async () => { sequencia.push("persistiu"); return 2; });
+    H.createAuditLog.mockImplementation(async (_r: any, _a: any, _t: any, _id: any, detalhe: string) => {
+      sequencia.push(detalhe.startsWith("desfecho:") ? "auditou-aviso" : "auditou-book");
     });
-    H.notifyBookSaved.mockImplementation(async () => {
-      sequence.push("notificou");
-      return { status: "disabled" };
-    });
+    H.notifyBookSaved.mockImplementation(async () => { sequencia.push("notificou"); return { status: "sent", para: ["exec@nortemkt.com"], descartados: [] }; });
 
-    await expect(callBookRoute({
-      bookUrl: "/objects/books/corrida.pdf",
-      itemIds: ["item-1", "item-2"],
-    })).resolves.toEqual({ status: 200, body: { updated: 2 } });
+    const r = await callBookRoute({ bookUrl: "/objects/books/corrida.pdf", itemIds: ["item-1", "item-2"] });
 
-    expect(sequence).toEqual(["persistiu", "notificou"]);
-    expect(H.notifyBookSaved).toHaveBeenCalledWith({
+    expect(r.status).toBe(200);
+    expect(r.body.updated).toBe(2);
+    // Um efeito EXTERNO nunca deve acontecer antes de existir registro interno.
+    expect(sequencia).toEqual(["persistiu", "auditou-book", "notificou", "auditou-aviso"]);
+  });
+
+  it("o aviso leva o contexto que faltava — e os destinatários vêm do evento", async () => {
+    await callBookRoute({ bookUrl: "/objects/books/corrida.pdf", itemIds: ["item-1", "item-2"] });
+
+    expect(H.notifyBookSaved).toHaveBeenCalledWith(expect.objectContaining({
       eventId: "evento-1",
       eventName: "Corrida NORTE",
       itemCount: 2,
+      totalDoEvento: 3,          // o denominador que faltava
       bookUrl: "/objects/books/corrida.pdf",
-    });
+      publicadoPor: "Ana Arte",
+      saidaDoCaminhao: "2026-09-05T11:00:00.000Z",
+      publicacao: 1,
+      destinatariosDoEvento: ["exec@nortemkt.com"],
+    }));
+  });
+
+  it("o desfecho do envio volta na resposta e vai para a trilha", async () => {
+    H.notifyBookSaved.mockResolvedValue({ status: "sent", para: ["exec@nortemkt.com"], descartados: [] });
+
+    const r = await callBookRoute({ bookUrl: "/objects/books/corrida.pdf", itemIds: ["item-1"] });
+
+    expect(r.body.aviso).toEqual({ status: "sent", para: ["exec@nortemkt.com"], descartados: [] });
+    expect(H.createAuditLog).toHaveBeenCalledWith(
+      expect.anything(), "updated", "event", "evento-1", "desfecho:sent",
+    );
   });
 
   it("não dispara e-mail ao remover o book", async () => {
-    await callBookRoute({ bookUrl: null, itemIds: ["item-1"] });
-
+    const r = await callBookRoute({ bookUrl: null, itemIds: ["item-1"] });
     expect(H.notifyBookSaved).not.toHaveBeenCalled();
+    expect(r.body.aviso).toBeNull();
   });
 
-  it("preserva o book e a notificação quando a auditoria falha", async () => {
+  it("preserva o book e o aviso quando a auditoria falha", async () => {
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
     H.createAuditLog.mockRejectedValue(new Error("banco de auditoria indisponível"));
 
-    await expect(callBookRoute({
-      bookUrl: "/objects/books/corrida.pdf",
-      itemIds: ["item-1"],
-    })).resolves.toEqual({ status: 200, body: { updated: 2 } });
+    const r = await callBookRoute({ bookUrl: "/objects/books/corrida.pdf", itemIds: ["item-1"] });
 
+    expect(r.status).toBe(200);
+    expect(r.body.updated).toBe(2);
     expect(H.storage.setItemsBookUrl).toHaveBeenCalled();
     expect(H.notifyBookSaved).toHaveBeenCalled();
     expect(errorLog).toHaveBeenCalledWith("[book] falha ao registrar auditoria", expect.objectContaining({
       eventId: "evento-1",
     }));
     errorLog.mockRestore();
+  });
+
+  it("uma falha ao PREPARAR o aviso não derruba o book", async () => {
+    const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    H.storage.getEventSponsors.mockRejectedValue(new Error("banco fora"));
+
+    const r = await callBookRoute({ bookUrl: "/objects/books/corrida.pdf", itemIds: ["item-1"] });
+
+    expect(r.status).toBe(200);
+    expect(r.body.updated).toBe(2);
+    expect(r.body.aviso).toMatchObject({ status: "failed" });
+    errorLog.mockRestore();
+  });
+});
+
+describe("reenviar o aviso", () => {
+  const reenviar = (papel: string) => chamar("POST /api/events/:eventId/book/notify", {}, papel);
+
+  it("Arte, Atendimento e admin podem; os outros não", async () => {
+    for (const papel of ["arte", "atendimento", "admin"]) {
+      const r = await reenviar(papel);
+      expect(r.status).toBe(200);
+    }
+    const negado = await reenviar("grafica");
+    expect(negado.status).toBe(403);
+  });
+
+  it("usa o book ATUAL do evento e devolve a frase do desfecho", async () => {
+    H.notifyBookSaved.mockResolvedValue({ status: "sent", para: ["exec@nortemkt.com"], descartados: [] });
+
+    const r = await reenviar("atendimento");
+
+    expect(H.notifyBookSaved).toHaveBeenCalledWith(expect.objectContaining({
+      bookUrl: "/objects/books/corrida.pdf",
+      itemCount: 2,               // as duas peças que estão no book
+    }));
+    expect(r.body.mensagem).toBe("desfecho:sent");
+    expect(H.createAuditLog).toHaveBeenCalledWith(
+      expect.anything(), "updated", "event", "evento-1", "Reenvio manual. desfecho:sent",
+    );
+  });
+
+  it("evento sem book publicado responde 409, não um e-mail vazio", async () => {
+    H.storage.getItemsByEvent.mockResolvedValue([{ id: "item-1", bookUrl: null }]);
+    const r = await reenviar("arte");
+    expect(r.status).toBe(409);
+    expect(H.notifyBookSaved).not.toHaveBeenCalled();
   });
 });

@@ -30,10 +30,10 @@
 // existe para evitar.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useMemo, useState, useEffect, useCallback, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import {
   GitBranch, Search, X, Download, FileText, Check, Clock, AlertTriangle,
-  ExternalLink, ChevronLeft, ChevronRight, Layers, HelpCircle, Table2,
+  ExternalLink, ChevronLeft, ChevronRight, Layers, HelpCircle, Table2, Send, Loader2,
 } from "lucide-react";
 import { Link } from "wouter";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -43,6 +43,9 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { T, FS, R, SHADOW } from "@/lib/theme";
 import { getApprovalMeta } from "@/lib/status";
 import { isWebUrl } from "@/components/file-preview";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/auth-context";
 
 type Versao = {
   thumbUrl: string; em: string;
@@ -107,6 +110,10 @@ const lerCsv = (p: URLSearchParams, chave: string) =>
 
 export default function Versoes() {
   const isMobile = useIsMobile();
+  const { user } = useAuth();
+  // Reenviar o aviso é ação de quem publica (Arte) e de quem descobre que não
+  // chegou (Atendimento) — a mesma régua do servidor.
+  const podeAvisar = ["arte", "admin", "atendimento"].includes(user?.role ?? "");
 
   // ── Estado: nasce da URL e volta para ela (recorte compartilhável) ──
   const inicial = useMemo(() => new URLSearchParams(window.location.search), []);
@@ -323,7 +330,7 @@ export default function Versoes() {
               </button>
             </div>
           ) : aba === "books" ? (
-            <AbaBooks eventos={books} isMobile={isMobile} alturaControle={alturaControle} />
+            <AbaBooks eventos={books} isMobile={isMobile} alturaControle={alturaControle} podeAvisar={podeAvisar} />
           ) : itens.length === 0 ? (
             <div style={{ padding: "56px 24px", textAlign: "center" }}>
               <p style={{ color: T.text, fontSize: FS.strong, fontWeight: 700, margin: "0 0 6px" }}>
@@ -718,7 +725,7 @@ const setaComparador = (lado: "left" | "right"): React.CSSProperties => ({
 });
 
 /** Aba de books: cada publicação com estado — em dia ou desatualizada. */
-function AbaBooks({ eventos, isMobile, alturaControle }: { eventos: BooksDoEvento[]; isMobile: boolean; alturaControle: number }) {
+function AbaBooks({ eventos, isMobile, alturaControle, podeAvisar }: { eventos: BooksDoEvento[]; isMobile: boolean; alturaControle: number; podeAvisar: boolean }) {
   if (eventos.length === 0) {
     return (
       <div style={{ padding: "56px 24px", textAlign: "center" }}>
@@ -764,6 +771,9 @@ function AbaBooks({ eventos, isMobile, alturaControle }: { eventos: BooksDoEvent
                         : "publicado antes de o registro de books existir — data não gravada"}
                     </p>
                   </div>
+                  {/* Reenviar o aviso: só faz sentido para o book ATUAL — é
+                      dele que o e-mail fala. */}
+                  {podeAvisar && i === 0 && <BotaoReenviarAviso eventId={ev.eventId} altura={alturaControle} />}
                   {isWebUrl(b.bookUrl) ? (
                     <a href={b.bookUrl} download target="_blank" rel="noopener noreferrer" data-testid={`link-baixar-book-${ev.eventId}-${i}`}
                       style={{ display: "inline-flex", alignItems: "center", gap: 6, height: alturaControle, padding: "0 14px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: "#ffffff", color: T.text, fontSize: FS.small, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", textDecoration: "none", whiteSpace: "nowrap" }}>
@@ -781,5 +791,39 @@ function AbaBooks({ eventos, isMobile, alturaControle }: { eventos: BooksDoEvent
         </section>
       ))}
     </div>
+  );
+}
+
+/**
+ * Reenviar o aviso do book por e-mail.
+ *
+ * Existe porque o envio passou a deixar rastro: com o desfecho na trilha e
+ * na tela, "não chegou" deixou de ser um mistério — e consertar deixou de
+ * exigir republicar o book inteiro só para disparar o e-mail de novo.
+ */
+function BotaoReenviarAviso({ eventId, altura }: { eventId: string; altura: number }) {
+  const { toast } = useToast();
+  const enviar = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/events/${eventId}/book/notify`, {});
+      return await res.json() as { mensagem: string; aviso: { status: string } };
+    },
+    onSuccess: (d) => toast({
+      title: d.aviso?.status === "sent" ? "Aviso reenviado" : "Aviso não enviado",
+      description: d.mensagem,
+      variant: d.aviso?.status === "sent" ? undefined : "destructive",
+    }),
+    onError: (e: any) => toast({ title: "Erro ao reenviar", description: e.message, variant: "destructive" }),
+  });
+  return (
+    <button type="button" onClick={() => enviar.mutate()} disabled={enviar.isPending}
+      data-testid={`button-reenviar-aviso-${eventId}`}
+      title="Reenviar por e-mail o aviso deste book para os responsáveis do evento"
+      style={{ display: "inline-flex", alignItems: "center", gap: 6, height: altura, padding: "0 12px", borderRadius: R.md, border: `1px solid ${T.border}`, backgroundColor: "#ffffff", color: T.text, fontSize: FS.small, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", cursor: enviar.isPending ? "default" : "pointer", opacity: enviar.isPending ? 0.6 : 1, fontFamily: "inherit", whiteSpace: "nowrap" }}>
+      {enviar.isPending
+        ? <Loader2 style={{ width: 13, height: 13 }} className="animate-spin" />
+        : <Send style={{ width: 13, height: 13 }} />}
+      Reenviar aviso
+    </button>
   );
 }

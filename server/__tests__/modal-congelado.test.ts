@@ -32,20 +32,26 @@ import { QueryClientProvider } from "@tanstack/react-query";
 
 const h = React.createElement;
 
-// Contador de renders do miolo do formulário. O Checkbox é a folha mais funda
-// (uma por linha de patrocinador): se ele renderizou, a subárvore renderizou.
+// Contador de renders do miolo do formulário.
+//
+// A sonda ERA o Checkbox do Radix, um por linha de patrocinador. Em 24/08 a
+// lista passou a usar <input type="checkbox"> nativo — justamente porque a
+// primitiva do Radix era a fonte do churn de ref que estourava o #185 (o
+// primeiro teste deste arquivo mede essa diferença: 5 renders custam 5
+// desanexa+reanexa no Radix e ZERO no nativo). Sem Checkbox na lista, a sonda
+// mudou para o calendário do seletor de data, que é folha do mesmo miolo e já
+// serve de sonda em popover-congelado.test.ts.
 const contador = vi.hoisted(() => ({ n: 0 }));
-vi.mock("@/components/ui/checkbox", async () => {
+vi.mock("@/components/ui/calendar", async () => {
   const R = await import("react");
   return {
-    Checkbox: (props: any) => {
+    Calendar: (props: any) => {
       contador.n++;
-      return R.createElement("input", {
-        type: "checkbox",
-        "data-testid": props["data-testid"],
-        checked: !!props.checked,
-        readOnly: true,
-      });
+      return R.createElement("div", { "data-testid": "calendario-falso" },
+        [10, 20].map((d) => R.createElement("button", {
+          key: d, type: "button", "data-dia": d,
+          onClick: () => props.onSelect?.(new Date(2026, 10, d)),
+        }, String(d))));
     },
   };
 });
@@ -179,8 +185,15 @@ describe("modal de evento: o miolo para de renderizar enquanto o modal sai", () 
     const dialog = () => document.querySelector('[role="dialog"]');
     expect(dialog()?.getAttribute("data-state")).toBe("open");
     // Com patrocinador vinculado, o formulário tem de fato uma linha com
-    // checkbox — é a condição em que o bug foi relatado.
+    // caixa de seleção — é a condição em que o bug foi relatado.
     expect(document.querySelectorAll('[data-testid^="checkbox-sponsor-"]').length).toBeGreaterThan(0);
+
+    // A sonda só existe depois de o seletor de data abrir uma vez.
+    await act(async () => {
+      (document.querySelector('[data-testid="input-start-date"]') as HTMLElement)?.click();
+    });
+    await tick(120);
+    expect(document.querySelector('[data-testid="calendario-falso"]')).toBeTruthy();
 
     const salvar = Array.from(document.querySelectorAll("button"))
       .find((b) => /salvar/i.test(b.textContent || ""));
@@ -232,6 +245,12 @@ describe("modal de evento: o miolo para de renderizar enquanto o modal sai", () 
     expect(document.querySelector('[role="dialog"]')?.getAttribute("data-state")).toBe("open");
     expect((document.querySelector('[data-testid="input-event-name"]') as HTMLInputElement)?.value)
       .toBe("Evento 1");
+    // O congelamento não pode grudar: reaberto o modal e o seletor, a sonda
+    // volta a renderizar do zero.
+    await act(async () => {
+      (document.querySelector('[data-testid="input-start-date"]') as HTMLElement)?.click();
+    });
+    await tick(120);
     expect(contador.n).toBeGreaterThan(0);
   }, 40000);
 });

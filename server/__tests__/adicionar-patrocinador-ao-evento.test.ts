@@ -23,6 +23,8 @@ import { describe, it, expect, beforeAll, vi } from "vitest";
 import * as React from "react";
 import { render, act } from "@testing-library/react";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { readFileSync } from "fs";
+import path from "path";
 
 const h = React.createElement;
 
@@ -205,4 +207,48 @@ describe("criar evento e adicionar patrocinadores", () => {
       console.error = origErr;
     }
   }, 60000);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// A CURA (24/08, depois do relato voltar com o app JÁ publicado).
+//
+// Congelar o popover não bastou: o erro voltou com o bundle novo, no mesmo
+// passo. A causa estava na própria lista, e são duas coisas somadas:
+//
+//  1. cada linha usava o Checkbox do RADIX, cujo churn de ref este repositório
+//     já media (modal-congelado.test.ts): cinco renders do pai custam cinco
+//     desanexa+reanexa; um <input> nativo custa ZERO;
+//  2. marcar um patrocinador REORDENAVA a lista (selecionados para o topo),
+//     pondo as ~147 linhas em movimento de uma vez — 147 vezes aquele custo,
+//     em fase de commit, muito além dos 50 updates aninhados que o React
+//     admite antes de estourar o #185.
+//
+// Este teste fixa as duas metades no código, porque nenhuma delas se defende
+// sozinha: sem a caixa nativa a reordenação volta a custar caro, e sem a ordem
+// congelada a lista inteira volta a se mexer a cada clique.
+// ─────────────────────────────────────────────────────────────────────────────
+describe("as duas metades da cura estão no código", () => {
+  const EVENTOS = readFileSync(path.resolve(__dirname, "../../client/src/pages/eventos.tsx"), "utf8");
+
+  it("a caixa da linha é nativa, não primitiva do Radix", () => {
+    const i = EVENTOS.indexOf("data-testid={`checkbox-sponsor-");
+    expect(i).toBeGreaterThan(-1);
+    const trecho = EVENTOS.slice(i - 1500, i + 300);
+    expect(trecho).toContain('type="checkbox"');
+    expect(trecho).toContain('accentColor: "#fd761a"');
+    expect(trecho).not.toContain("<Checkbox");
+  });
+
+  it("a ordem da lista é congelada enquanto o formulário está aberto", () => {
+    expect(EVENTOS).toContain("const ordemFixadaNoTopo = useMemo(");
+    expect(EVENTOS).toContain("() => new Set(selecionadosRef.current),");
+    // as dependências NÃO incluem selectedSponsorIds — é esse o ponto.
+    expect(EVENTOS).toContain("[open, sponsorSearch, sponsors],");
+    expect(EVENTOS).toContain("const selA = ordemFixadaNoTopo.has(a.id) ? 0 : 1;");
+    expect(EVENTOS).not.toContain("const selA = selectedSponsorIds.includes(a.id) ? 0 : 1;");
+  });
+
+  it("e os selecionados continuam subindo ao topo — a capacidade não se perdeu", () => {
+    expect(EVENTOS).toContain("if (selA !== selB) return selA - selB;");
+  });
 });

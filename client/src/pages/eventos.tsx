@@ -1212,6 +1212,16 @@ export default function Eventos() {
     queryKey: ["/api/sponsors"],
   });
 
+  // Quem estava marcado quando a lista apareceu. Só isto decide quem fica
+  // no topo — ver o comentário longo na montagem da lista.
+  const selecionadosRef = useRef<string[]>([]);
+  selecionadosRef.current = selectedSponsorIds;
+  const ordemFixadaNoTopo = useMemo(
+    () => new Set(selecionadosRef.current),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [open, sponsorSearch, sponsors],
+  );
+
   // Resolve nome/cor dos vínculos do payload de eventos (que só trazem sponsorId).
   const sponsorById = useMemo(() => new Map(sponsors.map((s) => [s.id, s])), [sponsors]);
 
@@ -2662,11 +2672,27 @@ export default function Eventos() {
                           // dentro de 200px eles ficavam espalhados, e o único
                           // resumo era o contador. Com busca ativa, sumiam de
                           // vista sem indicação de que continuavam marcados.
+                          // A ORDEM É CONGELADA ENQUANTO O FORMULÁRIO ESTÁ ABERTO.
+                          //
+                          // Ela continua trazendo os selecionados para o topo — o motivo
+                          // original: numa lista alfabética dentro de 200px eles ficavam
+                          // espalhados. O que mudou é QUANDO isso é decidido: quando a lista
+                          // aparece (abrir o formulário ou mudar a busca), e não a cada clique.
+                          //
+                          // Reordenar a cada clique punha as ~147 linhas em movimento de uma
+                          // vez. Cada troca de posição faz o React desanexar e reanexar a ref
+                          // de cada primitiva da linha, e cada uma dessas é um setState em fase
+                          // de commit: com a lista inteira se mexendo, a pilha de updates
+                          // aninhados passa dos 50 que o React admite e ele estoura o #185 —
+                          // que é o relato ("toda vez que adiciono um patrocinador ao evento").
+                          //
+                          // De quebra, a linha para de fugir do cursor: marcar um patrocinador
+                          // não o joga mais para o alto da lista.
                           const filtered = [...sponsors]
                             .filter(s => !q || s.name.toLowerCase().includes(q) || (s.company || '').toLowerCase().includes(q))
                             .sort((a, b) => {
-                              const selA = selectedSponsorIds.includes(a.id) ? 0 : 1;
-                              const selB = selectedSponsorIds.includes(b.id) ? 0 : 1;
+                              const selA = ordemFixadaNoTopo.has(a.id) ? 0 : 1;
+                              const selB = ordemFixadaNoTopo.has(b.id) ? 0 : 1;
                               if (selA !== selB) return selA - selB;
                               return (a.name || '').localeCompare(b.name || '', 'pt-BR');
                             });
@@ -2795,12 +2821,19 @@ export default function Eventos() {
                                       </div>
                                     )}
 
-                                    <Checkbox
+                                    {/* CAIXA NATIVA, e não a primitiva do Radix. Está medido em
+                                        modal-congelado.test.ts: cinco renders do pai custam CINCO
+                                        desanexa+reanexa de ref numa primitiva do Radix e ZERO num
+                                        <input> nativo. Numa lista de 147 linhas que re-renderiza a
+                                        cada clique, é a diferença entre funcionar e estourar o #185.
+                                        O visual é o mesmo: laranja da marca via accent-color. */}
+                                    <input
+                                      type="checkbox"
                                       id={`sponsor-${sponsor.id}`}
                                       aria-label={sponsor.name}
                                       checked={isSelected}
-                                      onCheckedChange={(checked) => {
-                                        if (checked) {
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
                                           setSelectedSponsorIds(prev => [...prev, sponsor.id]);
                                         } else {
                                           setSelectedSponsorIds(prev => prev.filter(id => id !== sponsor.id));
@@ -2809,7 +2842,7 @@ export default function Eventos() {
                                       }}
                                       onClick={e => e.stopPropagation()}
                                       data-testid={`checkbox-sponsor-${sponsor.id}`}
-                                      className="border-[#d4cfc9] bg-[#f0efee] data-[state=checked]:bg-[#fd761a] data-[state=checked]:border-[#fd761a] rounded-[4px] flex-shrink-0 h-[18px] w-[18px]"
+                                      style={{ width: 18, height: 18, flexShrink: 0, accentColor: "#fd761a", cursor: "pointer", margin: 0 }}
                                     />
                                   </div>
                                 );

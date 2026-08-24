@@ -682,9 +682,19 @@
    o formulário de reprovação. */
 .review-modal-body {
   flex: 1;
+  /* min-height: 0 nos DOIS níveis. Sem isto o corpo (filho de flex) e as duas
+     colunas (filhas de grid) herdam min-height: auto, que proíbe encolher
+     abaixo do conteúdo: a coluna cresce, o overflow: hidden acima corta, e a
+     rolagem simplesmente não existe. Foi o que aconteceu no painel de decisão
+     com muitos patrocinadores — a lista passava do fim do modal, o rodapé com
+     os botões sumia junto, e não havia como descer. */
+  min-height: 0;
   overflow: hidden;
   display: grid;
   grid-template-columns: minmax(0, 3fr) minmax(320px, 2fr);
+}
+.review-modal-body > * {
+  min-height: 0;
 }
 
 /* NORTE review surfaces — intentionally local to the creator-review flow */
@@ -762,6 +772,16 @@
 @media (max-width: 900px) {
   .review-modal-body {
     grid-template-columns: 1fr;
+    /* Empilhado, quem rola é o CORPO INTEIRO. Duas áreas roláveis uma embaixo
+       da outra dentro de um contêiner que não rola deixavam a segunda — a das
+       decisões — inalcançável no celular. O !important existe porque o
+       overflow das colunas é estilo inline no TSX. */
+    overflow-y: auto;
+  }
+  .review-modal-body > *,
+  .review-modal-body > * > * {
+    min-height: auto;
+    overflow: visible !important;
   }
 }
 

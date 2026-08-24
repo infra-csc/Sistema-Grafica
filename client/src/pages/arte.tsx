@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn, parseDateLocal, toUTCDisplayDate, runInBatches, fileNameFromPath } from "@/lib/utils";
 import { compareDisplayId } from "@/lib/displayId";
+import { DEPOIS_DA_ARTE, naoDevolvivel } from "@shared/fluxo-peca";
 // Motor de PDF compartilhado (mesmo da tela de Atendimento) — a Arte não tem
 // mais motor próprio; qualquer ajuste de layout do book vale para as duas telas.
 import { exportMixedToPDF, convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
@@ -602,19 +603,9 @@ export default function Arte() {
   /** Mesma régua do servidor (lerMotivoDevolucao, routes/items.ts). */
   const MOTIVO_MIN = 10;
   const motivoCurto = (t: string) => t.trim().replace(/\s+/g, " ").length < MOTIVO_MIN;
-  /**
-   * Devolver vale de QUALQUER estado (decisão do dono, 24/08) — menos do
-   * próprio rascunho, que já é o destino. A trava anterior parava nos cinco
-   * status pré-produção e obrigava a chamar um admin justamente no caso em que
-   * devolver mais importa: o arquivo errado descoberto depois da produção.
-   */
-  const naoDevolvivel = (status: string) => status === "draft";
-  /** Já saiu da mesa da Arte: devolver daqui tira uma linha da fila de outra
-   *  equipe, e o diálogo precisa dizer isso antes do clique. */
-  const DEPOIS_DA_ARTE = new Set([
-    "ready_for_production", "approved", "inProduction",
-    "produced", "conferred", "delivered", "canceled", "archived",
-  ]);
+  // Devolver vale de QUALQUER estado (decisão do dono, 24/08) — menos do
+  // próprio rascunho. As regras moram em shared/fluxo-peca.ts: o servidor
+  // decide com as MESMAS listas que este diálogo usa para avisar.
   // Trava só a linha em curso: o estado da mutação é compartilhado, então
   // enquanto um envio direto corria TODAS as linhas ficavam desabilitadas.
   const [sendingId, setSendingId] = useState<string | null>(null);

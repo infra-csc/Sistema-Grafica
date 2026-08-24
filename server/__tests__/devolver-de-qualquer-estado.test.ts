@@ -68,14 +68,13 @@ describe("o servidor aceita a devolução de qualquer estado", () => {
   });
 
   it("a trilha marca quando a peça veio de DEPOIS da Arte", () => {
-    expect(ITEMS).toContain("const DEPOIS_DA_ARTE = new Set([");
+    // A lista mora em shared/fluxo-peca.ts (ver o teste do dono único).
     expect(ROTA).toContain('DEPOIS_DA_ARTE.has(currentItem.status) ? ", JÁ FORA DA ARTE" : ""');
   });
 });
 
 describe("a tela da Arte oferece o mesmo que a rota aceita", () => {
   it("o botão aparece em tudo menos no rascunho", () => {
-    expect(ARTE).toContain('const naoDevolvivel = (status: string) => status === "draft";');
     expect(ARTE).toContain("const podeDevolver = podeEditar && !naoDevolvivel(item.status);");
     expect(ARTE).not.toContain("DEVOLVIVEIS");
   });
@@ -88,14 +87,19 @@ describe("a tela da Arte oferece o mesmo que a rota aceita", () => {
     expect(ARTE).toContain("o que já foi produzido continua produzido");
   });
 
-  it("as duas listas de 'depois da Arte' são a mesma", () => {
-    const lista = (src: string) => {
-      const i = src.indexOf("const DEPOIS_DA_ARTE = new Set([");
-      return src.slice(i, src.indexOf("]);", i))
-        .match(/"(\w+)"/g)!.map((x) => x.replace(/"/g, "")).sort();
-    };
-    expect(lista(ARTE)).toEqual(lista(ITEMS));
-    expect(lista(ITEMS)).toContain("inProduction");
-    expect(lista(ITEMS)).toContain("delivered");
+  it("a lista de 'depois da Arte' tem UM dono: shared/fluxo-peca.ts", () => {
+    // Este teste substituiu um que comparava duas cópias da lista — sintoma,
+    // não solução: pegava a divergência depois de escrita. Agora ela é
+    // inescrevível: os dois lados importam do mesmo lugar, e declarar a lista
+    // de novo em qualquer um deles é o que quebra aqui.
+    const SHARED = readFileSync(new URL("../../shared/fluxo-peca.ts", import.meta.url), "utf8");
+    expect(SHARED).toContain('export const DEPOIS_DA_ARTE');
+    expect(ITEMS).toContain('import { DEPOIS_DA_ARTE } from "@shared/fluxo-peca";');
+    expect(ARTE).toContain('import { DEPOIS_DA_ARTE, naoDevolvivel } from "@shared/fluxo-peca";');
+    expect(ITEMS).not.toContain("const DEPOIS_DA_ARTE = new Set");
+    expect(ARTE).not.toContain("const DEPOIS_DA_ARTE = new Set");
+    for (const st of ["inProduction", "delivered", "canceled"]) {
+      expect(SHARED).toContain('"' + st + '"');
+    }
   });
 });

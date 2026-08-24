@@ -118,10 +118,18 @@ describe("4 · o reenvio da correção é derivado, não escolhido", () => {
     expect(ARTE).toContain("Vai para {correcaoDestinatarios.length} de {correcaoAprovacoes.length}");
   });
 
-  it("o conjunto é derivado no cliente: quem ainda não aprovou", () => {
+  it("o conjunto NÃO viaja mais — o cliente só mostra, o servidor deriva", () => {
+    // Revisto em 24/08 (caso real: Primavera Salvador). O cliente derivava o
+    // conjunto DO PAYLOAD DA FILA e o mandava junto; bastava a realidade
+    // mudar entre a carga e o clique (marca nova vinculada depois da recusa)
+    // para o 409 'não aceita outro conjunto' travar a peça sem saída. O
+    // painel continua mostrando a conta — como LEITURA — e a requisição vai
+    // sem conjunto.
     expect(ARTE).toContain("const correcaoDestinatarios: string[] = correcaoAprovacoes.filter((a: any) => a.status !== 'approved').map((a: any) => a.sponsorId);");
-    expect(ARTE).toContain("resubmitMutation.mutate({ itemId: correcaoItem.id, newThumbUrl: correcaoThumbUrl, sponsorIds: correcaoDestinatarios });");
-    // A fila da Correção passa a levar TODAS as aprovações da peça.
+    expect(ARTE).toContain("resubmitMutation.mutate({ itemId: correcaoItem.id, newThumbUrl: correcaoThumbUrl });");
+    expect(ARTE).not.toContain("sponsorIds: correcaoDestinatarios");
+    expect(ARTE).not.toContain("sponsorIds: (emCorrecao.awaitingArteApprovals");
+    // A fila da Correção continua levando TODAS as aprovações da peça.
     expect(ROTAS).toContain("aprovacoes: comPatrocinador(todasPorItem.get(item.id) ?? []),");
   });
 

@@ -885,8 +885,17 @@ export default function Arte() {
   });
 
   const resubmitMutation = useMutation({
-    mutationFn: async ({ itemId, newThumbUrl, sponsorIds }: { itemId: string; newThumbUrl: string; sponsorIds: string[] }) => {
-      return await apiRequest("POST", `/api/items/${itemId}/sponsor-approvals/resubmit`, { newThumbUrl, sponsorIds });
+    // O CONJUNTO NÃO VIAJA MAIS (24/08, caso real: Primavera Salvador).
+    //
+    // O servidor deriva sozinho quem recebe o reenvio — quem ainda não
+    // aprovou — e recusa qualquer conjunto diferente. A tela mandava o
+    // conjunto que ELA conhecia, calculado do payload da fila; bastava a
+    // realidade mudar entre a carga e o clique (a marca nova vinculada
+    // depois da recusa, por exemplo) para o 409 "o servidor não aceita
+    // outro conjunto" travar a peça sem saída. Mandar a resposta junto com
+    // a pergunta só dava chance de a resposta estar velha.
+    mutationFn: async ({ itemId, newThumbUrl }: { itemId: string; newThumbUrl: string }) => {
+      return await apiRequest("POST", `/api/items/${itemId}/sponsor-approvals/resubmit`, { newThumbUrl });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/resubmission-needed"] });
@@ -1313,9 +1322,12 @@ export default function Arte() {
           await apiRequest("PATCH", `/api/items/${entry.matchedItemId}/submit-for-approval`, { approvalThumbUrl: localPath });
           enviados++;
         } else if (emCorrecao) {
+          // Sem conjunto — o servidor deriva (ver resubmitMutation). Este
+          // caminho mandava SÓ as linhas recusadas (awaitingArteApprovals):
+          // com qualquer outro patrocinador ainda pendente na peça, o
+          // conjunto nunca batia e o reenvio em lote falhava sempre.
           await apiRequest("POST", `/api/items/${entry.matchedItemId}/sponsor-approvals/resubmit`, {
             newThumbUrl: localPath,
-            sponsorIds: (emCorrecao.awaitingArteApprovals || []).map((a: any) => a.sponsorId),
           });
           reenviados++;
         } else {
@@ -4426,10 +4438,13 @@ export default function Arte() {
           if (!correcaoItem) return null;
           const devolvidaInteira = correcaoItem.status === "awaiting_submission";
           const enviando = resubmitMutation.isPending || reenvioInteiroMutation.isPending;
-          // Sem patrocinador para escolher, exigir escolha é exigir o impossível.
-          // Sem ninguém pendente não há para quem reenviar — e não é escolha de ninguém.
-          const faltaPatrocinador = !devolvidaInteira && correcaoDestinatarios.length === 0;
-          const travado = !correcaoThumbUrl || faltaPatrocinador || enviando;
+          // O painel de destinatários é LEITURA e pode estar velho (a fila é
+          // cache; vínculos mudam em outra tela). Quem decide se há alguém
+          // para receber é o SERVIDOR — se não houver, ele responde 409 com a
+          // frase certa ("todos já aprovaram") e o toast a mostra. Travar o
+          // botão pelo cálculo local deixava a peça sem saída justamente
+          // quando o dado local estava errado.
+          const travado = !correcaoThumbUrl || enviando;
           return (
           <div style={{ padding: '16px 24px 24px', borderTop: '1px solid #f0eeec', flexShrink: 0 }}>
             <button
@@ -4440,7 +4455,7 @@ export default function Arte() {
                   reenvioInteiroMutation.mutate({ itemId: correcaoItem.id, approvalThumbUrl: correcaoThumbUrl });
                   return;
                 }
-                resubmitMutation.mutate({ itemId: correcaoItem.id, newThumbUrl: correcaoThumbUrl, sponsorIds: correcaoDestinatarios });
+                resubmitMutation.mutate({ itemId: correcaoItem.id, newThumbUrl: correcaoThumbUrl });
               }}
               data-testid="button-submit-correcao"
               style={{

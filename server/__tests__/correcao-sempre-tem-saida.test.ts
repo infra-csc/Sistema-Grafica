@@ -55,7 +55,11 @@ describe("Correção: o botão de re-envio tem sempre um destino válido", () =>
   it("ela não é barrada por falta de patrocinador selecionado", () => {
     // Exigir escolha onde não há o que escolher é o beco sem saída original.
     // O conjunto é DERIVADO (quem ainda não aprovou), não escolhido — ver arte-nota-10.
-    expect(arte).toContain("const faltaPatrocinador = !devolvidaInteira && correcaoDestinatarios.length === 0;");
+    // O gate local morreu em 24/08: o cálculo era feito sobre o payload da
+    // fila, que pode estar velho — e travar o botão por dado velho deixava a
+    // peça sem saída. Quem decide se há destinatário é o servidor (409 com
+    // frase própria quando todos já aprovaram).
+    expect(arte).not.toContain("faltaPatrocinador");
   });
 
   it("ela vai para submit-for-approval, que aceita awaiting_submission", () => {
@@ -64,11 +68,11 @@ describe("Correção: o botão de re-envio tem sempre um destino válido", () =>
   });
 
   it("a devolução por patrocinador continua indo pela rota dela", () => {
-    expect(arte).toContain("resubmitMutation.mutate({ itemId: correcaoItem.id, newThumbUrl: correcaoThumbUrl, sponsorIds: correcaoDestinatarios })");
+    expect(arte).toContain("resubmitMutation.mutate({ itemId: correcaoItem.id, newThumbUrl: correcaoThumbUrl })");
   });
 
   it("a trava do botão é UMA expressão, e não seis cópias que divergem", () => {
-    expect(arte).toContain("const travado = !correcaoThumbUrl || faltaPatrocinador || enviando;");
+    expect(arte).toContain("const travado = !correcaoThumbUrl || enviando;");
     // A condição crua repetida em background/color/cursor/boxShadow/hover foi o
     // que deixou o botão parecer clicável em um estilo e morto em outro.
     const cruas = arte.split("correcaoSelectedSponsorIds.size === 0 || resubmitMutation.isPending").length - 1;

@@ -332,14 +332,28 @@ export default function Atendimento() {
   // Peça em preview no lote (clique na arte abre grande, sem mexer na seleção).
   const [batchPreviewItem, setBatchPreviewItem] = useState<any>(null);
 
-  // Eventos recolhidos na aba Pendentes (o cabeçalho vira um card clicável).
-  const [collapsedEvents, setCollapsedEvents] = useState<Set<string>>(new Set());
+  /**
+   * Eventos ABERTOS na aba Pendentes (o cabeçalho vira um card clicável).
+   *
+   * COMEÇA TUDO FECHADO (decisão do dono, 24/08). Com 251 peças em dezenas de
+   * eventos, abrir todos empilhava uma tela de rolagem infinita em que o
+   * primeiro passo era recolher o que não interessava — trabalho antes do
+   * trabalho. Fechado, o cabeçalho de cada evento já carrega o que decide:
+   * nome, mês, prazo de Aprovação de Layout e quantas peças.
+   *
+   * O conjunto guarda quem está ABERTO, não quem está fechado: com o padrão
+   * invertido não existe valor inicial que signifique "tudo fechado" — a lista
+   * de eventos não é conhecida aqui e muda a cada filtro, e um evento novo
+   * entraria aberto por omissão.
+   */
+  const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
   const toggleEventCollapsed = (id: string) =>
-    setCollapsedEvents(prev => {
+    setExpandedEvents(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
+  const eventoAberto = (id: string) => expandedEvents.has(id);
 
   // Modal Exportar PDF
   const [showExportPDFModal, setShowExportPDFModal] = useState(false);
@@ -2270,7 +2284,7 @@ export default function Atendimento() {
                 <div
                   role="button"
                   tabIndex={0}
-                  aria-expanded={!collapsedEvents.has(eventId)}
+                  aria-expanded={eventoAberto(eventId)}
                   onClick={() => toggleEventCollapsed(eventId)}
                   onKeyDown={e => {
                     if (e.key === 'Enter' || e.key === ' ') {
@@ -2279,7 +2293,7 @@ export default function Atendimento() {
                     }
                   }}
                   data-testid={`toggle-event-${eventId}`}
-                  title={collapsedEvents.has(eventId) ? 'Expandir evento' : 'Recolher evento'}
+                  title={eventoAberto(eventId) ? 'Recolher evento' : 'Expandir evento'}
                   style={{
                     display: 'flex', alignItems: 'center', gap: 16,
                     paddingBottom: 16, marginBottom: 16,
@@ -2290,7 +2304,7 @@ export default function Atendimento() {
                   <ChevronDown
                     style={{
                       width: 16, height: 16, color: '#a8a29e', flexShrink: 0,
-                      transform: collapsedEvents.has(eventId) ? 'rotate(-90deg)' : 'none',
+                      transform: eventoAberto(eventId) ? 'none' : 'rotate(-90deg)',
                       transition: 'transform 0.15s',
                     }}
                   />
@@ -2379,7 +2393,7 @@ export default function Atendimento() {
                 </div>
 
                 {/* Cards */}
-                <div style={{ display: collapsedEvents.has(eventId) ? 'none' : 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: eventoAberto(eventId) ? 'flex' : 'none', flexDirection: 'column', gap: 12 }}>
                   {eventItems.map((item, idx) => {
                     const itemSps = itemSponsorsMap[item.id] || [];
                     const approvals: SponsorApproval[] = itemApprovalsMap[item.id] || [];

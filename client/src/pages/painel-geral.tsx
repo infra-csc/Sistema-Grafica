@@ -31,6 +31,12 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useIsMobile, useElementSize, densityFromWidth, type ContentDensity } from "@/hooks/use-mobile";
 import { getStatusMeta, getStatusLabel, getApprovalMeta, motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
+// AS DEFINIÇÕES VÊM DA ANÁLISE, não de uma cópia. Os focos "retrabalho" e
+// "fora do prazo" existem para responder ao clique num KPI de lá — se cada
+// tela tivesse a sua regra, o número da Análise e a contagem daqui
+// divergiriam, e a tela de destino desmentiria a tela de origem.
+import { temRefacao } from "@/lib/analises-desempenho";
+import { isDelivered } from "@/lib/analises-status";
 import { StatusPill } from "@/components/status-pill";
 import type { Event, Sponsor, StandardItem } from "@shared/schema";
 import {
@@ -540,7 +546,13 @@ export default function PainelGeral() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
   const [showAllKpis, setShowAllKpis] = useState(false);
-  const [sortBy, setSortBy] = useState<"displayId" | "status" | "area">("displayId");
+  // "ciclo" é a porta de entrada do KPI de Ciclo de Entrega da Análise: o
+  // número é a MEDIANA de um conjunto, e a pergunta que segue é sempre "quais
+  // foram as mais demoradas". Nasce em desc porque ninguém clica ali para ver
+  // a mais rápida.
+  const [sortBy, setSortBy] = useState<"displayId" | "status" | "area" | "ciclo">(
+    () => (new URLSearchParams(window.location.search).get("ordem") === "ciclo" ? "ciclo" : "displayId"),
+  );
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 
   const isMobile = useIsMobile();
@@ -817,10 +829,25 @@ export default function PainelGeral() {
     return matchesSearch && matchesEvent && matchesType && matchesSponsor && matchesDate;
   };
 
+  // "Fora do prazo": peça ENTREGUE depois do dia em que o caminhão saiu. É a
+  // mesma conta de computeDesempenho — inclusive o `<=`, que trata entregar
+  // NO dia da saída como no prazo, porque o caminhão carrega naquele dia.
+  const entregueForaDoPrazo = (item: any) => {
+    if (!isDelivered(item.status)) return false;
+    const truckDayMs = eventMeta.get(item.eventId || "no-event")?.truckDayMs ?? null;
+    if (truckDayMs == null || !item.deliveredAt) return false;
+    const d = new Date(item.deliveredAt);
+    d.setHours(0, 0, 0, 0);
+    return d.getTime() > truckDayMs;
+  };
+
   const matchesFoco = (item: any) => focoFilter.every(f =>
     f === "reprovadas" ? temReprovacao(item)
     : f === "atrasadas" ? emEventoAtrasado(item)
     : f === "pendentes" ? isPendingItemStatus(item.status)
+    // Os dois abaixo são a porta de entrada dos KPIs da Análise.
+    : f === "retrabalho" ? temRefacao(item as any)
+    : f === "fora-do-prazo" ? entregueForaDoPrazo(item)
     : true);
 
   const matchesStatus = (item: any, f: string[]) => {
@@ -955,6 +982,15 @@ export default function PainelGeral() {
     }));
   })();
 
+  /** Dias entre criação e entrega — a mesma conta do KPI de ciclo. */
+  const cicloEmDias = (i: any): number | null => {
+    if (!isDelivered(i.status) || !i.deliveredAt || !i.createdAt) return null;
+    const fim = new Date(i.deliveredAt); fim.setHours(0, 0, 0, 0);
+    const ini = new Date(i.createdAt); ini.setHours(0, 0, 0, 0);
+    const d = (fim.getTime() - ini.getTime()) / 86400000;
+    return d >= 0 ? d : null;
+  };
+
   const areaDe = (i: any) => {
     const fw = Number(i.fileWidth), fh = Number(i.fileHeight);
     if (Number.isFinite(fw) && Number.isFinite(fh) && fw > 0 && fh > 0) return fw * fh;
@@ -993,6 +1029,16 @@ export default function PainelGeral() {
       } else if (sortBy === "area") {
         const d = areaDe(a) - areaDe(b);
         if (d !== 0) return d * dir;
+      } else if (sortBy === "ciclo") {
+        // MESMA conta do KPI: dias entre a criação e a entrega, só para peça
+        // entregue. Peça sem ciclo fechado não é "a mais rápida" — é outra
+        // coisa, e vai para o fim em qualquer direção.
+        const ca = cicloEmDias(a), cb = cicloEmDias(b);
+        if (ca !== cb) {
+          if (ca === null) return 1;
+          if (cb === null) return -1;
+          return (cb - ca) * dir;
+        }
       } else {
         return compareDisplayId(a.displayId, b.displayId) * dir;
       }
@@ -1231,7 +1277,7 @@ export default function PainelGeral() {
   }, [exportMenuOpen]);
 
   // Ordenação por coluna: mesmo campo alterna a direção; campo novo começa asc.
-  const toggleSort = useCallback((campo: "displayId" | "status" | "area") => {
+  const toggleSort = useCallback((campo: "displayId" | "status" | "area" | "ciclo") => {
     setSortBy(prev => { if (prev === campo) { setSortDir(d => d === "asc" ? "desc" : "asc"); return prev; } setSortDir("asc"); return campo; });
   }, []);
   const ariaSort = (campo: string): "ascending" | "descending" | "none" =>

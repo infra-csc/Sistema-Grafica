@@ -2,12 +2,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FilterSelect } from "@/components/filter-select";
 import {
-  Bar, BarChart, CartesianGrid, ReferenceArea, ReferenceLine,
+  Bar, BarChart, CartesianGrid, Cell, ReferenceArea, ReferenceLine,
   ResponsiveContainer, Tooltip, XAxis, YAxis,
 } from "recharts";
 import {
   ArrowDown, ArrowUp, Building2, Calendar, ChevronDown, ChevronRight,
-  Clock, Download, RotateCcw, SlidersHorizontal, X,
+  Check, Clock, Download, RotateCcw, SlidersHorizontal, X, AlertTriangle, ArrowRight,
 } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
@@ -174,7 +174,7 @@ function SeloVariacao({ v, sufixo }: { v: Variacao; sufixo: string }) {
    por cabeçalhos de um leitor de tela, a lista de títulos da página virava uma
    sequência de números sem contexto. Agora é <dt> rótulo / <dd> valor. */
 function KpiAnalise({
-  rotulo, valor, contexto, v, sufixoVariacao, notaSemComparacao, testId,
+  rotulo, valor, contexto, v, sufixoVariacao, notaSemComparacao, testId, selo, link, aoNavegar, isMobile,
 }: {
   rotulo: string;
   valor: string;
@@ -184,6 +184,12 @@ function KpiAnalise({
   sufixoVariacao: string;
   notaSemComparacao: string;
   testId: string;
+  /** Qualifica a variação sem escondê-la (ver SeloRuido). */
+  selo?: React.ReactNode;
+  /** O caminho para as peças que compõem o número. */
+  link?: { href: string; rotulo: string; testId: string } | null;
+  aoNavegar?: (href: string) => void;
+  isMobile?: boolean;
 }) {
   return (
     <div data-testid={testId} style={{
@@ -202,17 +208,76 @@ function KpiAnalise({
         </span>
         <span style={{ display: "block", marginTop: 9, minHeight: 17 }}>
           {v
-            ? <SeloVariacao v={v} sufixo={sufixoVariacao} />
+            ? <>
+                <SeloVariacao v={v} sufixo={sufixoVariacao} />
+                {selo}
+              </>
             : <span style={{ fontSize: FS.small, color: T.second }}>{notaSemComparacao}</span>}
         </span>
         <span style={{ display: "block", marginTop: 7, fontSize: FS.small, color: T.second, lineHeight: 1.4 }}>
           {contexto}
         </span>
+        {/* O NÚMERO LEVA ÀS PEÇAS. "Retrabalho 11,2%" é o dado mais acionável
+            da tela e terminava em si mesmo: quem quisesse ver as 44 peças
+            tinha de adivinhar em qual tela procurar e refazer o recorte à
+            mão. O link já vai com o recorte aplicado. */}
+        {link && (
+          <a href={link.href} data-testid={link.testId}
+            onClick={(e) => {
+              // Ctrl/Cmd/meio: deixa o navegador abrir em outra aba, que é o
+              // gesto de quem quer conferir a lista sem perder o painel.
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return;
+              e.preventDefault();
+              aoNavegar?.(link.href);
+            }}
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 5, marginTop: 8,
+              minHeight: isMobile ? 44 : 32, fontSize: 11, fontWeight: 700,
+              color: "#c2410c", textDecoration: "none",
+            }}>
+            {link.rotulo}
+            <ArrowRight aria-hidden="true" style={{ width: 12, height: 12 }} />
+          </a>
+        )}
       </dd>
     </div>
   );
 }
 
+/* ── Quando a variação é ruído ────────────────────────────────────────────── */
+/**
+ * A tela afirmava "+3,2 p.p." com a mesma convicção sobre 357 peças e sobre 9.
+ * Variação em amostra pequena não é tendência: é sorte de amostra — e num
+ * painel que existe para embasar decisão, esse é o defeito mais caro, porque
+ * ele não parece defeito.
+ *
+ * O piso é 30, escolhido pelo dono (24/08). Não é estatística formal; é a
+ * régua a partir da qual a casa aceita ler uma variação como sinal. Vale a
+ * MENOR das duas janelas: comparar 300 contra 8 é tão frágil quanto 8 contra 8.
+ */
+export const PISO_AMOSTRA = 30;
+
+function SeloRuido({ atual, anterior, testId }: { atual: number; anterior: number | null | undefined; testId: string }) {
+  if (anterior == null) return null;
+  const menor = Math.min(atual, anterior);
+  if (menor >= PISO_AMOSTRA) return null;
+  const qualJanela = atual <= anterior ? "Esta janela tem" : "A janela anterior tem";
+  return (
+    <span
+      data-testid={testId}
+      title={`${qualJanela} só ${int(menor)} ${menor === 1 ? "peça avaliável" : "peças avaliáveis"} — abaixo de ${PISO_AMOSTRA} a variação oscila por acaso e não indica tendência.`}
+      style={{
+        display: "inline-flex", alignItems: "center", gap: 4, marginLeft: 8,
+        fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em",
+        color: "#92400e", backgroundColor: "#fffbeb", border: "1px solid #fde68a",
+        borderRadius: R.sm, padding: "1px 6px", whiteSpace: "nowrap",
+      }}>
+      <AlertTriangle aria-hidden="true" style={{ width: 10, height: 10 }} />
+      amostra pequena · pode ser ruído
+    </span>
+  );
+}
+
 /* ── Tooltip do gráfico de carga ── */
 const CargaTip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
@@ -508,6 +573,22 @@ export default function DashboardAnalises() {
     return "Igual ao período anterior";
   };
 
+  /**
+   * O RECORTE VIAJA COM O CLIQUE.
+   *
+   * Evento e patrocinador vão porque o Painel Geral já os entende com os mesmos
+   * nomes de parâmetro. O PERÍODO não vai: a janela daqui é de SAÍDA DE
+   * CAMINHÃO e a de lá é de proximidade da saída — mandar o período faria a
+   * lista discordar do número que a abriu, que é pior que não filtrar.
+   */
+  const recorteNoLink = (extra: Record<string, string>) => {
+    const q = new URLSearchParams();
+    if (eventFilter !== "all") q.set("evento", eventFilter);
+    if (sponsorFilter !== "all") q.set("patrocinador", sponsorFilter);
+    for (const [k, v] of Object.entries(extra)) q.set(k, v);
+    return `/?${q.toString()}`;
+  };
+
   const kpis = [
     {
       testId: "kpi-prazo",
@@ -519,6 +600,15 @@ export default function DashboardAnalises() {
       v: variacao(atual.prazoRate, anterior?.prazoRate, true),
       sufixo: " p.p. · ",
       nota: notaSem(atual.prazoRate, anterior?.prazoRate),
+      amostra: atual.prazoAvaliadas,
+      amostraAnterior: anterior?.prazoAvaliadas,
+      link: atual.prazoAvaliadas > atual.prazoNoPrazo
+        ? {
+            href: recorteNoLink({ foco: "fora-do-prazo" }),
+            rotulo: `Ver as ${int(atual.prazoAvaliadas - atual.prazoNoPrazo)} fora do prazo`,
+            testId: "link-kpi-prazo",
+          }
+        : null,
     },
     {
       testId: "kpi-ciclo",
@@ -530,6 +620,17 @@ export default function DashboardAnalises() {
       v: variacao(atual.cicloMedianaDias, anterior?.cicloMedianaDias, false),
       sufixo: " dias · ",
       nota: notaSem(atual.cicloMedianaDias, anterior?.cicloMedianaDias),
+      amostra: atual.cicloAmostra,
+      amostraAnterior: anterior?.cicloAmostra,
+      // A mediana não tem "as N piores": o que responde ao clique é a lista
+      // ORDENADA pelo ciclo, com as mais demoradas no topo.
+      link: atual.cicloAmostra > 0
+        ? {
+            href: recorteNoLink({ ordem: "ciclo" }),
+            rotulo: "Ver as mais demoradas",
+            testId: "link-kpi-ciclo",
+          }
+        : null,
     },
     {
       testId: "kpi-retrabalho",
@@ -541,6 +642,15 @@ export default function DashboardAnalises() {
       v: variacao(atual.retrabalhoRate, anterior?.retrabalhoRate, false),
       sufixo: " p.p. · ",
       nota: notaSem(atual.retrabalhoRate, anterior?.retrabalhoRate),
+      amostra: atual.pecasTotal,
+      amostraAnterior: anterior?.pecasTotal,
+      link: atual.retrabalhoPecas > 0
+        ? {
+            href: recorteNoLink({ foco: "retrabalho" }),
+            rotulo: `Ver as ${int(atual.retrabalhoPecas)} com retrabalho`,
+            testId: "link-kpi-retrabalho",
+          }
+        : null,
     },
     {
       testId: "kpi-m2",
@@ -552,6 +662,11 @@ export default function DashboardAnalises() {
       v: variacao(atual.m2Entregue, anterior?.m2Entregue, true),
       sufixo: " m² · ",
       nota: notaSem(atual.m2Entregue, anterior?.m2Entregue),
+      amostra: atual.pecasTotal,
+      amostraAnterior: anterior?.pecasTotal,
+      // Sem link: m² é uma SOMA, não uma lista de exceções. Não existe "as
+      // peças que compõem o volume" como coisa acionável.
+      link: null,
     },
   ];
 
@@ -568,7 +683,28 @@ export default function DashboardAnalises() {
   const semanaAtualLabel = dadosCarga.find((d) => d.atualSemana)?.label;
   const primeiraFutura = dadosCarga.find((d) => d.futura)?.label;
   const ultimaLabel = dadosCarga[dadosCarga.length - 1]?.label;
-  const cargaVazia = dadosCarga.every((d) => d.demanda === 0 && !d.concluido);
+  const cargaVazia = dadosCarga.every((d) => d.demanda === 0 && !d.concluido);
+
+  /**
+   * ONDE VAI ESTOURAR.
+   *
+   * O gráfico desenhava a demanda, o concluído e a linha da média, e deixava a
+   * conclusão para o olho: em 21 barras, comparar oito futuras contra uma
+   * tracejada é trabalho manual. O bloco existe para ANTECIPAR, e a antecipação
+   * não estava escrita em lugar nenhum.
+   *
+   * Só semanas FUTURAS entram: a semana passada que estourou já é história, e o
+   * bloco não é para lamentar. Sem média de capacidade não há régua — e sem
+   * régua não há estouro a declarar.
+   */
+  const semanasQueEstouram = temMedia
+    ? dadosCarga.filter((d) => d.futura && d.demanda > (carga.mediaConcluidoM2 as number))
+    : [];
+  const excedenteTotal = semanasQueEstouram.reduce(
+    (soma, d) => soma + (d.demanda - (carga.mediaConcluidoM2 as number)), 0,
+  );
+  const semanasFuturas = dadosCarga.filter((d) => d.futura).length;
+  const rotulosQueEstouram = new Set(semanasQueEstouram.map((d) => d.label));
 
   // ── Exportação ──────────────────────────────────────────────────────────
   // O arquivo leva o mesmo recorte que está na tela: sem o recorte escrito
@@ -929,6 +1065,10 @@ export default function DashboardAnalises() {
               v={k.v}
               sufixoVariacao={k.sufixo}
               notaSemComparacao={k.nota}
+              selo={<SeloRuido atual={k.amostra} anterior={k.amostraAnterior} testId={`selo-ruido-${k.testId}`} />}
+              link={k.link}
+              aoNavegar={setLocation}
+              isMobile={isMobile}
             />
           ))}
         </dl>
@@ -989,6 +1129,50 @@ export default function DashboardAnalises() {
           />
         ) : (
           <>
+            {/* A CONCLUSÃO, ANTES DO GRÁFICO. Nomeia as semanas e soma o
+                excedente — e as barras dessas semanas ganham anel, para a
+                faixa e o desenho apontarem a mesma coisa. */}
+            {temMedia && !cargaVazia && (
+              <div data-testid="faixa-estouro-capacidade"
+                style={{
+                  display: "flex", gap: 10, alignItems: "flex-start", marginBottom: 12,
+                  padding: "10px 12px", borderRadius: R.sm,
+                  backgroundColor: semanasQueEstouram.length > 0 ? "#fffbeb" : "#f0fdf4",
+                  border: `1px solid ${semanasQueEstouram.length > 0 ? "#fde68a" : "#bbf7d0"}`,
+                }}>
+                {semanasQueEstouram.length > 0
+                  ? <AlertTriangle aria-hidden="true" style={{ width: 15, height: 15, color: "#b45309", flexShrink: 0, marginTop: 1 }} />
+                  : <Check aria-hidden="true" style={{ width: 15, height: 15, color: "#15803d", flexShrink: 0, marginTop: 1 }} />}
+                <div style={{ minWidth: 0 }}>
+                  {semanasQueEstouram.length > 0 ? (
+                    <>
+                      {/* #78350f sobre #fffbeb = 9,4:1 */}
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#78350f", lineHeight: 1.35 }}>
+                        {semanasQueEstouram.length === 1
+                          ? "1 semana prevista passa da capacidade: "
+                          : `${semanasQueEstouram.length} semanas previstas passam da capacidade: `}
+                        {semanasQueEstouram.map((d) => d.label).join(", ")}
+                      </p>
+                      <p style={{ margin: "3px 0 0", fontSize: 11, color: "#78350f", opacity: 0.85, lineHeight: 1.45 }}>
+                        Somam {int(excedenteTotal)} m² acima da média de {int(carga.mediaConcluidoM2 as number)} m² por semana.
+                        {" "}Antecipar produção nas semanas vizinhas é mais barato que estourar o prazo.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      {/* #14532d sobre #f0fdf4 = 10,4:1 */}
+                      <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#14532d", lineHeight: 1.35 }}>
+                        Nenhuma semana prevista passa da capacidade
+                      </p>
+                      <p style={{ margin: "3px 0 0", fontSize: 11, color: "#14532d", opacity: 0.85, lineHeight: 1.45 }}>
+                        {semanasFuturas === 1 ? "A semana à frente cabe" : `As ${semanasFuturas} semanas à frente cabem`}
+                        {" "}na média de {int(carga.mediaConcluidoM2 as number)} m² por semana.
+                      </p>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
             <figure role="img" style={{ margin: 0 }} aria-label={`Gráfico de barras semanais em metros quadrados: m² que vencem contra m² concluídos, de ${dadosCarga[0]?.label} a ${ultimaLabel}. Os números estão na tabela seguinte.`}>
               {/* 21 semanas × 2 barras não cabem em 375px sem virar risco:
                   no celular o gráfico rola na horizontal em vez de encolher
@@ -1016,7 +1200,16 @@ export default function DashboardAnalises() {
                       {carga.mediaConcluidoM2 != null && carga.mediaConcluidoM2 > 0 && (
                         <ReferenceLine y={carga.mediaConcluidoM2} stroke={GRAFICO_NEUTRO} strokeDasharray="5 4" strokeWidth={2} />
                       )}
-                      <Bar dataKey="demanda" name="Vence" fill={ACCENT_TEXT} maxBarSize={26} isAnimationActive={false} />
+                      <Bar dataKey="demanda" name="Vence" fill={ACCENT_TEXT} maxBarSize={26} isAnimationActive={false}>
+                        {/* O anel marca no desenho as MESMAS semanas que a
+                            faixa nomeia — senão são duas leituras a conferir
+                            uma contra a outra. */}
+                        {dadosCarga.map((d) => (
+                          <Cell key={d.label}
+                            stroke={rotulosQueEstouram.has(d.label) ? "#b45309" : "none"}
+                            strokeWidth={rotulosQueEstouram.has(d.label) ? 1.5 : 0} />
+                        ))}
+                      </Bar>
                       <Bar dataKey="concluido" name="Concluído" fill={T.dark} maxBarSize={26} isAnimationActive={false} />
                     </BarChart>
                   </ResponsiveContainer>

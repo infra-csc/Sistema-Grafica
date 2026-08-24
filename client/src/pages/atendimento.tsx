@@ -36,12 +36,12 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { useState, useMemo, Fragment, useEffect, useRef, useDeferredValue } from "react";
+import { useCallback, useState, useMemo, Fragment, useEffect, useRef, useDeferredValue } from "react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
-import { Undo2 } from "lucide-react";
+import { Undo2, Play, Hourglass } from "lucide-react";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 
 interface SponsorApproval {
@@ -142,6 +142,63 @@ const PIPELINE_STAGES: { key: string; label: string; color: string; statuses: st
   { key: 'entregue',     label: 'Entregue',        color: '#7c3aed', statuses: [ST_CONFERRED, 'conferido', ST_DELIVERED, 'entregue'] },
 ];
 
+// ── A JORNADA DA PEÇA, EM UMA LEITURA SÓ ───────────────────────────────────
+//
+// O cartão do histórico contava a mesma história duas vezes: uma trilha de
+// MARCOS (datas, em texto) e um pipeline de 10 ETAPAS (posição, em bolinhas),
+// empilhados, custando duas faixas por linha numa lista de dezenas de peças.
+// São a mesma coisa: as etapas SÃO os marcos. Aqui elas viram uma faixa só,
+// com posição, data e o tempo gasto em cada trecho.
+//
+// As datas não são inventadas: cada etapa lê o carimbo que o próprio fluxo
+// grava. Onde não há carimbo (vinculação, revisão), a etapa aparece sem data
+// em vez de receber uma estimativa.
+const DATA_DA_ETAPA: Record<string, (i: any) => string | null | undefined> = {
+  solicitado:   (i) => i.createdAt,
+  ag_aprovacao: (i) => i.approvalThumbUpdatedAt,
+  aprovado:     (i) => i.sponsorApprovedAt,
+  finalizacao:  (i) => i.creatorReviewedAt,
+  pronto:       (i) => i.approvedAt,
+  producao:     (i) => i.productionStartedAt,
+  produzido:    (i) => i.producedAt,
+  entregue:     (i) => i.deliveredAt ?? i.conferredAt,
+};
+
+const DIA_MS = 86400000;
+
+/** Tom do intervalo: uma semana é normal, duas já é o assunto da reunião. */
+function tomDoIntervalo(dias: number): string {
+  return dias >= 14 ? '#b91c1c' : dias >= 7 ? '#b45309' : '#57534e';
+}
+
+function jornadaDaPeca(item: any, agora: number) {
+  const atual = PIPELINE_STAGES.findIndex(s => s.statuses.includes(item.status));
+  let anterior: number | null = null;
+  const etapas = PIPELINE_STAGES.map((stage, i) => {
+    const carimbo = DATA_DA_ETAPA[stage.key]?.(item);
+    const ms = carimbo ? new Date(carimbo).getTime() : null;
+    const desdeAnterior = ms !== null && anterior !== null
+      ? Math.max(0, Math.round((ms - anterior) / DIA_MS))
+      : null;
+    if (ms !== null && !Number.isNaN(ms)) anterior = ms;
+    return {
+      key: stage.key, label: stage.label, ms, desdeAnterior,
+      cumprida: atual >= 0 && i < atual,
+      ehAtual: i === atual,
+    };
+  });
+  const comData = etapas.filter(e => e.ms !== null && !Number.isNaN(e.ms));
+  const primeira = comData[0]?.ms ?? null;
+  const ultima = comData[comData.length - 1]?.ms ?? null;
+  const concluida = atual >= PIPELINE_STAGES.length - 1;
+  // Peça em curso: o número acionável é há quanto tempo ela está parada AQUI.
+  // Peça concluída: o número que interessa é quanto a jornada inteira levou.
+  const duracao = concluida
+    ? (primeira !== null && ultima !== null ? Math.round((ultima - primeira) / DIA_MS) : null)
+    : (ultima !== null ? Math.max(0, Math.round((agora - ultima) / DIA_MS)) : null);
+  return { etapas, atual, concluida, duracao };
+}
+
 // ── Status pós-aprovação do patrocinador ───────────────────────────────────
 // Peça em qualquer um destes status JÁ passou pela aprovação do patrocinador,
 // mesmo sem registro individual de approval — o atalho "Aprovar Ativo" muda o
@@ -194,7 +251,39 @@ export default function Atendimento() {
   // Aba ativa: pendentes ou histórico
   const [activeTab, setActiveTab] = useState<"pending" | "history">("pending");
 
+  // A ORDEM DA LISTA, DECLARADA E TROCÁVEL.
+  //
+  // A lista sempre foi agrupada por evento e, dentro do grupo, por tipo de
+  // peça — e a tela nunca disse isso. Sem a regra à vista, ninguém entende
+  // por que uma peça é a terceira, e não há como pedir outra ordem quando a
+  // pergunta muda ("o que vence primeiro?" / "o que espera por mim?").
+  //
+  // O agrupamento por evento NÃO muda: é ele que dá o cabeçalho com o prazo
+  // de Aprovação de Layout e o "N na sua mesa". O que a ordem decide é a
+  // sequência dos GRUPOS e das peças dentro de cada um.
+  type OrdemPendentes = "prazo" | "mesa" | "evento";
+  const ORDEM_REGRA: Record<OrdemPendentes, string> = {
+    prazo: "vencidos primeiro, depois quem vence antes",
+    mesa: "o que espera decisão sua no topo",
+    evento: "ordem alfabética",
+  };
+
   // Filtros — aba Pendentes
+  const [ordemPendentes, setOrdemPendentes] = useState<OrdemPendentes>(() => {
+    const o = new URLSearchParams(window.location.search).get("ordem");
+    return o === "mesa" || o === "evento" ? o : "prazo";
+  });
+
+  // A ordem do HISTÓRICO. Numa tela de auditoria a pergunta costuma ser
+  // "o que demorou", e não "o que é recente" — mas a única ordem possível
+  // era por data. "Mais demoradas" põe na frente o que a auditoria procura.
+  type OrdemHistorico = "recentes" | "demoradas" | "evento";
+  const ORDEM_HIST_REGRA: Record<OrdemHistorico, string> = {
+    recentes: "última aprovação primeiro",
+    demoradas: "maior tempo de jornada primeiro",
+    evento: "ordem alfabética",
+  };
+  const [ordemHistorico, setOrdemHistorico] = useState<OrdemHistorico>("recentes");
   const [searchTerm, setSearchTerm] = useState("");
   // Adia o termo usado na filtragem (input segue responsivo, tabela não engasga).
   const deferredSearchTerm = useDeferredValue(searchTerm);
@@ -840,6 +929,31 @@ export default function Atendimento() {
     }));
   };
 
+  // QUEM AINDA NÃO RESPONDEU, POR NOME.
+  //
+  // O card dizia "2 de 3 responderam" e não dizia QUEM falta — e saber o
+  // nome é o que permite ir atrás da resposta. Para descobrir, era preciso
+  // abrir o modal de revisão de cada peça, uma por uma.
+  const quemFalta = (item: any): string[] => {
+    const sps = itemSponsorsMap[item.id] || [];
+    const apps: SponsorApproval[] = itemApprovalsMap[item.id] || [];
+    return sps
+      .filter((s: any) => {
+        const st = apps.find(a => a.sponsorId === s.id)?.status;
+        return !st || st === "pending" || st === "new_version_pending";
+      })
+      .map((s: any) => s.name)
+      .filter(Boolean);
+  };
+
+  /** "falta X" · "faltam X e Y" · "faltam X, Y e mais N". */
+  const fraseDeQuemFalta = (nomes: string[]): string => {
+    if (nomes.length === 0) return "";
+    if (nomes.length === 1) return `falta ${nomes[0]}`;
+    if (nomes.length === 2) return `faltam ${nomes[0]} e ${nomes[1]}`;
+    return `faltam ${nomes[0]}, ${nomes[1]} e mais ${nomes.length - 2}`;
+  };
+
   const isItemFullyApproved = (item: any): boolean => {
     const itemSps = itemSponsorsMap[item.id] || [];
     if (itemSps.length === 0) return false;
@@ -851,6 +965,32 @@ export default function Atendimento() {
     if (loadingSponsors) return filteredItems;
     return filteredItems.filter(item => !isItemFullyApproved(item));
   }, [filteredItems, itemApprovalsMap, itemSponsorsMap, loadingSponsors]);
+
+  // A ORDEM, EM UM LUGAR SÓ — a lista e a fila do modal têm de andar
+  // juntas: navegar com "Próxima peça" numa ordem diferente da que está na
+  // tela é o tipo de desencontro que faz a pessoa decidir a peça errada.
+  const comparaPecas = useCallback((a: any, b: any) => {
+    if (ordemPendentes === "mesa") {
+      const ma = situacaoDaPeca(itemApprovalsMap[a.id]) === "nova_versao" ? 0 : 1;
+      const mb = situacaoDaPeca(itemApprovalsMap[b.id]) === "nova_versao" ? 0 : 1;
+      if (ma !== mb) return ma - mb;
+    }
+    const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
+    return COLLATOR.compare(ga, gb) || COLLATOR.compare(a.type, b.type);
+  }, [ordemPendentes, itemApprovalsMap, typeToGroup]);
+
+  /** Peso do EVENTO na ordem escolhida. Vencido primeiro; sem prazo, por último. */
+  const pesoDoEvento = useCallback((eventId: string, pecas: any[]) => {
+    const ev = eventoPorId.get(eventId);
+    if (ordemPendentes === "evento") return { chave: (ev?.name || "").toLowerCase(), num: 0 };
+    if (ordemPendentes === "mesa") {
+      const naMesa = pecas.filter((i: any) => situacaoDaPeca(itemApprovalsMap[i.id]) === "nova_versao").length;
+      return { chave: "", num: -naMesa };
+    }
+    const prazo = ev ? prazoAprovacaoLayout(ev, hoje) : null;
+    // Sem marco não é "no prazo": é desconhecido, e vai para o fim.
+    return { chave: "", num: prazo ? prazo.diff : Number.MAX_SAFE_INTEGER };
+  }, [ordemPendentes, itemApprovalsMap, eventoPorId, hoje]);
 
   const approvedGroup = useMemo(() => {
     if (loadingSponsors) return [];
@@ -1013,18 +1153,21 @@ export default function Atendimento() {
 
   const historyItems = useMemo(() => {
     if (loadingSponsors) return [];
+    const latestApproval = (item: any) => {
+      const times = (itemApprovalsMap[item.id] || [])
+        .filter((a: SponsorApproval) => a.status === 'approved' && a.approvedAt)
+        .map((a: SponsorApproval) => new Date(a.approvedAt!).getTime());
+      return times.length ? Math.max(...times) : 0;
+    };
+    const duracaoDe = (item: any) => jornadaDaPeca(item, hoje instanceof Date ? hoje.getTime() : Number(hoje)).duracao ?? -1;
+    const nomeDoEvento = (item: any) => (eventoPorId.get(item.eventId)?.name || "").toLowerCase();
     return (items as any[]).filter(item => casaHistorico(item)).sort((a: any, b: any) => {
-      // Ordena pela aprovação mais recente
-      const latestApproval = (item: any) => {
-        const times = (itemApprovalsMap[item.id] || [])
-          .filter((a: SponsorApproval) => a.status === 'approved' && a.approvedAt)
-          .map((a: SponsorApproval) => new Date(a.approvedAt!).getTime());
-        return times.length ? Math.max(...times) : 0;
-      };
+      if (ordemHistorico === "demoradas") return duracaoDe(b) - duracaoDe(a);
+      if (ordemHistorico === "evento") return COLLATOR.compare(nomeDoEvento(a), nomeDoEvento(b)) || latestApproval(b) - latestApproval(a);
       return latestApproval(b) - latestApproval(a);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histEventFilter, histSponsorFilter, histPeriodFilter, histSearchTerm]);
+  }, [ordemHistorico, hoje, eventoPorId, items, itemApprovalsMap, itemSponsorsMap, loadingSponsors, histEventFilter, histSponsorFilter, histPeriodFilter, histSearchTerm]);
 
   // As duas facetas da aba Histórico, do MESMO pool da lista. Só o que tem
   // linha aparece, e a contagem ao lado do nome é o número de linhas que o
@@ -1069,18 +1212,26 @@ export default function Atendimento() {
   // na tela (agrupadas por evento). É o que permite ir para a próxima peça sem
   // fechar o modal e voltar para a lista.
   const reviewQueue = useMemo(() => {
-    const sorted = [...pendingGroup].sort((a, b) => {
-      const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
-      return COLLATOR.compare(ga, gb) || COLLATOR.compare(a.type, b.type);
-    });
+    const sorted = [...pendingGroup].sort(comparaPecas);
     const byEvent = new Map<string, any[]>();
     sorted.forEach(item => {
       const eid = item.eventId || '__none__';
       if (!byEvent.has(eid)) byEvent.set(eid, []);
       byEvent.get(eid)!.push(item);
     });
-    return Array.from(byEvent.values()).flat();
-  }, [pendingGroup, typeToGroup]);
+    return Array.from(byEvent.entries())
+      .sort(([ea, pa], [eb, pb]) => {
+        const wa = pesoDoEvento(ea, pa), wb = pesoDoEvento(eb, pb);
+        return wa.num - wb.num || COLLATOR.compare(wa.chave, wb.chave);
+      })
+      .flatMap(([, pecas]) => pecas);
+  }, [pendingGroup, comparaPecas, pesoDoEvento]);
+
+  /** As peças que esperam decisão SUA, na ordem da tela. */
+  const filaDaSuaMesa = useMemo(
+    () => reviewQueue.filter((i: any) => situacaoDaPeca(itemApprovalsMap[i.id]) === "nova_versao"),
+    [reviewQueue, itemApprovalsMap],
+  );
 
   /** Vai para a peça anterior/seguinte da fila. Sem próxima, encerra a revisão. */
   const goToAdjacentItem = (dir: 1 | -1) => {
@@ -1097,18 +1248,19 @@ export default function Atendimento() {
   // Group pendingGroup by event - must be before any early return
   const itemsByEvent = useMemo(() => {
     const map = new Map<string, any[]>();
-    const sorted = [...pendingGroup].sort((a, b) => {
-      const ga = typeToGroup[a.type] || '', gb = typeToGroup[b.type] || '';
-      return COLLATOR.compare(ga, gb) || COLLATOR.compare(a.type, b.type);
-    });
+    const sorted = [...pendingGroup].sort(comparaPecas);
     // Renderiza só os primeiros; o resto entra via "Carregar mais".
     sorted.slice(0, pendVisible).forEach(item => {
       const eid = item.eventId || '__none__';
       if (!map.has(eid)) map.set(eid, []);
       map.get(eid)!.push(item);
     });
-    return map;
-  }, [pendingGroup, typeToGroup, pendVisible]);
+    // Os GRUPOS também obedecem à ordem escolhida.
+    return new Map(Array.from(map.entries()).sort(([ea, pa], [eb, pb]) => {
+      const wa = pesoDoEvento(ea, pa), wb = pesoDoEvento(eb, pb);
+      return wa.num - wb.num || COLLATOR.compare(wa.chave, wb.chave);
+    }));
+  }, [pendingGroup, pendVisible, comparaPecas, pesoDoEvento]);
 
   // Mantém a seleção em sincronia com o conjunto elegível: se uma peça sai do
   // lote (decidida em outro lugar), ela some da seleção também. Só entram
@@ -1145,12 +1297,13 @@ export default function Atendimento() {
   useEffect(() => {
     const timer = setTimeout(() => {
       const p = new URLSearchParams(window.location.search);
+      if (ordemPendentes !== "prazo") p.set("ordem", ordemPendentes); else p.delete("ordem");
       if (atrasadosFilter) p.set("atrasados", "1"); else p.delete("atrasados");
       const qs = p.toString();
       window.history.replaceState(null, "", qs ? `?${qs}` : window.location.pathname);
     }, 300);
     return () => clearTimeout(timer);
-  }, [atrasadosFilter]);
+  }, [ordemPendentes, atrasadosFilter]);
   useEffect(() => { setHistVisible(PAGE_SIZE); }, [activeTab, histEventFilter, histSponsorFilter, histPeriodFilter, histSearchTerm]);
 
   const getEventInfo = (eventId: string) => events.find((e: any) => e.id === eventId);
@@ -2044,6 +2197,68 @@ export default function Atendimento() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 32 }}>
 
           {/* Grupo: Pendentes */}
+          {/* ── A ORDEM, DECLARADA ─────────────────────────────────────────
+              A lista sempre teve uma ordem e a tela nunca a disse. Sem a regra
+              à vista, ninguém entende por que uma peça é a terceira — e não há
+              como pedir outra quando a pergunta muda ("o que vence primeiro?"
+              / "o que espera por mim?"). A regra fica escrita ao lado dos
+              alternadores, não escondida num tooltip. */}
+          {pendingGroup.length > 0 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69', flexShrink: 0 }}>
+                Ordem
+              </span>
+              <div role="group" aria-label="Ordem da lista" style={{ display: 'flex', gap: 6, overflowX: 'auto', maxWidth: '100%', paddingBottom: 2 }}>
+                {([['prazo', 'Prazo de aprovação'], ['mesa', 'Peças na sua mesa'], ['evento', 'Nome do evento']] as const).map(([valor, rotulo]) => {
+                  const ativo = ordemPendentes === valor;
+                  return (
+                    <button
+                      key={valor}
+                      type="button"
+                      aria-pressed={ativo}
+                      data-testid={`toggle-ordem-${valor}`}
+                      onClick={() => setOrdemPendentes(valor)}
+                      style={{
+                        height: isMobile ? 44 : 30, padding: '0 12px', borderRadius: 8, cursor: 'pointer',
+                        fontFamily: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
+                        border: `1px solid ${ativo ? '#fdba74' : '#e7e5e4'}`,
+                        backgroundColor: ativo ? '#fff7ed' : '#ffffff',
+                        color: ativo ? '#9a3412' : '#57534e',
+                      }}
+                    >
+                      {rotulo}
+                    </button>
+                  );
+                })}
+              </div>
+              <span style={{ fontSize: 12, color: '#57534e' }}>{ORDEM_REGRA[ordemPendentes]}</span>
+
+              {/* ── A FILA, ALCANÇÁVEL ────────────────────────────────────────
+                  A fila de decisão existia só DENTRO do modal (navegação no
+                  cabeçalho e "Próxima peça" no rodapé) e não havia porta de
+                  entrada: era preciso caçar a primeira peça na lista e abri-la.
+                  Some quando não há nada esperando por você — botão que não faz
+                  nada é ruído. */}
+              {filaDaSuaMesa.length > 0 && (
+                <button
+                  type="button"
+                  data-testid="button-fila-decisao"
+                  onClick={() => { setSelectedItem(filaDaSuaMesa[0]); setDialogOpen(true); }}
+                  title="Abre a primeira peça que espera decisão sua; do modal dá para seguir para a próxima"
+                  style={{
+                    marginLeft: 'auto', height: isMobile ? 44 : 32, padding: '0 14px', borderRadius: 8,
+                    border: 'none', backgroundColor: '#1c1917', color: '#ffffff', cursor: 'pointer',
+                    fontFamily: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+                    display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                  }}
+                >
+                  <Play style={{ width: 13, height: 13 }} />
+                  Decidir {filaDaSuaMesa.length === 1 ? 'a peça' : `as ${filaDaSuaMesa.length}`} em fila
+                </button>
+              )}
+            </div>
+          )}
+
           {pendingGroup.length > 0 && Array.from(itemsByEvent.entries()).map(([eventId, eventItems]) => {
             const ev = getEventInfo(eventId);
             return (
@@ -2301,6 +2516,20 @@ export default function Atendimento() {
                                     Reaproveit.
                                   </span>
                                 )}
+                                {/* ONDE A PEÇA ESTÁ. O tipo já carregava o status e o card não o
+                                    mostrava: é ele que diz se a decisão que falta ainda cabe no
+                                    prazo ou se a peça já seguiu sem ela. */}
+                                {(() => {
+                                  const meta = getStatusMeta(item.status);
+                                  if (!meta) return null;
+                                  return (
+                                    <span data-testid={`selo-status-${item.id}`} title={`A peça está em "${meta.label}" — é daqui que ela sai quando a decisão que falta chegar`}
+                                      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, flexShrink: 0, fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: meta.text, backgroundColor: meta.bg, border: `1px solid ${meta.border}`, borderRadius: 4, padding: '2px 6px', whiteSpace: 'nowrap' }}>
+                                      <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: '50%', backgroundColor: meta.dot, flexShrink: 0 }} />
+                                      {meta.short}
+                                    </span>
+                                  );
+                                })()}
                               </div>
                               <p title={item.description || undefined} style={{ fontSize: 12, color: '#746e69', margin: '3px 0 0', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {item.description || 'Sem descrição'}
@@ -2363,13 +2592,14 @@ export default function Atendimento() {
                                   ? fmtRelative(new Date(item.approvalThumbUpdatedAt).toISOString(), agora)
                                   : null;
                                 const responderam = approvals.filter(a => a.status !== "pending").length;
+                                const quemFaltaAqui = quemFalta(item);
                                 const relogio = isFullyApproved
                                   ? "todos os patrocinadores aprovaram"
                                   : sit === "nova_versao"
                                     ? (desde ? `a Arte corrigiu ${desde} — a peça espera sua decisão` : "a Arte corrigiu — a peça espera sua decisão")
                                   : sit === "aguardando_arte"
                                     ? "nada a fazer aqui — você é avisado quando voltar"
-                                  : `${desde ? `enviada ${desde} · ` : ""}${responderam} de ${approvals.length} responderam`;
+                                  : `${desde ? `enviada ${desde} · ` : ""}${quemFaltaAqui.length > 0 ? fraseDeQuemFalta(quemFaltaAqui) : `${responderam} de ${approvals.length} responderam`}`;
                                 return (
                                   <>
                                     <span
@@ -2545,6 +2775,33 @@ export default function Atendimento() {
 
         return (
           <div role="tabpanel" id="tabpanel-history" aria-labelledby="tab-history">
+            {/* ── A ORDEM DO HISTÓRICO ────────────────────────────────────────
+                Numa tela de auditoria a pergunta costuma ser "o que demorou", e
+                a única ordem possível era por data. A regra fica escrita ao
+                lado, como na aba Pendentes. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#746e69', flexShrink: 0 }}>Ordem</span>
+              <div role="group" aria-label="Ordem do histórico" style={{ display: 'flex', gap: 6, overflowX: 'auto', maxWidth: '100%', paddingBottom: 2 }}>
+                {([['recentes', 'Mais recentes'], ['demoradas', 'Mais demoradas'], ['evento', 'Nome do evento']] as const).map(([valor, rotulo]) => {
+                  const ativo = ordemHistorico === valor;
+                  return (
+                    <button key={valor} type="button" aria-pressed={ativo} data-testid={`toggle-ordem-hist-${valor}`}
+                      onClick={() => setOrdemHistorico(valor)}
+                      style={{
+                        height: isMobile ? 44 : 30, padding: '0 12px', borderRadius: 8, cursor: 'pointer',
+                        fontFamily: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap', flexShrink: 0,
+                        border: `1px solid ${ativo ? '#fdba74' : '#e7e5e4'}`,
+                        backgroundColor: ativo ? '#fff7ed' : '#ffffff',
+                        color: ativo ? '#9a3412' : '#57534e',
+                      }}>
+                      {rotulo}
+                    </button>
+                  );
+                })}
+              </div>
+              <span style={{ fontSize: 12, color: '#57534e' }}>{ORDEM_HIST_REGRA[ordemHistorico]}</span>
+            </div>
+
             {/* ── Barra de filtros ── */}
             <div style={{
               background: '#fafaf9', borderRadius: 12,
@@ -2689,27 +2946,9 @@ export default function Atendimento() {
                   // é lida sem competir com nada.
                   const marcoEvento = marcoEventoFinalizado(ev ?? item.event, hojeBusinessMs);
 
-                  const timelineMilestones = [
-                    item.createdAt && { dot: '#93c5fd', label: 'Criado', date: fmtDt(item.createdAt) },
-                    !item.sponsorApprovedAt && lastApprovedAt && { dot: '#4ade80', label: `Últ. aprovação`, sublabel: `${approvedOnes.length} de ${sponsorApprovals.length}`, date: fmtDt(lastApprovedAt), by: lastApprovedBy },
-                    item.sponsorApprovedAt && { dot: '#22c55e', label: 'Todos aprovaram', date: fmtDt(item.sponsorApprovedAt) },
-                    item.approvedAt && { dot: '#a78bfa', label: 'Liberado p/ produção', date: fmtDt(item.approvedAt) },
-                    marcoEvento && {
-                      dot: marcoEvento.dot,
-                      label: marcoEvento.label,
-                      // Data SÓ no "realizado", onde ela é o próprio fato (a
-                      // data do evento). O encerramento manual não tem carimbo
-                      // que viaje com a peça — a linha diz o que sabe.
-                      date: marcoEvento.dataEventoISO
-                        ? format(parseDateLocal(marcoEvento.dataEventoISO), "dd/MM/yy", { locale: ptBR })
-                        : null,
-                      title: marcoEvento.hint,
-                      color: marcoEvento.text,
-                    },
-                  ].filter(Boolean) as {
-                    dot: string; label: string; date: string | null;
-                    by?: string | null; title?: string; color?: string;
-                  }[];
+                  // A trilha de marcos que existia aqui saiu junto com a faixa dupla: a
+                  // jornada agora lê os carimbos direto do item (ver jornadaDaPeca), e
+                  // manter o cálculo sem consumidor só criaria uma segunda verdade.
 
                   return (
                     /* Cartão do histórico: abre o detalhe de aprovações. Era um
@@ -2853,73 +3092,73 @@ export default function Atendimento() {
                           </div>
                         </div>
 
-                        {/* ── Timeline ── */}
-                        {timelineMilestones.length > 0 && (
-                          <div style={{
-                            borderTop: '1px solid #f5f5f4',
-                            padding: '8px 16px',
-                            display: 'flex', alignItems: 'center', gap: 0, overflowX: 'auto',
-                          }}>
-                            {timelineMilestones.map((m, i) => (
-                              <Fragment key={i}>
-                                <div title={m.title} style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-                                  <span style={{ width: 7, height: 7, borderRadius: '50%', background: m.dot, flexShrink: 0, boxShadow: `0 0 0 2px ${m.dot}33` }} />
-                                  <span style={{ fontSize: 11, fontWeight: 700, color: m.color ?? '#57534e', whiteSpace: 'nowrap' }}>{m.label}{(m as any).sublabel && <span style={{ fontWeight: 500, color: '#746e69', marginLeft: 3 }}>({(m as any).sublabel})</span>}</span>
-                                  {m.date && <span style={{ fontSize: 11, color: '#746e69', whiteSpace: 'nowrap' }}>{m.date}{m.by ? ` · ${m.by}` : ''}</span>}
+                        {/* ── A JORNADA, UMA VEZ SÓ ───────────────────────────────────────
+                            Eram duas faixas: a trilha de marcos (datas) e o pipeline de 10
+                            etapas (posição), contando a mesma história em desenhos
+                            diferentes. Agora é uma: onde a peça está, quando passou por
+                            cada ponto, e quanto tempo levou entre eles — que é a pergunta
+                            de uma tela de auditoria. */}
+                        {(() => {
+                          const j = jornadaDaPeca(item, hoje instanceof Date ? hoje.getTime() : Number(hoje));
+                          if (j.atual < 0) return null;
+                          return (
+                            <div data-testid={`faixa-jornada-${item.id}`} style={{ borderTop: '1px solid #f5f5f4', padding: '10px 16px 12px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                              <div className="pipeline-scroll" style={{ flex: 1, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', minWidth: isMobile ? 520 : 0 }}>
+                                  {j.etapas.map((e, i) => (
+                                    <Fragment key={e.key}>
+                                      {i > 0 && (
+                                        <span style={{ flex: 1, minWidth: 14, display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 3 }}>
+                                          <span style={{ display: 'block', width: '100%', height: 2, borderRadius: 999, background: e.cumprida || e.ehAtual ? '#c2410c' : '#e7e5e4' }} />
+                                          {/* O TEMPO DO TRECHO. "Criado 04/08 → Todos aprovaram
+                                              13/08" obrigava a contar nove dias de cabeça. */}
+                                          {e.desdeAnterior !== null && (
+                                            <span style={{ marginTop: 3, fontSize: 10, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: tomDoIntervalo(e.desdeAnterior), whiteSpace: 'nowrap' }}>
+                                              +{e.desdeAnterior}d
+                                            </span>
+                                          )}
+                                        </span>
+                                      )}
+                                      <span title={`${e.label}${e.ms ? ` · ${fmtDt(new Date(e.ms))}` : ' · sem carimbo de data'}`}
+                                        style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, flexShrink: 0, maxWidth: 78 }}>
+                                        <span aria-hidden="true" style={{
+                                          width: e.ehAtual ? 11 : 8, height: e.ehAtual ? 11 : 8, borderRadius: '50%', flexShrink: 0,
+                                          background: e.cumprida || e.ehAtual ? '#c2410c' : '#e7e5e4',
+                                          boxShadow: e.ehAtual ? '0 0 0 3px rgba(251,146,60,0.25)' : 'none',
+                                        }} />
+                                        {(e.ehAtual || e.ms) && (
+                                          <span style={{ fontSize: 10, fontWeight: e.ehAtual ? 800 : 600, color: e.ehAtual ? '#9a3412' : '#57534e', lineHeight: 1.2, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                            {e.label}
+                                          </span>
+                                        )}
+                                        {e.ms && (
+                                          <span style={{ fontSize: 10, color: '#746e69', fontVariantNumeric: 'tabular-nums', lineHeight: 1.2, whiteSpace: 'nowrap' }}>
+                                            {fmtDt(new Date(e.ms), true)}
+                                          </span>
+                                        )}
+                                      </span>
+                                    </Fragment>
+                                  ))}
                                 </div>
-                                {i < timelineMilestones.length - 1 && (
-                                  <span style={{ display: 'flex', alignItems: 'center', margin: '0 8px', flexShrink: 0 }}>
-                                    <span style={{ display: 'block', width: 24, height: 1, background: '#e5e7eb' }} />
-                                    <span style={{ fontSize: 11, color: '#d1d5db', marginLeft: -2 }}>›</span>
-                                  </span>
-                                )}
-                              </Fragment>
-                            ))}
-                          </div>
-                        )}
+                              </div>
 
-                        {/* ── Pipeline de fluxo — só no desktop: no mobile as 10
-                            etapas viravam scroll horizontal ilegível ── */}
-                        {!isMobile && (
-                        <div style={{ borderTop: '1px solid #f5f5f4', padding: '12px 16px 14px', overflow: 'hidden' }}>
-                          {/* stepper: linha absoluta + dots + labels */}
-                          <div className="pipeline-scroll"><div style={{ position: 'relative', minWidth: 500 }}>
-                            {/* linha conectora de fundo */}
-                            <div style={{ position: 'absolute', top: 5, left: 0, right: 0, height: 2, background: '#ede9e4', borderRadius: 999 }} />
-                            {/* linha preenchida até etapa atual */}
-                            <div style={{ position: 'absolute', top: 5, left: 0, height: 2, borderRadius: 999, background: '#c4bfb8', width: `${currentPipelineIdx / (PIPELINE_STAGES.length - 1) * 100}%`, transition: 'width 0.3s' }} />
-                            {/* dots */}
-                            <div style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', zIndex: 1 }}>
-                              {PIPELINE_STAGES.map((stage, si) => {
-                                const isDone    = si < currentPipelineIdx;
-                                const isCurrent = si === currentPipelineIdx;
-                                const stageColor = isCurrent ? (stage as any).color || '#78716c' : '#c4bfb8';
-                                return (
-                                  <div key={stage.key} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
-                                    <div style={{
-                                      width: isCurrent ? 12 : isDone ? 8 : 8,
-                                      height: isCurrent ? 12 : isDone ? 8 : 8,
-                                      borderRadius: '50%',
-                                      background: isCurrent ? stageColor : isDone ? '#c4bfb8' : '#e8e4e0',
-                                      border: isCurrent ? `2px solid ${stageColor}` : 'none',
-                                      boxShadow: isCurrent ? `0 0 0 3px ${stageColor}30` : 'none',
-                                      transition: 'all 0.15s',
-                                      flexShrink: 0,
-                                    }} />
-                                    {isCurrent && (
-                                      <span style={{
-                                        fontSize: 11, fontWeight: 800,
-                                        color: stageColor,
-                                        whiteSpace: 'nowrap', lineHeight: 1.2, textAlign: 'center',
-                                      }}>{stage.label}</span>
-                                    )}
-                                  </div>
-                                );
-                              })}
-                            </div></div>
-                          </div>
-                        </div>
-                        )}
+                              {/* O NÚMERO ACIONÁVEL: quanto tempo a peça está parada aqui
+                                  (em curso) ou quanto a jornada inteira levou (concluída). */}
+                              {j.duracao !== null && (
+                                <span data-testid={`text-duracao-${item.id}`}
+                                  title={j.concluida ? 'Da solicitação ao último carimbo' : 'Tempo desde o último carimbo desta peça'}
+                                  style={{ flexShrink: 0, textAlign: 'right', lineHeight: 1.25 }}>
+                                  <span style={{ display: 'block', fontSize: 15, fontWeight: 800, fontVariantNumeric: 'tabular-nums', color: j.concluida ? '#57534e' : tomDoIntervalo(j.duracao) }}>
+                                    {j.duracao}d
+                                  </span>
+                                  <span style={{ display: 'block', fontSize: 10, color: '#746e69', whiteSpace: 'nowrap' }}>
+                                    {j.concluida ? 'no total' : 'nesta etapa'}
+                                  </span>
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })()}
 
                         {/* ── Chips de patrocinadores ── */}
                         {sortedApprovals.length > 0 && (

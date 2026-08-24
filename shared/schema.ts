@@ -430,6 +430,19 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash").notNull(),
   role: text("role").notNull().default("solicitacao"), // admin, solicitacao, arte, grafica, atendimento
   mustChangePassword: boolean("must_change_password").notNull().default(true),
+  // QUANDO A PESSOA ENTROU PELA ÚLTIMA VEZ. Sem isto, a tela de usuários
+  // lista quem TEM acesso e nunca diz quem USA: quem saiu da empresa há seis
+  // meses aparece igual a quem entrou hoje — e essa é a pergunta central de
+  // uma tela de controle de acesso.
+  //
+  // Gravada nos DOIS caminhos de entrada (senha em routes/auth.ts e SSO em
+  // index.ts), e em nenhum outro lugar: renovar sessão não é login.
+  //
+  // NULL é legítimo e IRRECUPERÁVEL: nada registrava login antes da coluna —
+  // nem o audit_log tem ação de entrada, e a tabela de sessões é rolling de
+  // 7 dias. Uma conta com NULL não é "nunca usada"; é "anterior ao registro".
+  // A tela que consumir isto tem de dizer as duas coisas de formas diferentes.
+  lastLoginAt: timestamp("last_login_at"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 });
@@ -748,6 +761,9 @@ export const insertUserSchema = createInsertSchema(users).omit({
   createdAt: true,
   updatedAt: true,
   passwordHash: true,
+  // Só o login grava o carimbo de acesso — cadastro que o aceitasse poderia
+  // fabricar uma conta "usada ontem" que nunca foi aberta.
+  lastLoginAt: true,
 }).extend({
   password: z.string().min(6, "Senha deve ter no mínimo 6 caracteres"),
   role: z.enum(["admin", "solicitacao", "arte", "grafica", "atendimento"]).default("solicitacao"),

@@ -352,6 +352,10 @@ describe("as telas que consomem a rota", () => {
   it("a lista mesclada é deduplicada por id antes de virar timeline", () => {
     // A janela da primeira página anda para frente enquanto o cliente caminha
     // para trás: sem a deduplicação, um registro repetido vira linha repetida.
-    expect(historico).toMatch(/naPrimeira\.has\(l\.id\)/);
+    // O dedup mudou de forma quando a mescla passou a receber TRÊS fontes
+    // (primeira página, páginas caminhadas e resultados de busca além da
+    // janela): um Set único de vistos, alimentado na ordem.
+    expect(historico).toMatch(/vistos\.has\(l\.id\)/);
+    expect(historico).toContain("paginasSeguintes.concat(alemDaJanela)");
   });
 });

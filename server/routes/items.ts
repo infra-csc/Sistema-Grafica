@@ -6,6 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { storage, assetPrefix, assetSeqOf, isDisplayIdConflictError } from "../storage";
 import type { Item } from "@shared/schema";
+import { DEPOIS_DA_ARTE } from "@shared/fluxo-peca";
 import {
   insertItemSchema,
   publicInsertItemSchema,
@@ -3087,16 +3088,6 @@ export function registerItemRoutes(app: Express): void {
   // O thumb e o arquivo final NÃO são apagados. A peça pode voltar igual, e
   // jogar fora o trabalho da Arte por precaução obrigaria a refazê-lo à toa;
   // se o solicitante mudar tipo ou medida, o fluxo normal já pede arte nova.
-  /**
-   * Estados em que a peça JÁ SAIU da mesa da Arte. Devolver daqui é legítimo
-   * (decisão do dono), mas não é rotina: some uma linha da fila de outra
-   * equipe, então a trilha marca esses casos para quem for ler depois.
-   */
-  const DEPOIS_DA_ARTE = new Set([
-    "ready_for_production", "approved", "inProduction",
-    "produced", "conferred", "delivered", "canceled", "archived",
-  ]);
-
   app.patch("/api/items/:id/arte-reject", requireAuth, async (req, res) => {
     try {
       if (req.userRole !== "arte" && req.userRole !== "admin") {

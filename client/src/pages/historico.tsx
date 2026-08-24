@@ -737,11 +737,31 @@ export default function Historico() {
   // gravações novas empurram a janela dos 500 para frente: uma linha que estava
   // na primeira página quando o caminhamento começou pode reaparecer na página
   // seguinte depois de um refetch.
+  /**
+   * REGISTROS ALÉM DA JANELA, trazidos sob demanda.
+   *
+   * A trilha caminhada para em 20.000 registros — e a busca e a trilha por
+   * peça filtravam SÓ essa janela. Buscar "#2993" numa peça de 7 de agosto
+   * respondia "nada": errado por omissão, na tela cujo trabalho é responder
+   * "o que aconteceu com X".
+   *
+   * Quando há busca ou trilha aberta E a janela está incompleta, a tela pede
+   * ao servidor o recorte — que consulta a TABELA INTEIRA (?busca= /
+   * ?entityId=, sem teto de data) — e mescla o resultado aqui. A lista
+   * cronológica sem filtro continua exatamente como era: janela + teto.
+   */
+  const [alemDaJanela, setAlemDaJanela] = useState<any[]>([]);
+
   const auditLogs = useMemo(() => {
-    if (paginasSeguintes.length === 0) return primeiraPagina;
-    const naPrimeira = new Set(primeiraPagina.map((l: any) => l.id));
-    return primeiraPagina.concat(paginasSeguintes.filter((l: any) => !naPrimeira.has(l.id)));
-  }, [primeiraPagina, paginasSeguintes]);
+    const vistos = new Set(primeiraPagina.map((l: any) => l.id));
+    const extras: any[] = [];
+    for (const l of paginasSeguintes.concat(alemDaJanela)) {
+      if (vistos.has(l.id)) continue;
+      vistos.add(l.id);
+      extras.push(l);
+    }
+    return extras.length ? primeiraPagina.concat(extras) : primeiraPagina;
+  }, [primeiraPagina, paginasSeguintes, alemDaJanela]);
 
   const logsTotal = logsQ.data?.total ?? auditLogs.length;
   const isTruncated = logsTotal > auditLogs.length;
@@ -914,6 +934,49 @@ export default function Historico() {
     if (trilha.itemId) return trilha.itemId;
     return displayed.find(e => e.itemDisplayId === trilha.display && e.itemId)?.itemId ?? null;
   }, [trilha, displayed]);
+
+  /* ── A BUSCA E A TRILHA SAEM DA JANELA ──────────────────────────────────
+     Dispara quando há termo (≥2 caracteres) ou trilha aberta, e a janela
+     ainda não é o banco inteiro. Debounce de 350ms — a consulta é ILIKE na
+     tabela toda, e uma por tecla seria grosseria com o servidor.
+
+     Os resultados chegam como REGISTROS CRUS e entram pelo mesmo funil
+     (buildTimeline) das páginas caminhadas: mesma aparência, mesmo autor,
+     mesma navegação. `adoptNextRef` marca a chegada como não-novidade, senão
+     cada busca dispararia a pílula "N novas atividades" sobre um passado que
+     o usuário pediu para ver. */
+  const janelaCompleta = esgotadoRef.current && !tetoAtingido;
+  useEffect(() => {
+    const termo = searchFilter.trim();
+    const querBusca = termo.length >= 2 && !janelaCompleta;
+    const querTrilha = !!trilha && !janelaCompleta;
+    if (!querBusca && !querTrilha) return;
+
+    const ctrl = new AbortController();
+    const t = window.setTimeout(async () => {
+      try {
+        const consultas: string[] = [];
+        if (querBusca) consultas.push(`/api/audit-logs?paged=1&limit=2000&busca=${encodeURIComponent(termo)}`);
+        if (querTrilha && trilhaItemId) consultas.push(`/api/audit-logs?paged=1&limit=2000&entityType=item&entityId=${encodeURIComponent(trilhaItemId)}`);
+        if (consultas.length === 0) return;
+        const respostas = await Promise.all(consultas.map((u) => fetch(u, { credentials: "include", signal: ctrl.signal })));
+        const corpos = await Promise.all(respostas.filter((r) => r.ok).map((r) => r.json()));
+        const logs = corpos.flatMap((c: any) => c.logs ?? []);
+        if (logs.length === 0) return;
+        adoptNextRef.current = true;
+        setAlemDaJanela((prev) => {
+          const vistos = new Set(prev.map((l: any) => l.id));
+          const novos = logs.filter((l: any) => !vistos.has(l.id));
+          return novos.length ? prev.concat(novos) : prev;
+        });
+      } catch {
+        // Rede caiu ou a tela mudou: a busca fica com o que a janela tem, e a
+        // faixa de confiança continua dizendo até onde a trilha alcança.
+      }
+    }, 350);
+    return () => { window.clearTimeout(t); ctrl.abort(); };
+  }, [searchFilter, trilha, trilhaItemId, janelaCompleta]);
+
 
   const filtered = useMemo(() => {
     // A TRILHA ignora os outros recortes de propósito: "trilha completa" com

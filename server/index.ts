@@ -225,6 +225,10 @@ app.post("/api/auth/sso-exchange", async (req: Request, res: Response) => {
   req.session.userId   = entry.userId;
   req.session.userName = entry.userName;
   req.session.userRole = entry.userRole;
+  // O carimbo de login — mesmo contrato do caminho por senha (routes/auth.ts):
+  // fora do caminho crítico, login não falha por causa do registro.
+  pool.query("UPDATE users SET last_login_at = now() WHERE id = $1", [entry.userId])
+    .catch((e) => log(`[SSO] lastLoginAt não gravado: ${e?.message}`));
   await new Promise<void>((resolve, reject) => req.session.save(e => e ? reject(e) : resolve()));
 
   log(`[SSO] sessão criada via exchange para userId: ${entry.userId}`);

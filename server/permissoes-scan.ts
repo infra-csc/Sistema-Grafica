@@ -29,9 +29,9 @@ function coletarAliases(fontes: Map<string, string>): Map<string, string[]> {
   const aliases = new Map<string, string[]>();
   // requireAdmin é definido em shared.ts checando === "admin".
   aliases.set("requireAdmin", ["admin"]);
-  for (const src of fontes.values()) {
-    for (const m of src.matchAll(/const (require\w+) = requireRole\(([^)]*)\)/g)) {
-      const papeis = [...m[2].matchAll(/["'](\w+)["']/g)].map((x) => x[1]);
+  for (const src of Array.from(fontes.values())) {
+    for (const m of Array.from(src.matchAll(/const (require\w+) = requireRole\(([^)]*)\)/g))) {
+      const papeis = Array.from(m[2].matchAll(/["'](\w+)["']/g)).map((x) => x[1]);
       if (papeis.length) aliases.set(m[1], papeis.sort());
     }
   }
@@ -45,9 +45,9 @@ function coletarAliases(fontes: Map<string, string>): Map<string, string[]> {
  */
 function predicadosPuros(src: string): Map<string, string[]> {
   const m = new Map<string, string[]>();
-  for (const f of src.matchAll(/function (\w+)\(req[^)]*\)[^{]*\{\s*\n\s*return ([^;]+);\s*\n\s*\}/g)) {
+  for (const f of Array.from(src.matchAll(/function (\w+)\(req[^)]*\)[^{]*\{\s*\n\s*return ([^;]+);\s*\n\s*\}/g))) {
     const [, nome, corpo] = f;
-    const papeis = [...corpo.matchAll(/userRole === ["'](\w+)["']/g)].map((x) => x[1]);
+    const papeis = Array.from(corpo.matchAll(/userRole === ["'](\w+)["']/g)).map((x) => x[1]);
     const soPapel = corpo.replace(/req\.userRole === ["']\w+["']/g, "").replace(/[\s|()]/g, "") === "";
     if (papeis.length && soPapel) m.set(nome, papeis.sort());
   }
@@ -68,7 +68,7 @@ export function lerReguaDoServidor(dirRoutes?: string): RotaComPapel[] {
   const aliases = coletarAliases(fontes);
   const saida: RotaComPapel[] = [];
 
-  for (const [arquivo, src] of fontes) {
+  for (const [arquivo, src] of Array.from(fontes.entries())) {
     const linhas = src.split(/\r?\n/);
     for (let i = 0; i < linhas.length; i++) {
       const m = linhas[i].match(/app\.(post|patch|put|delete)\(\s*["'`]([^"'`]+)["'`](.*)$/);
@@ -79,8 +79,8 @@ export function lerReguaDoServidor(dirRoutes?: string): RotaComPapel[] {
 
       // 1 · guardas na assinatura (requireRole inline ou alias)
       const inline = resto.match(/requireRole\(([^)]*)\)/);
-      if (inline) for (const p of [...inline[1].matchAll(/["'](\w+)["']/g)]) papeis.add(p[1]);
-      for (const [nome, lista] of aliases) {
+      if (inline) for (const p of Array.from(inline[1].matchAll(/["'](\w+)["']/g))) papeis.add(p[1]);
+      for (const [nome, lista] of Array.from(aliases.entries())) {
         if (resto.includes(nome)) for (const p of lista) papeis.add(p);
       }
 
@@ -100,7 +100,7 @@ export function lerReguaDoServidor(dirRoutes?: string): RotaComPapel[] {
         return bloco.join("\n");
       })();
 
-      const negados = [...corpo.matchAll(/userRole !== ["'](\w+)["']/g)].map((x) => x[1]);
+      const negados = Array.from(corpo.matchAll(/userRole !== ["'](\w+)["']/g)).map((x) => x[1]);
       if (negados.length) for (const p of negados) papeis.add(p);
 
       // 3 · a forma afirmativa (`const isAdmin = userRole === 'admin'`) e os
@@ -110,16 +110,16 @@ export function lerReguaDoServidor(dirRoutes?: string): RotaComPapel[] {
       //     pode virar lista de papéis, senão a tabela afirmaria uma
       //     restrição mais dura do que a real.
       if (papeis.size === 0) {
-        for (const x of corpo.matchAll(/userRole === ["'](\w+)["']/g)) papeis.add(x[1]);
+        for (const x of Array.from(corpo.matchAll(/userRole === ["'](\w+)["']/g))) papeis.add(x[1]);
       }
       if (papeis.size === 0) {
-        for (const [nome, lista] of predicadosPuros(src)) {
+        for (const [nome, lista] of Array.from(predicadosPuros(src).entries())) {
           if (corpo.includes(`${nome}(req`)) for (const p of lista) papeis.add(p);
         }
       }
 
       if (papeis.size === 0) continue;
-      saida.push({ metodo: metodo.toUpperCase(), rota, papeis: [...papeis].sort(), arquivo });
+      saida.push({ metodo: metodo.toUpperCase(), rota, papeis: Array.from(papeis).sort(), arquivo });
     }
   }
   return saida.sort((a, b) => a.rota.localeCompare(b.rota) || a.metodo.localeCompare(b.metodo));

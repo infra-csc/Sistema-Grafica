@@ -323,7 +323,12 @@ export function buildBookEmailMessage(
   };
 }
 
-async function deliver(message: BookEmailMessage): Promise<void> {
+/**
+ * O CANAL DE ENTREGA, um só para o app inteiro. O aviso da fila de revisão
+ * (services/revisaoDigest.ts) passa por aqui: dois caminhos até o provedor
+ * seriam dois lugares para configurar, testar e quebrar.
+ */
+export async function entregarEmail(message: BookEmailMessage): Promise<void> {
   const connectors = new ReplitConnectors();
   const response = await connectors.proxy("resend", "/emails", {
     method: "POST",
@@ -371,7 +376,7 @@ export async function notifyBookSaved(input: BookEmailInput, env: Env = process.
   }
 
   try {
-    await deliver(message);
+    await entregarEmail(message);
     console.info("[book-email] enviado", { eventId: input.eventId, para: message.to, copia: message.bcc ?? [] });
     return { status: "sent", para: message.to, copia: message.bcc ?? [], descartados };
   } catch (error) {

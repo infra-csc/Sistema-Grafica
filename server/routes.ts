@@ -26,6 +26,7 @@ import { registerObjectRoutes } from "./routes/objects";
 import { registerInventoryRoutes } from "./routes/inventory";
 import { registerReparoMotivosRoutes } from "./routes/reparo-motivos";
 import { registerVersoesRoutes } from "./routes/versoes";
+import { startRevisaoDigest } from "./services/revisaoDigest";
 import { startDeadlineAlerts } from "./services/deadlineAlerts";
 import { startInventoryLifecycle } from "./services/inventoryLifecycle";
 import { startPrazoSnapshots } from "./services/prazoSnapshots";
@@ -67,6 +68,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── Background jobs ──────────────────────────────────────────────────────
   startDeadlineAlerts();
+  // Aviso da fila de revisão às 10h, 15h e 18h (services/revisaoDigest.ts).
+  // Sobe junto com os outros trabalhos de fundo; sem REVISAO_DIGEST_ENABLED=true
+  // ele bate o relógio e não faz nada.
+  startRevisaoDigest();
   startInventoryLifecycle();
   // Fecho diário da Gestão de Prazos. Se este registro sumir, nenhum snapshot
   // é gravado: a tendência ▲▼ e a faixa "o que mudou desde ontem" desaparecem

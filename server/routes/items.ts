@@ -26,6 +26,7 @@ import { runInventoryCron } from "../services/inventoryLifecycle";
 import { handlePreviewXlsx, handleConfirmImport } from "../services/xlsxImport";
 import { handleExportItemsXlsx, handleExportSelectedItemsXlsx } from "../services/xlsxExport";
 import { notifyBookSaved, descreverEnvio, type BookEmailResult } from "../services/bookEmailNotification";
+import { enviarAvisoDaRevisao } from "../services/revisaoDigest";
 // A tela de Versões guarda o quadro calculado por 30 s. Toda escrita que mude
 // versão, decisão ou book derruba esse cache na hora — senão o Atendimento
 // revoga uma aprovação e continua vendo o quadro velho numa tela cujo trabalho
@@ -4402,6 +4403,33 @@ export function registerItemRoutes(app: Express): void {
         });
       }
       res.json({ aviso, mensagem: descreverEnvio(aviso) });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // DISPARAR O AVISO DA FILA DE REVISÃO AGORA.
+  //
+  // O aviso é automático às 10h, 15h e 18h; esta porta existe porque ele SAI
+  // do sistema e ninguém deveria precisar esperar três horas para saber se o
+  // canal está de pé — o conector de e-mail só autentica dentro do ambiente
+  // publicado, então testar de fora não é possível.
+  //
+  // Só admin, pela mesma régua do reenvio do book: um clique manda e-mail de
+  // verdade. E ignora a memória da trilha de propósito, senão o segundo teste
+  // do dia responderia "já enviado" sem mandar nada.
+  app.post("/api/revisao/digest/enviar", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas administradores podem disparar o aviso da fila de revisão" });
+      }
+      const r = await enviarAvisoDaRevisao(new Date(), process.env, { manual: true });
+      const mensagem =
+        r.status === "enviado" ? `Aviso enviado — ${r.resumo?.total} na fila, ${r.resumo?.novos} novas.`
+        : r.status === "sem-fila" ? "Nada na fila de revisão agora — o aviso não é enviado quando não há o que revisar."
+        : r.status === "simulado" ? "Modo de simulação ligado: o e-mail foi montado e não enviado."
+        : `Aviso NÃO enviado: ${r.motivo ?? r.status}`;
+      res.json({ ...r, mensagem });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

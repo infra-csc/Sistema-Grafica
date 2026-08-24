@@ -186,7 +186,7 @@ describe("as regras do disparo, escritas no código", () => {
 
   it("quem impede a repetição é a TRILHA, não a memória do processo", () => {
     expect(CODIGO).toContain("async function jaAvisou(dia: string, hora: number): Promise<boolean> {");
-    expect(CODIGO).toContain('if (await jaAvisou(dia, hora)) return { status: "ja-enviado" };');
+    expect(CODIGO).toContain('if (!opcoes.manual && await jaAvisou(dia, hora)) return { status: "ja-enviado" };');
     expect(CODIGO).toContain("entityType: \"revisao\",");
   });
 
@@ -196,8 +196,43 @@ describe("as regras do disparo, escritas no código", () => {
   });
 
   it("desligado por padrão: sem a variável, o relógio bate e não faz nada", () => {
-    expect(CODIGO).toContain('const ligado = env.REVISAO_DIGEST_ENABLED?.trim().toLowerCase() === "true";');
+    expect(CODIGO).toContain('env.REVISAO_DIGEST_ENABLED?.trim().toLowerCase() === "true"');
     expect(CODIGO).toContain('if (!ligado) return { status: "desligado" };');
+  });
+
+  it("o disparo MANUAL pula o interruptor e a trilha — mas não a fila vazia", () => {
+    // O conector de e-mail só autentica dentro do ambiente publicado: sem uma
+    // porta para pedir o envio agora, a única forma de saber se o canal está de
+    // pé é esperar as 10h. Por isso o manual ignora o interruptor e a memória
+    // da trilha (senão o segundo teste do dia responderia "já enviado" sem
+    // mandar nada) — e por isso mesmo ele NÃO ignora a regra da fila vazia.
+    expect(CODIGO).toContain("opcoes: { manual?: boolean } = {},");
+    expect(CODIGO).toContain("const ligado = opcoes.manual || env.REVISAO_DIGEST_ENABLED");
+    expect(CODIGO).toContain('const marcaManual = opcoes.manual ? " [manual]" : "";');
+
+    // a fila vazia é checada DEPOIS, sem exceção para o manual
+    const iVazia = CODIGO.indexOf('if (resumo.total === 0) return { status: "sem-fila", resumo };');
+    expect(iVazia).toBeGreaterThan(CODIGO.indexOf("const ligado ="));
+    expect(CODIGO.slice(iVazia - 200, iVazia)).not.toContain("manual");
+  });
+
+  it("o botão do disparo à mão também é só de admin, e não promete envio", () => {
+    // O servidor já barra, mas desenhar o botão para quem leva 403 é prometer
+    // o que a rota nega. E o aviso pode legitimamente NÃO sair (fila vazia):
+    // um toast fixo de "Enviado" mentiria justamente no caso que interessa.
+    const TELA = readFileSync(new URL("../../client/src/pages/solicitacao.tsx", import.meta.url), "utf8");
+    const i = TELA.indexOf('data-testid="button-avisar-revisao"');
+    expect(i).toBeGreaterThan(-1);
+    expect(TELA.slice(i - 600, i)).toContain('user?.role === "admin"');
+    expect(TELA).toContain('r?.status === "enviado" ? "Aviso enviado" : "Aviso não enviado"');
+  });
+
+  it("só admin pode disparar à mão — um clique manda e-mail de verdade", () => {
+    const ITEMS = readFileSync(new URL("../routes/items.ts", import.meta.url), "utf8");
+    const i = ITEMS.indexOf('app.post("/api/revisao/digest/enviar"');
+    expect(i).toBeGreaterThan(-1);
+    expect(ITEMS.slice(i, i + 400)).toContain('req.userRole !== "admin"');
+    expect(ITEMS.slice(i, i + 400)).toContain("{ manual: true }");
   });
 
   it("e sobe junto com os outros trabalhos de fundo", () => {

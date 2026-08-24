@@ -93,6 +93,7 @@ function rotasDe(rel: string): Rota[] {
  * motivo, porque "não grava" é exatamente o defeito que este arquivo persegue.
  */
 const SEM_AUDITORIA_POR_DESENHO: Record<string, string> = {
+  "POST /api/revisao/digest/enviar": "não escreve peça nem evento: manda o resumo da fila de revisão por e-mail. O rastro do disparo é gravado pelo próprio serviço (entityType \"revisao\"), que é onde ele significa alguma coisa",
   "POST /api/items/export-xlsx": "só lê e devolve arquivo, não muda estado nenhum",
   "POST /api/events/:id/preview-xlsx": "faz o parse da planilha sem salvar nada",
   "POST /api/events/:id/confirm-import": "delega a handleConfirmImport, que grava a trilha",

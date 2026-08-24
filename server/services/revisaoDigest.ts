@@ -222,14 +222,22 @@ async function jaAvisou(dia: string, hora: number): Promise<boolean> {
   return linhas.length > 0;
 }
 
-export async function enviarAvisoDaRevisao(agora: Date, env: Record<string, string | undefined> = process.env): Promise<
+export async function enviarAvisoDaRevisao(
+  agora: Date,
+  env: Record<string, string | undefined> = process.env,
+  opcoes: { manual?: boolean } = {},
+): Promise<
   { status: "desligado" | "sem-fila" | "ja-enviado" | "simulado" | "enviado" | "falhou"; resumo?: ResumoDaRevisao; motivo?: string }
 > {
-  const ligado = env.REVISAO_DIGEST_ENABLED?.trim().toLowerCase() === "true";
+  // O disparo MANUAL ignora o interruptor e a memória da trilha, porque ele é
+  // outra coisa: alguém pediu agora, na tela, e está esperando o e-mail. O que
+  // ele não ignora é a fila vazia — mandar "0 itens" a pedido também ensina a
+  // ignorar o remetente.
+  const ligado = opcoes.manual || env.REVISAO_DIGEST_ENABLED?.trim().toLowerCase() === "true";
   if (!ligado) return { status: "desligado" };
 
   const { dia, hora } = agoraNoFuso(agora);
-  if (await jaAvisou(dia, hora)) return { status: "ja-enviado" };
+  if (!opcoes.manual && await jaAvisou(dia, hora)) return { status: "ja-enviado" };
 
   const [itens, eventos] = await Promise.all([storage.getAllItems(), storage.getAllEvents()]);
   const nomePorId = new Map(eventos.map((e) => [e.id, e.name]));
@@ -246,13 +254,14 @@ export async function enviarAvisoDaRevisao(agora: Date, env: Record<string, stri
     return { status: "falhou", motivo: montado.erro, resumo };
   }
 
+  const marcaManual = opcoes.manual ? " [manual]" : "";
   const registrar = async (desfecho: string) => {
     await db.insert(auditLogs).values({
       userName: "Sistema",
       action: "updated",
       entityType: "revisao",
       entityId: dia,
-      details: `${DETALHE_TRILHA} (${dia} ${hora}h): ${desfecho}`,
+      details: `${DETALHE_TRILHA} (${dia} ${hora}h)${marcaManual}: ${desfecho}`,
     } as any);
   };
 

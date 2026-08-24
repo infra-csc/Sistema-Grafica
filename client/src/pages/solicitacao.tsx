@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { CheckCircle, AlertCircle, Copy, Eye, Search, X, FileImage, Maximize2, Trash2, Paperclip, Recycle, Check, Clock, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, RotateCcw, Truck } from "lucide-react";
+import { CheckCircle, AlertCircle, Copy, Eye, Search, X, FileImage, Maximize2, Trash2, Paperclip, Recycle, Check, Clock, ChevronLeft, ChevronRight, ChevronDown, MoreHorizontal, RotateCcw, Truck, Mail } from "lucide-react";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { FilePreview, isWebUrl } from "@/components/file-preview";
@@ -233,6 +233,36 @@ export default function Solicitacao() {
     (standardItems as any[]).forEach((s: any) => { if (s.group) map[s.name] = s.group; });
     return map;
   }, [standardItems]);
+
+  /**
+   * DISPARAR O AVISO DA FILA AGORA.
+   *
+   * O aviso sai sozinho às 10h, 15h e 18h. Este botão existe porque o e-mail
+   * SAI do sistema: o conector só autentica dentro do ambiente publicado, então
+   * não há como verificar de fora que o canal está de pé — sem ele, a única
+   * forma de descobrir que o aviso parou seria ninguém receber nada e ninguém
+   * estranhar.
+   *
+   * Só admin, pela mesma régua do reenvio do book: um clique manda e-mail de
+   * verdade para outras pessoas.
+   */
+  const avisarRevisaoMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/revisao/digest/enviar", {});
+      return await res.json();
+    },
+    onSuccess: (r: any) => {
+      // O servidor devolve a frase pronta — inclusive quando NÃO enviou (fila
+      // vazia, remetente ausente). "Enviado" seria mentira nesses casos, e o
+      // ponto do botão é justamente saber o que aconteceu.
+      toast({
+        title: r?.status === "enviado" ? "Aviso enviado" : "Aviso não enviado",
+        description: r?.mensagem ?? "Sem resposta do servidor.",
+        variant: r?.status === "enviado" ? undefined : "destructive",
+      });
+    },
+    onError: (error: any) => toast({ title: "Erro ao disparar o aviso", description: error.message, variant: "destructive" }),
+  });
 
   const updateQuantityMutation = useMutation({
     // apiRequest devolve o Response cru — sem o json() o "updatedItem" era o
@@ -922,6 +952,32 @@ export default function Solicitacao() {
           {/* A ENTRADA DA FILA. Sem ela, comecar a revisar exige achar a
               primeira linha e mirar num botao de 90px — e quem abre esta tela
               para trabalhar quer comecar do comeco, nao escolher por onde. */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0, flexWrap: "wrap" }}>
+          {/* O DISPARO À MÃO DO AVISO. Discreto de propósito: é ferramenta de
+              manutenção, não parte do trabalho de revisar — quem entra aqui
+              para revisar não deve tropeçar nele. */}
+          {user?.role === "admin" && (
+            <button
+              type="button"
+              onClick={() => avisarRevisaoMutation.mutate()}
+              disabled={avisarRevisaoMutation.isPending}
+              data-testid="button-avisar-revisao"
+              title="Manda agora o resumo da fila para quem recebe o aviso das 10h, 15h e 18h. Se a fila estiver vazia, nada é enviado."
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 7, flexShrink: 0,
+                height: 40, padding: "0 14px", borderRadius: 8,
+                border: "1px solid #d6d3d1", backgroundColor: "#fff", color: "#44403c",
+                cursor: avisarRevisaoMutation.isPending ? "wait" : "pointer",
+                font: "inherit", fontSize: 13, fontWeight: 600, whiteSpace: "nowrap",
+                opacity: avisarRevisaoMutation.isPending ? 0.6 : 1,
+              }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = "#fafaf9"; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = "#fff"; }}
+            >
+              <Mail aria-hidden="true" style={{ width: 15, height: 15 }} />
+              {avisarRevisaoMutation.isPending ? "Enviando…" : "Avisar por e-mail"}
+            </button>
+          )}
           {filteredItems.length > 0 && (
             <button
               type="button"
@@ -940,6 +996,7 @@ export default function Solicitacao() {
               Revisar em fila ({filteredItems.length})
             </button>
           )}
+          </div>
         </div>
       </section>
 

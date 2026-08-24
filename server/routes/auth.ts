@@ -80,6 +80,14 @@ export function registerAuthRoutes(app: Express): void {
       req.session.userName = user.name;
       req.session.userRole = user.role;
 
+      // O carimbo de login. Fora do caminho crítico de propósito: se o UPDATE
+      // falhar, a pessoa ENTRA mesmo assim — o registro existe para a gestão
+      // de acesso, não para autenticar, e negar login por causa dele seria
+      // deixar o termômetro desligar o paciente.
+      storage.updateUser(user.id, { lastLoginAt: new Date() }).catch((e) =>
+        console.error("lastLoginAt não gravado (login por senha):", e?.message),
+      );
+
       // Don't send password hash to client
       const { passwordHash: _, ...userWithoutPassword } = user;
       res.json(userWithoutPassword);

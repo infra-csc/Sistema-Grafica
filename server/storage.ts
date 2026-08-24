@@ -1460,7 +1460,9 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(users).orderBy(desc(users.createdAt));
   }
 
-  async createUser(insertUser: Omit<User, 'id' | 'createdAt' | 'updatedAt'>): Promise<User> {
+  // lastLoginAt fora do contrato: só o LOGIN grava o carimbo de acesso — um
+  // cadastro que o aceitasse poderia fabricar uma conta 'usada ontem'.
+  async createUser(insertUser: Omit<User, 'id' | 'createdAt' | 'updatedAt' | 'lastLoginAt'>): Promise<User> {
     const [user] = await db
       .insert(users)
       .values(insertUser)

@@ -23,9 +23,13 @@ describe("o recorte de reaproveitamento", () => {
     expect(LIB).toContain("if (!ignorarStatus && f.reaproveitamento && !(item.isReuse || reusedTotalOf(item) > 0)) return false;");
   });
 
-  it("o chip conta do pool sem a própria dimensão e some só quando zerado E desligado", () => {
-    expect(TELA).toContain('data-testid="chip-reaproveitamento"');
-    expect(TELA).toContain("(comReusoNaLista > 0 || filtros.reaproveitamento) && (");
+  it("o recorte mora no MENU DE STATUS, como valor sintético (25/08)", () => {
+    // O chip solto ficava longe de onde se filtra — o dono mandou juntar.
+    // "reuso" entra e sai do boolean, nunca do array de status.
+    expect(TELA).toContain('set: (v: string[]) => patchFiltros({ status: v.filter((x) => x !== "reuso"), reaproveitamento: v.includes("reuso") })');
+    expect(TELA).toContain('{ value: "reuso", label: "♻ Com reaproveitamento", count: comReusoNaLista, pinned: true }');
+    expect(TELA).not.toContain('data-testid="chip-reaproveitamento"');
+    // a contagem continua do pool sem a própria dimensão
     expect(TELA).toContain("(statsPool as any[]).filter((i: any) => i.isReuse || reusedTotalOf(i) > 0).length");
   });
 });

@@ -489,7 +489,10 @@ describe("Gráfica — todo dropdown sai do mesmo pool da lista", () => {
     // 24/08: os selects viraram a lista SELECTS_PRINCIPAIS (uma fonte, duas
     // apresentações — barra desktop e folha do celular); as opções continuam
     // vindo dos pools derivados, agora como campo da lista.
-    expect(GRAFICA).toContain("options: statusFilterOptions");
+    // 25/08: o menu de Status ganhou o valor sintético "reuso" — as opções
+    // continuam nascendo do pool derivado, com o extra anexado por cima.
+    expect(GRAFICA).toContain("? [...statusFilterOptions, { value: \"reuso\",");
+    expect(GRAFICA).toContain(": statusFilterOptions,");
     expect(GRAFICA).toContain("options: mesFilterOptions");
   });
 });

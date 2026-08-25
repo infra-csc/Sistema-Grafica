@@ -24,6 +24,8 @@ import { useRoute, Link } from "wouter";
 import { Printer, ArrowLeft, Tags } from "lucide-react";
 import { compareDisplayId } from "@/lib/displayId";
 import { ehBookCompleto } from "@shared/fluxo-peca";
+import { logoDaCapaDoBook } from "@/lib/logo-do-book";
+import { useEffect } from "react";
 
 /** Conferida = já passou pela conferência (inclui as entregues e as grafias legadas). */
 const CONFERIDA = new Set(["conferred", "conferido", "delivered", "entregue"]);
@@ -57,6 +59,15 @@ export default function EtiquetasEvento() {
   const [orientacao, setOrientacao] = useState<"paisagem" | "retrato">("paisagem");
 
   /**
+   * O LOGO DA PROVA, tirado do book (pedido do dono, 25/08): a capa do book
+   * subido é o logo num fundo liso — rasterizada e recortada, vira a marca
+   * da etiqueta, no lugar da linha de texto. Sem book (ou capa ilegível), a
+   * etiqueta segue como era: o logo é enfeite, não pré-requisito.
+   */
+  const [logo, setLogo] = useState<string | null>(null);
+  const [usarLogo, setUsarLogo] = useState(true);
+
+  /**
    * A PALAVRA GIGANTE da etiqueta. No modelo do dono o nome tem dois níveis:
    * a marca do evento pequena ('Circuito Corrida Vale 2026') e a CIDADE
    * enorme ('ITABIRA') — é ela que se lê de longe. O padrão é a última
@@ -79,6 +90,15 @@ export default function EtiquetasEvento() {
   }, [itens, incluirTodas]);
 
   const pecas = useMemo(() => pool.filter((p) => !desmarcadas.has(p.id)), [pool, desmarcadas]);
+
+  const bookUrl = useMemo(() => (itens as any[]).find((i) => i.bookUrl && !i.deletedAt)?.bookUrl ?? null, [itens]);
+  useEffect(() => {
+    let vivo = true;
+    setLogo(null);
+    if (!bookUrl) return;
+    logoDaCapaDoBook(bookUrl).then((l) => { if (vivo) setLogo(l); });
+    return () => { vivo = false; };
+  }, [bookUrl]);
 
   const conferidas = useMemo(() => (itens as any[]).filter((i) => !i.deletedAt && jaConferida(i)).length, [itens]);
 
@@ -128,6 +148,12 @@ export default function EtiquetasEvento() {
           <input type="checkbox" checked={incluirTodas} onChange={(e) => setIncluirTodas(e.target.checked)} data-testid="check-incluir-todas" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
           Incluir as não conferidas
         </label>
+        {logo && (
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, color: "#44403c", cursor: "pointer" }}>
+            <input type="checkbox" checked={usarLogo} onChange={(e) => setUsarLogo(e.target.checked)} data-testid="check-usar-logo" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
+            Logo do book
+          </label>
+        )}
         {/* Orientação da folha — o retrato é o template original do dono. */}
         <div role="group" aria-label="Orientação da folha" style={{ display: "inline-flex", borderRadius: 8, border: "1px solid #d6d3d1", overflow: "hidden" }}>
           {([["paisagem", "Deitada"], ["retrato", "Em pé"]] as const).map(([v, rotulo]) => (
@@ -223,9 +249,14 @@ export default function EtiquetasEvento() {
                   <p style={{ margin: 0, fontSize: 13, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#78716c" }}>
                     {event?.truckDepartureDate ? `Saída ${dataBR(event.truckDepartureDate)}` : " "}
                   </p>
-                  {/* Dois níveis, como no modelo: a marca do evento pequena e
-                      a palavra de destaque GIGANTE — é ela que se lê de longe. */}
-                  {prefixo && (
+                  {/* Dois níveis, como no modelo: a marca (o LOGO do book,
+                      quando existe; senão o resto do nome em texto) e a
+                      palavra de destaque GIGANTE — é ela que se lê de longe. */}
+                  {logo && usarLogo && (
+                    <img src={logo} alt="Logo do evento" data-testid="logo-etiqueta"
+                      style={{ maxHeight: 92, maxWidth: "60%", objectFit: "contain", alignSelf: "flex-start", margin: "4px 0 6px" }} />
+                  )}
+                  {!(logo && usarLogo) && prefixo && (
                     <p style={{ margin: "4px 0 0", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: "clamp(16px, 2vw, 24px)", textTransform: "uppercase", letterSpacing: "0.01em", color: "#1c1917", lineHeight: 1.1 }}>
                       {prefixo}
                     </p>

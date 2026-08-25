@@ -93,5 +93,36 @@ describe("seleção e origem (25/08)", () => {
     expect(G.split("/etiquetas?de=grafica").length - 1).toBe(2);
   });
 });
+describe("o logo da prova, tirado do book (25/08)", () => {
+  it("o recorte da caixa do conteúdo é puro e acha o logo no fundo liso", async () => {
+    const { recortarCaixaDoConteudo } = await import("../../client/src/lib/logo-do-book");
+    // 10×10 de fundo (200,200,200) com um bloco 3×2 escuro em (4,3)
+    const w = 10, h = 10;
+    const px = new Uint8ClampedArray(w * h * 4).fill(200);
+    for (let y = 3; y < 5; y++) for (let x = 4; x < 7; x++) {
+      const i = (y * w + x) * 4; px[i] = 20; px[i+1] = 80; px[i+2] = 60;
+    }
+    const caixa = recortarCaixaDoConteudo(px, w, h);
+    expect(caixa).not.toBeNull();
+    // contém o bloco (com folga de 3% arredondada)
+    expect(caixa!.x).toBeLessThanOrEqual(4);
+    expect(caixa!.x + caixa!.w).toBeGreaterThanOrEqual(7);
+    expect(caixa!.y).toBeLessThanOrEqual(3);
+    expect(caixa!.y + caixa!.h).toBeGreaterThanOrEqual(5);
+    // página toda lisa: nada a recortar
+    expect(recortarCaixaDoConteudo(new Uint8ClampedArray(w * h * 4).fill(200), w, h)).toBeNull();
+  });
+
+  it("a etiqueta usa o logo quando existe, com interruptor, e cai para o texto", () => {
+    expect(PAGINA).toContain('data-testid="logo-etiqueta"');
+    expect(PAGINA).toContain('data-testid="check-usar-logo"');
+    expect(PAGINA).toContain("{!(logo && usarLogo) && prefixo && (");
+    // nunca lança: sem book a etiqueta segue como era
+    const LIB = readFileSync(new URL("../../client/src/lib/logo-do-book.ts", import.meta.url), "utf8");
+    expect(LIB).toContain("return null;");
+    expect(LIB).toContain("catch {");
+  });
+});
+
 
 

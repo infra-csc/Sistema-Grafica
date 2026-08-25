@@ -1871,33 +1871,7 @@ export default function Grafica() {
               {complementoChipLabel}
             </button>
           )}
-          {/* SÓ REAPROVEITAMENTO — o que desta fila sai do estoque em vez da
-              impressora. O reuso sempre foi visível peça a peça; este chip é o
-              recorte que faltava para planejar impressão. Some quando não há
-              nenhum (chip zerado só ocupa espaço), mas fica se o filtro está
-              LIGADO — senão não haveria como desligar. */}
-          {(comReusoNaLista > 0 || filtros.reaproveitamento) && (
-            <button
-              onClick={() => patchFiltros({ reaproveitamento: !filtros.reaproveitamento })}
-              aria-pressed={filtros.reaproveitamento}
-              data-testid="chip-reaproveitamento"
-              title={filtros.reaproveitamento
-                ? "Mostrando só peças com reaproveitamento — toque para ver a lista inteira"
-                : "Mostrar só as peças com reaproveitamento (total ou parcial) — o que sai do estoque em vez da impressora"}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 6,
-                backgroundColor: filtros.reaproveitamento ? "#dcfce7" : "#f0fdf4",
-                color: "#047857",
-                border: `1px solid ${filtros.reaproveitamento ? "#047857" : "#bbf7d0"}`,
-                borderRadius: 999, padding: isMobile ? "7px 12px" : "5px 11px",
-                fontSize: 11, fontWeight: 700, cursor: "pointer",
-                whiteSpace: "nowrap", transition: "background-color 0.15s",
-              }}
-            >
-              <Recycle aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />
-              {comReusoNaLista} c/ reaproveitamento
-            </button>
-          )}
+{/* O recorte de reaproveitamento mora no menu de Status (25/08). */}
           {/* Quanto do recorte é evento que já acabou. NÃO é botão: não há o
               que alternar — a regra do dono é que estas peças aparecem, e um
               chip que as escondesse desfaria a decisão num clique. É o
@@ -2148,7 +2122,16 @@ export default function Grafica() {
       {(() => {
         const trigger: React.CSSProperties = { backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, color: TI.text };
         const SELECTS_PRINCIPAIS = [
-          { label: "Status", allLabel: "Todos os status", values: filtros.status, set: (v: string[]) => patchFiltros({ status: v }), options: statusFilterOptions, testId: "select-status-filter", sempre: true, busca: "Buscar status...", vazio: "Nenhum status nesta fila." },
+          // O reaproveitamento mora DENTRO do menu de Status (pedido do dono,
+          // 25/08 — o chip solto ficava longe de onde se filtra). "reuso" é um
+          // valor sintético: entra e sai do boolean, nunca do array de status.
+          { label: "Status", allLabel: "Todos os status",
+            values: filtros.reaproveitamento ? [...filtros.status, "reuso"] : filtros.status,
+            set: (v: string[]) => patchFiltros({ status: v.filter((x) => x !== "reuso"), reaproveitamento: v.includes("reuso") }),
+            options: comReusoNaLista > 0 || filtros.reaproveitamento
+              ? [...statusFilterOptions, { value: "reuso", label: "♻ Com reaproveitamento", count: comReusoNaLista, pinned: true }]
+              : statusFilterOptions,
+            testId: "select-status-filter", sempre: true, busca: "Buscar status...", vazio: "Nenhum status nesta fila." },
           { label: "Grupo", allLabel: "Todos os grupos", values: filtros.grupo, set: (v: string[]) => patchFiltros({ grupo: v }), options: groupFilterOptions, testId: "select-group-filter", sempre: false, busca: "Buscar grupo...", vazio: "Nenhum grupo encontrado." },
           { label: "Percurso", allLabel: "Todos os percursos", values: filtros.percurso, set: (v: string[]) => patchFiltros({ percurso: v }), options: percursoFilterOptions, testId: "select-percurso-filter", sempre: false, busca: "Buscar percurso...", vazio: "Nenhum percurso encontrado." },
           { label: "Mês", allLabel: "Todos os meses", values: filtros.mes, set: (v: string[]) => patchFiltros({ mes: v }), options: mesFilterOptions, testId: "select-month-filter", sempre: true, busca: "Buscar mês...", vazio: "Nenhuma saída de caminhão nesta fila." },

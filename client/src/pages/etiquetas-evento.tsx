@@ -23,6 +23,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { Printer, ArrowLeft, Tags } from "lucide-react";
 import { compareDisplayId } from "@/lib/displayId";
+import { ehBookCompleto } from "@shared/fluxo-peca";
 
 /** Conferida = já passou pela conferência (inclui as entregues e as grafias legadas). */
 const CONFERIDA = new Set(["conferred", "conferido", "delivered", "entregue"]);
@@ -52,7 +53,8 @@ export default function EtiquetasEvento() {
   });
 
   const pecas = useMemo(() => {
-    const vivas = (itens as any[]).filter((i) => !i.deletedAt && i.status !== "canceled" && i.status !== "archived");
+    // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
+    const vivas = (itens as any[]).filter((i) => !i.deletedAt && i.status !== "canceled" && i.status !== "archived" && !ehBookCompleto(i));
     const base = incluirTodas ? vivas : vivas.filter(jaConferida);
     return [...base].sort((a, b) => compareDisplayId(a.displayId, b.displayId));
   }, [itens, incluirTodas]);

@@ -23,6 +23,7 @@
 //     às 10h05 não manda o aviso das 10h de novo.
 // ─────────────────────────────────────────────────────────────────────────────
 import { storage } from "../storage";
+import { ehBookCompleto } from "@shared/fluxo-peca";
 import { db } from "../db";
 import { auditLogs } from "@shared/schema";
 import { sql } from "drizzle-orm";
@@ -97,7 +98,8 @@ export function montarResumo(
   desde: Date,
   agora: Date,
 ): ResumoDaRevisao {
-  const naFila = itens.filter((i) => i.status === STATUS_EM_REVISAO && !i.deletedAt);
+  // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
+  const naFila = itens.filter((i) => i.status === STATUS_EM_REVISAO && !i.deletedAt && !ehBookCompleto(i));
   const entrouEm = (i: any) => new Date(i.statusChangedAt ?? i.updatedAt ?? i.createdAt).getTime();
 
   const porEvento = new Map<string, number>();

@@ -26,6 +26,7 @@ import {
   P,
   type EventoFinalizadoMotivo,
 } from "@/lib/status";
+import { ehBookCompleto } from "@shared/fluxo-peca";
 // Raio e paleta vêm de fonte, não do dedo: `R` tem cinco degraus e a Arte
 // chegou a usar dezenove; `P` é a mesma paleta que os selos de status já
 // consomem, e reescrever o hex dela numa tela cria uma cópia que não
@@ -643,7 +644,11 @@ export default function Arte() {
   // o predicado lê.
   const hojeBusinessMs = useMemo(() => spDayMs(new Date(agora)), [agora]);
   const allItems = useMemo(
-    () => (pecasDoServidor as any[]).filter((i: any) => !isEventoFinalizado(i.event, hojeBusinessMs)),
+    // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça
+    // (ver shared/fluxo-peca). A CORREÇÃO não passa por aqui (vem de
+    // /api/items/resubmission-needed): reprovada, a peça-book continua com
+    // porta de reenvio da v2.
+    () => (pecasDoServidor as any[]).filter((i: any) => !isEventoFinalizado(i.event, hojeBusinessMs) && !ehBookCompleto(i)),
     [pecasDoServidor, hojeBusinessMs],
   );
   const correcaoItems = useMemo(

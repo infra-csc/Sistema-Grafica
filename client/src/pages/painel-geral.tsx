@@ -36,6 +36,7 @@ import { getStatusMeta, getStatusLabel, getApprovalMeta, motivoEventoFinalizado,
 // tela tivesse a sua regra, o número da Análise e a contagem daqui
 // divergiriam, e a tela de destino desmentiria a tela de origem.
 import { temRefacao } from "@/lib/analises-desempenho";
+import { ehBookCompleto } from "@shared/fluxo-peca";
 import { isDelivered } from "@/lib/analises-status";
 import { StatusPill } from "@/components/status-pill";
 import type { Event, Sponsor, StandardItem } from "@shared/schema";
@@ -580,7 +581,7 @@ export default function PainelGeral() {
   // 60s e ao voltar o foco da aba. Sem botão "Atualizar" (decisão do dono): a
   // tela se atualiza sozinha e o carimbo diz desde quando o que se lê é verdade.
   const {
-    data: items = [], isLoading, isError, isFetching, dataUpdatedAt, refetch,
+    data: itensDoServidor = [], isLoading, isError, isFetching, dataUpdatedAt, refetch,
   } = useQuery<any[]>({
     queryKey: ["/api/items"],
     staleTime: 30_000,
@@ -588,6 +589,8 @@ export default function PainelGeral() {
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });
+  // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
+  const items = useMemo(() => (itensDoServidor as any[]).filter((i: any) => !ehBookCompleto(i)), [itensDoServidor]);
   const { data: events = [] }        = useQuery<Event[]>({ queryKey: ["/api/events"], placeholderData: [], staleTime: 30_000, refetchOnWindowFocus: true });
   const { data: sponsors = [] }      = useQuery<Sponsor[]>({ queryKey: ["/api/sponsors"], placeholderData: [] });
   const { data: standardItems = [] } = useQuery<StandardItem[]>({ queryKey: ["/api/standard-items"], placeholderData: [] });

@@ -9,6 +9,7 @@
 // Esta camada é I/O + montagem. A REGRA (ler a frase da trilha, fechar as
 // passagens, mediana, planejado) mora em `../services/tempo-etapas.ts`, testada
 // em `server/__tests__/analises-tempo-etapas.test.ts`.
+import { ehBookCompleto } from "@shared/fluxo-peca";
 import type { Express } from "express";
 import { storage } from "../storage";
 import type { ItemTransitionLog } from "../storage";
@@ -118,7 +119,7 @@ export function registerAnaliseRoutes(app: Express): void {
 
       const [eventos, itens] = await Promise.all([
         storage.getAllEvents(),
-        storage.getAllItems(),
+        storage.getAllItems().then((l) => l.filter((i) => !ehBookCompleto(i))), // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
       ]);
 
       // eventId → dia-calendário da saída do caminhão (a âncora do recorte).

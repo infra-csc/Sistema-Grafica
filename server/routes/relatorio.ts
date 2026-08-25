@@ -25,6 +25,7 @@ import {
   DELIVERED,
 } from "../services/prazo-domain";
 import { requireAuth } from "./shared";
+import { ehBookCompleto } from "@shared/fluxo-peca";
 
 /** Quantas fotos recentes viajam — o relatório é resumo, não galeria. */
 export const RELATORIO_MAX_FOTOS = 8;
@@ -36,7 +37,8 @@ export function registerRelatorioRoutes(app: Express): void {
       if (!event) return res.status(404).json({ error: "Evento não encontrado" });
 
       const [itens, allSponsors, openApprovals, allUsers, todasFotos] = await Promise.all([
-        storage.getItemsByEvents([event.id]),
+        // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
+        storage.getItemsByEvents([event.id]).then((l) => l.filter((i) => !ehBookCompleto(i))),
         storage.getAllSponsors(),
         storage.getOpenItemSponsorApprovals(),
         storage.getAllUsers(),

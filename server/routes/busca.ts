@@ -20,6 +20,7 @@ import { db } from "../db";
 import { items, events } from "@shared/schema";
 import { and, desc, ilike, isNull, or, sql } from "drizzle-orm";
 import { requireAuth } from "./shared";
+import { ehBookCompleto } from "@shared/fluxo-peca";
 
 /** Escapa %, _ e \ — "2x1" e "100%" são texto, não curinga. */
 export function termoLiteral(t: string): string {
@@ -79,7 +80,8 @@ export function registerBuscaRoutes(app: Express): void {
           .limit(BUSCA_MAX_EVENTOS),
       ]);
 
-      res.json({ pecas, eventos });
+      // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
+      res.json({ pecas: pecas.filter((p) => !ehBookCompleto(p)), eventos });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

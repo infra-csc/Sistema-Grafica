@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { storage, assetPrefix, assetSeqOf, isDisplayIdConflictError } from "../storage";
 import type { Item } from "@shared/schema";
-import { DEPOIS_DA_ARTE, EM_REVISAO } from "@shared/fluxo-peca";
+import { DEPOIS_DA_ARTE, EM_REVISAO, ehBookCompleto } from "@shared/fluxo-peca";
 import {
   insertItemSchema,
   publicInsertItemSchema,
@@ -857,7 +857,9 @@ export function registerItemRoutes(app: Express): void {
     try {
       const approvedItems = await storage.getApprovedItems();
       const itemsWithEventsAndSponsors = await enrichItemsWithEventsAndSponsors(approvedItems);
-      res.json(itemsWithEventsAndSponsors);
+      // BOOK COMPLETO fica de fora da fila da Gráfica: é o trâmite do
+      // Atendimento, não uma peça imprimível (ver shared/fluxo-peca).
+      res.json(itemsWithEventsAndSponsors.filter((i: any) => !ehBookCompleto(i)));
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

@@ -18,6 +18,7 @@ import { db } from "../db";
 import { prazoCobrancas, prazoSnapshots, prazoEventSnapshots } from "@shared/schema";
 import type { Item, ItemSponsorApproval } from "@shared/schema";
 import { storage } from "../storage";
+import { ehBookCompleto } from "@shared/fluxo-peca";
 import { requireRole, requireAuth, createAuditLog, broadcast } from "./shared";
 import {
   STAGE_META,
@@ -92,7 +93,9 @@ export function registerPrazoRoutes(app: Express): void {
         storage.getAllUsers(),
       ]);
       const candidates = allEvents.filter((ev) => isPrazoCandidate(ev, today));
-      const candidateItems = await storage.getItemsByEvents(candidates.map((ev) => ev.id));
+      // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
+      const candidateItems = (await storage.getItemsByEvents(candidates.map((ev) => ev.id)))
+        .filter((i) => !ehBookCompleto(i));
 
       const itemsByEvent = new Map<string, Item[]>();
       for (const it of candidateItems) {

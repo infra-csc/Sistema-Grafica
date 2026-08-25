@@ -25,6 +25,7 @@ import {
 import { useState, useMemo, useEffect, Fragment, useRef } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useAuth } from "@/contexts/auth-context";
+import { ehBookCompleto } from "@shared/fluxo-peca";
 import {
   STATUS, getStatusMeta,
   seloPecaEventoFinalizado, motivoAcaoBloqueada, todayBusinessMs,
@@ -217,7 +218,9 @@ export default function Solicitacao() {
   // que é, e o botão de enviar ficava desabilitado sem explicar por quê.
   const motivoCurto = (t: string) => t.trim().replace(/\s+/g, " ").length < MOTIVO_MIN;
   const avisoMotivoCurto = `Explique o motivo em pelo menos ${MOTIVO_MIN} caracteres — a Arte precisa saber o que corrigir.`;
-  const { data: items = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({ queryKey: ["/api/items"] });
+  const { data: itensDoServidor = [], isLoading: itemsLoading, isError: itemsError, refetch: refetchItems } = useQuery<any[]>({ queryKey: ["/api/items"] });
+  // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
+  const items = useMemo(() => (itensDoServidor as any[]).filter((i: any) => !ehBookCompleto(i)), [itensDoServidor]);
   const { data: events = [], isLoading: eventsLoading, isError: eventsError, refetch: refetchEvents } = useQuery<any[]>({ queryKey: ["/api/events"] });
   // Histórico da peça: só busca com o modal aberto, já filtrado e limitado no
   // servidor. A chave em duas partes ("/api/audit-logs" + querystring) mantém

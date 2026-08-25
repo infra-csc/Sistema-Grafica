@@ -38,6 +38,7 @@
 //    em vez de escolher em silêncio — é justamente o caso que a tela julga;
 //  · o book ganha estado: "em dia" ou "desatualizado, N peças mudaram depois".
 // ─────────────────────────────────────────────────────────────────────────────
+import { ehBookCompleto } from "@shared/fluxo-peca";
 import type { Express } from "express";
 import { db } from "../db";
 import { storage } from "../storage";
@@ -165,7 +166,7 @@ async function carregar(): Promise<DadosDeVersoes> {
   if (cache && Date.now() - cache.calculadoEm < TTL_MS) return cache;
 
   const [itens, eventos, sponsors, aprovacoes, versoesGravadas, booksGravados, logsDeTroca] = await Promise.all([
-    storage.getAllItems(),
+    storage.getAllItems().then((l) => l.filter((i) => !ehBookCompleto(i))), // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
     storage.getAllEvents(),
     storage.getAllSponsors(),
     storage.getAllItemSponsorApprovals(),

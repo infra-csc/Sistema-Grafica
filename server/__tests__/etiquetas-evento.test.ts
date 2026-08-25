@@ -127,6 +127,23 @@ describe("o logo da prova, tirado do book (25/08)", () => {
     expect(LIB).toContain("return null;");
     expect(LIB).toContain("catch {");
   });
+
+  it("o logo JÁ vem ao abrir: cache por book e impressão que espera (25/08)", () => {
+    // O dono pegou o vão em produção: a extração leva segundos e dava para
+    // imprimir sem o logo sem perceber.
+    const LIB = readFileSync(new URL("../../client/src/lib/logo-do-book.ts", import.meta.url), "utf8");
+    // cache no localStorage, chaveado pela URL do book (book novo = logo novo)
+    expect(LIB).toContain('"norte:logo-book:" + bookUrl');
+    expect(LIB).toContain("localStorage.getItem(CHAVE)");
+    expect(LIB).toContain("localStorage.setItem(CHAVE, dataUrl)");
+    // e falha de cache nunca vira falha de logo
+    expect(LIB.split("} catch {").length - 1).toBeGreaterThanOrEqual(3);
+    // enquanto extrai, o Imprimir espera — sem logo só quem desmarcar
+    expect(PAGINA).toContain("disabled={buscandoLogo && usarLogo}");
+    expect(PAGINA).toContain('{buscandoLogo && usarLogo ? "Buscando o logo…" : "Imprimir / PDF"}');
+    // o interruptor existe já durante a busca, para poder desmarcar
+    expect(PAGINA).toContain("{(logo || buscandoLogo) && (");
+  });
 });
 
 

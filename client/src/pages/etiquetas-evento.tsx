@@ -180,10 +180,7 @@ export default function EtiquetasEvento() {
           <input type="checkbox" checked={incluirTodas} onChange={(e) => setIncluirTodas(e.target.checked)} data-testid="check-incluir-todas" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
           Incluir as não conferidas
         </label>
-        {buscandoLogo && (
-          <span data-testid="logo-buscando" style={{ fontSize: 12, color: "#78716c" }}>buscando o logo do book…</span>
-        )}
-        {logo && (
+        {(logo || buscandoLogo) && (
           <label style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, color: "#44403c", cursor: "pointer" }}>
             <input type="checkbox" checked={usarLogo} onChange={(e) => setUsarLogo(e.target.checked)} data-testid="check-usar-logo" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
             Logo do book
@@ -214,9 +211,14 @@ export default function EtiquetasEvento() {
             style={{ height: 34, width: 140, borderRadius: 8, border: "1px solid #d6d3d1", padding: "0 10px", fontSize: 13, fontFamily: "inherit", color: "#1c1917", backgroundColor: "#fff" }} />
         </label>
         <span style={{ flex: 1 }} />
+        {/* Enquanto o logo está sendo extraído do book, imprimir sairia SEM
+            ele sem ninguém perceber (o dono pegou esse vão em produção). São
+            segundos — o botão espera; quem não quer logo desmarca e imprime. */}
         <button type="button" onClick={() => window.print()} data-testid="button-imprimir-etiquetas"
-          style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 38, padding: "0 16px", borderRadius: 8, border: "none", backgroundColor: "#1c1917", color: "#fff", cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 700 }}>
-          <Printer style={{ width: 14, height: 14 }} /> Imprimir / PDF
+          disabled={buscandoLogo && usarLogo}
+          title={buscandoLogo && usarLogo ? 'Extraindo o logo do book — segundos. Para imprimir sem logo, desmarque "Logo do book".' : undefined}
+          style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 38, padding: "0 16px", borderRadius: 8, border: "none", backgroundColor: buscandoLogo && usarLogo ? "#e7e5e4" : "#1c1917", color: buscandoLogo && usarLogo ? "#57534e" : "#fff", cursor: buscandoLogo && usarLogo ? "wait" : "pointer", font: "inherit", fontSize: 13, fontWeight: 700 }}>
+          <Printer style={{ width: 14, height: 14 }} /> {buscandoLogo && usarLogo ? "Buscando o logo…" : "Imprimir / PDF"}
         </button>
       </div>
 

@@ -57,6 +57,15 @@ export function recortarCaixaDoConteudo(
  * continua saindo.
  */
 export async function logoDaCapaDoBook(bookUrl: string): Promise<string | null> {
+  // CACHE por book (25/08): extrair leva segundos, e o dono quer o logo já
+  // presente ao abrir a tela. A chave é a URL do book — book novo, logo novo.
+  // O localStorage pode recusar (quota, aba anônima): falha de cache nunca
+  // vira falha de logo, então cada acesso vai em try/catch próprio.
+  const CHAVE = "norte:logo-book:" + bookUrl;
+  try {
+    const guardado = localStorage.getItem(CHAVE);
+    if (guardado) return guardado;
+  } catch { /* sem cache, segue a extração normal */ }
   try {
     const pdfjs = await import("pdfjs-dist");
     const workerUrl = (await import("pdfjs-dist/build/pdf.worker.min.mjs?url")).default;
@@ -81,7 +90,9 @@ export async function logoDaCapaDoBook(bookUrl: string): Promise<string | null> 
     corte.width = caixa.w;
     corte.height = caixa.h;
     corte.getContext("2d")!.drawImage(canvas, caixa.x, caixa.y, caixa.w, caixa.h, 0, 0, caixa.w, caixa.h);
-    return corte.toDataURL("image/png");
+    const dataUrl = corte.toDataURL("image/png");
+    try { localStorage.setItem(CHAVE, dataUrl); } catch { /* quota cheia: sem cache, com logo */ }
+    return dataUrl;
   } catch {
     return null;
   }

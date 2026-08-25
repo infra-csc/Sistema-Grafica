@@ -19,49 +19,28 @@
 //   npx tsx scripts/reparar-vinculos-de-evento.ts           (lista)
 //   npx tsx scripts/reparar-vinculos-de-evento.ts --aplicar (grava)
 // ─────────────────────────────────────────────────────────────────────────────
-import { db } from "../server/db";
-import { items, itemSponsors, eventSponsors, sponsors, events, auditLogs } from "../shared/schema";
-import { isNull, eq } from "drizzle-orm";
+import {
+  aplicarVinculosEventoPendentes,
+  listarVinculosEventoPendentes,
+} from "../server/services/repararVinculosEvento";
 
 async function main() {
   const aplicar = process.argv.includes("--aplicar");
+  // As guardas continuam no serviço compartilhado: `if (jaNoEvento.has(chave)) continue;`
+  // e `if (!peca?.eventId) continue;` — vínculo existente e peça órfã nunca entram.
+  // O vínculo continua nascendo sem cota — defina no Vincular se precisar.
+  const pendencias = await listarVinculosEventoPendentes();
 
-  const [vinculosDePeca, vinculosDeEvento, pecas, cadastro, eventosTodos] = await Promise.all([
-    db.select().from(itemSponsors),
-    db.select().from(eventSponsors),
-    db.select({ id: items.id, eventId: items.eventId, displayId: items.displayId }).from(items).where(isNull(items.deletedAt)),
-    db.select({ id: sponsors.id, name: sponsors.name }).from(sponsors),
-    db.select({ id: events.id, name: events.name }).from(events),
-  ]);
-
-  const pecaPorId = new Map(pecas.map((p) => [p.id, p]));
-  const nomeDoSponsor = new Map(cadastro.map((s) => [s.id, s.name]));
-  const nomeDoEvento = new Map(eventosTodos.map((e) => [e.id, e.name]));
-  const jaNoEvento = new Set(vinculosDeEvento.map((v) => `${v.eventId}|${v.sponsorId}`));
-
-  // eventId|sponsorId → displayIds das peças que provam o vínculo
-  const faltando = new Map<string, string[]>();
-  for (const v of vinculosDePeca) {
-    const peca = pecaPorId.get(v.itemId);
-    if (!peca?.eventId) continue; // peça excluída ou órfã não cria vínculo
-    const chave = `${peca.eventId}|${v.sponsorId}`;
-    if (jaNoEvento.has(chave)) continue;
-    const l = faltando.get(chave) ?? [];
-    l.push(peca.displayId ?? peca.id);
-    faltando.set(chave, l);
-  }
-
-  if (faltando.size === 0) {
+  if (pendencias.length === 0) {
     console.log("Nada a reparar: todo patrocinador de peça está vinculado ao seu evento.");
     return;
   }
 
-  console.log(`${faltando.size} vínculo(s) de evento faltando:\n`);
-  for (const [chave, provas] of Array.from(faltando.entries())) {
-    const [eventId, sponsorId] = chave.split("|");
+  console.log(`${pendencias.length} vínculo(s) de evento faltando:\n`);
+  for (const pendencia of pendencias) {
     console.log(
-      `  · ${nomeDoEvento.get(eventId) ?? eventId} ← "${nomeDoSponsor.get(sponsorId) ?? sponsorId}"` +
-      ` (está em ${provas.length} peça${provas.length !== 1 ? "s" : ""}: ${provas.slice(0, 5).join(", ")}${provas.length > 5 ? "…" : ""})`
+      `  · ${pendencia.eventName} ← "${pendencia.sponsorName}"` +
+      ` (está em ${pendencia.provas.length} peça${pendencia.provas.length !== 1 ? "s" : ""}: ${pendencia.provas.slice(0, 5).join(", ")}${pendencia.provas.length > 5 ? "…" : ""})`
     );
   }
 
@@ -70,19 +49,8 @@ async function main() {
     return;
   }
 
-  for (const chave of Array.from(faltando.keys())) {
-    const [eventId, sponsorId] = chave.split("|");
-    await db.insert(eventSponsors).values({ eventId, sponsorId } as any);
-    await db.insert(auditLogs).values({
-      userId: null,
-      userName: "Script de reparo",
-      action: "added",
-      entityType: "event_sponsor",
-      entityId: `${eventId}_${sponsorId}`,
-      details: `Vínculo evento↔patrocinador criado pelo reparo: "${nomeDoSponsor.get(sponsorId) ?? sponsorId}" já estava em peças do evento "${nomeDoEvento.get(eventId) ?? eventId}" sem constar no evento (sem cota — defina no Vincular se precisar).`,
-    } as any);
-  }
-  console.log(`\n${faltando.size} vínculo(s) criado(s). O Vincular Patrocinadores volta a bater com as peças.`);
+  const resultado = await aplicarVinculosEventoPendentes({ userName: "Script de reparo" });
+  console.log(`\n${resultado.aplicados} vínculo(s) criado(s). O Vincular Patrocinadores volta a bater com as peças.`);
 }
 
 main().then(() => process.exit(0)).catch((e) => { console.error(e); process.exit(1); });

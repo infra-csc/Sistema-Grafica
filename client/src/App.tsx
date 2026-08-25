@@ -117,6 +117,8 @@ const TriagemRetorno = lazyPage(() => import("@/pages/triagem-retorno"));
 const ConfigurarCotas = lazyPage(() => import("@/pages/configurar-cotas"));
 const GestaoPrazos = lazyPage(() => import("@/pages/gestao-prazos"));
 const ReparoMotivos = lazyPage(() => import("@/pages/reparo-motivos"));
+const ReparoVinculosEvento = lazyPage(() => import("@/pages/reparo-vinculos-evento"));
+const InferirExecutivos = lazyPage(() => import("@/pages/inferir-executivos"));
 
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -195,6 +197,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/logs-sistema": "Logs do Sistema",
   "/notificacoes": "Notificações",
   "/reparo-motivos": "Correção de textos",
+  "/reparo-vinculos-evento": "Reparo de vínculos",
   "/change-password": "Alterar Senha",
 };
 
@@ -376,6 +379,9 @@ function Router() {
       </Route>
       <Route path="/reparo-motivos">
         {() => <RoleProtectedRoute component={ReparoMotivos} allowedRoles={ROLES_ADMIN} />}
+      </Route>
+      <Route path="/reparo-vinculos-evento">
+        {() => <RoleProtectedRoute component={ReparoVinculosEvento} allowedRoles={ROLES_ADMIN} />}
       </Route>
       <Route path="/estoque">
         {() => <RoleProtectedRoute component={Estoque} allowedRoles={ROLES_GRAFICA} />}

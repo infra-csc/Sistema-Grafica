@@ -1,6 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { FilterSelect, ShortcutPill } from "@/components/filter-select";
-import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, ImagePlus, FileSpreadsheet, ListChecks, PlusCircle, Trash2, Undo2, Loader2, Recycle } from "lucide-react";
+import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, ImagePlus, FileSpreadsheet, ListChecks, PlusCircle, Trash2, Undo2, Loader2, Recycle, Tag } from "lucide-react";
 import { Fragment, useState, useMemo, useEffect, useRef } from "react";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { parseDateLocal } from "@/lib/utils";
@@ -654,7 +655,8 @@ export default function Grafica() {
     if (feitas > 0) {
       toast({
         title: modo === "confer" ? "Conferência registrada" : "Entrega registrada",
-        description: `${feitas} peça${feitas !== 1 ? "s" : ""} ${modo === "confer" ? "conferida" : "entregue"}${feitas !== 1 ? "s" : ""} pela fila.`,
+        description: `${feitas} peça${feitas !== 1 ? "s" : ""} ${modo === "confer" ? "conferida" : "entregue"}${feitas !== 1 ? "s" : ""} pela fila.` +
+          (modo === "confer" ? " As etiquetas já podem ser impressas — atalho no cabeçalho do evento." : ""),
       });
     }
   };
@@ -1555,6 +1557,24 @@ export default function Grafica() {
   // Conferíveis no filtro atual (para o modo conferência em lote)
   // !EM_REVISAO: peça em revisão com reaproveitamento marcado passaria no
   // canConfer (o reuso não olha status) — e ela está aqui só para ser VISTA.
+  /**
+   * ETIQUETAS NO CAMINHO DE QUEM CONFERE (pedido do dono, 25/08): depois de
+   * conferir, a etiqueta se imprime — e a porta ficava só no Detalhe do
+   * Evento, fora do fluxo da Gráfica. Conta as peças já conferidas de cada
+   * evento NO RECORTE ATUAL; o cabeçalho do evento ganha o atalho quando
+   * há alguma.
+   */
+  const etiquetaveisPorEvento = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const i of filteredItems as any[]) {
+      if (!(conferredOf(i) > 0 || isConferred(i) || isDelivered(i))) continue;
+      const id = String(i.eventId ?? "");
+      if (!id) continue;
+      m.set(id, (m.get(id) ?? 0) + 1);
+    }
+    return m;
+  }, [filteredItems]);
+
   const conferableInFilter = useMemo(
     () => (filteredItems as any[]).filter(i => canConfer(i) && !EM_REVISAO.has(i.status)),
     [filteredItems],
@@ -2515,6 +2535,17 @@ export default function Grafica() {
                           </span>
                         )}
                       </div>
+                      {(etiquetaveisPorEvento.get(String(item.eventId)) ?? 0) > 0 && (
+                        <Link
+                          href={`/eventos/${item.eventId}/etiquetas`}
+                          data-testid={`link-etiquetas-mobile-${item.eventId}`}
+                          title="Imprimir as etiquetas das peças já conferidas deste evento"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, alignSelf: 'flex-start', minHeight: 30, padding: '3px 10px', borderRadius: 999, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', textDecoration: 'none' }}
+                        >
+                          <Tag style={{ width: 11, height: 11 }} />
+                          Etiquetas ({etiquetaveisPorEvento.get(String(item.eventId))})
+                        </Link>
+                      )}
                       {item.event && <DeadlineChip event={item.event} />}
                     </div>
                   )}
@@ -2979,6 +3010,17 @@ export default function Grafica() {
                                   </strong>
                                 </div>
                                 <DeadlineChip event={item.event} />
+                                {(etiquetaveisPorEvento.get(String(item.eventId)) ?? 0) > 0 && (
+                                  <Link
+                                    href={`/eventos/${item.eventId}/etiquetas`}
+                                    data-testid={`link-etiquetas-${item.eventId}`}
+                                    title="Imprimir as etiquetas das peças já conferidas deste evento"
+                                    style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 999, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", textDecoration: "none", whiteSpace: "nowrap" }}
+                                  >
+                                    <Tag style={{ width: 11, height: 11 }} />
+                                    Etiquetas ({etiquetaveisPorEvento.get(String(item.eventId))})
+                                  </Link>
+                                )}
                               </div>
                             )}
                           </div>

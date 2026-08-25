@@ -53,3 +53,24 @@ describe("a página /eventos/:id/etiquetas", () => {
     expect(PAGINA).toContain('!i.deletedAt && i.status !== "canceled" && i.status !== "archived"');
   });
 });
+describe("a etiqueta no caminho de quem confere (25/08)", () => {
+  // Depois de conferir, a etiqueta se imprime — e a porta ficava só no
+  // Detalhe do Evento, fora do fluxo da Gráfica.
+  const G = readFileSync(new URL("../../client/src/pages/grafica.tsx", import.meta.url), "utf8");
+
+  it("o cabeçalho de cada evento na Gráfica ganha o atalho, nos dois layouts", () => {
+    expect(G).toContain("link-etiquetas-mobile-");
+    expect(G).toContain("data-testid={`link-etiquetas-${item.eventId}`}");
+    // só quando há conferida no recorte — atalho para lista vazia é ruído
+    expect(G.split("(etiquetaveisPorEvento.get(String(item.eventId)) ?? 0) > 0").length - 1).toBe(2);
+  });
+
+  it("a contagem é de peça JÁ conferida (total, parcial ou entregue)", () => {
+    expect(G).toContain("conferredOf(i) > 0 || isConferred(i) || isDelivered(i)");
+  });
+
+  it("o galpão avisa no resumo de saída da conferência", () => {
+    expect(G).toContain("As etiquetas já podem ser impressas");
+  });
+});
+

@@ -47,6 +47,11 @@ export const events = pgTable("events", {
    */
   reopenedAt: timestamp("reopened_at"),
   priority: text("priority"), // baixa, media, alta, urgente
+  // A prioridade passou a ser AUTOMÁTICA pela saída do caminhão (25/08, ver
+  // shared/prioridade-do-evento.ts). Este flag é a TRAVA: true = alguém
+  // definiu à mão e a regra não sobrescreve; limpar a prioridade destrava e
+  // a automática volta na hora. Default false = a regra manda.
+  priorityManual: boolean("priority_manual").notNull().default(false),
   franchise: text("franchise"), // Franquia (ex: "Night Run", "Circuito Estações")
   approvalBookUrl: text("approval_book_url"), // URL do PDF com book de aprovação
   createdBy: varchar("created_by").references(() => users.id, { onDelete: "set null" }),

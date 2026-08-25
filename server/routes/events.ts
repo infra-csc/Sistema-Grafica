@@ -27,6 +27,8 @@ import { eventsCache, setEventsCache } from "../cache";
 // de eventoFinalizado.ts). É o único lugar deste arquivo que precisa da
 // checagem (ver comentário na rota POST /api/events/:id/items/submit).
 import { motivoEventoFechado, erroEventoFechado } from "./eventoFinalizado";
+import { prioridadePelaSaida } from "@shared/prioridade-do-evento";
+import { aplicarPrioridadeAutomatica } from "../services/prioridadeAutomatica";
 
 // Normaliza startDate/truckDepartureDate (string "YYYY-MM-DD[THH:MM...]" ou Date
 // vindo do storage) para a data-calendário "YYYY-MM-DD", sem envolver timezone
@@ -619,8 +621,14 @@ export function registerEventRoutes(app: Express): void {
         });
       }
 
+      // PRIORIDADE (25/08): quem escolheu no formulário TRAVA (ajuste manual);
+      // quem não escolheu já nasce com a automática pela saída do caminhão —
+      // sem esperar o próximo tick do job.
+      const prioridadeEscolhida = (safeData as any).priority ?? null;
       const event = await storage.createEvent({
         ...safeData,
+        priority: prioridadeEscolhida ?? prioridadePelaSaida(truckAt.getTime(), Date.now()),
+        priorityManual: !!prioridadeEscolhida,
         startDate: startAt,
         truckDepartureDate: truckAt,
         // Autoria vem SEMPRE da sessão. A coluna existia e nunca era
@@ -748,6 +756,10 @@ export function registerEventRoutes(app: Express): void {
 
       broadcast({ type: "event_updated", event });
 
+      // Mudou a saída do caminhão? A régua automática reprioriza JÁ (só os
+      // eventos sem trava manual) — não no próximo tick de hora.
+      if (patchData.truckDepartureDate) void aplicarPrioridadeAutomatica();
+
       res.json(event);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -764,14 +776,27 @@ export function registerEventRoutes(app: Express): void {
       }
       const { priority } = req.body;
 
-      // priority vazia/null = REMOVER a prioridade (volta a "Sem Prioridade").
-      // Antes só aceitava os 4 níveis — uma vez definida, não havia caminho de volta.
+      // priority vazia/null = DESTRAVAR: a prioridade volta a ser a AUTOMÁTICA
+      // pela saída do caminhão (25/08, shared/prioridade-do-evento). Definir um
+      // nível TRAVA o evento — a regra não sobrescreve escolha de gente.
       const clearing = priority === null || priority === "";
       if (!clearing && !["baixa", "media", "alta", "urgente"].includes(priority)) {
-        return res.status(400).json({ error: "Prioridade inválida. Use: baixa, media, alta, urgente ou vazio para remover" });
+        return res.status(400).json({ error: "Prioridade inválida. Use: baixa, media, alta, urgente ou vazio para voltar à automática" });
       }
 
-      const event = await storage.updateEvent(req.params.id, { priority: clearing ? (null as any) : priority });
+      const before = await storage.getEvent(req.params.id);
+      if (!before) {
+        return res.status(404).json({ error: "Evento não encontrado" });
+      }
+      // Ao destravar, a automática entra JÁ — devolver null e esperar o tick
+      // deixaria o card "sem prioridade" por até uma hora.
+      const automatica = motivoEventoFinalizado(before as any, todayBusinessMs()) !== null
+        ? null
+        : prioridadePelaSaida(before.truckDepartureDate ? new Date(before.truckDepartureDate as any).getTime() : null, Date.now());
+      const event = await storage.updateEvent(req.params.id, {
+        priority: (clearing ? automatica : priority) as any,
+        priorityManual: !clearing,
+      } as any);
       if (!event) {
         return res.status(404).json({ error: "Evento não encontrado" });
       }
@@ -783,8 +808,8 @@ export function registerEventRoutes(app: Express): void {
         'event',
         event.id,
         clearing
-          ? `Prioridade do evento "${event.name}" removida`
-          : `Prioridade do evento "${event.name}" definida como "${priority}"`
+          ? `Prioridade do evento "${event.name}" voltou à automática (regra da saída do caminhão${automatica ? `: "${automatica}"` : ""})`
+          : `Prioridade do evento "${event.name}" definida como "${priority}" à mão — travada; a regra automática não mexe até limpar`
       );
 
       // eventId no topo do payload: o handler do cliente invalida

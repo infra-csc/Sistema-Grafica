@@ -32,6 +32,7 @@ import { startRevisaoDigest } from "./services/revisaoDigest";
 import { startDeadlineAlerts } from "./services/deadlineAlerts";
 import { startInventoryLifecycle } from "./services/inventoryLifecycle";
 import { startPrazoSnapshots } from "./services/prazoSnapshots";
+import { startPrioridadeAutomatica } from "./services/prioridadeAutomatica";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Middleware to extract user info from session
@@ -81,6 +82,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // é gravado: a tendência ▲▼ e a faixa "o que mudou desde ontem" desaparecem
   // para sempre, em silêncio e sem erro. Ver services/prazoSnapshots.ts.
   startPrazoSnapshots();
+  // Prioridade automática pela saída do caminhão (25/08): boot + hora em hora;
+  // respeita a trava manual (events.priority_manual).
+  startPrioridadeAutomatica();
 
   registerInventoryRoutes(app);
 

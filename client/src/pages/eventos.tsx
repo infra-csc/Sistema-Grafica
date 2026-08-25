@@ -3633,7 +3633,7 @@ export default function Eventos() {
               resolve as duas coisas. */}
           <FreezeWhileClosing open={priorityDialogOpen}>
           <DialogTitle className="sr-only">Definir prioridade</DialogTitle>
-          <DialogDescription className="sr-only">Escolha o nível de prioridade do evento. Teclas 1 a 4 definem, 0 remove.</DialogDescription>
+          <DialogDescription className="sr-only">Escolha o nível de prioridade do evento. Teclas 1 a 4 definem e travam a escolha, 0 volta à prioridade automática.</DialogDescription>
           <ModalHeader
             variant="confirm"
             icon={Flag}
@@ -3642,6 +3642,12 @@ export default function Eventos() {
             subtitle={selectedEventForPriority?.name}
             onClose={() => setPriorityDialogOpen(false)}
           />
+          {/* A REGRA (25/08): a prioridade é AUTOMÁTICA pela saída do caminhão
+              (≤3 dias urgente, ≤7 alta, ≤15 média, >15 baixa). Definir aqui
+              TRAVA este evento — a regra para de mexer até voltar à automática. */}
+          <p style={{ margin: 0, padding: "10px 24px 0", fontSize: FS.small, color: "#57534e", lineHeight: 1.45 }}>
+            A prioridade é <strong>automática pela saída do caminhão</strong> (≤3 dias urgente · ≤7 alta · ≤15 média). Escolher um nível aqui <strong>trava</strong> este evento; “Voltar à automática” devolve à regra.
+          </p>
 
           {/* ALTURA: cabeçalho 93 + esta grade de quatro cartões em duas linhas
               ~192 + rodapé 61 = 346px, contra 397 disponíveis numa janela de
@@ -3709,9 +3715,9 @@ export default function Eventos() {
                 data-testid="button-remove-priority"
                 style={{ fontSize: FS.small, fontWeight: '700', color: '#b91c1c', background: 'none', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.08em' }}
               >
-                Remover prioridade (0)
+                Voltar à automática (0)
               </button>
-            ) : <span style={{ fontSize: FS.small, color: T.second }}>Teclas 1–4 definem · 0 remove</span>}
+            ) : <span style={{ fontSize: FS.small, color: T.second }}>Teclas 1–4 travam · 0 volta à automática</span>}
             <button
               onClick={() => setPriorityDialogOpen(false)}
               style={{ fontSize: FS.small, fontWeight: '700', color: T.second, background: 'none', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.08em', transition: 'color 0.15s' }}

@@ -52,7 +52,7 @@ import {
   itemArtVersions, eventBooks, type ItemArtVersion, type InsertItemArtVersion, type EventBook, type InsertEventBook,
 } from "@shared/schema";
 import { db } from "./db";
-import { eq, and, desc, asc, sql, or, lt, gte, ne, inArray, like, ilike } from "drizzle-orm";
+import { eq, and, desc, asc, sql, or, lt, gte, ne, inArray, like, ilike, isNull } from "drizzle-orm";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // VOCABULÁRIO DE displayId — lado SERVIDOR.
@@ -317,6 +317,7 @@ export interface IStorage {
   createBulkItems(items: InsertItem[]): Promise<Item[]>;
   updateItem(id: string, data: Partial<InsertItem>): Promise<Item | undefined>;
   setItemsBookUrl(itemIds: string[], bookUrl: string | null): Promise<number>;
+  markLabelsPrinted(itemIds: string[]): Promise<Item[]>;
   clearEventBookUrl(eventId: string): Promise<number>;
   updateItemWithStatusCheck(id: string, fromStatus: ItemStatus, toStatus: ItemStatus): Promise<Item | null>;
   approveItem(id: string): Promise<Item | undefined>;
@@ -747,6 +748,17 @@ export class DatabaseStorage implements IStorage {
       .where(inArray(items.id, itemIds))
       .returning();
     return res.length;
+  }
+
+  async markLabelsPrinted(itemIds: string[]): Promise<Item[]> {
+    if (itemIds.length === 0) return [];
+    // updatedAt fica quieto de propósito: imprimir a etiqueta não é editar a
+    // peça, e as telas leem updatedAt como "última edição".
+    return db
+      .update(items)
+      .set({ labelPrintedAt: new Date() })
+      .where(and(inArray(items.id, itemIds), isNull(items.deletedAt)))
+      .returning();
   }
 
   async clearEventBookUrl(eventId: string): Promise<number> {

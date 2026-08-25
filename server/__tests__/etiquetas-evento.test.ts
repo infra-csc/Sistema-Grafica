@@ -27,7 +27,7 @@ describe("a página /eventos/:id/etiquetas", () => {
     expect(PAGINA).toContain('size: A4 ${orientacao === "retrato" ? "portrait" : "landscape"}');
     expect(PAGINA).toContain("etq-moldura-retrato");
     expect(PAGINA).toContain("transform: rotate(90deg)");
-    expect(PAGINA).toContain("pecas.slice(f * 2, f * 2 + 2)");
+    expect(PAGINA).toContain("etiquetas.slice(f * 2, f * 2 + 2)");
     // 25/08 (revisão 10/10): a etiqueta virou MEIA FOLHA cravada — a linha de
     // corte cai no meio do papel, onde a guilhotina corta, e não onde o
     // conteúdo mandar. Folha ímpar deixa a metade de baixo vazia.
@@ -88,7 +88,7 @@ describe("seleção e origem (25/08)", () => {
     expect(PAGINA).toContain('data-testid="selecao-todas"');
     expect(PAGINA).toContain('data-testid="selecao-nenhuma"');
     // o conjunto guarda as DESMARCADAS: vazio = todas, e peça nova entra marcada
-    expect(PAGINA).toContain("const pecas = useMemo(() => pool.filter((p) => !desmarcadas.has(p.id)), [pool, desmarcadas]);");
+    expect(PAGINA).toContain("const pecas = useMemo(() => poolFiltrado.filter((p) => !desmarcadas.has(p.id)), [poolFiltrado, desmarcadas]);");
   });
 
   it("quem veio da Gráfica volta para a Gráfica", () => {
@@ -143,6 +143,75 @@ describe("o logo da prova, tirado do book (25/08)", () => {
     expect(PAGINA).toContain('{buscandoLogo && usarLogo ? "Buscando o logo…" : "Imprimir / PDF"}');
     // o interruptor existe já durante a busca, para poder desmarcar
     expect(PAGINA).toContain("{(logo || buscandoLogo) && (");
+  });
+});
+describe("registro de impressão, filtro por tipo e uma por unidade (25/08)", () => {
+  const SCHEMA = readFileSync(new URL("../../shared/schema.ts", import.meta.url), "utf8");
+  const ROTAS = readFileSync(new URL("../routes/items.ts", import.meta.url), "utf8");
+  const STORAGE = readFileSync(new URL("../storage.ts", import.meta.url), "utf8");
+
+  it("a impressão fica gravada: campo na peça + linha na trilha; id órfão não loga", () => {
+    // Decisão do dono (25/08): na peça E no audit_log — o mesmo padrão do
+    // statusChangedAt (leitura rápida na peça, história completa na trilha).
+    expect(SCHEMA).toContain('labelPrintedAt: timestamp("label_printed_at")');
+    expect(ROTAS).toContain('app.post("/api/items/labels-printed", requireAuth');
+    expect(ROTAS).toContain('createAuditLog(req, "label_printed", "item", i.id');
+    // só o que o UPDATE devolveu (peça existente e viva) entra na trilha
+    expect(ROTAS).toContain("const impressas = await storage.markLabelsPrinted(itemIds);");
+    expect(STORAGE).toContain("isNull(items.deletedAt)");
+    // o registro informa, não bloqueia: o client dispara o POST e imprime
+    // sem esperar a rede — folha na mão vale mais que carimbo no banco
+    expect(PAGINA).toContain('apiRequest("POST", "/api/items/labels-printed", { itemIds: ids })');
+    expect(PAGINA).toContain("window.print();");
+  });
+
+  it("a tela abre com as já impressas desmarcadas, com selo e 'só as que faltam'", () => {
+    // semeia UMA vez quando as peças chegam; o refetch pós-impressão não pode
+    // desmarcar o que a pessoa acabou de escolher
+    expect(PAGINA).toContain("const selecaoSemeada = useRef(false);");
+    expect(PAGINA).toContain(".filter((i) => i.labelPrintedAt).map((i) => i.id)");
+    expect(PAGINA).toContain("data-testid={`selo-impressa-${p.id}`}");
+    // 'Só as N que faltam' aparece apenas quando há impressa E pendente
+    expect(PAGINA).toContain('data-testid="selecao-so-novas"');
+    expect(PAGINA).toContain("impressasNoPool > 0 && faltamNoPool > 0");
+    // o selo diz o instante LOCAL (labelPrintedAt é timestamp de clique, não
+    // data de calendário): sem timeZone: "UTC" aqui
+    expect(PAGINA).toContain('new Date(iso).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });');
+  });
+
+  it("escolhe-se pela descrição, com filtro por tipo; 'nenhuma' desmarca TUDO", () => {
+    expect(PAGINA).toContain("maxWidth: 260");
+    expect(PAGINA).toContain('t === null ? "filtro-tipo-todos"');
+    expect(PAGINA).toContain("`filtro-tipo-${t.toLowerCase().replace(");
+    // a fração conta sobre o pool FILTRADO; 'nenhuma' desmarca o pool inteiro
+    expect(PAGINA).toContain("Imprimir ({pecas.length}/{poolFiltrado.length})");
+    expect(PAGINA).toContain("setDesmarcadas(new Set(pool.map((p) => p.id)))");
+    // filtro apontando para tipo que sumiu do pool cai para 'todos' sozinho
+    expect(PAGINA).toContain("tipos.includes(filtroTipo) ? filtroTipo : null");
+  });
+
+  it("'uma por unidade': volume numerado, contagem em etiquetas, padrão desligado", () => {
+    expect(PAGINA).toContain('data-testid="check-por-unidade"');
+    expect(PAGINA).toContain("const [porUnidade, setPorUnidade] = useState(false);");
+    expect(PAGINA).toContain("{e.n} de {e.total}");
+    // peça de 1 unidade não ganha numeração — não há o que numerar
+    expect(PAGINA).toContain("if (q === 1) return [{ p, n: 0, total: 0 }];");
+    // com o interruptor ligado a barra mostra as DUAS contas: é a folha que
+    // vai para a impressora, mas a peça é o que o galpão conhece
+    expect(PAGINA).toContain("{porUnidade && <> · {pecas.length} peça");
+  });
+
+  it("nada do que é novo vaza para o papel", () => {
+    // tudo novo vive nos dois blocos .etq-acao (barra e faixa de seleção),
+    // que o print esconde — e aparece ANTES das folhas no arquivo
+    expect(PAGINA).toContain(".etq-acao { display: none !important; }");
+    expect(PAGINA.split('className="etq-acao"').length - 1).toBe(2);
+    const inicioFolhas = PAGINA.indexOf("── Folhas");
+    expect(inicioFolhas).toBeGreaterThan(-1);
+    for (const marca of ['data-testid="check-por-unidade"', "filtro-tipo-todos", "selo-impressa-", 'data-testid="selecao-so-novas"']) {
+      expect(PAGINA.indexOf(marca)).toBeGreaterThan(-1);
+      expect(PAGINA.indexOf(marca)).toBeLessThan(inicioFolhas);
+    }
   });
 });
 

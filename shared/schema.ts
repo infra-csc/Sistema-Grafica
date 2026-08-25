@@ -257,6 +257,13 @@ export const items = pgTable("items", {
   // material e medidas), rotulada como tal — nunca como origem.
   standardItemId: varchar("standard_item_id").references((): any => standardItems.id, { onDelete: "set null" }),
   deliveredAt: timestamp("delivered_at"), // Timestamp quando foi entregue
+  // QUANDO a etiqueta desta peça saiu na impressora pela última vez (25/08).
+  // A tela de Etiquetas abre com as já impressas desmarcadas — sem isso, a
+  // segunda visita reimprimia a pilha inteira e o galpão recortava etiqueta
+  // duplicada. Fica NA PEÇA (leitura rápida ao abrir a tela) e cada impressão
+  // também vira linha no audit_log, onde o histórico de reimpressões
+  // sobrevive — mesmo padrão de statusChangedAt. NULL = nunca impressa.
+  labelPrintedAt: timestamp("label_printed_at"),
   referenceUrl: text("reference_url"), // Anexo/referência de demonstração das peças (upload do Solicitante)
   bookUrl: text("book_url"), // PDF do book de aprovação (layout pronto) que cobre esta peça — enviado pela Arte para os patrocinadores
   deletedAt: timestamp("deleted_at"), // Soft delete — item permanece no histórico (audit log) mas some das listagens

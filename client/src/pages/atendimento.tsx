@@ -402,6 +402,7 @@ export default function Atendimento() {
    */
   const [addPatrocinadorAberto, setAddPatrocinadorAberto] = useState(false);
   const [addingPatrocinadorId, setAddingPatrocinadorId] = useState<string | null>(null);
+  const [buscaPatrocinador, setBuscaPatrocinador] = useState("");
   // /api/events/:id/sponsors devolve VÍNCULOS ({ sponsorId, quota }) — os
   // nomes vêm do catálogo que esta tela já carrega em /api/sponsors.
   const { data: vinculosDoEvento = [] } = useQuery<any[]>({
@@ -412,6 +413,20 @@ export default function Atendimento() {
     if (!selectedItem || addingPatrocinadorId) return;
     setAddingPatrocinadorId(sp.id);
     try {
+      // Patrocinador de FORA do evento (caso Crystal, 25/08): primeiro entra
+      // no evento — senão a peça carregaria uma marca que nenhuma outra tela
+      // do evento conhece — e depois na peça. Vínculo de evento repetido não
+      // derruba o fluxo: o objetivo é o estado final, não a primeira escrita.
+      const jaNoEvento = (vinculosDoEvento as any[]).some((v: any) => v.sponsorId === sp.id);
+      if (!jaNoEvento) {
+        try {
+          await apiRequest("POST", `/api/events/${selectedItem.eventId}/sponsors`, { sponsorId: sp.id });
+        } catch {
+          // provável duplicata (corrida com outra aba) — o vínculo de PEÇA
+          // logo abaixo é quem decide se a operação falhou de verdade.
+        }
+        queryClient.invalidateQueries({ queryKey: ["/api/events", selectedItem.eventId, "sponsors"] });
+      }
       await apiRequest("POST", `/api/items/${selectedItem.id}/sponsors`, { sponsorId: sp.id });
       // O servidor criou a linha pendente junto; o estado local reflete na
       // hora — a linha nova aparece "Aguardando decisão" sem refetch.
@@ -4004,8 +4019,22 @@ export default function Atendimento() {
                               pendente junto com o vínculo. */}
                           {user?.role === "admin" && (() => {
                             const jaNaRodada = new Set(dialogSponsors.map((s: any) => s.id));
-                            const candidatos = (sponsorsDoEvento as any[]).filter((s: any) => !jaNaRodada.has(s.id));
-                            if (candidatos.length === 0) return null;
+                            const idsDoEvento = new Set((vinculosDoEvento as any[]).map((v: any) => v.sponsorId));
+                            // DO EVENTO primeiro; o resto do catálogo entra pela
+                            // busca (147 nomes não viram lista). O bloco não some
+                            // mais quando o evento está completo — a marca da arte
+                            // pode ser justamente a que falta no evento (Crystal).
+                            const doEvento = (sponsorsDoEvento as any[]).filter((s: any) => !jaNaRodada.has(s.id));
+                            const termo = buscaPatrocinador.trim().toLowerCase();
+                            const doCatalogo = termo.length >= 2
+                              ? (sponsors as any[])
+                                  .filter((s: any) => !jaNaRodada.has(s.id) && !idsDoEvento.has(s.id) && String(s.name ?? "").toLowerCase().includes(termo))
+                                  .slice(0, 8)
+                              : [];
+                            const candidatos = [
+                              ...doEvento.map((s: any) => ({ ...s, foraDoEvento: false })),
+                              ...doCatalogo.map((s: any) => ({ ...s, foraDoEvento: true })),
+                            ];
                             return (
                               <div style={{ marginTop: 14, borderTop: "1px dashed #e7e5e4", paddingTop: 12 }}>
                                 <button
@@ -4016,16 +4045,30 @@ export default function Atendimento() {
                                   style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", padding: 0, fontSize: 12, fontWeight: 700, color: "#78716c", cursor: "pointer" }}
                                 >
                                   <PlusCircle style={{ width: 13, height: 13 }} />
-                                  Adicionar patrocinador ({candidatos.length}) — admin
+                                  Adicionar patrocinador{doEvento.length > 0 ? ` (${doEvento.length} do evento)` : " — buscar no catálogo"} · admin
                                 </button>
                                 {addPatrocinadorAberto && (
                                   <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
                                     <p style={{ margin: 0, fontSize: 11, color: "#78716c", lineHeight: 1.45 }}>
-                                      Para quando a arte carrega uma marca que não foi vinculada. O patrocinador entra como "Aguardando decisão".
+                                      Para quando a arte carrega uma marca que não foi vinculada. O patrocinador entra como "Aguardando decisão"; um de fora do evento é vinculado ao evento junto.
                                     </p>
+                                    <input
+                                      value={buscaPatrocinador}
+                                      onChange={(e) => setBuscaPatrocinador(e.target.value)}
+                                      placeholder="Buscar no catálogo (ex.: Crystal)…"
+                                      aria-label="Buscar patrocinador no catálogo"
+                                      data-testid="input-busca-patrocinador"
+                                      style={{ height: 34, borderRadius: 8, border: "1px solid #d6d3d1", padding: "0 10px", fontSize: 13, fontFamily: "inherit", color: "#1c1917", backgroundColor: "#fff" }}
+                                    />
+                                    {termo.length >= 2 && doCatalogo.length === 0 && (
+                                      <p style={{ margin: 0, fontSize: 11.5, color: "#78716c" }}>Nada no catálogo com "{buscaPatrocinador.trim()}" fora desta rodada.</p>
+                                    )}
                                     {candidatos.map((sp: any) => (
                                       <div key={sp.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 8, backgroundColor: "#fff", border: "1px solid #e7e5e4" }}>
-                                        <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: "#1c1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sp.name}</span>
+                                        <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: "#1c1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                          {sp.name}
+                                          {sp.foraDoEvento && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, color: "#b45309", textTransform: "uppercase" }}>fora do evento</span>}
+                                        </span>
                                         <button
                                           type="button"
                                           onClick={() => adicionarPatrocinador(sp)}

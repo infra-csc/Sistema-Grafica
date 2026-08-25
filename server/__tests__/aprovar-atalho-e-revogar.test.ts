@@ -135,9 +135,15 @@ describe("5 · o admin adiciona o patrocinador que faltava, do próprio modal", 
     expect(SPONSORS).toContain('status: "pending",');
   });
 
-  it("o bloco do modal é só de admin e só oferece quem falta", () => {
+  it("o bloco é só de admin, oferece os do evento E busca no catálogo inteiro", () => {
+    // Revisto no mesmo dia: só-do-evento fazia o bloco SUMIR quando o evento
+    // estava completo — e a marca da arte podia ser justamente a que falta
+    // no evento (caso Crystal). Um de fora entra no evento junto.
     expect(ATEND).toContain('{user?.role === "admin" && (() => {');
-    expect(ATEND).toContain("const candidatos = (sponsorsDoEvento as any[]).filter((s: any) => !jaNaRodada.has(s.id));");
+    expect(ATEND).toContain('data-testid="input-busca-patrocinador"');
+    expect(ATEND).toContain("!jaNaRodada.has(s.id) && !idsDoEvento.has(s.id)");
+    expect(ATEND).toContain("fora do evento");
+    expect(ATEND).toContain('await apiRequest("POST", `/api/events/${selectedItem.eventId}/sponsors`, { sponsorId: sp.id });');
     expect(ATEND).toContain('data-testid="button-add-patrocinador"');
   });
 

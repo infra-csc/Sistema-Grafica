@@ -33,6 +33,7 @@ import DashboardAnalises from "@/pages/dashboard-analises";
 import Eventos from "@/pages/eventos";
 import EventDetail from "@/pages/event-detail";
 import RelatorioEvento from "@/pages/relatorio-evento";
+import EtiquetasEvento from "@/pages/etiquetas-evento";
 import Arte from "@/pages/arte";
 import Atendimento from "@/pages/atendimento";
 import Solicitacao from "@/pages/solicitacao";
@@ -221,6 +222,9 @@ function Router() {
         {() => <ProtectedRoute component={Eventos} />}
       </Route>
       {/* Duas segmentos — declarada antes da genérica por clareza. */}
+      <Route path="/eventos/:id/etiquetas">
+        {() => <ProtectedRoute component={EtiquetasEvento} />}
+      </Route>
       <Route path="/eventos/:id/relatorio">
         {() => <ProtectedRoute component={RelatorioEvento} />}
       </Route>

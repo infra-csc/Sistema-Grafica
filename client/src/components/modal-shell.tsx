@@ -124,9 +124,18 @@ export const MODAL_SHADOW = "0 32px 64px -16px rgba(0,0,0,0.28), 0 0 0 1px rgba(
  */
 export function modalSurface(maxWidth: number): React.CSSProperties {
   return {
-    maxWidth,
+    // min(): o número pedido OU a tela menos a folga — um modal de 468px não
+    // pode encostar nas bordas de um aparelho de 390.
+    maxWidth: `min(${maxWidth}px, calc(100vw - 16px))`,
     width: "96vw",
+    // dvh: o 100vh clássico inclui a barra recolhível do navegador do celular
+    // — o rodapé do modal (onde vive o Confirmar) ficava atrás dela. O vh
+    // fica como fallback de navegador antigo; onde dvh existe, a linha
+    // seguinte vence.
     maxHeight: "calc(100vh - 48px)",
+    ...(typeof CSS !== "undefined" && CSS.supports?.("height: 100dvh")
+      ? { maxHeight: "calc(100dvh - 24px)" }
+      : {}),
     display: "flex",
     flexDirection: "column",
     padding: 0,

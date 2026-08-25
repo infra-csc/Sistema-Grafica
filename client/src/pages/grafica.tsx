@@ -588,6 +588,8 @@ export default function Grafica() {
   const [bannerComplemento, setBannerComplemento] = useState<{ id: string; displayId: string } | null>(null);
   const abrirComplemento = (item: any) => setComplementoItem(item);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  // A folha de filtros do CELULAR (ver a barra de filtros no JSX).
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [productionData, setProductionData] = useState({ quantityProduced: 0 });
   const [deliveryData, setDeliveryData] = useState({ receivedBy: "" });
@@ -1792,7 +1794,7 @@ export default function Grafica() {
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 12 : 24, padding: isMobile ? "12px 12px" : 24, paddingBottom: bulkOn ? 80 : isMobile ? 12 : 24, backgroundColor: TI.bg, height: "100%", overflowY: "auto" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: isMobile ? 12 : 24, padding: isMobile ? "12px 12px" : 24, paddingBottom: bulkOn ? 'calc(88px + env(safe-area-inset-bottom))' : isMobile ? 12 : 24, backgroundColor: TI.bg, height: "100%", overflowY: "auto" }}>
 
       {/* ── Header ── */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: isMobile ? "center" : "flex-end", flexWrap: "wrap", gap: 8 }}>
@@ -2112,90 +2114,75 @@ export default function Grafica() {
         </div>
       </div>
 
-      {/* ── Filters Bar ── */}
-      <div style={{ backgroundColor: "#f3f4f3", borderRadius: 12, padding: "12px 14px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-        {/* Search */}
-        <div style={{ position: "relative", flex: "1", minWidth: 200 }}>
-          {/* #78716c em vez de TI.muted (#a8a29e): 2,06:1 sobre o fundo
-              #e8e8e7 do input reprovava o mínimo de 3:1 de elemento não
-              textual. E a borda de 1px devolve ao campo a cara de campo — sem
-              ela eram 1,06:1 de diferença contra a barra. */}
-          <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "#78716c" }} />
-          <input
-            type="text"
-            placeholder="Buscar por ID, descrição ou evento..."
-            aria-label="Buscar peças"
-            value={buscaInput}
-            onChange={e => setBuscaInput(e.target.value)}
-            data-testid="input-search-filter"
-            style={{ width: "100%", paddingLeft: 32, paddingRight: 12, paddingTop: 8, paddingBottom: 8, backgroundColor: "#e8e8e7", border: "1px solid #d6d3d1", borderRadius: 6, fontSize: 13, color: TI.text, boxSizing: "border-box" }}
-            onFocus={e => { e.currentTarget.style.borderColor = "#c2410c"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(194,65,12,0.18)"; }}
-            onBlur={e => { e.currentTarget.style.borderColor = "#d6d3d1"; e.currentTarget.style.boxShadow = "none"; }}
+      {/* ── Filters Bar ───────────────────────────────────────────────────────
+          DESKTOP: a faixa horizontal de sempre — os selects viraram um map
+          sobre SELECTS_PRINCIPAIS apenas para o celular reutilizar EXATAMENTE
+          os mesmos campos (uma lista, duas apresentações; JSX duplicado foi a
+          dívida que esta base já pagou cara demais).
+          CELULAR: a pilha de sete gatilhos empurrava a fila para fora da
+          dobra — o operador rolava uma tela de filtros antes de ver a primeira
+          peça. Vira busca + "Filtros (N)", que abre uma FOLHA em tela cheia
+          com os mesmos campos empilhados, de dedo (100dvh: o 100vh clássico
+          esconde o rodapé atrás da barra do navegador). Nada some: mesmo
+          vocabulário, mesmos testids, mesma URL. */}
+      {(() => {
+        const trigger: React.CSSProperties = { backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, color: TI.text };
+        const SELECTS_PRINCIPAIS = [
+          { label: "Status", allLabel: "Todos os status", values: filtros.status, set: (v: string[]) => patchFiltros({ status: v }), options: statusFilterOptions, testId: "select-status-filter", sempre: true, busca: "Buscar status...", vazio: "Nenhum status nesta fila." },
+          { label: "Grupo", allLabel: "Todos os grupos", values: filtros.grupo, set: (v: string[]) => patchFiltros({ grupo: v }), options: groupFilterOptions, testId: "select-group-filter", sempre: false, busca: "Buscar grupo...", vazio: "Nenhum grupo encontrado." },
+          { label: "Percurso", allLabel: "Todos os percursos", values: filtros.percurso, set: (v: string[]) => patchFiltros({ percurso: v }), options: percursoFilterOptions, testId: "select-percurso-filter", sempre: false, busca: "Buscar percurso...", vazio: "Nenhum percurso encontrado." },
+          { label: "Mês", allLabel: "Todos os meses", values: filtros.mes, set: (v: string[]) => patchFiltros({ mes: v }), options: mesFilterOptions, testId: "select-month-filter", sempre: true, busca: "Buscar mês...", vazio: "Nenhuma saída de caminhão nesta fila." },
+        ];
+        const AVANCADOS = [
+          { label: "Tipo", allLabel: "Todos os tipos", values: filtros.tipo, set: (v: string[]) => patchFiltros({ tipo: v }), options: typeFilterOptions, testId: "select-type-filter" },
+          { label: "Material", allLabel: "Todos os materiais", values: filtros.material, set: (v: string[]) => patchFiltros({ material: v }), options: materialFilterOptions, testId: "select-material-filter" },
+          { label: "Acabamento", allLabel: "Todos os acabamentos", values: filtros.acabamento, set: (v: string[]) => patchFiltros({ acabamento: v }), options: finishFilterOptions, testId: "select-finish-filter" },
+        ];
+        const selects = (fullWidth: boolean) => SELECTS_PRINCIPAIS.map(f => (
+          <FilterSelect
+            key={f.label} showAllLabelWhenEmpty hideWhenEmpty={f.sempre ? false : undefined}
+            fullWidth={fullWidth}
+            label={f.label} allLabel={f.allLabel}
+            values={f.values} onValuesChange={f.set}
+            options={f.options}
+            searchPlaceholder={f.busca} emptyText={f.vazio}
+            testId={f.testId}
+            triggerStyle={trigger}
           />
-        </div>
-
-        {/* Event */}
-        <EventFilterDropdown
-          values={filtros.evento}
-          onValuesChange={v => patchFiltros({ evento: v })}
-          options={eventFilterOptions}
-        />
-
-        {/* Status */}
-        <FilterSelect
-          showAllLabelWhenEmpty hideWhenEmpty={false}
-          label="Status" allLabel="Todos os status"
-          values={filtros.status} onValuesChange={v => patchFiltros({ status: v })}
-          options={statusFilterOptions}
-          searchPlaceholder="Buscar status..." emptyText="Nenhum status nesta fila."
-          testId="select-status-filter"
-          triggerStyle={{ backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, color: TI.text }}
-        />
-
-        {/* Grupo e Percurso — pedido da Gráfica, na barra principal (e não nos
-            avançados) porque é com eles que a fila de placas é separada antes
-            de montar um lote. hideWhenEmpty padrão: só aparecem quando o
-            recorte tem grupo cadastrado / placa com percurso no texto. */}
-        <FilterSelect
-          showAllLabelWhenEmpty
-          label="Grupo" allLabel="Todos os grupos"
-          values={filtros.grupo} onValuesChange={v => patchFiltros({ grupo: v })}
-          options={groupFilterOptions}
-          searchPlaceholder="Buscar grupo..." emptyText="Nenhum grupo encontrado."
-          testId="select-group-filter"
-          triggerStyle={{ backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, color: TI.text }}
-        />
-
-        <FilterSelect
-          showAllLabelWhenEmpty
-          label="Percurso" allLabel="Todos os percursos"
-          values={filtros.percurso} onValuesChange={v => patchFiltros({ percurso: v })}
-          options={percursoFilterOptions}
-          searchPlaceholder="Buscar percurso..." emptyText="Nenhum percurso encontrado."
-          testId="select-percurso-filter"
-          triggerStyle={{ backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, color: TI.text }}
-        />
-
-        {/* Mês */}
-        <FilterSelect
-          showAllLabelWhenEmpty hideWhenEmpty={false}
-          label="Mês" allLabel="Todos os meses"
-          values={filtros.mes} onValuesChange={v => patchFiltros({ mes: v })}
-          options={mesFilterOptions}
-          searchPlaceholder="Buscar mês..." emptyText="Nenhuma saída de caminhão nesta fila."
-          testId="select-month-filter"
-          triggerStyle={{ backgroundColor: "#e8e8e7", border: "none", borderRadius: 6, fontSize: 13, color: TI.text }}
-        />
-
-        {/* Próximos 10 dias — job 4 do vocabulário (components/filter-select.tsx).
-            Era o ÚNICO `role="switch"` de filtro do app: o mesmo recorte, com o
-            mesmo nome, que a Arte e os Eventos oferecem como pílula. E o
-            interruptor mentia sobre o que é: switch promete gravar uma
-            preferência ("notificações ligadas"), e isto é recorte de tela — sai
-            no F5 de quem não estiver com ele na URL.
-            O trilho de 38×20 também dependia SÓ DA COR para dizer o estado;
-            a pílula acende com tint, peso 700 e o ✓ à esquerda. */}
-        <div style={{ borderLeft: `1px solid ${TI.border}`, paddingLeft: 12, marginLeft: 4 }}>
+        ));
+        const avancados = (fullWidth: boolean) => AVANCADOS.map(f => (
+          <FilterSelect
+            key={f.label}
+            fullWidth={fullWidth || undefined} showAllLabelWhenEmpty hideWhenEmpty={false}
+            label={f.label} allLabel={f.allLabel}
+            values={f.values} onValuesChange={f.set}
+            options={f.options}
+            searchPlaceholder={`Buscar ${f.label.toLowerCase()}...`}
+            emptyText="Nada encontrado."
+            testId={f.testId}
+            triggerStyle={trigger}
+          />
+        ));
+        const campoBusca = (
+          <div style={{ position: "relative", flex: "1", minWidth: isMobile ? 0 : 200 }}>
+            {/* #78716c em vez de TI.muted (#a8a29e): 2,06:1 sobre o fundo
+                #e8e8e7 do input reprovava o mínimo de 3:1 de elemento não
+                textual. E a borda de 1px devolve ao campo a cara de campo. */}
+            <Search style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", width: 14, height: 14, color: "#78716c" }} />
+            <input
+              type="text"
+              placeholder="Buscar por ID, descrição ou evento..."
+              aria-label="Buscar peças"
+              value={buscaInput}
+              onChange={e => setBuscaInput(e.target.value)}
+              data-testid="input-search-filter"
+              style={{ width: "100%", paddingLeft: 32, paddingRight: 12, paddingTop: isMobile ? 11 : 8, paddingBottom: isMobile ? 11 : 8, backgroundColor: "#e8e8e7", border: "1px solid #d6d3d1", borderRadius: 6, fontSize: 13, color: TI.text, boxSizing: "border-box" }}
+              onFocus={e => { e.currentTarget.style.borderColor = "#c2410c"; e.currentTarget.style.boxShadow = "0 0 0 3px rgba(194,65,12,0.18)"; }}
+              onBlur={e => { e.currentTarget.style.borderColor = "#d6d3d1"; e.currentTarget.style.boxShadow = "none"; }}
+            />
+          </div>
+        );
+        const pillProximos = (
           <ShortcutPill
             label="Próximos 10 dias"
             icon={Truck}
@@ -2204,26 +2191,8 @@ export default function Grafica() {
             testId="button-next-10-days-filter"
             title="Só peças de evento cujo caminhão sai nos próximos 10 dias"
           />
-        </div>
-
-        {/* Filtros Avançados */}
-        <button
-          onClick={() => setShowAdvancedFilters(v => !v)}
-          data-testid="button-toggle-advanced-filters"
-          style={{ display: "flex", alignItems: "center", gap: 5, backgroundColor: showAdvancedFilters ? TI.text : "transparent", color: showAdvancedFilters ? "#ffffff" : TI.secondary, border: `1px solid ${showAdvancedFilters ? TI.text : TI.border}`, borderRadius: 6, padding: "7px 12px", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.15s" }}
-        >
-          <Filter style={{ width: 13, height: 13 }} />
-          Filtros
-          <ChevronDown style={{ width: 12, height: 12, transform: showAdvancedFilters ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
-        </button>
-
-        {/* Limpar tudo — não existia reset global em lugar nenhum da tela: o
-            card Total limpava só o status, o link vermelho só os três
-            avançados, e busca/evento/grupo/percurso/mês/próximos-10-dias
-            precisavam ser desfeitos um a um (6 a 9 cliques com tudo ligado).
-            A contagem sai da tabela de campos da lib — filtro novo entra aqui
-            sozinho, sem ninguém lembrar de atualizar lista nenhuma. */}
-        {haFiltro && (
+        );
+        const botaoLimpar = haFiltro && (
           <button
             type="button"
             onClick={limparFiltros}
@@ -2239,38 +2208,149 @@ export default function Grafica() {
             <X aria-hidden="true" style={{ width: 12, height: 12 }} />
             Limpar tudo ({nFiltros})
           </button>
-        )}
+        );
 
-        {/* Avançados */}
-        {showAdvancedFilters && (
-          <div style={{ width: "100%", display: "grid", gridTemplateColumns: isMobile ? "1fr" : "repeat(3, 1fr)", gap: 8, borderTop: `1px solid ${TI.border}`, paddingTop: 10, marginTop: 2 }}>
-            {[
-              { label: "Tipo", allLabel: "Todos os tipos", values: filtros.tipo, onValuesChange: (v: string[]) => patchFiltros({ tipo: v }), options: typeFilterOptions, testId: "select-type-filter" },
-              { label: "Material", allLabel: "Todos os materiais", values: filtros.material, onValuesChange: (v: string[]) => patchFiltros({ material: v }), options: materialFilterOptions, testId: "select-material-filter" },
-              { label: "Acabamento", allLabel: "Todos os acabamentos", values: filtros.acabamento, onValuesChange: (v: string[]) => patchFiltros({ acabamento: v }), options: finishFilterOptions, testId: "select-finish-filter" },
-            ].map(f => (
-              <FilterSelect
-                key={f.label}
-                fullWidth showAllLabelWhenEmpty hideWhenEmpty={false}
-                label={f.label} allLabel={f.allLabel}
-                values={f.values} onValuesChange={f.onValuesChange}
-                options={f.options}
-                searchPlaceholder={`Buscar ${f.label.toLowerCase()}...`}
-                emptyText="Nada encontrado."
-                testId={f.testId}
-                triggerStyle={{ backgroundColor: "#e8e8e7", border: "none", fontSize: 13, color: TI.text }}
-              />
-            ))}
-            {(filtros.tipo.length > 0 || filtros.material.length > 0 || filtros.acabamento.length > 0) && (
-              <div style={{ gridColumn: "1 / -1" }}>
-                <button onClick={() => patchFiltros({ tipo: [], material: [], acabamento: [] })} data-testid="button-reset-advanced-filters" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#dc2626", fontWeight: 600 }}>
-                  Limpar filtros avançados
-                </button>
+        if (!isMobile) return (
+          <div style={{ backgroundColor: "#f3f4f3", borderRadius: 12, padding: "12px 14px", display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+            {campoBusca}
+            <EventFilterDropdown
+              values={filtros.evento}
+              onValuesChange={v => patchFiltros({ evento: v })}
+              options={eventFilterOptions}
+            />
+            {selects(false)}
+            <div style={{ borderLeft: `1px solid ${TI.border}`, paddingLeft: 12, marginLeft: 4 }}>
+              {pillProximos}
+            </div>
+            <button
+              onClick={() => setShowAdvancedFilters(v => !v)}
+              data-testid="button-toggle-advanced-filters"
+              style={{ display: "flex", alignItems: "center", gap: 5, backgroundColor: showAdvancedFilters ? TI.text : "transparent", color: showAdvancedFilters ? "#ffffff" : TI.secondary, border: `1px solid ${showAdvancedFilters ? TI.text : TI.border}`, borderRadius: 6, padding: "7px 12px", fontSize: 13, fontWeight: 600, cursor: "pointer", transition: "all 0.15s" }}
+            >
+              <Filter style={{ width: 13, height: 13 }} />
+              Filtros
+              <ChevronDown style={{ width: 12, height: 12, transform: showAdvancedFilters ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }} />
+            </button>
+            {botaoLimpar}
+            {showAdvancedFilters && (
+              <div style={{ width: "100%", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, borderTop: `1px solid ${TI.border}`, paddingTop: 10, marginTop: 2 }}>
+                {avancados(true)}
+                {(filtros.tipo.length > 0 || filtros.material.length > 0 || filtros.acabamento.length > 0) && (
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <button onClick={() => patchFiltros({ tipo: [], material: [], acabamento: [] })} data-testid="button-reset-advanced-filters" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#dc2626", fontWeight: 600 }}>
+                      Limpar filtros avançados
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
-        )}
-      </div>
+        );
+
+        // ── CELULAR: busca sempre à mão + a folha de filtros ──
+        return (
+          <>
+            <div style={{ backgroundColor: "#f3f4f3", borderRadius: 12, padding: "10px 12px", display: "flex", flexDirection: "column", gap: 8 }}>
+              {campoBusca}
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                <button
+                  type="button"
+                  onClick={() => setFiltrosAbertos(true)}
+                  data-testid="button-abrir-filtros-mobile"
+                  style={{
+                    flex: 1, display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    minHeight: 44, borderRadius: 8,
+                    backgroundColor: nFiltros > 0 ? TI.text : "#ffffff",
+                    color: nFiltros > 0 ? "#ffffff" : TI.secondary,
+                    border: `1px solid ${nFiltros > 0 ? TI.text : TI.border}`,
+                    fontSize: 13, fontWeight: 700, cursor: "pointer",
+                  }}
+                >
+                  <Filter style={{ width: 14, height: 14 }} />
+                  Filtros{nFiltros > 0 ? ` (${nFiltros})` : ""}
+                </button>
+                {botaoLimpar}
+              </div>
+            </div>
+
+            {filtrosAbertos && (
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Filtros da fila"
+                data-testid="folha-filtros-mobile"
+                style={{
+                  position: "fixed", inset: 0, zIndex: 90,
+                  height: "100dvh",
+                  backgroundColor: "#fafaf9",
+                  display: "flex", flexDirection: "column",
+                  overscrollBehavior: "contain",
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 14px", borderBottom: `1px solid ${TI.border}`, backgroundColor: "#ffffff" }}>
+                  <Filter style={{ width: 16, height: 16, color: TI.secondary }} />
+                  <span style={{ fontSize: 15, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif", color: TI.text }}>
+                    Filtros{nFiltros > 0 ? ` · ${nFiltros} ativo${nFiltros !== 1 ? "s" : ""}` : ""}
+                  </span>
+                  <span style={{ flex: 1 }} />
+                  <button
+                    type="button"
+                    onClick={() => setFiltrosAbertos(false)}
+                    aria-label="Fechar filtros"
+                    data-testid="button-fechar-filtros-mobile"
+                    style={{ width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", border: "none", background: "transparent", color: TI.secondary, cursor: "pointer" }}
+                  >
+                    <X style={{ width: 20, height: 20 }} />
+                  </button>
+                </div>
+
+                {/* Os MESMOS campos da barra, empilhados. A lista some ao vivo
+                    atrás da folha; o rodapé diz quantas sobraram. */}
+                <div style={{ flex: 1, overflowY: "auto", padding: "14px 14px 20px", display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ width: "100%" }}>
+                    <EventFilterDropdown
+                      values={filtros.evento}
+                      onValuesChange={v => patchFiltros({ evento: v })}
+                      options={eventFilterOptions}
+                    />
+                  </div>
+                  {selects(true)}
+                  <div>{pillProximos}</div>
+                  <p style={{ margin: "8px 0 0", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: TI.secondary }}>
+                    Avançados
+                  </p>
+                  {avancados(true)}
+                  {(filtros.tipo.length > 0 || filtros.material.length > 0 || filtros.acabamento.length > 0) && (
+                    <button onClick={() => patchFiltros({ tipo: [], material: [], acabamento: [] })} data-testid="button-reset-advanced-filters" style={{ background: "none", border: "none", cursor: "pointer", fontSize: 13, color: "#dc2626", fontWeight: 600, alignSelf: "flex-start", padding: "8px 0" }}>
+                      Limpar filtros avançados
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ display: "flex", gap: 8, padding: "10px 14px calc(10px + env(safe-area-inset-bottom))", borderTop: `1px solid ${TI.border}`, backgroundColor: "#ffffff" }}>
+                  {haFiltro && (
+                    <button
+                      type="button"
+                      onClick={limparFiltros}
+                      style={{ minHeight: 48, padding: "0 14px", borderRadius: 10, background: "#fff", color: "#b91c1c", border: "1px solid #fecaca", fontSize: 13, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}
+                    >
+                      Limpar ({nFiltros})
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setFiltrosAbertos(false)}
+                    data-testid="button-aplicar-filtros-mobile"
+                    style={{ flex: 1, minHeight: 48, borderRadius: 10, border: "none", backgroundColor: TI.text, color: "#fff", fontSize: 15, fontWeight: 800, fontFamily: "'Space Grotesk', sans-serif", cursor: "pointer" }}
+                  >
+                    Ver {filteredItems.length} peça{filteredItems.length !== 1 ? "s" : ""}
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* ── Tabela Principal ── */}
       <div style={{ backgroundColor: TI.surface, border: `1px solid ${TI.border}`, borderRadius: 12 }}>
@@ -3704,7 +3784,7 @@ export default function Grafica() {
             // celular a sidebar não é fixa, então ali continua colada na borda.
             position: 'fixed', bottom: 0, left: isMobile ? 0 : 'var(--sidebar-width, 16rem)', right: 0, zIndex: 50,
             background: TI.text,
-            padding: '12px 16px',
+            padding: '12px 16px calc(12px + env(safe-area-inset-bottom))',
             display: 'flex', alignItems: 'center', gap: 10,
             boxShadow: '0 -4px 24px rgba(0,0,0,0.28)',
           }}>
@@ -3750,7 +3830,7 @@ export default function Grafica() {
           {/* Cancelar modo */}
           <button
             onClick={() => { setBulkDeliveryMode(false); setBulkConferMode(false); setBulkSelectedIds(new Set()); }}
-            style={{ width: 36, height: 36, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+            style={{ width: isMobile ? 44 : 36, height: isMobile ? 44 : 36, borderRadius: 8, background: 'rgba(255,255,255,0.1)', border: 'none', color: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
           >
             <X style={{ width: 16, height: 16 }} />
           </button>

@@ -221,7 +221,14 @@ describe("a casca compartilhada carrega o teto de altura", () => {
     // embaixo. O desconto é simétrico porque o Radix centra o Content com
     // `top: 50%` + `translateY(-50%)` — é essa centralização que fazia o
     // excedente sair METADE de cada lado quando não havia teto.
-    expect(s.maxHeight, "modalSurface voltou a não ter teto de altura").toBe(TETO_DA_CASA);
+    //
+    // 24/08 (Gráfica no celular): onde o navegador entende dvh, o teto passa
+    // a ser `100dvh − 24` — o 100vh clássico inclui a barra recolhível do
+    // navegador do celular, e o rodapé do modal (onde vive o Confirmar)
+    // ficava atrás dela. O vh continua como fallback; o teste aceita os dois
+    // porque o jsdom responde ao CSS.supports de um jeito, e o navegador real
+    // de outro — o que NÃO pode é não haver teto nenhum.
+    expect([TETO_DA_CASA, "calc(100dvh - 24px)"], "modalSurface voltou a não ter teto de altura").toContain(s.maxHeight);
 
     // Sem a coluna flex o teto não serve de nada: com `overflow: hidden` (que
     // esta casca traz para mascarar os cantos arredondados) o conteúdo seria
@@ -230,8 +237,10 @@ describe("a casca compartilhada carrega o teto de altura", () => {
     expect(s.flexDirection).toBe("column");
     expect(s.overflow).toBe("hidden");
 
-    // O que já existia e não pode ser perdido na mesma mexida.
-    expect(s.maxWidth).toBe(640);
+    // O que já existia e não pode ser perdido na mesma mexida. A largura
+    // também ganhou teto de tela em 24/08: 640 OU a viewport menos a folga —
+    // um modal de 468px não pode encostar nas bordas de um aparelho de 390.
+    expect(s.maxWidth).toBe("min(640px, calc(100vw - 16px))");
     expect(s.width).toBe("96vw");
   });
 

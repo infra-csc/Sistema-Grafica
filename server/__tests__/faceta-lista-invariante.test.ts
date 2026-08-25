@@ -486,8 +486,11 @@ describe("Gráfica — todo dropdown sai do mesmo pool da lista", () => {
     // Agosto e "Entregues" num dia sem nenhuma entrega.
     expect(GRAFICA).not.toContain('{ value: "1", label: "Janeiro" }');
     expect(GRAFICA).not.toContain('label: "Entregues", pinned: true');
-    expect(GRAFICA).toContain("options={statusFilterOptions}");
-    expect(GRAFICA).toContain("options={mesFilterOptions}");
+    // 24/08: os selects viraram a lista SELECTS_PRINCIPAIS (uma fonte, duas
+    // apresentações — barra desktop e folha do celular); as opções continuam
+    // vindo dos pools derivados, agora como campo da lista.
+    expect(GRAFICA).toContain("options: statusFilterOptions");
+    expect(GRAFICA).toContain("options: mesFilterOptions");
   });
 });
 

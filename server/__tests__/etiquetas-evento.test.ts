@@ -28,7 +28,12 @@ describe("a página /eventos/:id/etiquetas", () => {
     expect(PAGINA).toContain("etq-moldura-retrato");
     expect(PAGINA).toContain("transform: rotate(90deg)");
     expect(PAGINA).toContain("pecas.slice(f * 2, f * 2 + 2)");
-    expect(PAGINA).toContain('borderBottom: i === 0 && dupla.length === 2 ? "2px dashed #d6d3d1" : "none"');
+    // 25/08 (revisão 10/10): a etiqueta virou MEIA FOLHA cravada — a linha de
+    // corte cai no meio do papel, onde a guilhotina corta, e não onde o
+    // conteúdo mandar. Folha ímpar deixa a metade de baixo vazia.
+    expect(PAGINA).toContain('.etq-etiqueta { height: 50%; flex: none; overflow: hidden;');
+    expect(PAGINA).toContain('borderBottom: i === 0 ? "2px dashed #d6d3d1" : "none"');
+    expect(PAGINA).toContain('aspect-ratio: 297 / 210');
     expect(PAGINA).toContain(".etq-acao { display: none !important; }");
     expect(PAGINA).toContain('className="etq-folha"');
     expect(PAGINA).toContain("page-break-after: always;");
@@ -49,7 +54,7 @@ describe("a página /eventos/:id/etiquetas", () => {
     // automática acerta todas.
     expect(PAGINA).toContain('const palavraFinal = nome.trim().split(/\\s+/).slice(-1)[0] ?? "";');
     expect(PAGINA).toContain('data-testid="input-destaque"');
-    expect(PAGINA).toContain('fontSize: prefixo ? "clamp(56px, 8vw, 104px)" : "clamp(34px, 5.2vw, 64px)"');
+    expect(PAGINA).toContain('fontSize: gigante && prefixo ? "clamp(56px, 8vw, 104px)" : "clamp(34px, 5.2vw, 64px)"');
     expect(PAGINA).toContain("compareDisplayId(a.displayId, b.displayId)");
   });
 
@@ -116,7 +121,7 @@ describe("o logo da prova, tirado do book (25/08)", () => {
   it("a etiqueta usa o logo quando existe, com interruptor, e cai para o texto", () => {
     expect(PAGINA).toContain('data-testid="logo-etiqueta"');
     expect(PAGINA).toContain('data-testid="check-usar-logo"');
-    expect(PAGINA).toContain("{!(logo && usarLogo) && prefixo && (");
+    expect(PAGINA).toContain("{!(logo && usarLogo) && gigante && prefixo && (");
     // nunca lança: sem book a etiqueta segue como era
     const LIB = readFileSync(new URL("../../client/src/lib/logo-do-book.ts", import.meta.url), "utf8");
     expect(LIB).toContain("return null;");

@@ -65,6 +65,7 @@ export default function EtiquetasEvento() {
    * etiqueta segue como era: o logo é enfeite, não pré-requisito.
    */
   const [logo, setLogo] = useState<string | null>(null);
+  const [buscandoLogo, setBuscandoLogo] = useState(false);
   const [usarLogo, setUsarLogo] = useState(true);
 
   /**
@@ -76,8 +77,8 @@ export default function EtiquetasEvento() {
    */
   const [destaque, setDestaque] = useState<string | null>(null);
 
-  const { data: event } = useQuery<any>({ queryKey: [`/api/events/${eventId}`], enabled: !!eventId });
-  const { data: itens = [], isLoading } = useQuery<any[]>({
+  const { data: event, isError: eventoFalhou } = useQuery<any>({ queryKey: [`/api/events/${eventId}`], enabled: !!eventId });
+  const { data: itens = [], isLoading, isError: itensFalharam, refetch } = useQuery<any[]>({
     queryKey: ["/api/items", eventId],
     enabled: !!eventId,
   });
@@ -96,7 +97,8 @@ export default function EtiquetasEvento() {
     let vivo = true;
     setLogo(null);
     if (!bookUrl) return;
-    logoDaCapaDoBook(bookUrl).then((l) => { if (vivo) setLogo(l); });
+    setBuscandoLogo(true);
+    logoDaCapaDoBook(bookUrl).then((l) => { if (vivo) { setLogo(l); setBuscandoLogo(false); } });
     return () => { vivo = false; };
   }, [bookUrl]);
 
@@ -112,33 +114,63 @@ export default function EtiquetasEvento() {
 
   if (isLoading) return <p style={{ padding: 40, fontSize: 14, color: "#78716c" }}>Montando as etiquetas…</p>;
 
+  // Falha de rede NÃO pode virar "evento sem peças" — mentiria justamente
+  // para quem está com a impressora esperando.
+  if (itensFalharam || eventoFalhou) {
+    return (
+      <div style={{ padding: 40 }}>
+        <p data-testid="etiquetas-erro" style={{ margin: 0, fontSize: 14, color: "#b91c1c", fontWeight: 600 }}>
+          Não foi possível carregar as peças do evento.
+        </p>
+        <button type="button" onClick={() => refetch()} style={{ marginTop: 12, height: 40, padding: "0 16px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#fff", cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 600, color: "#44403c" }}>
+          Tentar de novo
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div style={{ backgroundColor: "#ffffff", minHeight: "100%" }}>
       <style>{`
+        /* A ETIQUETA É MEIA FOLHA, SEMPRE. A altura vinha do conteúdo
+           (minHeight solto) — a linha de corte caía onde o texto mandasse, e
+           a guilhotina corta no MEIO do papel. Folha com proporção de A4 nas
+           duas orientações; cada etiqueta ocupa 50% cravados; folha ímpar
+           deixa a metade de baixo vazia, e o corte continua certo. */
+        .etq-folha { display: flex; flex-direction: column; }
+        .etq-etiqueta { height: 50%; flex: none; overflow: hidden; box-sizing: border-box; }
         @media print {
           .etq-acao { display: none !important; }
           @page { size: A4 ${orientacao === "retrato" ? "portrait" : "landscape"}; margin: 8mm; }
           body { background: #fff !important; }
           .etq-quebra { page-break-after: always; }
           .etq-quebra:last-child { page-break-after: auto; }
+          .etq-moldura-paisagem { width: 281mm !important; height: 194mm !important; max-width: none !important; }
+          .etq-moldura-paisagem > .etq-folha { width: 100% !important; height: 100% !important; border: none !important; border-radius: 0 !important; }
           /* RETRATO: a folha fica em pé e o conteúdo (deitado, como o template
              original do dono) gira 90° para caber — lê-se virando a página. */
           .etq-moldura-retrato { width: 194mm !important; height: 281mm !important; }
-          .etq-moldura-retrato > .etq-folha { width: 281mm !important; height: 194mm !important; left: 194mm !important; }
+          .etq-moldura-retrato > .etq-folha { width: 281mm !important; height: 194mm !important; left: 194mm !important; border: none !important; border-radius: 0 !important; }
         }
         @media screen {
           .etq-folha { border: 1px solid #e7e5e4; border-radius: 10px; }
           .etq-quebra { margin: 0 auto 18px; }
+          /* Alvo de dedo na tela que o galpão usa por celular. */
+          @media (pointer: coarse) {
+            .etq-acao button, .etq-acao input[type="checkbox"] + span { min-height: 40px; }
+            .etq-chip { min-height: 38px; }
+          }
         }
         .etq-moldura-retrato { position: relative; width: 707px; height: 1000px; }
         .etq-moldura-retrato > .etq-folha { position: absolute; top: 0; left: 707px; width: 1000px; height: 707px; transform: rotate(90deg); transform-origin: top left; }
-        .etq-moldura-paisagem { max-width: 1050px; }
+        .etq-moldura-paisagem { width: min(1050px, 100%); aspect-ratio: 297 / 210; }
+        .etq-moldura-paisagem > .etq-folha { width: 100%; height: 100%; }
       `}</style>
 
       {/* ── Barra (não imprime) ── */}
       <div className="etq-acao" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "14px 18px", borderBottom: "1px solid #e7e5e4", position: "sticky", top: 0, backgroundColor: "#fafaf9", zIndex: 5 }}>
         <Link href={voltarHref} data-testid="link-voltar-evento" style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", color: "#44403c", fontSize: 13, fontWeight: 600, textDecoration: "none", backgroundColor: "#fff" }}>
-          <ArrowLeft style={{ width: 14, height: 14 }} /> Voltar
+          <ArrowLeft style={{ width: 14, height: 14 }} /> {veioDaGrafica ? "Voltar à Gráfica" : "Voltar ao evento"}
         </Link>
         <span style={{ fontSize: 13.5, fontWeight: 700, color: "#1c1917", display: "inline-flex", alignItems: "center", gap: 6 }}>
           <Tags style={{ width: 15, height: 15, color: "#c2410c" }} />
@@ -148,6 +180,9 @@ export default function EtiquetasEvento() {
           <input type="checkbox" checked={incluirTodas} onChange={(e) => setIncluirTodas(e.target.checked)} data-testid="check-incluir-todas" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
           Incluir as não conferidas
         </label>
+        {buscandoLogo && (
+          <span data-testid="logo-buscando" style={{ fontSize: 12, color: "#78716c" }}>buscando o logo do book…</span>
+        )}
         {logo && (
           <label style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, color: "#44403c", cursor: "pointer" }}>
             <input type="checkbox" checked={usarLogo} onChange={(e) => setUsarLogo(e.target.checked)} data-testid="check-usar-logo" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
@@ -207,13 +242,15 @@ export default function EtiquetasEvento() {
                 type="button"
                 onClick={() => setDesmarcadas((prev) => { const n = new Set(prev); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); return n; })}
                 aria-pressed={marcada}
+                className="etq-chip"
                 data-testid={`selecao-peca-${p.id}`}
                 title={`${p.type}${p.description ? " — " + p.description : ""}`}
                 style={{
                   height: 26, padding: "0 9px", borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: "pointer",
                   border: `1px solid ${marcada ? "#c2410c" : "#e7e5e4"}`,
                   backgroundColor: marcada ? "#fff7ed" : "#fff",
-                  color: marcada ? "#c2410c" : "#a8a29e",
+                  // #78716c sobre #fff = 4,6:1 — o cinza claro anterior media 2,3:1.
+                  color: marcada ? "#c2410c" : "#78716c",
                 }}
               >
                 {p.displayId}
@@ -234,15 +271,16 @@ export default function EtiquetasEvento() {
       {/* ── Folhas: 2 etiquetas por página, linha de corte no meio. A MESMA
           tira nas duas orientações — no retrato a folha inteira gira 90°,
           como no template original (corte vertical, leitura de lado). ── */}
-      <div style={{ padding: "18px 12px 48px" }}>
+      {/* overflow-x próprio: a folha em pé (707px) rola AQUI no celular — a
+          página nunca ganha rolagem lateral (régua da casa). */}
+      <div style={{ padding: "18px 12px 48px", overflowX: "auto" }}>
         {Array.from({ length: Math.ceil(pecas.length / 2) }, (_, f) => pecas.slice(f * 2, f * 2 + 2)).map((dupla, f) => (
           <div key={f} className={`etq-quebra ${orientacao === "retrato" ? "etq-moldura-retrato" : "etq-moldura-paisagem"}`} style={orientacao === "retrato" ? { margin: "0 auto 18px" } : undefined}>
           <div className="etq-folha" style={{ display: "flex", flexDirection: "column" }}>
             {dupla.map((p, i) => (
-              <div key={p.id} data-testid={`etiqueta-${p.id}`} style={{
+              <div key={p.id} data-testid={`etiqueta-${p.id}`} className="etq-etiqueta" style={{
                 display: "flex", alignItems: "stretch", gap: 18, padding: "22px 26px",
-                minHeight: 300,
-                borderBottom: i === 0 && dupla.length === 2 ? "2px dashed #d6d3d1" : "none",
+                borderBottom: i === 0 ? "2px dashed #d6d3d1" : "none",
               }}>
                 {/* O NOME DO EVENTO — o que se lê de longe na pilha */}
                 <div style={{ flex: "1.2 1 0", minWidth: 0, display: "flex", flexDirection: "column", justifyContent: "center" }}>
@@ -256,7 +294,10 @@ export default function EtiquetasEvento() {
                     <img src={logo} alt="Logo do evento" data-testid="logo-etiqueta"
                       style={{ maxHeight: 92, maxWidth: "60%", objectFit: "contain", alignSelf: "flex-start", margin: "4px 0 6px" }} />
                   )}
-                  {!(logo && usarLogo) && prefixo && (
+                  {/* Sem palavra gigante (campo apagado), o nome sai UMA vez,
+                      no tamanho médio — antes ele saía duplicado: inteiro como
+                      "marca" e inteiro de novo como destaque. */}
+                  {!(logo && usarLogo) && gigante && prefixo && (
                     <p style={{ margin: "4px 0 0", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: "clamp(16px, 2vw, 24px)", textTransform: "uppercase", letterSpacing: "0.01em", color: "#1c1917", lineHeight: 1.1 }}>
                       {prefixo}
                     </p>
@@ -265,7 +306,7 @@ export default function EtiquetasEvento() {
                     margin: "2px 0 0", fontFamily: "'Space Grotesk', sans-serif",
                     fontWeight: 900, textTransform: "uppercase", letterSpacing: "-0.02em",
                     color: "#1c1917", lineHeight: 0.95,
-                    fontSize: prefixo ? "clamp(56px, 8vw, 104px)" : "clamp(34px, 5.2vw, 64px)",
+                    fontSize: gigante && prefixo ? "clamp(56px, 8vw, 104px)" : "clamp(34px, 5.2vw, 64px)",
                     overflowWrap: "anywhere",
                   }}>
                     {gigante || nome}

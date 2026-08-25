@@ -446,6 +446,8 @@ export default function Atendimento() {
 
   // Confirmação de aprovação
   const [confirmApproveIndividual, setConfirmApproveIndividual] = useState<{ itemId: string; sponsorId: string; sponsorName: string } | null>(null);
+  // Desvincular patrocinador da peça (pedido do dono, 25/08) — admin, com confirmação.
+  const [desvincularAlvo, setDesvincularAlvo] = useState<{ itemId: string; sponsorId: string; sponsorName: string } | null>(null);
   const [confirmApproveBatch, setConfirmApproveBatch] = useState(false);
 
   const isMobile = useIsMobile();
@@ -738,6 +740,33 @@ export default function Atendimento() {
     },
     onError: (error: any) => {
       toast({ title: "Erro ao reverter", description: error.message || "Não foi possível reverter a aprovação", variant: "destructive" });
+    },
+  });
+
+  // DESVINCULAR da peça (pedido do dono, 25/08): tira o patrocinador e a
+  // aprovação PENDENTE dele deixa de contar — se ele era o único que faltava,
+  // o servidor fecha a rodada e a peça segue. Aprovação já dada fica no
+  // histórico (para desfazê-la existe o Revogar). Só admin, como o Adicionar.
+  const desvincularSponsorMutation = useMutation({
+    mutationFn: async ({ itemId, sponsorId }: { itemId: string; sponsorId: string }) => {
+      const response = await apiRequest("DELETE", `/api/items/${itemId}/sponsors/${sponsorId}`);
+      return response.json();
+    },
+    onSuccess: (data, variables) => {
+      setItemSponsorsMap(prev => ({
+        ...prev,
+        [variables.itemId]: (prev[variables.itemId] ?? []).filter((s: any) => s.id !== variables.sponsorId),
+      }));
+      setSponsorApprovals(prev => prev.filter(a => a.sponsorId !== variables.sponsorId));
+      if (data?.item) applyItemDecisionToCache(data.item);
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      setDesvincularAlvo(null);
+      toast(data?.rodadaFechou
+        ? { title: "Desvinculado — a peça seguiu", description: "Ele era o único que faltava: a rodada fechou e a Arte foi avisada para finalizar." }
+        : { title: "Patrocinador desvinculado", description: "A aprovação pendente dele deixou de contar." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Erro ao desvincular", description: error.message || "Não foi possível desvincular o patrocinador", variant: "destructive" });
     },
   });
 
@@ -3894,6 +3923,27 @@ export default function Atendimento() {
                                               : <CheckCircle style={{ width: 12, height: 12 }} />}
                                             Aprovar
                                           </button>
+                                          {/* DESVINCULAR (25/08, admin): a marca não é desta
+                                              peça — sai, e a pendência dele deixa de contar.
+                                              Se era o único que faltava, a peça segue. */}
+                                          {user?.role === "admin" && (
+                                            <button
+                                              onClick={() => setDesvincularAlvo({ itemId: selectedItem.id, sponsorId: sponsor.id, sponsorName: sponsor.name || "Patrocinador" })}
+                                              disabled={desvincularSponsorMutation.isPending}
+                                              title="Desvincular este patrocinador da peça — a aprovação pendente dele deixa de contar (admin)"
+                                              data-testid={`button-desvincular-sponsor-${sponsor.id}`}
+                                              style={{
+                                                padding: '8px 12px', borderRadius: 8,
+                                                backgroundColor: '#ffffff', border: '1px solid #e7e5e4',
+                                                color: '#57534e', fontSize: 13, fontWeight: 700,
+                                                cursor: 'pointer', transition: 'all 0.15s',
+                                                minHeight: 36,
+                                                width: isMobile ? '100%' : undefined,
+                                              }}
+                                            >
+                                              Desvincular
+                                            </button>
+                                          )}
                                         </div>
                                       )}
 
@@ -4193,6 +4243,38 @@ export default function Atendimento() {
       </Dialog>
 
       {/* ── CONFIRMAÇÃO: Aprovar Individual ─────────────────────────────── */}
+      {/* Desvincular patrocinador (25/08): a confirmação diz o efeito real —
+          inclusive que a peça pode SEGUIR se ele era o único que faltava. */}
+      <Dialog open={!!desvincularAlvo} onOpenChange={(open) => { if (!open) setDesvincularAlvo(null); }}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(460)}>
+          <DialogTitle className="sr-only">Desvincular patrocinador</DialogTitle>
+          <ModalHeader
+            variant="confirm"
+            icon={XCircle}
+            tint="#b91c1c"
+            title="Desvincular patrocinador"
+            onClose={() => setDesvincularAlvo(null)}
+          />
+          <div style={{ padding: '20px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
+            <DialogDescription style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0 }}>
+              Tirar <strong style={{ color: '#1c1917' }}>{desvincularAlvo?.sponsorName}</strong> desta peça?
+              A aprovação <strong>pendente</strong> dele deixa de contar — e, se ele for o único que falta, a rodada fecha e a peça segue para a finalização da Arte. Aprovações já dadas por outros permanecem no histórico.
+            </DialogDescription>
+          </div>
+          <ModalFooter>
+            <button
+              onClick={() => { if (desvincularAlvo) desvincularSponsorMutation.mutate({ itemId: desvincularAlvo.itemId, sponsorId: desvincularAlvo.sponsorId }); }}
+              disabled={desvincularSponsorMutation.isPending}
+              data-testid="button-confirm-desvincular"
+              style={{ width: '100%', height: 44, borderRadius: 9, backgroundColor: '#1c1917', border: 'none', color: '#ffffff', fontSize: 13, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}
+            >
+              {desvincularSponsorMutation.isPending && <Loader2 style={{ width: 14, height: 14 }} className="animate-spin" />}
+              Desvincular
+            </button>
+          </ModalFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!confirmApproveIndividual} onOpenChange={(open) => { if (!open) setConfirmApproveIndividual(null); }}>
         <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(440)}>
           <DialogTitle className="sr-only">Confirmar aprovação</DialogTitle>

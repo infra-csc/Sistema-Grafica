@@ -415,6 +415,7 @@ export interface IStorage {
   createItemSponsorApproval(approval: InsertItemSponsorApproval): Promise<ItemSponsorApproval>;
   updateItemSponsorApproval(id: string, data: Partial<InsertItemSponsorApproval>): Promise<ItemSponsorApproval | undefined>;
   deleteItemSponsorApprovals(itemId: string): Promise<boolean>;
+  deleteItemSponsorApproval(itemId: string, sponsorId: string): Promise<boolean>;
   initializeItemSponsorApprovals(itemId: string, sponsorIds: string[]): Promise<void>;
 
   // Inventory Assets (Acervo)
@@ -1792,6 +1793,15 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(itemSponsorApprovals)
       .where(eq(itemSponsorApprovals.itemId, itemId));
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  // A linha de UM patrocinador (25/08): o desvincular descarta a aprovação
+  // PENDENTE dele — a aprovada fica, que é registro.
+  async deleteItemSponsorApproval(itemId: string, sponsorId: string): Promise<boolean> {
+    const result = await db
+      .delete(itemSponsorApprovals)
+      .where(and(eq(itemSponsorApprovals.itemId, itemId), eq(itemSponsorApprovals.sponsorId, sponsorId)));
     return result.rowCount !== null && result.rowCount > 0;
   }
 

@@ -20,6 +20,7 @@ import {
 // vale a dependência de módulo de rota para módulo de rota nesse sentido:
 // items.ts não importa nada daqui.
 import { barraEventoFinalizado, motivoEventoDaPeca, contadorDeBloqueio } from "./items";
+import { invalidarCacheDeVersoes } from "./versoes";
 
 // Papéis que escrevem em vinculação de patrocinadores — o mesmo conjunto que a
 // rota /vincular-patrocinadores permite no client (App.tsx). Antes essas rotas
@@ -704,16 +705,73 @@ export function registerSponsorRoutes(app: Express): void {
 
       const sponsor = await storage.getSponsor(sponsorId);
 
+      // ── A LINHA DE APROVAÇÃO DELE (pedido do dono, 25/08) ─────────────────
+      // Antes o desvincular tirava só o VÍNCULO e a linha pendente ficava viva
+      // para sempre: a peça seguia dizendo "falta Fulano" para alguém que já
+      // não estava nela. A regra agora:
+      //   · linha APROVADA fica — é registro de decisão, e a rodada nunca
+      //     esteve esperando por ela;
+      //   · linha PENDENTE é descartada — ele não conta mais;
+      //   · e se ele era o ÚNICO que faltava, a peça SEGUE: o mesmo avanço
+      //     que a última aprovação faria.
+      const linha = await storage.getItemSponsorApproval(itemId, sponsorId);
+      const linhaAprovada = linha?.status === "approved";
+      let descartouPendente = false;
+      if (linha && !linhaAprovada) {
+        await storage.deleteItemSponsorApproval(itemId, sponsorId);
+        descartouPendente = true;
+        invalidarCacheDeVersoes();
+      }
+
       await createAuditLog(
         req,
         'removed',
         'item_sponsor',
         `${itemId}_${sponsorId}`,
-        `Patrocinador "${sponsor?.name}" removido do item ${item?.type || 'N/A'}`
+        `Patrocinador "${sponsor?.name}" desvinculado do item ${item?.displayId || item?.type || 'N/A'}`
+          + (linhaAprovada ? " — a aprovação que ele já deu permanece no histórico"
+            : descartouPendente ? " — a aprovação pendente dele foi descartada e deixa de contar" : "")
       );
-      
+
+      let itemAtualizado: any = null;
+      if (descartouPendente && (item.status === "awaiting_sponsor_approval" || item.status === "awaiting_approval")) {
+        const restantes = await storage.getItemSponsorApprovals(itemId);
+        // vazio = fechou: não resta ninguém a esperar
+        const fechou = restantes.every((l) => l.status === "approved");
+        if (fechou) {
+          itemAtualizado = await storage.updateItem(itemId, {
+            status: "sponsor_approved",
+            sponsorApprovedBy: (req as any).userName ?? null,
+            sponsorApprovedAt: new Date(),
+            rejectedBySponsor: false,
+          });
+          await createAuditLog(
+            req,
+            'approved',
+            'item',
+            itemId,
+            `Com a saída de "${sponsor?.name}", ${restantes.length === 0 ? "não resta aprovação a esperar" : "todos os patrocinadores restantes já aprovaram"}. Status alterado: ${translateStatus(item.status)} → ${translateStatus("sponsor_approved")}`
+          );
+          const event = await storage.getEvent(item.eventId);
+          const notification = await storage.createNotification({
+            type: "arteApproved",
+            message: `Aprovação concluída (o patrocinador pendente foi desvinculado). Finalize o layout e adicione o arquivo final: ${item.type} - Evento: ${event?.name}`,
+            eventId: item.eventId,
+            itemId,
+            targetRoles: ["arte"],
+          });
+          broadcast({ type: "item_updated", item: itemAtualizado });
+          broadcast({ type: "notification_created", notification });
+        }
+      }
+
       broadcast({ type: "item_sponsor_removed", itemId, sponsorId });
-      res.json({ message: "Patrocinador removido do item com sucesso" });
+      res.json({
+        message: "Patrocinador desvinculado do item com sucesso",
+        aprovacaoPendenteDescartada: descartouPendente,
+        rodadaFechou: !!itemAtualizado,
+        item: itemAtualizado ?? undefined,
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

@@ -2537,7 +2537,7 @@ export default function Grafica() {
                       </div>
                       {(etiquetaveisPorEvento.get(String(item.eventId)) ?? 0) > 0 && (
                         <Link
-                          href={`/eventos/${item.eventId}/etiquetas`}
+                          href={`/eventos/${item.eventId}/etiquetas?de=grafica`}
                           data-testid={`link-etiquetas-mobile-${item.eventId}`}
                           title="Imprimir as etiquetas das peças já conferidas deste evento"
                           style={{ display: 'inline-flex', alignItems: 'center', gap: 5, alignSelf: 'flex-start', minHeight: 30, padding: '3px 10px', borderRadius: 999, background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', textDecoration: 'none' }}
@@ -3012,7 +3012,7 @@ export default function Grafica() {
                                 <DeadlineChip event={item.event} />
                                 {(etiquetaveisPorEvento.get(String(item.eventId)) ?? 0) > 0 && (
                                   <Link
-                                    href={`/eventos/${item.eventId}/etiquetas`}
+                                    href={`/eventos/${item.eventId}/etiquetas?de=grafica`}
                                     data-testid={`link-etiquetas-${item.eventId}`}
                                     title="Imprimir as etiquetas das peças já conferidas deste evento"
                                     style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "4px 10px", borderRadius: 999, background: "rgba(255,255,255,0.12)", border: "1px solid rgba(255,255,255,0.2)", color: "#fff", fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.05em", textDecoration: "none", whiteSpace: "nowrap" }}

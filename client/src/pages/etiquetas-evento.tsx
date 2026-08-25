@@ -35,7 +35,26 @@ const dataBR = (iso?: string | null) =>
 export default function EtiquetasEvento() {
   const [, params] = useRoute("/eventos/:id/etiquetas");
   const eventId = params?.id;
+  // Quem chegou pela Gráfica volta para a Gráfica (pedido do dono, 25/08):
+  // os atalhos de lá carregam ?de=grafica, e o Voltar respeita a origem.
+  const veioDaGrafica = new URLSearchParams(window.location.search).get("de") === "grafica";
+  const voltarHref = veioDaGrafica ? "/grafica" : `/eventos/${eventId}`;
   const [incluirTodas, setIncluirTodas] = useState(false);
+
+  /**
+   * SELEÇÃO (pedido do dono, 25/08): nem toda conferida precisa de etiqueta
+   * naquela impressão. O conjunto guarda as DESMARCADAS — vazio = todas, e
+   * peça recém-conferida entra marcada sozinha.
+   */
+  const [desmarcadas, setDesmarcadas] = useState<Set<string>>(new Set());
+
+  /**
+   * ORIENTAÇÃO: paisagem (folha deitada, tiras empilhadas) ou retrato — a
+   * folha EM PÉ com o conteúdo deitado, que se lê virando a página. O retrato
+   * é exatamente o template original do dono (circuito vale.pdf): A4 em pé,
+   * corte vertical no meio, cada metade uma tira deitada.
+   */
+  const [orientacao, setOrientacao] = useState<"paisagem" | "retrato">("paisagem");
 
   /**
    * A PALAVRA GIGANTE da etiqueta. No modelo do dono o nome tem dois níveis:
@@ -52,12 +71,14 @@ export default function EtiquetasEvento() {
     enabled: !!eventId,
   });
 
-  const pecas = useMemo(() => {
+  const pool = useMemo(() => {
     // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
     const vivas = (itens as any[]).filter((i) => !i.deletedAt && i.status !== "canceled" && i.status !== "archived" && !ehBookCompleto(i));
     const base = incluirTodas ? vivas : vivas.filter(jaConferida);
     return [...base].sort((a, b) => compareDisplayId(a.displayId, b.displayId));
   }, [itens, incluirTodas]);
+
+  const pecas = useMemo(() => pool.filter((p) => !desmarcadas.has(p.id)), [pool, desmarcadas]);
 
   const conferidas = useMemo(() => (itens as any[]).filter((i) => !i.deletedAt && jaConferida(i)).length, [itens]);
 
@@ -76,19 +97,27 @@ export default function EtiquetasEvento() {
       <style>{`
         @media print {
           .etq-acao { display: none !important; }
-          @page { size: A4 landscape; margin: 8mm; }
+          @page { size: A4 ${orientacao === "retrato" ? "portrait" : "landscape"}; margin: 8mm; }
           body { background: #fff !important; }
-          .etq-folha { page-break-after: always; }
-          .etq-folha:last-child { page-break-after: auto; }
+          .etq-quebra { page-break-after: always; }
+          .etq-quebra:last-child { page-break-after: auto; }
+          /* RETRATO: a folha fica em pé e o conteúdo (deitado, como o template
+             original do dono) gira 90° para caber — lê-se virando a página. */
+          .etq-moldura-retrato { width: 194mm !important; height: 281mm !important; }
+          .etq-moldura-retrato > .etq-folha { width: 281mm !important; height: 194mm !important; left: 194mm !important; }
         }
         @media screen {
-          .etq-folha { border: 1px solid #e7e5e4; border-radius: 10px; margin: 0 auto 18px; max-width: 1050px; }
+          .etq-folha { border: 1px solid #e7e5e4; border-radius: 10px; }
+          .etq-quebra { margin: 0 auto 18px; }
         }
+        .etq-moldura-retrato { position: relative; width: 707px; height: 1000px; }
+        .etq-moldura-retrato > .etq-folha { position: absolute; top: 0; left: 707px; width: 1000px; height: 707px; transform: rotate(90deg); transform-origin: top left; }
+        .etq-moldura-paisagem { max-width: 1050px; }
       `}</style>
 
       {/* ── Barra (não imprime) ── */}
       <div className="etq-acao" style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", padding: "14px 18px", borderBottom: "1px solid #e7e5e4", position: "sticky", top: 0, backgroundColor: "#fafaf9", zIndex: 5 }}>
-        <Link href={`/eventos/${eventId}`} data-testid="link-voltar-evento" style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", color: "#44403c", fontSize: 13, fontWeight: 600, textDecoration: "none", backgroundColor: "#fff" }}>
+        <Link href={voltarHref} data-testid="link-voltar-evento" style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", color: "#44403c", fontSize: 13, fontWeight: 600, textDecoration: "none", backgroundColor: "#fff" }}>
           <ArrowLeft style={{ width: 14, height: 14 }} /> Voltar
         </Link>
         <span style={{ fontSize: 13.5, fontWeight: 700, color: "#1c1917", display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -99,6 +128,25 @@ export default function EtiquetasEvento() {
           <input type="checkbox" checked={incluirTodas} onChange={(e) => setIncluirTodas(e.target.checked)} data-testid="check-incluir-todas" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
           Incluir as não conferidas
         </label>
+        {/* Orientação da folha — o retrato é o template original do dono. */}
+        <div role="group" aria-label="Orientação da folha" style={{ display: "inline-flex", borderRadius: 8, border: "1px solid #d6d3d1", overflow: "hidden" }}>
+          {([["paisagem", "Deitada"], ["retrato", "Em pé"]] as const).map(([v, rotulo]) => (
+            <button
+              key={v}
+              type="button"
+              onClick={() => setOrientacao(v)}
+              aria-pressed={orientacao === v}
+              data-testid={`orientacao-${v}`}
+              style={{
+                height: 34, padding: "0 12px", border: "none", fontSize: 12.5, fontWeight: 700,
+                backgroundColor: orientacao === v ? "#1c1917" : "#fff",
+                color: orientacao === v ? "#fff" : "#57534e", cursor: "pointer",
+              }}
+            >
+              {rotulo}
+            </button>
+          ))}
+        </div>
         <label style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, color: "#44403c", marginLeft: 6 }}>
           Palavra gigante
           <input value={destaque ?? palavraFinal} onChange={(e) => setDestaque(e.target.value)} data-testid="input-destaque"
@@ -111,6 +159,44 @@ export default function EtiquetasEvento() {
         </button>
       </div>
 
+      {/* ── Seleção: quais peças ganham etiqueta NESTA impressão ── */}
+      {pool.length > 0 && (
+        <div className="etq-acao" style={{ padding: "10px 18px", borderBottom: "1px solid #f0efee", display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", maxHeight: 130, overflowY: "auto" }}>
+          <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: "#78716c", marginRight: 4 }}>
+            Imprimir ({pecas.length}/{pool.length})
+          </span>
+          <button type="button" data-testid="selecao-todas" onClick={() => setDesmarcadas(new Set())}
+            style={{ height: 26, padding: "0 10px", borderRadius: 999, border: "1px solid #d6d3d1", background: "#fff", fontSize: 11, fontWeight: 700, color: "#44403c", cursor: "pointer" }}>
+            todas
+          </button>
+          <button type="button" data-testid="selecao-nenhuma" onClick={() => setDesmarcadas(new Set(pool.map((p) => p.id)))}
+            style={{ height: 26, padding: "0 10px", borderRadius: 999, border: "1px solid #d6d3d1", background: "#fff", fontSize: 11, fontWeight: 700, color: "#44403c", cursor: "pointer" }}>
+            nenhuma
+          </button>
+          {pool.map((p) => {
+            const marcada = !desmarcadas.has(p.id);
+            return (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setDesmarcadas((prev) => { const n = new Set(prev); if (n.has(p.id)) n.delete(p.id); else n.add(p.id); return n; })}
+                aria-pressed={marcada}
+                data-testid={`selecao-peca-${p.id}`}
+                title={`${p.type}${p.description ? " — " + p.description : ""}`}
+                style={{
+                  height: 26, padding: "0 9px", borderRadius: 999, fontSize: 11, fontWeight: 700, cursor: "pointer",
+                  border: `1px solid ${marcada ? "#c2410c" : "#e7e5e4"}`,
+                  backgroundColor: marcada ? "#fff7ed" : "#fff",
+                  color: marcada ? "#c2410c" : "#a8a29e",
+                }}
+              >
+                {p.displayId}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {pecas.length === 0 && (
         <p data-testid="etiquetas-vazio" style={{ margin: 0, padding: "36px 24px", fontSize: 14, color: "#57534e", maxWidth: 560 }}>
           {incluirTodas
@@ -119,10 +205,13 @@ export default function EtiquetasEvento() {
         </p>
       )}
 
-      {/* ── Folhas: 2 etiquetas por A4 deitado, linha de corte no meio ── */}
+      {/* ── Folhas: 2 etiquetas por página, linha de corte no meio. A MESMA
+          tira nas duas orientações — no retrato a folha inteira gira 90°,
+          como no template original (corte vertical, leitura de lado). ── */}
       <div style={{ padding: "18px 12px 48px" }}>
         {Array.from({ length: Math.ceil(pecas.length / 2) }, (_, f) => pecas.slice(f * 2, f * 2 + 2)).map((dupla, f) => (
-          <div key={f} className="etq-folha" style={{ display: "flex", flexDirection: "column" }}>
+          <div key={f} className={`etq-quebra ${orientacao === "retrato" ? "etq-moldura-retrato" : "etq-moldura-paisagem"}`} style={orientacao === "retrato" ? { margin: "0 auto 18px" } : undefined}>
+          <div className="etq-folha" style={{ display: "flex", flexDirection: "column" }}>
             {dupla.map((p, i) => (
               <div key={p.id} data-testid={`etiqueta-${p.id}`} style={{
                 display: "flex", alignItems: "stretch", gap: 18, padding: "22px 26px",
@@ -159,13 +248,17 @@ export default function EtiquetasEvento() {
                       style={{ width: 150, height: 150, objectFit: "contain", borderRadius: 10, border: "1px solid #e7e5e4", backgroundColor: "#fafaf9", flexShrink: 0 }} />
                   )}
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <p style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 30, fontWeight: 900, letterSpacing: "-0.01em", lineHeight: 1.1 }}>
-                      <span style={{ color: "#c2410c" }}>{p.displayId}</span>{" "}
-                      <span style={{ color: "#1c1917", textTransform: "uppercase" }}>{p.type}</span>
+                    {/* A DESCRIÇÃO manda (pedido do dono, 25/08): é ela que
+                        identifica o material na pilha — "Testeira Vale Local"
+                        diz mais que #2219. O número fica pequeno, para quem
+                        precisar conferir no sistema. */}
+                    <p style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 30, fontWeight: 900, letterSpacing: "-0.01em", lineHeight: 1.12, color: "#1c1917", overflowWrap: "anywhere" }}>
+                      {p.description || p.type}
                     </p>
-                    {p.description && (
-                      <p style={{ margin: "6px 0 0", fontSize: 19, color: "#44403c", lineHeight: 1.3, overflowWrap: "anywhere" }}>{p.description}</p>
-                    )}
+                    <p style={{ margin: "6px 0 0", fontSize: 16, lineHeight: 1.3 }}>
+                      <span style={{ color: "#44403c", textTransform: "uppercase", fontWeight: 700 }}>{p.type}</span>
+                      {" "}<span style={{ color: "#c2410c", fontWeight: 700 }}>{p.displayId}</span>
+                    </p>
                   </div>
                   <p style={{ margin: 0, fontFamily: "'Space Grotesk', sans-serif", fontSize: 30, fontWeight: 900, color: "#1c1917", whiteSpace: "nowrap", alignSelf: "flex-start" }}>
                     {p.quantity ?? 1} un.
@@ -173,6 +266,7 @@ export default function EtiquetasEvento() {
                 </div>
               </div>
             ))}
+          </div>
           </div>
         ))}
       </div>

@@ -21,8 +21,12 @@ describe("a página /eventos/:id/etiquetas", () => {
     expect(DETALHE).toContain('data-testid="button-etiquetas-evento"');
   });
 
-  it("A4 deitado, duas por folha, linha de corte, barra fora da impressão", () => {
-    expect(PAGINA).toContain("size: A4 landscape");
+  it("A4 nas DUAS orientações, duas por folha, linha de corte, barra fora da impressão", () => {
+    // 25/08: a folha ganhou o modo retrato — em pé, com o conteúdo deitado,
+    // como o template original do dono (corte vertical, leitura de lado).
+    expect(PAGINA).toContain('size: A4 ${orientacao === "retrato" ? "portrait" : "landscape"}');
+    expect(PAGINA).toContain("etq-moldura-retrato");
+    expect(PAGINA).toContain("transform: rotate(90deg)");
     expect(PAGINA).toContain("pecas.slice(f * 2, f * 2 + 2)");
     expect(PAGINA).toContain('borderBottom: i === 0 && dupla.length === 2 ? "2px dashed #d6d3d1" : "none"');
     expect(PAGINA).toContain(".etq-acao { display: none !important; }");
@@ -73,4 +77,21 @@ describe("a etiqueta no caminho de quem confere (25/08)", () => {
     expect(G).toContain("As etiquetas já podem ser impressas");
   });
 });
+describe("seleção e origem (25/08)", () => {
+  it("cada peça do pool tem chip de marcar/desmarcar, com todas/nenhuma", () => {
+    expect(PAGINA).toContain('data-testid={`selecao-peca-${p.id}`}');
+    expect(PAGINA).toContain('data-testid="selecao-todas"');
+    expect(PAGINA).toContain('data-testid="selecao-nenhuma"');
+    // o conjunto guarda as DESMARCADAS: vazio = todas, e peça nova entra marcada
+    expect(PAGINA).toContain("const pecas = useMemo(() => pool.filter((p) => !desmarcadas.has(p.id)), [pool, desmarcadas]);");
+  });
+
+  it("quem veio da Gráfica volta para a Gráfica", () => {
+    expect(PAGINA).toContain('get("de") === "grafica"');
+    expect(PAGINA).toContain("const voltarHref = veioDaGrafica");
+    const G = readFileSync(new URL("../../client/src/pages/grafica.tsx", import.meta.url), "utf8");
+    expect(G.split("/etiquetas?de=grafica").length - 1).toBe(2);
+  });
+});
+
 

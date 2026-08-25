@@ -2482,7 +2482,9 @@ export default function Grafica() {
               // Trilho de ações: dois grupos separados por um divisor. FLUXO
               // (sólidos, o que a Gráfica faz com a peça) e CONTRATO (tintados,
               // o que muda o pedido — papel admin|solicitacao).
-              const mostraAumentar = !bulkOn && podeAumentarQuantidade(item, podeMexerQtd);
+              // !emRevisao em TODAS: em Revisão a Gráfica só OLHA (regra do
+              // dono, 25/08) — a peça é trabalho chegando, não chegou.
+              const mostraAumentar = !bulkOn && !emRevisao && podeAumentarQuantidade(item, podeMexerQtd);
               const podeProduzirAqui = !emRevisao && canProduce && coAberto && !isProduced(item) && !isConferred(item) && !item.isReuse && remainingProduce(item) > 0;
               const podeCancelarCompl = podeMexerQtd && ehComplemento && complementUntouched(item);
               // Evento finalizado: o botão continua na tela, DESABILITADO com o
@@ -2933,7 +2935,7 @@ export default function Grafica() {
                 const isNovo = item.id === novoComplementoId;
                 // O gatilho de AUMENTAR. Some em qualquer modo de lote: o
                 // complemento exige quantidade e justificativa POR PEÇA.
-                const mostraAumentar = !bulkOn && podeAumentarQuantidade(item, podeMexerQtd);
+                const mostraAumentar = !bulkOn && !emRevisao && podeAumentarQuantidade(item, podeMexerQtd);
                 // Evento finalizado: selo na linha e botões barrados
                 // desabilitados. Ver o comentário de `items`, no topo.
                 const selo = seloDoItem(item);
@@ -3362,7 +3364,7 @@ export default function Grafica() {
                           {/* Iniciar / Continuar Produção — oculto para reaproveitamento
                               e para quem o servidor recusa (só grafica/admin produzem).
                               Depois de conferida, a peça só tem a entrega pela frente. */}
-                          {!bulkOn && canProduce && !isDelivered(item) && !isProduced(item) && !isConferred(item) && !item.isReuse && (
+                          {!bulkOn && !emRevisao && canProduce && !isDelivered(item) && !isProduced(item) && !isConferred(item) && !item.isReuse && (
                             <button
                               onClick={() => { if (!selo) openProductionModal(item); }}
                               disabled={!!selo}
@@ -3390,7 +3392,7 @@ export default function Grafica() {
                               (POST /api/items/:id/mark-reuse é barrado): marcar
                               reaproveitamento é decidir o que entra na fila de
                               produção, ou seja, faz o trabalho andar. */}
-                          {!bulkOn && !isDelivered(item) && !isProduced(item) && !isConferred(item) && remainingReuse(item) > 0 && (
+                          {!bulkOn && !emRevisao && !isDelivered(item) && !isProduced(item) && !isConferred(item) && remainingReuse(item) > 0 && (
                             reuseConfirmItemId === item.id ? (
                               <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>
                                 <input
@@ -3447,7 +3449,7 @@ export default function Grafica() {
                               produzir, com a peça em "Pronto p/ Produção". O
                               admin corrige em qualquer etapa anterior à
                               conferência; para a Gráfica segue como estava. */}
-                          {!bulkOn && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0
+                          {!bulkOn && !emRevisao && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0
                             && conferredOf(item) === 0 && deliveredOf(item) === 0 && (
                             correctReuseItemId === item.id ? (
                               <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>

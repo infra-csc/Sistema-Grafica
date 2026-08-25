@@ -4008,6 +4008,13 @@ export function registerItemRoutes(app: Express): void {
       if (current.status === "delivered" || current.status === "entregue") {
         return res.status(409).json({ error: "Não é possível reaproveitar uma peça já entregue" });
       }
+      // Em Revisão a Gráfica só OLHA (regra do dono, 25/08): a peça está na
+      // mesa de quem revisa, e reaproveitar é decidir o que entra na fila de
+      // produção. O botão nem aparece; esta é a tranca de quem chega por
+      // script ou por tela desatualizada.
+      if (EM_REVISAO.has(current.status)) {
+        return res.status(409).json({ error: "Esta peça está em revisão — a Gráfica só age depois que a revisão liberar." });
+      }
       // Permite marcar como reaproveitamento enquanto a peça ainda está no fluxo de produção
       const allowedStatuses = [
         "ready_for_production", "pronto_para_producao", "approved",
@@ -4070,6 +4077,11 @@ export function registerItemRoutes(app: Express): void {
 
       const current = await storage.getItem(req.params.id);
       if (!current) return res.status(404).json({ error: "Item not found" });
+      // Em Revisão a Gráfica só OLHA (regra do dono, 25/08) — mesma tranca
+      // do mark-reuse logo acima.
+      if (EM_REVISAO.has(current.status)) {
+        return res.status(409).json({ error: "Esta peça está em revisão — a Gráfica só age depois que a revisão liberar." });
+      }
 
       // ANDA, apesar do nome. "Corrigir reaproveitamento" devolve a peça para
       // "Pronto p/ Produção" e ZERA quantityProduced — ou seja, recoloca a peça

@@ -84,3 +84,29 @@ describe("mas não age", () => {
     expect(corpo.indexOf("EM_REVISAO.has")).toBeLessThan(corpo.indexOf('current.status === "produced"'));
   });
 });
+describe("segunda rodada (25/08): os quatro furos que sobraram", () => {
+  // O dono repetiu a regra com todas as letras: 'em revisão a Gráfica não
+  // pode ter ação, apenas visualizar'. A primeira rodada fechou conferir,
+  // entregar, produzir-no-card, lote e galpão — mas a TABELA ainda oferecia
+  // Produzir e Reaproveitar, e o + de aumentar quantidade aparecia nos dois
+  // layouts. E reaproveitar era ação REAL: o servidor não olhava o status.
+  const G = readFileSync(new URL("../../client/src/pages/grafica.tsx", import.meta.url), "utf8");
+  const ITEMS = readFileSync(new URL("../routes/items.ts", import.meta.url), "utf8");
+
+  it("produzir e reaproveitar da tabela exigem !emRevisao", () => {
+    expect(G).toContain("{!bulkOn && !emRevisao && canProduce && !isDelivered(item)");
+    expect(G).toContain("{!bulkOn && !emRevisao && !isDelivered(item) && !isProduced(item) && !isConferred(item) && remainingReuse(item) > 0");
+    expect(G).toContain("{!bulkOn && !emRevisao && (isProduced(item) || isAdmin) && reusedTotalOf(item) > 0");
+  });
+
+  it("aumentar quantidade some nos DOIS layouts", () => {
+    expect(G.split("const mostraAumentar = !bulkOn && !emRevisao && podeAumentarQuantidade(item, podeMexerQtd);").length - 1).toBe(2);
+  });
+
+  it("o servidor tranca reaproveitar e corrigir reaproveitamento em revisão", () => {
+    // O botão sumir é cortesia; a tranca é do servidor — script e tela velha
+    // também batem nela.
+    expect(ITEMS.match(/Esta peça está em revisão — a Gráfica só age depois que a revisão liberar./g)?.length).toBe(2);
+  });
+});
+

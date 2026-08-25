@@ -222,6 +222,28 @@ async function jaAvisou(dia: string, hora: number): Promise<boolean> {
   return linhas.length > 0;
 }
 
+/**
+ * SÓ PRODUÇÃO ENVIA (24/08, caso real: o aviso das 18h chegou em dobro).
+ *
+ * O workspace de desenvolvimento do Replit compartilha os SEGREDOS e o
+ * CONECTOR de e-mail com o deploy — então, sempre que ele está acordado no
+ * horário, o mesmo relógio dispara lá também, com os dados do banco de dev:
+ * chegaram dois avisos às 18h, "1 peça" (dev) e "48 peças" (produção).
+ *
+ * A trava não é o interruptor REVISAO_DIGEST_ENABLED (segredo compartilhado —
+ * desligar num ambiente desliga no outro): é o que SÓ o deploy tem.
+ * `REPLIT_DEPLOYMENT` é carimbado pelo próprio Replit no ambiente publicado;
+ * NODE_ENV=production é como o `npm start` do deploy roda. O workspace roda
+ * `npm run dev` e não tem nenhum dos dois.
+ *
+ * Vale para o automático E para o manual: o botão apertado em dev mandaria
+ * dados de dev para gente de verdade — que é exatamente o e-mail duplicado
+ * de novo, só que a pedido.
+ */
+export function ehProducao(env: Record<string, string | undefined> = process.env): boolean {
+  return env.REPLIT_DEPLOYMENT === "1" || env.NODE_ENV === "production";
+}
+
 export async function enviarAvisoDaRevisao(
   agora: Date,
   env: Record<string, string | undefined> = process.env,
@@ -229,6 +251,9 @@ export async function enviarAvisoDaRevisao(
 ): Promise<
   { status: "desligado" | "sem-fila" | "ja-enviado" | "simulado" | "enviado" | "falhou"; resumo?: ResumoDaRevisao; motivo?: string }
 > {
+  if (!ehProducao(env)) {
+    return { status: "desligado", motivo: "Fora de produção — o ambiente de desenvolvimento não envia e-mail (os dados dele não são os reais)." };
+  }
   // O disparo MANUAL ignora o interruptor e a memória da trilha, porque ele é
   // outra coisa: alguém pediu agora, na tela, e está esperando o e-mail. O que
   // ele não ignora é a fila vazia — mandar "0 itens" a pedido também ensina a
@@ -291,6 +316,13 @@ export async function enviarAvisoDaRevisao(
  * trilha, não a janela.
  */
 export function startRevisaoDigest(): void {
+  // O relógio nem sobe fora de produção — a guarda de `enviarAvisoDaRevisao`
+  // já seguraria o envio, mas um intervalo rodando à toa a cada minuto num
+  // ambiente que nunca vai enviar é ruído de log e convite a "consertar".
+  if (!ehProducao()) {
+    console.log("[revisao-digest] fora de produção — o aviso não roda aqui (só o deploy envia).");
+    return;
+  }
   setInterval(async () => {
     try {
       const agora = new Date();

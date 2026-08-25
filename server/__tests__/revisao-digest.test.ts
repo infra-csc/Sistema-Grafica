@@ -195,6 +195,22 @@ describe("as regras do disparo, escritas no código", () => {
     expect(CODIGO).toContain("timeZone: FUSO");
   });
 
+  it("SÓ PRODUÇÃO ENVIA — o workspace de dev compartilha segredos e conector", () => {
+    // Caso real (24/08): dois avisos às 18h — "1 peça" (banco de dev) e "48
+    // peças" (produção). O interruptor não separa os ambientes porque o
+    // segredo é compartilhado; o que separa é o carimbo que só o deploy tem.
+    expect(CODIGO).toContain('return env.REPLIT_DEPLOYMENT === "1" || env.NODE_ENV === "production";');
+    expect(CODIGO).toContain("if (!ehProducao(env)) {");
+    // e vale para o MANUAL também: botão apertado em dev mandaria dados de
+    // dev para gente de verdade.
+    const iGuarda = CODIGO.indexOf("if (!ehProducao(env)) {");
+    const iManual = CODIGO.indexOf("opcoes.manual ||");
+    expect(iGuarda).toBeGreaterThan(-1);
+    expect(iGuarda).toBeLessThan(iManual);
+    // o relógio nem sobe fora de produção
+    expect(CODIGO).toContain("fora de produção — o aviso não roda aqui");
+  });
+
   it("desligado por padrão: sem a variável, o relógio bate e não faz nada", () => {
     expect(CODIGO).toContain('env.REVISAO_DIGEST_ENABLED?.trim().toLowerCase() === "true"');
     expect(CODIGO).toContain('if (!ligado) return { status: "desligado" };');

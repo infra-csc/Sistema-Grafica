@@ -36,6 +36,15 @@ export default function EtiquetasEvento() {
   const eventId = params?.id;
   const [incluirTodas, setIncluirTodas] = useState(false);
 
+  /**
+   * A PALAVRA GIGANTE da etiqueta. No modelo do dono o nome tem dois níveis:
+   * a marca do evento pequena ('Circuito Corrida Vale 2026') e a CIDADE
+   * enorme ('ITABIRA') — é ela que se lê de longe. O padrão é a última
+   * palavra do nome, e o campo é editável antes de imprimir porque nenhuma
+   * regra automática acerta 'São Paulo' (duas palavras) sem errar outra.
+   */
+  const [destaque, setDestaque] = useState<string | null>(null);
+
   const { data: event } = useQuery<any>({ queryKey: [`/api/events/${eventId}`], enabled: !!eventId });
   const { data: itens = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/items", eventId],
@@ -49,6 +58,14 @@ export default function EtiquetasEvento() {
   }, [itens, incluirTodas]);
 
   const conferidas = useMemo(() => (itens as any[]).filter((i) => !i.deletedAt && jaConferida(i)).length, [itens]);
+
+  const nome: string = event?.name ?? "";
+  const palavraFinal = nome.trim().split(/\s+/).slice(-1)[0] ?? "";
+  const gigante = (destaque ?? palavraFinal).trim();
+  // O prefixo é o nome SEM a parte gigante (comparado sem caixa); se o
+  // destaque digitado não estiver no nome, o nome inteiro vira prefixo.
+  const idx = gigante ? nome.toLowerCase().lastIndexOf(gigante.toLowerCase()) : -1;
+  const prefixo = idx >= 0 ? (nome.slice(0, idx) + nome.slice(idx + gigante.length)).replace(/\s+/g, " ").trim() : nome;
 
   if (isLoading) return <p style={{ padding: 40, fontSize: 14, color: "#78716c" }}>Montando as etiquetas…</p>;
 
@@ -80,6 +97,11 @@ export default function EtiquetasEvento() {
           <input type="checkbox" checked={incluirTodas} onChange={(e) => setIncluirTodas(e.target.checked)} data-testid="check-incluir-todas" style={{ width: 16, height: 16, accentColor: "#c2410c" }} />
           Incluir as não conferidas
         </label>
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 13, color: "#44403c", marginLeft: 6 }}>
+          Palavra gigante
+          <input value={destaque ?? palavraFinal} onChange={(e) => setDestaque(e.target.value)} data-testid="input-destaque"
+            style={{ height: 34, width: 140, borderRadius: 8, border: "1px solid #d6d3d1", padding: "0 10px", fontSize: 13, fontFamily: "inherit", color: "#1c1917", backgroundColor: "#fff" }} />
+        </label>
         <span style={{ flex: 1 }} />
         <button type="button" onClick={() => window.print()} data-testid="button-imprimir-etiquetas"
           style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 38, padding: "0 16px", borderRadius: 8, border: "none", backgroundColor: "#1c1917", color: "#fff", cursor: "pointer", font: "inherit", fontSize: 13, fontWeight: 700 }}>
@@ -110,13 +132,21 @@ export default function EtiquetasEvento() {
                   <p style={{ margin: 0, fontSize: 13, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", color: "#78716c" }}>
                     {event?.truckDepartureDate ? `Saída ${dataBR(event.truckDepartureDate)}` : " "}
                   </p>
+                  {/* Dois níveis, como no modelo: a marca do evento pequena e
+                      a palavra de destaque GIGANTE — é ela que se lê de longe. */}
+                  {prefixo && (
+                    <p style={{ margin: "4px 0 0", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: "clamp(16px, 2vw, 24px)", textTransform: "uppercase", letterSpacing: "0.01em", color: "#1c1917", lineHeight: 1.1 }}>
+                      {prefixo}
+                    </p>
+                  )}
                   <p style={{
                     margin: "2px 0 0", fontFamily: "'Space Grotesk', sans-serif",
                     fontWeight: 900, textTransform: "uppercase", letterSpacing: "-0.02em",
-                    color: "#1c1917", lineHeight: 0.98,
-                    fontSize: "clamp(34px, 5.2vw, 64px)", overflowWrap: "anywhere",
+                    color: "#1c1917", lineHeight: 0.95,
+                    fontSize: prefixo ? "clamp(56px, 8vw, 104px)" : "clamp(34px, 5.2vw, 64px)",
+                    overflowWrap: "anywhere",
                   }}>
-                    {event?.name ?? ""}
+                    {gigante || nome}
                   </p>
                 </div>
 

@@ -38,8 +38,14 @@ describe("a página /eventos/:id/etiquetas", () => {
     expect(PAGINA).toContain("a etiqueta nasce da conferência");
   });
 
-  it("o nome do evento é o elemento gigante, e a ordem é a da fila", () => {
-    expect(PAGINA).toContain('fontSize: "clamp(34px, 5.2vw, 64px)"');
+  it("dois níveis, como no modelo: a marca pequena e a palavra GIGANTE", () => {
+    // No PDF do dono, 'Circuito Corrida Vale 2026' é pequeno e 'ITABIRA' é
+    // enorme. O padrão é a última palavra do nome; o campo é editável antes
+    // de imprimir porque 'São Paulo' tem duas palavras e nenhuma regra
+    // automática acerta todas.
+    expect(PAGINA).toContain('const palavraFinal = nome.trim().split(/\\s+/).slice(-1)[0] ?? "";');
+    expect(PAGINA).toContain('data-testid="input-destaque"');
+    expect(PAGINA).toContain('fontSize: prefixo ? "clamp(56px, 8vw, 104px)" : "clamp(34px, 5.2vw, 64px)"');
     expect(PAGINA).toContain("compareDisplayId(a.displayId, b.displayId)");
   });
 

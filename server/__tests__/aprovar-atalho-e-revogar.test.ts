@@ -121,3 +121,31 @@ describe("4 · o reparo em massa drena o estoque de peças presas", () => {
 });
 
 
+
+describe("5 · o admin adiciona o patrocinador que faltava, do próprio modal", () => {
+  // Caso #2801 (25/08): a arte carregava a Crystal e não havia linha para
+  // aprovar — a marca não estava vinculada à peça. Só admin.
+  const SPONSORS = readFileSync(new URL("../routes/sponsors.ts", import.meta.url), "utf8");
+  const ATEND = readFileSync(new URL("../../client/src/pages/atendimento.tsx", import.meta.url), "utf8");
+
+  it("vincular numa peça em aprovação cria a linha pendente JUNTO", () => {
+    // Sem a linha, o reenvio da Arte (que deriva das LINHAS) não incluiria o
+    // recém-chegado, e a rodada poderia fechar sem ele.
+    expect(SPONSORS).toContain('if (item.status === "awaiting_sponsor_approval" || item.status === "awaiting_approval") {');
+    expect(SPONSORS).toContain('status: "pending",');
+  });
+
+  it("o bloco do modal é só de admin e só oferece quem falta", () => {
+    expect(ATEND).toContain('{user?.role === "admin" && (() => {');
+    expect(ATEND).toContain("const candidatos = (sponsorsDoEvento as any[]).filter((s: any) => !jaNaRodada.has(s.id));");
+    expect(ATEND).toContain('data-testid="button-add-patrocinador"');
+  });
+
+  it("a linha nova aparece na hora, como Aguardando decisão", () => {
+    expect(ATEND).toContain('setSponsorApprovals(prev => [...prev, { itemId: selectedItem.id, sponsorId: sp.id, status: "pending" } as any]);');
+  });
+
+  it("a busca dos patrocinadores do evento só roda para admin com o modal aberto", () => {
+    expect(ATEND).toContain('enabled: !!selectedItem?.eventId && dialogOpen && user?.role === "admin",');
+  });
+});

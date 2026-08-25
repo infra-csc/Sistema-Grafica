@@ -650,6 +650,22 @@ export function registerSponsorRoutes(app: Express): void {
 
       const itemSponsor = await storage.addSponsorToItem(validatedData);
 
+      // PEÇA JÁ EM APROVAÇÃO (caso #2801, 25/08): a arte carrega a marca mas
+      // o patrocinador não estava vinculado — o admin o adiciona do próprio
+      // modal de decisão. A linha pendente nasce JUNTO com o vínculo: sem
+      // ela, o reenvio da Arte (que deriva o conjunto das LINHAS) não
+      // incluiria o recém-chegado, e a peça poderia fechar a rodada sem ele.
+      if (item.status === "awaiting_sponsor_approval" || item.status === "awaiting_approval") {
+        const linha = await storage.getItemSponsorApproval(req.params.id, validatedData.sponsorId);
+        if (!linha) {
+          await storage.createItemSponsorApproval({
+            itemId: req.params.id,
+            sponsorId: validatedData.sponsorId,
+            status: "pending",
+          });
+        }
+      }
+
       const sponsor = await storage.getSponsor(validatedData.sponsorId);
 
       await createAuditLog(

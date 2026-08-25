@@ -5,7 +5,7 @@ import { SponsorChips } from "@/components/sponsor-chips";
 import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { ExportPdfDialog } from "@/components/export-pdf-dialog";
-import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip, Plus, Pencil, Trash2, Truck, Cog, Send, Link2, Unlock, Upload, ImageIcon, ArrowRightLeft, Check } from "lucide-react";
+import { CheckCircle, AlertCircle, Eye, Search, X, XCircle, Clock, Loader2, ChevronDown, ChevronRight, Zap, FileText, Download, RotateCcw, Package, Paperclip, Plus, Pencil, Trash2, Truck, Cog, Send, Link2, Unlock, Upload, ImageIcon, ArrowRightLeft, Check, PlusCircle } from "lucide-react";
 import { parseDateLocal, toUTCDisplayDate, normalizarBusca } from "@/lib/utils";
 // Prazo desta tela = marco de APROVAÇÃO DE LAYOUT. Regra pura e única, testada
 // em server/__tests__/atendimento-prazo.test.ts.
@@ -394,6 +394,38 @@ export default function Atendimento() {
   // que é, e o botão de enviar ficava desabilitado sem explicar por quê.
   const motivoCurto = (t: string) => t.trim().replace(/\s+/g, " ").length < MOTIVO_MIN;
   const [rejectingSponsorId, setRejectingSponsorId] = useState<string | null>(null);
+
+  /**
+   * ADICIONAR PATROCINADOR PELO MODAL — SÓ ADMIN (pedido do dono, 25/08,
+   * caso #2801: a arte tinha a Crystal e não havia linha para aprovar,
+   * porque a marca não estava vinculada à peça).
+   */
+  const [addPatrocinadorAberto, setAddPatrocinadorAberto] = useState(false);
+  const [addingPatrocinadorId, setAddingPatrocinadorId] = useState<string | null>(null);
+  const { data: sponsorsDoEvento = [] } = useQuery<any[]>({
+    queryKey: ["/api/events", selectedItem?.eventId, "sponsors"],
+    enabled: !!selectedItem?.eventId && dialogOpen && user?.role === "admin",
+  });
+  const adicionarPatrocinador = async (sp: any) => {
+    if (!selectedItem || addingPatrocinadorId) return;
+    setAddingPatrocinadorId(sp.id);
+    try {
+      await apiRequest("POST", `/api/items/${selectedItem.id}/sponsors`, { sponsorId: sp.id });
+      // O servidor criou a linha pendente junto; o estado local reflete na
+      // hora — a linha nova aparece "Aguardando decisão" sem refetch.
+      setItemSponsorsMap(prev => ({
+        ...prev,
+        [selectedItem.id]: [...(prev[selectedItem.id] ?? []), sp],
+      }));
+      setSponsorApprovals(prev => [...prev, { itemId: selectedItem.id, sponsorId: sp.id, status: "pending" } as any]);
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      toast({ title: "Patrocinador adicionado", description: `"${sp.name}" entrou na rodada como Aguardando decisão.` });
+    } catch (e: any) {
+      toast({ title: "Não foi possível adicionar", description: e?.message ?? String(e), variant: "destructive" });
+    } finally {
+      setAddingPatrocinadorId(null);
+    }
+  };
 
   // Confirmação de aprovação
   const [confirmApproveIndividual, setConfirmApproveIndividual] = useState<{ itemId: string; sponsorId: string; sponsorName: string } | null>(null);
@@ -3955,6 +3987,53 @@ export default function Atendimento() {
                               })}
                             </div>
                           )}
+
+                          {/* ── ADICIONAR PATROCINADOR — SÓ ADMIN ──
+                              A arte pode carregar uma marca que ninguém
+                              vinculou (caso #2801, Crystal): sem a linha, não
+                              há o que aprovar. O admin corrige daqui, sem ir à
+                              tela de Vincular. O servidor cria a linha
+                              pendente junto com o vínculo. */}
+                          {user?.role === "admin" && (() => {
+                            const jaNaRodada = new Set(dialogSponsors.map((s: any) => s.id));
+                            const candidatos = (sponsorsDoEvento as any[]).filter((s: any) => !jaNaRodada.has(s.id));
+                            if (candidatos.length === 0) return null;
+                            return (
+                              <div style={{ marginTop: 14, borderTop: "1px dashed #e7e5e4", paddingTop: 12 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => setAddPatrocinadorAberto(v => !v)}
+                                  aria-expanded={addPatrocinadorAberto}
+                                  data-testid="button-add-patrocinador"
+                                  style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "none", border: "none", padding: 0, fontSize: 12, fontWeight: 700, color: "#78716c", cursor: "pointer" }}
+                                >
+                                  <PlusCircle style={{ width: 13, height: 13 }} />
+                                  Adicionar patrocinador ({candidatos.length}) — admin
+                                </button>
+                                {addPatrocinadorAberto && (
+                                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 10 }}>
+                                    <p style={{ margin: 0, fontSize: 11, color: "#78716c", lineHeight: 1.45 }}>
+                                      Para quando a arte carrega uma marca que não foi vinculada. O patrocinador entra como "Aguardando decisão".
+                                    </p>
+                                    {candidatos.map((sp: any) => (
+                                      <div key={sp.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderRadius: 8, backgroundColor: "#fff", border: "1px solid #e7e5e4" }}>
+                                        <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, color: "#1c1917", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sp.name}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => adicionarPatrocinador(sp)}
+                                          disabled={!!addingPatrocinadorId}
+                                          data-testid={`button-add-patrocinador-${sp.id}`}
+                                          style={{ height: 30, padding: "0 12px", borderRadius: 7, border: "none", backgroundColor: addingPatrocinadorId === sp.id ? "#e7e5e4" : "#1c1917", color: addingPatrocinadorId === sp.id ? "#57534e" : "#fff", fontSize: 12, fontWeight: 700, cursor: addingPatrocinadorId ? "wait" : "pointer", whiteSpace: "nowrap" }}
+                                        >
+                                          {addingPatrocinadorId === sp.id ? "Adicionando…" : "Adicionar"}
+                                        </button>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
                         </div>
                     </div>
 

@@ -55,6 +55,28 @@ async function arteComoJpeg(url: string): Promise<{ bytes: Uint8Array; w: number
 export interface ProgressoDoBook { etapa: string; feito: number; total: number }
 
 /**
+ * HERANÇA DO BOOK ATUAL (pedido do dono, 25/08): os books já subidos SÃO o
+ * template — capa com o logo vetorial, renders montados, fonte da marca. O
+ * pdf-lib copia páginas inteiras entre PDFs sem rasterizar: o que foi
+ * desenhado no InDesign viaja intacto para o book gerado.
+ */
+export interface HerancaDoBook {
+  /** URL do book atual do evento (o PDF que a Arte subiu). */
+  url: string;
+  /** Usar a página 1 dele como capa (o logo de verdade). */
+  capa: boolean;
+  /** Páginas dele (1-based) a incluir prontas, na ordem crescente. */
+  paginas: number[];
+}
+
+async function baixarBytes(url: string): Promise<Uint8Array> {
+  const local = convertGCSUrlToLocalPath(url);
+  const resp = await fetch(local.startsWith("/") ? local : url, { credentials: "include" });
+  if (!resp.ok) throw new Error(`book atual não carregou (${resp.status})`);
+  return new Uint8Array(await resp.arrayBuffer());
+}
+
+/**
  * Gera o PDF do book. `paginas` já vem paginado (book-spec.paginarGrupos);
  * peça sem arte carregável entra como falha em `falhas` e a página segue —
  * quem gera decide se publica mesmo assim.
@@ -63,13 +85,34 @@ export async function gerarBookPdf(
   nomeDoEvento: string,
   paginas: PaginaDoBook[],
   aoProgredir?: (p: ProgressoDoBook) => void,
+  heranca?: HerancaDoBook | null,
 ): Promise<{ bytes: Uint8Array; falhas: Array<{ displayId: string; motivo: string }> }> {
   const doc = await PDFDocument.create();
   const fonte = await doc.embedFont(StandardFonts.Helvetica);
   const fonteBold = await doc.embedFont(StandardFonts.HelveticaBold);
   const falhas: Array<{ displayId: string; motivo: string }> = [];
 
-  // ── Capa: fundo claro do exemplar, identidade centrada ──
+  // ── Herança: capa e páginas prontas copiadas do book atual ──
+  let capaHerdada = false;
+  if (heranca && (heranca.capa || heranca.paginas.length > 0)) {
+    aoProgredir?.({ etapa: "Copiando do book atual…", feito: 0, total: 1 });
+    const src = await PDFDocument.load(await baixarBytes(heranca.url));
+    const querCapa = heranca.capa && src.getPageCount() > 0;
+    // 1-based → 0-based; a capa (pág. 1) nunca entra duas vezes.
+    const indices = Array.from(new Set(heranca.paginas))
+      .filter((n) => n >= 1 && n <= src.getPageCount() && !(querCapa && n === 1))
+      .sort((a, b) => a - b)
+      .map((n) => n - 1);
+    const todos = querCapa ? [0, ...indices] : indices;
+    if (todos.length > 0) {
+      const copiadas = await doc.copyPages(src, todos);
+      copiadas.forEach((pg) => doc.addPage(pg));
+      capaHerdada = querCapa;
+    }
+  }
+
+  // ── Capa gerada, só quando não veio a de verdade ──
+  if (!capaHerdada) {
   const capa = doc.addPage([BOOK.LARGURA, BOOK.ALTURA]);
   capa.drawRectangle({ x: 0, y: 0, width: BOOK.LARGURA, height: BOOK.ALTURA, color: cor(BOOK.CAPA_FUNDO) });
   {
@@ -82,6 +125,7 @@ export async function gerarBookPdf(
       y: BOOK.ALTURA / 2 - corpo / 2,
       size: corpo, font: fonteBold, color: cor(BOOK.CAPA_TEXTO),
     });
+  }
   }
 
   // ── Páginas de grupo ──

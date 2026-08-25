@@ -25,7 +25,8 @@ import { compareDisplayId } from "@/lib/displayId";
 import { groupKeyOf, convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { ehBookCompleto } from "@shared/fluxo-peca";
 import { BOOK, celulasDaPagina, mioloDoBook, paginarGrupos } from "@/lib/book-spec";
-import { gerarBookPdf, subirBookPdf, type ProgressoDoBook } from "@/lib/book-gerador";
+import { gerarBookPdf, subirBookPdf, type HerancaDoBook, type ProgressoDoBook } from "@/lib/book-gerador";
+import { BookHeranca } from "@/components/book-heranca";
 
 interface GrupoMontado { key: string; rotulo: string; incluido: boolean; itens: any[] }
 
@@ -51,6 +52,17 @@ export default function BookGerador() {
   const [publicando, setPublicando] = useState(false);
   const [resultado, setResultado] = useState<{ url: string; falhas: number } | null>(null);
 
+  // ── Herança do book atual (o template de verdade — decisão do dono, 25/08) ──
+  const [capaHerdada, setCapaHerdada] = useState(true);
+  const [paginasHerdadas, setPaginasHerdadas] = useState<Set<number>>(new Set());
+  const bookAtualUrl = useMemo(() => {
+    // O book vive por peça (bookUrl); o primeiro não-nulo é o book do evento.
+    const comBook = (itens as any[]).find((i) => i.bookUrl && !i.deletedAt);
+    return comBook?.bookUrl ?? null;
+  }, [itens]);
+  const heranca: HerancaDoBook | null = bookAtualUrl
+    ? { url: bookAtualUrl, capa: capaHerdada, paginas: Array.from(paginasHerdadas).sort((a, b) => a - b) }
+    : null;
   const { grupos, semArte } = useMemo(() => {
     const vivas = (itens as any[]).filter(
       (i) => !i.deletedAt && i.status !== "canceled" && i.status !== "archived" && !ehBookCompleto(i),
@@ -92,6 +104,7 @@ export default function BookGerador() {
     [incluidos],
   );
   const totalPecas = incluidos.reduce((s, g) => s + g.itens.length, 0);
+  const nPaginasFinal = paginas.length + 1 + (heranca ? heranca.paginas.filter((n) => n !== 1).length : 0);
 
   /**
    * BAIXAR SEM PUBLICAR (pedido do dono, 25/08): gerar é ensaio — o PDF vai
@@ -103,7 +116,7 @@ export default function BookGerador() {
     if (baixando || publicando || totalPecas === 0) return;
     setBaixando(true);
     try {
-      const { bytes, falhas } = await gerarBookPdf(event?.name ?? "Evento", paginas, setProgresso);
+      const { bytes, falhas } = await gerarBookPdf(event?.name ?? "Evento", paginas, setProgresso, heranca);
       const blob = new Blob([bytes as BlobPart], { type: "application/pdf" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
@@ -130,7 +143,7 @@ export default function BookGerador() {
     setPublicando(true);
     setResultado(null);
     try {
-      const { bytes, falhas } = await gerarBookPdf(event?.name ?? "Evento", paginas, setProgresso);
+      const { bytes, falhas } = await gerarBookPdf(event?.name ?? "Evento", paginas, setProgresso, heranca);
       setProgresso({ etapa: "Enviando o PDF…", feito: totalPecas, total: totalPecas });
       const bookUrl = await subirBookPdf(bytes);
       const itemIds = incluidos.flatMap((g) => g.itens.map((i) => i.id));
@@ -206,7 +219,7 @@ export default function BookGerador() {
             {publicando ? <Loader2 className="animate-spin" style={{ width: 15, height: 15 }} /> : <Check style={{ width: 15, height: 15 }} />}
             {publicando
               ? (progresso ? `${progresso.etapa} (${progresso.feito}/${progresso.total})` : "Gerando…")
-              : `Gerar e publicar (${paginas.length + 1} pág.)`}
+              : `Gerar e publicar (${nPaginasFinal} pág.)`}
           </button>
         </div>
 
@@ -224,6 +237,21 @@ export default function BookGerador() {
             {semArte.slice(0, 8).map((i: any) => i.displayId).join(", ")}{semArte.length > 8 ? ` +${semArte.length - 8}` : ""}.
             {" "}O exemplar manual nunca mostra moldura vazia.
           </p>
+        )}
+
+        {bookAtualUrl && (
+          <div style={{ marginBottom: 16, padding: "12px 14px", borderRadius: 10, backgroundColor: "#fff", border: "1px solid #e7e5e4" }}>
+            <p style={{ margin: "0 0 8px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.1em", color: "#78716c" }}>
+              Herdar do book atual
+            </p>
+            <BookHeranca
+              bookUrl={bookAtualUrl}
+              capa={capaHerdada}
+              onCapaChange={setCapaHerdada}
+              paginas={paginasHerdadas}
+              onTogglePagina={(n) => setPaginasHerdadas((prev) => { const s2 = new Set(prev); if (s2.has(n)) s2.delete(n); else s2.add(n); return s2; })}
+            />
+          </div>
         )}
 
         <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 380px) 1fr", gap: 16, alignItems: "start" }}>
@@ -261,10 +289,17 @@ export default function BookGerador() {
 
           {/* ── Prévia: as MESMAS células do PDF, em miniatura ── */}
           <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignContent: "flex-start" }} data-testid="previa-book">
-            {/* capa */}
-            <div style={{ width: BOOK.LARGURA * ESC, height: BOOK.ALTURA * ESC, borderRadius: 6, border: "1px solid #e7e5e4", backgroundColor: BOOK.CAPA_FUNDO, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+            {/* capa — herdada (logo de verdade) ou gerada (nome no fundo claro) */}
+            <div style={{ width: BOOK.LARGURA * ESC, height: BOOK.ALTURA * ESC, borderRadius: 6, border: heranca?.capa ? "2px solid #c2410c" : "1px solid #e7e5e4", backgroundColor: BOOK.CAPA_FUNDO, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4, overflow: "hidden" }}>
               <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: 15, color: BOOK.CAPA_TEXTO, textAlign: "center", padding: "0 12px" }}>{event?.name ?? ""}</span>
+              {heranca?.capa && <span style={{ fontSize: 10, fontWeight: 700, color: "#c2410c" }}>capa herdada do book atual</span>}
             </div>
+            {(heranca?.paginas ?? []).filter((n) => n !== 1).map((n) => (
+              <div key={`h-${n}`} style={{ width: BOOK.LARGURA * ESC, height: BOOK.ALTURA * ESC, borderRadius: 6, border: "2px solid #c2410c", backgroundColor: "#faf9f8", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 4 }} data-testid={`previa-herdada-${n}`}>
+                <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 800, fontSize: 14, color: "#1c1917" }}>pág. {n}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: "#c2410c" }}>copiada do book atual</span>
+              </div>
+            ))}
             {paginas.map((p, pi) => {
               const celulas = celulasDaPagina(p.itens.length);
               return (

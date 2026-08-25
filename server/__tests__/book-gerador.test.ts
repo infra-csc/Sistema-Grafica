@@ -142,4 +142,33 @@ describe("baixar sem publicar (25/08)", () => {
     expect(PAGINA).toContain("disabled={baixando || publicando || totalPecas === 0}");
   });
 });
+describe("herança do book atual (25/08)", () => {
+  // Os books já subidos SÃO o template: capa com logo vetorial e páginas de
+  // render montado. O pdf-lib copia páginas INTEIRAS, sem rasterizar.
+  const HERANCA = readFileSync(new URL("../../client/src/components/book-heranca.tsx", import.meta.url), "utf8");
+
+  it("o motor copia páginas com copyPages e nunca duplica a capa", () => {
+    expect(GERADOR).toContain("const copiadas = await doc.copyPages(src, todos);");
+    expect(GERADOR).toContain("!(querCapa && n === 1)");
+    // capa gerada só quando a de verdade não veio
+    expect(GERADOR).toContain("if (!capaHerdada) {");
+  });
+
+  it("a montagem oferece capa (ligada por padrão) e páginas prontas", () => {
+    expect(PAGINA).toContain("const [capaHerdada, setCapaHerdada] = useState(true);");
+    expect(PAGINA).toContain("<BookHeranca");
+    expect(HERANCA).toContain('data-testid="check-capa-herdada"');
+    expect(HERANCA).toContain("heranca-pag-");
+  });
+
+  it("as miniaturas seguem a mecânica medida do BookPagePicker: fila serial", () => {
+    expect(HERANCA).toContain("pdf.worker.min.mjs?url");
+    expect(HERANCA).toContain("busyRef");
+  });
+
+  it("o book atual vem do bookUrl das peças — nenhum campo novo", () => {
+    expect(PAGINA).toContain("(itens as any[]).find((i) => i.bookUrl && !i.deletedAt)");
+  });
+});
+
 

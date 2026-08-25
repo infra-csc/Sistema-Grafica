@@ -402,7 +402,9 @@ export default function Atendimento() {
    */
   const [addPatrocinadorAberto, setAddPatrocinadorAberto] = useState(false);
   const [addingPatrocinadorId, setAddingPatrocinadorId] = useState<string | null>(null);
-  const { data: sponsorsDoEvento = [] } = useQuery<any[]>({
+  // /api/events/:id/sponsors devolve VÍNCULOS ({ sponsorId, quota }) — os
+  // nomes vêm do catálogo que esta tela já carrega em /api/sponsors.
+  const { data: vinculosDoEvento = [] } = useQuery<any[]>({
     queryKey: ["/api/events", selectedItem?.eventId, "sponsors"],
     enabled: !!selectedItem?.eventId && dialogOpen && user?.role === "admin",
   });
@@ -444,6 +446,12 @@ export default function Atendimento() {
   const { data: sponsors = [] } = useQuery<any[]>({
     queryKey: ["/api/sponsors"],
   });
+  const sponsorsDoEvento = useMemo(() => {
+    const porId = new Map((sponsors as any[]).map((s: any) => [s.id, s]));
+    return (vinculosDoEvento as any[])
+      .map((v: any) => porId.get(v.sponsorId))
+      .filter(Boolean);
+  }, [vinculosDoEvento, sponsors]);
 
   // Histórico DA PEÇA em revisão, com escopo no servidor. A listagem global
   // tem teto de 500 registros — peça antiga caía fora da janela e o modal

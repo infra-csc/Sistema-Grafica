@@ -4536,6 +4536,9 @@ export function registerItemRoutes(app: Express): void {
       }
 
       const aviso = await avisarBookPorEmail(req, req.params.eventId, bookUrl, comBook.length);
+      // A tela de Versões mostra o último aviso lido da trilha — sem isto o
+      // reenvio apareceria lá só depois do TTL do cache.
+      invalidarCacheDeVersoes();
       try {
         await createAuditLog(req, 'updated', 'event', req.params.eventId, `Reenvio manual. ${descreverEnvio(aviso)}`);
       } catch (error) {

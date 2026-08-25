@@ -132,9 +132,20 @@ export type BookDoEvento = {
   pecasMudaram: PecaQueMudou[];
 };
 
+/**
+ * O ÚLTIMO AVISO do book que saiu por e-mail, lido da trilha (25/08).
+ *
+ * O envio deixa rastro em audit_logs ("Aviso por e-mail enviado para a@x,
+ * b@y, com cópia oculta para N pessoas"); o que NÃO existe é rastreio de
+ * abertura — o e-mail sai por SMTP simples, sem pixel nem webhook. Por isso a
+ * tela mostra envio e destinatários, e nada de taxa de leitura: meia
+ * informação verdadeira vale mais que uma taxa inventada.
+ */
+type AvisoDoBook = { em: string; pessoas: number };
+
 type DadosDeVersoes = {
   itens: PecaDeVersoes[];
-  books: { eventId: string; eventName: string; truckDepartureDate: string | null; books: BookDoEvento[] }[];
+  books: { eventId: string; eventName: string; truckDepartureDate: string | null; books: BookDoEvento[]; aviso: AvisoDoBook | null }[];
   registroDesde: string | null;
   calculadoEm: number;
 };
@@ -165,7 +176,7 @@ export function invalidarCacheDeVersoes(): void {
 async function carregar(): Promise<DadosDeVersoes> {
   if (cache && Date.now() - cache.calculadoEm < TTL_MS) return cache;
 
-  const [itens, eventos, sponsors, aprovacoes, versoesGravadas, booksGravados, logsDeTroca] = await Promise.all([
+  const [itens, eventos, sponsors, aprovacoes, versoesGravadas, booksGravados, logsDeTroca, logsDeAviso] = await Promise.all([
     storage.getAllItems().then((l) => l.filter((i) => !ehBookCompleto(i))), // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça (ver shared/fluxo-peca).
     storage.getAllEvents(),
     storage.getAllSponsors(),
@@ -174,6 +185,11 @@ async function carregar(): Promise<DadosDeVersoes> {
     storage.getAllEventBooks(),
     db.select().from(auditLogs)
       .where(sql`${auditLogs.entityType} = 'item' and ${auditLogs.details} like 'Thumb de aprovação atualizado%'`)
+      .orderBy(auditLogs.createdAt),
+    // O rastro do aviso por e-mail do book — só os ENVIADOS (o "NÃO enviado"
+    // também vai para a trilha e não pode contar como aviso dado).
+    db.select().from(auditLogs)
+      .where(sql`${auditLogs.entityType} = 'event' and (${auditLogs.details} like 'Aviso por e-mail enviado para %' or ${auditLogs.details} like 'Reenvio manual. Aviso por e-mail enviado para %')`)
       .orderBy(auditLogs.createdAt),
   ]);
 
@@ -406,12 +422,26 @@ async function carregar(): Promise<DadosDeVersoes> {
       booksPorEvento.set(eventId, l);
     }
   }
+  // ── o último aviso enviado, por evento ──
+  // A trilha guarda a frase inteira; daqui saem a data e QUANTAS pessoas
+  // receberam (destinatários do "para" + a cópia oculta). Logs em ordem
+  // ascendente: o último a escrever no mapa é o mais recente.
+  const RE_AVISO = /^(?:Reenvio manual\. )?Aviso por e-mail enviado para (.+?)(?:, com cópia oculta para (\d+) pessoas?)?(?:\s*\(endereços inválidos[^)]*\))?\.$/;
+  const ultimoAvisoPorEvento = new Map<string, AvisoDoBook>();
+  for (const log of logsDeAviso) {
+    const m = RE_AVISO.exec(log.details ?? "");
+    if (!m) continue;
+    const pessoas = m[1].split(",").map((s) => s.trim()).filter(Boolean).length + (m[2] ? parseInt(m[2], 10) : 0);
+    ultimoAvisoPorEvento.set(log.entityId, { em: new Date(log.createdAt).toISOString(), pessoas });
+  }
+
   const books = Array.from(booksPorEvento.entries()).map(([eventId, lista]) => ({
     eventId,
     eventName: eventoPorId.get(eventId)?.name ?? "Evento desconhecido",
     truckDepartureDate: (() => { const d = eventoPorId.get(eventId)?.truckDepartureDate; return d ? new Date(d as any).toISOString() : null; })(),
     // Sem data (legado) vai para o fim: não dá para afirmar que é o mais novo.
     books: lista.sort((a, b) => (b.em ?? "").localeCompare(a.em ?? "")),
+    aviso: ultimoAvisoPorEvento.get(eventId) ?? null,
   })).sort((a, b) => (b.truckDepartureDate ?? "").localeCompare(a.truckDepartureDate ?? ""));
 
   const datasDeRegistro = versoesGravadas.map((v) => new Date(v.createdAt).toISOString()).sort();

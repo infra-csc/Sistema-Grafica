@@ -74,7 +74,11 @@ type Book = {
   bookUrl: string; em: string | null; por: string | null; itemCount: number; inferido: boolean;
   membrosConhecidos: boolean; pecasMudaramDepois: number; pecasMudaram: PecaQueMudou[];
 };
-type BooksDoEvento = { eventId: string; eventName: string; truckDepartureDate: string | null; books: Book[] };
+/** O último aviso do book que SAIU por e-mail, lido da trilha. O e-mail não
+ *  tem rastreio de abertura (SMTP simples, sem pixel) — por isso a tela diz
+ *  envio e destinatários, e nenhuma taxa de leitura. */
+type AvisoDoBook = { em: string; pessoas: number };
+type BooksDoEvento = { eventId: string; eventName: string; truckDepartureDate: string | null; books: Book[]; aviso: AvisoDoBook | null };
 type Faceta = { value: string; label: string; count: number };
 type Resumo = {
   total: number; atencao: number; divergentes: number; comHistorico: number;
@@ -168,6 +172,9 @@ export default function Versoes() {
   // desfazer: é ação de admin (decisão do dono, 24/08). A mesma régua do
   // servidor — o botão some para os demais em vez de existir para dar 403.
   const podeAvisar = user?.role === "admin";
+  // Republicar leva ao gerador de book, e publicar por lá é de arte/admin —
+  // a mesma régua da página /gerar-book. O botão some para os demais.
+  const podeRepublicar = user?.role === "admin" || user?.role === "arte";
 
   // ── Estado: nasce da URL e volta para ela (recorte compartilhável) ──
   const inicial = useMemo(() => new URLSearchParams(window.location.search), []);
@@ -220,7 +227,10 @@ export default function Versoes() {
   const trocarFoco = (f: Foco) => { setFoco(f); setPagina(0); setAba("pecas"); };
   const alturaControle = isMobile ? 44 : 36;
 
-  // Blocos por evento, na ordem que o servidor mandou.
+  // Blocos por evento, na ordem que o servidor mandou — e, DENTRO do evento,
+  // por gravidade (25/08): divergência já produzida primeiro, depois as
+  // demais divergências, depois o resto. O sort é estável: dentro do mesmo
+  // peso a ordem do servidor continua valendo.
   const blocos = useMemo(() => {
     const out: { eventId: string; eventName: string; pecas: Peca[] }[] = [];
     for (const p of itens) {
@@ -228,6 +238,8 @@ export default function Versoes() {
       if (u && u.eventId === p.eventId) u.pecas.push(p);
       else out.push({ eventId: p.eventId, eventName: p.eventName, pecas: [p] });
     }
+    const peso = (p: Peca) => (p.divergente && jaFoiParaGrafica(p.status)) ? 0 : p.divergente ? 1 : 2;
+    for (const b of out) b.pecas.sort((a, z) => peso(a) - peso(z));
     return out;
   }, [itens]);
 
@@ -259,7 +271,7 @@ export default function Versoes() {
               <BotaoResumo
                 testId="resumo-divergentes"
                 valor={resumo.divergentes}
-                rotulo="aprovaram outra versão"
+                rotulo={resumo.divergentes === 1 ? "aprovou outra versão" : "aprovaram outra versão"}
                 ajuda="Peças em que alguém aprovou uma arte diferente da que está na peça hoje"
                 tom={resumo.divergentes > 0 ? "critico" : "calmo"}
                 ativo={foco === "atencao"}
@@ -281,7 +293,7 @@ export default function Versoes() {
               <BotaoResumo
                 testId="resumo-historico"
                 valor={resumo.comHistorico}
-                rotulo="peças com mais de uma versão"
+                rotulo={resumo.comHistorico === 1 ? "peça com mais de uma versão" : "peças com mais de uma versão"}
                 ajuda="Só nelas existe o que comparar"
                 tom="calmo"
                 ativo={foco === "atencao"}
@@ -290,7 +302,7 @@ export default function Versoes() {
               <BotaoResumo
                 testId="resumo-books"
                 valor={booksDesatualizados}
-                rotulo="books desatualizados"
+                rotulo={booksDesatualizados === 1 ? "book desatualizado" : "books desatualizados"}
                 ajuda="Books publicados antes de alguma peça mudar de versão"
                 tom={booksDesatualizados > 0 ? "alerta" : "calmo"}
                 ativo={aba === "books"}
@@ -388,7 +400,7 @@ export default function Versoes() {
               </button>
             </div>
           ) : aba === "books" ? (
-            <AbaBooks eventos={books} isMobile={isMobile} alturaControle={alturaControle} podeAvisar={podeAvisar} />
+            <AbaBooks eventos={books} isMobile={isMobile} alturaControle={alturaControle} podeAvisar={podeAvisar} podeRepublicar={podeRepublicar} />
           ) : itens.length === 0 ? (
             <div style={{ padding: "56px 24px", textAlign: "center" }}>
               <p style={{ color: T.text, fontSize: FS.strong, fontWeight: 700, margin: "0 0 6px" }}>
@@ -470,8 +482,10 @@ function BotaoResumo({ valor, rotulo, ajuda, tom, ativo, onClick, testId }: {
     <button type="button" onClick={onClick} data-testid={testId} title={ajuda}
       style={{
         textAlign: "left", padding: "9px 12px", borderRadius: R.md, cursor: "pointer", fontFamily: "inherit",
-        border: `1px solid ${ativo ? T.border : "transparent"}`,
-        backgroundColor: ativo ? "#fafaf9" : "transparent",
+        // A MESMA superfície nos quatro (25/08): card sem borda parecia
+        // elemento não renderizado. O que marca a aba corrente é o FUNDO.
+        border: `1px solid ${T.border}`,
+        backgroundColor: ativo ? "#fafaf9" : "#ffffff",
         display: "flex", flexDirection: "column", gap: 1, minWidth: 0,
       }}>
       <span style={{ ...numero, fontSize: 22, fontWeight: 800, color: cor, lineHeight: 1.1 }}>{valor}</span>
@@ -956,7 +970,7 @@ const setaComparador = (lado: "left" | "right"): React.CSSProperties => ({
 });
 
 /** Aba de books: cada publicação com estado — em dia ou desatualizada. */
-function AbaBooks({ eventos, isMobile, alturaControle, podeAvisar }: { eventos: BooksDoEvento[]; isMobile: boolean; alturaControle: number; podeAvisar: boolean }) {
+function AbaBooks({ eventos, isMobile, alturaControle, podeAvisar, podeRepublicar }: { eventos: BooksDoEvento[]; isMobile: boolean; alturaControle: number; podeAvisar: boolean; podeRepublicar: boolean }) {
   if (eventos.length === 0) {
     return (
       <div style={{ padding: "56px 24px", textAlign: "center" }}>
@@ -977,7 +991,7 @@ function AbaBooks({ eventos, isMobile, alturaControle, podeAvisar }: { eventos: 
           <div>
             {ev.books.map((b, i) => (
               <LinhaDoBook key={`${b.bookUrl}-${i}`} b={b} ev={ev} i={i} total={ev.books.length}
-                isMobile={isMobile} alturaControle={alturaControle} podeAvisar={podeAvisar} />
+                isMobile={isMobile} alturaControle={alturaControle} podeAvisar={podeAvisar} podeRepublicar={podeRepublicar} />
             ))}          </div>
         </section>
       ))}
@@ -1027,14 +1041,20 @@ function BotaoReenviarAviso({ eventId, altura }: { eventId: string; altura: numb
  * inteiro contra a lista, peça por peça. Agora o selo ABRE a lista, com a
  * data em que cada arte mudou e o caminho para a peça.
  */
-function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar }: {
+function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar, podeRepublicar }: {
   b: Book; ev: BooksDoEvento; i: number; total: number;
-  isMobile: boolean; alturaControle: number; podeAvisar: boolean;
+  isMobile: boolean; alturaControle: number; podeAvisar: boolean; podeRepublicar: boolean;
 }) {
   const [aberto, setAberto] = useState(false);
   const desatualizado = b.pecasMudaramDepois > 0;
   const listadas = b.pecasMudaram.length;
   const escondidas = b.pecasMudaramDepois - listadas;
+  // A faixa de resolução só existe no book ATUAL desatualizado — republicar
+  // um book antigo não quer dizer nada.
+  const mostraFaixa = i === 0 && desatualizado;
+  // O aviso do evento só vale para ESTA publicação se veio depois dela; um
+  // aviso mais velho que o book fala do book anterior.
+  const avisoDoAtual = i === 0 && ev.aviso && (!b.em || ev.aviso.em >= b.em) ? ev.aviso : null;
 
   return (
     <div data-testid={`book-${ev.eventId}-${i}`}
@@ -1076,6 +1096,24 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar }: 
               <span style={{ color: T.muted }}> · esta publicação foi substituída; o sistema guardou quantas peças ela tinha, não quais</span>
             )}
           </p>
+          {/* O AVISO DEIXA DE SER CEGO (25/08): antes de reenviar, dá para
+              saber se e quando o aviso saiu, e para quantas pessoas. O e-mail
+              NÃO tem rastreio de abertura — o registro é do envio, nunca da
+              leitura, e a tela não inventa taxa nenhuma. */}
+          {i === 0 && (
+            <p data-testid={`registro-aviso-${ev.eventId}`}
+              title={avisoDoAtual
+                ? `Enviado em ${fmtData(avisoDoAtual.em)} para ${avisoDoAtual.pessoas} ${avisoDoAtual.pessoas === 1 ? "destinatário" : "destinatários"}. O e-mail não tem rastreio de abertura — o sistema registra o envio, não a leitura.`
+                : ev.aviso
+                  ? "O último aviso na trilha é anterior a esta publicação — deste book, ninguém foi avisado ainda."
+                  : "O book foi publicado e nenhum aviso por e-mail consta na trilha."}
+              style={{ margin: "3px 0 0", fontSize: 11, display: "flex", alignItems: "center", gap: 5, color: avisoDoAtual ? "#15803d" : "#b45309", fontWeight: avisoDoAtual ? 500 : 700 }}>
+              <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: avisoDoAtual ? "#15803d" : "#f59e0b", flexShrink: 0 }} />
+              {avisoDoAtual
+                ? <>aviso enviado <span style={numero}>{fmtData(avisoDoAtual.em)}</span> para {avisoDoAtual.pessoas} {avisoDoAtual.pessoas === 1 ? "pessoa" : "pessoas"}</>
+                : "aviso nunca enviado"}
+            </p>
+          )}
         </div>
 
         {podeAvisar && i === 0 && <BotaoReenviarAviso eventId={ev.eventId} altura={alturaControle} />}
@@ -1090,6 +1128,48 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar }: 
           </span>
         )}
       </div>
+
+      {/* ── A FAIXA DE RESOLUÇÃO do book atual (25/08). O selo diz "3 peças
+          mudaram" e parava aí; a faixa nomeia as peças e oferece o que fazer.
+          O book é o que o patrocinador tem na mão: se a arte mudou depois da
+          publicação, ele está decidindo sobre arte velha. Republicar leva ao
+          GERADOR de book (/gerar-book), que monta o PDF com a arte atual e
+          publica — nenhuma rota nova. #78350f sobre #fffbeb = 9,4:1. */}
+      {mostraFaixa && (
+        <div data-testid={`faixa-book-${ev.eventId}`}
+          style={{ margin: "0 18px 12px 60px", display: "flex", gap: 10, alignItems: "flex-start", backgroundColor: "#fffbeb", border: "1px solid #fde68a", borderLeft: "3px solid #f59e0b", borderRadius: R.md, padding: "10px 12px" }}>
+          <MessageSquareWarning aria-hidden="true" style={{ width: 15, height: 15, color: "#f59e0b", flexShrink: 0, marginTop: 1 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#78350f", lineHeight: 1.35 }}>
+              O book publicado não tem a arte atual de {b.pecasMudaramDepois} {b.pecasMudaramDepois === 1 ? "peça" : "peças"}
+            </p>
+            <p style={{ margin: "3px 0 0", fontSize: 11, color: "#78350f", opacity: 0.85, lineHeight: 1.45 }}>
+              A arte {b.pecasMudaramDepois === 1 ? "desta peça" : "destas peças"} mudou depois de {b.em ? fmtDia(b.em) : "a publicação"}. Quem abrir o book vai ver a versão antiga — e é por ele que o patrocinador decide.
+            </p>
+            <div style={{ display: "flex", gap: 5, flexWrap: "wrap", marginTop: 7 }}>
+              {b.pecasMudaram.map(pm => (
+                <Link key={pm.id} href={`/eventos/${pm.eventId}?item=${pm.id}`}
+                  data-testid={`ficha-peca-mudou-${pm.id}`}
+                  title={`${pm.type}${pm.description ? ` — ${pm.description}` : ""} · arte trocada em ${fmtData(pm.em)}`}
+                  style={{ ...numero, display: "inline-flex", alignItems: "center", minHeight: isMobile ? 32 : 22, padding: "1px 8px", borderRadius: R.sm, border: "1px solid #fde68a", backgroundColor: "#ffffff", color: "#92400e", fontSize: FS.small, fontWeight: 700, textDecoration: "none" }}>
+                  {pm.displayId}
+                </Link>
+              ))}
+              {escondidas > 0 && (
+                <span style={{ fontSize: 11, color: "#78350f", alignSelf: "center" }}>e mais {escondidas}</span>
+              )}
+            </div>
+          </div>
+          {podeRepublicar && (
+            <Link href={`/eventos/${ev.eventId}/gerar-book`}
+              data-testid={`button-republicar-book-${ev.eventId}`}
+              title="Abrir o gerador de book: monta um PDF novo com a arte atual das peças e publica — o aviso aos responsáveis sai na publicação"
+              style={{ flexShrink: 0, display: "inline-flex", alignItems: "center", gap: 6, height: isMobile ? 44 : 32, padding: "0 14px", borderRadius: R.md, border: "none", backgroundColor: "#c2410c", color: "#ffffff", fontSize: FS.small, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.06em", textDecoration: "none", whiteSpace: "nowrap" }}>
+              <FileText style={{ width: 13, height: 13 }} /> Republicar book
+            </Link>
+          )}
+        </div>
+      )}
 
       {/* QUAIS. Cada peça com a data em que a arte mudou, e o caminho para ela. */}
       {aberto && desatualizado && (

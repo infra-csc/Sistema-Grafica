@@ -221,9 +221,10 @@ describe("3 · o servidor filtra, pagina, resume e exporta", () => {
     expect(ROTA).toContain("export function invalidarCacheDeVersoes(): void {");
     expect(ITEMS).toContain('import { invalidarCacheDeVersoes } from "./versoes";');
     // envio, reenvio, troca, book, revogação automática, aprovar, reprovar,
-    // revogar — e o ATALHO de aprovação da peça inteira, que passou a marcar
-    // as linhas (24/08, caso #4176) e portanto também muda o quadro.
-    expect((ITEMS.match(/invalidarCacheDeVersoes\(\);/g) ?? []).length).toBe(9);
+    // revogar — o ATALHO de aprovação da peça inteira, que passou a marcar
+    // as linhas (24/08, caso #4176) — e o REENVIO do aviso do book (25/08),
+    // cujo registro a tela passou a mostrar lido da trilha.
+    expect((ITEMS.match(/invalidarCacheDeVersoes\(\);/g) ?? []).length).toBe(10);
   });
 });
 
@@ -324,5 +325,51 @@ describe("4 · a tela", () => {
   it("tons e ícones vêm de status.ts, não inventados na tela", () => {
     expect(PAGE).toContain('import { getApprovalMeta } from "@/lib/status";');
     expect(PAGE).toContain("const meta = getApprovalMeta(d.status);");
+  });
+});
+describe("7 · a rodada de 25/08 — books que resolvem e aviso que deixa rastro", () => {
+  it("dentro do evento, a divergência já produzida vem primeiro", () => {
+    expect(PAGE).toContain("const peso = (p: Peca) => (p.divergente && jaFoiParaGrafica(p.status)) ? 0 : p.divergente ? 1 : 2;");
+    expect(PAGE).toContain("for (const b of out) b.pecas.sort((a, z) => peso(a) - peso(z));");
+  });
+
+  it("os quatro cards do resumo têm a MESMA superfície; o fundo marca o ativo; o rótulo concorda com o número", () => {
+    expect(PAGE).toContain('border: `1px solid ${T.border}`,');
+    expect(PAGE).toContain('backgroundColor: ativo ? "#fafaf9" : "#ffffff",');
+    expect(PAGE).toContain('booksDesatualizados === 1 ? "book desatualizado" : "books desatualizados"');
+    expect(PAGE).toContain('resumo.divergentes === 1 ? "aprovou outra versão" : "aprovaram outra versão"');
+  });
+
+  it("o book ATUAL desatualizado ganha a faixa: peças nomeadas + Republicar via gerador (nenhuma rota nova)", () => {
+    expect(PAGE).toContain("data-testid={`faixa-book-${ev.eventId}`}");
+    expect(PAGE).toContain("O book publicado não tem a arte atual de {b.pecasMudaramDepois}");
+    expect(PAGE).toContain("data-testid={`ficha-peca-mudou-${pm.id}`}");
+    expect(PAGE).toContain("data-testid={`button-republicar-book-${ev.eventId}`}");
+    expect(PAGE).toContain("href={`/eventos/${ev.eventId}/gerar-book`}");
+    // só no book atual — republicar um book antigo não quer dizer nada
+    expect(PAGE).toContain("const mostraFaixa = i === 0 && desatualizado;");
+    // e a faixa não é computada oculta: só existe quando aparece
+    expect(PAGE).toContain("{mostraFaixa && (");
+  });
+
+  it("o registro do aviso: envio e destinatários da TRILHA, e nenhuma taxa de abertura inventada", () => {
+    // servidor: só logs de aviso ENVIADO viram registro, com data e pessoas
+    expect(ROTA).toContain("Aviso por e-mail enviado para %");
+    expect(ROTA).toContain("const ultimoAvisoPorEvento = new Map<string, AvisoDoBook>();");
+    // o e-mail é SMTP simples, sem pixel: a tela mostra envio, nunca leitura
+    expect(ROTA).not.toContain("abriu");
+    expect(PAGE).toContain("data-testid={`registro-aviso-${ev.eventId}`}");
+    expect(PAGE).toContain('"aviso nunca enviado"');
+    // aviso mais velho que a publicação fala do book ANTERIOR — não conta
+    expect(PAGE).toContain("(!b.em || ev.aviso.em >= b.em)");
+    // e o reenvio derruba o cache para o registro aparecer na hora
+    const idxNotify = ITEMS.indexOf('app.post("/api/events/:eventId/book/notify"');
+    expect(ITEMS.indexOf("invalidarCacheDeVersoes();", idxNotify)).toBeGreaterThan(idxNotify);
+  });
+
+  it("a decisão de 24/08 continua de pé: a faixa da peça audita, não executa", () => {
+    // reafirmada pelo dono em 25/08, contra o prompt que pedia botões de ação
+    expect(PAGE).toContain("dono cortou os dois, com razão");
+    expect(PAGE).not.toContain("button-resolucao-");
   });
 });

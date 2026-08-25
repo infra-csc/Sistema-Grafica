@@ -18,7 +18,7 @@
 // (ctx.groupOf), porque ela depende do catálogo de Modelos carregado por query.
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { isDelivered, isComplement, type SaldoItem } from "./saldo";
+import { isDelivered, isComplement, reusedTotalOf, type SaldoItem } from "./saldo";
 import { normalizarBusca } from "./utils";
 
 /** Forma mínima de peça que o recorte enxerga (o item cru da API é `any`). */
@@ -46,6 +46,14 @@ export interface GraficaFiltros {
   proximos10: boolean;
   complementos: boolean;
   /**
+   * SÓ as peças com reaproveitamento — inteiras (isReuse) ou parciais
+   * (reuseQty > 0). Pedido do dono (24/08): o reuso sempre foi visível nos
+   * chips e saldos, mas não havia como RECORTAR a fila por ele — e "o que
+   * desta fila sai do estoque em vez da impressora" é pergunta de
+   * planejamento de impressão, não de linha a linha.
+   */
+  reaproveitamento: boolean;
+  /**
    * MOSTRAR as peças já entregues. O padrão é `false`: a tela abre na fila do
    * que falta fazer, não no arquivo histórico. Não conta como "filtro ativo"
    * (é o estado natural da tela), por isso vive fora de CAMPOS.
@@ -56,7 +64,7 @@ export interface GraficaFiltros {
 export const FILTROS_VAZIOS: GraficaFiltros = {
   busca: "", status: [], evento: [], grupo: [], percurso: [], tipo: [],
   material: [], acabamento: [], mes: [], proximos10: false,
-  complementos: false, entregues: false,
+  complementos: false, reaproveitamento: false, entregues: false,
 };
 
 const MESES = [
@@ -81,6 +89,7 @@ const CAMPOS = [
   { chave: "mes",         url: "mes",        rotulo: "Mês" },
   { chave: "proximos10",  url: "proximos10", rotulo: "Próximos 10 dias" },
   { chave: "complementos", url: "complementos", rotulo: "Só complementos" },
+  { chave: "reaproveitamento", url: "reuso", rotulo: "Só reaproveitamento" },
 ] as const;
 
 const vazio = (v: string | string[] | boolean): boolean =>
@@ -143,6 +152,7 @@ export function filtrosDaURL(search: string): GraficaFiltros {
     mes: csv(p.get("mes")),
     proximos10: p.get("proximos10") === "1",
     complementos: p.get("complementos") === "1",
+    reaproveitamento: p.get("reuso") === "1",
     entregues: p.get("entregues") === "1",
   };
 }
@@ -338,6 +348,9 @@ export function itemCasaFiltros(
     if (escondeEntregues(f) && isDelivered(item)) return false;
   }
   if (!ignorarStatus && f.complementos && !isComplement(item)) return false;
+  // Reuso total (isReuse) ou parcial (reuseQty>0) — a mesma régua dos chips
+  // verdes da linha (reusedTotalOf considera as duas formas).
+  if (!ignorarStatus && f.reaproveitamento && !(item.isReuse || reusedTotalOf(item) > 0)) return false;
 
   if (excluir !== "evento" && f.evento.length > 0 && !f.evento.includes(String(item.eventId ?? ""))) return false;
   if (excluir !== "grupo" && f.grupo.length > 0 && !f.grupo.includes(ctx.groupOf(String(item.type ?? "")))) return false;

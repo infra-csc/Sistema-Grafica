@@ -1,6 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { FilterSelect, ShortcutPill } from "@/components/filter-select";
-import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, ImagePlus, FileSpreadsheet, ListChecks, PlusCircle, Trash2, Undo2, Loader2 } from "lucide-react";
+import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, ImagePlus, FileSpreadsheet, ListChecks, PlusCircle, Trash2, Undo2, Loader2, Recycle } from "lucide-react";
 import { Fragment, useState, useMemo, useEffect, useRef } from "react";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { parseDateLocal } from "@/lib/utils";
@@ -1187,6 +1187,16 @@ export default function Grafica() {
   );
   const complementoUn = complementosAbertos.reduce((s: number, i: any) => s + qtyOf(i), 0);
   const complementoAProduzir = complementosAbertos.reduce((s: number, i: any) => s + remainingProduce(i), 0);
+  /**
+   * Peças com reaproveitamento no recorte atual (total ou parcial) — a mesma
+   * régua dos chips verdes da linha. Conta SEM a própria dimensão (o pool que
+   * alimenta os cards), senão ligar o chip zeraria o número dele.
+   */
+  const comReusoNaLista = useMemo(
+    () => (statsPool as any[]).filter((i: any) => i.isReuse || reusedTotalOf(i) > 0).length,
+    [statsPool],
+  );
+
   const complementoChipLabel = complementosAbertos.length > 0
     // "a produzir" só quando ainda há impressão pela frente; se já produziu
     // tudo e falta conferir/entregar, o texto seria mentira.
@@ -1837,6 +1847,33 @@ export default function Grafica() {
             >
               <span style={{ width: 6, height: 6, borderRadius: "50%", backgroundColor: CO.stripe, display: "inline-block", flexShrink: 0 }} />
               {complementoChipLabel}
+            </button>
+          )}
+          {/* SÓ REAPROVEITAMENTO — o que desta fila sai do estoque em vez da
+              impressora. O reuso sempre foi visível peça a peça; este chip é o
+              recorte que faltava para planejar impressão. Some quando não há
+              nenhum (chip zerado só ocupa espaço), mas fica se o filtro está
+              LIGADO — senão não haveria como desligar. */}
+          {(comReusoNaLista > 0 || filtros.reaproveitamento) && (
+            <button
+              onClick={() => patchFiltros({ reaproveitamento: !filtros.reaproveitamento })}
+              aria-pressed={filtros.reaproveitamento}
+              data-testid="chip-reaproveitamento"
+              title={filtros.reaproveitamento
+                ? "Mostrando só peças com reaproveitamento — toque para ver a lista inteira"
+                : "Mostrar só as peças com reaproveitamento (total ou parcial) — o que sai do estoque em vez da impressora"}
+              style={{
+                display: "inline-flex", alignItems: "center", gap: 6,
+                backgroundColor: filtros.reaproveitamento ? "#dcfce7" : "#f0fdf4",
+                color: "#047857",
+                border: `1px solid ${filtros.reaproveitamento ? "#047857" : "#bbf7d0"}`,
+                borderRadius: 999, padding: isMobile ? "7px 12px" : "5px 11px",
+                fontSize: 11, fontWeight: 700, cursor: "pointer",
+                whiteSpace: "nowrap", transition: "background-color 0.15s",
+              }}
+            >
+              <Recycle aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />
+              {comReusoNaLista} c/ reaproveitamento
             </button>
           )}
           {/* Quanto do recorte é evento que já acabou. NÃO é botão: não há o

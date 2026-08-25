@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
+import { refsDaPeca } from "@/lib/refs-da-peca";
 import { getApprovalMeta, getStatusLabel, marcoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import {
   Edit, Save, X, Check, Clock, Eye, ExternalLink, Camera, Paperclip,
@@ -1250,26 +1251,43 @@ export function ItemDetailsDialog({
                     conferência, então na maior parte do fluxo a faixa continua
                     com dois. */}
                 {(() => {
-                  const panes = [!!item.referenceUrl, !!thumbUrl, conferencePhotos.length > 0].filter(Boolean).length;
+                  // VÁRIAS referências (25/08): a primeira ocupa o pane; as
+                  // demais viram miniaturas clicáveis logo abaixo.
+                  const refs = refsDaPeca(item);
+                  const panes = [refs.length > 0, !!thumbUrl, conferencePhotos.length > 0].filter(Boolean).length;
                   return (
                 <div style={{ display: "grid", gridTemplateColumns: panes >= 3 ? "1fr 1fr 1fr" : panes === 2 ? "1fr 1fr" : "1fr", gap: 10 }}>
-                  {item.referenceUrl && (
+                  {refs.length > 0 && (
                     <div>
                       <a
-                        href={item.referenceUrl} target="_blank" rel="noopener noreferrer"
+                        href={refs[0]} target="_blank" rel="noopener noreferrer"
                         title="Abrir a referência do solicitante"
                         data-testid="link-referencia"
                         style={{ display: "block", position: "relative", aspectRatio: "16/9", borderRadius: 10, overflow: "hidden", border: "2px solid #fed7aa", backgroundColor: "#fff7ed" }}
                       >
                         <img
-                          src={item.referenceUrl} alt="Referência do solicitante"
+                          src={refs[0]} alt="Referência do solicitante"
                           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                           onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
                         />
                       </a>
+                      {refs.length > 1 && (
+                        <div style={{ display: "flex", gap: 6, marginTop: 6, flexWrap: "wrap" }}>
+                          {refs.slice(1).map((u, k) => (
+                            <a key={`${u}-${k}`} href={u} target="_blank" rel="noopener noreferrer"
+                              title={`Abrir referência ${k + 2} de ${refs.length}`}
+                              data-testid={`link-referencia-${k + 2}`}
+                              style={{ display: "block", width: 56, height: 42, borderRadius: 6, overflow: "hidden", border: "1px solid #fed7aa", backgroundColor: "#fff7ed" }}>
+                              <img src={u} alt={`Referência ${k + 2} do solicitante`}
+                                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                                onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                            </a>
+                          ))}
+                        </div>
+                      )}
                       <p style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, fontWeight: 700, color: "#9a3412", margin: "6px 0 0" }}>
                         <Paperclip aria-hidden="true" style={{ width: 11, height: 11 }} />
-                        Referência do solicitante
+                        {refs.length > 1 ? `Referências do solicitante (${refs.length})` : "Referência do solicitante"}
                       </p>
                     </div>
                   )}

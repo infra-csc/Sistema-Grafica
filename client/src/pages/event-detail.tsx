@@ -45,6 +45,7 @@ import { ImportXlsxDialog, ImportPreviewRow } from "@/components/import-xlsx-dia
 import { CloneItemsDialog } from "@/components/clone-items-dialog";
 import { useEventImport, useEventClone } from "@/hooks/use-event-import";
 import { useEventReference } from "@/hooks/use-event-reference";
+import { refsDaPeca } from "@/lib/refs-da-peca";
 
 /**
  * QUAL ETAPA CADA STATUS JÁ CUMPRIU — a régua da timeline.
@@ -1143,7 +1144,7 @@ export default function EventDetail() {
     return () => window.removeEventListener("paste", handler);
   }, [editDialogOpen]);
 
-  const { updateReferenceUrlMutation, removeReferenceUrlMutation } = useEventReference({ eventId });
+  const { salvarReferenciasMutation } = useEventReference({ eventId });
 
   const createItemMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -2426,39 +2427,46 @@ export default function EventDetail() {
                                       </div>
                                     </div>
                                     <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-                                      {/* Referência visual */}
-                                      {item.referenceUrl && (
-                                        <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Abrir referência visual" data-testid={`link-reference-${item.id}`}>
-                                          <img src={item.referenceUrl} className="h-8 w-8 rounded object-cover border border-border" alt="Referência visual" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-                                        </a>
-                                      )}
-                                      {/* Upload referência — solicitation/admin, em qualquer status
-                                          até um status FINAL (não só 'entregue', que nem existe no
-                                          vocabulário canônico). Alvos ≥44px no mobile. */}
-                                      {canUploadReference && !(FINAL_STATUSES as readonly string[]).includes(item.status) && (
-                                        <ObjectUploader
-                                          onGetUploadParameters={getUploadUrl}
-                                          onComplete={({ url }) => updateReferenceUrlMutation.mutate({ itemId: item.id, referenceUrl: url })}
-                                          buttonVariant="ghost"
-                                          buttonClassName={isMobile ? "px-3 h-11 text-xs gap-1" : "px-2 h-7 text-xs gap-1"}
-                                        >
-                                          <Paperclip className="h-3 w-3" />
-                                          <span>{item.referenceUrl ? 'Trocar ref.' : 'Ref. visual'}</span>
-                                        </ObjectUploader>
-                                      )}
-                                      {canUploadReference && item.referenceUrl && !(FINAL_STATUSES as readonly string[]).includes(item.status) && (
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="icon"
-                                          className={`${isMobile ? "h-11 w-11" : "h-7 w-7"} text-muted-foreground`}
-                                          title="Remover referência"
-                                          data-testid={`button-remove-reference-${item.id}`}
-                                          onClick={() => removeReferenceUrlMutation.mutate(item.id)}
-                                        >
-                                          <X className="h-3 w-3" />
-                                        </Button>
-                                      )}
+                                      {/* Referências visuais — VÁRIAS por peça (25/08): o upload
+                                          ADICIONA em vez de trocar, e cada miniatura tem o seu ×.
+                                          Solicitation/admin, em qualquer status até um FINAL.
+                                          Alvos ≥44px no mobile. */}
+                                      {(() => {
+                                        const refs = refsDaPeca(item);
+                                        const podeEditarRef = canUploadReference && !(FINAL_STATUSES as readonly string[]).includes(item.status);
+                                        return (<>
+                                          {refs.map((url, k) => (
+                                            <span key={`${url}-${k}`} style={{ position: 'relative', display: 'inline-flex' }}>
+                                              <a href={url} target="_blank" rel="noopener noreferrer" title={refs.length > 1 ? `Abrir referência ${k + 1} de ${refs.length}` : "Abrir referência visual"} data-testid={k === 0 ? `link-reference-${item.id}` : `link-reference-${item.id}-${k + 1}`}>
+                                                <img src={url} className="h-8 w-8 rounded object-cover border border-border" alt={`Referência visual ${k + 1}`} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                              </a>
+                                              {podeEditarRef && (
+                                                <button
+                                                  type="button"
+                                                  title="Remover esta referência"
+                                                  aria-label={`Remover referência ${k + 1} de ${item.displayId}`}
+                                                  data-testid={k === 0 ? `button-remove-reference-${item.id}` : `button-remove-reference-${item.id}-${k + 1}`}
+                                                  onClick={() => salvarReferenciasMutation.mutate({ itemId: item.id, referenceUrls: refs.filter((_, j) => j !== k) })}
+                                                  style={{ position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: '50%', border: '1px solid #d6d3d1', background: '#fff', color: '#57534e', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                                                >
+                                                  <X style={{ width: 9, height: 9 }} />
+                                                </button>
+                                              )}
+                                            </span>
+                                          ))}
+                                          {podeEditarRef && (
+                                            <ObjectUploader
+                                              onGetUploadParameters={getUploadUrl}
+                                              onComplete={({ url }) => salvarReferenciasMutation.mutate({ itemId: item.id, referenceUrls: [...refs, url] })}
+                                              buttonVariant="ghost"
+                                              buttonClassName={isMobile ? "px-3 h-11 text-xs gap-1" : "px-2 h-7 text-xs gap-1"}
+                                            >
+                                              <Paperclip className="h-3 w-3" />
+                                              <span>{refs.length > 0 ? '+ ref.' : 'Ref. visual'}</span>
+                                            </ObjectUploader>
+                                          )}
+                                        </>);
+                                      })()}
                                       {/* canEditLists (não canManageEvent): mesmo gate da tabela
                                           principal — o papel "solicitação" edita rascunhos. */}
                                       {canEditLists && (
@@ -2913,18 +2921,37 @@ export default function EventDetail() {
                               {item.displayId}
                             </button>
                           </td>
-                          {/* Ref. */}
+                          {/* Ref. — VÁRIAS por peça (25/08): o clipe ADICIONA em
+                              vez de trocar, e cada miniatura tem o seu ×. */}
                           <td style={{ padding: '14px 14px' }} onClick={e => e.stopPropagation()}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                              {item.referenceUrl && (
-                                <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" title="Ver referência" data-testid={`link-reference-table-${item.id}`}>
-                                  <img src={item.referenceUrl} style={{ height: 32, width: 32, objectFit: 'cover', borderRadius: 6, border: '1px solid #e7e5e4' }} alt="Referência visual" onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
-                                </a>
-                              )}
-                              {canUploadReference && !(FINAL_STATUSES as readonly string[]).includes(item.status) && (
+                            {(() => {
+                              const refs = refsDaPeca(item);
+                              const podeEditarRef = canUploadReference && !(FINAL_STATUSES as readonly string[]).includes(item.status);
+                              return (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                              {refs.map((url, k) => (
+                                <span key={`${url}-${k}`} style={{ position: 'relative', display: 'inline-flex' }}>
+                                  <a href={url} target="_blank" rel="noopener noreferrer" title={refs.length > 1 ? `Ver referência ${k + 1} de ${refs.length}` : "Ver referência"} data-testid={k === 0 ? `link-reference-table-${item.id}` : `link-reference-table-${item.id}-${k + 1}`}>
+                                    <img src={url} style={{ height: 32, width: 32, objectFit: 'cover', borderRadius: 6, border: '1px solid #e7e5e4' }} alt={`Referência visual ${k + 1}`} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                  </a>
+                                  {podeEditarRef && (
+                                    <button
+                                      type="button"
+                                      title="Remover esta referência"
+                                      aria-label={`Remover referência ${k + 1} de ${item.displayId}`}
+                                      data-testid={k === 0 ? `button-remove-reference-table-${item.id}` : `button-remove-reference-table-${item.id}-${k + 1}`}
+                                      onClick={() => salvarReferenciasMutation.mutate({ itemId: item.id, referenceUrls: refs.filter((_, j) => j !== k) })}
+                                      style={{ position: 'absolute', top: -6, right: -6, width: 16, height: 16, borderRadius: '50%', border: '1px solid #d6d3d1', background: '#fff', color: '#57534e', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}
+                                    >
+                                      <X style={{ width: 9, height: 9 }} />
+                                    </button>
+                                  )}
+                                </span>
+                              ))}
+                              {podeEditarRef && (
                                 <ObjectUploader
                                   onGetUploadParameters={getUploadUrl}
-                                  onComplete={({ url }) => updateReferenceUrlMutation.mutate({ itemId: item.id, referenceUrl: url })}
+                                  onComplete={({ url }) => salvarReferenciasMutation.mutate({ itemId: item.id, referenceUrls: [...refs, url] })}
                                   buttonVariant="ghost"
                                   buttonClassName="h-7 w-7 p-0"
                                 >
@@ -2932,34 +2959,22 @@ export default function EventDetail() {
                                       aceita a prop e a descartava: a dica nunca
                                       apareceu. Num <span> ela funciona, e o
                                       aria-label nomeia o controle para quem usa
-                                      leitor de tela. #f97316 sobre branco dá
-                                      2.80:1 — o laranja escuro passa. */}
+                                      leitor de tela. */}
                                   <span
-                                    title={item.referenceUrl ? "Substituir referência" : "Adicionar referência"}
-                                    aria-label={item.referenceUrl ? "Substituir referência" : "Adicionar referência"}
+                                    title={refs.length > 0 ? "Adicionar mais uma referência" : "Adicionar referência"}
+                                    aria-label={refs.length > 0 ? "Adicionar mais uma referência" : "Adicionar referência"}
                                     style={{ display: 'inline-flex' }}
                                   >
-                                    <Paperclip style={{ width: 13, height: 13, color: item.referenceUrl ? '#c2410c' : '#746e69' }} />
+                                    <Paperclip style={{ width: 13, height: 13, color: refs.length > 0 ? '#c2410c' : '#746e69' }} />
                                   </span>
                                 </ObjectUploader>
                               )}
-                              {canUploadReference && item.referenceUrl && !(FINAL_STATUSES as readonly string[]).includes(item.status) && (
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="icon"
-                                  className="h-7 w-7 text-muted-foreground"
-                                  title="Remover referência"
-                                  data-testid={`button-remove-reference-table-${item.id}`}
-                                  onClick={() => removeReferenceUrlMutation.mutate(item.id)}
-                                >
-                                  <X style={{ width: 11, height: 11 }} />
-                                </Button>
-                              )}
-                              {(!canUploadReference || (FINAL_STATUSES as readonly string[]).includes(item.status)) && !item.referenceUrl && (
+                              {!podeEditarRef && refs.length === 0 && (
                                 <span style={{ color: '#746e69', fontSize: 13 }}>—</span>
                               )}
                             </div>
+                              );
+                            })()}
                           </td>
                           {/* Descrição — Material/Acabamento entram aqui como
                               2ª linha, em vez de duas colunas próprias. O gate

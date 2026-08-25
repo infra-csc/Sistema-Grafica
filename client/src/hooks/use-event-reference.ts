@@ -38,8 +38,25 @@ export function useEventReference({ eventId }: UseEventReferenceParams) {
     },
   });
 
+  // MAIS DE UMA referência por peça (25/08): grava a LISTA inteira; o servidor
+  // mantém referenceUrl = primeira, para as telas de miniatura única. Remover
+  // uma imagem é salvar a lista sem ela; lista vazia limpa os dois campos.
+  const salvarReferenciasMutation = useMutation({
+    mutationFn: async ({ itemId, referenceUrls }: { itemId: string; referenceUrls: string[] }) => {
+      await apiRequest("PATCH", `/api/items/${itemId}`, { referenceUrls });
+    },
+    onSuccess: (_dados, { referenceUrls }) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
+      toast({ title: referenceUrls.length === 0 ? "Referência removida" : "Referências salvas" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Erro ao salvar referências", description: error.message, variant: "destructive" });
+    },
+  });
+
   return {
     updateReferenceUrlMutation,
     removeReferenceUrlMutation,
+    salvarReferenciasMutation,
   };
 }

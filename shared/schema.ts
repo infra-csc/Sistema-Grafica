@@ -265,6 +265,12 @@ export const items = pgTable("items", {
   // sobrevive — mesmo padrão de statusChangedAt. NULL = nunca impressa.
   labelPrintedAt: timestamp("label_printed_at"),
   referenceUrl: text("reference_url"), // Anexo/referência de demonstração das peças (upload do Solicitante)
+  // MAIS DE UMA referência por peça (pedido do dono, 25/08). A lista completa
+  // vive aqui; referenceUrl continua sendo A PRIMEIRA da lista — as sete telas
+  // que mostram uma miniatura só não precisaram mudar. O PATCH mantém os dois
+  // campos em sincronia (lista manda; só-referenceUrl espelha para cá).
+  // NULL = peça anterior à coluna: vale o que referenceUrl disser.
+  referenceUrls: text("reference_urls").array(),
   bookUrl: text("book_url"), // PDF do book de aprovação (layout pronto) que cobre esta peça — enviado pela Arte para os patrocinadores
   deletedAt: timestamp("deleted_at"), // Soft delete — item permanece no histórico (audit log) mas some das listagens
   createdAt: timestamp("created_at").notNull().default(sql`now()`),

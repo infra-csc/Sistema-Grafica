@@ -183,6 +183,7 @@ const updateItemSchema = insertItemSchema
     finalFileUrl: true,
     finalFileName: true,
     referenceUrl: true,
+    referenceUrls: true,
     standardItemId: true,
   })
   .partial();
@@ -1272,6 +1273,31 @@ export function registerItemRoutes(app: Express): void {
           // fall back to just normalizing the path without setting an ACL.
           validatedData.referenceUrl = objectStorageService.normalizeObjectEntityPath(validatedData.referenceUrl);
         }
+      }
+
+      // ── LISTA de referências (25/08): cada URL normalizada como acima, e os
+      // dois campos SEMPRE em sincronia — referenceUrl é a primeira da lista,
+      // que é o que as sete telas de miniatura única leem. Quando só o campo
+      // antigo vem (chamador legado), a lista espelha ele: senão uma troca
+      // pelo caminho velho deixaria a lista mostrando as imagens de antes.
+      if (validatedData.referenceUrls !== undefined) {
+        const lista = (validatedData.referenceUrls ?? []).filter(
+          (u): u is string => typeof u === "string" && u.length > 0
+        );
+        const { ObjectStorageService } = await import("../objectStorage");
+        const svc = new ObjectStorageService();
+        const normalizadas: string[] = [];
+        for (const url of lista) {
+          try {
+            normalizadas.push(await svc.trySetObjectEntityAclPolicy(url, { owner: req.userId!, visibility: "public" }));
+          } catch {
+            normalizadas.push(svc.normalizeObjectEntityPath(url));
+          }
+        }
+        validatedData.referenceUrls = normalizadas;
+        (validatedData as any).referenceUrl = normalizadas[0] ?? null;
+      } else if (validatedData.referenceUrl !== undefined) {
+        (validatedData as any).referenceUrls = validatedData.referenceUrl ? [validatedData.referenceUrl] : null;
       }
 
       // Pegar item atual antes de atualizar

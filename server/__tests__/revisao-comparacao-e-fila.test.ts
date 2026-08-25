@@ -238,7 +238,9 @@ describe("o congelamento continua em todos os pontos", () => {
     // dentro de um literal já custou um erro de parse aqui.
     const aberturas = tela.split("<FreezeWhileClosing").length - 1;
     const fechamentos = tela.split("</FreezeWhileClosing>").length - 1;
-    expect(aberturas).toBe(7);
+    // 8 desde 25/08: o diálogo de "Reaproveitar em lote" entrou com o mesmo
+    // congelamento dos outros lotes.
+    expect(aberturas).toBe(8);
     expect(fechamentos).toBe(aberturas);
   });
 });

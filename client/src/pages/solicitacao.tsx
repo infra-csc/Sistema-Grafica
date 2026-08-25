@@ -141,6 +141,7 @@ export default function Solicitacao() {
   const [cardObservations, setCardObservations] = useState("");
   const [bulkReleaseConfirmOpen, setBulkReleaseConfirmOpen] = useState(false);
   const [bulkReturnConfirmOpen, setBulkReturnConfirmOpen] = useState(false);
+  const [bulkReuseConfirmOpen, setBulkReuseConfirmOpen] = useState(false);
   const [bulkReturnObservations, setBulkReturnObservations] = useState("");
   const [returnConfirmOpen, setReturnConfirmOpen] = useState(false);
   const [deleteConfirmItemId, setDeleteConfirmItemId] = useState<string | null>(null);
@@ -440,6 +441,60 @@ export default function Solicitacao() {
     onError: (error: any) => toast({ title: "Erro ao devolver peças", description: error.message, variant: "destructive" }),
   });
 
+  const bulkReuseMutation = useMutation({
+    // REAPROVEITAR em lote (pedido do dono, 25/08): o mesmo par de chamadas do
+    // reaproveitamento TOTAL individual (PATCH isReuse + creator-review), peça
+    // a peça — rota de lote não existe. O PARCIAL continua só no ícone da
+    // linha: quantidade reaproveitada é decisão de UMA peça, não de um lote.
+    mutationFn: async (itemIds: string[]) => {
+      const results = await Promise.allSettled(itemIds.map(async (id) => {
+        await apiRequest("PATCH", `/api/items/${id}`, { isReuse: true });
+        // Marcou mas não liberou é MEIO caminho, não falha igual: a marcação
+        // existe, e o "Liberar" da barra resolve o resto.
+        try { await apiRequest("PATCH", `/api/items/${id}/creator-review`, {}); }
+        catch { throw new Error("__marcada_sem_liberar__"); }
+      }));
+      const failedIds: string[] = [], semLiberar: string[] = [];
+      results.forEach((r, i) => {
+        if (r.status !== "rejected") return;
+        if ((r.reason as any)?.message === "__marcada_sem_liberar__") semLiberar.push(itemIds[i]);
+        else failedIds.push(itemIds[i]);
+      });
+      return { total: itemIds.length, failedIds, semLiberar };
+    },
+    onSuccess: ({ total, failedIds, semLiberar }, enviados) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/audit-logs"] });
+      // Continua selecionado o que ainda pede ação: o que falhou (tentar de
+      // novo) e o que marcou sem liberar (o "Liberar N" da barra fecha) — e as
+      // de evento finalizado, que nem foram enviadas (ver `selecaoLote`).
+      setSelectedItemIds(prev => {
+        const foi = new Set(enviados);
+        const pendente = new Set([...failedIds, ...semLiberar]);
+        return new Set(Array.from(prev).filter(id => pendente.has(id) || !foi.has(id)));
+      });
+      setBulkReuseConfirmOpen(false);
+      const ok = total - failedIds.length - semLiberar.length;
+      if (failedIds.length === 0 && semLiberar.length === 0) {
+        toast({ title: "Reaproveitamento confirmado", description: `${ok} peça(s) enviada(s) à Gráfica como produzida(s).` });
+      } else if (failedIds.length === 0) {
+        toast({
+          title: "Marcadas, mas nem todas liberadas",
+          description: `${ok} enviada(s) à Gráfica; ${semLiberar.length} marcada(s) sem liberar — continuam selecionadas: use o "Liberar" da barra.`,
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Reaproveitamento parcial",
+          description: `${ok} de ${total} enviada(s). ${failedIds.length} falhou(aram)${semLiberar.length > 0 ? ` e ${semLiberar.length} marcou sem liberar` : ""} — continuam selecionadas.`,
+          variant: "destructive",
+        });
+      }
+    },
+    onError: (error: any) => toast({ title: "Erro ao reaproveitar peças", description: error.message, variant: "destructive" }),
+  });
+
   const deleteItemMutation = useMutation({
     mutationFn: async (itemId: string) => await apiRequest("DELETE", `/api/items/${itemId}`),
     onSuccess: () => {
@@ -489,7 +544,7 @@ export default function Solicitacao() {
   // Com um diálogo aberto o atalho SE CALA: o FocusScope do Radix puxaria o
   // foco de volta na hora e o efeito visível seria só um pisca-pisca.
   const algumDialogoAberto = modalOpen || releaseConfirmOpen || returnConfirmOpen
-    || bulkReleaseConfirmOpen || bulkReturnConfirmOpen
+    || bulkReleaseConfirmOpen || bulkReturnConfirmOpen || bulkReuseConfirmOpen
     || deleteConfirmItemId !== null || complementItem !== null || reuseDialogItemId !== null;
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1210,6 +1265,31 @@ export default function Solicitacao() {
                   ? "Processando..."
                   : `Devolver ${selecaoLote.vivas.length}`}
               </button>
+              {/* REAPROVEITAR em lote (pedido do dono, 25/08) — só com 2+
+                  selecionadas: com uma, o ícone da linha faz o mesmo e ainda
+                  oferece o parcial. Verde é a identidade do reaproveitamento
+                  na tela (o selo e o ícone da linha). #15803d/#f0fdf4 = 5,0:1 */}
+              {selecaoLote.ids.length >= 2 && (
+                <button
+                  onClick={() => selecaoLote.vivas.length > 0 && setBulkReuseConfirmOpen(true)}
+                  disabled={selecaoLote.vivas.length === 0 || bulkReuseMutation.isPending}
+                  title={selecaoLote.vivas.length === 0
+                    ? "Toda a seleção é de evento finalizado — reaproveitar está bloqueado nessas peças."
+                    : "Marcar como reaproveitamento total e enviar à Gráfica como produzidas"}
+                  data-testid="button-bulk-reuse-hero"
+                  style={{
+                    height: alturaControle, padding: "0 14px", borderRadius: 8,
+                    border: `1px solid ${selecaoLote.vivas.length === 0 ? TI.border : "#86efac"}`,
+                    backgroundColor: selecaoLote.vivas.length === 0 ? TI.surface : "#f0fdf4",
+                    color: selecaoLote.vivas.length === 0 ? "#a8a29e" : "#15803d",
+                    fontSize: 13, fontWeight: 700, whiteSpace: "nowrap",
+                    cursor: selecaoLote.vivas.length === 0 || bulkReuseMutation.isPending ? "not-allowed" : "pointer",
+                  }}>
+                  {bulkReuseMutation.isPending
+                    ? "Processando..."
+                    : `Reaproveitar ${selecaoLote.vivas.length}`}
+                </button>
+              )}
             </div>
           </div>
         )}
@@ -2450,6 +2530,44 @@ export default function Solicitacao() {
               data-testid="button-bulk-return-confirm"
             >
               {bulkReturnMutation.isPending ? "Devolvendo..." : "Devolver para Arte"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+          </FreezeWhileClosing>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk reuse — reaproveitamento TOTAL em lote. O parcial fica no ícone
+          da linha, onde a quantidade é decidida peça a peça. */}
+      <AlertDialog open={bulkReuseConfirmOpen} onOpenChange={setBulkReuseConfirmOpen}>
+        <AlertDialogContent className="review-confirm-content">
+          {/* Mesmo congelamento dos outros lotes: o onSuccess reescreve
+              `selectedItemIds` (que conta o título) e fecha no mesmo commit. */}
+          <FreezeWhileClosing open={bulkReuseConfirmOpen}>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reaproveitar {selecaoLote.vivas.length} iten{selecaoLote.vivas.length !== 1 ? "s" : ""}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {selecaoLote.vivas.length === 1 ? "A peça será marcada" : "As peças serão marcadas"} como reaproveitamento <strong>total</strong> e enviadas direto à Gráfica como produzidas — sem nova impressão. Para reaproveitar só parte das unidades de uma peça, use o ícone ♻ na linha dela.
+              {selecaoLote.finalizadas > 0 && (
+                <span data-testid="aviso-bulk-reuse-finalizadas" style={{ display: "block", marginTop: 8 }}>
+                  {avisoLoteFinalizadas()}
+                </span>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-bulk-reuse-cancel">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault(); // a mutation controla o fechamento (mantém aberto em erro)
+                bulkReuseMutation.mutate(selecaoLote.vivas);
+              }}
+              disabled={bulkReuseMutation.isPending || selecaoLote.vivas.length === 0}
+              style={{ backgroundColor: "#15803d", color: "#fff" }}
+              data-testid="button-bulk-reuse-confirm"
+            >
+              {bulkReuseMutation.isPending
+                ? "Reaproveitando..."
+                : selecaoLote.finalizadas > 0 ? `Reaproveitar as ${selecaoLote.vivas.length}` : "Reaproveitar Todas"}
             </AlertDialogAction>
           </AlertDialogFooter>
           </FreezeWhileClosing>

@@ -73,3 +73,32 @@ describe("decidir pela ficha avança a fila, como Liberar e Devolver", () => {
     expect((REV.match(/modalOpen && selectedItem\?\.id === dialogItem\.id && !marcarAvanco\(\)/g) ?? []).length).toBe(2);
   });
 });
+describe("Reaproveitar em LOTE na barra de seleção (25/08)", () => {
+  // Pedido do dono: com 2+ selecionadas, a barra ganha "Reaproveitar N" ao
+  // lado de Liberar/Devolver. É o reaproveitamento TOTAL — o parcial fica no
+  // ícone da linha, onde a quantidade é decidida peça a peça.
+  it("o botão existe, só com 2+ selecionadas, contando as vivas", () => {
+    expect(REV).toContain('data-testid="button-bulk-reuse-hero"');
+    expect(REV).toContain("{selecaoLote.ids.length >= 2 && (");
+    expect(REV).toContain("`Reaproveitar ${selecaoLote.vivas.length}`");
+  });
+
+  it("dispara o MESMO par de chamadas do total individual, peça a peça", () => {
+    expect(REV).toContain("const bulkReuseMutation = useMutation({");
+    expect(REV).toContain("await apiRequest(\"PATCH\", `/api/items/${id}`, { isReuse: true });");
+    expect(REV).toContain("await apiRequest(\"PATCH\", `/api/items/${id}/creator-review`, {});");
+    // marcou-sem-liberar é MEIO caminho, não falha igual: continua selecionada
+    // para o "Liberar" da barra fechar
+    expect(REV).toContain("__marcada_sem_liberar__");
+  });
+
+  it("tem confirmação própria, congelada ao fechar, e respeita evento finalizado", () => {
+    expect(REV).toContain('data-testid="button-bulk-reuse-confirm"');
+    expect(REV).toContain("<FreezeWhileClosing open={bulkReuseConfirmOpen}>");
+    // lote misto: só as vivas vão; o aviso das finalizadas aparece no diálogo
+    expect(REV).toContain("bulkReuseMutation.mutate(selecaoLote.vivas)");
+    expect(REV).toContain('data-testid="aviso-bulk-reuse-finalizadas"');
+    // e o atalho "/" se cala com o diálogo aberto, como nos outros
+    expect(REV).toContain("|| bulkReuseConfirmOpen");
+  });
+});

@@ -17,7 +17,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link, useLocation } from "wouter";
-import { ArrowLeft, ArrowDown, ArrowUp, BookOpen, Check, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowDown, ArrowUp, BookOpen, Check, Download, Loader2 } from "lucide-react";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
@@ -93,6 +93,38 @@ export default function BookGerador() {
   );
   const totalPecas = incluidos.reduce((s, g) => s + g.itens.length, 0);
 
+  /**
+   * BAIXAR SEM PUBLICAR (pedido do dono, 25/08): gerar é ensaio — o PDF vai
+   * para a máquina de quem gerou, para conferir e comparar com o manual.
+   * Publicar continua sendo o gesto separado, de arte/admin.
+   */
+  const [baixando, setBaixando] = useState(false);
+  const baixarPdf = async () => {
+    if (baixando || publicando || totalPecas === 0) return;
+    setBaixando(true);
+    try {
+      const { bytes, falhas } = await gerarBookPdf(event?.name ?? "Evento", paginas, setProgresso);
+      const blob = new Blob([bytes as BlobPart], { type: "application/pdf" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `book-${(event?.name ?? "evento").trim().replace(/\s+/g, "-").toLowerCase()}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+      toast({
+        title: "Book baixado",
+        description: `${paginas.length + 1} páginas. Nada foi publicado` + (falhas.length ? ` — ${falhas.length} arte(s) falharam e ficaram fora.` : "."),
+        variant: falhas.length ? "destructive" : undefined,
+      });
+    } catch (e: any) {
+      toast({ title: "Não foi possível gerar o PDF", description: e?.message ?? String(e), variant: "destructive" });
+    } finally {
+      setBaixando(false);
+      setProgresso(null);
+    }
+  };
+
   const gerarEPublicar = async () => {
     if (!eventId || publicando || totalPecas === 0) return;
     setPublicando(true);
@@ -140,6 +172,22 @@ export default function BookGerador() {
             Gerar book — {event?.name ?? ""}
           </h1>
           <span style={{ flex: 1 }} />
+          <button
+            type="button"
+            onClick={baixarPdf}
+            disabled={baixando || publicando || totalPecas === 0}
+            data-testid="button-baixar-book"
+            title="Gera o PDF e salva na sua máquina — nada é publicado"
+            style={{
+              display: "inline-flex", alignItems: "center", gap: 7, height: 42, padding: "0 16px",
+              borderRadius: 10, border: "1px solid #d6d3d1",
+              backgroundColor: "#ffffff", color: baixando ? "#78716c" : "#1c1917",
+              fontSize: 13.5, fontWeight: 700, cursor: baixando || publicando || totalPecas === 0 ? "not-allowed" : "pointer",
+            }}
+          >
+            {baixando ? <Loader2 className="animate-spin" style={{ width: 14, height: 14 }} /> : <Download style={{ width: 14, height: 14 }} />}
+            {baixando ? (progresso ? `${progresso.feito}/${progresso.total}` : "Gerando…") : "Baixar PDF"}
+          </button>
           <button
             type="button"
             onClick={gerarEPublicar}

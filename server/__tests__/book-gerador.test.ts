@@ -125,3 +125,21 @@ describe("a página de montagem", () => {
     expect(PAGINA).toContain("disabled={!podePublicar || publicando || totalPecas === 0}");
   });
 });
+describe("baixar sem publicar (25/08)", () => {
+  // Gerar é ensaio: o PDF vai para a máquina de quem gerou, para conferir e
+  // comparar com o manual. Publicar continua sendo o gesto separado.
+  it("o botão existe, gera local e NÃO passa pelo upload nem pelo POST /book", () => {
+    expect(PAGINA).toContain('data-testid="button-baixar-book"');
+    const i = PAGINA.indexOf("const baixarPdf = async () => {");
+    const corpo = PAGINA.slice(i, PAGINA.indexOf("const gerarEPublicar", i));
+    expect(corpo).toContain('a.download = ');
+    expect(corpo).not.toContain("subirBookPdf");
+    expect(corpo).not.toContain("/book");
+    expect(corpo).toContain("Nada foi publicado");
+  });
+
+  it("baixar é de quem quiser — só PUBLICAR exige arte/admin", () => {
+    expect(PAGINA).toContain("disabled={baixando || publicando || totalPecas === 0}");
+  });
+});
+

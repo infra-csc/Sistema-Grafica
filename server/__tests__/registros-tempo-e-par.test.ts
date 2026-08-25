@@ -316,3 +316,29 @@ describe("o resto do que estava certo", () => {
     }
   });
 });
+describe("desempenho com 3.800 fotos originais (25/08)", () => {
+  // As fotos sobem ORIGINAIS da câmera (megabytes). A tela travava por três
+  // razões, e cada uma tem a sua trava aqui.
+  const tela = readFileSync(path.resolve(__dirname, "../../client/src/pages/registros.tsx"), "utf8");
+
+  it("cartão fora da janela não pinta, não decodifica e (lazy) nem baixa", () => {
+    expect(tela).toContain(".reg-cartao { content-visibility: auto; contain-intrinsic-size: auto 430px; }");
+    expect(tela).toContain('className="group reg-cartao"');
+    // o lazy da <img> do cartão continua — é o que segura o download
+    expect(tela).toContain('loading="lazy" decoding="async"');
+  });
+
+  it("o botão do par NÃO baixa uma segunda foto original para 26px", () => {
+    // era <img src={srcOf(outra)}> em cada cartão — dobrava o download da grade
+    expect(tela).not.toContain("srcOf(outra)");
+    expect(tela).toContain("<KoIcone style={{ width: 14, height: 14, color: ko.color }} />");
+  });
+
+  it("o índice do par vem de um Map, não de findIndex dentro do render", () => {
+    expect(tela).toContain("const idxPorId = useMemo(() => {");
+    expect(tela).toContain("const idxOutra = idxPorId.get(outra.id) ?? -1;");
+    expect(tela).toContain("const i = idxPorId.get(f.id) ?? -1;");
+    // o único findIndex que resta roda uma vez por clique (alvo do par), não por cartão
+    expect((tela.match(/filtered\.findIndex/g) ?? []).length).toBe(1);
+  });
+});

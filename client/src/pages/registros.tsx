@@ -255,6 +255,15 @@ export default function Registros() {
   // porque o filtro de tipo está em "Conferência" seria dizer "sem foto de
   // entrega" para uma peça que tem.
   // ═══════════════════════════════════════════════════════════════════════
+  // O índice de cada foto em `filtered`, para os botões de par e a faixa do
+  // zoom: era um `findIndex` DENTRO do render de cada cartão — 60 cartões ×
+  // 3.800 fotos = 230 mil comparações por render, refeitas a cada tecla.
+  const idxPorId = useMemo(() => {
+    const m = new Map<string, number>();
+    filtered.forEach((f, i) => m.set(f.id, i));
+    return m;
+  }, [filtered]);
+
   const porPeca = useMemo(() => {
     const mapa = new Map<string, { conference: Photo[]; delivery: Photo[] }>();
     for (const f of photos) {
@@ -378,6 +387,17 @@ export default function Registros() {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden", backgroundColor: T.bg }}>
+      <style>{`
+        /* DESEMPENHO (25/08): as fotos são ORIGINAIS de câmera (megabytes) e a
+           tela travava porque todo cartão visível na fatia pintava e
+           decodificava a sua. Com content-visibility, cartão FORA da janela
+           não pinta, não decodifica — e, como o <img> é lazy, nem baixa: só a
+           dúzia em vista custa alguma coisa. O contain-intrinsic-size dá uma
+           altura estimada para a rolagem não pular ("auto" guarda a real
+           depois da primeira pintura). */
+        .reg-cartao { content-visibility: auto; contain-intrinsic-size: auto 430px; }
+        @media (max-width: 767px) { .reg-cartao { contain-intrinsic-size: auto 560px; } }
+      `}</style>
       {/* ── Cabeçalho ── */}
       <div style={{ flexShrink: 0, backgroundColor: "#ffffff", borderBottom: `1px solid ${T.border}`, padding: isMobile ? "14px 16px 0" : "20px 32px 0" }}>
         <div style={{ maxWidth: 1600, margin: "0 auto" }}>
@@ -614,7 +634,7 @@ export default function Registros() {
                 const Icon = k.icon;
                 const notes = kindOf(p) === "conference" ? p.conferenceNotes : p.deliveryNotes;
                 return (
-                  <div key={p.id} data-testid={`card-photo-${p.id}`} className="group"
+                  <div key={p.id} data-testid={`card-photo-${p.id}`} className="group reg-cartao"
                     style={{ backgroundColor: T.surface, border: `1px solid ${T.border}`, borderRadius: R.lg, overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: SHADOW.sm, transition: "box-shadow 0.15s ease, transform 0.15s ease" }}
                     onMouseEnter={e => { e.currentTarget.style.boxShadow = SHADOW.md; e.currentTarget.style.transform = "translateY(-2px)"; }}
                     onMouseLeave={e => { e.currentTarget.style.boxShadow = SHADOW.sm; e.currentTarget.style.transform = "translateY(0)"; }}
@@ -745,12 +765,13 @@ export default function Registros() {
                           );
                         }
                         const ko = KIND[kindOf(outra)];
-                        // O índice da contraparte na lista FILTRADA. Quando ela
-                        // não passa no filtro em vigor (ex.: filtro de tipo em
-                        // "Conferência"), o zoom não tem para onde ir — então o
-                        // clique limpa o filtro de tipo antes de abrir, em vez
-                        // de não fazer nada.
-                        const idxOutra = filtered.findIndex(f => f.id === outra.id);
+                        const KoIcone = ko.icon;
+                        // O índice da contraparte na lista FILTRADA (do mapa —
+                        // ver idxPorId). Quando ela não passa no filtro em
+                        // vigor (ex.: filtro de tipo em "Conferência"), o zoom
+                        // não tem para onde ir — então o clique limpa o filtro
+                        // de tipo antes de abrir, em vez de não fazer nada.
+                        const idxOutra = idxPorId.get(outra.id) ?? -1;
                         return (
                           <button
                             type="button"
@@ -775,11 +796,14 @@ export default function Registros() {
                               borderRadius: R.sm, cursor: "pointer", font: "inherit", textAlign: "left",
                             }}
                           >
-                            <img
-                              src={srcOf(outra)} alt="" aria-hidden="true" loading="lazy"
-                              style={{ width: 26, height: 26, borderRadius: R.sm, objectFit: "cover", flexShrink: 0, backgroundColor: T.low }}
-                              onError={e => { (e.currentTarget as HTMLImageElement).style.visibility = "hidden"; }}
-                            />
+                            {/* Era uma <img> de 26px que baixava a foto
+                                ORIGINAL da contraparte (megabytes) — em cada
+                                cartão da grade, o download dobrava. O ícone do
+                                tipo diz o mesmo por zero bytes; a foto de
+                                verdade está a um clique. */}
+                            <span aria-hidden="true" style={{ width: 26, height: 26, borderRadius: R.sm, flexShrink: 0, backgroundColor: "#ffffff", border: `1px solid ${ko.border}`, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                              <KoIcone style={{ width: 14, height: 14, color: ko.color }} />
+                            </span>
                             <span style={{ minWidth: 0, flex: 1 }}>
                               <span style={{ display: "block", fontSize: FS.micro, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", color: ko.color }}>
                                 {ehConferencia ? "Ver a entrega" : "Ver a conferência"}
@@ -1020,7 +1044,7 @@ export default function Registros() {
                           {daPeca.map(f => {
                             const atual = f.id === zoom.id;
                             const kf = KIND[kindOf(f)];
-                            const i = filtered.findIndex(x => x.id === f.id);
+                            const i = idxPorId.get(f.id) ?? -1;
                             // Fora do filtro em vigor, a ficha aparece mas não
                             // leva a lugar nenhum — dizer isso é melhor que
                             // escondê-la, porque a foto EXISTE.

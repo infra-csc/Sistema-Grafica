@@ -1906,6 +1906,11 @@ export default function Eventos() {
         && matchesPriority(event) && matchesSponsor(event) && matchesVisibility(event))
       .map((event) => ({
         event,
+        // SEM PRIORIDADE POR ÚLTIMO, SEMPRE (pedido do dono, 25/08): com a
+        // prioridade automática, "sem prioridade" quer dizer caminhão já
+        // saído, sem data ou evento finalizado — o menos acionável da lista.
+        // Ele não pode empurrar para baixo da dobra quem ainda embarca.
+        sem: event.priority ? 0 : 1,
         rank: sortRank(event),
         dep: event.truckDepartureDate ? toUTCDisplayDate(event.truckDepartureDate).getTime() : Number.MAX_SAFE_INTEGER,
         prio: PRIORITY_ORDER[eventPriorityKey(event)],
@@ -1919,6 +1924,8 @@ export default function Eventos() {
     // continua igual, porque ela é o que torna a ordem estável (sem ela, dois
     // eventos com o mesmo marco trocariam de lugar a cada render).
     decorated.sort((a, b) => {
+      // "Sempre" é literal: vale nos três critérios, inclusive no alfabético.
+      if (a.sem !== b.sem) return a.sem - b.sem;
       if (ordem === 'nome') return a.name.localeCompare(b.name, 'pt-BR');
       if (a.rank !== b.rank) return a.rank - b.rank;
       if (ordem === 'marco') {

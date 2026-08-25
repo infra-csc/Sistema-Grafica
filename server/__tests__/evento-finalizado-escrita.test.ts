@@ -553,7 +553,9 @@ const SEM_GUARDA_POR_DESENHO: Record<string, string> = {
   "PUT /api/quota-rules/global": "regra de cota global, não estado de peça",
   "PATCH /api/events/:eventId/sponsors/:sponsorId": "cota do patrocinador NO EVENTO, não estado de peça",
   "POST /api/events/:id/sponsors": "vínculo patrocinador↔EVENTO, não estado de peça",
-  "DELETE /api/events/:eventId/sponsors/:sponsorId": "vínculo patrocinador↔EVENTO, não estado de peça",
+  // DELETE /api/events/:eventId/sponsors/:sponsorId SAIU desta lista em 25/08:
+  // a cascata para as peças (descarta pendência, pode avançar status) fez a
+  // rota passar a mexer em peça — e ela ganhou a guarda de verdade.
 
   // events.ts — nenhuma delas mexe em peça nem no CAMPO `status` do evento
   // (o único jeito de mudar `status` é close/reopen, abaixo). "Estado do

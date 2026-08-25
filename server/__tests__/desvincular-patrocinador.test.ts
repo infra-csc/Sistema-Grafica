@@ -22,7 +22,7 @@ describe("o DELETE /api/items/:itemId/sponsors/:sponsorId", () => {
   it("descarta a linha PENDENTE; a APROVADA fica, que é registro", () => {
     expect(ROTA).toContain('const linhaAprovada = linha?.status === "approved";');
     expect(ROTA).toContain("if (linha && !linhaAprovada) {");
-    expect(ROTA).toContain("await storage.deleteItemSponsorApproval(itemId, sponsorId);");
+    expect(ROTA).toContain("await storage.deleteItemSponsorApproval(item.id, sponsorId);");
     // e o método apaga UMA linha, não a rodada inteira
     expect(STORAGE).toContain("async deleteItemSponsorApproval(itemId: string, sponsorId: string): Promise<boolean> {");
     expect(STORAGE).toContain("and(eq(itemSponsorApprovals.itemId, itemId), eq(itemSponsorApprovals.sponsorId, sponsorId))");
@@ -31,7 +31,7 @@ describe("o DELETE /api/items/:itemId/sponsors/:sponsorId", () => {
   it("se ele era o único que faltava, a peça SEGUE — o mesmo avanço da última aprovação", () => {
     expect(ROTA).toContain('descartouPendente && (item.status === "awaiting_sponsor_approval" || item.status === "awaiting_approval")');
     // vazio = fechou: não resta ninguém a esperar
-    expect(ROTA).toContain('const fechou = restantes.every((l) => l.status === "approved");');
+    expect(ROTA).toContain('const fechou = restantes.every((l: any) => l.status === "approved");');
     expect(ROTA).toContain('status: "sponsor_approved",');
     // a Arte é avisada para finalizar, como no caminho da aprovação
     expect(ROTA).toContain('targetRoles: ["arte"],');
@@ -42,7 +42,7 @@ describe("o DELETE /api/items/:itemId/sponsors/:sponsorId", () => {
   it("a trilha diz o que aconteceu com a aprovação dele", () => {
     expect(ROTA).toContain("a aprovação que ele já deu permanece no histórico");
     expect(ROTA).toContain("a aprovação pendente dele foi descartada e deixa de contar");
-    expect(ROTA).toContain('Com a saída de "${sponsor?.name}"');
+    expect(ROTA).toContain('Com a saída de "${sponsorName}"');
   });
 });
 
@@ -63,6 +63,24 @@ describe("o botão no modal de decisão do Atendimento", () => {
     expect(TELA).toContain(".filter((s: any) => s.id !== variables.sponsorId)");
     expect(TELA).toContain("setSponsorApprovals(prev => prev.filter(a => a.sponsorId !== variables.sponsorId));");
     expect(TELA).toContain("Desvinculado — a peça seguiu");
+  });
+});
+
+describe("tirar do EVENTO cascateia para as peças (caso QCY, 25/08)", () => {
+  it("remove o vínculo de cada peça viva e aplica a MESMA regra do peça a peça", () => {
+    expect(ROTA).toContain("const doEvento = await storage.getItemsByEvent(eventId);");
+    expect(ROTA).toContain("const tirou = await storage.removeSponsorFromItem(item.id, sponsorId);");
+    // a regra mora numa função só — os dois caminhos não podem divergir
+    expect((ROTA.match(/descartarPendenciaEFecharRodada\(/g) ?? []).length).toBe(3);
+  });
+
+  it("a rota ganhou a guarda de evento finalizado — agora ela mexe em peça", () => {
+    expect(ROTA).toContain("if (await barraEventoFinalizado({ eventId }, res)) return;");
+  });
+
+  it("a trilha conta a cascata, com rodadas que fecharam", () => {
+    expect(ROTA).toContain("desvinculado também de ${pecasDesvinculadas} peça");
+    expect(ROTA).toContain("rodadasFechadas");
   });
 });
 

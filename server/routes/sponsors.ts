@@ -28,6 +28,66 @@ import { invalidarCacheDeVersoes } from "./versoes";
 // vínculos ou devolver peças para a Criação por API.
 const requireLinkingWrite = requireRole("arte", "solicitacao", "atendimento", "admin");
 
+/**
+ * A REGRA DO DESVINCULAR (pedido do dono, 25/08), num lugar só — vale para o
+ * desvinculo peça a peça E para a cascata de quando o patrocinador sai do
+ * EVENTO: aprovação APROVADA fica (é registro; para desfazê-la existe o
+ * Revogar); PENDENTE é descartada e deixa de contar; e se ele era o ÚNICO que
+ * faltava, a rodada fecha e a peça SEGUE — o mesmo avanço que a última
+ * aprovação faria, com carimbo, trilha, aviso à Arte e broadcast.
+ *
+ * Pressupõe que o VÍNCULO peça↔patrocinador já foi removido pelo chamador.
+ */
+async function descartarPendenciaEFecharRodada(
+  req: any,
+  item: any,
+  sponsorId: string,
+  sponsorName: string | undefined,
+): Promise<{ linhaAprovada: boolean; descartouPendente: boolean; itemAtualizado: any | null }> {
+  const linha = await storage.getItemSponsorApproval(item.id, sponsorId);
+  const linhaAprovada = linha?.status === "approved";
+  let descartouPendente = false;
+  if (linha && !linhaAprovada) {
+    await storage.deleteItemSponsorApproval(item.id, sponsorId);
+    descartouPendente = true;
+    invalidarCacheDeVersoes();
+  }
+
+  let itemAtualizado: any = null;
+  if (descartouPendente && (item.status === "awaiting_sponsor_approval" || item.status === "awaiting_approval")) {
+    const restantes = await storage.getItemSponsorApprovals(item.id);
+    // vazio = fechou: não resta ninguém a esperar
+    const fechou = restantes.every((l: any) => l.status === "approved");
+    if (fechou) {
+      itemAtualizado = await storage.updateItem(item.id, {
+        status: "sponsor_approved",
+        sponsorApprovedBy: (req as any).userName ?? null,
+        sponsorApprovedAt: new Date(),
+        rejectedBySponsor: false,
+      });
+      await createAuditLog(
+        req,
+        'approved',
+        'item',
+        item.id,
+        `Com a saída de "${sponsorName}", ${restantes.length === 0 ? "não resta aprovação a esperar" : "todos os patrocinadores restantes já aprovaram"}. Status alterado: ${translateStatus(item.status)} → ${translateStatus("sponsor_approved")}`
+      );
+      const event = await storage.getEvent(item.eventId);
+      const notification = await storage.createNotification({
+        type: "arteApproved",
+        message: `Aprovação concluída (o patrocinador pendente foi desvinculado). Finalize o layout e adicione o arquivo final: ${item.type} - Evento: ${event?.name}`,
+        eventId: item.eventId,
+        itemId: item.id,
+        targetRoles: ["arte"],
+      });
+      broadcast({ type: "item_updated", item: itemAtualizado });
+      broadcast({ type: "notification_created", notification });
+    }
+  }
+
+  return { linhaAprovada, descartouPendente, itemAtualizado };
+}
+
 export function registerSponsorRoutes(app: Express): void {
   // ============ SPONSORS ============
   
@@ -378,29 +438,62 @@ export function registerSponsorRoutes(app: Express): void {
     }
   });
 
-  // Remove sponsor from event
+  // Remove sponsor from event — e CASCATEIA para as peças (caso QCY, 25/08):
+  // tirar do evento tirava só o vínculo de EVENTO, e as peças continuavam
+  // carregando a marca com aprovação pendente — o Atendimento seguia cobrando
+  // um patrocinador que já não estava no evento. Peça não pode carregar marca
+  // que o evento não conhece (o mesmo invariante do Adicionar, que vincula o
+  // evento primeiro). Cada peça segue a regra do desvincular: aprovada fica,
+  // pendente descarta, e se só faltava ele a peça segue.
   app.delete("/api/events/:eventId/sponsors/:sponsorId", requireLinkingWrite, async (req, res) => {
     try {
       const { eventId, sponsorId } = req.params;
+
+      // A cascata mexe em PEÇA (descarta pendência, pode avançar status) —
+      // então a rota ganhou a guarda de evento finalizado que antes não
+      // precisava ter, quando só tocava o vínculo de evento.
+      const event = await storage.getEvent(eventId);
+      if (!event) return res.status(404).json({ error: "Evento não encontrado" });
+      if (await barraEventoFinalizado({ eventId }, res)) return;
+
       const success = await storage.removeSponsorFromEvent(eventId, sponsorId);
-      
+
       if (!success) {
         return res.status(404).json({ error: "Vinculação não encontrada" });
       }
-      
-      const event = await storage.getEvent(eventId);
+
       const sponsor = await storage.getSponsor(sponsorId);
-      
+
+      const doEvento = await storage.getItemsByEvent(eventId);
+      let pecasDesvinculadas = 0;
+      let rodadasFechadas = 0;
+      for (const item of doEvento) {
+        if ((item as any).deletedAt) continue;
+        const tirou = await storage.removeSponsorFromItem(item.id, sponsorId);
+        if (!tirou) continue;
+        pecasDesvinculadas++;
+        const r = await descartarPendenciaEFecharRodada(req, item, sponsorId, sponsor?.name);
+        if (r.itemAtualizado) rodadasFechadas++;
+        broadcast({ type: "item_sponsor_removed", itemId: item.id, sponsorId });
+      }
+
       await createAuditLog(
         req,
         'removed',
         'event_sponsor',
         `${eventId}_${sponsorId}`,
         `Patrocinador "${sponsor?.name}" removido do evento "${event?.name}"`
+          + (pecasDesvinculadas > 0
+            ? ` — desvinculado também de ${pecasDesvinculadas} peça${pecasDesvinculadas !== 1 ? "s" : ""}${rodadasFechadas > 0 ? `; ${rodadasFechadas} rodada${rodadasFechadas !== 1 ? "s" : ""} de aprovação fechou e a peça seguiu` : ""}`
+            : "")
       );
-      
+
       broadcast({ type: "event_sponsor_removed", eventId, sponsorId });
-      res.json({ message: "Patrocinador removido do evento com sucesso" });
+      res.json({
+        message: "Patrocinador removido do evento com sucesso",
+        pecasDesvinculadas,
+        rodadasFechadas,
+      });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }
@@ -705,23 +798,11 @@ export function registerSponsorRoutes(app: Express): void {
 
       const sponsor = await storage.getSponsor(sponsorId);
 
-      // ── A LINHA DE APROVAÇÃO DELE (pedido do dono, 25/08) ─────────────────
-      // Antes o desvincular tirava só o VÍNCULO e a linha pendente ficava viva
-      // para sempre: a peça seguia dizendo "falta Fulano" para alguém que já
-      // não estava nela. A regra agora:
-      //   · linha APROVADA fica — é registro de decisão, e a rodada nunca
-      //     esteve esperando por ela;
-      //   · linha PENDENTE é descartada — ele não conta mais;
-      //   · e se ele era o ÚNICO que faltava, a peça SEGUE: o mesmo avanço
-      //     que a última aprovação faria.
-      const linha = await storage.getItemSponsorApproval(itemId, sponsorId);
-      const linhaAprovada = linha?.status === "approved";
-      let descartouPendente = false;
-      if (linha && !linhaAprovada) {
-        await storage.deleteItemSponsorApproval(itemId, sponsorId);
-        descartouPendente = true;
-        invalidarCacheDeVersoes();
-      }
+      // A regra do dono (25/08) mora em descartarPendenciaEFecharRodada, a
+      // mesma da cascata de evento: aprovada fica, pendente descarta, e se só
+      // faltava ele a peça segue.
+      const { linhaAprovada, descartouPendente, itemAtualizado } =
+        await descartarPendenciaEFecharRodada(req, item, sponsorId, sponsor?.name);
 
       await createAuditLog(
         req,
@@ -732,38 +813,6 @@ export function registerSponsorRoutes(app: Express): void {
           + (linhaAprovada ? " — a aprovação que ele já deu permanece no histórico"
             : descartouPendente ? " — a aprovação pendente dele foi descartada e deixa de contar" : "")
       );
-
-      let itemAtualizado: any = null;
-      if (descartouPendente && (item.status === "awaiting_sponsor_approval" || item.status === "awaiting_approval")) {
-        const restantes = await storage.getItemSponsorApprovals(itemId);
-        // vazio = fechou: não resta ninguém a esperar
-        const fechou = restantes.every((l) => l.status === "approved");
-        if (fechou) {
-          itemAtualizado = await storage.updateItem(itemId, {
-            status: "sponsor_approved",
-            sponsorApprovedBy: (req as any).userName ?? null,
-            sponsorApprovedAt: new Date(),
-            rejectedBySponsor: false,
-          });
-          await createAuditLog(
-            req,
-            'approved',
-            'item',
-            itemId,
-            `Com a saída de "${sponsor?.name}", ${restantes.length === 0 ? "não resta aprovação a esperar" : "todos os patrocinadores restantes já aprovaram"}. Status alterado: ${translateStatus(item.status)} → ${translateStatus("sponsor_approved")}`
-          );
-          const event = await storage.getEvent(item.eventId);
-          const notification = await storage.createNotification({
-            type: "arteApproved",
-            message: `Aprovação concluída (o patrocinador pendente foi desvinculado). Finalize o layout e adicione o arquivo final: ${item.type} - Evento: ${event?.name}`,
-            eventId: item.eventId,
-            itemId,
-            targetRoles: ["arte"],
-          });
-          broadcast({ type: "item_updated", item: itemAtualizado });
-          broadcast({ type: "notification_created", notification });
-        }
-      }
 
       broadcast({ type: "item_sponsor_removed", itemId, sponsorId });
       res.json({

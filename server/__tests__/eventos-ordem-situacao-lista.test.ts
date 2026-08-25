@@ -176,7 +176,10 @@ describe("a ordem é declarada e trocável", () => {
   it("o critério escolhido decide o PRIMEIRO desempate", () => {
     const i = tela.indexOf("decorated.sort((a, b) => {");
     expect(i).toBeGreaterThan(-1);
-    const bloco = tela.slice(i, i + 600);
+    // 900 (era 600): a primeira chave do comparador virou "sem prioridade por
+    // último, sempre" (25/08), e a cadeia inteira desceu algumas linhas.
+    const bloco = tela.slice(i, i + 900);
+    expect(bloco).toContain("if (a.sem !== b.sem) return a.sem - b.sem;");
     expect(bloco).toContain("if (ordem === 'nome') return a.name.localeCompare(b.name, 'pt-BR');");
     expect(bloco).toContain("if (ordem === 'marco') {");
     // A cadeia de desempate continua: sem ela a ordem não é estável.

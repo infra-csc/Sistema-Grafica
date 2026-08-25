@@ -34,6 +34,7 @@ import Eventos from "@/pages/eventos";
 import EventDetail from "@/pages/event-detail";
 import RelatorioEvento from "@/pages/relatorio-evento";
 import EtiquetasEvento from "@/pages/etiquetas-evento";
+import BookGerador from "@/pages/book-gerador";
 import Arte from "@/pages/arte";
 import Atendimento from "@/pages/atendimento";
 import Solicitacao from "@/pages/solicitacao";
@@ -222,6 +223,9 @@ function Router() {
         {() => <ProtectedRoute component={Eventos} />}
       </Route>
       {/* Duas segmentos — declarada antes da genérica por clareza. */}
+      <Route path="/eventos/:id/gerar-book">
+        {() => <ProtectedRoute component={BookGerador} />}
+      </Route>
       <Route path="/eventos/:id/etiquetas">
         {() => <ProtectedRoute component={EtiquetasEvento} />}
       </Route>

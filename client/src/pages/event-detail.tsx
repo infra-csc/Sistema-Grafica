@@ -7,7 +7,7 @@ import { PHASES, contarPorFase } from "@/lib/fases";
 import { MARCOS_DO_EVENTO } from "@shared/prazo-dates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, Building2, Loader2, User, History, Lock, Unlock, Paperclip, ExternalLink, X, RotateCcw, Recycle, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, FileText, Tags, Search } from "lucide-react";
+import { Plus, ArrowLeft, Calendar, Truck, AlertCircle, List, Package, Package2, Pencil, Trash2, Check, Building2, Loader2, User, History, Lock, Unlock, Paperclip, ExternalLink, X, RotateCcw, Recycle, Upload, Copy, ChevronDown, CheckCircle2, AlertTriangle, FileSpreadsheet, FileText, Tags, BookOpen, Search } from "lucide-react";
 import { Fragment, useState, useEffect, useMemo, useRef } from "react";
 import type { Sponsor, Item, Event as EventRecord } from "@shared/schema";
 import {
@@ -1878,6 +1878,20 @@ export default function EventDetail() {
                 {isEventClosed ? 'Reabrir Evento' : 'Encerrar Evento'}
               </button>
             )}
+
+            {/* Gerar book — monta o PDF no padrão do exemplar manual e
+                publica pelo fluxo existente. Montar/prever é para todos;
+                publicar é arte/admin (a página e o servidor validam). */}
+            <button
+              onClick={() => setLocation(`/eventos/${eventId}/gerar-book`)}
+              data-testid="button-gerar-book"
+              style={{ backgroundColor: '#ffffff', color: '#1a1c1c', padding: '11px 18px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '7px', border: '1.5px solid #e7e5e4', cursor: 'pointer', transition: 'background-color 0.15s, border-color 0.15s', letterSpacing: '0.01em', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: "'Space Grotesk', sans-serif" }}
+              onMouseEnter={e => { e.currentTarget.style.backgroundColor = '#f5f5f4'; e.currentTarget.style.borderColor = '#d4d0cc'; }}
+              onMouseLeave={e => { e.currentTarget.style.backgroundColor = '#ffffff'; e.currentTarget.style.borderColor = '#e7e5e4'; }}
+            >
+              <BookOpen className="h-4 w-4" style={{ color: '#7e22ce' }} />
+              Gerar book
+            </button>
 
             {/* Etiquetas — para colar no material depois da conferência
                 (modelo do dono, 24/08). Leitura, todos os perfis. */}

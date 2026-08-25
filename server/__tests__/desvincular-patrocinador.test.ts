@@ -82,6 +82,22 @@ describe("tirar do EVENTO cascateia para as peças (caso QCY, 25/08)", () => {
     expect(ROTA).toContain("desvinculado também de ${pecasDesvinculadas} peça");
     expect(ROTA).toContain("rodadasFechadas");
   });
+
+  it("as peças rodam em PARALELO — o 'Salvando…' do modal não pode travar", () => {
+    expect(ROTA).toContain("const resultados = await Promise.all(");
+    expect(ROTA).not.toContain("for (const item of doEvento)");
+  });
+
+  it("a desvinculação aparece na trilha da PEÇA e com rótulo no log do sistema", () => {
+    // entityType 'item' de propósito: a trilha da peça (e o Histórico)
+    // consulta por item — 'item_sponsor' escondia a desvinculação de quem vai
+    // perguntar "cadê o Fulano que estava aqui?".
+    expect((ROTA.match(/'removed',\s*'item',/g) ?? []).length).toBeGreaterThanOrEqual(2);
+    expect(ROTA).toContain("junto com a remoção do evento");
+    const LOGS = ler("client/src/pages/logs-sistema.tsx");
+    expect(LOGS).toContain('event_sponsor: "Patrocinador do evento"');
+    expect(LOGS).toContain('item_sponsor:  "Patrocinador da peça"');
+  });
 });
 
 describe("o reparo do estoque torto (peça com marca que o evento não conhece)", () => {

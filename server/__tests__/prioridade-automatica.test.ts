@@ -83,4 +83,12 @@ describe("a amarração", () => {
     expect(TELA).toContain("Teclas 1–4 travam · 0 volta à automática");
     expect(TELA).toContain("automática pela saída do caminhão");
   });
+
+  it("no criar/editar evento o desflag existe: a opção vazia é 'Automática'", () => {
+    // O salvar já mandava priority: "" quando mudou — que no servidor destrava
+    // e aplica a automática na hora. O rótulo dizia 'Sem', que virou mentira.
+    expect(TELA).toContain("{ value: '', label: 'Automática'");
+    expect(TELA).toContain("data-testid={`form-priority-${opt.value || 'none'}`}");
+    expect(TELA).toContain("Trava este nível — a regra automática deixa de mexer");
+  });
 });

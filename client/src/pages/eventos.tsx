@@ -2276,7 +2276,10 @@ export default function Eventos() {
                       Prioridade
                     </span>
                     <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
-                      {[{ value: '', label: 'Sem', dot: '#d6d3d1', text: '#57534e', bg: T.low, border: '#e7e5e4' },
+                      {/* '' = AUTOMÁTICA (25/08): no salvar, o vazio destrava o
+                          evento e a regra da saída do caminhão volta a mandar
+                          na hora. Escolher um nível TRAVA (a regra não mexe). */}
+                      {[{ value: '', label: 'Automática', dot: '#a8a29e', text: '#57534e', bg: T.low, border: '#e7e5e4' },
                         ...(['baixa', 'media', 'alta', 'urgente'] as const).map((k) => ({
                           value: k, label: PRIORITY[k].label, dot: PRIORITY[k].dot, text: PRIORITY[k].text, bg: PRIORITY[k].bg, border: PRIORITY[k].border,
                         }))].map((opt) => {
@@ -2287,6 +2290,9 @@ export default function Eventos() {
                             type="button"
                             onClick={() => setFormData({ ...formData, priority: opt.value })}
                             aria-pressed={active}
+                            title={opt.value === ''
+                              ? 'A regra da saída do caminhão define sozinha (≤3 dias urgente · ≤7 alta · ≤15 média · >15 baixa)'
+                              : 'Trava este nível — a regra automática deixa de mexer neste evento até voltar à Automática'}
                             data-testid={`form-priority-${opt.value || 'none'}`}
                             style={{
                               display: 'flex', alignItems: 'center', gap: '5px',

@@ -465,17 +465,34 @@ export function registerSponsorRoutes(app: Express): void {
       const sponsor = await storage.getSponsor(sponsorId);
 
       const doEvento = await storage.getItemsByEvent(eventId);
-      let pecasDesvinculadas = 0;
-      let rodadasFechadas = 0;
-      for (const item of doEvento) {
-        if ((item as any).deletedAt) continue;
-        const tirou = await storage.removeSponsorFromItem(item.id, sponsorId);
-        if (!tirou) continue;
-        pecasDesvinculadas++;
-        const r = await descartarPendenciaEFecharRodada(req, item, sponsorId, sponsor?.name);
-        if (r.itemAtualizado) rodadasFechadas++;
-        broadcast({ type: "item_sponsor_removed", itemId: item.id, sponsorId });
-      }
+      // Em PARALELO (25/08): a primeira versão era um for..await peça a peça —
+      // 24 peças × várias idas ao banco seguraram o "Salvando…" do modal por
+      // segundos. As peças são independentes entre si.
+      const resultados = await Promise.all(
+        doEvento
+          .filter((item) => !(item as any).deletedAt)
+          .map(async (item) => {
+            const tirou = await storage.removeSponsorFromItem(item.id, sponsorId);
+            if (!tirou) return null;
+            const r = await descartarPendenciaEFecharRodada(req, item, sponsorId, sponsor?.name);
+            // Na trilha DA PEÇA (entityType 'item'): é lá que alguém vai
+            // perguntar "cadê o Fulano que estava aqui?".
+            await createAuditLog(
+              req,
+              'removed',
+              'item',
+              item.id,
+              `Patrocinador "${sponsor?.name}" desvinculado da peça ${item.displayId || item.type || ''} junto com a remoção do evento`
+                + (r.linhaAprovada ? " — a aprovação que ele já deu permanece no histórico"
+                  : r.descartouPendente ? " — a aprovação pendente dele foi descartada e deixa de contar" : "")
+            );
+            broadcast({ type: "item_sponsor_removed", itemId: item.id, sponsorId });
+            return r;
+          })
+      );
+      const efetivos = resultados.filter((r): r is NonNullable<typeof r> => r !== null);
+      const pecasDesvinculadas = efetivos.length;
+      const rodadasFechadas = efetivos.filter((r) => r.itemAtualizado).length;
 
       await createAuditLog(
         req,
@@ -804,12 +821,15 @@ export function registerSponsorRoutes(app: Express): void {
       const { linhaAprovada, descartouPendente, itemAtualizado } =
         await descartarPendenciaEFecharRodada(req, item, sponsorId, sponsor?.name);
 
+      // entityType 'item' de propósito (25/08): a trilha da peça (e o
+      // Histórico) consulta por item — gravar como 'item_sponsor' escondia a
+      // desvinculação exatamente de quem vai perguntar "cadê o Fulano?".
       await createAuditLog(
         req,
         'removed',
-        'item_sponsor',
-        `${itemId}_${sponsorId}`,
-        `Patrocinador "${sponsor?.name}" desvinculado do item ${item?.displayId || item?.type || 'N/A'}`
+        'item',
+        itemId,
+        `Patrocinador "${sponsor?.name}" desvinculado da peça ${item?.displayId || item?.type || 'N/A'}`
           + (linhaAprovada ? " — a aprovação que ele já deu permanece no histórico"
             : descartouPendente ? " — a aprovação pendente dele foi descartada e deixa de contar" : "")
       );

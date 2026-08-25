@@ -54,6 +54,9 @@ const ENTITY_LABELS: Record<string, string> = {
   user:    "Usuário",
   sponsor: "Patrocinador",
   comment: "Comentário",
+  // Vínculos (25/08): apareciam com o nome cru da tabela no filtro e no chip.
+  event_sponsor: "Patrocinador do evento",
+  item_sponsor:  "Patrocinador da peça",
 };
 
 /* ── Avatar ── */

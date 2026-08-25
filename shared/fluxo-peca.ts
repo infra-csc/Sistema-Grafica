@@ -60,4 +60,4 @@ export const EM_REVISAO: ReadonlySet<string> = new Set([
  * mantém — é o registro bruto, e é por lá que ela se edita ou se exclui.
  */
 export const ehBookCompleto = (i: { type?: string | null } | null | undefined): boolean =>
-  /books*completo/i.test(i?.type ?? "");
+  /book[\s_-]*completo/i.test(i?.type ?? "");

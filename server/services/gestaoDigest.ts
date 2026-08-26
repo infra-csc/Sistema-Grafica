@@ -62,6 +62,9 @@ export const DESTINATARIOS_DA_GESTAO = [
   "agatha.nadolsky@nortemkt.com",
   "kakau.faria@nortemkt.com",
   "ana.motta@nortemkt.com",
+  // A direção acompanha junto (25/08) — mesmas cinco pessoas do aviso do book.
+  "yan.araujo@nortemkt.com",
+  "pedro@nortemkt.com",
 ];
 
 /** Peça esperando decisão de patrocinador. */

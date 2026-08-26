@@ -137,11 +137,13 @@ describe("o e-mail", () => {
   const montado = construirEmailDaGestao(r, CONFIG, DESTINATARIOS_DA_GESTAO);
   const ok = () => { if ("erro" in montado) throw new Error(montado.erro); return montado; };
 
-  it("vai para as três, e só para elas", () => {
+  it("vai para as três da gestão e para a direção — e só para elas", () => {
     expect(DESTINATARIOS_DA_GESTAO).toEqual([
       "agatha.nadolsky@nortemkt.com",
       "kakau.faria@nortemkt.com",
       "ana.motta@nortemkt.com",
+      "yan.araujo@nortemkt.com",
+      "pedro@nortemkt.com",
     ]);
     expect(ok().to).toEqual(DESTINATARIOS_DA_GESTAO);
   });

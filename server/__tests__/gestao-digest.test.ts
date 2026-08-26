@@ -54,9 +54,10 @@ const cenario = () => ({
   ],
   sponsors: [{ id: "s1", name: "Livelo" }, { id: "s2", name: "Elo" }],
   // e1 sai depois de e2 de propósito: a ordem do e-mail tem de ser a do prazo.
+  // startDate é o que decide "já aconteceu" (@shared/prazo-dates).
   eventos: [
-    { id: "e1", name: "Primavera SP", truckDepartureDate: emDias(10) },
-    { id: "e2", name: "Meia Maratona", truckDepartureDate: emDias(2) },
+    { id: "e1", name: "Primavera SP", truckDepartureDate: emDias(10), startDate: emDias(12) },
+    { id: "e2", name: "Meia Maratona", truckDepartureDate: emDias(2), startDate: emDias(4) },
   ],
 });
 
@@ -104,6 +105,34 @@ describe("o resumo conta o que interessa e ignora o resto", () => {
 
   it(`parada há ${DIAS_PARA_TRAVADA}+ dias entra na conta de travadas`, () => {
     expect(r.travadas).toBe(1); // só a de 9 dias
+  });
+
+  it("EVENTO QUE JÁ ACONTECEU não entra — correção do dono, com o e-mail na mão", () => {
+    // Cobrar decisão sobre evento passado é o jeito mais rápido de o aviso
+    // virar ruído: quem lê aprende que metade da lista é lixo.
+    const c = cenario();
+    c.eventos = [
+      { id: "e1", name: "Primavera SP", truckDepartureDate: emDias(-20), startDate: emDias(-18) },
+      c.eventos[1],
+    ];
+    const r2 = montarResumoDaGestao(c.itens, c.aprovacoes, c.sponsors, c.eventos, AGORA);
+    expect(r2.eventos.map((e) => e.evento)).toEqual(["Meia Maratona"]);
+    // e o total conta só o que sobrou — não o que foi filtrado
+    expect(r2.totalPendentes).toBe(1);
+  });
+
+  it("evento ENCERRADO à mão também sai, mesmo com data futura", () => {
+    const c = cenario();
+    c.eventos = [{ ...c.eventos[0], manuallyClosed: true } as any, c.eventos[1]];
+    const r3 = montarResumoDaGestao(c.itens, c.aprovacoes, c.sponsors, c.eventos, AGORA);
+    expect(r3.eventos.map((e) => e.evento)).toEqual(["Meia Maratona"]);
+  });
+
+  it("peça órfã (evento apagado) não vira cobrança de ninguém", () => {
+    const c = cenario();
+    c.eventos = [c.eventos[1]]; // e1 sumiu do cadastro
+    const r4 = montarResumoDaGestao(c.itens, c.aprovacoes, c.sponsors, c.eventos, AGORA);
+    expect(r4.eventos.map((e) => e.evento)).toEqual(["Meia Maratona"]);
   });
 
   it("patrocinador apagado do cadastro não vira id solto na tela", () => {

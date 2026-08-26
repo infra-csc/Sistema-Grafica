@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// AVISO DA GESTÃO — as aprovações pendentes, uma vez por dia.
+// AVISO DA GESTÃO — as aprovações pendentes de eventos que ainda vão acontecer.
 //
 // Pedido do dono (25/08): "os cargos de gestão (Agatha, Kakau e Ana)
 // precisariam receber os avisos apenas com o objetivo de acompanhar as
@@ -15,6 +15,10 @@
 // executivo e o dono cortou: este aviso é sobre o que falta decidir, não sobre
 // quem está devendo. Se algum dia voltar a nomear executivo, terá voltado a
 // ser outra coisa.
+//
+// SÓ EVENTO QUE AINDA VAI ACONTECER (correção do dono, 25/08, com o primeiro
+// e-mail na mão): a primeira versão trouxe evento já realizado, cujas peças
+// ninguém vai mais aprovar. Ver `eventoVivo` em montarResumoDaGestao.
 //
 // A ORDEM é a urgência real: caminhão que sai primeiro no topo, evento sem
 // data no fim. É a mesma régua da tela de Eventos.
@@ -45,6 +49,7 @@ import { auditLogs } from "@shared/schema";
 import { sql } from "drizzle-orm";
 import { entregarEmail, getBookEmailConfig, separarDestinatarios, type BookEmailMessage } from "./bookEmailNotification";
 import { agoraNoFuso, ehProducao } from "./revisaoDigest";
+import { motivoEventoFinalizado, todayBusinessMs } from "@shared/prazo-dates";
 
 /**
  * Horas de disparo, no fuso do negócio — as mesmas do aviso da Revisão
@@ -119,17 +124,37 @@ export function montarResumoDaGestao(
   itens: any[],
   aprovacoes: any[],
   sponsors: { id: string; name: string }[],
-  eventos: { id: string; name: string; truckDepartureDate?: Date | string | null }[],
+  eventos: any[],
   agora: Date,
 ): ResumoDaGestao {
+  const eventoPorId = new Map(eventos.map((e) => [e.id, e]));
+
+  // ── SÓ EVENTO QUE AINDA VAI ACONTECER (correção do dono, 25/08) ──────────
+  // A primeira versão listava toda aprovação pendente do banco — inclusive de
+  // evento que já foi realizado, cujas peças ninguém vai mais aprovar nem
+  // imprimir. Cobrar decisão sobre evento passado é o jeito mais rápido de o
+  // aviso virar ruído: quem lê aprende que metade da lista é lixo, e passa a
+  // não olhar a outra metade.
+  //
+  // O predicado é o CANÔNICO (@shared/prazo-dates), o mesmo das cinco filas de
+  // trabalho e da prioridade automática — cobre as duas origens, encerrado à
+  // mão e data já passada, e respeita a reabertura manual. Uma regra própria
+  // aqui divergiria dele no primeiro ajuste.
+  const hojeBiz = todayBusinessMs();
+  const eventoVivo = (eventId: string) => {
+    const ev = eventoPorId.get(eventId);
+    // Peça órfã (evento apagado) não tem como ser cobrada de ninguém.
+    if (!ev) return false;
+    return motivoEventoFinalizado(ev, hojeBiz) === null;
+  };
+
   // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça.
   const emAprovacao = new Map(
     itens
-      .filter((i) => !i.deletedAt && STATUS_EM_APROVACAO.includes(i.status) && !ehBookCompleto(i))
+      .filter((i) => !i.deletedAt && STATUS_EM_APROVACAO.includes(i.status) && !ehBookCompleto(i) && eventoVivo(i.eventId))
       .map((i) => [i.id, i]),
   );
   const nomeDoSponsor = new Map(sponsors.map((s) => [s.id, s.name]));
-  const eventoPorId = new Map(eventos.map((e) => [e.id, e]));
 
   const pendentes = aprovacoes.filter((a) => a.status === "pending" && emAprovacao.has(a.itemId));
 

@@ -18,7 +18,7 @@
 //
 // SÓ EVENTO QUE AINDA VAI ACONTECER (correção do dono, 25/08, com o primeiro
 // e-mail na mão): a primeira versão trouxe evento já realizado, cujas peças
-// ninguém vai mais aprovar. Ver `eventoVivo` em montarResumoDaGestao.
+// ninguém vai mais aprovar. Ver `eventoVaiAcontecer` em montarResumoDaGestao.
 //
 // A ORDEM é a urgência real: caminhão que sai primeiro no topo, evento sem
 // data no fim. É a mesma régua da tela de Eventos.
@@ -49,7 +49,7 @@ import { auditLogs } from "@shared/schema";
 import { sql } from "drizzle-orm";
 import { entregarEmail, getBookEmailConfig, separarDestinatarios, type BookEmailMessage } from "./bookEmailNotification";
 import { agoraNoFuso, ehProducao } from "./revisaoDigest";
-import { motivoEventoFinalizado, todayBusinessMs } from "@shared/prazo-dates";
+import { eventDayMs, todayBusinessMs, EVENT_CLOSED_STATUS } from "@shared/prazo-dates";
 
 /**
  * Horas de disparo, no fuso do negócio — as mesmas do aviso da Revisão
@@ -131,27 +131,41 @@ export function montarResumoDaGestao(
 
   // ── SÓ EVENTO QUE AINDA VAI ACONTECER (correção do dono, 25/08) ──────────
   // A primeira versão listava toda aprovação pendente do banco — inclusive de
-  // evento que já foi realizado, cujas peças ninguém vai mais aprovar nem
-  // imprimir. Cobrar decisão sobre evento passado é o jeito mais rápido de o
-  // aviso virar ruído: quem lê aprende que metade da lista é lixo, e passa a
-  // não olhar a outra metade.
+  // evento já realizado, cujas peças ninguém vai mais aprovar nem imprimir.
+  // Cobrar decisão sobre evento passado é o jeito mais rápido de o aviso virar
+  // ruído: quem lê aprende que metade da lista é lixo, e passa a não olhar a
+  // outra metade.
   //
-  // O predicado é o CANÔNICO (@shared/prazo-dates), o mesmo das cinco filas de
-  // trabalho e da prioridade automática — cobre as duas origens, encerrado à
-  // mão e data já passada, e respeita a reabertura manual. Uma regra própria
-  // aqui divergiria dele no primeiro ajuste.
+  // POR QUE A RÉGUA AQUI É MAIS ESTRITA QUE O PREDICADO CANÔNICO. O
+  // `motivoEventoFinalizado` (@shared/prazo-dates) abre uma exceção: evento
+  // REABERTO à mão depois da data volta a contar, porque alguém afirmou que
+  // ainda há trabalho ali. Para as TELAS isso está certo — quem reabriu quer
+  // ver e mexer. Para o AVISO o dono decidiu o contrário (25/08): "mesmo
+  // reaberto à mão e a data passou, não avisa". E a diferença faz sentido:
+  // reabrir é para arrumar a casa de um evento que já aconteceu, e ninguém
+  // precisa ser lembrado disso três vezes por dia.
+  //
+  // Então: encerrado à mão sai, e data passada sai — sem a exceção da
+  // reabertura. É deliberadamente uma régua local, e é por isso que ela está
+  // escrita aqui em vez de virar mais um parâmetro do predicado compartilhado.
   const hojeBiz = todayBusinessMs();
-  const eventoVivo = (eventId: string) => {
+  const eventoVaiAcontecer = (eventId: string) => {
     const ev = eventoPorId.get(eventId);
     // Peça órfã (evento apagado) não tem como ser cobrada de ninguém.
     if (!ev) return false;
-    return motivoEventoFinalizado(ev, hojeBiz) === null;
+    if (ev.manuallyClosed === true || ev.status === EVENT_CLOSED_STATUS) return false;
+    const dia = eventDayMs(ev.startDate);
+    // Data ilegível é raro (a coluna é obrigatória) e não é motivo para sumir
+    // com a pendência: uma linha que alguém pode julgar vale mais que uma
+    // omissão silenciosa.
+    if (dia === null) return true;
+    return hojeBiz <= dia;
   };
 
   // BOOK COMPLETO fica de fora: é o trâmite do Atendimento, não uma peça.
   const emAprovacao = new Map(
     itens
-      .filter((i) => !i.deletedAt && STATUS_EM_APROVACAO.includes(i.status) && !ehBookCompleto(i) && eventoVivo(i.eventId))
+      .filter((i) => !i.deletedAt && STATUS_EM_APROVACAO.includes(i.status) && !ehBookCompleto(i) && eventoVaiAcontecer(i.eventId))
       .map((i) => [i.id, i]),
   );
   const nomeDoSponsor = new Map(sponsors.map((s) => [s.id, s.name]));

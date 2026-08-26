@@ -121,6 +121,20 @@ describe("o resumo conta o que interessa e ignora o resto", () => {
     expect(r2.totalPendentes).toBe(1);
   });
 
+  it("evento REABERTO à mão com data passada continua fora — decisão do dono", () => {
+    // Aqui a régua do aviso é MAIS ESTRITA que o predicado canônico das telas:
+    // lá a reabertura devolve o evento ao jogo (quem reabriu quer mexer); aqui
+    // não, porque reabrir é para arrumar a casa de algo que já aconteceu — e
+    // ninguém precisa ser lembrado disso três vezes por dia.
+    const c = cenario();
+    c.eventos = [
+      { id: "e1", name: "Primavera SP", truckDepartureDate: emDias(-20), startDate: emDias(-18), reopenedAt: emDias(-1) } as any,
+      c.eventos[1],
+    ];
+    const r = montarResumoDaGestao(c.itens, c.aprovacoes, c.sponsors, c.eventos, AGORA);
+    expect(r.eventos.map((e) => e.evento)).toEqual(["Meia Maratona"]);
+  });
+
   it("evento ENCERRADO à mão também sai, mesmo com data futura", () => {
     const c = cenario();
     c.eventos = [{ ...c.eventos[0], manuallyClosed: true } as any, c.eventos[1]];

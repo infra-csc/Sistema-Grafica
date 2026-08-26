@@ -94,6 +94,7 @@ function rotasDe(rel: string): Rota[] {
  */
 const SEM_AUDITORIA_POR_DESENHO: Record<string, string> = {
   "POST /api/revisao/digest/enviar": "não escreve peça nem evento: manda o resumo da fila de revisão por e-mail. O rastro do disparo é gravado pelo próprio serviço (entityType \"revisao\"), que é onde ele significa alguma coisa",
+  "POST /api/gestao/digest/enviar": "não escreve peça nem evento: manda o resumo das aprovações pendentes por e-mail. O rastro do disparo é gravado pelo próprio serviço (entityType \"gestao\"), que é onde ele significa alguma coisa",
   "POST /api/items/export-xlsx": "só lê e devolve arquivo, não muda estado nenhum",
   "POST /api/events/:id/preview-xlsx": "faz o parse da planilha sem salvar nada",
   "POST /api/events/:id/confirm-import": "delega a handleConfirmImport, que grava a trilha",

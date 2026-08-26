@@ -22,7 +22,7 @@ const {
   construirEmailDaGestao,
   DESTINATARIOS_DA_GESTAO,
   DIAS_PARA_TRAVADA,
-  HORARIO_DA_GESTAO,
+  HORARIOS_DA_GESTAO,
   MAX_EVENTOS,
 } = await import("../services/gestaoDigest");
 
@@ -176,8 +176,11 @@ describe("as decisões herdadas do aviso da Revisão", () => {
     expect(SRC).toContain('if (resumo.totalPendentes === 0) return { status: "sem-fila", resumo };');
   });
 
-  it("não repete: a trilha guarda o disparo do dia", () => {
-    expect(SRC).toContain('if (!opcoes.manual && await jaAvisou(dia)) return { status: "ja-enviado" };');
+  it("não repete: a trilha guarda o disparo do dia E DO HORÁRIO", () => {
+    // Por dia só não bastaria com três disparos: o das 15h acharia que já
+    // mandou por causa do das 10h.
+    expect(SRC).toContain('if (!opcoes.manual && await jaAvisou(dia, hora)) return { status: "ja-enviado" };');
+    expect(SRC).toContain("const marca = `${DETALHE_TRILHA} (${dia} ${hora}h)`;");
     expect(SRC).toContain('entityType: "gestao"');
   });
 
@@ -186,11 +189,47 @@ describe("as decisões herdadas do aviso da Revisão", () => {
     expect(SRC).toContain("if (!ehProducao()) {");
   });
 
-  it("uma vez por dia, de manhã, e atrás de uma chave", () => {
-    expect(HORARIO_DA_GESTAO).toBe(8);
-    expect(SRC).toContain("if (hora !== HORARIO_DA_GESTAO || minuto >= 5) return;");
+  it("três vezes por dia, nos horários do aviso da Revisão, e atrás de uma chave", () => {
+    expect(HORARIOS_DA_GESTAO).toEqual([10, 15, 18]);
+    expect(SRC).toContain("if (!HORARIOS_DA_GESTAO.includes(hora) || minuto >= 5) return;");
     // Desligado por padrão: ligar é decisão do dono, não efeito de deploy.
     expect(SRC).toContain('env.GESTAO_DIGEST_ENABLED?.trim().toLowerCase() === "true"');
     expect(ROUTES).toContain("startGestaoDigest();");
+  });
+
+  it("o rodapé do e-mail diz os três horários — não uma promessa desatualizada", () => {
+    const c = cenario();
+    const r = montarResumoDaGestao(c.itens, c.aprovacoes, c.sponsors, c.eventos, AGORA);
+    const m = construirEmailDaGestao(r, CONFIG, DESTINATARIOS_DA_GESTAO);
+    if ("erro" in m) throw new Error(m.erro);
+    expect(m.html).toContain("Aviso automático às 10h, 15h, 18h");
+  });
+});
+
+describe("o disparo à mão", () => {
+  const ITEMS = ler("server/routes/items.ts");
+  const TELA = ler("client/src/pages/atendimento.tsx");
+
+  it("tem porta própria, só para admin — um clique manda e-mail de verdade", () => {
+    expect(ITEMS).toContain('app.post("/api/gestao/digest/enviar", requireAuth');
+    expect(ITEMS).toContain("Apenas administradores podem disparar o aviso da gestão");
+    expect(ITEMS).toContain("enviarAvisoDaGestao(new Date(), process.env, { manual: true })");
+  });
+
+  it("o manual ignora a memória do dia, mas NÃO a fila vazia", () => {
+    const SRC = ler("server/services/gestaoDigest.ts");
+    // `opcoes.manual` pula o jaAvisou (alguém pediu agora e está esperando)…
+    expect(SRC).toContain("if (!opcoes.manual && await jaAvisou(dia, hora))");
+    // …e também o interruptor, mas a fila vazia continua calando o envio.
+    expect(SRC).toContain("const ligado = opcoes.manual || env.GESTAO_DIGEST_ENABLED");
+    expect(SRC).toContain('if (resumo.totalPendentes === 0) return { status: "sem-fila", resumo };');
+    expect(ITEMS).toContain("Nenhuma aprovação pendente agora");
+  });
+
+  it("o botão vive no Atendimento, só para admin, e conta o desfecho real", () => {
+    expect(TELA).toContain('data-testid="button-avisar-gestao"');
+    expect(TELA).toContain('user?.role === "admin" && (');
+    // "Enviado" seria mentira quando o servidor diz que não enviou.
+    expect(TELA).toContain('title: r?.status === "enviado" ? "Aviso enviado" : "Aviso não enviado"');
   });
 });

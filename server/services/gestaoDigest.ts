@@ -27,9 +27,16 @@
 //  3. SÓ PRODUÇÃO ENVIA: o workspace de desenvolvimento compartilha segredos e
 //     conector com o deploy, e já mandou aviso em dobro uma vez.
 //
-// UMA VEZ POR DIA, e não três como o da Revisão: aquele é fila de plantão
-// ("tem coisa esperando você agora"); este é leitura de acompanhamento. Três
-// vezes seria a mesma foto repetida — e a segunda já seria ignorada.
+// TRÊS VEZES POR DIA, nos mesmos horários do aviso da Revisão (10h, 15h, 18h).
+// O primeiro desenho mandava uma vez de manhã, com o argumento de que
+// acompanhamento não é plantão; o dono decidiu três, e o argumento cai por
+// terra sozinho na conta: aprovação muda ao longo do dia, e a foto das 10h já
+// está velha às 15h. O que segura a repetição virar ruído é a fila vazia não
+// mandar nada.
+//
+// E o DISPARO À MÃO (25/08): o aviso sai do sistema, e o conector de e-mail só
+// autentica no ambiente publicado — sem um botão, a única forma de descobrir
+// que o canal caiu seria ninguém receber nada e ninguém estranhar.
 // ─────────────────────────────────────────────────────────────────────────────
 import { storage } from "../storage";
 import { ehBookCompleto } from "@shared/fluxo-peca";
@@ -39,8 +46,12 @@ import { sql } from "drizzle-orm";
 import { entregarEmail, getBookEmailConfig, separarDestinatarios, type BookEmailMessage } from "./bookEmailNotification";
 import { agoraNoFuso, ehProducao } from "./revisaoDigest";
 
-/** Hora de disparo, no fuso do negócio. Manhã: a foto do dia que começa. */
-export const HORARIO_DA_GESTAO = 8;
+/**
+ * Horas de disparo, no fuso do negócio — as mesmas do aviso da Revisão
+ * (decisão do dono, 25/08, depois de ver o desenho pronto). Acompanhar
+ * aprovação é acompanhar o dia: às 15h já mudou o que era verdade às 10h.
+ */
+export const HORARIOS_DA_GESTAO = [10, 15, 18];
 
 /**
  * Quem recebe. Lista NOMEADA, como os outros dois avisos: não existe papel
@@ -296,7 +307,7 @@ export function construirEmailDaGestao(
 
     `<tr><td style="padding:4px 24px 22px;">`,
     `<a href="${esc(`${config.appUrl}/atendimento`)}" style="display:inline-block;background:#1c1917;color:#ffffff;text-decoration:none;font-size:14px;font-weight:700;padding:11px 20px;border-radius:9px;">Abrir o Atendimento</a>`,
-    `<div style="margin-top:14px;font-size:12px;color:#78716c;line-height:1.5;">Aviso automático às ${HORARIO_DA_GESTAO}h. Quando não há nada esperando, ele não é enviado.</div>`,
+    `<div style="margin-top:14px;font-size:12px;color:#78716c;line-height:1.5;">Aviso automático às ${HORARIOS_DA_GESTAO.map((h) => `${h}h`).join(", ")}. Quando não há nada esperando, ele não é enviado.</div>`,
     `</td></tr>`,
 
     `</table></td></tr></table></body></html>`,
@@ -320,8 +331,10 @@ export function construirEmailDaGestao(
   return { from, to: validos, subject, text: texto, html };
 }
 
-async function jaAvisou(dia: string): Promise<boolean> {
-  const marca = `${DETALHE_TRILHA} (${dia})`;
+// A memória é por DIA E HORÁRIO: com três disparos, marcar só o dia faria o
+// das 15h achar que já mandou por causa do das 10h.
+async function jaAvisou(dia: string, hora: number): Promise<boolean> {
+  const marca = `${DETALHE_TRILHA} (${dia} ${hora}h)`;
   const linhas = await db.select({ id: auditLogs.id }).from(auditLogs)
     .where(sql`${auditLogs.entityType} = 'gestao' and ${auditLogs.details} like ${marca + "%"}`)
     .limit(1);
@@ -341,8 +354,8 @@ export async function enviarAvisoDaGestao(
   const ligado = opcoes.manual || env.GESTAO_DIGEST_ENABLED?.trim().toLowerCase() === "true";
   if (!ligado) return { status: "desligado" };
 
-  const { dia } = agoraNoFuso(agora);
-  if (!opcoes.manual && await jaAvisou(dia)) return { status: "ja-enviado" };
+  const { dia, hora } = agoraNoFuso(agora);
+  if (!opcoes.manual && await jaAvisou(dia, hora)) return { status: "ja-enviado" };
 
   const [itens, aprovacoes, sponsors, eventos] = await Promise.all([
     storage.getAllItems(),
@@ -368,7 +381,7 @@ export async function enviarAvisoDaGestao(
       action: "updated",
       entityType: "gestao",
       entityId: dia,
-      details: `${DETALHE_TRILHA} (${dia})${marcaManual}: ${desfecho}`,
+      details: `${DETALHE_TRILHA} (${dia} ${hora}h)${marcaManual}: ${desfecho}`,
     } as any);
   };
 
@@ -401,7 +414,7 @@ export function startGestaoDigest(): void {
     try {
       const agora = new Date();
       const { hora, minuto } = agoraNoFuso(agora);
-      if (hora !== HORARIO_DA_GESTAO || minuto >= 5) return;
+      if (!HORARIOS_DA_GESTAO.includes(hora) || minuto >= 5) return;
       await enviarAvisoDaGestao(agora);
     } catch (error) {
       console.error("[gestao-digest] erro no tique", error);

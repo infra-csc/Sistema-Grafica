@@ -743,6 +743,35 @@ export default function Atendimento() {
     },
   });
 
+  /**
+   * DISPARAR À MÃO o aviso da gestão (25/08).
+   *
+   * O aviso das 10h, 15h e 18h SAI do sistema, e o conector de e-mail só
+   * autentica dentro do ambiente publicado — não há como verificar de fora que
+   * o canal está de pé. Sem este botão, a única forma de descobrir que o aviso
+   * parou seria as três não receberem nada e ninguém estranhar.
+   *
+   * Só admin, pela mesma régua do reenvio do book e do aviso da Revisão: um
+   * clique manda e-mail de verdade para outras pessoas.
+   */
+  const avisarGestaoMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/gestao/digest/enviar", {});
+      return await res.json();
+    },
+    onSuccess: (r: any) => {
+      // O servidor devolve a frase pronta — inclusive quando NÃO enviou (nada
+      // pendente, remetente ausente). "Enviado" seria mentira nesses casos, e
+      // o ponto do botão é justamente saber o que aconteceu.
+      toast({
+        title: r?.status === "enviado" ? "Aviso enviado" : "Aviso não enviado",
+        description: r?.mensagem ?? "Sem resposta do servidor.",
+        variant: r?.status === "enviado" ? undefined : "destructive",
+      });
+    },
+    onError: (error: any) => toast({ title: "Erro ao disparar o aviso", description: error.message, variant: "destructive" }),
+  });
+
   // DESVINCULAR da peça (pedido do dono, 25/08): tira o patrocinador e a
   // aprovação PENDENTE dele deixa de contar — se ele era o único que faltava,
   // o servidor fecha a rodada e a peça segue. Aprovação já dada fica no
@@ -2330,6 +2359,31 @@ export default function Atendimento() {
                 })}
               </div>
               <span style={{ fontSize: 12, color: '#57534e' }}>{ORDEM_REGRA[ordemPendentes]}</span>
+
+              {/* O DISPARO À MÃO DO AVISO DA GESTÃO. Discreto de propósito e
+                  encostado à direita: é ferramenta de manutenção, não parte do
+                  trabalho de decidir — quem entra aqui para aprovar não deve
+                  tropeçar nele. */}
+              {user?.role === "admin" && (
+                <button
+                  type="button"
+                  data-testid="button-avisar-gestao"
+                  onClick={() => avisarGestaoMutation.mutate()}
+                  disabled={avisarGestaoMutation.isPending}
+                  title="Manda agora o resumo das aprovações pendentes para quem recebe o aviso das 10h, 15h e 18h. Se não houver pendência, nada é enviado."
+                  style={{
+                    marginLeft: 'auto', height: isMobile ? 44 : 32, padding: '0 12px', borderRadius: 8,
+                    border: '1px solid #e7e5e4', backgroundColor: '#ffffff', color: '#57534e',
+                    cursor: avisarGestaoMutation.isPending ? 'wait' : 'pointer',
+                    fontFamily: 'inherit', fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+                    display: 'inline-flex', alignItems: 'center', gap: 6, flexShrink: 0,
+                    opacity: avisarGestaoMutation.isPending ? 0.6 : 1,
+                  }}
+                >
+                  <Send style={{ width: 13, height: 13 }} />
+                  {avisarGestaoMutation.isPending ? 'Enviando…' : 'Avisar a gestão'}
+                </button>
+              )}
 
               {/* ── A FILA, ALCANÇÁVEL ────────────────────────────────────────
                   A fila de decisão existia só DENTRO do modal (navegação no

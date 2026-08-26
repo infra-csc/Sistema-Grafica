@@ -28,6 +28,7 @@ import { handlePreviewXlsx, handleConfirmImport } from "../services/xlsxImport";
 import { handleExportItemsXlsx, handleExportSelectedItemsXlsx } from "../services/xlsxExport";
 import { notifyBookSaved, descreverEnvio, type BookEmailResult } from "../services/bookEmailNotification";
 import { enviarAvisoDaRevisao } from "../services/revisaoDigest";
+import { enviarAvisoDaGestao } from "../services/gestaoDigest";
 // A tela de Versões guarda o quadro calculado por 30 s. Toda escrita que mude
 // versão, decisão ou book derruba esse cache na hora — senão o Atendimento
 // revoga uma aprovação e continua vendo o quadro velho numa tela cujo trabalho
@@ -4612,6 +4613,30 @@ export function registerItemRoutes(app: Express): void {
       const mensagem =
         r.status === "enviado" ? `Aviso enviado — ${r.resumo?.total} na fila, ${r.resumo?.novos} novas.`
         : r.status === "sem-fila" ? "Nada na fila de revisão agora — o aviso não é enviado quando não há o que revisar."
+        : r.status === "simulado" ? "Modo de simulação ligado: o e-mail foi montado e não enviado."
+        : `Aviso NÃO enviado: ${r.motivo ?? r.status}`;
+      res.json({ ...r, mensagem });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // DISPARAR O AVISO DA GESTÃO AGORA (25/08).
+  //
+  // Mesma razão da porta da Revisão, logo acima: o aviso SAI do sistema e o
+  // conector de e-mail só autentica no ambiente publicado — sem este botão, a
+  // única forma de descobrir que o canal caiu seria ninguém receber nada e
+  // ninguém estranhar. Só admin, pela mesma régua: um clique manda e-mail de
+  // verdade para outras três pessoas.
+  app.post("/api/gestao/digest/enviar", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas administradores podem disparar o aviso da gestão" });
+      }
+      const r = await enviarAvisoDaGestao(new Date(), process.env, { manual: true });
+      const mensagem =
+        r.status === "enviado" ? `Aviso enviado — ${r.resumo?.totalPendentes} aprovações pendentes em ${r.resumo?.eventos.length} evento(s).`
+        : r.status === "sem-fila" ? "Nenhuma aprovação pendente agora — o aviso não é enviado quando não há o que acompanhar."
         : r.status === "simulado" ? "Modo de simulação ligado: o e-mail foi montado e não enviado."
         : `Aviso NÃO enviado: ${r.motivo ?? r.status}`;
       res.json({ ...r, mensagem });

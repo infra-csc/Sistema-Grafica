@@ -539,6 +539,7 @@ const SEM_GUARDA_POR_DESENHO: Record<string, string> = {
   "POST /api/items/labels-printed": "carimbo de que a etiqueta SAIU na impressora (labelPrintedAt + trilha) — registra um fato físico, não muda status nem produz nada; mesma família do confer/deliver, onde o papel anda mesmo com o evento travado",
   // Não mudam estado de peça.
   "POST /api/revisao/digest/enviar": "dispara o resumo da fila de revisão por e-mail; não grava peça nem evento (só a trilha do disparo) e não tem alvo de evento nenhum",
+  "POST /api/gestao/digest/enviar": "dispara o resumo das aprovações pendentes por e-mail; não grava peça nem evento (só a trilha do disparo) e não tem alvo de evento nenhum",
   "POST /api/events/:eventId/book/notify": "reenvia por e-mail o aviso de um book que JÁ existe; não grava peça nem evento (só a trilha do reenvio) — e é justamente em evento antigo que alguém pede o book de novo, então barrar fecharia a porta exatamente onde ela é útil",
   "POST /api/items/export-xlsx": "só lê e devolve arquivo",
   "POST /api/events/:id/preview-xlsx": "faz o parse da planilha sem salvar nada",

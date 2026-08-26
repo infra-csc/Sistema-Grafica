@@ -4,3 +4,4 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gzpreview-book.html
+preview-gestao.html

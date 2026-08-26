@@ -33,6 +33,7 @@ import { startDeadlineAlerts } from "./services/deadlineAlerts";
 import { startInventoryLifecycle } from "./services/inventoryLifecycle";
 import { startPrazoSnapshots } from "./services/prazoSnapshots";
 import { startPrioridadeAutomatica } from "./services/prioridadeAutomatica";
+import { startGestaoDigest } from "./services/gestaoDigest";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Middleware to extract user info from session
@@ -77,6 +78,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Sobe junto com os outros trabalhos de fundo; sem REVISAO_DIGEST_ENABLED=true
   // ele bate o relógio e não faz nada.
   startRevisaoDigest();
+  // Aviso da gestão (25/08): aprovações pendentes por evento e patrocinador,
+  // 8h, para as três do acompanhamento. Desligado até GESTAO_DIGEST_ENABLED.
+  startGestaoDigest();
   startInventoryLifecycle();
   // Fecho diário da Gestão de Prazos. Se este registro sumir, nenhum snapshot
   // é gravado: a tendência ▲▼ e a faixa "o que mudou desde ontem" desaparecem

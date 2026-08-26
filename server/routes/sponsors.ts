@@ -38,6 +38,18 @@ const requireLinkingWrite = requireRole("arte", "solicitacao", "atendimento", "a
  * aprovação faria, com carimbo, trilha, aviso à Arte e broadcast.
  *
  * Pressupõe que o VÍNCULO peça↔patrocinador já foi removido pelo chamador.
+ *
+ * ── PEÇA SEM PATROCINADOR ≠ PEÇA QUE FICOU SEM PATROCINADOR ────────────────
+ * Lembrete do dono (25/08), e é a distinção que torna esta regra segura: o
+ * sistema tem peças que NUNCA tiveram patrocinador e são legítimas (stand,
+ * faixa de chegada, sinalização de percurso — a aba "Sem patrocinador" da
+ * tela de Versões conta quase mil). Elas NÃO são tocadas por nada disto.
+ *
+ * A inativação só existe como CONSEQUÊNCIA de um desvínculo: os dois
+ * chamadores só chegam aqui depois de `removeSponsorFromItem` devolver true,
+ * isto é, quando havia um vínculo e ele acabou de ser removido. Nunca varra
+ * o acervo atrás de "peças sem patrocinador" para cancelá-las — seria
+ * cancelar mil peças corretas.
  */
 async function descartarPendenciaEFecharRodada(
   req: any,

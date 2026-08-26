@@ -111,6 +111,21 @@ describe("tirar do EVENTO cascateia para as peças (caso QCY, 25/08)", () => {
     expect(TELA).toContain("Desvinculado — a peça foi cancelada");
   });
 
+  it("peça que NUNCA teve patrocinador não é tocada — a inativação é consequência do desvínculo", () => {
+    // Lembrete do dono: existem peças legítimas sem patrocinador nenhum
+    // (stand, faixa de chegada, sinalização — quase mil na aba "Sem
+    // patrocinador"). A regra só vale para a peça cujo ÚNICO patrocinador
+    // acabou de ser desvinculado.
+    //
+    // A trava é estrutural: os DOIS chamadores só entram na função depois de
+    // removeSponsorFromItem devolver true (havia vínculo e ele saiu).
+    expect(ROTA).toContain("if (!success) {"); // caminho peça a peça: 404 antes
+    expect(ROTA).toContain("if (!tirou) return null;"); // cascata: pula a peça
+    expect(ROTA).toContain("PEÇA SEM PATROCINADOR ≠ PEÇA QUE FICOU SEM PATROCINADOR");
+    // e nada de varredura por peças sem patrocinador
+    expect(ROTA).not.toMatch(/getAllItems[\s\S]{0,200}canceled/);
+  });
+
   it("a desvinculação aparece na trilha da PEÇA e com rótulo no log do sistema", () => {
     // entityType 'item' de propósito: a trilha da peça (e o Histórico)
     // consulta por item — 'item_sponsor' escondia a desvinculação de quem vai

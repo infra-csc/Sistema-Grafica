@@ -88,6 +88,29 @@ describe("tirar do EVENTO cascateia para as peças (caso QCY, 25/08)", () => {
     expect(ROTA).not.toContain("for (const item of doEvento)");
   });
 
+  it("peça cujo ÚNICO patrocinador saiu é INATIVADA — não volta, não segue (caso Testeira QCY)", () => {
+    // Decisão do dono (25/08): cancelada, fora de todas as filas, visível só
+    // no Painel Geral, com a explicação NA PEÇA.
+    // ONDE QUER QUE ELA ESTEJA no fluxo — a exceção é só o que já existe no
+    // mundo físico (cancelar ali reescreveria o registro do que foi impresso).
+    expect(ROTA).toContain('const MATERIAL_JA_EXISTE = ["produced", "produzido", "conferred", "conferido", "delivered", "entregue"];');
+    expect(ROTA).toContain('const TERMINAIS = ["canceled", "archived"];');
+    expect(ROTA).toContain("const inativavel = !MATERIAL_JA_EXISTE.includes(item.status) && !TERMINAIS.includes(item.status);");
+    expect(ROTA).toContain("const vinculadosRestantes = await storage.getItemSponsors(item.id);");
+    expect(ROTA).toContain("if (vinculadosRestantes.length === 0) {");
+    expect(ROTA).toContain('Cancelada automaticamente: o único patrocinador');
+    expect(ROTA).toContain('status: "canceled",');
+    // a observação anterior é preservada, não sobrescrita
+    expect(ROTA).toContain('[explicacao, item.observations].filter(Boolean).join(" · ")');
+    // a inativação vem ANTES do avanço de rodada — peça só do desvinculado
+    // não pode "seguir" para produção
+    expect(ROTA.indexOf("vinculadosRestantes.length === 0")).toBeLessThan(ROTA.indexOf('descartouPendente && (item.status === "awaiting_sponsor_approval"'));
+    // e a cascata conta as inativadas na trilha do evento
+    expect(ROTA).toContain("cancelada${inativadas !== 1 ?");
+    // o toast do Atendimento conta o desfecho
+    expect(TELA).toContain("Desvinculado — a peça foi cancelada");
+  });
+
   it("a desvinculação aparece na trilha da PEÇA e com rótulo no log do sistema", () => {
     // entityType 'item' de propósito: a trilha da peça (e o Histórico)
     // consulta por item — 'item_sponsor' escondia a desvinculação de quem vai

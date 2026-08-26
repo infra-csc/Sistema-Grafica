@@ -761,7 +761,9 @@ export default function Atendimento() {
       if (data?.item) applyItemDecisionToCache(data.item);
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setDesvincularAlvo(null);
-      toast(data?.rodadaFechou
+      toast(data?.pecaInativada
+        ? { title: "Desvinculado — a peça foi cancelada", description: "Era o único patrocinador: a peça saiu das filas e segue visível no Painel Geral, com a explicação registrada." }
+        : data?.rodadaFechou
         ? { title: "Desvinculado — a peça seguiu", description: "Ele era o único que faltava: a rodada fechou e a Arte foi avisada para finalizar." }
         : { title: "Patrocinador desvinculado", description: "A aprovação pendente dele deixou de contar." });
     },

@@ -43,7 +43,7 @@ async function descartarPendenciaEFecharRodada(
   item: any,
   sponsorId: string,
   sponsorName: string | undefined,
-): Promise<{ linhaAprovada: boolean; descartouPendente: boolean; itemAtualizado: any | null }> {
+): Promise<{ linhaAprovada: boolean; descartouPendente: boolean; itemAtualizado: any | null; inativada: boolean }> {
   const linha = await storage.getItemSponsorApproval(item.id, sponsorId);
   const linhaAprovada = linha?.status === "approved";
   let descartouPendente = false;
@@ -54,6 +54,57 @@ async function descartarPendenciaEFecharRodada(
   }
 
   let itemAtualizado: any = null;
+  let inativada = false;
+
+  // ── ERA O ÚNICO (caso Testeira QCY, 25/08) ───────────────────────────────
+  // Peça que existia PARA a marca que saiu não pode nem seguir (seria
+  // produzir arte de patrocinador que já não está no evento) nem apodrecer
+  // numa fila. Decisão do dono: ONDE QUER QUE ELA ESTEJA no fluxo, é
+  // INATIVADA (cancelada) — some de todas as filas e fica visível no Painel
+  // Geral, com a explicação de que o patrocinador saiu. Linhas aprovadas de
+  // ex-patrocinadores ficam na trilha (registro).
+  //
+  // A ÚNICA exceção é o que JÁ EXISTE NO MUNDO FÍSICO (produzida, conferida,
+  // entregue) e o que já é terminal: cancelar ali reescreveria o registro do
+  // material que foi impresso e entregue — o número que fecha a conta com o
+  // patrocinador. Nesses casos a peça fica como está e o desvinculo só tira
+  // a marca; quem precisar mesmo cancelar usa o cancelamento manual.
+  const MATERIAL_JA_EXISTE = ["produced", "produzido", "conferred", "conferido", "delivered", "entregue"];
+  const TERMINAIS = ["canceled", "archived"];
+  const inativavel = !MATERIAL_JA_EXISTE.includes(item.status) && !TERMINAIS.includes(item.status);
+  if (inativavel) {
+    const vinculadosRestantes = await storage.getItemSponsors(item.id);
+    if (vinculadosRestantes.length === 0) {
+      const explicacao = `Cancelada automaticamente: o único patrocinador ("${sponsorName}") foi desvinculado do evento.`;
+      itemAtualizado = await storage.updateItem(item.id, {
+        status: "canceled",
+        // A explicação vai NA PEÇA (mesmo campo do cancelamento manual), com a
+        // observação anterior preservada — quem abrir no Painel Geral lê o
+        // porquê sem precisar da trilha.
+        observations: [explicacao, item.observations].filter(Boolean).join(" · "),
+      });
+      inativada = true;
+      invalidarCacheDeVersoes();
+      await createAuditLog(
+        req,
+        'canceled',
+        'item',
+        item.id,
+        `"${sponsorName}" era o único patrocinador — peça cancelada automaticamente (estava em ${translateStatus(item.status)}); segue visível no Painel Geral`
+      );
+      const notification = await storage.createNotification({
+        type: "sponsorUnlinked",
+        message: `A peça ${item.displayId || item.type} foi cancelada: o único patrocinador ("${sponsorName}") saiu do evento. Ela segue visível no Painel Geral.`,
+        eventId: item.eventId,
+        itemId: item.id,
+        targetRoles: ["solicitacao", "atendimento"],
+      });
+      broadcast({ type: "item_updated", item: itemAtualizado });
+      broadcast({ type: "notification_created", notification });
+      return { linhaAprovada, descartouPendente, itemAtualizado, inativada };
+    }
+  }
+
   if (descartouPendente && (item.status === "awaiting_sponsor_approval" || item.status === "awaiting_approval")) {
     const restantes = await storage.getItemSponsorApprovals(item.id);
     // vazio = fechou: não resta ninguém a esperar
@@ -85,7 +136,7 @@ async function descartarPendenciaEFecharRodada(
     }
   }
 
-  return { linhaAprovada, descartouPendente, itemAtualizado };
+  return { linhaAprovada, descartouPendente, itemAtualizado, inativada };
 }
 
 export function registerSponsorRoutes(app: Express): void {
@@ -492,7 +543,8 @@ export function registerSponsorRoutes(app: Express): void {
       );
       const efetivos = resultados.filter((r): r is NonNullable<typeof r> => r !== null);
       const pecasDesvinculadas = efetivos.length;
-      const rodadasFechadas = efetivos.filter((r) => r.itemAtualizado).length;
+      const inativadas = efetivos.filter((r) => r.inativada).length;
+      const rodadasFechadas = efetivos.filter((r) => r.itemAtualizado && !r.inativada).length;
 
       await createAuditLog(
         req,
@@ -501,7 +553,7 @@ export function registerSponsorRoutes(app: Express): void {
         `${eventId}_${sponsorId}`,
         `Patrocinador "${sponsor?.name}" removido do evento "${event?.name}"`
           + (pecasDesvinculadas > 0
-            ? ` — desvinculado também de ${pecasDesvinculadas} peça${pecasDesvinculadas !== 1 ? "s" : ""}${rodadasFechadas > 0 ? `; ${rodadasFechadas} rodada${rodadasFechadas !== 1 ? "s" : ""} de aprovação fechou e a peça seguiu` : ""}`
+            ? ` — desvinculado também de ${pecasDesvinculadas} peça${pecasDesvinculadas !== 1 ? "s" : ""}${rodadasFechadas > 0 ? `; ${rodadasFechadas} rodada${rodadasFechadas !== 1 ? "s" : ""} de aprovação fechou e a peça seguiu` : ""}${inativadas > 0 ? `; ${inativadas} peça${inativadas !== 1 ? "s" : ""} que só tinha${inativadas !== 1 ? "m" : ""} este patrocinador foi${inativadas !== 1 ? "ram" : ""} cancelada${inativadas !== 1 ? "s" : ""} (visível no Painel Geral)` : ""}`
             : "")
       );
 
@@ -510,6 +562,7 @@ export function registerSponsorRoutes(app: Express): void {
         message: "Patrocinador removido do evento com sucesso",
         pecasDesvinculadas,
         rodadasFechadas,
+        pecasInativadas: inativadas,
       });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
@@ -818,7 +871,7 @@ export function registerSponsorRoutes(app: Express): void {
       // A regra do dono (25/08) mora em descartarPendenciaEFecharRodada, a
       // mesma da cascata de evento: aprovada fica, pendente descarta, e se só
       // faltava ele a peça segue.
-      const { linhaAprovada, descartouPendente, itemAtualizado } =
+      const { linhaAprovada, descartouPendente, itemAtualizado, inativada } =
         await descartarPendenciaEFecharRodada(req, item, sponsorId, sponsor?.name);
 
       // entityType 'item' de propósito (25/08): a trilha da peça (e o
@@ -838,7 +891,8 @@ export function registerSponsorRoutes(app: Express): void {
       res.json({
         message: "Patrocinador desvinculado do item com sucesso",
         aprovacaoPendenteDescartada: descartouPendente,
-        rodadaFechou: !!itemAtualizado,
+        rodadaFechou: !!itemAtualizado && !inativada,
+        pecaInativada: inativada,
         item: itemAtualizado ?? undefined,
       });
     } catch (error: any) {

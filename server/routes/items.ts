@@ -586,11 +586,24 @@ export const PAPEIS_QUE_RECEBEM = ["arte"];
 /**
  * Quem acompanha, por nome, independentemente do papel. Vai em cópia oculta.
  *
- * É esta a lista que responde ao "admin" do pedido de 25/08: os admins que de
- * fato acompanham a produção, escritos por nome. Por papel entrariam também
- * conta de sistema e admin que não olha book — daí a escolha por nome.
+ * Duas coisas moram nesta lista, e as duas por nome de propósito:
+ *   · os ADMINS que de fato acompanham a produção (Pedro e Yan) — por papel
+ *     entrariam também conta de sistema e admin que não olha book;
+ *   · as três de GESTÃO do atendimento (25/08), que acompanham o trabalho da
+ *     equipe. Não existe papel "gestão" no sistema — as três são atendimento,
+ *     e por papel elas voltariam a receber TODO book de TODO evento, que é
+ *     exatamente o que a mudança de 25/08 desfez.
+ *
+ * Elas recebem o book de todos os eventos por acompanharem a equipe; o resto
+ * do atendimento só recebe onde tem cliente.
  */
-export const DESTINATARIOS_NOMEADOS = ["pedro@nortemkt.com", "yan.araujo@nortemkt.com"];
+export const DESTINATARIOS_NOMEADOS = [
+  "pedro@nortemkt.com",
+  "yan.araujo@nortemkt.com",
+  "agatha.nadolsky@nortemkt.com",
+  "kakau.faria@nortemkt.com",
+  "ana.motta@nortemkt.com",
+];
 
 async function porFiltro(teste: (u: { email: string; role: string }) => boolean): Promise<string[]> {
   const usuarios = await storage.getAllUsers();

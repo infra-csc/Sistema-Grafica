@@ -68,7 +68,16 @@ describe("3 · quem recebe o aviso", () => {
     // o dono pediu ("se eu não tenho cliente vinculado na prova, não preciso
     // receber"). Solicitação continua fora (24/08).
     expect(ITEMS).toContain('export const PAPEIS_QUE_RECEBEM = ["arte"];');
-    expect(ITEMS).toContain('export const DESTINATARIOS_NOMEADOS = ["pedro@nortemkt.com", "yan.araujo@nortemkt.com"];');
+    // A lista nomeada tem DOIS grupos, os dois por nome: os admins que
+    // acompanham (Pedro, Yan) e as três da gestão do atendimento (25/08).
+    // Por papel, as três voltariam a receber todo book de todo evento — que é
+    // exatamente o que esta mudança desfez para o resto do atendimento.
+    for (const pessoa of [
+      "pedro@nortemkt.com", "yan.araujo@nortemkt.com",
+      "agatha.nadolsky@nortemkt.com", "kakau.faria@nortemkt.com", "ana.motta@nortemkt.com",
+    ]) {
+      expect(ITEMS).toContain(`  "${pessoa}",`);
+    }
     const i = ITEMS.indexOf("export const PAPEIS_QUE_RECEBEM");
     expect(ITEMS.slice(i, i + 400)).not.toContain("solicitacao");
   });

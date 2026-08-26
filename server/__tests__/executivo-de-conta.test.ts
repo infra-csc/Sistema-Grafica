@@ -36,6 +36,25 @@ describe("o sinal existe no banco", () => {
   });
 });
 
+describe("o preview do e-mail não pode mentir", () => {
+  const PREVIEW = ler("scripts/preview-email-book.ts");
+
+  it("usa o construtor de verdade, não um HTML de mentira", () => {
+    expect(PREVIEW).toContain('import { buildBookEmailMessage } from "../server/services/bookEmailNotification";');
+  });
+
+  it("a lista copiada bate com a de routes/items", () => {
+    // A cópia existe porque importar de routes/items arrasta storage → db →
+    // exceljs, e o preview passaria a exigir banco para desenhar um e-mail.
+    // O preço da cópia é este teste.
+    const doItems = ITEMS.slice(ITEMS.indexOf("export const DESTINATARIOS_NOMEADOS"));
+    const doPreview = PREVIEW.slice(PREVIEW.indexOf("const DESTINATARIOS_NOMEADOS"));
+    const emails = (t: string) => (t.slice(0, t.indexOf("];")).match(/"[^"]+@[^"]+"/g) ?? []).join(",");
+    expect(emails(doPreview)).toBe(emails(doItems));
+    expect(emails(doItems)).not.toBe("");
+  });
+});
+
 describe("o script de inferência propõe, não adivinha", () => {
   it("é dry-run por padrão", () => {
     expect(SCRIPT).toContain('const aplicar = process.argv.includes("--aplicar");');

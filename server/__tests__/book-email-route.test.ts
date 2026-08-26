@@ -123,17 +123,25 @@ beforeEach(() => {
     { id: "item-3", bookUrl: null },
   ]);
   H.storage.getEventSponsors = vi.fn().mockResolvedValue([{ sponsorId: "s1" }, { sponsorId: "s2" }]);
+  // s1 tem executivo (u9); s2 não tem — e é justamente o caso que NÃO coloca
+  // ninguém do atendimento no aviso (decisão do dono, 25/08).
+  H.storage.getAllSponsors = vi.fn().mockResolvedValue([
+    { id: "s1", accountExecutiveId: "u9" },
+    { id: "s2", accountExecutiveId: null },
+    { id: "s3", accountExecutiveId: "u1" }, // executivo de OUTRO evento: não entra
+  ]);
   H.storage.getSponsor = vi.fn(async (id: string) => ({ id, accountExecutiveId: id === "s1" ? "u9" : null }));
   H.storage.getUser = vi.fn().mockResolvedValue({ id: "u9", email: "exec@nortemkt.com" });
   H.storage.getAllUsers = vi.fn().mockResolvedValue([
-    { id: "u1", email: "atend1@nortemkt.com", role: "atendimento" }, // trabalham com o book
+    { id: "u1", email: "atend1@nortemkt.com", role: "atendimento" }, // sem cliente NESTE evento
     { id: "u2", email: "atend2@nortemkt.com", role: "atendimento" },
     { id: "u3", email: "pedro@nortemkt.com", role: "admin" },        // nomeado, acompanha
     { id: "u4", email: "yan.araujo@nortemkt.com", role: "admin" },   // nomeado, acompanha
     { id: "u5", email: "chefe@nortemkt.com", role: "admin" },        // admin NÃO nomeado
     { id: "u6", email: "pedido@nortemkt.com", role: "solicitacao" }, // papel fora hoje
-    { id: "u7", email: "arte@nortemkt.com", role: "arte" },        // publica o book
+    { id: "u7", email: "arte@nortemkt.com", role: "arte" },          // publica o book
     { id: "u8", email: "", role: "atendimento" },                    // sem e-mail
+    { id: "u9", email: "exec@nortemkt.com", role: "atendimento" },   // executivo do s1
   ]);
   H.notifyBookSaved.mockResolvedValue({ status: "disabled" });
   H.createAuditLog.mockResolvedValue(undefined);
@@ -168,10 +176,12 @@ describe("e-mail ao salvar book", () => {
       publicadoPor: "Ana Arte",
       saidaDoCaminhao: "2026-09-05T11:00:00.000Z",
       publicacao: 1,
-      // Decisão do dono (24/08): Atendimento e Arte de frente, e as duas
-      // pessoas nomeadas em cópia. Admin não nomeado fica de fora, Solicitação
-      // também, e usuário sem e-mail não vira endereço vazio.
-      destinatariosPrincipais: ["atend1@nortemkt.com", "atend2@nortemkt.com", "arte@nortemkt.com"],
+      // Decisão do dono, revista em 25/08: a ARTE inteira (publica o book) e
+      // os EXECUTIVOS com cliente NESTE evento de frente; as duas pessoas
+      // nomeadas em cópia. O atendimento sem cliente aqui (u1, u2) ficou de
+      // fora — que é a mudança. Admin não nomeado, Solicitação e usuário sem
+      // e-mail continuam fora.
+      destinatariosPrincipais: ["exec@nortemkt.com", "arte@nortemkt.com"],
       destinatariosDeCopia: ["pedro@nortemkt.com", "yan.araujo@nortemkt.com"],
     }));
   });
@@ -211,8 +221,8 @@ describe("e-mail ao salvar book", () => {
 
   it("uma falha ao PREPARAR o aviso não derruba o book", async () => {
     const errorLog = vi.spyOn(console, "error").mockImplementation(() => undefined);
-    // O que resolve os destinatários hoje é getAllUsers (a regra por evento
-    // está desligada) — é ele que precisa falhar para exercitar o caminho.
+    // getAllUsers resolve os DOIS lados dos destinatários (o papel e o
+    // executivo do evento) — é ele que precisa falhar para exercitar o caminho.
     H.storage.getAllUsers.mockRejectedValue(new Error("banco fora"));
 
     const r = await callBookRoute({ bookUrl: "/objects/books/corrida.pdf", itemIds: ["item-1"] });

@@ -519,54 +519,77 @@ async function attachParents(list: any[]): Promise<any[]> {
 // executivo definido, e aí resta a cópia global.
 // ─────────────────────────────────────────────────────────────────────────────
 export async function destinatariosDoEvento(eventId: string): Promise<string[]> {
-  const vinculos = await storage.getEventSponsors(eventId);
-  const executivos = new Set<string>();
+  // Três consultas, não N+1: um evento com 24 patrocinadores fazia 24 idas ao
+  // banco pelos sponsors e mais uma por executivo, dentro do caminho que já
+  // segura a publicação do book.
+  const [vinculos, todosSponsors, todosUsuarios] = await Promise.all([
+    storage.getEventSponsors(eventId),
+    storage.getAllSponsors(),
+    storage.getAllUsers(),
+  ]);
+  const executivoDoSponsor = new Map(todosSponsors.map((s) => [s.id, s.accountExecutiveId]));
+  const emailDoUsuario = new Map(todosUsuarios.map((u) => [u.id, u.email]));
+
+  const emails = new Set<string>();
   for (const v of vinculos) {
-    const sponsor = await storage.getSponsor(v.sponsorId);
-    if (sponsor?.accountExecutiveId) executivos.add(sponsor.accountExecutiveId);
+    const execId = executivoDoSponsor.get(v.sponsorId);
+    if (!execId) continue; // patrocinador sem executivo: ninguém entra por ele
+    const email = emailDoUsuario.get(execId);
+    if (email) emails.add(email);
   }
-  const emails: string[] = [];
-  for (const id of Array.from(executivos)) {
-    const user = await storage.getUser(id);
-    if (user?.email) emails.push(user.email);
-  }
-  return emails;
+  return Array.from(emails);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// QUEM RECEBE O AVISO DO BOOK — decisão do dono em 24/08.
+// QUEM RECEBE O AVISO DO BOOK — decisão do dono, revista em 25/08.
 //
-// Regra atual: o ATENDIMENTO inteiro recebe de frente, e duas pessoas
-// nomeadas acompanham em cópia oculta. Nem por papel aberto, nem por evento.
+// A REGRA DE HOJE: a ARTE inteira, mais os EXECUTIVOS DE CONTA dos
+// patrocinadores daquele evento. Do Atendimento, só quem tem cliente na prova.
+// Duas pessoas nomeadas acompanham em cópia oculta.
 //
-// Por que Atendimento e Arte no "Para": o Atendimento conversa com o
-// patrocinador e registra aprovação; a Arte publica o book e precisa da
-// confirmação de que ele saiu, com a contagem de peças, para conferir se saiu
-// o que devia. Para os dois o book pronto é notícia de trabalho, não recado.
-// Ninguém recebe por ser admin (as contas de admin incluem conta de sistema e
-// gente que não acompanha a produção no dia a dia), e Solicitação NÃO entra —
-// decisão do dono em 24/08.
+// Por que mudou (palavras do dono, 25/08): "se eu não tenho cliente vinculado
+// na prova, não preciso receber a notificação". O Atendimento inteiro recebia
+// todos os books de todos os eventos — e aviso que não é para mim ensina a
+// ignorar o sino, o que faz o aviso que ERA para mim passar batido junto.
 //
-// Por que também não é por evento: a regra por executivo de conta existe e
-// funciona (`destinatariosDoEvento`), mas hoje só 41 dos 147 patrocinadores
-// têm executivo preenchido, e quatro dos eventos com book não resolveriam
-// ninguém. Ligar isso agora deixaria o aviso mudo justamente onde ele importa.
-// O interruptor abaixo espera o cadastro melhorar; quando ligar, os executivos
-// entram no "Para" e a lista nomeada desce para a cópia oculta.
+// Por que a Arte continua inteira: ela PUBLICA o book e precisa da confirmação
+// de que ele saiu, com a contagem de peças, para conferir se saiu o que devia.
+// Não é recado, é o retorno da própria ação.
+//
+// Por que ninguém entra por ser admin, mesmo o dono tendo dito "arte, admin e
+// atendimento vinculado": as contas de admin incluem conta de sistema e gente
+// que não acompanha a produção no dia a dia. Quem de admin acompanha de fato
+// está em DESTINATARIOS_NOMEADOS — que é a lista de admins, escrita por nome
+// em vez de por papel. Solicitação continua fora (decisão de 24/08).
+//
+// PATROCINADOR SEM EXECUTIVO não coloca ninguém do Atendimento no aviso —
+// decisão do dono, em vez de cair no time inteiro. Para o cadastro não deixar
+// o aviso mudo, existe `scripts/inferir-executivos.ts`, que propõe o vínculo a
+// partir de quem historicamente decide por aquela conta.
 //
 // PARA MUDAR QUEM RECEBE, é aqui: acrescentar um endereço em
-// DESTINATARIOS_NOMEADOS, ou um papel inteiro em PAPEIS_QUE_RECEBEM.
+// DESTINATARIOS_NOMEADOS, um papel inteiro em PAPEIS_QUE_RECEBEM, ou desligar
+// o roteamento por executivo no interruptor abaixo (que devolve o
+// comportamento antigo se PAPEIS_QUE_RECEBEM voltar a ter "atendimento").
 // ─────────────────────────────────────────────────────────────────────────────
-export const USAR_EXECUTIVOS_DO_EVENTO = false;
+export const USAR_EXECUTIVOS_DO_EVENTO = true;
 
 /**
- * Papéis que recebem de frente. Solicitação ficou de fora por decisão do dono;
- * a lista existe justamente para essa escolha ser explícita e reversível numa
- * palavra, em vez de virar um `if` escondido.
+ * Papéis que recebem de frente. "atendimento" SAIU em 25/08: quem é do
+ * atendimento passa a entrar por ser executivo de conta de um patrocinador do
+ * evento, não por ser do papel. Solicitação ficou de fora em 24/08. A lista
+ * existe justamente para essas escolhas serem explícitas e reversíveis numa
+ * palavra, em vez de virarem um `if` escondido.
  */
-export const PAPEIS_QUE_RECEBEM = ["atendimento", "arte"];
+export const PAPEIS_QUE_RECEBEM = ["arte"];
 
-/** Quem acompanha, por nome, independentemente do papel. Vai em cópia oculta. */
+/**
+ * Quem acompanha, por nome, independentemente do papel. Vai em cópia oculta.
+ *
+ * É esta a lista que responde ao "admin" do pedido de 25/08: os admins que de
+ * fato acompanham a produção, escritos por nome. Por papel entrariam também
+ * conta de sistema e admin que não olha book — daí a escolha por nome.
+ */
 export const DESTINATARIOS_NOMEADOS = ["pedro@nortemkt.com", "yan.araujo@nortemkt.com"];
 
 async function porFiltro(teste: (u: { email: string; role: string }) => boolean): Promise<string[]> {
@@ -601,10 +624,14 @@ export async function avisarBookPorEmail(
       storage.getItemsByEvent(eventId),
       storage.getAllEventBooks(),
     ]);
-    // NO "PARA" quem trabalha com o book; em CÓPIA OCULTA quem acompanha. E a
-    // rede de segurança: se por algum motivo o time ficar vazio (papel
-    // renomeado, cadastro apagado), quem acompanha sobe para o "Para" — o
-    // aviso nunca sai sem destinatário.
+    // NO "PARA" quem trabalha com o book — a Arte (que o publicou) e os
+    // executivos com cliente neste evento; em CÓPIA OCULTA quem acompanha.
+    //
+    // A rede de segurança vale para o time INTEIRO vazio (papel renomeado,
+    // cadastro apagado): aí quem acompanha sobe para o "Para", e o aviso nunca
+    // sai sem destinatário. Ela NÃO cobre "evento sem executivo resolvido" —
+    // esse caso é a regra nova funcionando: a Arte segue no "Para" e ninguém
+    // do Atendimento entra, que foi a decisão do dono.
     const time = Array.from(new Set([...porEvento, ...porPapel]));
     const principais = time.length > 0 ? time : nomeados;
     const copias = time.length > 0 ? nomeados : [];

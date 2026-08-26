@@ -62,19 +62,25 @@ describe("2 · reenviar o aviso sai da tela de Versões", () => {
 });
 
 describe("3 · quem recebe o aviso", () => {
-  it("Atendimento e Arte de frente, dois nomeados em cópia — e Solicitação fora (dono, 24/08)", () => {
-    expect(ITEMS).toContain('export const PAPEIS_QUE_RECEBEM = ["atendimento", "arte"];');
+  it("Arte de frente por papel; do Atendimento, só executivo com cliente no evento (dono, 25/08)", () => {
+    // "atendimento" SAIU da lista de papéis: quem é do atendimento entra por
+    // ser executivo de conta de um patrocinador DAQUELE evento — a regra que
+    // o dono pediu ("se eu não tenho cliente vinculado na prova, não preciso
+    // receber"). Solicitação continua fora (24/08).
+    expect(ITEMS).toContain('export const PAPEIS_QUE_RECEBEM = ["arte"];');
     expect(ITEMS).toContain('export const DESTINATARIOS_NOMEADOS = ["pedro@nortemkt.com", "yan.araujo@nortemkt.com"];');
-    // Solicitação não aparece em lugar nenhum da regra de destinatário.
     const i = ITEMS.indexOf("export const PAPEIS_QUE_RECEBEM");
     expect(ITEMS.slice(i, i + 400)).not.toContain("solicitacao");
   });
 
-  it("a regra por evento fica desligada enquanto o cadastro não melhora", () => {
-    expect(ITEMS).toContain("export const USAR_EXECUTIVOS_DO_EVENTO = false;");
-    // e a função continua viva, atrás do interruptor — não foi apagada
+  it("a regra por evento está LIGADA, e resolve o executivo sem N+1", () => {
+    expect(ITEMS).toContain("export const USAR_EXECUTIVOS_DO_EVENTO = true;");
     expect(ITEMS).toContain("USAR_EXECUTIVOS_DO_EVENTO ? destinatariosDoEvento(eventId) : Promise.resolve([])");
     expect(ITEMS).toContain("export async function destinatariosDoEvento(eventId: string)");
+    // três consultas, não uma por patrocinador — está no caminho que segura a
+    // publicação do book
+    expect(ITEMS).toContain("storage.getAllSponsors(),");
+    expect(ITEMS).toContain("if (!execId) continue; // patrocinador sem executivo: ninguém entra por ele");
   });
 
   it("quem trabalha vai no Para; quem acompanha, em cópia oculta", () => {

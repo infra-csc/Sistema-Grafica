@@ -1,12 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // EXECUTIVO DE CONTA — a base do roteamento por executivo (25/08).
 //
-// O aviso do book vai passar a ir para os executivos dos patrocinadores DAQUELE
-// evento, em vez do atendimento inteiro. O bloqueio nunca foi de código: a
-// coluna `account_executive_id` está preenchida numa minoria das contas, e por
-// isso a chave USAR_EXECUTIVOS_DO_EVENTO segue desligada desde 24/08.
+// O aviso do book vai para os executivos dos patrocinadores DAQUELE evento, em
+// vez do atendimento inteiro (chave ligada em 25/08). O bloqueio nunca foi de
+// código: a coluna `account_executive_id` está preenchida numa minoria das
+// contas, e patrocinador sem executivo não coloca ninguém do atendimento no
+// aviso — por decisão do dono, em vez de cair no time inteiro.
 //
-// O script de inferência é o passo que destrava isso — e o que este arquivo
+// O script de inferência é o que enche esse cadastro — e o que este arquivo
 // guarda é a DISCIPLINA dele: propor, não adivinhar. Um script que vincula 100
 // contas por heurística sem revisão humana erra em silêncio, e o erro só
 // aparece meses depois, quando o aviso não chega para ninguém.
@@ -28,11 +29,10 @@ describe("o sinal existe no banco", () => {
     expect(SCHEMA).toContain('rejectedBy: text("rejected_by")');
   });
 
-  it("a função que resolve os executivos de um evento já existe e segue desligada", () => {
+  it("a função que resolve os executivos de um evento está LIGADA (25/08)", () => {
     expect(ITEMS).toContain("export async function destinatariosDoEvento(eventId: string)");
-    expect(ITEMS).toContain("if (sponsor?.accountExecutiveId) executivos.add(sponsor.accountExecutiveId);");
-    // Ligar isto é o passo DEPOIS do cadastro preenchido — não antes.
-    expect(ITEMS).toContain("export const USAR_EXECUTIVOS_DO_EVENTO = false;");
+    expect(ITEMS).toContain("const executivoDoSponsor = new Map(todosSponsors.map((s) => [s.id, s.accountExecutiveId]));");
+    expect(ITEMS).toContain("export const USAR_EXECUTIVOS_DO_EVENTO = true;");
   });
 });
 

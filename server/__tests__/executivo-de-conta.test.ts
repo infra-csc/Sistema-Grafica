@@ -18,6 +18,9 @@ import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../..", rel), "utf8");
 const SCRIPT = ler("scripts/inferir-executivos.ts");
+const SERVICE = ler("server/services/inferirExecutivos.ts");
+const ROUTE = ler("server/routes/inferir-executivos.ts");
+const TELA = ler("client/src/pages/inferir-executivos.tsx");
 const SCHEMA = ler("shared/schema.ts");
 const ITEMS = ler("server/routes/items.ts");
 
@@ -62,37 +65,52 @@ describe("o script de inferência propõe, não adivinha", () => {
   });
 
   it("nunca sobrescreve executivo já definido — quem tem, tem", () => {
-    expect(SCRIPT).toContain("const semExecutivo = todosSponsors.filter((s) => !s.accountExecutiveId);");
+    expect(SERVICE).toContain("const semExecutivo = todosSponsors.filter((sponsor) => !sponsor.accountExecutiveId);");
+    expect(SERVICE).toContain("isNull(sponsors.accountExecutiveId)");
   });
 
   it("só aplica o inequívoco: nome único, do atendimento, com maioria", () => {
-    expect(SCRIPT).toContain('if (candidatos.length === 0) motivo = "o nome não casa com nenhum usuário do cadastro";');
-    expect(SCRIPT).toContain("else if (candidatos.length > 1) motivo =");
-    expect(SCRIPT).toContain('candidatos[0].role !== "atendimento"');
-    expect(SCRIPT).toContain("else if (fatia <= CORTE_DE_MAIORIA) motivo =");
+    expect(SERVICE).toContain('reason = "o nome não casa com nenhum usuário do cadastro";');
+    expect(SERVICE).toContain("candidates.length > 1");
+    expect(SERVICE).toContain('candidates[0].role !== "atendimento"');
+    expect(SERVICE).toContain("share <= CORTE_DE_MAIORIA");
     // e o que tem dúvida NÃO entra na lista que grava
-    expect(SCRIPT).toContain("(motivo ? duvidosas : claras).push(p);");
-    expect(SCRIPT).toContain("for (const p of claras) {");
-    expect(SCRIPT).not.toContain("for (const p of duvidosas) {\n    await db.update");
+    expect(SERVICE).toContain("for (const proposta of relatorio.claras) {");
+    expect(SERVICE).not.toContain("for (const proposta of relatorio.duvidosas) {");
   });
 
   it("o vínculo inferido fica na trilha, com o número que o justificou", () => {
-    expect(SCRIPT).toContain('userName: "Script de inferência",');
-    expect(SCRIPT).toContain("Executivo de conta inferido:");
-    expect(SCRIPT).toContain("corrija no cadastro se estiver errado");
+    expect(SCRIPT).toContain('userName: "Script de inferência"');
+    expect(SERVICE).toContain("Executivo de conta inferido:");
+    expect(SERVICE).toContain("corrija no cadastro se estiver errado");
   });
 
   it("a comparação de nomes não depende de escape de barra invertida", () => {
     // Neste ambiente heredoc e node -e comem `\`, e um intervalo de regex
     // silenciosamente errado faria dois nomes iguais pararem de casar. O corte
     // das marcas combinantes é por code point, à vista.
-    expect(SCRIPT).toContain("cp < 0x0300 || cp > 0x036f");
+    expect(SERVICE).toContain("codePoint < 0x0300 || codePoint > 0x036f");
   });
 
   it("patrocinador sem sinal nenhum fica SEM executivo, de propósito", () => {
     // Decisão do dono: se não tem executivo nem histórico de decisão, ninguém
     // do atendimento é avisado por causa dele — em vez de cair no time inteiro.
-    expect(SCRIPT).toContain("semSinal.push(s.name);");
+    expect(SERVICE).toContain("semSinal.push({ sponsorId: sponsor.id, sponsorName: sponsor.name });");
     expect(SCRIPT).toContain("ninguém do atendimento é avisado por causa deles");
+  });
+});
+
+describe("a aplicação pela produção é explícita e protegida", () => {
+  it("prévia e aplicação exigem administrador; o POST exige confirmação", () => {
+    expect(ROUTE).toContain('app.get("/api/admin/inferir-executivos", requireAdmin');
+    expect(ROUTE).toContain('app.post("/api/admin/inferir-executivos", requireAdmin');
+    expect(ROUTE).toContain("req.body?.confirm !== true");
+  });
+
+  it("a tela separa claros, duvidosos e sem sinal antes de aplicar", () => {
+    expect(TELA).toContain("Propostas claras");
+    expect(TELA).toContain("Preservados para decisão manual");
+    expect(TELA).toContain("Sem sinal histórico");
+    expect(TELA).toContain("window.confirm(");
   });
 });

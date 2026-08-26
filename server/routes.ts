@@ -26,6 +26,7 @@ import { registerObjectRoutes } from "./routes/objects";
 import { registerInventoryRoutes } from "./routes/inventory";
 import { registerReparoMotivosRoutes } from "./routes/reparo-motivos";
 import { registerReparoVinculosEventoRoutes } from "./routes/reparo-vinculos-evento";
+import { registerInferirExecutivosRoutes } from "./routes/inferir-executivos";
 import { registerVersoesRoutes } from "./routes/versoes";
 import { registerBuscaRoutes } from "./routes/busca";
 import { registerRelatorioRoutes } from "./routes/relatorio";
@@ -81,6 +82,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerAnaliseRoutes(app);
   registerReparoMotivosRoutes(app);
   registerReparoVinculosEventoRoutes(app);
+  registerInferirExecutivosRoutes(app);
   await registerObjectRoutes(app);
 
   // ── Background jobs ──────────────────────────────────────────────────────

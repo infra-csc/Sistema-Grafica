@@ -77,6 +77,7 @@ const adminItems: MenuItem[] = [
   { title: "Correção de textos", url: "/reparo-motivos", icon: Wand2 },
   { title: "Notificações",    url: "/notificacoes", icon: Bell },
   { title: "Reparar vínculos", url: "/reparo-vinculos-evento", icon: Link2 },
+  { title: "Inferir executivos", url: "/inferir-executivos", icon: UserCheck },
   { title: "Logs do Sistema", url: "/logs-sistema", icon: ScrollText },
 ];
 

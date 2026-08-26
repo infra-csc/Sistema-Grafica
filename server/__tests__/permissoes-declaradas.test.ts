@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // A TABELA DE PERMISSÕES DIZ A VERDADE — nas duas direções.
 //
-// shared/permissoes.ts declara a régua de papéis das 74 rotas de escrita.
+// shared/permissoes.ts declara a régua de papéis das rotas de escrita.
 // Este teste varre o código real (server/permissoes-scan.ts entende as três
 // formas de guarda: requireRole, aliases e checagens à mão) e compara:
 //

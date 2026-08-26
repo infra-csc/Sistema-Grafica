@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // A RÉGUA DE PAPÉIS, DECLARADA (frente 4 do diagnóstico de 24/08).
 //
-// Antes disto, a autorização do app era 74 rotas de escrita com a guarda
+// Antes disto, a autorização do app era dezenas de rotas de escrita com a guarda
 // escrita à mão — requireRole em 6, aliases em ~30 e variações de
 // `req.userRole !== "arte" && ...` no resto — espalhadas por milhares de
 // linhas. Para responder "o que o perfil Arte pode fazer?" era preciso um
@@ -34,11 +34,13 @@ export interface RegraDeRota {
   papeis: Papel[];
 }
 
-/** As 74 rotas de escrita com papel declarado, em ordem alfabética. */
+/** Rotas de escrita com papel declarado, em ordem alfabética. */
 export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "POST", rota: "/api/admin/notificacoes/destinatarios", papeis: ["admin"] },
   { metodo: "DELETE", rota: "/api/admin/notificacoes/destinatarios/:id", papeis: ["admin"] },
+  { metodo: "POST", rota: "/api/admin/inferir-executivos", papeis: ["admin"] },
   { metodo: "POST", rota: "/api/admin/reparo-motivos-sem-s", papeis: ["admin"] },
+  { metodo: "POST", rota: "/api/admin/reparo-vinculos-evento", papeis: ["admin"] },
   { metodo: "DELETE", rota: "/api/allocations/:id", papeis: ["admin"] },
   { metodo: "POST", rota: "/api/auth/register", papeis: ["admin"] },
   { metodo: "DELETE", rota: "/api/catalog-options", papeis: ["admin", "solicitacao"] },

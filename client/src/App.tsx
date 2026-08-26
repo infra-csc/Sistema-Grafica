@@ -198,6 +198,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/notificacoes": "Notificações",
   "/reparo-motivos": "Correção de textos",
   "/reparo-vinculos-evento": "Reparo de vínculos",
+  "/inferir-executivos": "Inferir executivos",
   "/change-password": "Alterar Senha",
 };
 
@@ -382,6 +383,9 @@ function Router() {
       </Route>
       <Route path="/reparo-vinculos-evento">
         {() => <RoleProtectedRoute component={ReparoVinculosEvento} allowedRoles={ROLES_ADMIN} />}
+      </Route>
+      <Route path="/inferir-executivos">
+        {() => <RoleProtectedRoute component={InferirExecutivos} allowedRoles={ROLES_ADMIN} />}
       </Route>
       <Route path="/estoque">
         {() => <RoleProtectedRoute component={Estoque} allowedRoles={ROLES_GRAFICA} />}

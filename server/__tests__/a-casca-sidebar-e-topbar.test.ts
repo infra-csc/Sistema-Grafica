@@ -35,13 +35,12 @@ const soCodigo = (fonte: string) => fonte
   .replace(/^[ \t]*\/\/.*$/gm, "");
 
 describe("1. a estrutura do menu não mudou", () => {
-  it("continuam 22 itens — os 21 de antes + Notificações (pedido do dono, 27/08)", () => {
-    // VINTE E UM. Eram 19 quando este teste nasceu (o prompt do refino dizia 18);
-    // o vigésimo é "Correção de textos", a tela de reparo dos motivos, que
-    // entrou depois; o vigésimo primeiro é "Versões aprovadas" (21/08/2026).
+  it("continuam 24 itens — incluindo as três ações administrativas declaradas", () => {
+    // VINTE E QUATRO. Aos 21 já documentados foram somadas três ações admin:
+    // Notificações, Reparar vínculos e Inferir executivos.
     // O teste existe para a mudança ser DECLARADA, não impedida.
     const itens = (sidebar.match(/\{ title: "/g) ?? []).length;
-    expect(itens).toBe(22);
+    expect(itens).toBe(24);
   });
 
   it("e o controle de permissão segue de pé", () => {

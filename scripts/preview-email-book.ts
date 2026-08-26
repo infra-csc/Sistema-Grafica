@@ -21,8 +21,6 @@ const DESTINATARIOS_NOMEADOS = [
   "pedro@nortemkt.com",
   "yan.araujo@nortemkt.com",
   "agatha.nadolsky@nortemkt.com",
-  "kakau.faria@nortemkt.com",
-  "ana.motta@nortemkt.com",
 ];
 
 const atualiza = process.argv.includes("--atualiza");

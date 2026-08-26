@@ -68,16 +68,18 @@ describe("3 · quem recebe o aviso", () => {
     // o dono pediu ("se eu não tenho cliente vinculado na prova, não preciso
     // receber"). Solicitação continua fora (24/08).
     expect(ITEMS).toContain('export const PAPEIS_QUE_RECEBEM = ["arte"];');
-    // A lista nomeada tem DOIS grupos, os dois por nome: os admins que
-    // acompanham (Pedro, Yan) e as três da gestão do atendimento (25/08).
-    // Por papel, as três voltariam a receber todo book de todo evento — que é
-    // exatamente o que esta mudança desfez para o resto do atendimento.
-    for (const pessoa of [
-      "pedro@nortemkt.com", "yan.araujo@nortemkt.com",
-      "agatha.nadolsky@nortemkt.com", "kakau.faria@nortemkt.com", "ana.motta@nortemkt.com",
-    ]) {
+    // A lista nomeada é quem acompanha TODO book, independentemente do evento.
+    for (const pessoa of ["pedro@nortemkt.com", "yan.araujo@nortemkt.com", "agatha.nadolsky@nortemkt.com"]) {
       expect(ITEMS).toContain(`  "${pessoa}",`);
     }
+    // Kakau e Ana NÃO entram por nome (decisão do dono, 25/08): elas recebem o
+    // book só quando são a executiva responsável por um patrocinador daquele
+    // evento — pelo caminho do vínculo, como qualquer executiva. No aviso de
+    // ACOMPANHAMENTO (gestaoDigest) elas continuam recebendo tudo.
+    const lista = ITEMS.slice(ITEMS.indexOf("export const DESTINATARIOS_NOMEADOS"));
+    const trecho = lista.slice(0, lista.indexOf("];"));
+    expect(trecho).not.toContain("kakau");
+    expect(trecho).not.toContain("ana.motta");
     const i = ITEMS.indexOf("export const PAPEIS_QUE_RECEBEM");
     expect(ITEMS.slice(i, i + 400)).not.toContain("solicitacao");
   });

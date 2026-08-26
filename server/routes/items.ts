@@ -587,23 +587,22 @@ export const PAPEIS_QUE_RECEBEM = ["arte"];
 /**
  * Quem acompanha, por nome, independentemente do papel. Vai em cópia oculta.
  *
- * Duas coisas moram nesta lista, e as duas por nome de propósito:
- *   · os ADMINS que de fato acompanham a produção (Pedro e Yan) — por papel
- *     entrariam também conta de sistema e admin que não olha book;
- *   · as três de GESTÃO do atendimento (25/08), que acompanham o trabalho da
- *     equipe. Não existe papel "gestão" no sistema — as três são atendimento,
- *     e por papel elas voltariam a receber TODO book de TODO evento, que é
- *     exatamente o que a mudança de 25/08 desfez.
+ * Quem está aqui recebe TODO book, de todo evento. São os admins que de fato
+ * acompanham a produção (Pedro e Yan) e a Agatha — por papel entrariam também
+ * conta de sistema e admin que não olha book, daí a escolha por nome.
  *
- * Elas recebem o book de todos os eventos por acompanharem a equipe; o resto
- * do atendimento só recebe onde tem cliente.
+ * KAKAU E ANA NÃO ENTRAM AQUI (decisão do dono, 25/08). Elas são gestão, mas
+ * no book valem a mesma regra de todo mundo: recebem só quando são a executiva
+ * responsável por um patrocinador DAQUELE evento — pelo vínculo, não pelo
+ * cargo. Quem dá a elas a visão ampla é o aviso de ACOMPANHAMENTO
+ * (services/gestaoDigest.ts), que lista as aprovações paradas de todos os
+ * eventos. São dois avisos com mecânicas opostas, de propósito: o book é
+ * filtrado por quem responde pela conta; o acompanhamento não é filtrado.
  */
 export const DESTINATARIOS_NOMEADOS = [
   "pedro@nortemkt.com",
   "yan.araujo@nortemkt.com",
   "agatha.nadolsky@nortemkt.com",
-  "kakau.faria@nortemkt.com",
-  "ana.motta@nortemkt.com",
 ];
 
 async function porFiltro(teste: (u: { email: string; role: string }) => boolean): Promise<string[]> {

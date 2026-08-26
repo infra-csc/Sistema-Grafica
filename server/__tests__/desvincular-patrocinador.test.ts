@@ -91,11 +91,11 @@ describe("tirar do EVENTO cascateia para as peças (caso QCY, 25/08)", () => {
   it("peça cujo ÚNICO patrocinador saiu é INATIVADA — não volta, não segue (caso Testeira QCY)", () => {
     // Decisão do dono (25/08): cancelada, fora de todas as filas, visível só
     // no Painel Geral, com a explicação NA PEÇA.
-    // ONDE QUER QUE ELA ESTEJA no fluxo — a exceção é só o que já existe no
-    // mundo físico (cancelar ali reescreveria o registro do que foi impresso).
-    expect(ROTA).toContain('const MATERIAL_JA_EXISTE = ["produced", "produzido", "conferred", "conferido", "delivered", "entregue"];');
-    expect(ROTA).toContain('const TERMINAIS = ["canceled", "archived"];');
-    expect(ROTA).toContain("const inativavel = !MATERIAL_JA_EXISTE.includes(item.status) && !TERMINAIS.includes(item.status);");
+    // ONDE QUER QUE ELA ESTEJA no fluxo — a exceção é peça que JÁ CHEGOU NA
+    // GRÁFICA (regra do dono): dali em diante é trabalho de chão de fábrica.
+    // A fronteira sai da lista canônica, não de uma segunda cópia local.
+    expect(ROTA).toContain("const inativavel = !DEPOIS_DA_ARTE.has(item.status);");
+    expect(ROTA).toContain('import { DEPOIS_DA_ARTE } from "@shared/fluxo-peca";');
     expect(ROTA).toContain("const vinculadosRestantes = await storage.getItemSponsors(item.id);");
     expect(ROTA).toContain("if (vinculadosRestantes.length === 0) {");
     expect(ROTA).toContain('Cancelada automaticamente: o único patrocinador');

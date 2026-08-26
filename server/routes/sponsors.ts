@@ -21,6 +21,7 @@ import {
 // items.ts não importa nada daqui.
 import { barraEventoFinalizado, motivoEventoDaPeca, contadorDeBloqueio } from "./items";
 import { invalidarCacheDeVersoes } from "./versoes";
+import { DEPOIS_DA_ARTE } from "@shared/fluxo-peca";
 
 // Papéis que escrevem em vinculação de patrocinadores — o mesmo conjunto que a
 // rota /vincular-patrocinadores permite no client (App.tsx). Antes essas rotas
@@ -64,14 +65,17 @@ async function descartarPendenciaEFecharRodada(
   // Geral, com a explicação de que o patrocinador saiu. Linhas aprovadas de
   // ex-patrocinadores ficam na trilha (registro).
   //
-  // A ÚNICA exceção é o que JÁ EXISTE NO MUNDO FÍSICO (produzida, conferida,
-  // entregue) e o que já é terminal: cancelar ali reescreveria o registro do
-  // material que foi impresso e entregue — o número que fecha a conta com o
-  // patrocinador. Nesses casos a peça fica como está e o desvinculo só tira
-  // a marca; quem precisar mesmo cancelar usa o cancelamento manual.
-  const MATERIAL_JA_EXISTE = ["produced", "produzido", "conferred", "conferido", "delivered", "entregue"];
-  const TERMINAIS = ["canceled", "archived"];
-  const inativavel = !MATERIAL_JA_EXISTE.includes(item.status) && !TERMINAIS.includes(item.status);
+  // A ÚNICA exceção, regra do dono: PEÇA QUE JÁ CHEGOU NA GRÁFICA não
+  // inativa. Dali em diante ela é trabalho de chão de fábrica — material na
+  // fila de impressão, produzido, conferido ou entregue —, e cancelar
+  // reescreveria o registro do que a Gráfica tem em mãos. Nesses casos o
+  // desvinculo só tira a marca; quem precisar mesmo cancelar usa o
+  // cancelamento manual, que pede decisão de gente.
+  //
+  // A fronteira sai de DEPOIS_DA_ARTE (@shared/fluxo-peca), a mesma lista que
+  // a devolução ao solicitante usa para saber que a peça já saiu da Arte —
+  // uma segunda lista aqui divergiria no primeiro status novo.
+  const inativavel = !DEPOIS_DA_ARTE.has(item.status);
   if (inativavel) {
     const vinculadosRestantes = await storage.getItemSponsors(item.id);
     if (vinculadosRestantes.length === 0) {

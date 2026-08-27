@@ -42,9 +42,9 @@ describe("tabela ↔ código, sem sobras de nenhum lado", () => {
     expect(fantasmas).toEqual([]);
   });
 
-  it("são as 75 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
-    expect(REGUA_DE_PAPEIS.length).toBe(75);
-    expect(doCodigo.length).toBe(75);
+  it("são as 76 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
+    expect(REGUA_DE_PAPEIS.length).toBe(76);
+    expect(doCodigo.length).toBe(76);
   });
 });
 

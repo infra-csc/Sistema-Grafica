@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo, useRef } from "react";
-import { Package, Check, Calendar, Truck, AlertTriangle, CheckCircle2, X, Building2, Plus, Search, Users, ClipboardList, Save, Send, ChevronDown, Info, Lock, Paperclip, ExternalLink, RotateCcw, Zap, EyeOff, Recycle } from "lucide-react";
+import { Package, Check, Calendar, Truck, AlertTriangle, CheckCircle2, X, Building2, Plus, PlusCircle, Search, Users, ClipboardList, Save, Send, ChevronDown, Info, Lock, Paperclip, ExternalLink, RotateCcw, Zap, EyeOff, Recycle } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 // `isAfter`/`startOfDay` saíram junto com os dois recortes de data que esta
 // tela mantinha por conta própria — a comparação de dia agora é a do predicado
@@ -1048,6 +1048,48 @@ export default function VincularPatrocinadores() {
     setBulkApplyDialogOpen(true);
   };
 
+  // ── ACRESCENTAR PATROCINADOR DEPOIS DO ENVIO (25/08) ─────────────────────
+  // "Aplicar Patrocinadores" manda a lista INTEIRA e substitui — por isso é
+  // barrada depois do envio: rodá-la ali apagaria em silêncio o que a pessoa
+  // não remarcasse. Esta ação só SOMA um patrocinador, e por isso vale nas
+  // peças já enviadas: é o caso da Karina, em que o Ministério passou a
+  // precisar aprovar itens de uma lista que já tinha ido para a Arte.
+  const [acrescentarAberto, setAcrescentarAberto] = useState(false);
+  const [acrescentarSponsorId, setAcrescentarSponsorId] = useState<string | null>(null);
+  const [buscaAcrescentar, setBuscaAcrescentar] = useState("");
+
+  const acrescentarSponsorMutation = useMutation({
+    mutationFn: async ({ sponsorId, itemIds }: { sponsorId: string; itemIds: string[] }) => {
+      const res = await apiRequest("POST", "/api/items/bulk-add-sponsor", { sponsorId, itemIds });
+      return await res.json();
+    },
+    onSuccess: (r: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/events"] });
+      setAcrescentarAberto(false);
+      setAcrescentarSponsorId(null);
+      setBuscaAcrescentar("");
+      setSelectedItemIds(new Set());
+
+      const partes: string[] = [];
+      if (r?.vinculadas > 0) partes.push(`${r.vinculadas} peça(s) vinculada(s)`);
+      if (r?.pendenciasCriadas > 0) partes.push(`${r.pendenciasCriadas} já entrou na aprovação em curso`);
+      if (r?.jaTinham > 0) partes.push(`${r.jaTinham} já tinha(m)`);
+      // As recusadas são DITAS, com o motivo — sumir com elas faria a pessoa
+      // achar que o lote inteiro passou.
+      const recusadas: { displayId: string; motivo: string }[] = r?.recusadas ?? [];
+      if (recusadas.length > 0) {
+        partes.push(`${recusadas.length} não pôde(ram): ${recusadas.slice(0, 3).map(x => `${x.displayId} (${x.motivo})`).join("; ")}${recusadas.length > 3 ? "…" : ""}`);
+      }
+      toast({
+        title: r?.vinculadas > 0 ? `${r.sponsor} acrescentado` : "Nada a acrescentar",
+        description: partes.join(" · ") || "As peças selecionadas já tinham este patrocinador.",
+        variant: recusadas.length > 0 && !r?.vinculadas ? "destructive" : undefined,
+      });
+    },
+    onError: (error: any) => toast({ title: "Erro ao acrescentar", description: error.message, variant: "destructive" }),
+  });
+
   // Alterna a opção "Sem Patrocinador" do lote (usada no clique e no teclado)
   const toggleBulkSkip = () => {
     if (bulkSkipApproval) {
@@ -1059,7 +1101,14 @@ export default function VincularPatrocinadores() {
   };
 
   const handleApplyBulkSponsors = () => {
-    const allSelectedItems = Array.from(selectedItemIds);
+    // PEÇA JÁ ENVIADA fica de fora (25/08): ela passou a ser selecionável para
+    // o "Acrescentar", mas "Aplicar" REESCREVE a lista de patrocinadores, e o
+    // servidor recusa isso fora da fase de vinculação. Mandar mesmo assim só
+    // renderia erro por peça — o desconto já está dito na barra, antes do
+    // clique ("N já enviadas — nelas só dá para acrescentar").
+    const allSelectedItems = Array.from(selectedItemIds).filter(
+      (id) => !optimisticSentIds.has(id) && (itemUIStates[id] || 'PENDENTE') !== 'ENVIADO',
+    );
 
     // O botão "Aplicar em Lote" já fica desabilitado sem seleção; este guard
     // é só cinto de segurança (sem toast destrutivo).
@@ -1292,7 +1341,11 @@ export default function VincularPatrocinadores() {
     const editavel = getItemEditability(item);
     const estado = optimisticSentIds.has(item.id) ? 'ENVIADO' : (itemUIStates[item.id] || 'PENDENTE');
     const selecionada = selectedItemIds.has(item.id);
-    const podeSelecionar = estado === 'PENDENTE' || estado === 'RASCUNHO';
+    // Peça JÁ ENVIADA passou a ser selecionável (25/08): não para reescrever o
+    // vínculo — isso continua travado —, mas para ACRESCENTAR um patrocinador
+    // que apareceu depois do envio (caso Ministério na Primavera RJ). A barra
+    // de lote separa as duas coisas e diz em quantas peças cada uma age.
+    const podeSelecionar = estado === 'PENDENTE' || estado === 'RASCUNHO' || estado === 'ENVIADO';
 
     // A COR DE ESTADO VAI NA BORDA, não no fundo. O fundo colorido da linha
     // inteira competia com os chips, que também são coloridos — e chip de
@@ -2390,7 +2443,14 @@ export default function VincularPatrocinadores() {
       </div>
 
       {/* Toolbar de Seleção em Massa — Floating Bottom */}
-      {selectedItemIds.size > 0 && (
+      {selectedItemIds.size > 0 && (() => {
+        // A seleção pode misturar peça em vinculação com peça já enviada: cada
+        // ação da barra diz em quantas ELA age, em vez de prometer o total.
+        const idsSelecionados = Array.from(selectedItemIds);
+        const enviadasSelecionadas = idsSelecionados
+          .filter(id => optimisticSentIds.has(id) || (itemUIStates[id] || 'PENDENTE') === 'ENVIADO').length;
+        const naVinculacao = idsSelecionados.length - enviadasSelecionadas;
+        return (
         <div style={{ position: 'fixed', bottom: 32, left: '50%', transform: 'translateX(-50%)', width: '100%', maxWidth: 640, padding: '0 24px', zIndex: 50 }}>
           <div style={{ backgroundColor: '#1c1917', color: '#ffffff', padding: '14px 20px', borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', boxShadow: '0 16px 48px rgba(0,0,0,0.25)', border: '1px solid rgba(255,255,255,0.08)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -2400,9 +2460,19 @@ export default function VincularPatrocinadores() {
               {/* Uma frase só. A segunda linha era o rótulo "Ação em lote" —
                   que não informa nada: a barra inteira é a ação em lote, e ela
                   já custava a altura de duas linhas fixa no rodapé da tela. */}
-              <p style={{ fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em', color: '#ffffff', margin: 0 }}>
-                {selectedItemIds.size} {selectedItemIds.size === 1 ? 'peça selecionada' : 'peças selecionadas'}
-              </p>
+              <div style={{ minWidth: 0 }}>
+                <p style={{ fontSize: 14, fontWeight: 700, letterSpacing: '-0.01em', color: '#ffffff', margin: 0 }}>
+                  {selectedItemIds.size} {selectedItemIds.size === 1 ? 'peça selecionada' : 'peças selecionadas'}
+                </p>
+                {/* O DESCONTO, DITO ANTES DO CLIQUE: "Aplicar" não alcança peça
+                    já enviada, e prometer 12 para agir em 9 é a mentira que a
+                    seleção mista cria. */}
+                {enviadasSelecionadas > 0 && (
+                  <p data-testid="aviso-selecao-enviadas" style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', margin: '2px 0 0' }}>
+                    {enviadasSelecionadas} já {enviadasSelecionadas === 1 ? 'enviada' : 'enviadas'} — nelas só dá para acrescentar
+                  </p>
+                )}
+              </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <button
@@ -2438,20 +2508,40 @@ export default function VincularPatrocinadores() {
                   </button>
                 );
               })()}
+              {/* ACRESCENTAR: vale para a seleção INTEIRA, inclusive as já
+                  enviadas — só soma, nunca reescreve. */}
               <button
-                onClick={handleOpenBulkApplyDialog}
-                data-testid="button-apply-bulk-sponsors"
-                style={{ backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, textTransform: 'uppercase', letterSpacing: '-0.01em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6 }}
-                onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#9a3412')}
-                onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#c2410c')}
+                onClick={() => { setAcrescentarSponsorId(null); setBuscaAcrescentar(""); setAcrescentarAberto(true); }}
+                data-testid="button-acrescentar-sponsor"
+                title="Acrescenta UM patrocinador às peças selecionadas, sem mexer nos vínculos que elas já têm — funciona mesmo depois do envio à Arte"
+                style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '8px 16px', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+                onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)')}
+                onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)')}
               >
-                <Users style={{ width: 14, height: 14 }} />
-                Aplicar Patrocinadores
+                <PlusCircle style={{ width: 14, height: 14 }} />
+                Acrescentar em {idsSelecionados.length}
               </button>
+              {/* APLICAR reescreve a lista — por isso só alcança o que ainda
+                  está na vinculação. Some quando a seleção é toda de enviadas,
+                  em vez de existir para dar erro. */}
+              {naVinculacao > 0 && (
+                <button
+                  onClick={handleOpenBulkApplyDialog}
+                  data-testid="button-apply-bulk-sponsors"
+                  title={enviadasSelecionadas > 0 ? `Reescreve os patrocinadores das ${naVinculacao} que ainda estão na vinculação` : undefined}
+                  style={{ backgroundColor: '#c2410c', color: '#ffffff', border: 'none', borderRadius: 8, padding: '8px 18px', fontWeight: 700, fontSize: 13, textTransform: 'uppercase', letterSpacing: '-0.01em', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = '#9a3412')}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = '#c2410c')}
+                >
+                  <Users style={{ width: 14, height: 14 }} />
+                  Aplicar{enviadasSelecionadas > 0 ? ` em ${naVinculacao}` : ' Patrocinadores'}
+                </button>
+              )}
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
 
       {/* Peça de evento finalizado — encerrado à mão OU já realizado — não entra
           nesta tela (ver `visibleItems`). Esconder em silêncio faria a tela
@@ -2980,6 +3070,95 @@ export default function VincularPatrocinadores() {
               </button>
             </div>
           </div>
+          </FreezeWhileClosing>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog — Acrescentar UM patrocinador (vale depois do envio) */}
+      <Dialog open={acrescentarAberto} onOpenChange={(o) => { setAcrescentarAberto(o); if (!o) { setAcrescentarSponsorId(null); setBuscaAcrescentar(''); } }}>
+        <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(520)}>
+          <DialogTitle className="sr-only">Acrescentar patrocinador</DialogTitle>
+          <DialogDescription className="sr-only">Acrescenta um patrocinador às peças selecionadas sem remover os vínculos existentes</DialogDescription>
+          <FreezeWhileClosing open={acrescentarAberto}>
+            <ModalHeader
+              icon={PlusCircle}
+              tint="#15803d"
+              title="Acrescentar patrocinador"
+              subtitle={`${selectedItemIds.size} ${selectedItemIds.size === 1 ? 'peça selecionada' : 'peças selecionadas'}`}
+              onClose={() => setAcrescentarAberto(false)}
+            />
+            <div style={{ padding: '14px 24px 0', flexShrink: 0 }}>
+              <p style={{ margin: 0, fontSize: 13, color: '#57534e', lineHeight: 1.55 }}>
+                Soma <strong style={{ color: '#1c1917' }}>um</strong> patrocinador às peças escolhidas, sem mexer nos vínculos que elas já têm.
+                Funciona <strong style={{ color: '#1c1917' }}>mesmo depois do envio à Arte</strong>: quem ainda espera o layout entra na aprovação quando ele chegar; quem já está em aprovação ganha a pendência agora.
+              </p>
+              <div style={{ position: 'relative', marginTop: 12 }}>
+                <Search style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: '#a8a29e' }} />
+                <input
+                  value={buscaAcrescentar}
+                  onChange={(e) => setBuscaAcrescentar(e.target.value)}
+                  placeholder="Buscar patrocinador…"
+                  aria-label="Buscar patrocinador"
+                  data-testid="input-busca-acrescentar"
+                  style={{ width: '100%', height: 38, paddingLeft: 34, paddingRight: 12, borderRadius: 8, border: '1px solid #d6d3d1', fontSize: 13, fontFamily: 'inherit', color: '#1c1917', backgroundColor: '#fff' }}
+                />
+              </div>
+            </div>
+            <div style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', padding: '10px 24px 4px', display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {(() => {
+                const termo = buscaAcrescentar.trim().toLowerCase();
+                const lista = (sponsors as any[])
+                  .filter((s) => !termo || String(s.name ?? '').toLowerCase().includes(termo))
+                  .slice(0, 60);
+                if (lista.length === 0) {
+                  return <p style={{ fontSize: 13, color: '#78716c', margin: '8px 0' }}>Nenhum patrocinador com “{buscaAcrescentar.trim()}”.</p>;
+                }
+                return lista.map((s: any) => {
+                  const escolhido = acrescentarSponsorId === s.id;
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setAcrescentarSponsorId(escolhido ? null : s.id)}
+                      aria-pressed={escolhido}
+                      data-testid={`opcao-acrescentar-${s.id}`}
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 9, width: '100%', minHeight: 42, padding: '0 12px',
+                        borderRadius: 8, cursor: 'pointer', font: 'inherit', fontSize: 13, fontWeight: 600, textAlign: 'left',
+                        border: `1px solid ${escolhido ? '#86efac' : '#e7e5e4'}`,
+                        backgroundColor: escolhido ? '#f0fdf4' : '#ffffff',
+                        color: '#1c1917',
+                      }}
+                    >
+                      <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: s.color || '#a8a29e', flexShrink: 0 }} />
+                      <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                      {escolhido && <Check style={{ width: 15, height: 15, color: '#15803d', flexShrink: 0 }} />}
+                    </button>
+                  );
+                });
+              })()}
+            </div>
+            <ModalFooter>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!acrescentarSponsorId) return;
+                  acrescentarSponsorMutation.mutate({ sponsorId: acrescentarSponsorId, itemIds: Array.from(selectedItemIds) });
+                }}
+                disabled={!acrescentarSponsorId || acrescentarSponsorMutation.isPending}
+                data-testid="button-confirmar-acrescentar"
+                style={{
+                  width: '100%', height: 44, borderRadius: 9, border: 'none',
+                  backgroundColor: !acrescentarSponsorId ? '#e7e5e4' : '#1c1917',
+                  color: !acrescentarSponsorId ? '#78716c' : '#ffffff',
+                  fontSize: 13, fontWeight: 700, cursor: !acrescentarSponsorId ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {acrescentarSponsorMutation.isPending
+                  ? 'Acrescentando…'
+                  : `Acrescentar em ${selectedItemIds.size} ${selectedItemIds.size === 1 ? 'peça' : 'peças'}`}
+              </button>
+            </ModalFooter>
           </FreezeWhileClosing>
         </DialogContent>
       </Dialog>

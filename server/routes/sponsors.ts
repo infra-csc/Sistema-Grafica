@@ -674,6 +674,147 @@ export function registerSponsorRoutes(app: Express): void {
   });
 
   // Return item to creation (Solicitação) team
+  // ── ACRESCENTAR UM PATROCINADOR EM VÁRIAS PEÇAS (pedido do dono, 25/08) ───
+  //
+  // O caso real: a lista da Primavera RJ já estava vinculada e enviada à Arte
+  // quando a Karina avisou que, nesta etapa, o Ministério precisa aprovar
+  // alguns itens. Não havia caminho: a tela trava o vínculo depois do envio, a
+  // rota de re-sincronizar recusa fora da fase de vinculação, e "devolver para
+  // a criação" apagaria os vínculos que já estão certos.
+  //
+  // POR QUE ACRESCENTAR É SEGURO ONDE REESCREVER NÃO É: `sponsors/sync` recebe
+  // a lista INTEIRA e substitui — rodar isso numa peça já enviada apagaria
+  // silenciosamente o que a pessoa não mandou de novo. Esta rota só SOMA: não
+  // remove vínculo, não mexe em `skipApproval`, não toca em quem já decidiu.
+  //
+  // E ela chega na hora certa em cada estágio, sem regra especial:
+  //   · peça ainda esperando a Arte → o vínculo entra e a rodada de aprovação,
+  //     que é montada a partir dos vínculos quando a Arte envia o layout, já
+  //     nasce com o novo patrocinador dentro;
+  //   · peça já em aprovação → a linha "pendente" é criada aqui, e a peça só
+  //     fecha quando o novo patrocinador decidir.
+  //
+  // ONDE ELA PARA: peça que já FECHOU a rodada (sponsor_approved em diante).
+  // Acrescentar ali significaria puxar de volta para aprovação uma peça que
+  // pode estar em produção — decisão de gente, que tem o caminho próprio
+  // (revogar no Atendimento). A peça é recusada com o motivo, e as outras do
+  // lote passam.
+  app.post("/api/items/bulk-add-sponsor", requireLinkingWrite, async (req, res) => {
+    try {
+      const { sponsorId, itemIds } = req.body ?? {};
+      if (typeof sponsorId !== "string" || !sponsorId.trim()) {
+        return res.status(400).json({ error: "sponsorId é obrigatório" });
+      }
+      if (!Array.isArray(itemIds) || itemIds.length === 0 || itemIds.length > 500) {
+        return res.status(400).json({ error: "itemIds deve ser uma lista de 1 a 500 peças" });
+      }
+      const sponsor = await storage.getSponsor(sponsorId);
+      if (!sponsor) return res.status(404).json({ error: "Patrocinador não encontrado" });
+
+      /**
+       * ATÉ A PEÇA SER APROVADA — a régua do dono (25/08): "pode vincular até a
+       * peça ser aprovada, até em correção; caso seja aprovada, não pode mais".
+       *
+       * A CORREÇÃO está aqui dentro sem precisar de entrada própria, e vale
+       * saber por quê: quando um patrocinador reprova, a PEÇA continua em
+       * `awaiting_sponsor_approval` — quem vai para "Aguardando Arte" é a LINHA
+       * daquele patrocinador. E quando o revisor devolve à Arte para refazer, a
+       * peça volta a `awaiting_submission`. Os dois estados de correção já
+       * estão na lista.
+       *
+       * O corte é `sponsor_approved` (e o que vem depois): ali a rodada fechou,
+       * a Arte está finalizando e a peça caminha para a produção.
+       */
+      const ACEITA = [
+        "draft", "requested", "awaiting_linking", "awaiting_submission",
+        "awaiting_approval", "awaiting_sponsor_approval",
+      ];
+      /** A rodada já é montada a partir dos vínculos: aqui a linha nasce junto. */
+      const EM_APROVACAO = ["awaiting_approval", "awaiting_sponsor_approval"];
+
+      const bloqueio = contadorDeBloqueio();
+      const eventosJaVinculados = new Set<string>();
+      const vinculadas: string[] = [];
+      const jaTinham: string[] = [];
+      const recusadas: { displayId: string; motivo: string }[] = [];
+      let pendenciasCriadas = 0;
+
+      for (const itemId of itemIds) {
+        const item = await storage.getItem(itemId);
+        if (!item || (item as any).deletedAt) {
+          recusadas.push({ displayId: String(itemId), motivo: "peça não encontrada" });
+          continue;
+        }
+        const rotulo = item.displayId || item.type || itemId;
+
+        const motivoEvento = await motivoEventoDaPeca(item);
+        if (motivoEvento) {
+          recusadas.push({ displayId: rotulo, motivo: bloqueio.registra(motivoEvento) });
+          continue;
+        }
+        if (!ACEITA.includes(item.status)) {
+          recusadas.push({
+            displayId: rotulo,
+            motivo: `já passou da aprovação (está em "${translateStatus(item.status)}") — para incluir um patrocinador agora, revogue a aprovação no Atendimento`,
+          });
+          continue;
+        }
+
+        // O patrocinador precisa existir NO EVENTO antes de existir na peça:
+        // sem isso a peça carrega uma marca que nenhuma outra tela do evento
+        // conhece (o desencontro que o reparo de vínculos teve de limpar).
+        if (!eventosJaVinculados.has(item.eventId)) {
+          const doEvento = await storage.getEventSponsors(item.eventId);
+          if (!doEvento.some((v) => v.sponsorId === sponsorId)) {
+            try {
+              await storage.addSponsorToEvent({ eventId: item.eventId, sponsorId } as any);
+            } catch {
+              // corrida com outra aba: o vínculo de PEÇA abaixo é quem decide
+              // se a operação falhou de verdade.
+            }
+          }
+          eventosJaVinculados.add(item.eventId);
+        }
+
+        const jaNaPeca = (await storage.getItemSponsors(itemId)).some((v: any) => v.sponsorId === sponsorId);
+        if (jaNaPeca) { jaTinham.push(rotulo); continue; }
+
+        await storage.addSponsorToItem({ itemId, sponsorId } as any);
+        vinculadas.push(rotulo);
+
+        if (EM_APROVACAO.includes(item.status)) {
+          const linha = await storage.getItemSponsorApproval(itemId, sponsorId);
+          if (!linha) {
+            await storage.createItemSponsorApproval({ itemId, sponsorId, status: "pending" } as any);
+            pendenciasCriadas++;
+          }
+        }
+
+        await createAuditLog(
+          req, "added", "item", itemId,
+          `Patrocinador "${sponsor.name}" acrescentado à peça ${rotulo} depois do envio`
+            + (EM_APROVACAO.includes(item.status) ? " — entra na rodada de aprovação em curso" : " — entrará na aprovação quando a Arte enviar o layout"),
+        );
+        broadcast({ type: "item_sponsor_added", itemSponsor: { itemId, sponsorId } });
+      }
+
+      // Lote inteiro barrado por evento finalizado responde 409, como as outras
+      // rotas de lote — 200 com "0 feitos" seria não fazer nada sem dizer por quê.
+      if (bloqueio.respondeLoteInteiro(res, vinculadas.length + jaTinham.length, itemIds.length)) return;
+
+      invalidarCacheDeVersoes();
+      res.json({
+        sponsor: sponsor.name,
+        vinculadas: vinculadas.length,
+        jaTinham: jaTinham.length,
+        pendenciasCriadas,
+        recusadas,
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.post("/api/items/:id/return-to-creation", requireLinkingWrite, async (req, res) => {
     try {
       const { id } = req.params;

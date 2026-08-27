@@ -793,6 +793,19 @@ export function registerSponsorRoutes(app: Express): void {
         await storage.addSponsorToItem({ itemId, sponsorId } as any);
         vinculadas.push(rotulo);
 
+        // ── PEÇA ISENTA DEIXA DE SER ISENTA (caso Mandala, 25/08) ───────────
+        // A regra "não mexe em skipApproval" valia para não REMOVER decisões —
+        // mas peça marcada "sem aprovação" com um patrocinador recém-vinculado
+        // é um estado impossível: a isenção faz toda a máquina tratar a rodada
+        // como fechada, e a pendência do novo patrocinador viraria letra
+        // morta (rodadaDeAprovacaoFechada devolve true na primeira linha).
+        // Acrescentar alguém que PRECISA aprovar é, por definição, dizer que a
+        // peça deixou de ser isenta. Só limpa — nunca marca.
+        const eraIsenta = !!item.skipApproval;
+        if (eraIsenta && !jaPassou) {
+          await storage.updateItem(itemId, { skipApproval: false });
+        }
+
         // A linha "pendente" nasce junto sempre que já há rodada — a em curso
         // (EM_APROVACAO) ou a que está sendo reaberta agora (jaPassou).
         if (EM_APROVACAO.includes(item.status) || jaPassou) {
@@ -814,6 +827,10 @@ export function registerSponsorRoutes(app: Express): void {
         if (jaPassou) {
           const reaberta = await storage.updateItem(itemId, {
             status: "awaiting_sponsor_approval",
+            // A isenção cai junto quando existia (as Mandala estavam em revisão
+            // JUSTAMENTE por serem isentas): sem isso a rodada reaberta nasce
+            // fechada e a peça avança de volta sem o novo decidir.
+            skipApproval: false,
             sponsorApprovedBy: null,
             sponsorApprovedAt: null,
             rejectedBySponsor: false,
@@ -840,7 +857,8 @@ export function registerSponsorRoutes(app: Express): void {
               ? ` — a peça já tinha passado (${translateStatus(item.status)}) e voltou para a aprovação; só ele decide, os demais seguem aprovados`
               : EM_APROVACAO.includes(item.status)
                 ? " — entra na rodada de aprovação em curso"
-                : " — entrará na aprovação quando a Arte enviar o layout"),
+                : " — entrará na aprovação quando a Arte enviar o layout")
+            + (eraIsenta ? '; a peça deixou de ser "sem aprovação" — com patrocinador vinculado, a isenção não faz mais sentido' : ""),
         );
         broadcast({ type: "item_sponsor_added", itemSponsor: { itemId, sponsorId } });
       }

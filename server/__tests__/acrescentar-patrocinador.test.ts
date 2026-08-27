@@ -34,13 +34,29 @@ const bloco = (() => {
 })();
 
 describe("a rota só SOMA — nunca reescreve", () => {
-  it("não apaga vínculo, não mexe em skipApproval, não toca em quem já decidiu", () => {
+  it("não apaga vínculo nem toca em quem já decidiu", () => {
     expect(bloco).toContain("storage.addSponsorToItem(");
     // o que NÃO pode estar aqui
     expect(bloco).not.toContain("bulkSyncItemSponsors");
     expect(bloco).not.toContain("removeSponsorFromItem");
-    expect(bloco).not.toContain("skipApproval");
     expect(bloco).not.toContain("deleteItemSponsorApproval");
+  });
+
+  it("peça ISENTA deixa de ser isenta ao ganhar patrocinador — e a isenção só CAI, nunca sobe", () => {
+    // Caso Mandala (25/08): as peças eram "sem aprovação" (skipApproval). A
+    // primeira versão não tocava na flag — e peça isenta com patrocinador
+    // vinculado é estado impossível: rodadaDeAprovacaoFechada devolve true na
+    // primeira linha e a pendência do novo vira letra morta.
+    expect(bloco).toContain("const eraIsenta = !!item.skipApproval;");
+    expect(bloco).toContain("if (eraIsenta && !jaPassou) {");
+    expect(bloco).toContain("skipApproval: false");
+    // na reabertura, a isenção cai no MESMO update do status
+    const reabre = bloco.slice(bloco.indexOf("if (jaPassou) {"));
+    expect(reabre.slice(0, 700)).toContain("skipApproval: false,");
+    // nunca marca isenção — só limpa
+    expect(bloco).not.toContain("skipApproval: true");
+    // e a trilha explica
+    expect(bloco).toContain('a peça deixou de ser "sem aprovação"');
   });
 
   it("peça que já tem o patrocinador é contada, não duplicada", () => {
@@ -176,6 +192,14 @@ describe("a tela", () => {
     expect(TELA).toContain("itemIds: acrescentarAlvo });");
     // e zero peças nunca vira request (era o erro cru 'itemIds deve ser…')
     expect(TELA).toContain("if (!acrescentarSponsorId || acrescentarAlvo.length === 0) return;");
+  });
+
+  it("os chips atualizam sem F5 — o cache por peça é descartado no sucesso", () => {
+    // Os vínculos por peça são derivados UMA vez (loadedItemIdsRef) e o merge
+    // preserva a entrada velha por cima do refetch — os chips ficavam
+    // mentindo até o F5 (caso Mandala, 25/08).
+    expect(TELA).toContain("for (const id of variables.itemIds) delete nx[id];");
+    expect(TELA).toContain("for (const id of variables.itemIds) loadedItemIdsRef.current.delete(id);");
   });
 
   it("a lista de patrocinadores sai em ordem alfabética", () => {

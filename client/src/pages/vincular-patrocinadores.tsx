@@ -1080,7 +1080,24 @@ export default function VincularPatrocinadores() {
       const res = await apiRequest("POST", "/api/items/bulk-add-sponsor", { sponsorId, itemIds });
       return await res.json();
     },
-    onSuccess: (r: any) => {
+    onSuccess: (r: any, variables) => {
+      // SEM ISTO OS CHIPS NÃO MUDAVAM ATÉ O F5 (caso Mandala, 25/08): os
+      // vínculos por peça são derivados UMA vez (loadedItemIdsRef) e o merge
+      // preserva a entrada antiga por cima do refetch. Descarta o cache das
+      // peças tocadas — o efeito repovoa do payload fresco, com a verdade do
+      // servidor (inclusive as recusadas, que ficam como estavam).
+      setItemSponsorsMap(prev => {
+        const nx = { ...prev };
+        for (const id of variables.itemIds) delete nx[id];
+        return nx;
+      });
+      setOriginalSponsorsMap(prev => {
+        const nx = { ...prev };
+        for (const id of variables.itemIds) delete nx[id];
+        return nx;
+      });
+      for (const id of variables.itemIds) loadedItemIdsRef.current.delete(id);
+
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/events"] });
       setAcrescentarAberto(false);

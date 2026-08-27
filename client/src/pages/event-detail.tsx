@@ -2086,6 +2086,7 @@ export default function EventDetail() {
                     }}
                     onCancel={handleCloseDialog}
                     isPending={createBulkItemsMutation.isPending}
+                    podePriorizar={user?.role === 'admin' || user?.role === 'solicitacao'}
                   />
                   </div>
                 ) : (

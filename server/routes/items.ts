@@ -1121,9 +1121,15 @@ export function registerItemRoutes(app: Express): void {
         }
       });
       
+      // Nascer PRIORITÁRIA é decisão de quem gerencia a lista — o MESMO gate
+      // do POST unitário; sem ele o lote seria a porta dos fundos.
+      if (validatedItems.some((i) => i.isPriority) && !["admin", "solicitacao"].includes(req.userRole ?? "")) {
+        return res.status(403).json({ error: "Marcar peça como prioritária é do admin e da Solicitação." });
+      }
+
       // Create all items in bulk
       const createdItems = await storage.createBulkItems(validatedItems);
-      
+
       // Create audit log for each item created
       for (const item of createdItems) {
         await createAuditLog(
@@ -1132,6 +1138,7 @@ export function registerItemRoutes(app: Express): void {
           'item',
           item.id,
           `Item "${item.type}" criado - Qtd: ${item.quantity}, ${item.calculatedM2}m²`
+          + (item.isPriority ? " — PRIORITÁRIA" : "")
         );
       }
       
@@ -1141,9 +1148,14 @@ export function registerItemRoutes(app: Express): void {
       
       // Primeira lista de itens - notificação única para Arte + Gráfica
       if (event) {
+        // Lote com prioritárias: a notificação NOMEIA quais furam a fila —
+        // "3 prioritárias" sem os códigos obrigaria a Arte a caçar na lista.
+        const prioritarias = createdItems.filter((i) => i.isPriority);
         const notification = await storage.createNotification({
-          type: "itemAdded",
-          message: `${createdItems.length} itens adicionados - Evento: ${event.name}`,
+          type: prioritarias.length > 0 ? "itemPriority" : "itemAdded",
+          message: prioritarias.length > 0
+            ? `${createdItems.length} itens adicionados - Evento: ${event.name} — PRIORITÁRIAS (furam a fila): ${prioritarias.map((i) => i.displayId).join(", ")}`
+            : `${createdItems.length} itens adicionados - Evento: ${event.name}`,
           eventId: event.id,
           targetRoles: ["arte"], // só quem AGE agora: a Gráfica entra bem depois, quando liberam p/ produção
         });

@@ -51,9 +51,10 @@ describe("quem marca", () => {
     expect(EVENT_DETAIL).toContain("isPriority: false,");
     expect(EVENT_DETAIL).toContain("{podePriorizar && (");
     expect(EVENT_DETAIL).toContain('data-testid="checkbox-item-priority"');
-    // a prop é passada nas DUAS montagens do ItemForm (criar e editar)
+    // a prop é passada nas TRÊS montagens: ItemForm criar, ItemForm editar e
+    // a Entrada Rápida (BulkItemEntry — "não achei para dar prioridade", 27/08)
     const passagens = EVENT_DETAIL.split("podePriorizar={user?.role === 'admin' || user?.role === 'solicitacao'}").length - 1;
-    expect(passagens).toBe(2);
+    expect(passagens).toBe(3);
     // e a edição hidrata o valor atual — sem isso, salvar desmarcava sozinho
     expect(EVENT_DETAIL).toContain("isPriority: item.isPriority || false,");
   });

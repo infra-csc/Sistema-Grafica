@@ -1,7 +1,7 @@
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Copy, Trash2, Loader2, ArrowRight, ChevronDown, Check, Search, X, RotateCcw } from "lucide-react";
+import { Plus, Copy, Trash2, Loader2, ArrowRight, ChevronDown, Check, Search, X, RotateCcw, AlertTriangle } from "lucide-react";
 import { calculateM2FromStrings } from "@/lib/calculateM2";
 import { useToast } from "@/hooks/use-toast";
 import { FilterSelect, type FilterOption } from "@/components/filter-select";
@@ -31,6 +31,8 @@ interface BulkItemRow {
   calculatedM2: number;
   sponsorId: string;
   isReuse: boolean;
+  /** Fura a fila da Arte (dono, 27/08) — só admin|solicitacao (podePriorizar). */
+  isPriority: boolean;
   /** O modelo de que a linha nasceu — gravado na peça para o catálogo contar o uso. */
   standardItemId: string;
 }
@@ -86,6 +88,8 @@ interface BulkItemEntryProps {
   savedTick?: number;
   onCancel: () => void;
   isPending?: boolean;
+  /** admin|solicitacao: mostra o botão de prioridade por linha (espelho do gate do servidor). */
+  podePriorizar?: boolean;
 }
 
 /* ── Styles ─────────────────────────────────────────────────────────── */
@@ -352,7 +356,7 @@ function createEmptyRow(): BulkItemRow {
     type: "", description: "", quantity: "1",
     visualWidth: "", visualHeight: "", fileWidth: "", fileHeight: "",
     material: "", finish: "", measurement: "", observations: "",
-    calculatedM2: 0, sponsorId: "", isReuse: false, standardItemId: "",
+    calculatedM2: 0, sponsorId: "", isReuse: false, isPriority: false, standardItemId: "",
   };
 }
 
@@ -566,7 +570,7 @@ function isSameItem(
 /* ── Main Component ─────────────────────────────────────────────────── */
 export function BulkItemEntry({
   eventId, standardItems = [], sponsors = [], existingItems = [],
-  onSubmit, onCancel, isPending, savedTick = 0,
+  onSubmit, onCancel, isPending, savedTick = 0, podePriorizar = false,
 }: BulkItemEntryProps) {
   const [rows, setRows] = useState<BulkItemRow[]>([createEmptyRow()]);
   const [replicateCounts, setReplicateCounts] = useState<Record<string, number>>({});
@@ -699,6 +703,7 @@ export function BulkItemEntry({
         measurement: r.measurement || `${r.fileWidth} × ${r.fileHeight}`,
         observations: r.observations || "", calculatedM2: r.calculatedM2,
         isReuse: r.isReuse || false,
+        isPriority: r.isPriority || false,
         standardItemId: r.standardItemId || null,
       }));
     if (valid.length === 0) {
@@ -1389,6 +1394,23 @@ export function BulkItemEntry({
                       >
                         <RotateCcw size={13} />
                       </button>
+                      {/* PRIORITÁRIA (dono, 27/08: "não achei para dar prioridade")
+                          — o mesmo idioma do toggle de reaproveitamento ao lado.
+                          Só aparece para quem o servidor aceita (podePriorizar =
+                          admin|solicitacao); a peça nasce furando a fila da Arte. */}
+                      {podePriorizar && (
+                        <button
+                          type="button"
+                          onClick={() => setRows(prev => prev.map(r => r.id === row.id ? { ...r, isPriority: !r.isPriority } : r))}
+                          title={row.isPriority ? "Prioridade ativa — a peça nasce furando a fila da Arte; clique para desativar" : "Marcar como prioritária (fura a fila da Arte)"}
+                          style={{ background: row.isPriority ? '#fff1f2' : 'none', border: row.isPriority ? '1px solid #fecdd3' : 'none', cursor: 'pointer', padding: '3px 5px', borderRadius: '6px', color: row.isPriority ? '#be123c' : '#c4bfbb', lineHeight: 0, transition: 'all 0.12s' }}
+                          onMouseEnter={e => { if (!row.isPriority) e.currentTarget.style.color = '#be123c'; }}
+                          onMouseLeave={e => { if (!row.isPriority) e.currentTarget.style.color = '#c4bfbb'; }}
+                          data-testid={`button-priority-${ri}`}
+                        >
+                          <AlertTriangle size={13} />
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => removeRow(row.id)}

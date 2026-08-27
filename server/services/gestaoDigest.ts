@@ -70,6 +70,9 @@ export const DESTINATARIOS_DA_GESTAO = [
   // A direção acompanha junto (25/08) — mesmas cinco pessoas do aviso do book.
   "yan.araujo@nortemkt.com",
   "pedro@nortemkt.com",
+  // Entraram em 27/08, a pedido do dono ("adicionar objeto e livia").
+  "livia.monteiro@nortemkt.com",
+  "objeto@cscdoesporte.com.br",
 ];
 
 /** Peça esperando decisão de patrocinador. */

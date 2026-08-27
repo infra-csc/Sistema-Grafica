@@ -1,7 +1,7 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { FilterSelect, ShortcutPill } from "@/components/filter-select";
-import { AlertCircle, Package, CheckCircle, Truck, Calendar, Eye, Check, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, ImagePlus, FileSpreadsheet, ListChecks, PlusCircle, Trash2, Undo2, Loader2, Recycle, Tag } from "lucide-react";
+import { AlertCircle, AlertTriangle, Package, CheckCircle, Truck, Calendar, Eye, Check, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, ImagePlus, FileSpreadsheet, ListChecks, PlusCircle, Trash2, Undo2, Loader2, Recycle, Tag } from "lucide-react";
 import { Fragment, useState, useMemo, useEffect, useRef } from "react";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { parseDateLocal } from "@/lib/utils";
@@ -1132,6 +1132,11 @@ export default function Grafica() {
         if (da !== db) return da - db;
         const ea = a.event?.name || ""; const eb = b.event?.name || "";
         if (ea !== eb) return ea.localeCompare(eb);
+        // PRIORITÁRIA sobe DENTRO do bloco do evento (dono, 27/08): o macro é
+        // do caminhão (a Gráfica trabalha por evento e data de saída), mas
+        // dentro do evento a peça marcada sai na frente.
+        const prio = Number(!!b.isPriority) - Number(!!a.isPriority);
+        if (prio !== 0) return prio;
         if (a.type !== b.type) return a.type.localeCompare(b.type);
         // 4º critério: o complemento COLA na peça original. #0062 → #0062-C1 →
         // #0062-C2 → #0063. O filho herda eventId e type, então os três
@@ -2724,6 +2729,11 @@ export default function Grafica() {
                           {qtyOf(item)}
                           <span style={{ fontSize: 11, fontWeight: 600, color: TI.secondary, marginLeft: 3 }}>un.</span>
                         </span>
+                        {item.isPriority && (
+                          <span data-testid={`chip-prioritaria-${item.id}`} style={qtyChip('#be123c', '#fff1f2')} title="Peça prioritária — marcada pela Solicitação para sair na frente">
+                            PRIORITÁRIA
+                          </span>
+                        )}
                         {emRevisao && (
                           <span data-testid={`chip-revisao-${item.id}`} style={qtyChip('#a21caf', '#fdf4ff')} title="Esta peça ainda está na Revisão — aparece aqui para a Gráfica ver o que está chegando. As ações liberam quando a Revisão aprovar.">
                             EM REVISÃO
@@ -3139,6 +3149,19 @@ export default function Grafica() {
                           >
                             <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: "50%", background: selo.dot, flexShrink: 0 }} />
                             {selo.label}
+                          </div>
+                        )}
+                        {/* PRIORITÁRIA (dono, 27/08: "na Gráfica também") — o
+                            mesmo selo da Arte e da lista do evento; aqui ela
+                            também sobe para o topo do bloco do seu evento. */}
+                        {item.isPriority && (
+                          <div
+                            data-testid={`selo-prioritaria-${item.id}`}
+                            title="Peça prioritária — marcada pela Solicitação para sair na frente"
+                            style={{ display: "inline-flex", alignItems: "center", gap: 5, backgroundColor: "#fff1f2", color: "#be123c", border: "1px solid #fecdd3", borderRadius: 6, padding: "2px 8px", fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: 5, marginRight: 5, whiteSpace: "nowrap" }}
+                          >
+                            <AlertTriangle style={{ width: 11, height: 11 }} />
+                            Prioritária
                           </div>
                         )}
                         {/* A cor verde da linha sozinha não diz o que é: o rótulo

@@ -102,3 +102,23 @@ describe("a fila da Arte", () => {
     expect(EVENT_DETAIL).toContain("tag-prioritaria-card-${item.id}");
   });
 });
+
+describe("e na Gráfica também (dono, 27/08)", () => {
+  const GRAFICA = ler("client/src/pages/grafica.tsx");
+
+  it("selo PRIORITÁRIA na tabela e no card mobile", () => {
+    expect(GRAFICA).toContain("selo-prioritaria-${item.id}");
+    expect(GRAFICA).toContain("chip-prioritaria-${item.id}");
+  });
+
+  it("sobe DENTRO do bloco do evento — o macro segue sendo o caminhão", () => {
+    const sort = GRAFICA.slice(GRAFICA.indexOf("const filteredItems = useMemo"));
+    const evento = sort.indexOf("if (ea !== eb) return ea.localeCompare(eb);");
+    const prio = sort.indexOf("Number(!!b.isPriority) - Number(!!a.isPriority)");
+    const tipo = sort.indexOf("if (a.type !== b.type)");
+    expect(evento).toBeGreaterThan(-1);
+    // depois do evento (não desmonta os blocos por data de saída), antes do tipo
+    expect(prio).toBeGreaterThan(evento);
+    expect(prio).toBeLessThan(tipo);
+  });
+});

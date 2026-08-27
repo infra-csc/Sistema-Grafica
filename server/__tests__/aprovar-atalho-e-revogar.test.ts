@@ -84,8 +84,14 @@ describe("3 · e a TELA oferece o clique no estado incoerente", () => {
     expect(DIALOGO).toContain("a peça avançou com este patrocinador ainda aguardando");
   });
 
-  it("a família de status é a MESMA do servidor", () => {
-    expect(DIALOGO).toContain('["sponsor_approved", "awaiting_finalization", "awaiting_final_review", "awaiting_review", "in_review"]');
+  it("a família de status é a MESMA do servidor — por import, não por cópia", () => {
+    // A cópia cobrou o preço (25/08): o apelido legado awaiting_creator_review
+    // entrou na lista canônica e a cópia do diálogo ficou para trás. Agora o
+    // diálogo importa POS_APROVACAO de @shared/fluxo-peca — a mesma lista que
+    // o servidor usa na revogação e no acrescentar.
+    expect(DIALOGO).toContain('import { POS_APROVACAO } from "@shared/fluxo-peca";');
+    expect(DIALOGO).toContain("const pecaAvancada = POS_APROVACAO.includes(rawStatus);");
+    expect(DIALOGO).not.toContain('["sponsor_approved", "awaiting_finalization"');
   });
 
   it("pendente com a peça ainda em aprovação continua sem botão", () => {

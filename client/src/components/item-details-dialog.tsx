@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { parseDateLocal, toUTCDisplayDate } from "@/lib/utils";
 import { convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { refsDaPeca } from "@/lib/refs-da-peca";
+import { POS_APROVACAO } from "@shared/fluxo-peca";
 import { getApprovalMeta, getStatusLabel, marcoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import {
   Edit, Save, X, Check, Clock, Eye, ExternalLink, Camera, Paperclip,
@@ -1131,7 +1132,11 @@ export function ItemDetailsDialog({
                                 Atendimento. Pendente com a peça ainda em aprovação
                                 continua sem botão — aí não há mesmo o que fazer. */}
                             {(() => {
-                              const pecaAvancada = ["sponsor_approved", "awaiting_finalization", "awaiting_final_review", "awaiting_review", "in_review"].includes(rawStatus);
+                              // Era uma CÓPIA da lista, e a cópia cobrou o preço (25/08): o
+                              // apelido legado awaiting_creator_review entrou na canônica e
+                              // esta ficou para trás — o aviso de reabertura sumia justamente
+                              // na peça em revisão. Agora importa de @shared/fluxo-peca.
+                              const pecaAvancada = POS_APROVACAO.includes(rawStatus);
                               const reabrirIncoerente = approval?.status === "pending" && pecaAvancada;
                               const podeAgir = user?.role === "admin" || (user?.role === "atendimento" && (rawStatus === "awaiting_sponsor_approval" || rawStatus === "sponsor_approved"));
                               return podeAgir && approval && (approval.status !== "pending" || reabrirIncoerente);

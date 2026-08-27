@@ -83,5 +83,10 @@ export const ehBookCompleto = (i: { type?: string | null } | null | undefined): 
  */
 export const POS_APROVACAO: readonly string[] = [
   "sponsor_approved", "awaiting_finalization",
+  // awaiting_creator_review é APELIDO LEGADO da mesma fase de revisão — o
+  // servidor o traduz como "Aguardando Revisão Final", igual ao nome novo.
+  // Ele faltou na primeira versão desta lista e a peça #3483 da Primavera RJ
+  // foi recusada como "já é da Gráfica" estando em plena revisão (25/08).
+  "awaiting_creator_review",
   "awaiting_final_review", "awaiting_review", "in_review",
 ];

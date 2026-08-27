@@ -97,6 +97,9 @@ describe("até a aprovação fechar — inclusive em correção", () => {
     // @shared/fluxo-peca; três cópias divergiriam no primeiro status novo.
     const FLUXO = ler("shared/fluxo-peca.ts");
     expect(FLUXO).toContain("export const POS_APROVACAO: readonly string[] = [");
+    // o apelido legado da revisão TEM de estar na lista — a peça #3483 foi
+    // recusada como "já é da Gráfica" estando em plena revisão por causa dele
+    expect(FLUXO).toContain('"awaiting_creator_review",');
     const ITEMS = ler("server/routes/items.ts");
     expect(ITEMS).not.toContain('const POS_APROVACAO = ["sponsor_approved"');
     expect(ler("scripts/reparar-aprovacao-incoerente.ts")).toContain('from "../shared/fluxo-peca"');

@@ -160,6 +160,27 @@ describe("a tela", () => {
     expect(TELA).toContain("não pôde(ram):");
   });
 
+  it("a seleção é CONGELADA na abertura do diálogo — o bug do 'Acrescentar em 0'", () => {
+    // O efeito de auto-deselect (escrito quando ENVIADO não era marcável)
+    // esvaziava a seleção no render seguinte ao clique: a pessoa marcava 12 e
+    // o diálogo dizia zero. Duas defesas, e as duas ficam:
+    // 1 · o efeito passa a manter ENVIADO quando a ação existe — a lista dele
+    //     tem de ser a MESMA do podeSelecionar da linha;
+    expect(TELA).toContain("(st === 'ENVIADO' && podeAcrescentar)");
+    // 2 · o diálogo congela o alvo na abertura e confirma sobre ELE — refetch
+    //     nenhum esvazia o que a pessoa já está vendo;
+    expect(TELA).toContain("setAcrescentarAlvo(Array.from(selectedItemIds));");
+    expect(TELA).toContain("itemIds: acrescentarAlvo });");
+    // e zero peças nunca vira request (era o erro cru 'itemIds deve ser…')
+    expect(TELA).toContain("if (!acrescentarSponsorId || acrescentarAlvo.length === 0) return;");
+  });
+
+  it("a lista de patrocinadores sai em ordem alfabética", () => {
+    // Erro apontado pelo dono: o cadastro vem na ordem do banco, e achar
+    // "Ministério" numa lista embaralhada era rolar e torcer.
+    expect(TELA).toContain(".sort((a, b) => String(a.name ?? '').localeCompare(String(b.name ?? ''), 'pt-BR'))");
+  });
+
   it("só admin e solicitação — mais restrito que vincular na fase normal", () => {
     // Decisão do dono (25/08): a ação alcança peça que já saiu da vinculação, e
     // em peça em aprovação ela cria pendência nova para alguém decidir. Quem

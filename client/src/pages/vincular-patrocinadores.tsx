@@ -513,19 +513,26 @@ export default function VincularPatrocinadores() {
     return states;
   }, [visibleItems, originalSponsorsMap, pendingChanges]);
 
-  // Auto-deselect items que saíram de PENDENTE/RASCUNHO (ex: após salvar → PRONTO, ou enviar → ENVIADO)
+  // Auto-deselect de quem saiu dos estados selecionáveis (ex: após salvar).
+  //
+  // O BUG QUE ESTE EFEITO CAUSOU (25/08): quando ENVIADO virou selecionável
+  // para o "Acrescentar", este efeito — escrito na época em que enviada não
+  // era marcável — continuou desmarcando ENVIADO no render seguinte ao
+  // clique. A pessoa marcava 12 peças, abria o diálogo e ele dizia "0 peças
+  // selecionadas". A lista de estados que ficam marcados tem de ser a MESMA
+  // do `podeSelecionar` da linha, senão os dois divergem de novo.
   useEffect(() => {
     setSelectedItemIds(prev => {
       const next = new Set<string>();
       prev.forEach(id => {
         const st = itemUIStates[id] || 'PENDENTE';
-        if (st === 'PENDENTE' || st === 'RASCUNHO') {
+        if (st === 'PENDENTE' || st === 'RASCUNHO' || (st === 'ENVIADO' && podeAcrescentar)) {
           next.add(id);
         }
       });
       return next.size === prev.size ? prev : next;
     });
-  }, [itemUIStates]);
+  }, [itemUIStates, podeAcrescentar]);
 
 
   // Items visíveis respeitando o eventFilter (para contadores de contexto e ações em lote)
@@ -1063,6 +1070,10 @@ export default function VincularPatrocinadores() {
   const [acrescentarAberto, setAcrescentarAberto] = useState(false);
   const [acrescentarSponsorId, setAcrescentarSponsorId] = useState<string | null>(null);
   const [buscaAcrescentar, setBuscaAcrescentar] = useState("");
+  // A seleção é CONGELADA na abertura do diálogo. Sem isso, um refetch ou o
+  // efeito de auto-deselect podia esvaziá-la com o diálogo aberto — foi o bug
+  // do "Acrescentar em 0 peças": a pessoa marcou 12 e confirmou sobre nada.
+  const [acrescentarAlvo, setAcrescentarAlvo] = useState<string[]>([]);
 
   const acrescentarSponsorMutation = useMutation({
     mutationFn: async ({ sponsorId, itemIds }: { sponsorId: string; itemIds: string[] }) => {
@@ -2521,7 +2532,7 @@ export default function VincularPatrocinadores() {
                   enviadas — só soma, nunca reescreve. Admin e solicitação. */}
               {podeAcrescentar && (
               <button
-                onClick={() => { setAcrescentarSponsorId(null); setBuscaAcrescentar(""); setAcrescentarAberto(true); }}
+                onClick={() => { setAcrescentarSponsorId(null); setBuscaAcrescentar(""); setAcrescentarAlvo(Array.from(selectedItemIds)); setAcrescentarAberto(true); }}
                 data-testid="button-acrescentar-sponsor"
                 title="Acrescenta UM patrocinador às peças selecionadas, sem mexer nos vínculos que elas já têm — funciona mesmo depois do envio à Arte"
                 style={{ backgroundColor: 'rgba(255,255,255,0.1)', color: '#ffffff', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 8, padding: '8px 16px', fontWeight: 700, fontSize: 13, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
@@ -3095,7 +3106,7 @@ export default function VincularPatrocinadores() {
               icon={PlusCircle}
               tint="#15803d"
               title="Acrescentar patrocinador"
-              subtitle={`${selectedItemIds.size} ${selectedItemIds.size === 1 ? 'peça selecionada' : 'peças selecionadas'}`}
+              subtitle={`${acrescentarAlvo.length} ${acrescentarAlvo.length === 1 ? 'peça selecionada' : 'peças selecionadas'}`}
               onClose={() => setAcrescentarAberto(false)}
             />
             <div style={{ padding: '14px 24px 0', flexShrink: 0 }}>
@@ -3119,8 +3130,12 @@ export default function VincularPatrocinadores() {
             <div style={{ flex: '1 1 auto', minHeight: 0, overflowY: 'auto', padding: '10px 24px 4px', display: 'flex', flexDirection: 'column', gap: 4 }}>
               {(() => {
                 const termo = buscaAcrescentar.trim().toLowerCase();
+                // Ordem alfabética SEMPRE (erro apontado pelo dono, 25/08):
+                // o cadastro vem na ordem do banco, e achar "Ministério" numa
+                // lista embaralhada era rolar e torcer.
                 const lista = (sponsors as any[])
                   .filter((s) => !termo || String(s.name ?? '').toLowerCase().includes(termo))
+                  .sort((a, b) => String(a.name ?? '').localeCompare(String(b.name ?? ''), 'pt-BR'))
                   .slice(0, 60);
                 if (lista.length === 0) {
                   return <p style={{ fontSize: 13, color: '#78716c', margin: '8px 0' }}>Nenhum patrocinador com “{buscaAcrescentar.trim()}”.</p>;
@@ -3154,21 +3169,21 @@ export default function VincularPatrocinadores() {
               <button
                 type="button"
                 onClick={() => {
-                  if (!acrescentarSponsorId) return;
-                  acrescentarSponsorMutation.mutate({ sponsorId: acrescentarSponsorId, itemIds: Array.from(selectedItemIds) });
+                  if (!acrescentarSponsorId || acrescentarAlvo.length === 0) return;
+                  acrescentarSponsorMutation.mutate({ sponsorId: acrescentarSponsorId, itemIds: acrescentarAlvo });
                 }}
-                disabled={!acrescentarSponsorId || acrescentarSponsorMutation.isPending}
+                disabled={!acrescentarSponsorId || acrescentarAlvo.length === 0 || acrescentarSponsorMutation.isPending}
                 data-testid="button-confirmar-acrescentar"
                 style={{
                   width: '100%', height: 44, borderRadius: 9, border: 'none',
-                  backgroundColor: !acrescentarSponsorId ? '#e7e5e4' : '#1c1917',
-                  color: !acrescentarSponsorId ? '#78716c' : '#ffffff',
-                  fontSize: 13, fontWeight: 700, cursor: !acrescentarSponsorId ? 'not-allowed' : 'pointer',
+                  backgroundColor: !acrescentarSponsorId || acrescentarAlvo.length === 0 ? '#e7e5e4' : '#1c1917',
+                  color: !acrescentarSponsorId || acrescentarAlvo.length === 0 ? '#78716c' : '#ffffff',
+                  fontSize: 13, fontWeight: 700, cursor: !acrescentarSponsorId || acrescentarAlvo.length === 0 ? 'not-allowed' : 'pointer',
                 }}
               >
                 {acrescentarSponsorMutation.isPending
                   ? 'Acrescentando…'
-                  : `Acrescentar em ${selectedItemIds.size} ${selectedItemIds.size === 1 ? 'peça' : 'peças'}`}
+                  : `Acrescentar em ${acrescentarAlvo.length} ${acrescentarAlvo.length === 1 ? 'peça' : 'peças'}`}
               </button>
             </ModalFooter>
           </FreezeWhileClosing>

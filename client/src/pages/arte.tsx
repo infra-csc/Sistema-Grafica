@@ -1655,6 +1655,11 @@ export default function Arte() {
     // Um Collator reutilizado é bem mais rápido que localeCompare por comparação.
     const cmp = new Intl.Collator('pt-BR');
     return [...list].sort((a, b) => {
+      // PEÇA PRIORITÁRIA fura a fila (dono, 27/08): vem antes de qualquer
+      // régua — inclusive do prazo. É a peça que a Solicitação marcou para a
+      // Arte atacar primeiro.
+      const prio = Number(!!b.isPriority) - Number(!!a.isPriority);
+      if (prio !== 0) return prio;
       // Ordenar por PRAZO reordena os blocos inteiros (a lista é agrupada por
       // evento): o evento com o marco da fase mais próximo sobe para o topo.
       // É o que transforma "lista organizada por evento" em "fila de trabalho".
@@ -2198,6 +2203,14 @@ export default function Arte() {
   /** Tags de arquivo da coluna "Peça" (referência, book, fora do book). */
   const renderTagsDaPeca = (item: any) => (
     <>
+      {/* PRIORITÁRIA (dono, 27/08): a peça que a Solicitação marcou para a
+          Arte atacar primeiro — ela também FURA a ordenação da fila. */}
+      {item.isPriority && (
+        <span title="Peça prioritária — marcada pela Solicitação para sair na frente" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 800, color: '#be123c', backgroundColor: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 6, padding: '2px 7px', letterSpacing: '0.03em' }} data-testid={`tag-prioritaria-${item.id}`}>
+          <AlertTriangle style={{ width: 9, height: 9 }} />
+          PRIORITÁRIA
+        </span>
+      )}
       {item.referenceUrl && (
         <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência visual do solicitante" style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600, color: '#2563eb', textDecoration: 'none', backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, padding: '2px 7px' }} data-testid={`link-reference-arte-${item.id}`}>
           <Paperclip style={{ width: 9, height: 9 }} />

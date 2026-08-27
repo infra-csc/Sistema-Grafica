@@ -286,6 +286,12 @@ export const items = pgTable("items", {
   // campos em sincronia (lista manda; só-referenceUrl espelha para cá).
   // NULL = peça anterior à coluna: vale o que referenceUrl disser.
   referenceUrls: text("reference_urls").array(),
+  // PEÇA PRIORITÁRIA (pedido do dono, 27/08): marcada na criação ou na edição
+  // por admin|solicitacao, a peça fura a fila da Arte — sobe para o topo e a
+  // Arte é notificada na hora. É prioridade DA PEÇA, dentro do evento; não
+  // confundir com a prioridade DO EVENTO (events.priority, régua da saída do
+  // caminhão em shared/prioridade-do-evento.ts).
+  isPriority: boolean("is_priority").notNull().default(false),
   bookUrl: text("book_url"), // PDF do book de aprovação (layout pronto) que cobre esta peça — enviado pela Arte para os patrocinadores
   deletedAt: timestamp("deleted_at"), // Soft delete — item permanece no histórico (audit log) mas some das listagens
   createdAt: timestamp("created_at").notNull().default(sql`now()`),

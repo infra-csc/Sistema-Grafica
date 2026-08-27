@@ -143,6 +143,9 @@ const EMPTY_ITEM_FORM = {
   measurement: "",
   observations: "",
   skipApproval: false,
+  // Peça PRIORITÁRIA (dono, 27/08): fura a fila da Arte e a avisa na hora.
+  // Só admin|solicitacao mudam (gate no PATCH dispara na MUDANÇA de valor).
+  isPriority: false,
   isReuse: false,
   referenceUrl: "",
   // O modelo de que a peça nasce (id), ou "" quando o tipo foi digitado.
@@ -183,6 +186,8 @@ interface ItemFormProps {
   quantityCeiling?: number;
   /** Fecha o form e abre o modal de complemento (só existe com quantityLocked). */
   onAumentarQuantidade?: () => void;
+  /** admin|solicitacao: pode marcar a peça como prioritária (fura a fila da Arte). */
+  podePriorizar?: boolean;
 }
 
 // Formulário de peça unificado. Antes eram DUAS implementações independentes
@@ -198,7 +203,7 @@ function ItemForm({
   setCustomFinish, isMobile, isAdmin, isPending, onSubmit, onCancel,
   localRefPreview, setLocalRefPreview, getUploadUrl,
   quantityLocked = false, quantityFloor = 0, quantityCeiling = Number.MAX_SAFE_INTEGER,
-  onAumentarQuantidade,
+  onAumentarQuantidade, podePriorizar = false,
 }: ItemFormProps) {
   const isEdit = mode === "edit";
   // "Digitar novo tipo" só existe no criar — no editar o tipo já é texto livre.
@@ -630,6 +635,27 @@ function ItemForm({
             onBlur={blurRing}
           />
         </div>
+
+        {/* Peça PRIORITÁRIA (dono, 27/08) — admin|solicitacao, na criação E na
+            edição: fura a fila da Arte, que é avisada na hora. */}
+        {podePriorizar && (
+          <div style={{ backgroundColor: "#fff1f2", borderLeft: "4px solid #e11d48", padding: "14px 16px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <AlertTriangle style={{ width: 20, height: 20, color: "#e11d48", flexShrink: 0 }} />
+              <p style={{ fontSize: "15px", fontWeight: 500, color: "#9f1239" }}>
+                Peça prioritária
+                <span style={{ display: "block", fontSize: "12px", color: "#be123c", fontWeight: 400 }}>Sobe para o topo da fila da Arte e avisa a equipe na hora</span>
+              </p>
+            </div>
+            <Checkbox
+              id={isEdit ? "item-priority-edit" : "item-priority-create"}
+              checked={formData.isPriority}
+              onCheckedChange={(checked) => setFormData({ ...formData, isPriority: !!checked })}
+              data-testid="checkbox-item-priority"
+              style={{ width: "20px", height: "20px", accentColor: "#e11d48" }}
+            />
+          </div>
+        )}
 
         {/* Pular Aprovação — apenas Admin, só na edição */}
         {isEdit && isAdmin && (
@@ -1495,6 +1521,7 @@ export default function EventDetail() {
       measurement: item.measurement || "",
       observations: item.observations || "",
       skipApproval: item.skipApproval || false,
+      isPriority: item.isPriority || false,
       isReuse: item.isReuse || false,
       referenceUrl: item.referenceUrl || "",
       standardItemId: item.standardItemId || "",
@@ -2076,6 +2103,7 @@ export default function EventDetail() {
                     setCustomFinish={setCustomFinish}
                     isMobile={isMobile}
                     isAdmin={user?.role === 'admin'}
+                    podePriorizar={user?.role === 'admin' || user?.role === 'solicitacao'}
                     isPending={createItemMutation.isPending || updateItemMutation.isPending}
                     onSubmit={handleSubmit}
                     onCancel={handleCloseDialog}
@@ -2799,6 +2827,11 @@ export default function EventDetail() {
                             </button>
                             <StatusBadge status={item.status} />
                           </div>
+                          {item.isPriority && (
+                            <div title="Peça prioritária — fura a fila da Arte" data-testid={`tag-prioritaria-card-${item.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, backgroundColor: '#fff1f2', border: '1px solid #fecdd3', color: '#be123c', borderRadius: 6, padding: '2px 7px', fontSize: 10, fontWeight: 800, letterSpacing: '0.06em', marginBottom: 4, marginRight: 4 }}>
+                              <AlertTriangle style={{ width: 9, height: 9 }} /> PRIORITÁRIA
+                            </div>
+                          )}
                           {item.parentItemId && (
                             <div style={{ display: 'inline-flex', alignItems: 'center', gap: 4, backgroundColor: '#fff7ed', border: '1px solid #fed7aa', color: '#c2410c', borderRadius: 6, padding: '2px 7px', fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
                               <Plus style={{ width: 9, height: 9 }} /> Compl. de {item.parent?.displayId ?? 'peça original'}
@@ -2920,6 +2953,12 @@ export default function EventDetail() {
                             >
                               {item.displayId}
                             </button>
+                            {item.isPriority && (
+                              <span title="Peça prioritária — fura a fila da Arte" data-testid={`tag-prioritaria-${item.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, marginLeft: 6, fontSize: 10, fontWeight: 800, color: '#be123c', backgroundColor: '#fff1f2', border: '1px solid #fecdd3', borderRadius: 6, padding: '1px 6px', letterSpacing: '0.04em', verticalAlign: 'middle' }}>
+                                <AlertTriangle style={{ width: 9, height: 9 }} />
+                                PRIORITÁRIA
+                              </span>
+                            )}
                           </td>
                           {/* Ref. — VÁRIAS por peça (25/08): o clipe ADICIONA em
                               vez de trocar, e cada miniatura tem o seu ×. */}
@@ -3472,6 +3511,7 @@ export default function EventDetail() {
             setCustomFinish={setCustomFinish}
             isMobile={isMobile}
             isAdmin={user?.role === 'admin'}
+                    podePriorizar={user?.role === 'admin' || user?.role === 'solicitacao'}
             isPending={updateItemMutation.isPending}
             onSubmit={(e) => {
               e.preventDefault();

@@ -179,6 +179,7 @@ const updateItemSchema = insertItemSchema
     calculatedM2: true,
     observations: true,
     skipApproval: true,
+    isPriority: true,
     isReuse: true,
     approvalThumbUrl: true,
     finalFileUrl: true,
@@ -1004,6 +1005,11 @@ export function registerItemRoutes(app: Express): void {
       if (!(await canCreateItemsFor(req, validatedData.eventId))) {
         return res.status(403).json({ error: "Sem permissão para criar itens neste evento" });
       }
+      // Nascer PRIORITÁRIA é decisão de quem gerencia a lista (dono, 27/08) —
+      // mesmo gate do PATCH. Criador de evento sem papel cria a peça normal.
+      if (validatedData.isPriority && !["admin", "solicitacao"].includes(req.userRole ?? "")) {
+        return res.status(403).json({ error: "Marcar peça como prioritária é do admin e da Solicitação." });
+      }
       // Não confiar no m² do cliente — recalcular no servidor quando derivável.
       const derivedM2 = deriveCalculatedM2(validatedData);
       if (derivedM2 !== undefined) validatedData.calculatedM2 = derivedM2;
@@ -1052,12 +1058,15 @@ export function registerItemRoutes(app: Express): void {
         'item',
         item.id,
         `Item "${item.type}" criado - Qtd: ${item.quantity}, ${item.calculatedM2}m²`
+        + (item.isPriority ? " — PRIORITÁRIA" : "")
       );
-      
+
       // Novo item adicionado - notifica Arte + Gráfica
       const notification = await storage.createNotification({
-        type: "itemAdded",
-        message: `Novo item adicionado: ${item.type} - Evento: ${event.name}`,
+        type: item.isPriority ? "itemPriority" : "itemAdded",
+        message: item.isPriority
+          ? `PEÇA PRIORITÁRIA: ${item.displayId} ${item.type} - Evento: ${event.name} — fura a fila da Arte`
+          : `Novo item adicionado: ${item.type} - Evento: ${event.name}`,
         eventId: item.eventId,
         itemId: item.id,
         targetRoles: ["arte"], // só quem AGE agora: a Gráfica entra bem depois, quando liberam p/ produção
@@ -1297,6 +1306,7 @@ export function registerItemRoutes(app: Express): void {
         });
       }
 
+
       // Normalize referenceUrl from raw GCS URL to /objects/ proxy path and
       // record an ACL policy so the object is attributed to its uploader.
       // Reference photos/art files are treated as "public" to any
@@ -1346,6 +1356,16 @@ export function registerItemRoutes(app: Express): void {
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) {
         return res.status(404).json({ error: "Item not found" });
+      }
+      // PRIORIDADE DA PEÇA (dono, 27/08): quem decide o que fura a fila da
+      // Arte é quem gerencia a lista — admin e Solicitação. O gate dispara só
+      // quando o valor MUDA: o formulário manda o form inteiro no spread, e
+      // arte/atendimento editando thumb não podem quebrar por um campo que
+      // não tocaram.
+      if (validatedData.isPriority !== undefined
+          && !!validatedData.isPriority !== !!currentItem.isPriority
+          && !["admin", "solicitacao"].includes(role)) {
+        return res.status(403).json({ error: "Marcar peça como prioritária é do admin e da Solicitação." });
       }
       // ANDA: este PATCH mexe em quantidade, material, dimensões e m² — o
       // contrato da peça. Num evento que já acabou, mudar o contrato só
@@ -1513,6 +1533,9 @@ export function registerItemRoutes(app: Express): void {
       if ('skipApproval' in validatedData && item.skipApproval !== currentItem.skipApproval) {
         changedParts.push(item.skipApproval ? "Aprovação de patrocinador dispensada" : "Aprovação de patrocinador reativada");
       }
+      if ('isPriority' in validatedData && item.isPriority !== currentItem.isPriority) {
+        changedParts.push(item.isPriority ? "Peça marcada como PRIORITÁRIA — fura a fila da Arte" : "Prioridade da peça removida");
+      }
 
       const auditDetails = changedParts.length > 0
         ? changedParts.join(" | ")
@@ -1530,6 +1553,21 @@ export function registerItemRoutes(app: Express): void {
       await updateEventStatus(item.eventId);
 
       broadcast({ type: "item_updated", item });
+
+      // A Arte é avisada NA HORA em que a peça vira prioritária (dono, 27/08)
+      // — só na transição para true; desmarcar não gera aviso, e editar outros
+      // campos de uma peça já prioritária também não repete o alarme.
+      if ('isPriority' in validatedData && item.isPriority && !currentItem.isPriority) {
+        const eventoDaPeca = await storage.getEvent(item.eventId);
+        const avisoPrioridade = await storage.createNotification({
+          type: "itemPriority",
+          message: `PEÇA PRIORITÁRIA: ${item.displayId} ${item.type} - Evento: ${eventoDaPeca?.name ?? "—"} — fura a fila da Arte`,
+          eventId: item.eventId,
+          itemId: item.id,
+          targetRoles: ["arte"],
+        });
+        broadcast({ type: "notification_created", notification: avisoPrioridade });
+      }
 
       // Redução de quantidade numa peça que a Gráfica já está produzindo: ela
       // precisa saber ANTES de imprimir a mais. (Aumento não cai aqui — em
@@ -4150,12 +4188,39 @@ export function registerItemRoutes(app: Express): void {
 
       const alreadyReused = current.reuseQty || 0;
       const produced = current.quantityProduced || 0;
-      // No fluxo normal o reuso não invade o que já foi produzido; após
-      // Produzido a conversão é justamente invadir — então o teto é só o que
-      // ainda não está marcado como reaproveitado.
-      const room = viaProduzida
-        ? current.quantity - alreadyReused
-        : current.quantity - alreadyReused - produced;
+
+      // ── VIA PÓS-PRODUZIDO: ajuste ABSOLUTO, nas duas direções ────────────
+      // A primeira versão só somava — "só consigo aumentar e não diminuir"
+      // (dono, 27/08). O controle da tela manda o TOTAL desejado (reuseTotal,
+      // 0..quantidade) e a conversão anda para os dois lados: o que vira
+      // reuso sai do produzido e vice-versa; produzido + reuso seguem
+      // somando a quantidade, e o status continua "Produzido" — nada volta
+      // para a fila. Reduzir a ZERO também é legítimo (desfaz a conversão).
+      if (viaProduzida) {
+        const alvo = req.body?.reuseTotal != null
+          ? Math.max(0, Math.min(current.quantity, Math.floor(Number(req.body.reuseTotal)) || 0))
+          // chamador antigo (qty = delta): soma, com teto na quantidade
+          : Math.min(current.quantity, alreadyReused + Math.max(1, Math.floor(Number(req.body?.qty)) || (current.quantity - alreadyReused)));
+        if (alvo === alreadyReused) {
+          return res.status(409).json({ error: `A peça já tem ${alreadyReused} un. reaproveitada(s).` });
+        }
+        const item = await storage.updateItem(req.params.id, {
+          reuseQty: alvo,
+          isReuse: alvo >= current.quantity,
+          quantityProduced: current.quantity - alvo,
+          status: "produced" as const,
+        });
+        if (!item) return res.status(404).json({ error: "Item not found" });
+        await createAuditLog(
+          req, 'updated', 'item', item.id,
+          `Reaproveitamento ajustado após Produzido: ${alreadyReused} → ${alvo} un. reaproveitada(s) (${current.quantity - alvo} produzida(s) de ${current.quantity})`
+        );
+        broadcast({ type: "item_updated", item });
+        return res.json(item);
+      }
+
+      // ── Fluxo normal (antes de Produzido): só SOMA, sem invadir o produzido ──
+      const room = current.quantity - alreadyReused - produced;
       if (room <= 0) {
         return res.status(409).json({ error: `Nada a reaproveitar: ${alreadyReused} reaproveitada(s) e ${produced} produzida(s) de ${current.quantity}.` });
       }
@@ -4165,14 +4230,11 @@ export function registerItemRoutes(app: Express): void {
       const newReuse = alreadyReused + n;
       const isFullReuse = newReuse >= current.quantity;
       // Fecha em "Produzido" quando reuso + produção cobrem a quantidade toda.
-      const isReady = viaProduzida || newReuse + produced >= current.quantity;
+      const isReady = newReuse + produced >= current.quantity;
 
       const item = await storage.updateItem(req.params.id, {
         reuseQty: newReuse,
         isReuse: isFullReuse,
-        // Na conversão, o que virou reuso sai do produzido — os dois números
-        // seguem somando a quantidade da peça.
-        ...(viaProduzida ? { quantityProduced: current.quantity - newReuse } : {}),
         ...(isReady ? { status: "produced" as const } : {}),
       });
       if (!item) return res.status(404).json({ error: "Item not found" });
@@ -4182,9 +4244,7 @@ export function registerItemRoutes(app: Express): void {
         'updated',
         'item',
         item.id,
-        viaProduzida
-          ? `Reaproveitamento após Produzido: ${n} un. convertida(s) de produzida(s) para reaproveitada(s) — ${newReuse}/${current.quantity} reaproveitadas, ${current.quantity - newReuse} produzida(s)`
-          : isFullReuse
+        isFullReuse
           ? `Reaproveitamento total pela Gráfica: ${newReuse}/${current.quantity} un.`
           : `Reaproveitamento parcial pela Gráfica: ${n} un. (${newReuse}/${current.quantity} reaproveitadas, ${current.quantity - newReuse} a produzir)`
       );

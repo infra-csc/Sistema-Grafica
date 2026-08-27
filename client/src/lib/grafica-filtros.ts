@@ -311,8 +311,14 @@ const casaStatus = (statusDoItem: string, escolhido: string): boolean =>
  * transformaria a fila em arquivo. Mesma exceção que o Painel Geral já usa para
  * as peças de evento finalizado (`!eventFilter.includes(item.eventId)`).
  */
+// "Com reaproveitamento" também revela (dono, 27/08: "o filtro não funciona"):
+// a pergunta do reuso é de ARQUIVO — "o que já reaproveitamos" vive quase todo
+// nas entregues (667 na base, a maioria entregue). Sem esta linha a opção
+// prometia 667 no menu e o clique entregava a fração não-entregue — quebra da
+// invariante das facetas desta tela.
 export const escondeEntregues = (f: GraficaFiltros): boolean =>
-  !f.entregues && !f.status.includes("delivered") && !f.busca.trim() && f.evento.length === 0;
+  !f.entregues && !f.status.includes("delivered") && !f.busca.trim() && f.evento.length === 0
+  && !f.reaproveitamento;
 
 export function itemCasaFiltros(
   item: ItemGrafica,

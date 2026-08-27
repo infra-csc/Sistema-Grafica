@@ -45,39 +45,56 @@ describe("quem pode, e quando", () => {
 
   it("o fluxo normal não mudou: fora de Produzido a régua é a mesma de antes", () => {
     expect(rota).toContain('if (!allowedStatuses.includes(current.status) && !viaProduzida) {');
-    expect(rota).toContain("? current.quantity - alreadyReused");
-    expect(rota).toContain(": current.quantity - alreadyReused - produced;");
+    // a via produzida SAI cedo (return) — o fluxo normal continua só somando,
+    // sem invadir o produzido
+    expect(rota).toContain("if (viaProduzida) {");
+    expect(rota).toContain("const room = current.quantity - alreadyReused - produced;");
   });
 });
 
-describe("a conversão fecha a conta", () => {
-  it("o que vira reuso SAI do produzido — os dois números seguem somando a quantidade", () => {
-    expect(rota).toContain("...(viaProduzida ? { quantityProduced: current.quantity - newReuse } : {}),");
-    // e o status segue Produzido (a via produzida sempre está 'pronta')
-    expect(rota).toContain("const isReady = viaProduzida || newReuse + produced >= current.quantity;");
+describe("a conversão fecha a conta — nas DUAS direções", () => {
+  it("o controle manda o TOTAL (reuseTotal, 0..quantidade) — 'só consigo aumentar' era o furo", () => {
+    // ajuste ABSOLUTO: aumentar E diminuir, inclusive voltar a zero
+    expect(rota).toContain("req.body?.reuseTotal != null");
+    expect(rota).toContain("Math.max(0, Math.min(current.quantity, Math.floor(Number(req.body.reuseTotal)) || 0))");
+    // sem mudança real, a rota recusa em vez de gravar à toa
+    expect(rota).toContain("if (alvo === alreadyReused) {");
   });
 
-  it("a trilha explica que foi conversão, com os dois lados da conta", () => {
-    expect(rota).toContain("Reaproveitamento após Produzido");
-    expect(rota).toContain("convertida(s) de produzida(s) para reaproveitada(s)");
+  it("o que vira reuso SAI do produzido — os dois números seguem somando a quantidade", () => {
+    expect(rota).toContain("quantityProduced: current.quantity - alvo,");
+    // e o status segue Produzido: a conversão nunca devolve a peça à fila
+    const viaBloco = rota.slice(rota.indexOf("if (viaProduzida) {"), rota.indexOf("── Fluxo normal"));
+    expect(viaBloco).toContain('status: "produced" as const,');
+  });
+
+  it("a trilha explica o ajuste, com os dois lados da conta", () => {
+    expect(rota).toContain("Reaproveitamento ajustado após Produzido");
+    expect(rota).toContain("→ ${alvo} un. reaproveitada(s)");
   });
 });
 
 describe("a tela da Gráfica espelha o servidor", () => {
   it("o botão aparece em peça Produzida só para quem pode (podeMexerQtd = admin|solicitacao)", () => {
-    expect(GRAFICA).toContain("(!isProduced(item) || podeMexerQtd) && tetoReaproveitar(item) > 0");
+    expect(GRAFICA).toContain("(!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0)");
     // o gate é o MESMO das outras mexidas de quantidade — não canProduce
     expect(GRAFICA).toContain("const podeMexerQtd = podeMexerNaQuantidade(user?.role);");
   });
 
-  it("o teto muda de significado após Produzido: converte o que ainda não é reuso", () => {
-    expect(GRAFICA).toContain("isProduced(item) ? Math.max(0, qtyOf(item) - reusedTotalOf(item)) : remainingReuse(item);");
-    // e o title conta a semântica para quem clica
-    expect(GRAFICA).toContain("Reaproveitar após Produzido — converte produzidas em reaproveitadas");
+  it("após Produzido o campo vira ajuste ABSOLUTO (0..quantidade), abrindo no valor atual", () => {
+    // abre pré-preenchido com o total reaproveitado de hoje — quem ajusta
+    // parte do que está lá, não de um chute
+    expect(GRAFICA).toContain("setReuseQty(isProduced(item) ? reusedTotalOf(item) : tetoReaproveitar(item));");
+    expect(GRAFICA).toContain("min={isProduced(item) ? 0 : 1}");
+    expect(GRAFICA).toContain("max={isProduced(item) ? qtyOf(item) : tetoReaproveitar(item)}");
+    // e manda o TOTAL, não a soma
+    expect(GRAFICA).toContain("? { itemId: item.id, reuseTotal: reuseQty }");
+    // o title conta a semântica das duas direções para quem clica
+    expect(GRAFICA).toContain("converte entre produzidas e reaproveitadas, nas duas direções");
   });
 
   it("conferida ou entregue, o botão some — mesma tranca do servidor", () => {
-    const bloco = GRAFICA.slice(GRAFICA.indexOf("(!isProduced(item) || podeMexerQtd)") - 200);
+    const bloco = GRAFICA.slice(GRAFICA.indexOf("(!isProduced(item) ? tetoReaproveitar(item) > 0") - 200);
     expect(bloco.slice(0, 260)).toContain("!isDelivered(item) && !isConferred(item)");
   });
 });

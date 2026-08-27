@@ -900,8 +900,10 @@ export default function Grafica() {
   const markReuseMutation = useMutation({
     // apiRequest devolve o Response cru — sem o .json() o onSuccess lia
     // quantity/reuseQty como undefined e o toast sempre dizia "peça inteira".
-    mutationFn: async ({ itemId, qty }: { itemId: string; qty: number }) =>
-      await (await apiRequest("POST", `/api/items/${itemId}/mark-reuse`, { qty })).json(),
+    // qty = SOMA (fluxo normal); reuseTotal = valor ABSOLUTO (via pós-
+    // Produzido, ajusta nas duas direções — espelho do mark-reuse).
+    mutationFn: async ({ itemId, qty, reuseTotal }: { itemId: string; qty?: number; reuseTotal?: number }) =>
+      await (await apiRequest("POST", `/api/items/${itemId}/mark-reuse`, reuseTotal != null ? { reuseTotal } : { qty })).json(),
     onSuccess: (updated: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
@@ -3427,22 +3429,26 @@ export default function Grafica() {
                               (POST /api/items/:id/mark-reuse é barrado): marcar
                               reaproveitamento é decidir o que entra na fila de
                               produção, ou seja, faz o trabalho andar. */}
-                          {!bulkOn && !emRevisao && !isDelivered(item) && !isConferred(item) && (!isProduced(item) || podeMexerQtd) && tetoReaproveitar(item) > 0 && (
+                          {!bulkOn && !emRevisao && !isDelivered(item) && !isConferred(item) && (!isProduced(item) ? tetoReaproveitar(item) > 0 : podeMexerQtd && qtyOf(item) > 0) && (
                             reuseConfirmItemId === item.id ? (
                               <div style={{ display: "flex", alignItems: "center", gap: 4 }} onClick={e => e.stopPropagation()}>
                                 <input
                                   type="number"
-                                  min={1}
-                                  max={tetoReaproveitar(item)}
+                                  min={isProduced(item) ? 0 : 1}
+                                  max={isProduced(item) ? qtyOf(item) : tetoReaproveitar(item)}
                                   value={reuseQty}
-                                  onChange={e => setReuseQty(Math.max(1, Math.min(tetoReaproveitar(item), parseInt(e.target.value) || 1)))}
-                                  title={`Quantas unidades reaproveitar (até ${tetoReaproveitar(item)})`}
+                                  onChange={e => setReuseQty(Math.max(isProduced(item) ? 0 : 1, Math.min(isProduced(item) ? qtyOf(item) : tetoReaproveitar(item), parseInt(e.target.value) || 0)))}
+                                  title={isProduced(item)
+                                    ? `Total reaproveitado desta peça (0 a ${qtyOf(item)}) — o resto conta como produzido`
+                                    : `Quantas unidades reaproveitar (até ${tetoReaproveitar(item)})`}
                                   data-testid={`input-reuse-qty-${item.id}`}
                                   style={{ width: 52, height: 26, padding: "0 6px", borderRadius: 6, border: `1px solid ${TI.border}`, fontSize: 11, fontWeight: 700, color: TI.text, textAlign: "center" }}
                                 />
-                                <span style={{ fontSize: 10, color: TI.secondary, whiteSpace: "nowrap" }}>de {tetoReaproveitar(item)}</span>
+                                <span style={{ fontSize: 10, color: TI.secondary, whiteSpace: "nowrap" }}>de {isProduced(item) ? qtyOf(item) : tetoReaproveitar(item)}</span>
                                 <button
-                                  onClick={() => markReuseMutation.mutate({ itemId: item.id, qty: reuseQty })}
+                                  onClick={() => markReuseMutation.mutate(isProduced(item)
+                                    ? { itemId: item.id, reuseTotal: reuseQty }
+                                    : { itemId: item.id, qty: reuseQty })}
                                   disabled={markReuseMutation.isPending}
                                   title="Confirmar reaproveitamento"
                                   data-testid={`button-reuse-confirm-${item.id}`}
@@ -3460,13 +3466,13 @@ export default function Grafica() {
                               </div>
                             ) : (
                               <button
-                                onClick={e => { e.stopPropagation(); if (selo) return; setReuseConfirmItemId(item.id); setReuseQty(tetoReaproveitar(item)); }}
+                                onClick={e => { e.stopPropagation(); if (selo) return; setReuseConfirmItemId(item.id); setReuseQty(isProduced(item) ? reusedTotalOf(item) : tetoReaproveitar(item)); }}
                                 disabled={!!selo}
                                 aria-label={`Reaproveitar ${item.displayId}`}
                                 title={selo
                                   ? motivoAcaoBloqueada(selo.motivo, "marcar reaproveitamento")
                                   : isProduced(item)
-                                    ? `Reaproveitar após Produzido — converte produzidas em reaproveitadas (até ${tetoReaproveitar(item)} un.)`
+                                    ? `Ajustar reaproveitamento (0 a ${qtyOf(item)}) — converte entre produzidas e reaproveitadas, nas duas direções`
                                     : `Reaproveitar (pula produção) — até ${remainingReuse(item)} un.`}
                                 data-testid={`button-reuse-${item.id}`}
                                 style={{ background: "none", border: "none", cursor: selo ? "not-allowed" : "pointer", color: selo ? "#78716c" : "#059669", padding: 4, borderRadius: 6, display: "flex", alignItems: "center", transition: "color 0.15s" }}

@@ -1,8 +1,18 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, decimal, boolean, json, index, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, pgSequence, text, varchar, timestamp, integer, decimal, boolean, json, index, uniqueIndex } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// A SEQUÊNCIA DOS NÚMEROS DE PEÇA (#0001, #0002…). O storage a cria e usa via
+// SQL cru (generateNextDisplayId), mas ela TEM de estar declarada aqui pelo
+// MESMO motivo da tabela `session` logo abaixo: objeto que o schema não
+// declara é objeto que o drizzle-kit push DERRUBA. Foi exatamente o que
+// aconteceu em 25/08 — o push das colunas novas apagou a sequência, o
+// servidor (que memoriza "já criei" por processo) foi direto no nextval, e
+// toda criação de peça morreu com `relation "item_display_id_seq" does not
+// exist` até reiniciar.
+export const itemDisplayIdSeq = pgSequence("item_display_id_seq", { startWith: 1 });
 
 // Session storage table (used by connect-pg-simple / express-session).
 // IMPORTANT: must stay declared here — otherwise drizzle-kit push tries to drop it

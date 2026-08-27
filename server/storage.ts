@@ -643,10 +643,27 @@ export class DatabaseStorage implements IStorage {
    * colisão isolada não deve derrubar a importação inteira da planilha — vale
    * mais ressincronizar e repetir com ids novos.
    */
+  /**
+   * A sequência SUMIU com o servidor de pé (caso real, 25/08): o drizzle-kit
+   * push derruba objeto que o schema não declara, e este processo — que
+   * memoriza "já criei" — foi direto no nextval e toda criação de peça morreu
+   * até reiniciar. A sequência agora está declarada no schema (o push parou de
+   * derrubá-la), mas a autocura fica: zerar a memória e recriar custa um
+   * retry; um "does not exist" permanente custa um dia de cadastro parado.
+   */
+  private isDisplayIdSequenceMissing(error: any): boolean {
+    return error?.code === "42P01" && String(error?.message ?? "").includes("item_display_id_seq");
+  }
+
   private async withDisplayIdRetry<T>(run: () => Promise<T>): Promise<T> {
     try {
       return await run();
     } catch (error: any) {
+      if (this.isDisplayIdSequenceMissing(error)) {
+        this.displayIdSequenceInitialized = null;
+        await this.ensureDisplayIdSequence();
+        return await run();
+      }
       if (!this.isDisplayIdConflict(error)) throw error;
       await this.syncDisplayIdSequence();
       return await run();

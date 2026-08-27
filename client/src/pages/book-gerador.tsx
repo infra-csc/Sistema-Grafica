@@ -26,6 +26,7 @@ import { groupKeyOf, convertGCSUrlToLocalPath } from "@/lib/artePdfExport";
 import { ehBookCompleto } from "@shared/fluxo-peca";
 import { BOOK, celulasDaPagina, mioloDoBook, paginarGrupos } from "@/lib/book-spec";
 import { gerarBookPdf, subirBookPdf, type HerancaDoBook, type ProgressoDoBook } from "@/lib/book-gerador";
+import { ComentarioDoBook, comentarioDoBookValido } from "@/components/comentario-do-book";
 import { BookHeranca } from "@/components/book-heranca";
 
 interface GrupoMontado { key: string; rotulo: string; incluido: boolean; itens: any[] }
@@ -59,6 +60,18 @@ export default function BookGerador() {
     // O book vive por peça (bookUrl); o primeiro não-nulo é o book do evento.
     const comBook = (itens as any[]).find((i) => i.bookUrl && !i.deletedAt);
     return comBook?.bookUrl ?? null;
+  }, [itens]);
+
+  // "O que mudou": obrigatório quando já existe book (republicação) — mesma
+  // régua do servidor (COMENTARIO_OBRIGATORIO). Ver comentario-do-book.tsx.
+  const [comentario, setComentario] = useState("");
+  const patrocinadoresDoBook = useMemo(() => {
+    const nomes = new Set<string>();
+    for (const i of itens as any[]) {
+      if (i.deletedAt) continue;
+      for (const s of i.sponsors ?? []) if (s?.name) nomes.add(s.name);
+    }
+    return Array.from(nomes).sort((a, b) => a.localeCompare(b, "pt-BR"));
   }, [itens]);
   const heranca: HerancaDoBook | null = bookAtualUrl
     ? { url: bookAtualUrl, capa: capaHerdada, paginas: Array.from(paginasHerdadas).sort((a, b) => a - b) }
@@ -140,6 +153,16 @@ export default function BookGerador() {
 
   const gerarEPublicar = async () => {
     if (!eventId || publicando || totalPecas === 0) return;
+    // A recusa vem ANTES de gerar o PDF: republicar sem dizer o que mudou é
+    // 400 no servidor — não vale a pena renderizar páginas para ouvir não.
+    if (bookAtualUrl && !comentarioDoBookValido(true, comentario)) {
+      toast({
+        title: "Falta o comentário do que mudou",
+        description: "Este evento já tem book publicado. Escreva o que mudou nesta versão — é o que sai no e-mail de quem recebe.",
+        variant: "destructive",
+      });
+      return;
+    }
     setPublicando(true);
     setResultado(null);
     try {
@@ -147,7 +170,7 @@ export default function BookGerador() {
       setProgresso({ etapa: "Enviando o PDF…", feito: totalPecas, total: totalPecas });
       const bookUrl = await subirBookPdf(bytes);
       const itemIds = incluidos.flatMap((g) => g.itens.map((i) => i.id));
-      await apiRequest("POST", `/api/events/${eventId}/book`, { bookUrl, itemIds });
+      await apiRequest("POST", `/api/events/${eventId}/book`, { bookUrl, itemIds, comentario: comentario.trim() || undefined });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items", eventId] });
       setResultado({ url: bookUrl, falhas: falhas.length });
@@ -250,6 +273,17 @@ export default function BookGerador() {
               onCapaChange={setCapaHerdada}
               paginas={paginasHerdadas}
               onTogglePagina={(n) => setPaginasHerdadas((prev) => { const s2 = new Set(prev); if (s2.has(n)) s2.delete(n); else s2.add(n); return s2; })}
+            />
+          </div>
+        )}
+
+        {podePublicar && (
+          <div style={{ marginBottom: 16, padding: "12px 14px", borderRadius: 10, backgroundColor: "#fff", border: "1px solid #e7e5e4" }}>
+            <ComentarioDoBook
+              republicacao={!!bookAtualUrl}
+              valor={comentario}
+              aoMudar={setComentario}
+              patrocinadores={patrocinadoresDoBook}
             />
           </div>
         )}

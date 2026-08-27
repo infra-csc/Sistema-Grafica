@@ -627,6 +627,7 @@ export async function avisarBookPorEmail(
   eventId: string,
   bookUrl: string,
   count: number,
+  comentario?: string | null,
 ): Promise<BookEmailResult> {
   try {
     const evento = await storage.getEvent(eventId);
@@ -657,6 +658,7 @@ export async function avisarBookPorEmail(
       publicadoPor: req.userName ?? null,
       saidaDoCaminhao: evento?.truckDepartureDate ? new Date(evento.truckDepartureDate as any).toISOString() : null,
       publicacao: books.filter((b) => b.eventId === eventId).length || 1,
+      comentario: comentario ?? null,
       destinatariosPrincipais: principais,
       destinatariosDeCopia: copias,
     });
@@ -4482,13 +4484,14 @@ export function registerItemRoutes(app: Express): void {
       if (req.userRole !== "arte" && req.userRole !== "admin") {
         return res.status(403).json({ error: "Sem permissão para gerenciar books" });
       }
-      const { bookUrl, itemIds } = req.body ?? {};
+      const { bookUrl, itemIds, comentario } = req.body ?? {};
       if (!Array.isArray(itemIds) || itemIds.length === 0) {
         return res.status(400).json({ error: "Selecione ao menos uma peça" });
       }
       if (bookUrl !== null && (typeof bookUrl !== "string" || !bookUrl.trim())) {
         return res.status(400).json({ error: "bookUrl inválido" });
       }
+
       // ANDA (caso duvidoso, barrado): o book é o material que a Arte manda aos
       // patrocinadores para aprovarem — vincular um é abrir rodada de
       // aprovação. E a rota LIMPA o bookUrl de todas as peças do evento antes
@@ -4501,13 +4504,30 @@ export function registerItemRoutes(app: Express): void {
           error: erroEventoFechado(fechadoBook), code: "EVENT_FINALIZED", reason: fechadoBook,
         });
       }
+      // ── O QUE MUDOU (pedido do dono, 25/08) ─────────────────────────────
+      // Primeira publicação: comentário OPCIONAL. Republicação: OBRIGATÓRIO —
+      // quem recebe o e-mail do book novo precisa saber o que mudou sem
+      // folhear as páginas comparando. A checagem vem ANTES de qualquer
+      // escrita: recusar depois de limpar os bookUrl deixaria o evento sem
+      // book nenhum. (E depois da guarda de evento fechado — lá o 409 manda.)
+      const textoDoComentario = typeof comentario === "string" ? comentario.trim() : "";
+      if (bookUrl) {
+        const publicacoesAnteriores = (await storage.getAllEventBooks())
+          .filter((b) => b.eventId === req.params.eventId).length;
+        if (publicacoesAnteriores > 0 && textoDoComentario.length < 5) {
+          return res.status(400).json({
+            error: "Republicação exige o comentário do que mudou (mínimo 5 caracteres) — é ele que sai no e-mail de quem recebe o book.",
+            code: "COMENTARIO_OBRIGATORIO",
+          });
+        }
+      }
       // Limpa o bookUrl antigo de TODOS os itens do evento antes de setar o novo.
       // Isso garante que itens não selecionados não fiquem com URL obsoleta,
       // evitando que a exportação abra a versão antiga do book.
       await storage.clearEventBookUrl(req.params.eventId);
       const count = await storage.setItemsBookUrl(itemIds, bookUrl || null);
       if (bookUrl) {
-        await storage.createEventBook({ eventId: req.params.eventId, bookUrl, itemCount: count, createdBy: req.userName ?? null });
+        await storage.createEventBook({ eventId: req.params.eventId, bookUrl, itemCount: count, createdBy: req.userName ?? null, comment: textoDoComentario || null });
         invalidarCacheDeVersoes();
         // items.book_url guarda apenas a versão atual; event_books preserva
         // cada publicação anterior para consulta e download futuros.
@@ -4535,7 +4555,7 @@ export function registerItemRoutes(app: Express): void {
       // poder dizer "avisado" ou "não avisado, por isto".
       let aviso: BookEmailResult | null = null;
       if (bookUrl) {
-        aviso = await avisarBookPorEmail(req, req.params.eventId, bookUrl, count);
+        aviso = await avisarBookPorEmail(req, req.params.eventId, bookUrl, count, textoDoComentario || null);
         try {
           await createAuditLog(req, 'updated', 'event', req.params.eventId, descreverEnvio(aviso));
         } catch (error) {
@@ -4577,7 +4597,10 @@ export function registerItemRoutes(app: Express): void {
         return res.status(409).json({ error: "Este evento não tem book publicado para avisar." });
       }
 
-      const aviso = await avisarBookPorEmail(req, req.params.eventId, bookUrl, comBook.length);
+      // O reenvio repete o comentário da ÚLTIMA publicação — é dele que o e-mail fala.
+      const livros = (await storage.getAllEventBooks()).filter((b) => b.eventId === req.params.eventId)
+        .sort((a, b) => new Date(b.createdAt as any).getTime() - new Date(a.createdAt as any).getTime());
+      const aviso = await avisarBookPorEmail(req, req.params.eventId, bookUrl, comBook.length, livros[0]?.comment ?? null);
       // A tela de Versões mostra o último aviso lido da trilha — sem isto o
       // reenvio apareceria lá só depois do TTL do cache.
       invalidarCacheDeVersoes();

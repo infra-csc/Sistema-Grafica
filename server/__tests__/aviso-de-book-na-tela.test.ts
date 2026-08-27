@@ -114,7 +114,7 @@ describe("3 · quem recebe o aviso", () => {
 describe("4 · o e-mail nunca acontece antes do registro interno", () => {
   it("na publicação, o aviso vem depois da auditoria do book", () => {
     const auditoriaDoBook = ITEMS.indexOf("`Book de aprovação vinculado a ${count} peça(s)`");
-    const aviso = ITEMS.indexOf("aviso = await avisarBookPorEmail(req, req.params.eventId, bookUrl, count);");
+    const aviso = ITEMS.indexOf("aviso = await avisarBookPorEmail(req, req.params.eventId, bookUrl, count, textoDoComentario || null);");
     expect(auditoriaDoBook).toBeGreaterThan(-1);
     expect(aviso).toBeGreaterThan(auditoriaDoBook);
   });

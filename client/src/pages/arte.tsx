@@ -2,6 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { StatusBadge } from "@/components/status-badge";
 import { TextoComLinks } from "@/components/texto-com-links";
 import { SponsorChips } from "@/components/sponsor-chips";
+import { ComentarioDoBook, comentarioDoBookValido } from "@/components/comentario-do-book";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, CheckSquare, Palette, ExternalLink, RefreshCw, MoreHorizontal, Lock, WifiOff, Zap, Hourglass } from "lucide-react";
@@ -1155,8 +1156,20 @@ export default function Arte() {
     const ev = eventFilter.length > 0 ? eventFilter[0] : (bookEventOptions[0]?.value || "");
     setBookEventId(ev);
     setBookFileUrl(""); setBookFileName("");
+    setBookComentario("");
     setShowBookModal(true);
   };
+
+  // "O que mudou" (dono, 25/08): opcional na primeira publicação, obrigatório
+  // na republicação (existingBookUrl) — mesma régua do servidor. Os chips de
+  // patrocinador são atalho de escrita (ver comentario-do-book.tsx).
+  const [bookComentario, setBookComentario] = useState("");
+  const bookPatrocinadores = useMemo(() => {
+    const nomes = new Set<string>();
+    for (const i of bookEventPieces as any[]) for (const s of (i.sponsors ?? [])) if (s?.name) nomes.add(s.name);
+    return Array.from(nomes).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [bookEventPieces]);
+  const bookComentarioFalta = !!existingBookUrl && !comentarioDoBookValido(true, bookComentario);
 
   // Ao abrir ou trocar o evento, pré-marca todas as peças daquele evento.
   // O ref distingue "abriu/trocou de evento" (pré-marca tudo) de "a lista
@@ -1169,6 +1182,8 @@ export default function Arte() {
     if (bookPremarkedEventRef.current !== bookEventId) {
       bookPremarkedEventRef.current = bookEventId;
       setBookSelectedIds(eventPieceIds);
+      // trocou de evento: o "o que mudou" era do outro book — não pode vazar
+      setBookComentario("");
     } else {
       setBookSelectedIds(prev => new Set(Array.from(prev).filter(id => eventPieceIds.has(id))));
     }
@@ -1198,6 +1213,7 @@ export default function Arte() {
       const res = await apiRequest("POST", `/api/events/${bookEventId}/book`, {
         bookUrl: bookFileUrl,
         itemIds: Array.from(bookSelectedIds),
+        comentario: bookComentario.trim() || undefined,
       });
       return await res.json() as { updated: number; aviso: { status: string; para?: string[]; reason?: string } | null };
     },
@@ -5213,6 +5229,14 @@ export default function Arte() {
                 })}
               </div>
             </div>
+
+            {/* O que mudou — obrigatório quando o evento já tem book */}
+            <ComentarioDoBook
+              republicacao={!!existingBookUrl}
+              valor={bookComentario}
+              aoMudar={setBookComentario}
+              patrocinadores={bookPatrocinadores}
+            />
           </div>
 
           <ModalFooter>
@@ -5225,17 +5249,17 @@ export default function Arte() {
             {/* Filled — Salvar book */}
             <button
               onClick={() => saveBookMutation.mutate()}
-              disabled={!bookFileUrl || bookSelectedIds.size === 0 || saveBookMutation.isPending}
-              title={!bookFileUrl ? 'Adicione o arquivo PDF antes de salvar' : bookSelectedIds.size === 0 ? 'Selecione ao menos uma peça' : undefined}
+              disabled={!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta || saveBookMutation.isPending}
+              title={!bookFileUrl ? 'Adicione o arquivo PDF antes de salvar' : bookSelectedIds.size === 0 ? 'Selecione ao menos uma peça' : bookComentarioFalta ? 'Este evento já tem book — escreva o que mudou nesta versão' : undefined}
               style={{
                 height: 38, padding: '0 20px', borderRadius: 8, border: 'none',
-                background: (!bookFileUrl || bookSelectedIds.size === 0 || saveBookMutation.isPending) ? '#e7e5e4' : 'linear-gradient(135deg,#1c1917,#292524)',
-                color: (!bookFileUrl || bookSelectedIds.size === 0 || saveBookMutation.isPending) ? '#57534e' : '#fff',
-                fontSize: 13, fontWeight: 700, cursor: (!bookFileUrl || bookSelectedIds.size === 0) ? 'not-allowed' : 'pointer',
+                background: (!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta || saveBookMutation.isPending) ? '#e7e5e4' : 'linear-gradient(135deg,#1c1917,#292524)',
+                color: (!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta || saveBookMutation.isPending) ? '#57534e' : '#fff',
+                fontSize: 13, fontWeight: 700, cursor: (!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta) ? 'not-allowed' : 'pointer',
                 display: 'flex', alignItems: 'center', gap: 7, transition: 'filter 0.12s',
-                boxShadow: (!bookFileUrl || bookSelectedIds.size === 0) ? 'none' : '0 2px 8px rgba(28,25,23,0.2)',
+                boxShadow: (!bookFileUrl || bookSelectedIds.size === 0 || bookComentarioFalta) ? 'none' : '0 2px 8px rgba(28,25,23,0.2)',
               }}
-              onMouseEnter={e => { if (bookFileUrl && bookSelectedIds.size > 0) e.currentTarget.style.filter = 'brightness(1.15)'; }}
+              onMouseEnter={e => { if (bookFileUrl && bookSelectedIds.size > 0 && !bookComentarioFalta) e.currentTarget.style.filter = 'brightness(1.15)'; }}
               onMouseLeave={e => { e.currentTarget.style.filter = 'brightness(1)'; }}
             >
               {saveBookMutation.isPending

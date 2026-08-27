@@ -54,6 +54,8 @@ export type BookEmailInput = {
   saidaDoCaminhao?: string | null;
   /** 1 = primeira publicação; 2+ = atualização. */
   publicacao?: number | null;
+  /** O QUE MUDOU nesta publicação — obrigatório na republicação (25/08). */
+  comentario?: string | null;
   /** Quem recebe de frente, no "Para". */
   destinatariosPrincipais?: string[];
   /** Quem recebe em cópia oculta (quando houver dois níveis). */
@@ -206,6 +208,7 @@ export function buildBookEmailMessage(
       ? `O book de aprovação do evento ${eventName} foi ATUALIZADO (${input.publicacao}ª publicação).`
       : `O book de aprovação do evento ${eventName} está pronto.`,
     `Peças no book: ${pecas}.`,
+    ...(input.comentario ? [`O que mudou nesta versão: ${input.comentario}`] : []),
     ...(saida ? [`Saída do caminhão: ${saida}.`] : []),
     ...(input.publicadoPor ? [`Publicado por: ${input.publicadoPor}.`] : []),
     "",
@@ -272,6 +275,17 @@ export function buildBookEmailMessage(
       `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;"><tr>`,
       `<td style="padding:12px 14px;font-family:${FONTE};font-size:14px;color:#9a3412;line-height:1.45;">`,
       `Esta é a <strong>${input.publicacao}ª publicação</strong> do book deste evento. A versão anterior deixou de valer.`,
+      '</td></tr></table>',
+      '</td></tr>',
+    ] : []),
+
+    // ── O QUE MUDOU — o comentário de quem publicou (25/08) ──
+    ...(input.comentario ? [
+      '<tr><td style="padding:16px 32px 0;">',
+      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;"><tr>`,
+      `<td style="padding:12px 14px;font-family:${FONTE};font-size:14px;color:#0c4a6e;line-height:1.5;">`,
+      `<div style="font-size:11px;font-weight:bold;letter-spacing:.08em;text-transform:uppercase;color:#0369a1;padding-bottom:4px;">O que mudou nesta versão</div>`,
+      e(input.comentario),
       '</td></tr></table>',
       '</td></tr>',
     ] : []),

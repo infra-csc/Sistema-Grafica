@@ -103,7 +103,11 @@ async function chamar(rota: string, body: unknown, userRole = "arte"): Promise<{
   return { status: res.statusCode, body: res.body };
 }
 
-const callBookRoute = (body: unknown) => chamar("POST /api/events/:eventId/book", body);
+// O mock tem 1 publicação anterior → toda chamada aqui é REPUBLICAÇÃO, e
+// desde 25/08 republicar exige o comentário do que mudou. O harness manda
+// um por padrão; o teste da obrigatoriedade chama sem.
+const callBookRoute = (body: unknown) =>
+  chamar("POST /api/events/:eventId/book", { comentario: "Trocamos a arte da Livelo", ...(body as any) });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -195,6 +199,15 @@ describe("e-mail ao salvar book", () => {
     expect(H.createAuditLog).toHaveBeenCalledWith(
       expect.anything(), "updated", "event", "evento-1", "desfecho:sent",
     );
+  });
+
+  it("REPUBLICAR sem o comentário do que mudou é recusado — antes de qualquer escrita", async () => {
+    const r = await chamar("POST /api/events/:eventId/book", { bookUrl: "/objects/books/corrida.pdf", itemIds: ["item-1"] });
+    expect(r.status).toBe(400);
+    expect(r.body.code).toBe("COMENTARIO_OBRIGATORIO");
+    // nada foi limpo nem gravado: a recusa vem antes do clearEventBookUrl
+    expect(H.storage.clearEventBookUrl).not.toHaveBeenCalled();
+    expect(H.storage.createEventBook).not.toHaveBeenCalled();
   });
 
   it("não dispara e-mail ao remover o book", async () => {

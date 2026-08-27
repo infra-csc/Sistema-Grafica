@@ -349,6 +349,11 @@ export const eventBooks = pgTable("event_books", {
   bookUrl: text("book_url").notNull(),
   itemCount: integer("item_count").notNull().default(0),
   createdBy: text("created_by"),
+  // O QUE MUDOU nesta publicação (pedido do dono, 25/08). Primeira publicação:
+  // opcional. REPUBLICAÇÃO: obrigatório — quem recebe o e-mail do book novo
+  // precisa saber o que mudou sem folhear as páginas comparando. Sai no
+  // e-mail e na aba Books das Versões.
+  comment: text("comment"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 }, (table) => [
   index("IDX_event_books_event_id").on(table.eventId),

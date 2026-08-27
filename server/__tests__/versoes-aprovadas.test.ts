@@ -200,7 +200,7 @@ describe("3 · o servidor filtra, pagina, resume e exporta", () => {
     // por peça: publicar um book novo apaga o anterior. Sobra a contagem.
     expect(ROTA).toContain("membrosConhecidos: doBook !== null,");
     // e o book sem data (legado) continua sem fingir que é o mais novo
-    expect(ROTA).toContain('l.push({ bookUrl: cur.bookUrl, em: null, por: null, itemCount: cur.n, inferido: true, membrosConhecidos: true, pecasMudaramDepois: 0, pecasMudaram: [] });');
+    expect(ROTA).toContain('l.push({ bookUrl: cur.bookUrl, em: null, por: null, itemCount: cur.n, inferido: true, comentario: null, membrosConhecidos: true, pecasMudaramDepois: 0, pecasMudaram: [] });');
   });
 
   it("o CSV exporta o RECORTE inteiro, com BOM para o Excel em pt-BR", () => {

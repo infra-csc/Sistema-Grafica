@@ -72,6 +72,7 @@ type PecaQueMudou = {
 };
 type Book = {
   bookUrl: string; em: string | null; por: string | null; itemCount: number; inferido: boolean;
+  comentario: string | null;
   membrosConhecidos: boolean; pecasMudaramDepois: number; pecasMudaram: PecaQueMudou[];
 };
 /** O último aviso do book que SAIU por e-mail, lido da trilha. O e-mail não
@@ -1092,6 +1093,9 @@ function LinhaDoBook({ b, ev, i, total, isMobile, alturaControle, podeAvisar, po
                 a lista. Dizer "em dia" seria afirmar sem base, e um selo
                 enigmático é pior que o silêncio — o motivo fica aqui, em
                 português, para quem for atrás. */}
+            {b.comentario && (
+              <span style={{ display: 'block', marginTop: 2, fontStyle: 'italic', color: '#57534e' }}>“{b.comentario}”</span>
+            )}
             {!b.membrosConhecidos && (
               <span style={{ color: T.muted }}> · esta publicação foi substituída; o sistema guardou quantas peças ela tinha, não quais</span>
             )}

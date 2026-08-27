@@ -117,6 +117,8 @@ export type BookDoEvento = {
   por: string | null;
   itemCount: number;
   inferido: boolean;
+  /** O que mudou nesta publicação, escrito por quem publicou (25/08). */
+  comentario: string | null;
   /**
    * Dá para saber QUAIS peças estão neste book?
    *
@@ -400,6 +402,7 @@ async function carregar(): Promise<DadosDeVersoes> {
       .sort((a, b2) => b2.em.localeCompare(a.em));
     l.push({
       bookUrl: b.bookUrl, em, por: b.createdBy ?? null, itemCount: b.itemCount, inferido: false,
+      comentario: (b as any).comment ?? null,
       membrosConhecidos: doBook !== null,
       pecasMudaramDepois: mudaram.length,
       // Teto para o payload não crescer sem limite; a contagem acima é inteira.
@@ -418,7 +421,7 @@ async function carregar(): Promise<DadosDeVersoes> {
   for (const [eventId, cur] of Array.from(atualPorEvento.entries())) {
     const l = booksPorEvento.get(eventId) ?? [];
     if (!l.some((b) => b.bookUrl === cur.bookUrl)) {
-      l.push({ bookUrl: cur.bookUrl, em: null, por: null, itemCount: cur.n, inferido: true, membrosConhecidos: true, pecasMudaramDepois: 0, pecasMudaram: [] });
+      l.push({ bookUrl: cur.bookUrl, em: null, por: null, itemCount: cur.n, inferido: true, comentario: null, membrosConhecidos: true, pecasMudaramDepois: 0, pecasMudaram: [] });
       booksPorEvento.set(eventId, l);
     }
   }

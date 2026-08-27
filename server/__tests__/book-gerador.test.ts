@@ -84,7 +84,7 @@ describe("a paginação", () => {
 describe("o gerador publica pelo caminho do book manual", () => {
   it("upload-direct + POST /book — nenhum fluxo novo de storage", () => {
     expect(GERADOR).toContain('fetch("/api/objects/upload-direct"');
-    expect(PAGINA).toContain("await apiRequest(\"POST\", `/api/events/${eventId}/book`, { bookUrl, itemIds });");
+    expect(PAGINA).toContain("await apiRequest(\"POST\", `/api/events/${eventId}/book`, { bookUrl, itemIds, comentario: comentario.trim() || undefined });");
   });
 
   it("arte reamostrada com fundo BRANCO — PNG transparente viraria fundo preto no JPEG", () => {

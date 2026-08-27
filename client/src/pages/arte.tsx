@@ -88,6 +88,10 @@ const ARTE_PAGE_SIZE = 100;
 // Quantos eventos aparecem no resumo antes do "mais N". Oito costuma caber em
 // uma linha em telas de trabalho; o resto entra por expansão.
 const EVENT_CHIPS_VISIBLE = 8;
+// "Quem está travando": só os piores ficam à vista (mesma cura da régua de
+// eventos logo abaixo). Em produção a faixa chegou a 40+ marcas com o mesmo
+// peso visual — "design péssimo" (dono, 26/08); o olho não tinha onde pousar.
+const TRAVANDO_CHIPS_VISIBLE = 8;
 
 /**
  * Colunas da lista. As larguras saíram de medir o conteúdo real renderizado, e
@@ -517,6 +521,7 @@ export default function Arte() {
   // Paginação da tabela — ver comentário em renderGroupedTable.
   const [visibleCount, setVisibleCount] = useState(ARTE_PAGE_SIZE);
   const [showAllEvents, setShowAllEvents] = useState(false);
+  const [showAllTravando, setShowAllTravando] = useState(false);
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
 
   // Trocar de aba troca a lista inteira; manter o scroll onde estava deixava o
@@ -2673,33 +2678,81 @@ export default function Arte() {
           </div>
         )}
 
-        {travando.length > 0 && (
-          <div data-testid="faixa-travando" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '9px 14px', borderRadius: 10, background: '#fafaf9', border: '1px solid #e7e5e4' }}>
-            <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#57534e', whiteSpace: 'nowrap' }}>Quem está travando</span>
-            {travando.map(t => {
-              const ligado = sponsorFilter.length === 1 && sponsorFilter[0] === t.id;
-              const tom = tomDaIdade(t.espera);
-              return (
-                <button
-                  key={t.id}
-                  type="button"
-                  onClick={() => setSponsorFilter(ligado ? [] : [t.id])}
-                  aria-pressed={ligado}
-                  data-testid={`chip-travando-${t.id}`}
-                  title={ligado ? `Mostrar todas as peças de novo` : `Ver só as ${t.pecas} ${t.pecas === 1 ? 'peça que espera' : 'peças que esperam'} ${t.nome} — a mais antiga há ${t.espera}d`}
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: isMobile ? 40 : 28, padding: '0 10px', borderRadius: 999, border: `1px solid ${ligado ? '#1c1917' : '#e7e5e4'}`, background: ligado ? '#1c1917' : '#ffffff', color: ligado ? '#ffffff' : '#1c1917', fontSize: 12, fontWeight: 700, cursor: 'pointer', font: 'inherit', whiteSpace: 'nowrap' }}
-                >
-                  <Clock style={{ width: 11, height: 11, flexShrink: 0, color: ligado ? '#ffffff' : '#b45309' }} />
-                  {t.nome}
-                  <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: ligado ? 'rgba(255,255,255,0.8)' : '#57534e' }}>{t.pecas}</span>
-                  {t.espera > 0 && (
-                    <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: tom.peso, color: ligado ? '#ffffff' : tom.cor }}>+{t.espera}d</span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
+        {/* QUEM ESTÁ TRAVANDO, segunda forma (dono, 26/08: "design péssimo").
+            A primeira versão despejava TODAS as marcas como chips iguais —
+            40+ em produção, uma parede sem hierarquia. Três curas:
+            · só as TRAVANDO_CHIPS_VISIBLE piores ficam à vista (a ordenação já
+              é espera ↓, peças ↓); o resto atrás de "+ N outras";
+            · o CHIP inteiro veste a cor da gravidade (a régua de tomDaIdade:
+              ≥14d gargalo vermelho, 7–13d atenção âmbar, <7d rotina neutra) —
+              antes só o "+Nd" mudava de cor e o olho não tinha onde pousar;
+            · o cabeçalho resume a conta ("N marcas seguram M aprovações") —
+              o tamanho do problema sem contar chip por chip. */}
+        {travando.length > 0 && (() => {
+          // O chip LIGADO nunca se esconde atrás do "+ N outras": é ele que
+          // carrega o caminho de volta ("mostrar todas as peças de novo").
+          const visiveis = showAllTravando ? travando : (() => {
+            const corte = travando.slice(0, TRAVANDO_CHIPS_VISIBLE);
+            const ligadoFora = sponsorFilter.length === 1 && !corte.some(t => t.id === sponsorFilter[0])
+              ? travando.find(t => t.id === sponsorFilter[0])
+              : undefined;
+            return ligadoFora ? [...corte, ligadoFora] : corte;
+          })();
+          const ocultas = travando.length - visiveis.length;
+          const pendencias = travando.reduce((s, t) => s + t.pecas, 0);
+          const pele = (espera: number, ligado: boolean) => {
+            if (ligado) return { bg: '#1c1917', borda: '#1c1917', texto: '#ffffff' };
+            if (espera >= 14) return { bg: '#fef2f2', borda: '#fecaca', texto: '#991b1b' };
+            if (espera >= 7) return { bg: '#fffbeb', borda: '#fde68a', texto: '#92400e' };
+            return { bg: '#ffffff', borda: '#e7e5e4', texto: '#44403c' };
+          };
+          return (
+            <div data-testid="faixa-travando" style={{ padding: '10px 14px', borderRadius: 10, background: '#fafaf9', border: '1px solid #e7e5e4' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#57534e', whiteSpace: 'nowrap' }}>Quem está travando</span>
+                <span data-testid="travando-resumo" style={{ fontSize: 12, color: '#78716c' }}>
+                  {travando.length} {travando.length === 1 ? 'marca segura' : 'marcas seguram'} {pendencias} {pendencias === 1 ? 'aprovação' : 'aprovações'}
+                  {travando[0].espera > 0 ? ` — a mais antiga espera há ${travando[0].espera}d` : ''}
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                {visiveis.map(t => {
+                  const ligado = sponsorFilter.length === 1 && sponsorFilter[0] === t.id;
+                  const tom = tomDaIdade(t.espera);
+                  const p = pele(t.espera, ligado);
+                  return (
+                    <button
+                      key={t.id}
+                      type="button"
+                      onClick={() => setSponsorFilter(ligado ? [] : [t.id])}
+                      aria-pressed={ligado}
+                      data-testid={`chip-travando-${t.id}`}
+                      title={ligado ? `Mostrar todas as peças de novo` : `Ver só as ${t.pecas} ${t.pecas === 1 ? 'peça que espera' : 'peças que esperam'} ${t.nome} — a mais antiga há ${t.espera}d`}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: isMobile ? 40 : 28, padding: '0 10px', borderRadius: 999, border: `1px solid ${p.borda}`, background: p.bg, color: p.texto, fontSize: 12, fontWeight: 700, cursor: 'pointer', font: 'inherit', whiteSpace: 'nowrap' }}
+                    >
+                      <Clock style={{ width: 11, height: 11, flexShrink: 0, color: ligado ? '#ffffff' : tom.cor }} />
+                      {t.nome}
+                      <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: ligado ? 'rgba(255,255,255,0.8)' : p.texto }}>{t.pecas}</span>
+                      {t.espera > 0 && (
+                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: tom.peso, color: ligado ? '#ffffff' : tom.cor }}>+{t.espera}d</span>
+                      )}
+                    </button>
+                  );
+                })}
+                {(ocultas > 0 || showAllTravando) && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllTravando(v => !v)}
+                    data-testid="button-travando-todas"
+                    style={{ display: 'inline-flex', alignItems: 'center', height: isMobile ? 40 : 28, padding: '0 10px', borderRadius: 999, border: '1px dashed #d6d3d1', background: 'transparent', color: '#57534e', fontSize: 12, fontWeight: 700, cursor: 'pointer', font: 'inherit', whiteSpace: 'nowrap' }}
+                  >
+                    {showAllTravando ? 'Mostrar menos' : `+ ${ocultas} outra${ocultas !== 1 ? 's' : ''}`}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* Recorte padrão da aba Finalizados — ver dentroDaJanelaFinalizados. */}
         {tabId === "finalizados" && (finalizadosForaDaJanela > 0 || finalizadosTudo) && (

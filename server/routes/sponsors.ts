@@ -20,6 +20,7 @@ import {
 // vale a dependência de módulo de rota para módulo de rota nesse sentido:
 // items.ts não importa nada daqui.
 import { barraEventoFinalizado, motivoEventoDaPeca, contadorDeBloqueio } from "./items";
+import { motivoEventoFechado } from "./eventoFinalizado";
 import { invalidarCacheDeVersoes } from "./versoes";
 import { DEPOIS_DA_ARTE, POS_APROVACAO } from "@shared/fluxo-peca";
 
@@ -747,121 +748,125 @@ export function registerSponsorRoutes(app: Express): void {
       const recusadas: { displayId: string; motivo: string }[] = [];
       let pendenciasCriadas = 0;
 
-      for (const itemId of itemIds) {
-        const item = await storage.getItem(itemId);
-        if (!item || (item as any).deletedAt) {
-          recusadas.push({ displayId: String(itemId), motivo: "peça não encontrada" });
-          continue;
+      // ── EM PARALELO, com o EVENTO lido uma vez (25/08: "travando") ────────
+      // A primeira versão era um for..await com ~8 idas ao banco POR PEÇA —
+      // no Neon frio, 4 peças viravam dezenas de segundos e o diálogo ficava
+      // em "Acrescentando…" sem fim. As peças são independentes entre si; o
+      // que é por EVENTO (o evento em si, o vínculo evento↔patrocinador) é
+      // memoizado por promise para não correr duas vezes.
+      const eventoMemo = new Map<string, Promise<any>>();
+      const eventoDe = (eventId: string) => {
+        if (!eventoMemo.has(eventId)) eventoMemo.set(eventId, storage.getEvent(eventId));
+        return eventoMemo.get(eventId)!;
+      };
+      const vinculoDeEventoMemo = new Map<string, Promise<void>>();
+      const garanteVinculoNoEvento = (eventId: string) => {
+        if (!vinculoDeEventoMemo.has(eventId)) {
+          vinculoDeEventoMemo.set(eventId, (async () => {
+            const doEvento = await storage.getEventSponsors(eventId);
+            if (!doEvento.some((v) => v.sponsorId === sponsorId)) {
+              try {
+                await storage.addSponsorToEvent({ eventId, sponsorId } as any);
+              } catch {
+                // corrida com outra aba: o vínculo de PEÇA é quem decide se a
+                // operação falhou de verdade.
+              }
+            }
+          })());
         }
-        const rotulo = item.displayId || item.type || itemId;
+        return vinculoDeEventoMemo.get(eventId)!;
+      };
 
-        const motivoEvento = await motivoEventoDaPeca(item);
-        if (motivoEvento) {
-          recusadas.push({ displayId: rotulo, motivo: bloqueio.registra(motivoEvento) });
-          continue;
-        }
-        // Peça que JÁ PASSOU (finalização ou revisão) não é recusada: ela
-        // reabre para que só o novo patrocinador decida — ver `reabre` abaixo.
-        const jaPassou = POS_APROVACAO.includes(item.status);
-        if (!ACEITA.includes(item.status) && !jaPassou) {
-          recusadas.push({
-            displayId: rotulo,
-            motivo: `já foi liberada para a produção (está em "${translateStatus(item.status)}") — a partir daí a peça é da Gráfica, e incluir um patrocinador exigiria tirá-la da fila`,
-          });
-          continue;
-        }
+      await Promise.all(itemIds.map(async (itemId: string) => {
+        let rotulo = String(itemId);
+        try {
+          const item = await storage.getItem(itemId);
+          if (!item || (item as any).deletedAt) {
+            recusadas.push({ displayId: rotulo, motivo: "peça não encontrada" });
+            return;
+          }
+          rotulo = item.displayId || item.type || itemId;
 
-        // O patrocinador precisa existir NO EVENTO antes de existir na peça:
-        // sem isso a peça carrega uma marca que nenhuma outra tela do evento
-        // conhece (o desencontro que o reparo de vínculos teve de limpar).
-        if (!eventosJaVinculados.has(item.eventId)) {
-          const doEvento = await storage.getEventSponsors(item.eventId);
-          if (!doEvento.some((v) => v.sponsorId === sponsorId)) {
-            try {
-              await storage.addSponsorToEvent({ eventId: item.eventId, sponsorId } as any);
-            } catch {
-              // corrida com outra aba: o vínculo de PEÇA abaixo é quem decide
-              // se a operação falhou de verdade.
+          const motivoEvento = motivoEventoFechado(await eventoDe(item.eventId));
+          if (motivoEvento) {
+            recusadas.push({ displayId: rotulo, motivo: bloqueio.registra(motivoEvento) });
+            return;
+          }
+          const jaPassou = POS_APROVACAO.includes(item.status);
+          if (!ACEITA.includes(item.status) && !jaPassou) {
+            recusadas.push({
+              displayId: rotulo,
+              motivo: `já foi liberada para a produção (está em "${translateStatus(item.status)}") — a partir daí a peça é da Gráfica, e incluir um patrocinador exigiria tirá-la da fila`,
+            });
+            return;
+          }
+
+          // O patrocinador precisa existir NO EVENTO antes de existir na peça
+          // (o desencontro que o reparo de vínculos teve de limpar).
+          await garanteVinculoNoEvento(item.eventId);
+
+          const jaNaPeca = (await storage.getItemSponsors(itemId)).some((v: any) => v.sponsorId === sponsorId);
+          if (jaNaPeca) { jaTinham.push(rotulo); return; }
+
+          await storage.addSponsorToItem({ itemId, sponsorId } as any);
+          vinculadas.push(rotulo);
+
+          // Peça ISENTA deixa de ser isenta (caso Mandala): com patrocinador a
+          // aprovar, a isenção faria a rodada nascer fechada. Só limpa, nunca marca.
+          const eraIsenta = !!item.skipApproval;
+          if (eraIsenta && !jaPassou) {
+            await storage.updateItem(itemId, { skipApproval: false });
+          }
+
+          // A linha "pendente" nasce junto sempre que já há rodada — a em curso
+          // ou a que está sendo reaberta agora.
+          if (EM_APROVACAO.includes(item.status) || jaPassou) {
+            const linha = await storage.getItemSponsorApproval(itemId, sponsorId);
+            if (!linha) {
+              await storage.createItemSponsorApproval({ itemId, sponsorId, status: "pending" } as any);
+              pendenciasCriadas++;
             }
           }
-          eventosJaVinculados.add(item.eventId);
-        }
 
-        const jaNaPeca = (await storage.getItemSponsors(itemId)).some((v: any) => v.sponsorId === sponsorId);
-        if (jaNaPeca) { jaTinham.push(rotulo); continue; }
-
-        await storage.addSponsorToItem({ itemId, sponsorId } as any);
-        vinculadas.push(rotulo);
-
-        // ── PEÇA ISENTA DEIXA DE SER ISENTA (caso Mandala, 25/08) ───────────
-        // A regra "não mexe em skipApproval" valia para não REMOVER decisões —
-        // mas peça marcada "sem aprovação" com um patrocinador recém-vinculado
-        // é um estado impossível: a isenção faz toda a máquina tratar a rodada
-        // como fechada, e a pendência do novo patrocinador viraria letra
-        // morta (rodadaDeAprovacaoFechada devolve true na primeira linha).
-        // Acrescentar alguém que PRECISA aprovar é, por definição, dizer que a
-        // peça deixou de ser isenta. Só limpa — nunca marca.
-        const eraIsenta = !!item.skipApproval;
-        if (eraIsenta && !jaPassou) {
-          await storage.updateItem(itemId, { skipApproval: false });
-        }
-
-        // A linha "pendente" nasce junto sempre que já há rodada — a em curso
-        // (EM_APROVACAO) ou a que está sendo reaberta agora (jaPassou).
-        if (EM_APROVACAO.includes(item.status) || jaPassou) {
-          const linha = await storage.getItemSponsorApproval(itemId, sponsorId);
-          if (!linha) {
-            await storage.createItemSponsorApproval({ itemId, sponsorId, status: "pending" } as any);
-            pendenciasCriadas++;
+          // REABRIR PARA QUE SÓ O NOVO DECIDA: a mesma reabertura da revogação —
+          // o arquivo final e a arte FICAM; quem já aprovou não decide de novo.
+          if (jaPassou) {
+            const reaberta = await storage.updateItem(itemId, {
+              status: "awaiting_sponsor_approval",
+              skipApproval: false,
+              sponsorApprovedBy: null,
+              sponsorApprovedAt: null,
+              rejectedBySponsor: false,
+            });
+            reabertas.push(rotulo);
+            const evento = await eventoDe(item.eventId);
+            const aviso = await storage.createNotification({
+              type: "itemRejected",
+              message: `"${sponsor.name}" foi acrescentado e precisa aprovar — segure a finalização: ${item.type} - Evento: ${evento?.name}`,
+              eventId: item.eventId,
+              itemId,
+              targetRoles: ["arte"],
+            });
+            broadcast({ type: "item_updated", item: reaberta });
+            broadcast({ type: "notification_created", aviso });
           }
-        }
 
-        // ── REABRIR PARA QUE SÓ O NOVO DECIDA (decisão do dono, 25/08) ──────
-        // A peça volta a "Aguardando Aprovação" e reaparece no Atendimento com
-        // UMA pendência: a do recém-chegado. Quem já aprovou continua aprovado
-        // e não decide de novo — as linhas deles não são tocadas.
-        //
-        // É a MESMA reabertura da revogação (routes/items.ts), inclusive no que
-        // ela preserva: o arquivo final e a arte que a Arte já subiu FICAM.
-        // Reabrir é sobre a decisão, não sobre o material.
-        if (jaPassou) {
-          const reaberta = await storage.updateItem(itemId, {
-            status: "awaiting_sponsor_approval",
-            // A isenção cai junto quando existia (as Mandala estavam em revisão
-            // JUSTAMENTE por serem isentas): sem isso a rodada reaberta nasce
-            // fechada e a peça avança de volta sem o novo decidir.
-            skipApproval: false,
-            sponsorApprovedBy: null,
-            sponsorApprovedAt: null,
-            rejectedBySponsor: false,
-          });
-          reabertas.push(rotulo);
-          // A Arte pode estar com a peça na mesa neste instante: ela precisa
-          // saber que a aprovação caiu antes de mandar o arquivo final.
-          const evento = await storage.getEvent(item.eventId);
-          const aviso = await storage.createNotification({
-            type: "itemRejected",
-            message: `"${sponsor.name}" foi acrescentado e precisa aprovar — segure a finalização: ${item.type} - Evento: ${evento?.name}`,
-            eventId: item.eventId,
-            itemId,
-            targetRoles: ["arte"],
-          });
-          broadcast({ type: "item_updated", item: reaberta });
-          broadcast({ type: "notification_created", aviso });
+          await createAuditLog(
+            req, "added", "item", itemId,
+            `Patrocinador "${sponsor.name}" acrescentado à peça ${rotulo} depois do envio`
+              + (jaPassou
+                ? ` — a peça já tinha passado (${translateStatus(item.status)}) e voltou para a aprovação; só ele decide, os demais seguem aprovados`
+                : EM_APROVACAO.includes(item.status)
+                  ? " — entra na rodada de aprovação em curso"
+                  : " — entrará na aprovação quando a Arte enviar o layout")
+              + (eraIsenta ? '; a peça deixou de ser "sem aprovação" — com patrocinador vinculado, a isenção não faz mais sentido' : ""),
+          );
+          broadcast({ type: "item_sponsor_added", itemSponsor: { itemId, sponsorId } });
+        } catch (e: any) {
+          // Uma peça com problema NÃO derruba o lote: vira recusa nomeada.
+          recusadas.push({ displayId: rotulo, motivo: `falha interna: ${e?.message ?? "erro desconhecido"}` });
         }
-
-        await createAuditLog(
-          req, "added", "item", itemId,
-          `Patrocinador "${sponsor.name}" acrescentado à peça ${rotulo} depois do envio`
-            + (jaPassou
-              ? ` — a peça já tinha passado (${translateStatus(item.status)}) e voltou para a aprovação; só ele decide, os demais seguem aprovados`
-              : EM_APROVACAO.includes(item.status)
-                ? " — entra na rodada de aprovação em curso"
-                : " — entrará na aprovação quando a Arte enviar o layout")
-            + (eraIsenta ? '; a peça deixou de ser "sem aprovação" — com patrocinador vinculado, a isenção não faz mais sentido' : ""),
-        );
-        broadcast({ type: "item_sponsor_added", itemSponsor: { itemId, sponsorId } });
-      }
+      }));
 
       // Lote inteiro barrado por evento finalizado responde 409, como as outras
       // rotas de lote — 200 com "0 feitos" seria não fazer nada sem dizer por quê.

@@ -60,7 +60,7 @@ describe("a rota só SOMA — nunca reescreve", () => {
   });
 
   it("peça que já tem o patrocinador é contada, não duplicada", () => {
-    expect(bloco).toContain("if (jaNaPeca) { jaTinham.push(rotulo); continue; }");
+    expect(bloco).toContain("if (jaNaPeca) { jaTinham.push(rotulo); return; }");
   });
 
   it("vincula ao EVENTO antes da peça — marca que o evento não conhece foi bug", () => {
@@ -146,7 +146,8 @@ describe("o lote é honesto sobre o que não fez", () => {
   });
 
   it("evento finalizado usa a guarda da casa, e o lote inteiro barrado vira 409", () => {
-    expect(bloco).toContain("await motivoEventoDaPeca(item)");
+    // o evento é lido UMA vez por evento (memo) — era uma leitura por peça
+    expect(bloco).toContain("motivoEventoFechado(await eventoDe(item.eventId))");
     expect(bloco).toContain("bloqueio.respondeLoteInteiro(res,");
   });
 

@@ -21,7 +21,7 @@ import {
 // items.ts não importa nada daqui.
 import { barraEventoFinalizado, motivoEventoDaPeca, contadorDeBloqueio } from "./items";
 import { invalidarCacheDeVersoes } from "./versoes";
-import { DEPOIS_DA_ARTE } from "@shared/fluxo-peca";
+import { DEPOIS_DA_ARTE, POS_APROVACAO } from "@shared/fluxo-peca";
 
 // Papéis que escrevem em vinculação de patrocinadores — o mesmo conjunto que a
 // rota /vincular-patrocinadores permite no client (App.tsx). Antes essas rotas
@@ -742,6 +742,7 @@ export function registerSponsorRoutes(app: Express): void {
       const bloqueio = contadorDeBloqueio();
       const eventosJaVinculados = new Set<string>();
       const vinculadas: string[] = [];
+      const reabertas: string[] = [];
       const jaTinham: string[] = [];
       const recusadas: { displayId: string; motivo: string }[] = [];
       let pendenciasCriadas = 0;
@@ -759,10 +760,13 @@ export function registerSponsorRoutes(app: Express): void {
           recusadas.push({ displayId: rotulo, motivo: bloqueio.registra(motivoEvento) });
           continue;
         }
-        if (!ACEITA.includes(item.status)) {
+        // Peça que JÁ PASSOU (finalização ou revisão) não é recusada: ela
+        // reabre para que só o novo patrocinador decida — ver `reabre` abaixo.
+        const jaPassou = POS_APROVACAO.includes(item.status);
+        if (!ACEITA.includes(item.status) && !jaPassou) {
           recusadas.push({
             displayId: rotulo,
-            motivo: `já passou da aprovação (está em "${translateStatus(item.status)}") — para incluir um patrocinador agora, revogue a aprovação no Atendimento`,
+            motivo: `já foi liberada para a produção (está em "${translateStatus(item.status)}") — a partir daí a peça é da Gráfica, e incluir um patrocinador exigiria tirá-la da fila`,
           });
           continue;
         }
@@ -789,7 +793,9 @@ export function registerSponsorRoutes(app: Express): void {
         await storage.addSponsorToItem({ itemId, sponsorId } as any);
         vinculadas.push(rotulo);
 
-        if (EM_APROVACAO.includes(item.status)) {
+        // A linha "pendente" nasce junto sempre que já há rodada — a em curso
+        // (EM_APROVACAO) ou a que está sendo reaberta agora (jaPassou).
+        if (EM_APROVACAO.includes(item.status) || jaPassou) {
           const linha = await storage.getItemSponsorApproval(itemId, sponsorId);
           if (!linha) {
             await storage.createItemSponsorApproval({ itemId, sponsorId, status: "pending" } as any);
@@ -797,10 +803,44 @@ export function registerSponsorRoutes(app: Express): void {
           }
         }
 
+        // ── REABRIR PARA QUE SÓ O NOVO DECIDA (decisão do dono, 25/08) ──────
+        // A peça volta a "Aguardando Aprovação" e reaparece no Atendimento com
+        // UMA pendência: a do recém-chegado. Quem já aprovou continua aprovado
+        // e não decide de novo — as linhas deles não são tocadas.
+        //
+        // É a MESMA reabertura da revogação (routes/items.ts), inclusive no que
+        // ela preserva: o arquivo final e a arte que a Arte já subiu FICAM.
+        // Reabrir é sobre a decisão, não sobre o material.
+        if (jaPassou) {
+          const reaberta = await storage.updateItem(itemId, {
+            status: "awaiting_sponsor_approval",
+            sponsorApprovedBy: null,
+            sponsorApprovedAt: null,
+            rejectedBySponsor: false,
+          });
+          reabertas.push(rotulo);
+          // A Arte pode estar com a peça na mesa neste instante: ela precisa
+          // saber que a aprovação caiu antes de mandar o arquivo final.
+          const evento = await storage.getEvent(item.eventId);
+          const aviso = await storage.createNotification({
+            type: "itemRejected",
+            message: `"${sponsor.name}" foi acrescentado e precisa aprovar — segure a finalização: ${item.type} - Evento: ${evento?.name}`,
+            eventId: item.eventId,
+            itemId,
+            targetRoles: ["arte"],
+          });
+          broadcast({ type: "item_updated", item: reaberta });
+          broadcast({ type: "notification_created", aviso });
+        }
+
         await createAuditLog(
           req, "added", "item", itemId,
           `Patrocinador "${sponsor.name}" acrescentado à peça ${rotulo} depois do envio`
-            + (EM_APROVACAO.includes(item.status) ? " — entra na rodada de aprovação em curso" : " — entrará na aprovação quando a Arte enviar o layout"),
+            + (jaPassou
+              ? ` — a peça já tinha passado (${translateStatus(item.status)}) e voltou para a aprovação; só ele decide, os demais seguem aprovados`
+              : EM_APROVACAO.includes(item.status)
+                ? " — entra na rodada de aprovação em curso"
+                : " — entrará na aprovação quando a Arte enviar o layout"),
         );
         broadcast({ type: "item_sponsor_added", itemSponsor: { itemId, sponsorId } });
       }
@@ -813,6 +853,7 @@ export function registerSponsorRoutes(app: Express): void {
       res.json({
         sponsor: sponsor.name,
         vinculadas: vinculadas.length,
+        reabertas: reabertas.length,
         jaTinham: jaTinham.length,
         pendenciasCriadas,
         recusadas,

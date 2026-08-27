@@ -61,3 +61,27 @@ export const EM_REVISAO: ReadonlySet<string> = new Set([
  */
 export const ehBookCompleto = (i: { type?: string | null } | null | undefined): boolean =>
   /book[\s_-]*completo/i.test(i?.type ?? "");
+
+/**
+ * PEÇA QUE JÁ FECHOU A RODADA DE APROVAÇÃO — e ainda não foi liberada para a
+ * Gráfica. É a faixa entre "todos aprovaram" e "pronto para produção":
+ * finalização da Arte e revisão.
+ *
+ * Duas ações leem DESTA lista, e é por isso que ela mora aqui em vez de em
+ * cada uma:
+ *   · REVOGAR uma aprovação (routes/items.ts) — linha "Aguardando" ⇒ a peça
+ *     volta pendente no Atendimento, de qualquer status pós-aprovação;
+ *   · ACRESCENTAR um patrocinador depois que a peça passou (routes/sponsors.ts,
+ *     25/08) — a peça reabre para que SÓ o novo decida.
+ *
+ * As duas reabrem sem apagar trabalho: o arquivo final e a arte que a Arte já
+ * subiu ficam. Reabrir é sobre a DECISÃO, não sobre o material.
+ *
+ * O corte no fim da lista é deliberado (decisão do dono, 25/08): da liberação
+ * para a produção em diante, a peça é chão de fábrica — puxá-la de volta seria
+ * tirar trabalho da mesa da Gráfica por uma decisão comercial.
+ */
+export const POS_APROVACAO: readonly string[] = [
+  "sponsor_approved", "awaiting_finalization",
+  "awaiting_final_review", "awaiting_review", "in_review",
+];

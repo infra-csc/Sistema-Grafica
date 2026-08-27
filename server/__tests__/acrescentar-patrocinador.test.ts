@@ -73,17 +73,48 @@ describe("até a aprovação fechar — inclusive em correção", () => {
     expect(bloco).toContain("A CORREÇÃO está aqui dentro");
   });
 
-  it("peça APROVADA é recusada, com o caminho do conserto na frase", () => {
-    expect(bloco).toContain("if (!ACEITA.includes(item.status)) {");
-    expect(bloco).toContain("já passou da aprovação");
-    expect(bloco).toContain("revogue a aprovação no Atendimento");
-    // sponsor_approved NÃO está na lista de aceitos
-    const listaAceita = bloco.slice(bloco.indexOf("const ACEITA"), bloco.indexOf("const EM_APROVACAO"));
-    expect(listaAceita).not.toContain("sponsor_approved");
+  it("peça que JÁ PASSOU (finalização/revisão) REABRE — e só o novo decide", () => {
+    // Segunda rodada da regra (dono, 25/08): "quando já passou para a revisão
+    // ou foi aprovada, volta só ela para aprovação — só um patrocinador".
+    expect(bloco).toContain("const jaPassou = POS_APROVACAO.includes(item.status);");
+    expect(bloco).toContain('status: "awaiting_sponsor_approval",');
+    // quem já aprovou NÃO decide de novo: as linhas deles não são tocadas
+    // (nenhum reset de aprovação existe neste bloco)
+    expect(bloco).not.toContain("initializeItemSponsorApprovals");
+    expect(bloco).not.toContain('status: "pending" } as any)); //');
+    // a arte que a Arte subiu FICA — reabrir é sobre a decisão
+    expect(bloco).not.toContain("finalFileUrl: null");
+    expect(bloco).not.toContain("approvalThumbUrl: null");
+    // e a Arte é avisada para segurar a finalização
+    expect(bloco).toContain("segure a finalização");
+    expect(bloco).toContain('targetRoles: ["arte"],');
+    // a trilha explica o que aconteceu
+    expect(bloco).toContain("voltou para a aprovação; só ele decide, os demais seguem aprovados");
   });
 
-  it("a pendência de aprovação nasce só quando a rodada já está aberta", () => {
+  it("a REGRA DA REABERTURA é a mesma da revogação — lista única em shared", () => {
+    // POS_APROVACAO saiu da rota de revogar e do script de reparo para
+    // @shared/fluxo-peca; três cópias divergiriam no primeiro status novo.
+    const FLUXO = ler("shared/fluxo-peca.ts");
+    expect(FLUXO).toContain("export const POS_APROVACAO: readonly string[] = [");
+    const ITEMS = ler("server/routes/items.ts");
+    expect(ITEMS).not.toContain('const POS_APROVACAO = ["sponsor_approved"');
+    expect(ler("scripts/reparar-aprovacao-incoerente.ts")).toContain('from "../shared/fluxo-peca"');
+  });
+
+  it("o corte é a LIBERAÇÃO para a produção — dali em diante recusa, com o porquê", () => {
+    expect(bloco).toContain("if (!ACEITA.includes(item.status) && !jaPassou) {");
+    expect(bloco).toContain("já foi liberada para a produção");
+    expect(bloco).toContain("a peça é da Gráfica");
+    // ready_for_production não está em nenhuma das duas listas de entrada
+    const listaAceita = bloco.slice(bloco.indexOf("const ACEITA"), bloco.indexOf("const EM_APROVACAO"));
+    expect(listaAceita).not.toContain("ready_for_production");
+    expect(ler("shared/fluxo-peca.ts").slice(0, 99999)).not.toMatch(/POS_APROVACAO[\s\S]{0,400}ready_for_production/);
+  });
+
+  it("a pendência de aprovação nasce quando há rodada — em curso ou reaberta", () => {
     expect(bloco).toContain('const EM_APROVACAO = ["awaiting_approval", "awaiting_sponsor_approval"];');
+    expect(bloco).toContain("if (EM_APROVACAO.includes(item.status) || jaPassou) {");
     expect(bloco).toContain("storage.createItemSponsorApproval({ itemId, sponsorId, status: \"pending\" }");
   });
 });

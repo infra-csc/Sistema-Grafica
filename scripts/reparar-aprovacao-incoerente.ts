@@ -26,10 +26,9 @@ import { db } from "../server/db";
 import { items, itemSponsorApprovals, itemSponsors, auditLogs } from "../shared/schema";
 import { sql, inArray, and, isNull } from "drizzle-orm";
 
-export const POS_APROVACAO = [
-  "sponsor_approved", "awaiting_finalization",
-  "awaiting_final_review", "awaiting_review", "in_review",
-] as const;
+// A lista é a mesma da revogação e do acrescentar — @shared/fluxo-peca.
+export { POS_APROVACAO } from "../shared/fluxo-peca";
+import { POS_APROVACAO } from "../shared/fluxo-peca";
 
 async function main() {
   const aplicar = process.argv.includes("--aplicar");

@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { storage, assetPrefix, assetSeqOf, isDisplayIdConflictError } from "../storage";
 import type { Item } from "@shared/schema";
-import { DEPOIS_DA_ARTE, EM_REVISAO, ehBookCompleto } from "@shared/fluxo-peca";
+import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, ehBookCompleto } from "@shared/fluxo-peca";
 import {
   insertItemSchema,
   publicInsertItemSchema,
@@ -2560,7 +2560,9 @@ export function registerItemRoutes(app: Express): void {
       // incoerente ANDA (arquivo final → revisão → devolvida) sem fechar a
       // rodada por baixo — o caso #4176 estava em Finalização de novo quando
       // o dono tentou revogar pela segunda vez.
-      const POS_APROVACAO = ["sponsor_approved", "awaiting_finalization", "awaiting_final_review", "awaiting_review", "in_review"];
+      // A lista mora em @shared/fluxo-peca: o "acrescentar patrocinador
+      // depois que a peça passou" (routes/sponsors.ts) reabre pela MESMA régua,
+      // e duas cópias divergiriam no primeiro status novo.
       // Linha já pendente COM a peça já avançada é o estado incoerente que o
       // atalho de aprovação deixava antes de 24/08 (caso #4176): não há o que
       // revogar NA LINHA, mas há o que REABRIR — e é para isso que quem

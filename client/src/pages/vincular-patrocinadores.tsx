@@ -1079,7 +1079,8 @@ export default function VincularPatrocinadores() {
 
       const partes: string[] = [];
       if (r?.vinculadas > 0) partes.push(`${r.vinculadas} peça(s) vinculada(s)`);
-      if (r?.pendenciasCriadas > 0) partes.push(`${r.pendenciasCriadas} já entrou na aprovação em curso`);
+      if (r?.reabertas > 0) partes.push(`${r.reabertas} voltou(aram) para a aprovação — só o novo patrocinador decide, os demais seguem aprovados`);
+      if (r?.pendenciasCriadas > 0 && !(r?.reabertas > 0)) partes.push(`${r.pendenciasCriadas} já entrou na aprovação em curso`);
       if (r?.jaTinham > 0) partes.push(`${r.jaTinham} já tinha(m)`);
       // As recusadas são DITAS, com o motivo — sumir com elas faria a pessoa
       // achar que o lote inteiro passou.
@@ -3100,7 +3101,8 @@ export default function VincularPatrocinadores() {
             <div style={{ padding: '14px 24px 0', flexShrink: 0 }}>
               <p style={{ margin: 0, fontSize: 13, color: '#57534e', lineHeight: 1.55 }}>
                 Soma <strong style={{ color: '#1c1917' }}>um</strong> patrocinador às peças escolhidas, sem mexer nos vínculos que elas já têm.
-                Funciona <strong style={{ color: '#1c1917' }}>mesmo depois do envio à Arte</strong>: quem ainda espera o layout entra na aprovação quando ele chegar; quem já está em aprovação ganha a pendência agora.
+                Funciona <strong style={{ color: '#1c1917' }}>mesmo depois do envio à Arte</strong>: quem espera o layout entra na aprovação quando ele chegar; quem está em aprovação ganha a pendência agora.
+                Peça que <strong style={{ color: '#1c1917' }}>já passou</strong> (finalização ou revisão) <strong style={{ color: '#9a3412' }}>volta para a aprovação</strong> — só o novo decide, quem já aprovou segue aprovado e a arte fica. Peça já liberada para a Gráfica não entra.
               </p>
               <div style={{ position: 'relative', marginTop: 12 }}>
                 <Search style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', width: 14, height: 14, color: '#a8a29e' }} />

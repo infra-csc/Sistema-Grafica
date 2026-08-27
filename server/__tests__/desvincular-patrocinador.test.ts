@@ -95,7 +95,7 @@ describe("tirar do EVENTO cascateia para as peças (caso QCY, 25/08)", () => {
     // GRÁFICA (regra do dono): dali em diante é trabalho de chão de fábrica.
     // A fronteira sai da lista canônica, não de uma segunda cópia local.
     expect(ROTA).toContain("const inativavel = !DEPOIS_DA_ARTE.has(item.status);");
-    expect(ROTA).toContain('import { DEPOIS_DA_ARTE } from "@shared/fluxo-peca";');
+    expect(ROTA).toContain('import { DEPOIS_DA_ARTE, POS_APROVACAO } from "@shared/fluxo-peca";');
     expect(ROTA).toContain("const vinculadosRestantes = await storage.getItemSponsors(item.id);");
     expect(ROTA).toContain("if (vinculadosRestantes.length === 0) {");
     expect(ROTA).toContain('Cancelada automaticamente: o único patrocinador');

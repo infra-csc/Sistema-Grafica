@@ -1416,14 +1416,29 @@ export function registerItemRoutes(app: Express): void {
         // no mundo real. Sem ele, uma peça com 10 produzidas e quantidade 8
         // ficaria com inventário órfão e com tetos NEGATIVOS em confer/deliver.
         // Espelhado em client/src/lib/saldo.ts → reductionFloorOf().
-        const produzidas = (currentItem.quantityProduced ?? 0) + (currentItem.reuseQty ?? 0);
-        const piso = Math.max(produzidas, currentItem.conferredQty ?? 0, currentItem.deliveredQty ?? 0);
+        //
+        // REUSO NÃO É PISO (dono, 27/08: "não está conseguindo diminuir"):
+        // unidade reaproveitada não saiu da impressora — ela é registro, não
+        // material novo. Reduzir a quantidade ENCOLHE o reuso junto (abaixo);
+        // o piso é só o que foi IMPRESSO, conferido ou entregue.
+        const impressas = currentItem.quantityProduced ?? 0;
+        const reusoAtual = currentItem.reuseQty ?? 0;
+        const piso = Math.max(impressas, currentItem.conferredQty ?? 0, currentItem.deliveredQty ?? 0);
         if (nova < piso) {
           return res.status(409).json({
-            error: `Não é possível reduzir para ${nova}: já há ${piso} un. produzidas/conferidas/entregues. Mínimo: ${piso}.`,
+            error: `Não é possível reduzir para ${nova}: já há ${piso} un. impressas/conferidas/entregues. Mínimo: ${piso}.`,
             code: "QUANTITY_FLOOR",
             minimum: piso,
           });
+        }
+
+        // O reuso encolhe para caber na quantidade nova (peça de 3 toda
+        // reaproveitada indo para 1 vira reuso 1) — e isReuse acompanha, que
+        // é a flag de "reuso total".
+        const reusoNovo = Math.max(0, Math.min(reusoAtual, nova - impressas));
+        if (reusoNovo !== reusoAtual) {
+          updatePayload.reuseQty = reusoNovo;
+          updatePayload.isReuse = reusoNovo >= nova;
         }
 
         // Promoção SÓ PARA CIMA: se a redução zera o saldo a produzir e a peça
@@ -1431,7 +1446,7 @@ export function registerItemRoutes(app: Express): void {
         // "produzi 10 das 15 e o cliente desistiu das outras 5" — sem isto a
         // peça ficaria eternamente Em Produção com saldo fantasma. Nunca
         // rebaixa: peça entregue continua entregue.
-        if (nova <= produzidas && (currentItem.status === "inProduction" || currentItem.status === "em_producao")) {
+        if (nova <= impressas + reusoNovo && (currentItem.status === "inProduction" || currentItem.status === "em_producao")) {
           updatePayload.status = "produced";
           promoveuParaProduzido = true;
         }
@@ -1502,6 +1517,11 @@ export function registerItemRoutes(app: Express): void {
             + (item.calculatedM2 !== currentItem.calculatedM2 ? ` m²: ${currentItem.calculatedM2} → ${item.calculatedM2}` : "")
           : "";
         changedParts.push(`Quantidade: ${currentItem.quantity ?? '—'} → ${item.quantity ?? '—'} un.${contexto}`);
+      }
+      // A redução encolheu o reuso junto — a trilha diz, senão o número some
+      // em silêncio e seis meses depois vira "quem apagou o reaproveitamento?"
+      if (mudouQtd && (item.reuseQty ?? 0) !== (currentItem.reuseQty ?? 0)) {
+        changedParts.push(`Reaproveitamento encolheu com a redução: ${currentItem.reuseQty ?? 0} → ${item.reuseQty ?? 0} un.`);
       }
       if (promoveuParaProduzido) {
         changedParts.push("Saldo zerado pela redução — peça promovida para Produzido");

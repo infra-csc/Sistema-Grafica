@@ -340,7 +340,7 @@ function ItemForm({
                 setFormData({ ...formData, quantity: Math.max(digitado, quantityFloor) });
               }}
               title={quantityLocked
-                ? `Em produção: dá para reduzir até ${quantityFloor} (já produzidas/conferidas/entregues). Para aumentar, use o complemento.`
+                ? `Em produção: dá para reduzir até ${quantityFloor} (impressas/conferidas/entregues — o reaproveitamento encolhe junto). Para aumentar, use o complemento.`
                 : undefined}
               data-testid={isEdit ? "input-edit-quantity" : "input-quantity"}
               style={FIELD_INPUT}

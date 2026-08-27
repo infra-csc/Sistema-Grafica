@@ -300,14 +300,18 @@ describe("complemento: identidade e total contratado", () => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 describe("PISO FÍSICO da redução (espelho literal do servidor)", () => {
-  // Servidor: piso = max(quantityProduced + reuseQty, conferredQty, deliveredQty)
+  // Servidor: piso = max(quantityProduced, conferredQty, deliveredQty).
+  // O REUSO ficou de fora em 27/08 ("não está conseguindo diminuir"): unidade
+  // reaproveitada não foi impressa — o PATCH a encolhe junto com a redução.
   it("peça virgem: piso 0 — dá para reduzir à vontade", () => {
     expect(reductionFloorOf(peca())).toBe(0);
   });
 
-  it("produzido + reaproveitado somam no mesmo braço do max", () => {
-    // 6 impressas + 4 do galpão = 10 unidades físicas existindo.
-    expect(reductionFloorOf(peca({ quantityProduced: 6, reuseQty: 4 }))).toBe(10);
+  it("o reuso NÃO soma no piso — só o impresso", () => {
+    // 6 impressas + 4 do galpão: o piso é 6; as 4 do galpão encolhem junto.
+    expect(reductionFloorOf(peca({ quantityProduced: 6, reuseQty: 4 }))).toBe(6);
+    // toda reaproveitada (o caso #2345): piso 0
+    expect(reductionFloorOf(peca({ status: "produced", reuseQty: 3, isReuse: true }))).toBe(0);
   });
 
   it("conferido acima do produzido levanta o piso", () => {

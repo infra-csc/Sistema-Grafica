@@ -820,12 +820,33 @@ describe("PATCH /api/items/:id — piso físico da redução", () => {
     expect(r.status).toBe(200);
   });
 
-  it("o piso soma produzido + reaproveitado", async () => {
-    // 6 impressas + 4 do galpão = 10 unidades físicas.
+  it("o REUSO não é piso: a redução passa e o reuso encolhe para caber (dono, 27/08)", async () => {
+    // 6 impressas (piso) + 4 do galpão. Reduzir para 9 passa; o reuso vira 3
+    // (9 − 6 impressas) — unidade reaproveitada é registro, não material novo.
     mundo.itens["mae-1"] = peca({ status: "inProduction", quantity: 15, quantityProduced: 6, reuseQty: 4, conferredQty: 0, deliveredQty: 0 });
     const r = await editar({ quantity: 9 });
+    expect(r.status).toBe(200);
+    const payload = H.storage.updateItem.mock.calls[0][1];
+    expect(payload.reuseQty).toBe(3);
+    expect(payload.isReuse).toBe(false);
+    // e com 9 ≤ 6 impressas + 3 reuso, a peça em produção promove a Produzido
+    expect(payload.status).toBe("produced");
+  });
+
+  it("mas o IMPRESSO continua piso: reduzir abaixo dele é 409", async () => {
+    mundo.itens["mae-1"] = peca({ status: "inProduction", quantity: 15, quantityProduced: 6, reuseQty: 4, conferredQty: 0, deliveredQty: 0 });
+    const r = await editar({ quantity: 5 });
     expect(r.status).toBe(409);
-    expect(r.body.minimum).toBe(10);
+    expect(r.body.minimum).toBe(6);
+  });
+
+  it("peça toda reaproveitada (o caso #2345): piso 0, reduzir 3 → 1 passa e vira reuso 1", async () => {
+    mundo.itens["mae-1"] = peca({ status: "produced", quantity: 3, quantityProduced: 0, reuseQty: 3, conferredQty: 0, deliveredQty: 0 });
+    const r = await editar({ quantity: 1 });
+    expect(r.status).toBe(200);
+    const payload = H.storage.updateItem.mock.calls[0][1];
+    expect(payload.reuseQty).toBe(1);
+    expect(payload.isReuse).toBe(true); // 1 de 1: segue reuso TOTAL
   });
 
   it("o piso considera o CONFERIDO quando ele é o maior", async () => {

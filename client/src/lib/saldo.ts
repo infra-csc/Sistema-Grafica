@@ -194,9 +194,13 @@ export const contractedTotalOf = (item: SaldoItem): number =>
  * PATCH /api/items/:id — a UI usa isto para o `min` do campo e para explicar
  * antes de o 409 chegar.
  */
+// REUSO NÃO ENTRA NO PISO (dono, 27/08: "não está conseguindo diminuir"):
+// unidade reaproveitada não foi impressa — o servidor encolhe reuseQty junto
+// com a redução. Piso = o que existe fisicamente (impresso/conferido/entregue).
+// Espelho do PATCH /api/items/:id.
 export const reductionFloorOf = (item: SaldoItem): number =>
   Math.max(
-    producedOf(item) + reusedOf(item),
+    producedOf(item),
     conferredOf(item),
     deliveredOf(item),
   );

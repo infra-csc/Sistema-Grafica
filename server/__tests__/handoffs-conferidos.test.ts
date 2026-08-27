@@ -207,7 +207,7 @@ describe("Calendário", () => {
   });
 
   it("5 · o Resumo e a grade contam o mesmo conjunto", () => {
-    expect(CAL).toContain("return DEADLINE_TYPES.some(dt => {");
+    expect(CAL).toContain("return tiposVisiveis.some(dt => {");
     expect(CAL).toContain("Eventos que aparecem na grade");
   });
 

@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dialog";
 import { MARCOS_DO_EVENTO, OFFSET_PADRAO_DO_MARCO } from "@shared/prazo-dates";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useAuth } from "@/contexts/auth-context";
 
 /* ── Palette ── */
 const P = {
@@ -75,6 +76,25 @@ const DEADLINE_TYPES = MARCOS_DO_EVENTO.map(m => ({
   key: m.campo, label: m.label, short: m.curto, color: m.cor, text: m.texto,
 }));
 
+// ── CADA FUNÇÃO VÊ O QUE PRECISA (dono, 27/08) ─────────────────────────────
+// Seis marcos para todo mundo enchiam cada célula de "+8 mais": a Gráfica
+// caçava o "Prod. Gráfica" no meio de quatro prazos que não são dela. A régua
+// é QUEM AGE no marco (a `descricao` de cada um em @shared/prazo-dates):
+//   · Lista de Imagens ("criação dos itens") e Revisão de Lista ("criador
+//     revisa") → Solicitação;
+//   · Entrega de Layouts e Finalização ("Arte anexa o arquivo") → Arte;
+//   · Aprovação de Layout ("aprovação pelo patrocinador") → Atendimento, que
+//     é quem cobra o patrocinador;
+//   · Produção Gráfica → Gráfica.
+// Admin (e papel fora do mapa) vê tudo; os demais abrem no recorte da função
+// e têm o botão "Todos os marcos" para ver o quadro inteiro.
+const MARCOS_POR_PAPEL: Record<string, string[]> = {
+  solicitacao: ["deadlineListaImagens", "deadlineRevisaoLista"],
+  arte: ["deadlineEntregaLayouts", "deadlineFinalizacao"],
+  atendimento: ["deadlineAprovacaoLayout"],
+  grafica: ["deadlineProducaoGrafica"],
+};
+
 const DEADLINE_DEFAULTS: Record<string, number> = OFFSET_PADRAO_DO_MARCO;
 
 /* Sunday-first week (matches mockup) */
@@ -87,7 +107,18 @@ const MONTH_NAMES = [
 
 export default function Calendario() {
   const isMobile = useIsMobile();
+  const { user } = useAuth();
   const [currentDate, setCurrentDate] = useState(new Date());
+  // Recorte por função (ver MARCOS_POR_PAPEL). `verTodosOsMarcos` é a saída:
+  // o recorte é o padrão, nunca uma prisão.
+  const [verTodosOsMarcos, setVerTodosOsMarcos] = useState(false);
+  const marcosDoPapel = MARCOS_POR_PAPEL[user?.role ?? ""] ?? null;
+  const tiposVisiveis = useMemo(
+    () => (!marcosDoPapel || verTodosOsMarcos)
+      ? DEADLINE_TYPES
+      : DEADLINE_TYPES.filter(dt => marcosDoPapel.includes(dt.key)),
+    [marcosDoPapel, verTodosOsMarcos],
+  );
 
   // ── A ESCALA ────────────────────────────────────────────────────────────
   //
@@ -192,7 +223,7 @@ export default function Calendario() {
       bucket(toUTCDisplayDate(ev.truckDepartureDate).toDateString()).events.push({ ...ev, _type: "departure" as const });
       const base = toUTCDisplayDate(ev.truckDepartureDate);
       base.setHours(0, 0, 0, 0);
-      for (const dt of DEADLINE_TYPES) {
+      for (const dt of tiposVisiveis) {
         const offset: number = (ev as any)[dt.key] ?? DEADLINE_DEFAULTS[dt.key];
         const d = new Date(base);
         d.setDate(d.getDate() + offset);
@@ -203,7 +234,7 @@ export default function Calendario() {
     // antiga produzia) — sort estável preserva a ordem dos eventos.
     map.forEach(b => b.events.sort((a, c) => (a._type === c._type ? 0 : a._type === "start" ? -1 : 1)));
     return map;
-  }, [events]);
+  }, [events, tiposVisiveis]);
 
   // ═══════════════════════════════════════════════════════════════════════
   // A ORDEM DE URGÊNCIA DA CÉLULA
@@ -318,14 +349,14 @@ export default function Calendario() {
       // usa — se um deles cai no mês, o evento está desenhado ali.
       const base = toUTCDisplayDate(ev.truckDepartureDate);
       base.setHours(0, 0, 0, 0);
-      return DEADLINE_TYPES.some(dt => {
+      return tiposVisiveis.some(dt => {
         const offset: number = (ev as any)[dt.key] ?? DEADLINE_DEFAULTS[dt.key];
         const d = new Date(base);
         d.setDate(d.getDate() + offset);
         return noMes(d);
       });
     });
-  }, [events, year, month]);
+  }, [events, year, month, tiposVisiveis]);
   const completedCount = monthEvents.filter(e => e.status === "completed").length;
   // Encerrado à mão precisa de linha PRÓPRIA. Somado a "Concluídos" ele diria
   // "deu tudo certo" num evento fechado com peça em aberto; sem linha nenhuma
@@ -867,13 +898,28 @@ export default function Calendario() {
           {/* Divider */}
           <div style={{ width: 1, height: 16, backgroundColor: "#e7e5e4", margin: "0 4px" }} />
 
-          {/* Deadline legend */}
-          {DEADLINE_TYPES.map(dt => (
+          {/* Deadline legend — só os marcos que a grade está DESENHANDO. Uma
+              legenda com seis entradas sobre uma grade com dois seria mentira. */}
+          {tiposVisiveis.map(dt => (
             <div key={dt.key} style={{ display: "flex", alignItems: "center", gap: 5 }}>
               <div style={{ width: 14, height: 9, borderRadius: 6, borderLeft: `3px dashed ${dt.color}`, backgroundColor: `${dt.color}15` }} />
               <span style={{ fontSize: 10, fontWeight: 700, color: P.secondary, textTransform: "uppercase", letterSpacing: "0.07em" }}>{dt.short}</span>
             </div>
           ))}
+          {marcosDoPapel && (
+            <button
+              type="button"
+              onClick={() => setVerTodosOsMarcos(v => !v)}
+              aria-pressed={verTodosOsMarcos}
+              data-testid="button-marcos-da-funcao"
+              title={verTodosOsMarcos
+                ? "Voltar a ver só os marcos da sua função"
+                : "A grade está mostrando só os marcos da sua função — clique para ver os seis"}
+              style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 24, padding: "0 9px", borderRadius: 999, border: `1px dashed ${verTodosOsMarcos ? "#c2410c" : "#d6d3d1"}`, background: verTodosOsMarcos ? "#fff7ed" : "transparent", color: verTodosOsMarcos ? "#c2410c" : P.secondary, fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.07em", cursor: "pointer", font: "inherit", whiteSpace: "nowrap" }}
+            >
+              {verTodosOsMarcos ? "Só os da minha função" : `Todos os marcos (${DEADLINE_TYPES.length})`}
+            </button>
+          )}
 
           <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 18 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 5 }}>

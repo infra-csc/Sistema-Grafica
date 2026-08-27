@@ -233,7 +233,7 @@ describe("o Resumo conta o mês da grade", () => {
     const bloco = tela.slice(i, i + 1200);
     expect(bloco).toContain("if (ev.startDate && noMes(parseDateLocal(ev.startDate))) return true;");
     expect(bloco).toContain("if (noMes(saida)) return true;");
-    expect(bloco).toContain("return DEADLINE_TYPES.some(dt => {");
+    expect(bloco).toContain("return tiposVisiveis.some(dt => {");
     // A âncora e os offsets são os MESMOS que a grade usa.
     expect(bloco).toContain("DEADLINE_DEFAULTS[dt.key]");
     expect(bloco).toContain("toUTCDisplayDate(ev.truckDepartureDate)");

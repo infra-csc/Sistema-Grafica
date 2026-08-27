@@ -1496,7 +1496,12 @@ export default function VincularPatrocinadores() {
 
         {/* ── Patrocinadores / Vínculo ── */}
         <td onClick={e => e.stopPropagation()} style={isMobile ? { ...celula, paddingBottom: 10 } : { padding: '8px 12px', minWidth: 0 }}>
-          {semPatrocinador ? (
+          {/* A marca "sem patrocinador" (skipApproval) NUNCA esconde vínculo
+              existente (caso Mandala, 27/08): peça isenta COM patrocinador é
+              estado impossível que o Acrescentar normaliza no servidor — mas
+              enquanto o dado velho existir, mentir "Sem patrocinador" por cima
+              do Ministério vinculado é pior que mostrar os dois. */}
+          {semPatrocinador && vinculados.length === 0 ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 10px', borderRadius: 999, backgroundColor: '#fffbeb', color: '#92400e', border: '1px solid #fcd34d', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
                 Sem patrocinador

@@ -50,8 +50,14 @@ describe("a rota só SOMA — nunca reescreve", () => {
     expect(bloco).toContain("const eraIsenta = !!item.skipApproval;");
     expect(bloco).toContain("if (eraIsenta && !jaPassou) {");
     expect(bloco).toContain("skipApproval: false");
+    // 2º round do caso Mandala (27/08): a limpeza roda TAMBÉM quando o vínculo
+    // já existia — a tentativa pré-conserto criou o vínculo e deixou a isenção,
+    // e "já tinha" saía cedo sem normalizar. A ordem fixa isso: o return de
+    // "nada mudou" vem DEPOIS da limpeza da isenção.
+    expect(bloco.indexOf("const eraIsenta")).toBeGreaterThan(bloco.indexOf("jaTinham.push(rotulo);"));
+    expect(bloco).toContain("if (jaNaPeca && !eraIsenta && !criouLinhaAgora) return;");
     // na reabertura, a isenção cai no MESMO update do status
-    const reabre = bloco.slice(bloco.indexOf("if (jaPassou) {"));
+    const reabre = bloco.slice(bloco.indexOf("if (jaPassou && (!jaNaPeca || criouLinhaAgora)) {"));
     expect(reabre.slice(0, 700)).toContain("skipApproval: false,");
     // nunca marca isenção — só limpa
     expect(bloco).not.toContain("skipApproval: true");
@@ -59,8 +65,13 @@ describe("a rota só SOMA — nunca reescreve", () => {
     expect(bloco).toContain('a peça deixou de ser "sem aprovação"');
   });
 
-  it("peça que já tem o patrocinador é contada, não duplicada", () => {
-    expect(bloco).toContain("if (jaNaPeca) { jaTinham.push(rotulo); return; }");
+  it("peça que já tem o patrocinador é contada, não duplicada — mas AINDA é normalizada", () => {
+    expect(bloco).toContain("if (jaNaPeca) {");
+    expect(bloco).toContain("jaTinham.push(rotulo);");
+    // o addSponsorToItem fica no ramo do vínculo NOVO
+    const ramo = bloco.slice(bloco.indexOf("if (jaNaPeca) {"), bloco.indexOf("const eraIsenta"));
+    expect(ramo).toContain("} else {");
+    expect(ramo).toContain("storage.addSponsorToItem({ itemId, sponsorId } as any);");
   });
 
   it("vincula ao EVENTO antes da peça — marca que o evento não conhece foi bug", () => {

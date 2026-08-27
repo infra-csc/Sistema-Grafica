@@ -805,32 +805,51 @@ export function registerSponsorRoutes(app: Express): void {
           // (o desencontro que o reparo de vínculos teve de limpar).
           await garanteVinculoNoEvento(item.eventId);
 
+          // "Já tem o vínculo" NÃO sai mais cedo (caso Mandala, 2º round —
+          // dono, 27/08: "segue sem patrocinador"): a tentativa de ANTES do
+          // conserto da isenção criou o vínculo mas deixou skipApproval=true,
+          // e a tela esconde os patrocinadores de peça isenta. Reexecutar o
+          // Acrescentar precisa NORMALIZAR esse estado impossível — vínculo é
+          // idempotente; a limpeza abaixo roda para os dois casos.
           const jaNaPeca = (await storage.getItemSponsors(itemId)).some((v: any) => v.sponsorId === sponsorId);
-          if (jaNaPeca) { jaTinham.push(rotulo); return; }
-
-          await storage.addSponsorToItem({ itemId, sponsorId } as any);
-          vinculadas.push(rotulo);
+          if (jaNaPeca) {
+            jaTinham.push(rotulo);
+          } else {
+            await storage.addSponsorToItem({ itemId, sponsorId } as any);
+            vinculadas.push(rotulo);
+          }
 
           // Peça ISENTA deixa de ser isenta (caso Mandala): com patrocinador a
           // aprovar, a isenção faria a rodada nascer fechada. Só limpa, nunca marca.
           const eraIsenta = !!item.skipApproval;
           if (eraIsenta && !jaPassou) {
-            await storage.updateItem(itemId, { skipApproval: false });
+            const normalizada = await storage.updateItem(itemId, { skipApproval: false });
+            // a tela precisa ver a flag cair sem F5 — mesmo quando o vínculo
+            // já existia e nada mais nesta peça mudou
+            if (normalizada) broadcast({ type: "item_updated", item: normalizada });
           }
 
           // A linha "pendente" nasce junto sempre que já há rodada — a em curso
           // ou a que está sendo reaberta agora.
+          let criouLinhaAgora = false;
           if (EM_APROVACAO.includes(item.status) || jaPassou) {
             const linha = await storage.getItemSponsorApproval(itemId, sponsorId);
             if (!linha) {
               await storage.createItemSponsorApproval({ itemId, sponsorId, status: "pending" } as any);
               pendenciasCriadas++;
+              criouLinhaAgora = true;
             }
           }
 
+          // Nada mudou de verdade (vínculo já existia, sem isenção para limpar,
+          // sem linha nova): não há o que auditar nem reabrir.
+          if (jaNaPeca && !eraIsenta && !criouLinhaAgora) return;
+
           // REABRIR PARA QUE SÓ O NOVO DECIDA: a mesma reabertura da revogação —
           // o arquivo final e a arte FICAM; quem já aprovou não decide de novo.
-          if (jaPassou) {
+          // Vale também para o vínculo pré-existente cuja PENDÊNCIA nasceu só
+          // agora: o patrocinador nunca decidiu, a peça não pode seguir fechada.
+          if (jaPassou && (!jaNaPeca || criouLinhaAgora)) {
             const reaberta = await storage.updateItem(itemId, {
               status: "awaiting_sponsor_approval",
               skipApproval: false,
@@ -853,12 +872,14 @@ export function registerSponsorRoutes(app: Express): void {
 
           await createAuditLog(
             req, "added", "item", itemId,
-            `Patrocinador "${sponsor.name}" acrescentado à peça ${rotulo} depois do envio`
-              + (jaPassou
+            (jaNaPeca
+              ? `Patrocinador "${sponsor.name}" já estava na peça ${rotulo}; o estado foi normalizado`
+              : `Patrocinador "${sponsor.name}" acrescentado à peça ${rotulo} depois do envio`)
+              + (jaPassou && (!jaNaPeca || criouLinhaAgora)
                 ? ` — a peça já tinha passado (${translateStatus(item.status)}) e voltou para a aprovação; só ele decide, os demais seguem aprovados`
                 : EM_APROVACAO.includes(item.status)
                   ? " — entra na rodada de aprovação em curso"
-                  : " — entrará na aprovação quando a Arte enviar o layout")
+                  : jaNaPeca ? "" : " — entrará na aprovação quando a Arte enviar o layout")
               + (eraIsenta ? '; a peça deixou de ser "sem aprovação" — com patrocinador vinculado, a isenção não faz mais sentido' : ""),
           );
           broadcast({ type: "item_sponsor_added", itemSponsor: { itemId, sponsorId } });

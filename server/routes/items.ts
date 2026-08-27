@@ -4124,14 +4124,38 @@ export function registerItemRoutes(app: Express): void {
         "ready_for_production", "pronto_para_producao", "approved",
         "inProduction", "em_producao",
       ];
-      if (!allowedStatuses.includes(current.status)) {
-        return res.status(409).json({ error: `Status atual não permite reaproveitamento: ${translateStatus(current.status)}` });
+      // APÓS PRODUZIDO (dono, 27/08): Solicitação e admin ainda podem mudar a
+      // quantidade reaproveitada — CONVERTENDO unidades produzidas em
+      // reaproveitadas. A peça continua "Produzido" (o total segue coberto);
+      // muda só a composição, que é o que a metragem e o custo leem. A Gráfica
+      // fica de fora: ela produz o que pedem, não reescreve o pedido.
+      const ehProduzida = current.status === "produced" || current.status === "produzido";
+      const viaProduzida = ehProduzida
+        && ((req as any).userRole === "admin" || (req as any).userRole === "solicitacao");
+      if (!allowedStatuses.includes(current.status) && !viaProduzida) {
+        return res.status(409).json({
+          error: ehProduzida
+            ? "Peça já produzida: mudar o reaproveitamento agora é da Solicitação e do admin."
+            : `Status atual não permite reaproveitamento: ${translateStatus(current.status)}`,
+        });
+      }
+      // Depois que a conferência ou a entrega começam, o número vira contagem
+      // física — a mesma tranca do correct-reuse.
+      if (viaProduzida && (current.conferredQty || 0) > 0) {
+        return res.status(409).json({ error: "Não é possível reaproveitar: a peça já foi parcialmente conferida" });
+      }
+      if (viaProduzida && (current.deliveredQty || 0) > 0) {
+        return res.status(409).json({ error: `Não é possível reaproveitar: ${current.deliveredQty} un. já foram entregues` });
       }
 
       const alreadyReused = current.reuseQty || 0;
       const produced = current.quantityProduced || 0;
-      // O reuso não pode invadir o que já foi produzido.
-      const room = current.quantity - alreadyReused - produced;
+      // No fluxo normal o reuso não invade o que já foi produzido; após
+      // Produzido a conversão é justamente invadir — então o teto é só o que
+      // ainda não está marcado como reaproveitado.
+      const room = viaProduzida
+        ? current.quantity - alreadyReused
+        : current.quantity - alreadyReused - produced;
       if (room <= 0) {
         return res.status(409).json({ error: `Nada a reaproveitar: ${alreadyReused} reaproveitada(s) e ${produced} produzida(s) de ${current.quantity}.` });
       }
@@ -4141,11 +4165,14 @@ export function registerItemRoutes(app: Express): void {
       const newReuse = alreadyReused + n;
       const isFullReuse = newReuse >= current.quantity;
       // Fecha em "Produzido" quando reuso + produção cobrem a quantidade toda.
-      const isReady = newReuse + produced >= current.quantity;
+      const isReady = viaProduzida || newReuse + produced >= current.quantity;
 
       const item = await storage.updateItem(req.params.id, {
         reuseQty: newReuse,
         isReuse: isFullReuse,
+        // Na conversão, o que virou reuso sai do produzido — os dois números
+        // seguem somando a quantidade da peça.
+        ...(viaProduzida ? { quantityProduced: current.quantity - newReuse } : {}),
         ...(isReady ? { status: "produced" as const } : {}),
       });
       if (!item) return res.status(404).json({ error: "Item not found" });
@@ -4155,7 +4182,9 @@ export function registerItemRoutes(app: Express): void {
         'updated',
         'item',
         item.id,
-        isFullReuse
+        viaProduzida
+          ? `Reaproveitamento após Produzido: ${n} un. convertida(s) de produzida(s) para reaproveitada(s) — ${newReuse}/${current.quantity} reaproveitadas, ${current.quantity - newReuse} produzida(s)`
+          : isFullReuse
           ? `Reaproveitamento total pela Gráfica: ${newReuse}/${current.quantity} un.`
           : `Reaproveitamento parcial pela Gráfica: ${n} un. (${newReuse}/${current.quantity} reaproveitadas, ${current.quantity - newReuse} a produzir)`
       );

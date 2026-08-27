@@ -18,6 +18,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
+import { useAuth } from "@/contexts/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { R, onColor, darkenToContrast } from "@/lib/theme";
@@ -178,6 +179,11 @@ export default function VincularPatrocinadores() {
   const [pendingChanges, setPendingChanges] = useState<Record<string, ItemChanges>>({});
   
   // Estados para seleção em lote
+  const { user } = useAuth();
+  // ACRESCENTAR patrocinador depois do envio: admin e solicitação (decisão do
+  // dono, 25/08). O servidor confere o mesmo — aqui o botão SOME em vez de
+  // existir para dar 403.
+  const podeAcrescentar = user?.role === "admin" || user?.role === "solicitacao";
   const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
   const [bulkApplyDialogOpen, setBulkApplyDialogOpen] = useState(false);
   const [bulkSelectedSponsors, setBulkSelectedSponsors] = useState<string[]>([]);
@@ -1345,7 +1351,9 @@ export default function VincularPatrocinadores() {
     // vínculo — isso continua travado —, mas para ACRESCENTAR um patrocinador
     // que apareceu depois do envio (caso Ministério na Primavera RJ). A barra
     // de lote separa as duas coisas e diz em quantas peças cada uma age.
-    const podeSelecionar = estado === 'PENDENTE' || estado === 'RASCUNHO' || estado === 'ENVIADO';
+    // ...e só para quem tem a ação: marcar peça enviada sem poder acrescentar
+    // seria uma caixa que não leva a botão nenhum.
+    const podeSelecionar = estado === 'PENDENTE' || estado === 'RASCUNHO' || (estado === 'ENVIADO' && podeAcrescentar);
 
     // A COR DE ESTADO VAI NA BORDA, não no fundo. O fundo colorido da linha
     // inteira competia com os chips, que também são coloridos — e chip de
@@ -2509,7 +2517,8 @@ export default function VincularPatrocinadores() {
                 );
               })()}
               {/* ACRESCENTAR: vale para a seleção INTEIRA, inclusive as já
-                  enviadas — só soma, nunca reescreve. */}
+                  enviadas — só soma, nunca reescreve. Admin e solicitação. */}
+              {podeAcrescentar && (
               <button
                 onClick={() => { setAcrescentarSponsorId(null); setBuscaAcrescentar(""); setAcrescentarAberto(true); }}
                 data-testid="button-acrescentar-sponsor"
@@ -2521,6 +2530,7 @@ export default function VincularPatrocinadores() {
                 <PlusCircle style={{ width: 14, height: 14 }} />
                 Acrescentar em {idsSelecionados.length}
               </button>
+              )}
               {/* APLICAR reescreve a lista — por isso só alcança o que ainda
                   está na vinculação. Some quando a seleção é toda de enviadas,
                   em vez de existir para dar erro. */}

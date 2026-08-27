@@ -29,6 +29,13 @@ import { DEPOIS_DA_ARTE } from "@shared/fluxo-peca";
 // vínculos ou devolver peças para a Criação por API.
 const requireLinkingWrite = requireRole("arte", "solicitacao", "atendimento", "admin");
 
+// ACRESCENTAR patrocinador depois do envio e mais restrito que vincular
+// (decisao do dono, 25/08): a acao alcanca peca que JA saiu da fase de
+// vinculacao — inclusive peca em aprovacao, onde ela cria pendencia nova para
+// alguem decidir. Quem faz isso e quem responde pela lista: admin e
+// solicitacao. Arte e atendimento seguem vinculando na fase normal.
+const requireAcrescentarSponsor = requireRole("admin", "solicitacao");
+
 /**
  * A REGRA DO DESVINCULAR (pedido do dono, 25/08), num lugar só — vale para o
  * desvinculo peça a peça E para a cascata de quando o patrocinador sai do
@@ -699,7 +706,7 @@ export function registerSponsorRoutes(app: Express): void {
   // pode estar em produção — decisão de gente, que tem o caminho próprio
   // (revogar no Atendimento). A peça é recusada com o motivo, e as outras do
   // lote passam.
-  app.post("/api/items/bulk-add-sponsor", requireLinkingWrite, async (req, res) => {
+  app.post("/api/items/bulk-add-sponsor", requireAcrescentarSponsor, async (req, res) => {
     try {
       const { sponsorId, itemIds } = req.body ?? {};
       if (typeof sponsorId !== "string" || !sponsorId.trim()) {

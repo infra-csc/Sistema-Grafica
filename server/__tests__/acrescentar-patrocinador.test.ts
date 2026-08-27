@@ -108,7 +108,7 @@ describe("o lote é honesto sobre o que não fez", () => {
 
 describe("a tela", () => {
   it("peça já enviada passou a ser selecionável — para acrescentar, não para reescrever", () => {
-    expect(TELA).toContain("const podeSelecionar = estado === 'PENDENTE' || estado === 'RASCUNHO' || estado === 'ENVIADO';");
+    expect(TELA).toContain("const podeSelecionar = estado === 'PENDENTE' || estado === 'RASCUNHO' || (estado === 'ENVIADO' && podeAcrescentar);");
     expect(TELA).toContain('data-testid="button-acrescentar-sponsor"');
   });
 
@@ -129,7 +129,17 @@ describe("a tela", () => {
     expect(TELA).toContain("não pôde(ram):");
   });
 
-  it("a rota está na tabela de permissões, com os papéis da vinculação", () => {
-    expect(PERMISSOES).toContain('{ metodo: "POST", rota: "/api/items/bulk-add-sponsor", papeis: ["admin", "arte", "atendimento", "solicitacao"] }');
+  it("só admin e solicitação — mais restrito que vincular na fase normal", () => {
+    // Decisão do dono (25/08): a ação alcança peça que já saiu da vinculação, e
+    // em peça em aprovação ela cria pendência nova para alguém decidir. Quem
+    // faz isso é quem responde pela lista.
+    expect(ROTA).toContain('const requireAcrescentarSponsor = requireRole("admin", "solicitacao");');
+    expect(ROTA).toContain('app.post("/api/items/bulk-add-sponsor", requireAcrescentarSponsor');
+    expect(PERMISSOES).toContain('{ metodo: "POST", rota: "/api/items/bulk-add-sponsor", papeis: ["admin", "solicitacao"] }');
+    // e a tela não oferece o que o servidor recusaria
+    expect(TELA).toContain('const podeAcrescentar = user?.role === "admin" || user?.role === "solicitacao";');
+    expect(TELA).toContain("{podeAcrescentar && (");
+    // sem a ação, marcar peça enviada seria caixa que não leva a botão nenhum
+    expect(TELA).toContain("(estado === 'ENVIADO' && podeAcrescentar)");
   });
 });

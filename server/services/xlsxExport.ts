@@ -71,18 +71,22 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 async function withSponsorNames(rawItems: any[]) {
-  return await Promise.all(
-    rawItems.map(async (item) => {
-      const itemSponsors = await storage.getItemSponsors(item.id);
-      const sponsorNames = await Promise.all(
-        itemSponsors.map(async (is: any) => {
-          const s = await storage.getSponsor(is.sponsorId);
-          return s?.name ?? "";
-        })
-      );
-      return { ...item, sponsorNames: sponsorNames.filter(Boolean) };
-    })
-  );
+  // AUDITORIA 27/08: era N×M queries SIMULTÂNEAS (uma por vínculo, dentro de
+  // uma por peça) — exportar 2.000 peças disparava milhares de conexões e
+  // derrubava as OUTRAS requisições. Duas queries no total, mapa em memória.
+  const [allItemSponsors, allSponsors] = await Promise.all([
+    storage.getAllItemSponsors(),
+    storage.getAllSponsors(),
+  ]);
+  const nomePorSponsor = new Map(allSponsors.map((s) => [s.id, s.name]));
+  const nomesPorItem = new Map<string, string[]>();
+  for (const is of allItemSponsors) {
+    const nome = nomePorSponsor.get(is.sponsorId);
+    if (!nome) continue;
+    const arr = nomesPorItem.get(is.itemId);
+    if (arr) arr.push(nome); else nomesPorItem.set(is.itemId, [nome]);
+  }
+  return rawItems.map((item) => ({ ...item, sponsorNames: nomesPorItem.get(item.id) ?? [] }));
 }
 
 // Reuso total antigo não preencheu reuse_qty, mas cobre a peça inteira.

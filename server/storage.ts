@@ -342,6 +342,10 @@ export interface IStorage {
   getCatalogOptions(kind?: string): Promise<CatalogOption[]>;
   createCatalogOption(option: InsertCatalogOption): Promise<CatalogOption>;
   deleteCatalogOption(kind: string, value: string): Promise<boolean>;
+  getItemsSlimForEvents(): Promise<Array<{ id: string; eventId: string; status: string; skipApproval: boolean }>>;
+  getEventsByIds(ids: string[]): Promise<Event[]>;
+  getItemSponsorsByItemIds(itemIds: string[]): Promise<ItemSponsor[]>;
+  getItemSponsorApprovalsByItemIds(itemIds: string[]): Promise<ItemSponsorApproval[]>;
   getEmailDestinatarios(canal?: string): Promise<Array<typeof emailDestinatarios.$inferSelect>>;
   addEmailDestinatario(dado: { canal: string; email: string; addedBy?: string | null }): Promise<typeof emailDestinatarios.$inferSelect>;
   removeEmailDestinatario(id: string): Promise<(typeof emailDestinatarios.$inferSelect) | undefined>;
@@ -1541,6 +1545,41 @@ export class DatabaseStorage implements IStorage {
       .values(insertLog)
       .returning();
     return log;
+  }
+
+  // AUDITORIA 27/08: GET /api/events precisa das peças só para CONTAR (status
+  // por evento, funil de fases, próximo marco) — mas lia as 66 colunas do
+  // acervo inteiro a cada request do endpoint mais chamado do app. Esta
+  // projeção traz só o que a conta usa: ~95% menos bytes lidos e trafegados.
+  async getItemsSlimForEvents(): Promise<Array<{ id: string; eventId: string; status: string; skipApproval: boolean }>> {
+    return await db
+      .select({
+        id: items.id,
+        eventId: items.eventId,
+        status: items.status,
+        skipApproval: items.skipApproval,
+      })
+      .from(items)
+      .where(isNull(items.deletedAt));
+  }
+
+  // AUDITORIA 27/08: o enriquecimento de peças (routes/items.ts) carregava as
+  // QUATRO tabelas inteiras mesmo para servir as 20 peças de um evento. Estes
+  // três recortes por id fecham o vão; a lista de patrocinadores (pequena)
+  // continua vindo inteira.
+  async getEventsByIds(ids: string[]): Promise<Event[]> {
+    if (ids.length === 0) return [];
+    return await db.select().from(events).where(inArray(events.id, ids));
+  }
+
+  async getItemSponsorsByItemIds(itemIds: string[]): Promise<ItemSponsor[]> {
+    if (itemIds.length === 0) return [];
+    return await db.select().from(itemSponsors).where(inArray(itemSponsors.itemId, itemIds));
+  }
+
+  async getItemSponsorApprovalsByItemIds(itemIds: string[]): Promise<ItemSponsorApproval[]> {
+    if (itemIds.length === 0) return [];
+    return await db.select().from(itemSponsorApprovals).where(inArray(itemSponsorApprovals.itemId, itemIds));
   }
 
   // AUDITORIA 27/08: as rotas de LOTE gravavam a trilha com um INSERT por peça,

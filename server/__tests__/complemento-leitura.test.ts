@@ -256,6 +256,10 @@ beforeEach(() => {
   s.getAllSponsors = vi.fn(async () => []);
   s.getAllItemSponsors = vi.fn(async () => []);
   s.getAllItemSponsorApprovals = vi.fn(async () => []);
+  // Auditoria 27/08: o enrich escopado (lista <= 500) usa os recortes por id.
+  s.getEventsByIds = vi.fn(async (ids) => Object.values(mundo.eventos).filter((e) => ids.includes(e.id)));
+  s.getItemSponsorsByItemIds = vi.fn(async () => []);
+  s.getItemSponsorApprovalsByItemIds = vi.fn(async () => []);
   s.getItemSponsors = vi.fn(async () => []);
   s.getComplementsByParentIds = vi.fn(async () => []);
   s.getItemsByIds = vi.fn(async (ids: string[]) => ids.map((id) => mundo.itens[id]).filter(Boolean));

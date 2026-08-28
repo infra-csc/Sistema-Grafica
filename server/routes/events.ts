@@ -506,9 +506,14 @@ export function registerEventRoutes(app: Express): void {
       // patrocinador), agrupando em memória — em vez de 1 + 2 queries POR evento
       // (N+1). Com centenas de eventos isso era a diferença entre ~3 e ~600
       // queries neste endpoint, que é o mais chamado do app.
+      // AUDITORIA 27/08: getItemsSlimForEvents (id/eventId/status/skipApproval)
+      // no lugar de getAllItems (66 colunas do acervo inteiro). O enriquecimento
+      // só CONTA e classifica por status — e o `items` embutido na resposta,
+      // que os consumidores (Eventos, funil de fases) leem só por status,
+      // deixa de carregar o acervo dentro da lista de eventos.
       const [allEvents, allItems, allEventSponsors] = await Promise.all([
         storage.getAllEvents(),
-        storage.getAllItems(),
+        storage.getItemsSlimForEvents(),
         storage.getAllEventSponsors(),
       ]);
 

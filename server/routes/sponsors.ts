@@ -598,22 +598,25 @@ export function registerSponsorRoutes(app: Express): void {
   // Get sponsors for specific item (with full sponsor data including name)
   app.get("/api/items/:id/sponsors", requireAuth, async (req, res) => {
     try {
-      const itemSponsors = await storage.getItemSponsors(req.params.id);
-      
-      // Fetch full sponsor data for each item sponsor relationship
-      const sponsorsWithDetails = await Promise.all(
-        itemSponsors.map(async (is) => {
-          const sponsor = await storage.getSponsor(is.sponsorId);
-          return sponsor ? {
-            id: sponsor.id,
-            name: sponsor.name,
-            color: sponsor.color || '#3b82f6',
-            itemSponsorId: is.id,
-            createdAt: is.createdAt
-          } : null;
-        })
-      );
-      
+      // AUDITORIA 27/08: era uma query POR VÍNCULO (peça com 24 patrocinadores
+      // = 24 round-trips). A tabela de patrocinadores é pequena — duas queries
+      // no total resolvem.
+      const [itemSponsors, allSponsors] = await Promise.all([
+        storage.getItemSponsors(req.params.id),
+        storage.getAllSponsors(),
+      ]);
+      const porId = new Map(allSponsors.map((s) => [s.id, s]));
+      const sponsorsWithDetails = itemSponsors.map((is) => {
+        const sponsor = porId.get(is.sponsorId);
+        return sponsor ? {
+          id: sponsor.id,
+          name: sponsor.name,
+          color: sponsor.color || '#3b82f6',
+          itemSponsorId: is.id,
+          createdAt: is.createdAt
+        } : null;
+      });
+
       res.json(sponsorsWithDetails.filter(Boolean));
     } catch (error: any) {
       res.status(500).json({ error: error.message });

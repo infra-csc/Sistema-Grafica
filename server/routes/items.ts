@@ -374,11 +374,19 @@ import {
 // para que SponsorChips possa colorir os chips sem requests adicionais.
 async function enrichItemsWithEventsAndSponsors(list: any[]): Promise<any[]> {
   if (list.length === 0) return [];
+  // AUDITORIA 27/08: para listas pequenas (o detalhe de UM evento, as filas
+  // recortadas), buscar por id em vez de carregar as tabelas INTEIRAS — abrir
+  // um evento de 20 peças puxava todos os vínculos e aprovações do sistema.
+  // Acima do corte, o acervo inteiro está em jogo e o getAll* é o caminho
+  // mais barato (mesma régua de getComplementsByParentIds).
+  const escopado = list.length <= 500;
+  const itemIds = escopado ? list.map((i) => i.id) : [];
+  const eventIds = escopado ? Array.from(new Set(list.map((i) => i.eventId).filter(Boolean))) : [];
   const [allEvents, allSponsors, allItemSponsors, allApprovals] = await Promise.all([
-    storage.getAllEvents(),
+    escopado ? storage.getEventsByIds(eventIds) : storage.getAllEvents(),
     storage.getAllSponsors(),
-    storage.getAllItemSponsors(),
-    storage.getAllItemSponsorApprovals(),
+    escopado ? storage.getItemSponsorsByItemIds(itemIds) : storage.getAllItemSponsors(),
+    escopado ? storage.getItemSponsorApprovalsByItemIds(itemIds) : storage.getAllItemSponsorApprovals(),
   ]);
   const eventById = new Map(allEvents.map((e) => [e.id, e]));
   const sponsorById = new Map(allSponsors.map((s) => [s.id, s]));

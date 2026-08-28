@@ -8,25 +8,47 @@ import { broadcast } from "../routes/shared";
 
 export async function backfillInventoryAssets() {
     try {
-      const allItems = await storage.getAllItems();
+      // AUDITORIA 27/08: este backfill roda em TODO boot e era N+1 puro — três
+      // queries seriais POR peça produzida (assets, evento, vínculos), ~9.000
+      // queries num cold start com 3.000 produzidas, quase todas para concluir
+      // "nada a fazer". Agora as quatro tabelas vêm de UMA vez e o loop só
+      // toca o banco para as peças que realmente têm ativo faltando.
+      const [allItems, allAssets, allEvents, allItemSponsors] = await Promise.all([
+        storage.getAllItems(),
+        storage.getAllInventoryAssets(),
+        storage.getAllEvents(),
+        storage.getAllItemSponsors(),
+      ]);
+      const assetsPorItem = new Map<string, typeof allAssets>();
+      for (const a of allAssets) {
+        if (!a.originalItemId) continue;
+        const arr = assetsPorItem.get(a.originalItemId);
+        if (arr) arr.push(a); else assetsPorItem.set(a.originalItemId, [a]);
+      }
+      const eventoPorId = new Map(allEvents.map((e) => [e.id, e]));
+      const sponsorsPorItem = new Map<string, string[]>();
+      for (const is of allItemSponsors) {
+        const arr = sponsorsPorItem.get(is.itemId);
+        if (arr) arr.push(is.sponsorId); else sponsorsPorItem.set(is.itemId, [is.sponsorId]);
+      }
+
       const produced = allItems.filter(
         item => (item.status === 'produced' || item.status === 'delivered') &&
                 item.quantityProduced && item.quantityProduced > 0
       );
       let totalCreated = 0;
       for (const item of produced) {
-        const existing = await storage.getAssetsByOriginalItemId(item.id);
+        const existing = assetsPorItem.get(item.id) ?? [];
         if (existing.length >= (item.quantityProduced ?? 1)) continue; // already backfilled
 
-        const event = await storage.getEvent(item.eventId);
+        const event = eventoPorId.get(item.eventId);
         const itemName = item.description
           ? `${item.type} — ${item.description}`
           : item.type;
         const franchiseTags = event?.franchise
           ? [event.franchise.toLowerCase().replace(/\s+/g, '_')]
           : [];
-        const itemSponsorLinks = await storage.getItemSponsors(item.id);
-        const linkedSponsorIds = itemSponsorLinks.map(s => s.sponsorId);
+        const linkedSponsorIds = sponsorsPorItem.get(item.id) ?? [];
         const approvalThumbUrl = item.approvalThumbUrl ?? null;
         // assetPrefix, não replace(/[^0-9]/g,''): para "#0062" devolve "0062"
         // (byte a byte idêntico ao anterior — zero risco no acervo existente),
@@ -79,6 +101,14 @@ export async function backfillInventoryAssets() {
   // Trigger 1: truckDepartureDate passed → EM_USO
   // Trigger 2: midnight of event startDate (when the event day begins) → AGUARDANDO_TRIAGEM
   // Continuous (catch-up) logic — no narrow window — missed ticks are recovered automatically.
+// AUDITORIA 27/08: janela de retroação do catch-up. O cron reprocessava TODOS
+// os eventos passados, para sempre — com 500 eventos históricos eram ~1.000
+// UPDATEs/hora afetando 0 linhas, crescendo com o histórico e segurando o
+// scale-to-zero do Neon. 45 dias cobrem qualquer downtime realista de deploy;
+// evento mais velho que isso já transicionou (ou nunca vai — e reprocessá-lo
+// de hora em hora não mudaria nada).
+const JANELA_DE_CATCHUP_MS = 45 * 24 * 60 * 60 * 1000;
+
 export async function runInventoryCron() {
     try {
       const now = new Date();
@@ -88,7 +118,7 @@ export async function runInventoryCron() {
 
         // ── Departure: truck left → mark assets EM_USO ──────────────────────
         const departure = new Date(event.truckDepartureDate);
-        if (now >= departure) {
+        if (now >= departure && now.getTime() - departure.getTime() <= JANELA_DE_CATCHUP_MS) {
           const count = await storage.markAssetsInUseForEvent(event.id, departure);
           if (count > 0) {
             broadcast({ type: 'inventory_in_use', eventId: event.id, eventName: event.name, count });
@@ -103,7 +133,7 @@ export async function runInventoryCron() {
           dayAfterEvent.setDate(dayAfterEvent.getDate() + 1);
           dayAfterEvent.setHours(0, 0, 0, 0);
 
-          if (now >= dayAfterEvent) {
+          if (now >= dayAfterEvent && now.getTime() - dayAfterEvent.getTime() <= JANELA_DE_CATCHUP_MS) {
             const count = await storage.markAssetsAwaitingTriageForEvent(event.id);
             if (count > 0) {
               broadcast({

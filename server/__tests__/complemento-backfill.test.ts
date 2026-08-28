@@ -67,6 +67,12 @@ beforeEach(() => {
   s.getAssetsByOriginalItemId = vi.fn(async (id: string) => ativos[id] ?? []);
   s.getEvent = vi.fn(async () => ({ id: "ev-1", name: "COPA NORTE 2026", franchise: "Norte Nordeste" }));
   s.getItemSponsors = vi.fn(async () => []);
+  // Auditoria 27/08: o backfill deixou de fazer N+1 — lê as quatro tabelas de
+  // uma vez. Os mocks em lote derivam das MESMAS fixtures dos unitários.
+  s.getAllInventoryAssets = vi.fn(async () =>
+    Object.entries(ativos).flatMap(([itemId, lista]) => lista.map((a: any) => ({ originalItemId: itemId, ...a }))));
+  s.getAllEvents = vi.fn(async () => [{ id: "ev-1", name: "COPA NORTE 2026", franchise: "Norte Nordeste" }]);
+  s.getAllItemSponsors = vi.fn(async () => []);
   s.createInventoryAssets = vi.fn(async (rs: any[]) => { criados.push(rs); return rs.map((r, i) => ({ id: `at-${i}`, ...r })); });
 
   vi.spyOn(console, "log").mockImplementation(() => {});

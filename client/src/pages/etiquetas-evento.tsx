@@ -435,7 +435,7 @@ export default function EtiquetasEvento() {
                       quando existe; senão o resto do nome em texto) e a
                       palavra de destaque GIGANTE — é ela que se lê de longe. */}
                   {logo && usarLogo && (
-                    <img src={logo} alt="Logo do evento" data-testid="logo-etiqueta"
+                    <img loading="lazy" decoding="async" src={logo} alt="Logo do evento" data-testid="logo-etiqueta"
                       style={{ maxHeight: 92, maxWidth: "60%", objectFit: "contain", alignSelf: "flex-start", margin: "4px 0 6px" }} />
                   )}
                   {/* Sem palavra gigante (campo apagado), o nome sai UMA vez,
@@ -460,7 +460,7 @@ export default function EtiquetasEvento() {
                 {/* A PEÇA: arte + código + descrição + quantidade */}
                 <div style={{ flex: "1 1 0", minWidth: 0, display: "flex", gap: 16, alignItems: "center" }}>
                   {(e.p.approvalThumbUrl || e.p.finalPreviewUrl) && (
-                    <img src={e.p.approvalThumbUrl || e.p.finalPreviewUrl} alt=""
+                    <img loading="lazy" decoding="async" src={e.p.approvalThumbUrl || e.p.finalPreviewUrl} alt=""
                       style={{ width: 150, height: 150, objectFit: "contain", borderRadius: 10, border: "1px solid #e7e5e4", backgroundColor: "#fafaf9", flexShrink: 0 }} />
                   )}
                   <div style={{ minWidth: 0, flex: 1 }}>

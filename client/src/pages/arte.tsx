@@ -453,7 +453,7 @@ function ThumbPreview({ url, label }: { url?: string | null; label: string }) {
             pointerEvents: 'none',
           }}
         >
-          <img src={url} alt="" style={{ display: 'block', width: 240, maxHeight: 200, objectFit: 'contain', borderRadius: 6 }} />
+          <img loading="lazy" decoding="async" src={url} alt="" style={{ display: 'block', width: 240, maxHeight: 200, objectFit: 'contain', borderRadius: 6 }} />
         </span>
       )}
     </span>
@@ -2448,7 +2448,7 @@ export default function Arte() {
           quebrado aqui. */}
       {item.approvalThumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(item.approvalThumbUrl) || item.approvalThumbUrl.startsWith('/objects/')) && (
         <div style={{ marginTop: 6 }}>
-          <img src={item.approvalThumbUrl} alt="" style={{ maxWidth: 80, maxHeight: 60, borderRadius: 6, objectFit: 'cover' }} />
+          <img loading="lazy" decoding="async" src={item.approvalThumbUrl} alt="" style={{ maxWidth: 80, maxHeight: 60, borderRadius: 6, objectFit: 'cover' }} />
         </div>
       )}
       <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={3} destacarPendencia={tabId === "aguardando-patrocinador"} />
@@ -3359,7 +3359,7 @@ export default function Arte() {
                   {/* Thumb */}
                   <div style={{ width: isMobile ? '100%' : 80, height: isMobile ? 120 : 80, borderRadius: 8, backgroundColor: '#fef2f2', border: '1px solid #fecaca', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {isImage ? (
-                      <img src={item.approvalThumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img loading="lazy" decoding="async" src={item.approvalThumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : item.approvalThumbUrl ? (
                       <a href={item.approvalThumbUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textDecoration: 'none', color: '#ba1a1a' }}>
                         <FileText style={{ width: 22, height: 22 }} />
@@ -4385,7 +4385,7 @@ export default function Arte() {
                           gradiente — le como ruido. */}
                       <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#15803d', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         {/\.(png|jpg|jpeg|gif|webp)/i.test(correcaoThumbUrl)
-                          ? <img src={correcaoThumbUrl} alt="" style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 8 }} />
+                          ? <img loading="lazy" decoding="async" src={correcaoThumbUrl} alt="" style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 8 }} />
                           : <FileText style={{ width: 15, height: 15, color: '#fff' }} />
                         }
                       </div>
@@ -4649,7 +4649,7 @@ export default function Arte() {
                     <div style={{ width: 40, height: 40, borderRadius: 6, backgroundColor: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                       {isPdf
                         ? <FileText style={{ width: 20, height: 20, color: '#ef4444' }} />
-                        : <img src={selectedItem.approvalThumbUrl} alt="Thumb" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }} />
+                        : <img loading="lazy" decoding="async" src={selectedItem.approvalThumbUrl} alt="Thumb" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 6 }} />
                       }
                     </div>
                     <div style={{ flex: 1, overflow: 'hidden' }}>
@@ -4777,7 +4777,7 @@ export default function Arte() {
                     {/* Thumbnail row */}
                     <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
                       <div style={{ width: 96, height: 64, borderRadius: 8, overflow: 'hidden', border: '1px solid #ddd6fe', boxShadow: '0 1px 4px rgba(0,0,0,0.08)', flexShrink: 0, backgroundColor: '#e5e7eb' }}>
-                        <img
+                        <img loading="lazy" decoding="async" 
                           src={approvalThumbPreview}
                           alt="Preview do Thumb"
                           style={{ width: '100%', height: '100%', objectFit: 'cover' }}
@@ -5012,7 +5012,7 @@ export default function Arte() {
                       }}>
                         <div style={{ width: 40, height: 40, backgroundColor: '#d6d3d1', borderRadius: 6, flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           {item.approvalThumbUrl ? (
-                            <img src={item.approvalThumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <img loading="lazy" decoding="async" src={item.approvalThumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : (
                             <FileImage style={{ width: 16, height: 16, color: '#57534e' }} />
                           )}
@@ -5594,7 +5594,7 @@ export default function Arte() {
                         }}>
                           {/* ── Thumbnail quadrado ── */}
                           <div style={{ position: 'relative', width: 80, flexShrink: 0, backgroundColor: '#f3f4f3' }}>
-                            <img src={entry.preview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', minHeight: 80 }} />
+                            <img loading="lazy" decoding="async" src={entry.preview} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', minHeight: 80 }} />
                             {/* Status pill */}
                             <div style={{ position: 'absolute', bottom: 4, left: 0, right: 0, display: 'flex', justifyContent: 'center' }}>
                               {entry.status === 'done' && (

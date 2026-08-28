@@ -30,6 +30,18 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    // AUDITORIA 27/08: com as rotas em React.lazy (App.tsx), cada página vira
+    // um chunk próprio. O vendor de base (React + roteador + query) sai num
+    // chunk separado e ESTÁVEL: um deploy que só muda código de página deixa
+    // de invalidar o cache do framework inteiro no browser de todo mundo.
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "vendor-react": ["react", "react-dom", "wouter", "@tanstack/react-query"],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 900,
   },
   esbuild: {
     // Workaround for Vite HMR bug: path.extname('file.tsx?t=0.1234') returns

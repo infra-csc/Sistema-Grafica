@@ -145,7 +145,7 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
 
         {/* A arte grande — conferir É comparar o material com ela. */}
         {arte ? (
-          <img src={arte} alt={`Arte da peça ${item.displayId}`}
+          <img loading="lazy" decoding="async" src={arte} alt={`Arte da peça ${item.displayId}`}
             style={{ width: "100%", maxHeight: "34vh", objectFit: "contain", borderRadius: 10, border: "1px solid #e7e5e4", backgroundColor: "#ffffff" }} />
         ) : (
           <p style={{ margin: 0, padding: "14px 12px", fontSize: 13, color: "#78716c", backgroundColor: "#f5f5f4", borderRadius: 10 }}>
@@ -187,7 +187,7 @@ export function GalpaoFila({ mode, itens, onClose, onConfirmar }: Props) {
         {/* A foto — o primeiro dos dois toques */}
         {foto ? (
           <div style={{ position: "relative", alignSelf: "flex-start" }}>
-            <img src={foto} alt="Foto registrada" style={{ height: 96, borderRadius: 10, border: `2px solid ${tinta}` }} />
+            <img loading="lazy" decoding="async" src={foto} alt="Foto registrada" style={{ height: 96, borderRadius: 10, border: `2px solid ${tinta}` }} />
             <button type="button" aria-label="Tirar outra foto" data-testid="galpao-refazer-foto"
               onClick={() => setFoto(null)}
               style={{ position: "absolute", top: -8, right: -8, width: 32, height: 32, borderRadius: "50%", border: "none", backgroundColor: "#1c1917", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>

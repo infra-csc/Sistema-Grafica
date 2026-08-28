@@ -165,7 +165,7 @@ function PhotoLightbox({
         onClick={e => e.stopPropagation()}
         style={{ position: "relative", maxWidth: "90vw", maxHeight: "85vh", display: "flex", flexDirection: "column", alignItems: "center", gap: 12 }}
       >
-        <img
+        <img loading="lazy" decoding="async" 
           src={url}
           alt={alt}
           style={{ maxWidth: "90vw", maxHeight: "80vh", objectFit: "contain", borderRadius: 8, boxShadow: "0 25px 60px rgba(0,0,0,0.6)" }}
@@ -218,7 +218,7 @@ function PhotoGrid({ urls, alt }: { urls: string[]; alt: string }) {
               backgroundColor: "#f5f4f1", cursor: "zoom-in", padding: 0, appearance: "none",
             }}
           >
-            <img src={url} alt={alt}
+            <img loading="lazy" decoding="async" src={url} alt={alt}
               style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
               onError={e => {
                 const img = e.currentTarget as HTMLImageElement;
@@ -1270,7 +1270,7 @@ export function ItemDetailsDialog({
                         data-testid="link-referencia"
                         style={{ display: "block", position: "relative", aspectRatio: "16/9", borderRadius: 10, overflow: "hidden", border: "2px solid #fed7aa", backgroundColor: "#fff7ed" }}
                       >
-                        <img
+                        <img loading="lazy" decoding="async" 
                           src={refs[0]} alt="Referência do solicitante"
                           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                           onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
@@ -1283,7 +1283,7 @@ export function ItemDetailsDialog({
                               title={`Abrir referência ${k + 2} de ${refs.length}`}
                               data-testid={`link-referencia-${k + 2}`}
                               style={{ display: "block", width: 56, height: 42, borderRadius: 6, overflow: "hidden", border: "1px solid #fed7aa", backgroundColor: "#fff7ed" }}>
-                              <img src={u} alt={`Referência ${k + 2} do solicitante`}
+                              <img loading="lazy" decoding="async" src={u} alt={`Referência ${k + 2} do solicitante`}
                                 style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                                 onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                             </a>
@@ -1324,7 +1324,7 @@ export function ItemDetailsDialog({
                         data-testid="link-conferencia"
                         style={{ display: "block", position: "relative", aspectRatio: "16/9", borderRadius: 10, overflow: "hidden", border: "1px solid #a5f3fc", backgroundColor: "#ecfeff" }}
                       >
-                        <img
+                        <img loading="lazy" decoding="async" 
                           src={conferencePhotos[0]} alt="Foto da conferência da gráfica"
                           style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                           onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}

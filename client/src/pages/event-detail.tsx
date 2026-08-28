@@ -578,7 +578,7 @@ function ItemForm({
               <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
                 {/* Thumbnail preview */}
                 <div style={{ flexShrink: 0, width: 80, height: 80, borderRadius: 8, overflow: "hidden", border: "1px solid #e7e5e4", backgroundColor: "#f5f5f4" }}>
-                  <img
+                  <img loading="lazy" decoding="async" 
                     src={localRefPreview || formData.referenceUrl}
                     style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                     alt="Referência visual"
@@ -2467,7 +2467,7 @@ export default function EventDetail() {
                                           {refs.map((url, k) => (
                                             <span key={`${url}-${k}`} style={{ position: 'relative', display: 'inline-flex' }}>
                                               <a href={url} target="_blank" rel="noopener noreferrer" title={refs.length > 1 ? `Abrir referência ${k + 1} de ${refs.length}` : "Abrir referência visual"} data-testid={k === 0 ? `link-reference-${item.id}` : `link-reference-${item.id}-${k + 1}`}>
-                                                <img src={url} className="h-8 w-8 rounded object-cover border border-border" alt={`Referência visual ${k + 1}`} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                                <img loading="lazy" decoding="async" src={url} className="h-8 w-8 rounded object-cover border border-border" alt={`Referência visual ${k + 1}`} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                                               </a>
                                               {podeEditarRef && (
                                                 <button
@@ -2972,7 +2972,7 @@ export default function EventDetail() {
                               {refs.map((url, k) => (
                                 <span key={`${url}-${k}`} style={{ position: 'relative', display: 'inline-flex' }}>
                                   <a href={url} target="_blank" rel="noopener noreferrer" title={refs.length > 1 ? `Ver referência ${k + 1} de ${refs.length}` : "Ver referência"} data-testid={k === 0 ? `link-reference-table-${item.id}` : `link-reference-table-${item.id}-${k + 1}`}>
-                                    <img src={url} style={{ height: 32, width: 32, objectFit: 'cover', borderRadius: 6, border: '1px solid #e7e5e4' }} alt={`Referência visual ${k + 1}`} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                    <img loading="lazy" decoding="async" src={url} style={{ height: 32, width: 32, objectFit: 'cover', borderRadius: 6, border: '1px solid #e7e5e4' }} alt={`Referência visual ${k + 1}`} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                                   </a>
                                   {podeEditarRef && (
                                     <button

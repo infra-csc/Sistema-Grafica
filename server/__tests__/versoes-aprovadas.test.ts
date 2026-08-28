@@ -230,7 +230,9 @@ describe("3 · o servidor filtra, pagina, resume e exporta", () => {
 
 describe("4 · a tela", () => {
   it("rota, título e item de menu — sem restrição de papel", () => {
-    expect(APP).toContain('import Versoes from "@/pages/versoes";');
+    // Code splitting (27/08): as páginas viraram React.lazy — o import
+    // estático deu lugar ao dinâmico.
+    expect(APP).toContain('const Versoes = lazyPage(() => import("@/pages/versoes"));');
     expect(APP).toContain('"/versoes": "Versões aprovadas",');
     expect(APP).toContain('<Route path="/versoes">');
     const linha = SIDEBAR.split("\n").find(l => l.includes('url: "/versoes"')) ?? "";

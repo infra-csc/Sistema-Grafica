@@ -22,36 +22,70 @@ import { roleLabel, userInitials } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useLogout } from "@/hooks/use-logout";
 import { useWebSocket } from "@/hooks/use-websocket";
-import { useEffect, useState, Component, type ReactNode } from "react";
+import { useEffect, useState, Component, lazy, Suspense, type ReactNode, type ComponentType } from "react";
+
+/**
+ * lazy() com rede: se o chunk falhar ao baixar (deploy trocou os arquivos no
+ * meio de uma sessão aberta), recarrega a página UMA vez em vez de mostrar o
+ * ErrorBoundary — é o modo de falha clássico do code splitting em produção.
+ */
+function lazyPage<T extends ComponentType<any>>(fabrica: () => Promise<{ default: T }>) {
+  return lazy(() =>
+    fabrica().catch((erro) => {
+      const chave = "chunk-reload-once";
+      if (!sessionStorage.getItem(chave)) {
+        sessionStorage.setItem(chave, "1");
+        window.location.reload();
+      }
+      throw erro;
+    })
+  );
+}
+
+/** Fallback dos chunks de rota: discreto, sem layout pulando. */
+function PaginaCarregando() {
+  return (
+    <div style={{ padding: 40, fontSize: 13, color: "#78716c" }}>
+      Carregando a tela…
+    </div>
+  );
+}
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import ChangePassword from "@/pages/change-password";
-import Usuarios from "@/pages/usuarios";
-import Patrocinadores from "@/pages/patrocinadores";
-import PainelGeral from "@/pages/painel-geral";
-import DashboardAnalises from "@/pages/dashboard-analises";
-import Eventos from "@/pages/eventos";
-import EventDetail from "@/pages/event-detail";
-import RelatorioEvento from "@/pages/relatorio-evento";
-import EtiquetasEvento from "@/pages/etiquetas-evento";
-import BookGerador from "@/pages/book-gerador";
-import Arte from "@/pages/arte";
-import Atendimento from "@/pages/atendimento";
-import Solicitacao from "@/pages/solicitacao";
-import Grafica from "@/pages/grafica";
-import Modelos from "@/pages/modelos";
-import Calendario from "@/pages/calendario";
-import Historico from "@/pages/historico";
-import Versoes from "@/pages/versoes";
-import Registros from "@/pages/registros";
-import VincularPatrocinadores from "@/pages/vincular-patrocinadores";
-import LogsSistema from "@/pages/logs-sistema";
-import Notificacoes from "@/pages/notificacoes";
-import Estoque from "@/pages/estoque";
-import TriagemRetorno from "@/pages/triagem-retorno";
-import ConfigurarCotas from "@/pages/configurar-cotas";
-import GestaoPrazos from "@/pages/gestao-prazos";
-import ReparoMotivos from "@/pages/reparo-motivos";
+// ── CODE SPLITTING (auditoria de performance, 27/08) ─────────────────────────
+// As 28 páginas eram importadas eager e colapsavam num único chunk de ~2,4 MB:
+// o operador da Gráfica baixava recharts (página só-admin), pdf-lib (gerador
+// de book) e todo o resto antes do primeiro paint da fila dele. Com lazy, cada
+// rota vira um chunk próprio, baixado quando o usuário a abre — e um deploy só
+// invalida o cache dos chunks que mudaram. Login/NotFound/ChangePassword
+// seguem eager: são o caminho de entrada e pesam nada.
+const Usuarios = lazyPage(() => import("@/pages/usuarios"));
+const Patrocinadores = lazyPage(() => import("@/pages/patrocinadores"));
+const PainelGeral = lazyPage(() => import("@/pages/painel-geral"));
+const DashboardAnalises = lazyPage(() => import("@/pages/dashboard-analises"));
+const Eventos = lazyPage(() => import("@/pages/eventos"));
+const EventDetail = lazyPage(() => import("@/pages/event-detail"));
+const RelatorioEvento = lazyPage(() => import("@/pages/relatorio-evento"));
+const EtiquetasEvento = lazyPage(() => import("@/pages/etiquetas-evento"));
+const BookGerador = lazyPage(() => import("@/pages/book-gerador"));
+const Arte = lazyPage(() => import("@/pages/arte"));
+const Atendimento = lazyPage(() => import("@/pages/atendimento"));
+const Solicitacao = lazyPage(() => import("@/pages/solicitacao"));
+const Grafica = lazyPage(() => import("@/pages/grafica"));
+const Modelos = lazyPage(() => import("@/pages/modelos"));
+const Calendario = lazyPage(() => import("@/pages/calendario"));
+const Historico = lazyPage(() => import("@/pages/historico"));
+const Versoes = lazyPage(() => import("@/pages/versoes"));
+const Registros = lazyPage(() => import("@/pages/registros"));
+const VincularPatrocinadores = lazyPage(() => import("@/pages/vincular-patrocinadores"));
+const LogsSistema = lazyPage(() => import("@/pages/logs-sistema"));
+const Notificacoes = lazyPage(() => import("@/pages/notificacoes"));
+const Estoque = lazyPage(() => import("@/pages/estoque"));
+const TriagemRetorno = lazyPage(() => import("@/pages/triagem-retorno"));
+const ConfigurarCotas = lazyPage(() => import("@/pages/configurar-cotas"));
+const GestaoPrazos = lazyPage(() => import("@/pages/gestao-prazos"));
+const ReparoMotivos = lazyPage(() => import("@/pages/reparo-motivos"));
 
 
 class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
@@ -205,6 +239,7 @@ function RoleProtectedRoute({
 
 function Router() {
   return (
+    <Suspense fallback={<PaginaCarregando />}>
     <Switch>
       <Route path="/login" component={Login} />
       <Route path="/change-password">
@@ -293,6 +328,7 @@ function Router() {
       </Route>
       <Route component={NotFound} />
     </Switch>
+    </Suspense>
   );
 }
 

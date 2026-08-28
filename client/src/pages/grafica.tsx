@@ -276,7 +276,7 @@ function PhotoPicker({ photos, onAdd, onRemove, onError, label = "Fotos", hint, 
         <div style={{ display: "grid", gridTemplateColumns: `repeat(auto-fill, minmax(${dense ? 72 : 84}px, 1fr))`, gap: 8, marginTop: dense ? 10 : 12 }}>
           {photos.map(url => (
             <div key={url} style={{ position: "relative", aspectRatio: "1", borderRadius: 8, overflow: "hidden", border: `1px solid ${TI.border}`, backgroundColor: "#f4f3f0" }}>
-              <img src={url} alt="Foto anexada" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              <img loading="lazy" decoding="async" src={url} alt="Foto anexada" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               {/* Alvo de toque 44×44 (área invisível maior que o X visível) e
                   confirmação antes de remover — o botão de 20px colado na
                   miniatura removia a foto num toque acidental, sem volta. */}
@@ -3192,7 +3192,7 @@ export default function Grafica() {
                         )}
                         {item.referenceUrl && (
                           <a href={item.referenceUrl} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Ver referência do solicitante" style={{ display: "inline-flex", alignItems: "center", gap: 3, marginTop: 3, fontSize: 10, fontWeight: 700, color: "#c2410c", textDecoration: "none", backgroundColor: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 6, padding: "1px 5px" }} data-testid={`link-reference-grafica-${item.id}`}>
-                            <img src={item.referenceUrl} style={{ width: 12, height: 12, objectFit: "cover", borderRadius: 999 }} alt="" onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                            <img loading="lazy" decoding="async" src={item.referenceUrl} style={{ width: 12, height: 12, objectFit: "cover", borderRadius: 999 }} alt="" onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                             REF
                           </a>
                         )}
@@ -4048,8 +4048,7 @@ export default function Grafica() {
                   backgroundColor: "#ffffff", border: `1px solid ${TI.border}`,
                 }}
               >
-                <img
-                  src={convertGCSUrlToLocalPath(selectedItem.approvalThumbUrl)}
+                <img loading="lazy" decoding="async"                   src={convertGCSUrlToLocalPath(selectedItem.approvalThumbUrl)}
                   alt="Arte aprovada"
                   style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }}
                   onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}

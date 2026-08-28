@@ -1,5 +1,6 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { miniatura } from "@/lib/miniatura";
+import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import { Link } from "wouter";
 import { FilterSelect, ShortcutPill } from "@/components/filter-select";
 import { AlertCircle, AlertTriangle, Package, CheckCircle, Truck, Calendar, Eye, Check, Camera, Search, Play, X, Filter, ChevronDown, Printer, RotateCcw, ImagePlus, FileSpreadsheet, ListChecks, PlusCircle, Trash2, Undo2, Loader2, Recycle, Tag } from "lucide-react";
@@ -24,6 +25,7 @@ import {
 } from "@/lib/status";
 import type { SeloPecaEventoFinalizado } from "@/lib/status";
 import { StatusPill } from "@/components/status-pill";
+import { diasNaFase, tomDaIdade } from "@/lib/idade-na-fase";
 import { useAuth } from "@/contexts/auth-context";
 import { ModalHeader, modalSurface, HIDE_NATIVE_CLOSE } from "@/components/modal-shell";
 import { GalpaoFila, type GalpaoDados } from "@/components/galpao-fila";
@@ -2405,9 +2407,9 @@ export default function Grafica() {
           </div>
         )}
         {isLoading ? (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", padding: 48 }}>
-            <div style={{ width: 32, height: 32, border: `3px solid ${TI.border}`, borderTopColor: TI.accent, borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
-          </div>
+          /* Silhueta em vez de spinner (UX 27/08): o spinner colapsava a
+             altura e a fila chegava EMPURRANDO a tela. */
+          <EsqueletoDeFila linhas={8} />
         ) : isError ? (
           <div style={{ textAlign: "center", padding: "48px 24px" }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: "#b91c1c", marginBottom: 4 }}>
@@ -2653,6 +2655,12 @@ export default function Grafica() {
                           {(() => { const { base, suffix } = splitDisplayId(item.displayId); return (<>{base}{suffix && <span style={{ color: CO.suffix }}>{suffix}</span>}</>); })()}
                         </span>
                         <StatusPill status={item.status} size="sm" showDot={false} />
+                        {(() => {
+                          const d = diasNaFase(item, new Date());
+                          if (d === null || d < 1) return null;
+                          const tom = tomDaIdade(d);
+                          return <span title={`Está neste status há ${d} dia(s)`} style={{ fontSize: 10.5, fontFamily: "'DM Mono', monospace", fontWeight: tom.peso, color: tom.cor }}>há {d}d</span>;
+                        })()}
                         {item.isReuse && <span style={{ fontSize: 10, fontWeight: 800, color: '#047857', background: '#dcfce7', border: '1px solid #86efac', borderRadius: 6, padding: '2px 6px' }}>REAPROV.</span>}
                         {/* Selo do complemento: sólido enquanto o lote está em
                             aberto (trabalho novo), outline depois de entregue —
@@ -3333,9 +3341,17 @@ export default function Grafica() {
                         <div style={{ fontSize: 13, color: TI.text }}>{item.material}</div>
                         {item.finish && <div style={{ fontSize: 11, color: TI.secondary, marginTop: 2 }}>{item.finish}</div>}
                       </td>
-                      {/* Status */}
+                      {/* Status + IDADE NA FASE (UX 27/08): a mesma régua
+                          7/14 dias da Arte — a Gráfica via a MESMA peça sem
+                          saber há quanto tempo ela estava parada ali. */}
                       <td style={{ padding: "13px 16px" }}>
                         <StatusPill status={item.status} size="sm" showDot={false} />
+                        {(() => {
+                          const d = diasNaFase(item, new Date());
+                          if (d === null || d < 1) return null;
+                          const tom = tomDaIdade(d);
+                          return <div title={`Está neste status há ${d} dia(s)`} style={{ marginTop: 3, fontSize: 10.5, fontFamily: "'DM Mono', monospace", fontWeight: tom.peso, color: tom.cor }}>há {d}d</div>;
+                        })()}
                       </td>
                       {/* Ações — `sticky right` com sombra à esquerda marcando a
                           borda. `background: inherit` copia a cor da <tr>,

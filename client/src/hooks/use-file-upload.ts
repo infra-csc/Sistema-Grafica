@@ -1,6 +1,7 @@
 // Lógica compartilhada de upload de arquivos para o Replit Object Storage
 // Usada por ObjectUploader.tsx e FileUploader.tsx
 import { useRef, useState } from "react";
+import { comprimirImagem } from "@/lib/comprimir-imagem";
 
 export interface UseFileUploadOptions {
   maxFileSize: number;
@@ -53,15 +54,19 @@ export function useFileUpload({
     Array.from(event.target.files ?? []).filter(check);
 
   const putOne = async (file: File) => {
+    // COMPRESSÃO NA CAPTURA (UX 27/08): foto de câmera de 5-8 MB vira ~300 KB
+    // antes de subir — no Wi-Fi do galpão é a diferença entre 30s e 2s. PDFs,
+    // não-imagens e imagens pequenas passam intactos; falha devolve o original.
+    const paraSubir = await comprimirImagem(file);
     // Upload via servidor (mesma origem). O caminho antigo — URL assinada +
     // PUT direto no storage.googleapis.com — morre em "Failed to fetch" nas
     // redes corporativas que bloqueiam o host do Google Storage. O servidor
     // valida tipo/tamanho e grava no bucket.
     const uploadResponse = await fetch("/api/objects/upload-direct", {
       method: "PUT",
-      body: file,
+      body: paraSubir,
       headers: {
-        "Content-Type": file.type || "application/octet-stream",
+        "Content-Type": paraSubir.type || "application/octet-stream",
       },
     });
 

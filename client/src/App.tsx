@@ -42,11 +42,22 @@ function lazyPage<T extends ComponentType<any>>(fabrica: () => Promise<{ default
   );
 }
 
-/** Fallback dos chunks de rota: discreto, sem layout pulando. */
+/** Fallback dos chunks de rota: silhueta discreta, sem layout pulando. */
 function PaginaCarregando() {
   return (
-    <div style={{ padding: 40, fontSize: 13, color: "#78716c" }}>
-      Carregando a tela…
+    <div aria-busy="true" style={{ padding: "18px" }}>
+      <div className="animate-pulse" style={{ width: 220, height: 22, borderRadius: 6, backgroundColor: "#e7e5e4", marginBottom: 8 }} />
+      <div className="animate-pulse" style={{ width: 340, height: 13, borderRadius: 4, backgroundColor: "#f0efee", marginBottom: 20 }} />
+      <div style={{ backgroundColor: "#ffffff", border: "1px solid #e7e5e4", borderRadius: 10, overflow: "hidden" }}>
+        <div style={{ height: 44, backgroundColor: "#fafaf9", borderBottom: "1px solid #e7e5e4" }} />
+        {[0, 1, 2, 3, 4].map((i) => (
+          <div key={i} style={{ display: "flex", alignItems: "center", gap: 18, height: 58, padding: "0 16px", borderBottom: "1px solid #f5f4f2" }}>
+            <div className="animate-pulse" style={{ width: 52, height: 12, borderRadius: 4, backgroundColor: "#e7e5e4" }} />
+            <div className="animate-pulse" style={{ width: `${34 - i * 4}%`, height: 12, borderRadius: 4, backgroundColor: "#e7e5e4" }} />
+            <div className="animate-pulse" style={{ width: 88, height: 22, borderRadius: 999, backgroundColor: "#f0efee", marginLeft: "auto" }} />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

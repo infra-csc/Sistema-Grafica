@@ -5,7 +5,7 @@ import { FilterSelect } from "@/components/filter-select";
 import { EventFilterDropdown } from "@/components/event-filter-dropdown";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -20,6 +20,7 @@ import { ptBR } from "date-fns/locale";
 import { ItemDetailsDialog } from "@/components/item-details-dialog";
 import { useAuth } from "@/contexts/auth-context";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import { ModalHeader, ModalFooter, modalSurface, HIDE_NATIVE_CLOSE, FreezeWhileClosing } from "@/components/modal-shell";
 import { R, onColor, darkenToContrast } from "@/lib/theme";
 import {
@@ -260,6 +261,13 @@ export default function VincularPatrocinadores() {
   const [soSemPatrocinador, setSoSemPatrocinador] = useState(false);
   // Trava o botão de confirmar envio enquanto a sincronização/envio está em curso.
   const [isSending, setIsSending] = useState(false);
+  // PROGRESSO VISÍVEL do envio em lote (UX 27/08): a sincronização roda item
+  // a item no client (runInBatches) — dava para contar, e o botão ficava só
+  // em 'Enviando...' enquanto 60 peças sincronizavam às cegas.
+  const [progressoEnvio, setProgressoEnvio] = useState<{ feito: number; total: number } | null>(null);
+  // Resultado completo de um lote com muitas recusas — o toast fica para o
+  // resumo; a lista nomeada (peça + motivo) abre aqui.
+  const [resultadoDoLote, setResultadoDoLote] = useState<{ titulo: string; recusadas: { displayId: string; motivo: string }[] } | null>(null);
 
 
 
@@ -1121,6 +1129,12 @@ export default function VincularPatrocinadores() {
         description: partes.join(" · ") || "As peças selecionadas já tinham este patrocinador.",
         variant: recusadas.length > 0 && !r?.vinculadas ? "destructive" : undefined,
       });
+      // MAIS DE 3 RECUSADAS não cabem num toast (UX 27/08): abre o resultado
+      // completo, peça por peça com o motivo — o "…" escondia exatamente o
+      // que a pessoa precisava para agir.
+      if (recusadas.length > 3) {
+        setResultadoDoLote({ titulo: `${r?.sponsor ?? "Patrocinador"} — ${recusadas.length} peças recusadas`, recusadas });
+      }
     },
     onError: (error: any) => toast({ title: "Erro ao acrescentar", description: error.message, variant: "destructive" }),
   });
@@ -1801,6 +1815,7 @@ export default function VincularPatrocinadores() {
         const newOnes = Array.from(pendingByItem[item.id] || []);
         return !!draft?.isDirty || newOnes.some(id => !existing.includes(id));
       });
+      setProgressoEnvio({ feito: 0, total: toSync.length });
       await runInBatches(toSync, async (item) => {
         const draft = pendingChanges[item.id];
         const existing = draft?.sponsorIds ?? originalSponsorsMap[item.id] ?? [];
@@ -1816,6 +1831,7 @@ export default function VincularPatrocinadores() {
         setOriginalSponsorsMap(prev => ({ ...prev, [item.id]: merged }));
         setItemSponsorsMap(prev => ({ ...prev, [item.id]: merged }));
         if (draft) setPendingChanges(prev => { const n = { ...prev }; delete n[item.id]; return n; });
+        setProgressoEnvio(prev => prev ? { ...prev, feito: prev.feito + 1 } : prev);
       });
       const itemIds = paraEnviar.map(i => i.id);
       setOptimisticSentIds(prev => new Set(Array.from(prev).concat(itemIds)));
@@ -1835,6 +1851,7 @@ export default function VincularPatrocinadores() {
       });
     } finally {
       setIsSending(false);
+      setProgressoEnvio(null);
     }
   };
 
@@ -1883,12 +1900,13 @@ export default function VincularPatrocinadores() {
   // estados pareciam de outro produto. E o vazio só afirmava que não havia
   // nada, sem dizer por quê nem o que fazer — quem cai aqui fica sem saída.
   if (itemsLoading || eventsLoading) {
+    // Silhueta em vez de spinner central (UX 27/08): reserva o espaço da
+    // lista e a chegada dos dados não empurra a tela.
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
-          <div className="animate-spin" style={{ width: 34, height: 34, borderRadius: R.pill, border: '3px solid #ebe8e4', borderTopColor: '#c2410c' }} />
-          <p style={{ fontSize: 13, color: '#57534e', margin: 0 }}>Carregando peças…</p>
-        </div>
+      <div aria-busy="true" style={{ padding: '18px 18px 64px', maxWidth: 1100, margin: '0 auto' }}>
+        <div className="animate-pulse" style={{ width: 260, height: 22, borderRadius: 6, backgroundColor: '#e7e5e4', marginBottom: 8 }} />
+        <div className="animate-pulse" style={{ width: 360, height: 13, borderRadius: 4, backgroundColor: '#f0efee', marginBottom: 20 }} />
+        <EsqueletoDeFila linhas={9} />
       </div>
     );
   }
@@ -3469,6 +3487,27 @@ export default function VincularPatrocinadores() {
       />
 
       {/* ===== Modal de Confirmação de Envio ===== */}
+      {/* RESULTADO DO LOTE (UX 27/08): mais de 3 recusas não cabem num toast —
+          aqui a lista inteira, peça a peça, com o motivo do servidor. */}
+      <Dialog open={!!resultadoDoLote} onOpenChange={(open) => { if (!open) setResultadoDoLote(null); }}>
+        <DialogContent style={{ maxWidth: 560 }}>
+          <DialogHeader>
+            <DialogTitle>{resultadoDoLote?.titulo}</DialogTitle>
+          </DialogHeader>
+          <p style={{ margin: '0 0 10px', fontSize: 13, color: '#57534e' }}>
+            Nenhuma dessas peças foi alterada — cada linha diz o porquê, para dar o próximo passo sem adivinhar.
+          </p>
+          <div style={{ maxHeight: 320, overflowY: 'auto', border: '1px solid #e7e5e4', borderRadius: 10 }}>
+            {(resultadoDoLote?.recusadas ?? []).map((rec, i) => (
+              <div key={i} style={{ display: 'flex', gap: 10, padding: '9px 12px', borderBottom: '1px solid #f5f4f2', fontSize: 12.5 }}>
+                <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: '#c2410c', whiteSpace: 'nowrap' }}>{rec.displayId}</span>
+                <span style={{ color: '#44403c' }}>{rec.motivo}</span>
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!sendConfirmModal} onOpenChange={(open) => { if (!open && !isSending) setSendConfirmModal(null); }}>
         <DialogContent className={HIDE_NATIVE_CLOSE} style={modalSurface(680)}>
           {/* POR QUE congelar aqui: o onSuccess do envio invalida /api/items,
@@ -3729,7 +3768,7 @@ export default function VincularPatrocinadores() {
               >
                 <Send style={{ width: 15, height: 15 }} />
                 {(isSending || sendToArteMutation.isPending)
-                  ? 'Enviando...'
+                  ? (progressoEnvio && progressoEnvio.total > 0 ? `Sincronizando ${progressoEnvio.feito}/${progressoEnvio.total}…` : 'Enviando…')
                   : `Confirmar Envio${sendConfirmModal && sendConfirmModal.items.length > 0 ? ` (${sendConfirmModal.items.length})` : ''}`}
               </button>
             </div>

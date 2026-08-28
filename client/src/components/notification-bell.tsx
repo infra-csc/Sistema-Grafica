@@ -431,7 +431,47 @@ export function NotificationBell({
                 </p>
               </div>
             ) : (
-              notifications.map((n) => {
+              (() => {
+                // ── TRIAGEM (UX 27/08) ────────────────────────────────────────
+                // 18 não lidas planas viravam ruído: "peça prioritária" afundava
+                // entre "novo item adicionado". Dois níveis: o que PRECISA DE
+                // AÇÃO fica no topo, o informativo vem agrupado por evento, com
+                // "marcar lidas" por grupo.
+                const TIPOS_DE_ACAO = new Set(["itemPriority", "itemRejected", "deadlineAlert", "quantityReduced"]);
+                const nomeDoEvento = (msg: string) => {
+                  const m = /Evento:\s*([^—·]+?)\s*$/.exec(msg) ?? /Evento\s+"([^"]+)"/.exec(msg);
+                  return m ? m[1].trim() : null;
+                };
+                const acao = notifications.filter((n) => TIPOS_DE_ACAO.has(n.type));
+                const informativas = notifications.filter((n) => !TIPOS_DE_ACAO.has(n.type));
+                const grupos = new Map<string, { rotulo: string; itens: Notification[] }>();
+                for (const n of informativas) {
+                  const chave = n.eventId ?? "__geral__";
+                  const g = grupos.get(chave);
+                  if (g) { g.itens.push(n); if (g.rotulo === "Geral") g.rotulo = nomeDoEvento(n.message) ?? g.rotulo; }
+                  else grupos.set(chave, { rotulo: nomeDoEvento(n.message) ?? "Geral", itens: [n] });
+                }
+                const cabecalho = (texto: string, itens: Notification[], destaque = false) => {
+                  const naoLidas = itens.filter((x) => !x.isRead);
+                  return (
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 16px 4px", backgroundColor: destaque ? "#fff7ed" : "#fafaf9", borderBottom: "1px solid #f3f4f3" }}>
+                      <span style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: "0.08em", color: destaque ? "#c2410c" : "#78716c", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {texto}
+                      </span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: "#a8a29e" }}>{itens.length}</span>
+                      {naoLidas.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); naoLidas.forEach((x) => onMarkAsRead(x.id)); }}
+                          style={{ marginLeft: "auto", border: "none", background: "none", padding: "2px 4px", fontSize: 10, fontWeight: 700, color: "#c2410c", cursor: "pointer", whiteSpace: "nowrap" }}
+                        >
+                          marcar lidas
+                        </button>
+                      )}
+                    </div>
+                  );
+                };
+                const renderNotificacao = (n: Notification) => {
                 const cfg = TYPE_CONFIG[n.type] ?? DEFAULT_CONFIG;
                 const Icon = cfg.Icon;
                 const isDeadline = n.type === "deadlineAlert";
@@ -517,7 +557,20 @@ export function NotificationBell({
                     )}
                   </div>
                 );
-              })
+                };
+                return (
+                  <>
+                    {acao.length > 0 && cabecalho("Precisa de ação", acao, true)}
+                    {acao.map(renderNotificacao)}
+                    {Array.from(grupos.entries()).map(([chave, g]) => (
+                      <div key={chave}>
+                        {(acao.length > 0 || grupos.size > 1) && cabecalho(g.rotulo, g.itens)}
+                        {g.itens.map(renderNotificacao)}
+                      </div>
+                    ))}
+                  </>
+                );
+              })()
             )}
           </div>
 

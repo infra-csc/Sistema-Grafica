@@ -1506,7 +1506,7 @@ export default function GestaoPrazos() {
                   : "indisponível nesta versão do servidor"}
                 title={podeFiltrarSaidas
                   ? "Clique para ver só os eventos com saída entre hoje e os próximos 7 dias."
-                  : "Filtro indisponível nesta versão do servidor — reinicie o app no Replit (Stop e Run)."}
+                  : "Filtro indisponível — o sistema foi atualizado; recarregue a página (F5). Se continuar, avise o administrador."}
                 trend={trend?.saidas7d} goodWhenUp={false}
                 testId="kpi-saidas-7d"
               />

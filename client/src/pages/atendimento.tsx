@@ -1,4 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { diasNaFase, tomDaIdade } from "@/lib/idade-na-fase";
 import { Button } from "@/components/ui/button";
 import { TextoComLinks } from "@/components/texto-com-links";
 import { SponsorChips } from "@/components/sponsor-chips";
@@ -2705,6 +2706,15 @@ export default function Atendimento() {
                                       {meta.short}
                                     </span>
                                   );
+                                })()}
+                                {/* IDADE NA FASE (UX 27/08): a MESMA régua 7/14
+                                    da Arte e da Gráfica — quem cobra patrocinador
+                                    precisa ver há quanto tempo a decisão espera. */}
+                                {(() => {
+                                  const d = diasNaFase(item, new Date());
+                                  if (d === null || d < 1) return null;
+                                  const tom = tomDaIdade(d);
+                                  return <span title={`Está neste status há ${d} dia(s)`} style={{ flexShrink: 0, fontSize: 10.5, fontFamily: "'DM Mono', monospace", fontWeight: tom.peso, color: tom.cor }}>há {d}d</span>;
                                 })()}
                               </div>
                               <p title={item.description || undefined} style={{ fontSize: 12, color: '#746e69', margin: '3px 0 0', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>

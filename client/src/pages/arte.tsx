@@ -14,6 +14,8 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { cn, parseDateLocal, toUTCDisplayDate, runInBatches, fileNameFromPath } from "@/lib/utils";
 import { compareDisplayId } from "@/lib/displayId";
 import { miniatura } from "@/lib/miniatura";
+import { diasNaFase, tomDaIdade } from "@/lib/idade-na-fase";
+import { EsqueletoDeFila } from "@/components/esqueleto-de-fila";
 import { DEPOIS_DA_ARTE, naoDevolvivel } from "@shared/fluxo-peca";
 // Motor de PDF compartilhado (mesmo da tela de Atendimento) — a Arte não tem
 // mais motor próprio; qualquer ajuste de layout do book vale para as duas telas.
@@ -212,19 +214,8 @@ type ArteCol = { label: string; w: number | string; right?: boolean; sep?: boole
  * oito meses que entrou na fase ontem apareceria como "há 240d", e quem
  * procura gargalo agiria sobre isso.
  */
-function diasNaFase(item: any, hoje: Date): number | null {
-  const bruto = item?.statusChangedAt ?? item?.status_changed_at;
-  if (!bruto) return null;
-  const t = new Date(bruto).getTime();
-  if (!Number.isFinite(t)) return null;
-  return Math.max(0, Math.floor((hoje.getTime() - t) / 86400000));
-}
-/** A escala: até 7 dias é rotina; de 7 a 13 pede olhar; de 14 em diante é gargalo. */
-function tomDaIdade(dias: number): { cor: string; peso: number } {
-  if (dias >= 14) return { cor: "#b91c1c", peso: 700 };
-  if (dias >= 7) return { cor: "#b45309", peso: 700 };
-  return { cor: "#78716c", peso: 600 };
-}
+// (UX 27/08) diasNaFase/tomDaIdade viraram fonte única em lib/idade-na-fase —
+// a MESMA régua agora aparece na Gráfica e no Atendimento.
 const PARADA_HA_MAIS_DE = 7;
 const estaParada = (item: any, hoje: Date) => (diasNaFase(item, hoje) ?? -1) > PARADA_HA_MAIS_DE;
 
@@ -4046,9 +4037,8 @@ export default function Arte() {
         </div>
       )}
       {isLoading ? (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '48px 0' }}>
-          <div style={{ width: 32, height: 32, borderRadius: '50%', border: '3px solid #e7e5e4', borderTopColor: '#f97316', animation: 'spin 0.8s linear infinite' }} />
-        </div>
+        /* Silhueta em vez de spinner (UX 27/08) — mesma razão da Gráfica. */
+        <EsqueletoDeFila linhas={8} />
       ) : isError ? (
         // Terceiro ramo ANTES do conteúdo: enquanto houver erro, o empty state
         // de sucesso nunca é renderizado.

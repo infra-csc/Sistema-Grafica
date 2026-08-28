@@ -101,7 +101,7 @@ export async function apiRequest(
   // front). Sem esta guarda o app "dava certo" em silêncio — ex.: Marcar
   // todas as notificações sem efeito nenhum.
   if (url.startsWith("/api/") && (res.headers.get("content-type") || "").includes("text/html")) {
-    throw new Error("Servidor desatualizado — reinicie o app no Replit (Stop e Run) e tente de novo.");
+    throw new Error("O sistema acabou de ser atualizado — recarregue a página (F5) e tente de novo. Se continuar, avise o administrador.");
   }
 
   await throwIfResNotOk(res, url);
@@ -152,7 +152,7 @@ async function fetchItensComDelta(headers: Record<string, string>): Promise<any[
   const url = itensSync ? `/api/items?since=${encodeURIComponent(itensSync.since)}` : "/api/items";
   const res = await fetch(url, { credentials: "include", headers });
   if ((res.headers.get("content-type") || "").includes("text/html")) {
-    throw new Error("Servidor desatualizado — reinicie o app no Replit (Stop e Run) e tente de novo.");
+    throw new Error("O sistema acabou de ser atualizado — recarregue a página (F5) e tente de novo. Se continuar, avise o administrador.");
   }
   await throwIfResNotOk(res, "/api/items");
   const corpo = await res.json();
@@ -199,7 +199,7 @@ export const getQueryFn: <T>(options: {
     // catch-all do SPA devolveu o index com 200 — sem isto o res.json()
     // abaixo estourava com SyntaxError críptico em vez de dizer o conserto.
     if (url.startsWith("/api/") && (res.headers.get("content-type") || "").includes("text/html")) {
-      throw new Error("Servidor desatualizado — reinicie o app no Replit (Stop e Run) e tente de novo.");
+      throw new Error("O sistema acabou de ser atualizado — recarregue a página (F5) e tente de novo. Se continuar, avise o administrador.");
     }
 
     await throwIfResNotOk(res, url);

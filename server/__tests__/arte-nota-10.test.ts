@@ -30,6 +30,10 @@ import path from "path";
 
 const ler = (rel: string) => readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
 const ARTE = ler("client/src/pages/arte.tsx");
+// UX 27/08: diasNaFase/tomDaIdade viraram fonte única em lib/idade-na-fase —
+// os asserts da régua valem sobre a LIB; a Arte (e agora Gráfica/Atendimento)
+// a importam.
+const IDADE = ler("client/src/lib/idade-na-fase.ts");
 const CHIPS = ler("client/src/components/sponsor-chips.tsx");
 const ROTAS = ler("server/routes/items.ts");
 const semCom = (s: string) => s.replace(/\r\n/g, "\n").replace(/\/\*[\s\S]*?\*\//g, "")
@@ -37,17 +41,19 @@ const semCom = (s: string) => s.replace(/\r\n/g, "\n").replace(/\/\*[\s\S]*?\*\/
 
 describe("1 · idade na fase", () => {
   it("deriva de statusChangedAt, e sem registro não exibe nada", () => {
-    expect(ARTE).toContain("function diasNaFase(item: any, hoje: Date): number | null {");
-    expect(ARTE).toContain("const bruto = item?.statusChangedAt ?? item?.status_changed_at;");
-    expect(ARTE).toContain("if (!bruto) return null;");
-    const i = ARTE.indexOf("function diasNaFase");
-    expect(ARTE.slice(i, i + 400)).not.toContain("createdAt");
+    expect(IDADE).toContain("export function diasNaFase(item: any, hoje: Date): number | null {");
+    expect(IDADE).toContain("const bruto = item?.statusChangedAt ?? item?.status_changed_at;");
+    expect(IDADE).toContain("if (!bruto) return null;");
+    const i = IDADE.indexOf("function diasNaFase");
+    expect(IDADE.slice(i, i + 400)).not.toContain("createdAt");
+    // e a Arte consome a fonte única (Gráfica e Atendimento também)
+    expect(ARTE).toContain('from "@/lib/idade-na-fase"');
   });
 
   it("a escala de tom: cinza até 7, âmbar de 7 a 13, vermelho de 14 em diante", () => {
-    expect(ARTE).toContain('if (dias >= 14) return { cor: "#b91c1c", peso: 700 };');
-    expect(ARTE).toContain('if (dias >= 7) return { cor: "#b45309", peso: 700 };');
-    expect(ARTE).toContain('return { cor: "#78716c", peso: 600 };');
+    expect(IDADE).toContain('if (dias >= 14) return { cor: "#b91c1c", peso: 700 };');
+    expect(IDADE).toContain('if (dias >= 7) return { cor: "#b45309", peso: 700 };');
+    expect(IDADE).toContain('return { cor: "#78716c", peso: 600 };');
   });
 
   it("aparece abaixo da data, em DM Mono 11, com o title por extenso — e o prazo continua texto", () => {

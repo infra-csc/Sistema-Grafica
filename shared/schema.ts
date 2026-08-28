@@ -157,6 +157,10 @@ export const itemSponsorApprovals = pgTable("item_sponsor_approvals", {
 }, (table) => [
   index("IDX_item_sponsor_approvals_item_id").on(table.itemId),
   index("IDX_item_sponsor_approvals_sponsor_id").on(table.sponsorId),
+  // AUDITORIA 27/08: Gestão de Prazos (getOpenItemSponsorApprovals) e uso por
+  // patrocinador (getSponsorUsage) filtram por status — era seq scan a cada
+  // carga das duas telas.
+  index("IDX_item_sponsor_approvals_status").on(table.status),
 ]);
 
 // Event Quota Rules — maps sponsor tiers to item types per event
@@ -306,6 +310,10 @@ export const items = pgTable("items", {
   // Enriquecimento das 3 rotas de leitura busca os complementos por lote
   // (WHERE parent_item_id = ANY(...)) — sem índice vira seq scan por request.
   index("IDX_items_parent_item_id").on(table.parentItemId),
+  // AUDITORIA 27/08: as listagens reais são "WHERE event_id = X AND deleted_at
+  // IS NULL ORDER BY created_at" — dois índices soltos obrigam o planner a
+  // escolher um e ordenar fora. O composto serve filtro E ordem de uma vez.
+  index("IDX_items_event_created").on(table.eventId, table.createdAt.desc()),
 ]);
 
 // Standard items (templates)
@@ -543,7 +551,12 @@ export const auditLogs = pgTable("audit_logs", {
   // Estoque e outras telas filtram por entityType + entityId juntos.
   // Nota: índice standalone em entityId foi removido pois entity_id pode ser
   // muito longo (>2704 bytes) em produção, estourando o limite btree.
-  // O índice composto abaixo cobre os casos de uso relevantes.
+  // AUDITORIA 27/08: por isso o composto NÃO inclui entity_id. O filtro real é
+  // `entity_type = X AND (entity_id = Y OR entity_id LIKE '%Y%') ORDER BY
+  // created_at DESC, id DESC LIMIT n` — o LIKE com % dos dois lados jamais usa
+  // índice; o que o índice abaixo dá é caminhar o TIPO já na ordem do cursor e
+  // parar no LIMIT, em vez de seq scan + sort da maior tabela do sistema.
+  index("IDX_audit_logs_entity_created").on(table.entityType, table.createdAt.desc(), table.id.desc()),
 ]);
 
 // Inventory Assets table (Acervo)

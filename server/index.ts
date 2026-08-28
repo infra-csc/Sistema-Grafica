@@ -255,30 +255,21 @@ function isSensitiveLogPath(path: string): boolean {
   return SENSITIVE_LOG_PATHS.some((p) => path === p || path.startsWith(`${p}/`));
 }
 
+// AUDITORIA DE PERFORMANCE (27/08), gargalo nº 1: a versão anterior fazia
+// monkey-patch em res.json, guardava o body inteiro e no finish rodava
+// JSON.stringify(body) — uma SEGUNDA serialização completa, síncrona, de até
+// ~15 MB em /api/items — para aproveitar 79 caracteres. Era a maior fonte de
+// bloqueio de event loop e pressão de GC do processo. O log guarda o que a
+// operação de verdade usa (método, rota, status, duração); o conteúdo das
+// respostas continua visível na trilha de auditoria e no próprio client.
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
 
   res.on("finish", () => {
-    const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse && !isSensitiveLogPath(path)) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
+      const duration = Date.now() - start;
+      log(`${req.method} ${path} ${res.statusCode} in ${duration}ms`);
     }
   });
 

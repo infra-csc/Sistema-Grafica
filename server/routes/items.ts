@@ -19,6 +19,7 @@ import {
   broadcast,
   translateStatus,
   createAuditLog,
+  createAuditLogsEmLote,
   resolveActor,
   updateEventStatus,
   EVENT_CLOSED_STATUS,
@@ -1135,17 +1136,13 @@ export function registerItemRoutes(app: Express): void {
       // Create all items in bulk
       const createdItems = await storage.createBulkItems(validatedItems);
 
-      // Create audit log for each item created
-      for (const item of createdItems) {
-        await createAuditLog(
-          req,
-          'created',
-          'item',
-          item.id,
-          `Item "${item.type}" criado - Qtd: ${item.quantity}, ${item.calculatedM2}m²`
-          + (item.isPriority ? " — PRIORITÁRIA" : "")
-        );
-      }
+      // AUDITORIA 27/08: a trilha do lote sai em UM INSERT — era um por peça,
+      // em série, logo depois de createBulkItems ter inserido tudo de uma vez.
+      await createAuditLogsEmLote(req, createdItems.map((item) => ({
+        action: 'created', entityType: 'item', entityId: item.id,
+        details: `Item "${item.type}" criado - Qtd: ${item.quantity}, ${item.calculatedM2}m²`
+          + (item.isPriority ? " — PRIORITÁRIA" : ""),
+      })));
       
       // Get event for notification
       const firstItem = createdItems[0];
@@ -3587,27 +3584,35 @@ export function registerItemRoutes(app: Express): void {
       const destino = lerDestinoDevolucao(req);
       const notes = motivoLote.motivo;
 
-      const results = [];
-      const errors = [];
+      const results: any[] = [];
+      const errors: any[] = [];
       // ANDA: mesma devolução do individual, multiplicada.
       const bloqueio = contadorDeBloqueio();
 
-      for (const itemId of itemIds) {
+      // AUDITORIA 27/08: mesma cura dos outros lotes — peças em paralelo,
+      // evento lido uma vez por evento, trilha em UM INSERT e UM broadcast.
+      const eventoMemo = new Map<string, Promise<any>>();
+      const eventoDe = (eventId: string) => {
+        if (!eventoMemo.has(eventId)) eventoMemo.set(eventId, storage.getEvent(eventId));
+        return eventoMemo.get(eventId)!;
+      };
+      await Promise.all(itemIds.map(async (itemId: string) => {
+        try {
         const currentItem = await storage.getItem(itemId);
         if (!currentItem) {
           errors.push({ itemId, error: "Item não encontrado" });
-          continue;
+          return;
         }
 
-        const motivoEvento = await motivoEventoDaPeca(currentItem);
+        const motivoEvento = motivoEventoFechado(await eventoDe(currentItem.eventId));
         if (motivoEvento) {
           errors.push({ itemId, error: bloqueio.registra(motivoEvento) });
-          continue;
+          return;
         }
 
         if (currentItem.status !== "awaiting_final_review") {
           errors.push({ itemId, error: `Status inválido: ${currentItem.status}` });
-          continue;
+          return;
         }
 
         const item = await storage.updateItem(itemId, {
@@ -3634,20 +3639,21 @@ export function registerItemRoutes(app: Express): void {
 
         if (item) {
           results.push(item);
-          await createAuditLog(
-            req,
-            'rejected',
-            'item',
-            item.id,
-            `Item devolvido para Arte para modificações (em lote).`
-          );
-          broadcast({ type: "item_updated", item });
         }
-      }
+        } catch (e) {
+          errors.push({ itemId, error: "falha interna ao processar a peça" });
+          console.error("[bulk-return-to-arte] falha na peça", itemId, e);
+        }
+      }));
 
       if (bloqueio.respondeLoteInteiro(res, results.length, itemIds.length)) return;
 
       if (results.length > 0) {
+        await createAuditLogsEmLote(req, results.map((r) => ({
+          action: 'rejected', entityType: 'item', entityId: r.id,
+          details: `Item devolvido para Arte para modificações (em lote).`,
+        })));
+        broadcast({ type: "items_bulk_updated", itemIds: results.map((r) => r.id), eventId: results[0].eventId });
         const detailMsg = notes ? ` Observações: ${notes}` : "";
         const notification = await storage.createNotification({
           type: "itemRejected",
@@ -3726,35 +3732,51 @@ export function registerItemRoutes(app: Express): void {
         return res.status(400).json({ error: "itemIds deve ser um array não vazio" });
       }
       
-      const results = [];
+      const results: any[] = [];
       // Mesma decisão (e mesma dúvida) do cancelamento individual acima.
       const bloqueio = contadorDeBloqueio();
 
-      for (const itemId of itemIds) {
-        const currentItem = await storage.getItem(itemId);
-        if (!currentItem) continue;
+      // AUDITORIA 27/08: era um for..await com getItem + getEvent + update +
+      // INSERT de trilha + broadcast POR PEÇA — 200 peças ≈ 800 round-trips
+      // seriais no Neon e 200 rajadas de refetch nas abas. Agora: peças em
+      // paralelo (o pool limita a concorrência), evento lido UMA vez por
+      // evento, trilha em UM INSERT e UM broadcast agregado no fim.
+      const eventoMemo = new Map<string, Promise<any>>();
+      const eventoDe = (eventId: string) => {
+        if (!eventoMemo.has(eventId)) eventoMemo.set(eventId, storage.getEvent(eventId));
+        return eventoMemo.get(eventId)!;
+      };
+      await Promise.all(itemIds.map(async (itemId: string) => {
+        try {
+          const currentItem = await storage.getItem(itemId);
+          if (!currentItem) return;
 
-        const motivoEvento = await motivoEventoDaPeca(currentItem);
-        if (motivoEvento) {
-          bloqueio.registra(motivoEvento);
-          continue;
-        }
+          const motivoEvento = motivoEventoFechado(await eventoDe(currentItem.eventId));
+          if (motivoEvento) {
+            bloqueio.registra(motivoEvento);
+            return;
+          }
 
-        const item = await storage.updateItem(itemId, {
-          status: "canceled",
-          observations: notes || currentItem.observations,
-        });
-        if (item) {
-          results.push(item);
-          const detailMsg = notes ? ` Motivo: ${notes}` : "";
-          await createAuditLog(
-            req,
-            'canceled', 'item', item.id, `Item cancelado (em lote)${detailMsg}`);
-          broadcast({ type: "item_updated", item });
+          const item = await storage.updateItem(itemId, {
+            status: "canceled",
+            observations: notes || currentItem.observations,
+          });
+          if (item) results.push(item);
+        } catch (e) {
+          console.error("[bulk-cancel] falha na peça", itemId, e);
         }
-      }
+      }));
 
       if (bloqueio.respondeLoteInteiro(res, results.length, itemIds.length)) return;
+
+      if (results.length > 0) {
+        const detailMsg = notes ? ` Motivo: ${notes}` : "";
+        await createAuditLogsEmLote(req, results.map((r) => ({
+          action: 'canceled', entityType: 'item', entityId: r.id,
+          details: `Item cancelado (em lote)${detailMsg}`,
+        })));
+        broadcast({ type: "items_bulk_updated", itemIds: results.map((r) => r.id), eventId: results[0].eventId });
+      }
 
       res.json({ canceled: results.length, items: results });
     } catch (error: any) {
@@ -3860,27 +3882,36 @@ export function registerItemRoutes(app: Express): void {
       if (!motivo.ok) return res.status(400).json({ error: motivo.erro });
       const destino = lerDestinoDevolucao(req);
       
-      const results = [];
-      const errors = [];
+      const results: any[] = [];
+      const errors: any[] = [];
       // ANDA: mesma reprovação do individual, multiplicada.
       const bloqueio = contadorDeBloqueio();
 
-      for (const itemId of itemIds) {
+      // AUDITORIA 27/08: mesma cura do bulk-cancel — peças em paralelo, evento
+      // lido uma vez por evento, trilha em UM INSERT e UM broadcast agregado.
+      const trilha: Array<{ action: string; entityType: string; entityId: string; details?: string }> = [];
+      const eventoMemo = new Map<string, Promise<any>>();
+      const eventoDe = (eventId: string) => {
+        if (!eventoMemo.has(eventId)) eventoMemo.set(eventId, storage.getEvent(eventId));
+        return eventoMemo.get(eventId)!;
+      };
+      await Promise.all(itemIds.map(async (itemId: string) => {
+        try {
         const currentItem = await storage.getItem(itemId);
         if (!currentItem) {
           errors.push({ itemId, error: "Item não encontrado" });
-          continue;
+          return;
         }
 
-        const motivoEvento = await motivoEventoDaPeca(currentItem);
+        const motivoEvento = motivoEventoFechado(await eventoDe(currentItem.eventId));
         if (motivoEvento) {
           errors.push({ itemId, error: bloqueio.registra(motivoEvento) });
-          continue;
+          return;
         }
 
         if (currentItem.status !== "awaiting_final_review") {
           errors.push({ itemId, error: `Status inválido: ${currentItem.status}` });
-          continue;
+          return;
         }
 
         const item = await storage.updateItem(itemId, {
@@ -3901,25 +3932,29 @@ export function registerItemRoutes(app: Express): void {
           rejectedByCreator: true,
           rejectionReason: motivo.motivo,
         });
-        
+
         if (item) {
           results.push(item);
-          
-          const event = await storage.getEvent(item.eventId);
-          
-          await createAuditLog(
-            req,
-            'rejected',
-            'item',
-            item.id,
-            `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(camposDoDestino(destino, await rodadaDeAprovacaoFechada(currentItem)).status)} (reprovado pelo criador em lote — ${textoDoDestino(destino)}). Motivo: ${motivo.motivo}`
-          );
-          
-          broadcast({ type: "item_updated", item });
+          // AUDITORIA 27/08: a linha da trilha sai no INSERT em lote abaixo —
+          // aqui só se registra a frase (o status novo vem do próprio item,
+          // sem refazer camposDoDestino + rodada, que eram MAIS duas queries).
+          trilha.push({
+            action: 'rejected', entityType: 'item', entityId: item.id,
+            details: `Status alterado: ${translateStatus(currentItem.status)} → ${translateStatus(item.status)} (reprovado pelo criador em lote — ${textoDoDestino(destino)}). Motivo: ${motivo.motivo}`,
+          });
         }
-      }
-      
+        } catch (e) {
+          errors.push({ itemId, error: "falha interna ao processar a peça" });
+          console.error("[bulk-creator-reject] falha na peça", itemId, e);
+        }
+      }));
+
       if (bloqueio.respondeLoteInteiro(res, results.length, itemIds.length)) return;
+
+      if (results.length > 0) {
+        await createAuditLogsEmLote(req, trilha);
+        broadcast({ type: "items_bulk_updated", itemIds: results.map((r) => r.id), eventId: results[0].eventId });
+      }
 
       // Notifica Arte uma vez para todos os itens
       if (results.length > 0) {

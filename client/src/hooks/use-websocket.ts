@@ -38,6 +38,27 @@ export function useWebSocket() {
   const reconnectAttemptsRef = useRef(0);
   const { toast } = useToast();
 
+  // ── COALESCING DAS CHAVES PESADAS (auditoria 27/08) ───────────────────────
+  // '/api/items' devolve o acervo INTEIRO (MBs) e '/api/events' reagrega tudo.
+  // Invalidar por mensagem transformava uma rajada de lote (30+ broadcasts em
+  // 1-2s) em 30 re-downloads completos POR ABA — o maior custo de rede do app.
+  // Cada mensagem agora só REGISTRA as chaves; um único timer de 500ms (a
+  // mesma janela dos blocos de prazos/audit-logs abaixo) invalida cada chave
+  // UMA vez ao fim da rajada. O "tempo real" fica meio segundo atrás — nada
+  // que uma tela do app distinga; o dado final é o mesmo.
+  const pesadasPendentesRef = useRef<Set<string>>(new Set());
+  const pesadasTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const invalidateCoalesced = useCallback((...keyParts: string[]) => {
+    pesadasPendentesRef.current.add(JSON.stringify(keyParts));
+    if (pesadasTimerRef.current) clearTimeout(pesadasTimerRef.current);
+    pesadasTimerRef.current = setTimeout(() => {
+      pesadasTimerRef.current = null;
+      const chaves = Array.from(pesadasPendentesRef.current, (s) => JSON.parse(s) as string[]);
+      pesadasPendentesRef.current.clear();
+      for (const queryKey of chaves) queryClient.invalidateQueries({ queryKey });
+    }, 500);
+  }, []);
+
   const connect = useCallback(() => {
     if (unmountedRef.current) return;
 
@@ -65,10 +86,11 @@ export function useWebSocket() {
       // ('/api/items/approved', prefixo próprio — ver item_updated abaixo) e no
       // sino ('/api/notifications'). Com staleTime Infinity o cache não expira
       // sozinho: sem estas linhas só o F5 corrigia.
-      queryClient.invalidateQueries({ queryKey: ['/api/items'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/items/approved'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/events'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+      // Pelo coalescer: reconexão seguida de rajada re-baixa cada chave UMA vez.
+      invalidateCoalesced('/api/items');
+      invalidateCoalesced('/api/items/approved');
+      invalidateCoalesced('/api/events');
+      invalidateCoalesced('/api/notifications');
     };
 
     ws.onmessage = (event) => {
@@ -123,10 +145,11 @@ export function useWebSocket() {
           // de debounce acima (o regex `^event_` alcança os dois).
           case 'event_closed':
           case 'event_reopened':
-            queryClient.invalidateQueries({ queryKey: ['/api/events'] });
+            // '/api/events' por PREFIXO já alcança ['/api/events', id] — a
+            // invalidação específica era redundante e dobrava o refetch.
+            invalidateCoalesced('/api/events');
             if (data.eventId) {
-              queryClient.invalidateQueries({ queryKey: ['/api/events', data.eventId] });
-              queryClient.invalidateQueries({ queryKey: ['/api/items', data.eventId] });
+              invalidateCoalesced('/api/items', data.eventId);
             }
             // As FILAS DE TRABALHO (Arte, Atendimento, Gráfica, Revisão Final,
             // Vinculação) decidem o que mostrar lendo `item.event.status` do
@@ -136,9 +159,9 @@ export function useWebSocket() {
             // TanStack é por PREFIXO — ['/api/items', id] logo acima NÃO
             // alcança ['/api/items'].
             if (data.type === 'event_closed' || data.type === 'event_reopened') {
-              queryClient.invalidateQueries({ queryKey: ['/api/items'] });
-              queryClient.invalidateQueries({ queryKey: ['/api/items/approved'] });
-              queryClient.invalidateQueries({ queryKey: ['/api/items/resubmission-needed'] });
+              invalidateCoalesced('/api/items');
+              invalidateCoalesced('/api/items/approved');
+              invalidateCoalesced('/api/items/resubmission-needed');
             }
             if (data.type === 'event_created') {
               toast({
@@ -153,13 +176,10 @@ export function useWebSocket() {
             break;
 
           case 'item_created':
-            if (data.item?.eventId) {
-              queryClient.invalidateQueries({ queryKey: ['/api/items', data.item.eventId] });
-            }
             // Sem esta invalidação o Painel Geral (que lê '/api/items' com
-            // staleTime Infinity) só via peças novas no F5 — o "tempo real"
-            // valia para update/delete e não para create/approve/produce.
-            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
+            // staleTime Infinity) só via peças novas no F5. O prefixo
+            // '/api/items' já alcança ['/api/items', eventId].
+            invalidateCoalesced('/api/items');
             toast({
               title: 'Novo item adicionado',
               description: `Item ${data.item?.type} adicionado`,
@@ -167,11 +187,9 @@ export function useWebSocket() {
             break;
 
           case 'item_updated':
-            if (data.item?.eventId) {
-              queryClient.invalidateQueries({ queryKey: ['/api/items', data.item.eventId] });
-              queryClient.invalidateQueries({ queryKey: ['/api/events', data.item.eventId] });
-            }
-            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
+            // Prefixos cobrem as chaves por id — invalidá-las separadamente
+            // dobrava (e cancelava no meio) os refetches em voo.
+            invalidateCoalesced('/api/items');
             // O casamento de chave do TanStack é por PREFIXO elemento a
             // elemento: '/api/items' NÃO alcança '/api/items/approved'. Este é
             // o broadcast de /confer, /mark-reuse e /correct-reuse — as três
@@ -179,8 +197,8 @@ export function useWebSocket() {
             // feita pelo celular do conferente jamais chegava ao computador do
             // operador, que continuava vendo a peça como "Produzido" e tomava
             // 409 ("Nada a conferir") ao tentar de novo.
-            queryClient.invalidateQueries({ queryKey: ['/api/items/approved'] });
-            queryClient.invalidateQueries({ queryKey: ['/api/events'] });
+            invalidateCoalesced('/api/items/approved');
+            invalidateCoalesced('/api/events');
             break;
 
           case 'item_delivered':
@@ -190,55 +208,46 @@ export function useWebSocket() {
             // (updateEventStatus em routes/items.ts, rota /deliver).
             // Sem toast de propósito: quem entregou já recebeu o feedback local
             // da mutation, e o eco do próprio broadcast viraria aviso dobrado.
-            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
-            queryClient.invalidateQueries({ queryKey: ['/api/items/approved'] });
-            if (data.item?.eventId) {
-              queryClient.invalidateQueries({ queryKey: ['/api/items', data.item.eventId] });
-              queryClient.invalidateQueries({ queryKey: ['/api/events', data.item.eventId] });
-            }
-            queryClient.invalidateQueries({ queryKey: ['/api/events'] });
+            invalidateCoalesced('/api/items');
+            invalidateCoalesced('/api/items/approved');
+            invalidateCoalesced('/api/events');
             break;
 
           case 'items_book_updated':
             // Vínculo do book de aprovação (POST /api/events/:id/book) mudava
             // bookUrl em N peças e nenhuma tela revalidava: a Arte continuava
             // oferecendo "anexar book" numa peça que já tinha book.
-            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
-            if (data.eventId) {
-              queryClient.invalidateQueries({ queryKey: ['/api/items', data.eventId] });
-            }
+            invalidateCoalesced('/api/items');
             break;
 
           case 'item_deleted':
-            if (data.eventId) {
-              queryClient.invalidateQueries({ queryKey: ['/api/items', data.eventId] });
-              queryClient.invalidateQueries({ queryKey: ['/api/events', data.eventId] });
-            }
-            // Sem estas duas, quando OUTRO usuário excluía uma peça o Painel
-            // Geral (que lê '/api/items') continuava mostrando a linha
-            // indefinidamente — só a exclusão local invalidava certo.
-            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
-            queryClient.invalidateQueries({ queryKey: ['/api/items/deleted'] });
-            queryClient.invalidateQueries({ queryKey: ['/api/events'] });
+            // Sem estas, quando OUTRO usuário excluía uma peça o Painel Geral
+            // continuava mostrando a linha até o F5. Prefixos cobrem os ids.
+            invalidateCoalesced('/api/items');
+            invalidateCoalesced('/api/items/deleted');
+            invalidateCoalesced('/api/events');
             break;
 
           case 'items_bulk_created':
-            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
-            queryClient.invalidateQueries({ queryKey: ['/api/items/pending'] });
-            if (data.eventId) {
-              queryClient.invalidateQueries({ queryKey: ['/api/items', data.eventId] });
-            }
+            invalidateCoalesced('/api/items');
+            invalidateCoalesced('/api/items/pending');
             toast({
               title: 'Peças adicionadas',
               description: `${data.items?.length || 0} peças adicionadas ao evento`,
             });
             break;
 
+          case 'items_bulk_updated':
+            // Lote agregado (auditoria 27/08): o servidor emite UMA mensagem
+            // para N peças — o broadcast por peça virava N ciclos de refetch
+            // do acervo inteiro em cada aba.
+            invalidateCoalesced('/api/items');
+            invalidateCoalesced('/api/items/approved');
+            invalidateCoalesced('/api/events');
+            break;
+
           case 'items_submitted':
-            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
-            if (data.eventId) {
-              queryClient.invalidateQueries({ queryKey: ['/api/items', data.eventId] });
-            }
+            invalidateCoalesced('/api/items');
             toast({
               title: 'Peças enviadas para vinculação',
               description: `${data.count || 0} peças aguardando vinculação de patrocinadores`,
@@ -246,14 +255,10 @@ export function useWebSocket() {
             break;
 
           case 'item_approved':
-            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
-            queryClient.invalidateQueries({ queryKey: ['/api/items/pending'] });
-            queryClient.invalidateQueries({ queryKey: ['/api/items/approved'] });
-            if (data.item?.eventId) {
-              queryClient.invalidateQueries({ queryKey: ['/api/items', data.item.eventId] });
-              queryClient.invalidateQueries({ queryKey: ['/api/events', data.item.eventId] });
-            }
-            queryClient.invalidateQueries({ queryKey: ['/api/events'] });
+            invalidateCoalesced('/api/items');
+            invalidateCoalesced('/api/items/pending');
+            invalidateCoalesced('/api/items/approved');
+            invalidateCoalesced('/api/events');
             toast({
               title: 'Peça liberada',
               description: `${data.item?.type} aprovada para produção`,
@@ -262,13 +267,9 @@ export function useWebSocket() {
 
           case 'production_started':
           case 'production_updated':
-            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
-            queryClient.invalidateQueries({ queryKey: ['/api/items/approved'] });
-            if (data.item?.eventId) {
-              queryClient.invalidateQueries({ queryKey: ['/api/items', data.item.eventId] });
-              queryClient.invalidateQueries({ queryKey: ['/api/events', data.item.eventId] });
-            }
-            queryClient.invalidateQueries({ queryKey: ['/api/events'] });
+            invalidateCoalesced('/api/items');
+            invalidateCoalesced('/api/items/approved');
+            invalidateCoalesced('/api/events');
             toast({
               title: data.type === 'production_started' ? 'Produção iniciada' : 'Produção atualizada',
               description: `Item ${data.item?.type} atualizado`,
@@ -276,7 +277,7 @@ export function useWebSocket() {
             break;
 
           case 'deadline_alert':
-            queryClient.invalidateQueries({ queryKey: ['/api/events'] });
+            invalidateCoalesced('/api/events');
             toast({
               title: '⚠️ Alerta de Prazo',
               description: `Faltam ${data.hoursRemaining}h para saída - ${data.event?.name}`,
@@ -316,8 +317,8 @@ export function useWebSocket() {
           case 'sponsor_created':
           case 'sponsor_updated':
           case 'sponsor_deleted':
-            queryClient.invalidateQueries({ queryKey: ['/api/sponsors'] });
-            queryClient.invalidateQueries({ queryKey: ['/api/sponsors/usage'] });
+            invalidateCoalesced('/api/sponsors');
+            invalidateCoalesced('/api/sponsors/usage');
             break;
 
           // Vínculo peça↔patrocinador e cota do evento: mudam a leitura de
@@ -326,18 +327,17 @@ export function useWebSocket() {
           case 'item_sponsor_removed':
           case 'event_sponsor_updated':
           case 'event_sponsor_removed':
-            queryClient.invalidateQueries({ queryKey: ['/api/sponsors'] });
-            queryClient.invalidateQueries({ queryKey: ['/api/sponsors/usage'] });
-            queryClient.invalidateQueries({ queryKey: ['/api/items'] });
+            invalidateCoalesced('/api/sponsors');
+            invalidateCoalesced('/api/sponsors/usage');
+            invalidateCoalesced('/api/items');
             if (data.eventId) {
-              queryClient.invalidateQueries({ queryKey: ['/api/events', data.eventId, 'sponsors'] });
-              queryClient.invalidateQueries({ queryKey: ['/api/items', data.eventId] });
+              invalidateCoalesced('/api/events', data.eventId, 'sponsors');
             }
             break;
 
           case 'notification_created':
           case 'notification_read':
-            queryClient.invalidateQueries({ queryKey: ['/api/notifications'] });
+            invalidateCoalesced('/api/notifications');
             break;
 
           case 'prazo_cobranca':
@@ -375,7 +375,7 @@ export function useWebSocket() {
         }
       }, delay);
     };
-  }, [toast]);
+  }, [toast, invalidateCoalesced]);
 
   useEffect(() => {
     unmountedRef.current = false;

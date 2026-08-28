@@ -106,7 +106,9 @@ describe("toda rota de escrita de peça/evento deixa rastro", () => {
     it(`${rel} — nenhuma escrita sem auditoria fora da lista justificada`, () => {
       const semRastro = rotasDe(rel)
         .filter(r => r.verbo !== "GET")
-        .filter(r => !/createAuditLog\(|insert\(auditLogs\)/.test(r.corpo))
+        // createAuditLogsEmLote: as rotas de lote gravam a trilha num INSERT
+        // único (auditoria de performance, 27/08) — auditoria igual, uma ida.
+        .filter(r => !/createAuditLog(sEmLote)?\(|insert\(auditLogs\)/.test(r.corpo))
         .map(r => `${r.verbo} ${r.caminho}`)
         .filter(chave => !(chave in SEM_AUDITORIA_POR_DESENHO));
       expect(semRastro).toEqual([]);

@@ -5,7 +5,7 @@
 import { WebSocket } from "ws";
 import { z } from "zod";
 import { storage } from "../storage";
-import { invalidateAllCaches } from "../cache";
+import { invalidateEventsCache, invalidateNotificationsCache } from "../cache";
 
 // Extend Express Request type to include userName and userId
 declare global {
@@ -32,8 +32,18 @@ export const wsClients = new Set<WebSocket>();
 
 // Broadcast function for real-time updates.
 // Also flushes server-side caches so the next read reflects the mutation.
+// SELETIVO (auditoria 27/08): antes QUALQUER mensagem — inclusive
+// notification_read — derrubava o cache de /api/events, e com mutações
+// contínuas o TTL de 30s era efetivamente zero. Mensagem de notificação só
+// invalida o cache de notificações; o resto (item_*, event_*, production_*)
+// invalida o de eventos, que deriva contadores das peças.
 export function broadcast(data: any) {
-  invalidateAllCaches();
+  const tipo = String((data as any)?.type ?? "");
+  if (tipo.startsWith("notification")) {
+    invalidateNotificationsCache();
+  } else {
+    invalidateEventsCache();
+  }
 
   const message = JSON.stringify(data);
   wsClients.forEach((client) => {
@@ -107,6 +117,27 @@ export function resolveActor(actor: AuditActor): { userName: string; userId: str
 }
 
 // Helper to create audit logs
+/**
+ * Trilha em LOTE (auditoria 27/08): um INSERT para todas as linhas, com o
+ * mesmo ator resolvido uma vez. Mesma política do unitário — falha de
+ * auditoria não derruba a operação, mas grita no log com o que se perdeu.
+ */
+export async function createAuditLogsEmLote(
+  actor: AuditActor,
+  entradas: Array<{ action: string; entityType: string; entityId: string; details?: string }>,
+) {
+  if (entradas.length === 0) return;
+  const quem = resolveActor(actor);
+  try {
+    await storage.createBulkAuditLogs(entradas.map((e) => ({ ...quem, ...e })));
+  } catch (error) {
+    console.error(
+      `Failed to create bulk audit log [${entradas.length} linhas, ${entradas[0].action} ${entradas[0].entityType} por ${quem.userName}]:`,
+      error
+    );
+  }
+}
+
 export async function createAuditLog(
   actor: AuditActor,
   action: string,

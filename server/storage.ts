@@ -1543,6 +1543,14 @@ export class DatabaseStorage implements IStorage {
     return log;
   }
 
+  // AUDITORIA 27/08: as rotas de LOTE gravavam a trilha com um INSERT por peça,
+  // em série — 200 peças eram 200 round-trips só de auditoria. Um INSERT com
+  // todas as linhas resolve em uma ida.
+  async createBulkAuditLogs(insertLogs: InsertAuditLog[]): Promise<void> {
+    if (insertLogs.length === 0) return;
+    await db.insert(auditLogs).values(insertLogs);
+  }
+
   // Users
   async getUser(id: string): Promise<User | undefined> {
     const [user] = await db.select().from(users).where(eq(users.id, id));

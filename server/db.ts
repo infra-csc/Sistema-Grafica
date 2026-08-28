@@ -12,5 +12,14 @@ if (!process.env.DATABASE_URL) {
   );
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+// Limites explícitos (auditoria 27/08): sem `max`, os Promise.all de lote
+// abriam conexões até o teto do Neon e derrubavam as OUTRAS requisições; sem
+// `connectionTimeoutMillis`, requisição esperava conexão para sempre em vez
+// de falhar rápido com erro legível.
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  max: 10,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 10_000,
+});
 export const db = drizzle({ client: pool, schema });

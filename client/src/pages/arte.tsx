@@ -657,6 +657,14 @@ export default function Arte() {
     () => (pecasDoServidor as any[]).filter((i: any) => !isEventoFinalizado(i.event, hojeBusinessMs) && !ehBookCompleto(i)),
     [pecasDoServidor, hojeBusinessMs],
   );
+  // AUDITORIA 27/08: mapa id→peça para os pontos que buscavam com
+  // allItems.find dentro de map/filter — seleção de 200 peças sobre ~1.000
+  // itens eram 200.000 comparações por render do painel de lote.
+  const itemPorId = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const i of allItems as any[]) m.set(i.id, i);
+    return m;
+  }, [allItems]);
   const correcaoItems = useMemo(
     () => (correcaoDoServidor as any[]).filter((i: any) => !isEventoFinalizado(i.event, hojeBusinessMs)),
     [correcaoDoServidor, hojeBusinessMs],
@@ -1875,7 +1883,7 @@ export default function Arte() {
     // A seleção persiste entre abas: só peças aguardando envio aceitam
     // submit-for-approval — as demais devolveriam 409 no meio do lote.
     const ids = Array.from(selectedItemIds);
-    const elegiveis = ids.filter(id => allItems.find((i: any) => i.id === id)?.status === 'awaiting_submission');
+    const elegiveis = ids.filter(id => itemPorId.get(id)?.status === 'awaiting_submission');
     const foraDoLote = ids.length - elegiveis.length;
     if (elegiveis.length === 0) {
       toast({ title: "Nenhuma peça elegível", description: "Só peças aguardando envio podem receber o PDF compartilhado.", variant: "destructive" });
@@ -5001,7 +5009,7 @@ export default function Arte() {
                 </h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 280, overflowY: 'auto' }}>
                   {Array.from(selectedItemIds).map((itemId, idx) => {
-                    const item = allItems.find(i => i.id === itemId);
+                    const item = itemPorId.get(itemId);
                     if (!item) return null;
                     const isFirst = idx === 0;
                     return (
@@ -5571,7 +5579,7 @@ export default function Arte() {
                     {bulkThumbEntries.map(entry => {
                       // Pool calculado uma vez fora do .map — ver bulkPendingPool.
                       const pendingPool = bulkPendingPool;
-                      const matchedItem = allItems.find((i: any) => i.id === entry.matchedItemId);
+                      const matchedItem = entry.matchedItemId ? itemPorId.get(entry.matchedItemId) : undefined;
                       const isLinked = !!entry.matchedItemId;
 
                       const cardBorderColor = entry.status === 'done' ? '#bbf7d0'
@@ -5700,7 +5708,7 @@ export default function Arte() {
                               /* ── Sem vínculo: combobox pesquisável com grupos ── */
                               <div>
                                 {(() => {
-                                  const linked = allItems.find((i: any) => i.id === entry.matchedItemId);
+                                  const linked = entry.matchedItemId ? itemPorId.get(entry.matchedItemId) : undefined;
                                   const isOpen = !!bulkThumbLinkOpenMap[entry.id];
                                   // Agrupar por grupo/tipo
                                   const grouped = pendingPool.reduce((acc: Record<string, any[]>, item: any) => {

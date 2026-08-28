@@ -970,17 +970,28 @@ export default function PainelGeral() {
   })();
 
   const dateFilterOptions = (() => {
+    // AUDITORIA 27/08: era uma varredura completa do pool POR OPÇÃO de data
+    // (6+ passes por render). Uma passada só, contando cada peça em todas as
+    // faixas em que ela cai — mesma régua, ~6× menos trabalho por render.
     const pool = poolDe("data");
+    const conta = new Map<string, number>(DATE_FILTER_VALUES.map((v) => [v, 0]));
+    for (const i of pool) {
+      const truckDayMs = eventMeta.get(i.eventId || "no-event")?.truckDayMs ?? null;
+      if (truckDayMs == null) {
+        conta.set("no_departure", (conta.get("no_departure") ?? 0) + 1);
+        continue;
+      }
+      const diff = dayDiff(todayMs, truckDayMs);
+      for (const value of DATE_FILTER_VALUES) {
+        if (value === "no_departure") continue;
+        const casa = DATE_RANGE_MAP[value] ? DATE_RANGE_MAP[value](diff) : true;
+        if (casa) conta.set(value, (conta.get(value) ?? 0) + 1);
+      }
+    }
     return DATE_FILTER_VALUES.map((value) => ({
       value,
       label: DATE_FILTER_LABELS[value],
-      count: pool.filter(i => {
-        const truckDayMs = eventMeta.get(i.eventId || "no-event")?.truckDayMs ?? null;
-        if (truckDayMs == null) return value === "no_departure";
-        if (value === "no_departure") return false;
-        const diff = dayDiff(todayMs, truckDayMs);
-        return DATE_RANGE_MAP[value] ? DATE_RANGE_MAP[value](diff) : true;
-      }).length,
+      count: conta.get(value) ?? 0,
       pinned: true,
     }));
   })();

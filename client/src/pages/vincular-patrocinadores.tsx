@@ -2792,6 +2792,11 @@ export default function VincularPatrocinadores() {
                             return s === 'PENDENTE';
                           }).length;
                           const enviadas = doTipo.filter(i => (itemUIStates[i.id] || 'PENDENTE') === 'ENVIADO').length;
+                          // AUDITORIA 27/08: o MESMO predicado rodava mais duas
+                          // vezes inline no Checkbox (checked e disabled) —
+                          // numa fila de 1.120 peças eram varreduras repetidas
+                          // por cabeçalho de tipo, a cada render.
+                          const selecionaveisDoTipo = doTipo.filter(i => { const st = itemUIStates[i.id] || 'PENDENTE'; return st === 'PENDENTE' || st === 'RASCUNHO'; });
                           const tudoEnviado = enviadas === doTipo.length;
                           const tudoVinculado = semPatrocinador === 0;
                           const corDoLote = tudoEnviado ? '#1c1917' : tudoVinculado ? '#15803d' : '#c2410c';
@@ -2826,13 +2831,13 @@ export default function VincularPatrocinadores() {
                                 <span onClick={e => e.stopPropagation()} style={{ width: 46, flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
                                   <Checkbox
                                     checked={(() => {
-                                      const sel = doTipo.filter(i => { const st = itemUIStates[i.id] || 'PENDENTE'; return st === 'PENDENTE' || st === 'RASCUNHO'; });
+                                      const sel = selecionaveisDoTipo;
                                       if (sel.length === 0) return false;
                                       const m = sel.filter(i => selectedItemIds.has(i.id)).length;
                                       return m === sel.length ? true : m > 0 ? 'indeterminate' : false;
                                     })()}
                                     onCheckedChange={() => toggleTypeGroup(doTipo)}
-                                    disabled={doTipo.filter(i => { const st = itemUIStates[i.id] || 'PENDENTE'; return st === 'PENDENTE' || st === 'RASCUNHO'; }).length === 0}
+                                    disabled={selecionaveisDoTipo.length === 0}
                                     aria-label={`Selecionar as peças do tipo ${item.type}`}
                                     data-testid={`checkbox-group-${item.type}`}
                                   />

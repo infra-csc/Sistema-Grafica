@@ -402,23 +402,6 @@ export async function enviarAvisoDaGestao(
   const { dia, hora } = agoraNoFuso(agora);
   if (!opcoes.manual && await jaAvisou(dia, hora)) return { status: "ja-enviado" };
 
-  const [itens, aprovacoes, sponsors, eventos] = await Promise.all([
-    storage.getAllItems(),
-    storage.getAllItemSponsorApprovals(),
-    storage.getAllSponsors(),
-    storage.getAllEvents(),
-  ]);
-  const resumo = montarResumoDaGestao(itens, aprovacoes, sponsors, eventos, agora);
-
-  if (resumo.totalPendentes === 0) return { status: "sem-fila", resumo };
-
-  const config = getBookEmailConfig(env);
-  const montado = construirEmailDaGestao(resumo, config, DESTINATARIOS_DA_GESTAO);
-  if ("erro" in montado) {
-    console.warn("[gestao-digest] não enviado", { motivo: montado.erro });
-    return { status: "falhou", motivo: montado.erro, resumo };
-  }
-
   const marcaManual = opcoes.manual ? " [manual]" : "";
   const registrar = async (desfecho: string) => {
     await db.insert(auditLogs).values({
@@ -429,6 +412,32 @@ export async function enviarAvisoDaGestao(
       details: `${DETALHE_TRILHA} (${dia} ${hora}h)${marcaManual}: ${desfecho}`,
     } as any);
   };
+
+  const [itens, aprovacoes, sponsors, eventos] = await Promise.all([
+    storage.getAllItems(),
+    storage.getAllItemSponsorApprovals(),
+    storage.getAllSponsors(),
+    storage.getAllEvents(),
+  ]);
+  const resumo = montarResumoDaGestao(itens, aprovacoes, sponsors, eventos, agora);
+
+  // "Não recebi o das 18h" (27/08): os desfechos silenciosos NÃO deixavam
+  // rastro — impossível dizer depois se a edição rodou vazia, se a config
+  // faltava ou se o relógio nem bateu. Fila vazia e config ausente agora
+  // CONSOMEM a edição na trilha (só no automático): o diagnóstico vira uma
+  // consulta, e o tique de minuto em minuto para no jaAvisou.
+  if (resumo.totalPendentes === 0) {
+    if (!opcoes.manual) await registrar("fila vazia — nada a enviar; a edição desta hora fica registrada");
+    return { status: "sem-fila", resumo };
+  }
+
+  const config = getBookEmailConfig(env);
+  const montado = construirEmailDaGestao(resumo, config, DESTINATARIOS_DA_GESTAO);
+  if ("erro" in montado) {
+    console.warn("[gestao-digest] não enviado", { motivo: montado.erro });
+    if (!opcoes.manual) await registrar(`NÃO enviado: ${montado.erro}`);
+    return { status: "falhou", motivo: montado.erro, resumo };
+  }
 
   if (config.dryRun) {
     await registrar(`simulação para ${montado.to.join(", ")} — ${resumo.totalPendentes} pendentes, ${resumo.travadas} travadas`);
@@ -458,8 +467,13 @@ export function startGestaoDigest(): void {
   setInterval(async () => {
     try {
       const agora = new Date();
-      const { hora, minuto } = agoraNoFuso(agora);
-      if (!HORARIOS_DA_GESTAO.includes(hora) || minuto >= 5) return;
+      const { hora } = agoraNoFuso(agora);
+      // A HORA INTEIRA vale — era só hh:00–hh:05, e um republish às 18:02 ou
+      // a instância dormindo na virada matavam a edição em silêncio (o "não
+      // recebi o das 18h" de 27/08). Quem impede repetição é a trilha
+      // (jaAvisou); como fila vazia também consome a edição, o custo do
+      // minuto a minuto dentro da hora é um SELECT de uma linha.
+      if (!HORARIOS_DA_GESTAO.includes(hora)) return;
       await enviarAvisoDaGestao(agora);
     } catch (error) {
       console.error("[gestao-digest] erro no tique", error);

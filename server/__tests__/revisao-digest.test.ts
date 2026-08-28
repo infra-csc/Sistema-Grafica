@@ -181,7 +181,8 @@ describe("as regras do disparo, escritas no código", () => {
   );
 
   it("fila vazia não vira e-mail", () => {
-    expect(CODIGO).toContain('if (resumo.total === 0) return { status: "sem-fila", resumo };');
+    expect(CODIGO).toContain('if (resumo.total === 0) {');
+    expect(CODIGO).toContain('if (!opcoes.manual) await registrar("fila vazia — nada a enviar; a edição desta hora fica registrada");');
   });
 
   it("quem impede a repetição é a TRILHA, não a memória do processo", () => {
@@ -227,9 +228,11 @@ describe("as regras do disparo, escritas no código", () => {
     expect(CODIGO).toContain('const marcaManual = opcoes.manual ? " [manual]" : "";');
 
     // a fila vazia é checada DEPOIS, sem exceção para o manual
-    const iVazia = CODIGO.indexOf('if (resumo.total === 0) return { status: "sem-fila", resumo };');
+    const iVazia = CODIGO.indexOf('if (resumo.total === 0) {');
     expect(iVazia).toBeGreaterThan(CODIGO.indexOf("const ligado ="));
-    expect(CODIGO.slice(iVazia - 200, iVazia)).not.toContain("manual");
+    // o RETORNO sem-fila vale para o manual também (só o registro na trilha é
+    // exclusivo do automático)
+    expect(CODIGO.slice(iVazia, iVazia + 320)).toContain('return { status: "sem-fila", resumo };');
   });
 
   it("o botão do disparo à mão também é só de admin, e não promete envio", () => {

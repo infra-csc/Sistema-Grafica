@@ -266,21 +266,6 @@ export async function enviarAvisoDaRevisao(
   const { dia, hora } = agoraNoFuso(agora);
   if (!opcoes.manual && await jaAvisou(dia, hora)) return { status: "ja-enviado" };
 
-  const [itens, eventos] = await Promise.all([storage.getAllItems(), storage.getAllEvents()]);
-  const nomePorId = new Map(eventos.map((e) => [e.id, e.name]));
-  const resumo = montarResumo(itens, (id) => nomePorId.get(id) ?? "", inicioDaJanela(agora), agora);
-
-  // Fila vazia não vira e-mail: aviso que chega dizendo "0" ensina a ignorar o
-  // remetente, e aí o dia em que ele traz 14 também é ignorado.
-  if (resumo.total === 0) return { status: "sem-fila", resumo };
-
-  const config = getBookEmailConfig(env);
-  const montado = construirEmailDaRevisao(resumo, config, DESTINATARIOS_DA_REVISAO);
-  if ("erro" in montado) {
-    console.warn("[revisao-digest] não enviado", { motivo: montado.erro });
-    return { status: "falhou", motivo: montado.erro, resumo };
-  }
-
   const marcaManual = opcoes.manual ? " [manual]" : "";
   const registrar = async (desfecho: string) => {
     await db.insert(auditLogs).values({
@@ -291,6 +276,28 @@ export async function enviarAvisoDaRevisao(
       details: `${DETALHE_TRILHA} (${dia} ${hora}h)${marcaManual}: ${desfecho}`,
     } as any);
   };
+
+  const [itens, eventos] = await Promise.all([storage.getAllItems(), storage.getAllEvents()]);
+  const nomePorId = new Map(eventos.map((e) => [e.id, e.name]));
+  const resumo = montarResumo(itens, (id) => nomePorId.get(id) ?? "", inicioDaJanela(agora), agora);
+
+  // Fila vazia não vira e-mail: aviso que chega dizendo "0" ensina a ignorar o
+  // remetente, e aí o dia em que ele traz 14 também é ignorado. Mas a edição
+  // FICA na trilha (27/08, "não recebi o das 18h"): sem o registro, "rodou e
+  // estava vazio" e "nunca rodou" eram indistinguíveis — e é o registro que
+  // segura o tique de minuto em minuto da hora inteira.
+  if (resumo.total === 0) {
+    if (!opcoes.manual) await registrar("fila vazia — nada a enviar; a edição desta hora fica registrada");
+    return { status: "sem-fila", resumo };
+  }
+
+  const config = getBookEmailConfig(env);
+  const montado = construirEmailDaRevisao(resumo, config, DESTINATARIOS_DA_REVISAO);
+  if ("erro" in montado) {
+    console.warn("[revisao-digest] não enviado", { motivo: montado.erro });
+    if (!opcoes.manual) await registrar(`NÃO enviado: ${montado.erro}`);
+    return { status: "falhou", motivo: montado.erro, resumo };
+  }
 
   if (config.dryRun) {
     await registrar(`simulação para ${montado.to.join(", ")} — ${resumo.total} na fila, ${resumo.novos} novas`);
@@ -312,10 +319,10 @@ export async function enviarAvisoDaRevisao(
 }
 
 /**
- * O relógio. Bate de minuto em minuto e só age nos cinco primeiros minutos da
- * hora marcada — janela larga o bastante para sobreviver a um tick perdido, e
- * estreita o bastante para não virar outra coisa. Quem impede a repetição é a
- * trilha, não a janela.
+ * O relógio. Bate de minuto em minuto e age em QUALQUER minuto da hora
+ * marcada — quem impede a repetição é a trilha, não a janela. A janela de
+ * cinco minutos que existia aqui era estreita demais para a vida real do
+ * deploy (republish, instância dormindo) e custou a edição das 18h de 27/08.
  */
 export function startRevisaoDigest(): void {
   // O relógio nem sobe fora de produção — a guarda de `enviarAvisoDaRevisao`
@@ -328,8 +335,13 @@ export function startRevisaoDigest(): void {
   setInterval(async () => {
     try {
       const agora = new Date();
-      const { hora, minuto } = agoraNoFuso(agora);
-      if (!HORARIOS.includes(hora) || minuto >= 5) return;
+      const { hora } = agoraNoFuso(agora);
+      // A HORA INTEIRA vale — era só hh:00–hh:05, e um republish às 18:02 ou
+      // a instância dormindo na virada matavam a edição em silêncio (o "não
+      // recebi o das 18h" de 27/08, no aviso-irmão da gestão). Quem impede
+      // repetição é a trilha (jaAvisou); fila vazia também consome a edição,
+      // então o custo do minuto a minuto é um SELECT de uma linha.
+      if (!HORARIOS.includes(hora)) return;
       await enviarAvisoDaRevisao(agora);
     } catch (error) {
       console.error("[revisao-digest] erro no tique", error);

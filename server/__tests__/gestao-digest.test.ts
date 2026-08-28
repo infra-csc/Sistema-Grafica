@@ -221,7 +221,7 @@ describe("as decisões herdadas do aviso da Revisão", () => {
   const ROUTES = ler("server/routes.ts");
 
   it("fila vazia não vira e-mail", () => {
-    expect(SRC).toContain('if (resumo.totalPendentes === 0) return { status: "sem-fila", resumo };');
+    expect(SRC).toContain('if (resumo.totalPendentes === 0) {');
   });
 
   it("não repete: a trilha guarda o disparo do dia E DO HORÁRIO", () => {
@@ -239,7 +239,9 @@ describe("as decisões herdadas do aviso da Revisão", () => {
 
   it("três vezes por dia, nos horários do aviso da Revisão, e atrás de uma chave", () => {
     expect(HORARIOS_DA_GESTAO).toEqual([10, 15, 18]);
-    expect(SRC).toContain("if (!HORARIOS_DA_GESTAO.includes(hora) || minuto >= 5) return;");
+    // a HORA INTEIRA vale (27/08): a janela de 5 min morria num republish às 18:02
+    expect(SRC).toContain("if (!HORARIOS_DA_GESTAO.includes(hora)) return;");
+    expect(SRC).not.toContain("minuto >= 5");
     // Desligado por padrão: ligar é decisão do dono, não efeito de deploy.
     expect(SRC).toContain('env.GESTAO_DIGEST_ENABLED?.trim().toLowerCase() === "true"');
     expect(ROUTES).toContain("startGestaoDigest();");
@@ -270,7 +272,7 @@ describe("o disparo à mão", () => {
     expect(SRC).toContain("if (!opcoes.manual && await jaAvisou(dia, hora))");
     // …e também o interruptor, mas a fila vazia continua calando o envio.
     expect(SRC).toContain("const ligado = opcoes.manual || env.GESTAO_DIGEST_ENABLED");
-    expect(SRC).toContain('if (resumo.totalPendentes === 0) return { status: "sem-fila", resumo };');
+    expect(SRC).toContain('if (resumo.totalPendentes === 0) {');
     expect(ITEMS).toContain("Nenhuma aprovação pendente agora");
   });
 

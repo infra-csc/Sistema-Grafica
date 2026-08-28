@@ -2,7 +2,7 @@ import {
   Calendar, CalendarRange, Palette, Printer, Layers, LayoutDashboard,
   Activity, BarChart3, Users, Building2, UserCheck, ClipboardCheck,
   Link2, LogOut, Loader2, ScrollText, Archive, ScanSearch, Compass, Settings2, Camera, Wand2,
-  Timer, GitBranch,
+  Timer, GitBranch, Bell,
 } from "lucide-react";
 import { useId, useState } from "react";
 import { Link, useLocation } from "wouter";
@@ -74,6 +74,7 @@ const stockItems: MenuItem[] = [
 const adminItems: MenuItem[] = [
   { title: "Usuários",        url: "/usuarios",     icon: Users },
   { title: "Correção de textos", url: "/reparo-motivos", icon: Wand2 },
+  { title: "Notificações",    url: "/notificacoes", icon: Bell },
   { title: "Logs do Sistema", url: "/logs-sistema", icon: ScrollText },
 ];
 

@@ -365,6 +365,19 @@ export const eventBooks = pgTable("event_books", {
   index("IDX_event_books_event_id").on(table.eventId),
 ]);
 
+// Destinatários ADMINISTRÁVEIS dos avisos por e-mail (dono, 27/08 — tela
+// Notificações). Um canal SEM linha nenhuma usa a lista padrão escrita no
+// código (DESTINATARIOS_DA_GESTAO / DA_REVISAO / NOMEADOS do book): tabela
+// vazia — ou ainda sem migração — não desliga aviso nenhum. Com uma linha que
+// seja, a lista do banco SUBSTITUI a padrão para aquele canal.
+export const emailDestinatarios = pgTable("email_destinatarios", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  canal: text("canal").notNull(), // "gestao" | "revisao" | "book"
+  email: text("email").notNull(),
+  addedBy: text("added_by"),
+  createdAt: timestamp("created_at").notNull().default(sql`now()`),
+});
+
 export const catalogOptions = pgTable("catalog_options", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   kind: text("kind").notNull(), // "material" | "finish" | "group"

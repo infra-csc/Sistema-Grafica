@@ -46,6 +46,7 @@ import Versoes from "@/pages/versoes";
 import Registros from "@/pages/registros";
 import VincularPatrocinadores from "@/pages/vincular-patrocinadores";
 import LogsSistema from "@/pages/logs-sistema";
+import Notificacoes from "@/pages/notificacoes";
 import Estoque from "@/pages/estoque";
 import TriagemRetorno from "@/pages/triagem-retorno";
 import ConfigurarCotas from "@/pages/configurar-cotas";
@@ -108,6 +109,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/estoque": "Estoque",
   "/usuarios": "Usuários",
   "/logs-sistema": "Logs do Sistema",
+  "/notificacoes": "Notificações",
   "/reparo-motivos": "Correção de textos",
   "/change-password": "Alterar Senha",
 };
@@ -270,6 +272,9 @@ function Router() {
       </Route>
       <Route path="/patrocinadores">
         {() => <RoleProtectedRoute component={Patrocinadores} allowedRoles={ROLES_PATROCINADORES} />}
+      </Route>
+      <Route path="/notificacoes">
+        {() => <RoleProtectedRoute component={Notificacoes} allowedRoles={ROLES_ADMIN} />}
       </Route>
       <Route path="/logs-sistema">
         {() => <RoleProtectedRoute component={LogsSistema} allowedRoles={ROLES_ADMIN} />}

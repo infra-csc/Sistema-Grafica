@@ -28,6 +28,7 @@ import { db } from "../db";
 import { auditLogs } from "@shared/schema";
 import { sql } from "drizzle-orm";
 import { entregarEmail, getBookEmailConfig, separarDestinatarios, type BookEmailMessage } from "./bookEmailNotification";
+import { destinatariosDoCanal } from "./destinatarios";
 
 /** O status que a tela de Revisão lista (client/src/pages/solicitacao.tsx). */
 export const STATUS_EM_REVISAO = "awaiting_final_review";
@@ -292,7 +293,9 @@ export async function enviarAvisoDaRevisao(
   }
 
   const config = getBookEmailConfig(env);
-  const montado = construirEmailDaRevisao(resumo, config, DESTINATARIOS_DA_REVISAO);
+  // Lista administrável pela tela Notificações; a constante é o padrão.
+  const destinos = await destinatariosDoCanal("revisao", DESTINATARIOS_DA_REVISAO);
+  const montado = construirEmailDaRevisao(resumo, config, destinos);
   if ("erro" in montado) {
     console.warn("[revisao-digest] não enviado", { motivo: montado.erro });
     if (!opcoes.manual) await registrar(`NÃO enviado: ${montado.erro}`);

@@ -36,6 +36,8 @@ export interface RegraDeRota {
 
 /** As 74 rotas de escrita com papel declarado, em ordem alfabética. */
 export const REGUA_DE_PAPEIS: RegraDeRota[] = [
+  { metodo: "POST", rota: "/api/admin/notificacoes/destinatarios", papeis: ["admin"] },
+  { metodo: "DELETE", rota: "/api/admin/notificacoes/destinatarios/:id", papeis: ["admin"] },
   { metodo: "POST", rota: "/api/admin/reparo-motivos-sem-s", papeis: ["admin"] },
   { metodo: "DELETE", rota: "/api/allocations/:id", papeis: ["admin"] },
   { metodo: "POST", rota: "/api/auth/register", papeis: ["admin"] },

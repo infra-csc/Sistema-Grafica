@@ -26,9 +26,10 @@ import {
 import { runInventoryCron } from "../services/inventoryLifecycle";
 import { handlePreviewXlsx, handleConfirmImport } from "../services/xlsxImport";
 import { handleExportItemsXlsx, handleExportSelectedItemsXlsx } from "../services/xlsxExport";
-import { notifyBookSaved, descreverEnvio, type BookEmailResult } from "../services/bookEmailNotification";
-import { enviarAvisoDaRevisao } from "../services/revisaoDigest";
-import { enviarAvisoDaGestao } from "../services/gestaoDigest";
+import { notifyBookSaved, descreverEnvio, getBookEmailConfig, type BookEmailResult } from "../services/bookEmailNotification";
+import { enviarAvisoDaRevisao, DESTINATARIOS_DA_REVISAO, agoraNoFuso, ehProducao } from "../services/revisaoDigest";
+import { enviarAvisoDaGestao, historicoDeEnvios, HORARIOS_DA_GESTAO, DESTINATARIOS_DA_GESTAO } from "../services/gestaoDigest";
+import { destinatariosDoCanal, CANAIS_DE_AVISO, type CanalDeAviso } from "../services/destinatarios";
 // A tela de Versões guarda o quadro calculado por 30 s. Toda escrita que mude
 // versão, decisão ou book derruba esse cache na hora — senão o Atendimento
 // revoga uma aprovação e continua vendo o quadro velho numa tela cujo trabalho
@@ -614,9 +615,13 @@ async function porFiltro(teste: (u: { email: string; role: string }) => boolean)
 /** O time que trabalha com o book. */
 export const destinatariosPorPapel = () => porFiltro((u) => PAPEIS_QUE_RECEBEM.includes(u.role));
 
-/** Quem acompanha de longe. */
-export const destinatariosNomeados = () =>
-  porFiltro((u) => DESTINATARIOS_NOMEADOS.includes(u.email.trim().toLowerCase()));
+/** Quem acompanha de longe — lista administrável (tela Notificações); a
+ *  constante acima é o padrão. Mantém o filtro por usuário cadastrado: a
+ *  cópia oculta do book só vai a e-mail que existe no sistema. */
+export const destinatariosNomeados = async () => {
+  const lista = await destinatariosDoCanal("book", DESTINATARIOS_NOMEADOS);
+  return porFiltro((u) => lista.includes(u.email.trim().toLowerCase()));
+};
 
 /**
  * Monta e dispara o aviso do book, e devolve a descrição do que aconteceu.
@@ -4785,6 +4790,111 @@ export function registerItemRoutes(app: Express): void {
         : r.status === "simulado" ? "Modo de simulação ligado: o e-mail foi montado e não enviado."
         : `Aviso NÃO enviado: ${r.motivo ?? r.status}`;
       res.json({ ...r, mensagem });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // ── TELA NOTIFICAÇÕES (dono, 27/08: "ver o que mandou e o que não mandou,
+  // e administrar quem recebe") ──────────────────────────────────────────────
+  // Três rotas de admin: o RETRATO (chaves, listas e histórico de edições),
+  // adicionar e remover destinatário. As listas do banco SUBSTITUEM as padrão
+  // do código quando têm ao menos uma linha (ver services/destinatarios.ts).
+
+  const CANAL_META: Record<CanalDeAviso, { titulo: string; descricao: string; padrao: readonly string[] }> = {
+    gestao: {
+      titulo: "Acompanhamento da gestão",
+      descricao: "Resumo das aprovações pendentes por evento e patrocinador, 3× por dia (10h, 15h, 18h). Fila vazia não vira e-mail.",
+      padrao: DESTINATARIOS_DA_GESTAO,
+    },
+    revisao: {
+      titulo: "Fila de revisão",
+      descricao: "Resumo da fila de revisão, 3× por dia (10h, 15h, 18h). Fila vazia não vira e-mail.",
+      padrao: DESTINATARIOS_DA_REVISAO,
+    },
+    book: {
+      titulo: "Book publicado (cópia de acompanhamento)",
+      descricao: "Cópia oculta de TODO book publicado. Só e-mail de usuário cadastrado entra; o 'Para' segue sendo a Arte e os executivos com cliente no evento — isso é regra, não lista.",
+      padrao: DESTINATARIOS_NOMEADOS,
+    },
+  };
+
+  app.get("/api/admin/notificacoes", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas administradores" });
+      }
+      const config = getBookEmailConfig(process.env);
+      const canais = await Promise.all(CANAIS_DE_AVISO.map(async (canal) => {
+        const personalizados = await storage.getEmailDestinatarios(canal).catch(() => []);
+        return {
+          canal,
+          ...CANAL_META[canal],
+          personalizados,
+          emUso: personalizados.length > 0 ? personalizados.map((p) => p.email) : [...CANAL_META[canal].padrao],
+        };
+      }));
+      res.json({
+        agora: agoraNoFuso(new Date()),
+        horarios: HORARIOS_DA_GESTAO,
+        chaves: {
+          producao: ehProducao(),
+          emailsLigados: config.enabled,
+          simulacao: config.dryRun,
+          remetente: config.from ?? null,
+          gestaoLigada: process.env.GESTAO_DIGEST_ENABLED?.trim().toLowerCase() === "true",
+          revisaoLigada: process.env.REVISAO_DIGEST_ENABLED?.trim().toLowerCase() === "true",
+        },
+        canais,
+        edicoes: await historicoDeEnvios(),
+      });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post("/api/admin/notificacoes/destinatarios", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas administradores" });
+      }
+      const { canal, email } = req.body ?? {};
+      if (!CANAIS_DE_AVISO.includes(canal)) {
+        return res.status(400).json({ error: "Canal inválido" });
+      }
+      const limpo = String(email ?? "").trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(limpo)) {
+        return res.status(400).json({ error: "E-mail inválido" });
+      }
+      // A PRIMEIRA linha personalizada SUBSTITUI a lista padrão inteira — quem
+      // adiciona um nome precisa saber que os padrão saem de cena. A tela
+      // avisa; a rota copia o padrão junto na primeira personalização, para
+      // "adicionar a Lívia" não significar "remover todo mundo".
+      const jaTem = await storage.getEmailDestinatarios(canal);
+      if (jaTem.length === 0) {
+        for (const padrao of CANAL_META[canal as CanalDeAviso].padrao) {
+          await storage.addEmailDestinatario({ canal, email: padrao, addedBy: "padrão do sistema" });
+        }
+      }
+      const criado = await storage.addEmailDestinatario({ canal, email: limpo, addedBy: req.userName ?? null });
+      await createAuditLog(req, "added", "gestao" as any, canal,
+        `Destinatário "${limpo}" adicionado ao aviso "${CANAL_META[canal as CanalDeAviso].titulo}"`);
+      res.status(201).json(criado);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete("/api/admin/notificacoes/destinatarios/:id", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas administradores" });
+      }
+      const removido = await storage.removeEmailDestinatario(req.params.id);
+      if (!removido) return res.status(404).json({ error: "Destinatário não encontrado" });
+      await createAuditLog(req, "deleted", "gestao" as any, removido.canal,
+        `Destinatário "${removido.email}" removido do aviso "${CANAL_META[removido.canal as CanalDeAviso]?.titulo ?? removido.canal}"`);
+      res.json({ ok: true, removido });
     } catch (error: any) {
       res.status(500).json({ error: error.message });
     }

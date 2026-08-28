@@ -4,6 +4,7 @@ import {
   items, 
   standardItems,
   catalogOptions,
+  emailDestinatarios,
   type CatalogOption,
   type InsertCatalogOption,
   notifications, 
@@ -341,6 +342,9 @@ export interface IStorage {
   getCatalogOptions(kind?: string): Promise<CatalogOption[]>;
   createCatalogOption(option: InsertCatalogOption): Promise<CatalogOption>;
   deleteCatalogOption(kind: string, value: string): Promise<boolean>;
+  getEmailDestinatarios(canal?: string): Promise<Array<typeof emailDestinatarios.$inferSelect>>;
+  addEmailDestinatario(dado: { canal: string; email: string; addedBy?: string | null }): Promise<typeof emailDestinatarios.$inferSelect>;
+  removeEmailDestinatario(id: string): Promise<(typeof emailDestinatarios.$inferSelect) | undefined>;
   renameStandardItemGroup(oldName: string, newName: string): Promise<number>;
   
   // Notifications
@@ -1229,6 +1233,32 @@ export class DatabaseStorage implements IStorage {
       .where(and(eq(catalogOptions.kind, kind), eq(catalogOptions.value, value)))
       .returning();
     return result.length > 0;
+  }
+
+  // Destinatários administráveis dos avisos por e-mail (tela Notificações).
+  // Duplicata (canal+email, sem caixa) devolve a existente — adicionar duas
+  // vezes não pode virar dois e-mails.
+  async getEmailDestinatarios(canal?: string) {
+    const rows = canal
+      ? await db.select().from(emailDestinatarios).where(eq(emailDestinatarios.canal, canal))
+      : await db.select().from(emailDestinatarios);
+    return rows.sort((a, b) => a.email.localeCompare(b.email, "pt-BR"));
+  }
+
+  async addEmailDestinatario(dado: { canal: string; email: string; addedBy?: string | null }) {
+    const email = dado.email.trim().toLowerCase();
+    const existentes = await db.select().from(emailDestinatarios).where(eq(emailDestinatarios.canal, dado.canal));
+    const dup = existentes.find((d) => d.email.trim().toLowerCase() === email);
+    if (dup) return dup;
+    const [criado] = await db.insert(emailDestinatarios)
+      .values({ canal: dado.canal, email, addedBy: dado.addedBy ?? null })
+      .returning();
+    return criado;
+  }
+
+  async removeEmailDestinatario(id: string) {
+    const [removido] = await db.delete(emailDestinatarios).where(eq(emailDestinatarios.id, id)).returning();
+    return removido;
   }
 
   // Notifications

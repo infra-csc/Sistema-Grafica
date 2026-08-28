@@ -49,6 +49,7 @@ import { auditLogs } from "@shared/schema";
 import { sql } from "drizzle-orm";
 import { entregarEmail, getBookEmailConfig, separarDestinatarios, type BookEmailMessage } from "./bookEmailNotification";
 import { agoraNoFuso, ehProducao } from "./revisaoDigest";
+import { destinatariosDoCanal } from "./destinatarios";
 import { eventDayMs, todayBusinessMs, EVENT_CLOSED_STATUS } from "@shared/prazo-dates";
 
 /**
@@ -432,7 +433,9 @@ export async function enviarAvisoDaGestao(
   }
 
   const config = getBookEmailConfig(env);
-  const montado = construirEmailDaGestao(resumo, config, DESTINATARIOS_DA_GESTAO);
+  // Lista administrável pela tela Notificações; a constante é o padrão.
+  const destinos = await destinatariosDoCanal("gestao", DESTINATARIOS_DA_GESTAO);
+  const montado = construirEmailDaGestao(resumo, config, destinos);
   if ("erro" in montado) {
     console.warn("[gestao-digest] não enviado", { motivo: montado.erro });
     if (!opcoes.manual) await registrar(`NÃO enviado: ${montado.erro}`);
@@ -456,6 +459,58 @@ export async function enviarAvisoDaGestao(
     console.error("[gestao-digest] falha", { dia, motivo });
     return { status: "falhou", motivo, resumo };
   }
+}
+
+// ── HISTÓRICO DE ENVIOS (dono, 27/08: "ver o que mandou e o que não mandou") ──
+// A trilha já guarda cada edição com a marca "(YYYY-MM-DD HHh)" e o desfecho;
+// isto aqui só a lê de volta, dos DOIS avisos, para a tela de admin. O que
+// NÃO está aqui é tão informativo quanto: dia+hora sem linha nenhuma = o
+// relógio não bateu (deploy dormindo, chave desligada antes de 27/08, etc.).
+
+export interface EdicaoDeEnvio {
+  aviso: "gestao" | "revisao";
+  /** YYYY-MM-DD no fuso da operação (o mesmo da marca da trilha). */
+  dia: string;
+  hora: number;
+  manual: boolean;
+  status: "enviado" | "vazio" | "falhou" | "simulado" | "outro";
+  /** A frase inteira do desfecho, como está na trilha. */
+  desfecho: string;
+  em: string;
+}
+
+const RE_MARCA_DE_ENVIO = /\((\d{4}-\d{2}-\d{2}) (\d{1,2})h\)( \[manual\])?: ([\s\S]*)$/;
+
+function classificaDesfecho(desfecho: string): EdicaoDeEnvio["status"] {
+  if (desfecho.startsWith("enviado para")) return "enviado";
+  if (desfecho.startsWith("fila vazia")) return "vazio";
+  if (desfecho.startsWith("simulação")) return "simulado";
+  if (desfecho.startsWith("NÃO enviado")) return "falhou";
+  return "outro";
+}
+
+export async function historicoDeEnvios(limite = 400): Promise<EdicaoDeEnvio[]> {
+  const linhas = await db
+    .select({ entityType: auditLogs.entityType, details: auditLogs.details, createdAt: auditLogs.createdAt })
+    .from(auditLogs)
+    .where(sql`${auditLogs.entityType} in ('gestao', 'revisao')`)
+    .orderBy(sql`${auditLogs.createdAt} desc`)
+    .limit(limite);
+  const edicoes: EdicaoDeEnvio[] = [];
+  for (const l of linhas) {
+    const m = RE_MARCA_DE_ENVIO.exec(l.details ?? "");
+    if (!m) continue; // linha fora do formato: não inventar edição
+    edicoes.push({
+      aviso: l.entityType === "gestao" ? "gestao" : "revisao",
+      dia: m[1],
+      hora: Number(m[2]),
+      manual: !!m[3],
+      status: classificaDesfecho(m[4]),
+      desfecho: m[4],
+      em: (l.createdAt instanceof Date ? l.createdAt : new Date(l.createdAt as any)).toISOString(),
+    });
+  }
+  return edicoes;
 }
 
 /** O relógio, no mesmo desenho do aviso da Revisão. */

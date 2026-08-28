@@ -212,9 +212,12 @@ describe("as regras do disparo, escritas no código", () => {
     expect(CODIGO).toContain("fora de produção — o aviso não roda aqui");
   });
 
-  it("desligado por padrão: sem a variável, o relógio bate e não faz nada", () => {
-    expect(CODIGO).toContain('env.REVISAO_DIGEST_ENABLED?.trim().toLowerCase() === "true"');
-    expect(CODIGO).toContain('if (!ligado) return { status: "desligado" };');
+  it("LIGADO por padrão em produção (28/08) — desligar exige =false e fica na trilha", () => {
+    // A chave opt-in nunca era criada no deploy e o aviso morria em silêncio
+    // ("desligado" sem rastro lia como "não rodou" na tela Notificações).
+    expect(CODIGO).toContain('env.REVISAO_DIGEST_ENABLED?.trim().toLowerCase() !== "false"');
+    expect(CODIGO).toContain('await registrar("desligado (REVISAO_DIGEST_ENABLED=false) — nada enviado");');
+    expect(CODIGO).toContain('return { status: "desligado" };');
   });
 
   it("o disparo MANUAL pula o interruptor e a trilha — mas não a fila vazia", () => {

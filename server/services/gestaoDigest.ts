@@ -397,8 +397,6 @@ export async function enviarAvisoDaGestao(
   if (!ehProducao(env)) {
     return { status: "desligado", motivo: "Fora de produção — o ambiente de desenvolvimento não envia e-mail (os dados dele não são os reais)." };
   }
-  const ligado = opcoes.manual || env.GESTAO_DIGEST_ENABLED?.trim().toLowerCase() === "true";
-  if (!ligado) return { status: "desligado" };
 
   const { dia, hora } = agoraNoFuso(agora);
   if (!opcoes.manual && await jaAvisou(dia, hora)) return { status: "ja-enviado" };
@@ -413,6 +411,20 @@ export async function enviarAvisoDaGestao(
       details: `${DETALHE_TRILHA} (${dia} ${hora}h)${marcaManual}: ${desfecho}`,
     } as any);
   };
+
+  // LIGADO POR PADRÃO em produção (dono, 28/08: "segue não mandando
+  // automático, estou mandando na mão"). A chave era opt-in
+  // (GESTAO_DIGEST_ENABLED=true) e nunca foi criada nos Secrets do deploy —
+  // o manual funcionava porque pula o interruptor, e o automático respondia
+  // "desligado" SEM deixar rastro: na tela ficava "Não rodou", indistinguível
+  // de relógio parado. Agora: desligar é que exige GESTAO_DIGEST_ENABLED=false,
+  // e o desligamento explícito CONSOME a edição na trilha — visível na tela
+  // Notificações.
+  const ligado = opcoes.manual || env.GESTAO_DIGEST_ENABLED?.trim().toLowerCase() !== "false";
+  if (!ligado) {
+    await registrar("desligado (GESTAO_DIGEST_ENABLED=false) — nada enviado");
+    return { status: "desligado" };
+  }
 
   const [itens, aprovacoes, sponsors, eventos] = await Promise.all([
     storage.getAllItems(),
@@ -473,7 +485,7 @@ export interface EdicaoDeEnvio {
   dia: string;
   hora: number;
   manual: boolean;
-  status: "enviado" | "vazio" | "falhou" | "simulado" | "outro";
+  status: "enviado" | "vazio" | "falhou" | "simulado" | "desligado" | "outro";
   /** A frase inteira do desfecho, como está na trilha. */
   desfecho: string;
   em: string;
@@ -486,6 +498,7 @@ function classificaDesfecho(desfecho: string): EdicaoDeEnvio["status"] {
   if (desfecho.startsWith("fila vazia")) return "vazio";
   if (desfecho.startsWith("simulação")) return "simulado";
   if (desfecho.startsWith("NÃO enviado")) return "falhou";
+  if (desfecho.startsWith("desligado")) return "desligado";
   return "outro";
 }
 
@@ -519,6 +532,7 @@ export function startGestaoDigest(): void {
     console.log("[gestao-digest] fora de produção — o aviso não roda aqui (só o deploy envia).");
     return;
   }
+  console.log(`[gestao-digest] relógio ativo — interruptor: ${process.env.GESTAO_DIGEST_ENABLED?.trim().toLowerCase() === "false" ? "DESLIGADO (GESTAO_DIGEST_ENABLED=false)" : "ligado (padrão)"}`);
   setInterval(async () => {
     try {
       const agora = new Date();

@@ -4921,8 +4921,9 @@ export function registerItemRoutes(app: Express): void {
           emailsLigados: config.enabled,
           simulacao: config.dryRun,
           remetente: config.from ?? null,
-          gestaoLigada: process.env.GESTAO_DIGEST_ENABLED?.trim().toLowerCase() === "true",
-          revisaoLigada: process.env.REVISAO_DIGEST_ENABLED?.trim().toLowerCase() === "true",
+          // Ligado POR PADRÃO em produção (28/08) — só =false desliga.
+          gestaoLigada: process.env.GESTAO_DIGEST_ENABLED?.trim().toLowerCase() !== "false",
+          revisaoLigada: process.env.REVISAO_DIGEST_ENABLED?.trim().toLowerCase() !== "false",
         },
         canais,
         edicoes: await historicoDeEnvios(),

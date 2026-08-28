@@ -25,7 +25,7 @@ interface Edicao {
   dia: string;
   hora: number;
   manual: boolean;
-  status: "enviado" | "vazio" | "falhou" | "simulado" | "outro";
+  status: "enviado" | "vazio" | "falhou" | "simulado" | "desligado" | "outro";
   desfecho: string;
   em: string;
 }
@@ -136,6 +136,7 @@ export default function Notificacoes() {
       if (e.status === "enviado") { texto = "Enviado"; bg = "#f0fdf4"; cor = "#15803d"; }
       else if (e.status === "vazio") { texto = "Fila vazia"; bg = "#fafaf9"; cor = "#78716c"; }
       else if (e.status === "simulado") { texto = "Simulação"; bg = "#eff6ff"; cor = "#1d4ed8"; }
+      else if (e.status === "desligado") { texto = "Desligado"; bg = "#fef2f2"; cor = "#b91c1c"; }
       else { texto = "Falhou"; bg = "#fef2f2"; cor = "#b91c1c"; }
       title = e.desfecho;
     } else if (jaPassou) {
@@ -168,8 +169,8 @@ export default function Notificacoes() {
           {chip(chaves.emailsLigados, "Canal de e-mail ligado", "Canal de e-mail DESLIGADO")}
           {chip(!chaves.simulacao, "Envio real", "MODO SIMULAÇÃO — monta e não envia")}
           {chip(!!chaves.remetente, `Remetente: ${chaves.remetente ?? ""}`, "SEM remetente configurado")}
-          {chip(chaves.gestaoLigada, "Acompanhamento ligado", "Acompanhamento DESLIGADO (GESTAO_DIGEST_ENABLED)")}
-          {chip(chaves.revisaoLigada, "Aviso da revisão ligado", "Aviso da revisão DESLIGADO (REVISAO_DIGEST_ENABLED)")}
+          {chip(chaves.gestaoLigada, "Acompanhamento ligado (padrão)", "Acompanhamento DESLIGADO (GESTAO_DIGEST_ENABLED=false)")}
+          {chip(chaves.revisaoLigada, "Aviso da revisão ligado (padrão)", "Aviso da revisão DESLIGADO (REVISAO_DIGEST_ENABLED=false)")}
         </div>
 
         {/* ── 2 · Quem recebe ── */}

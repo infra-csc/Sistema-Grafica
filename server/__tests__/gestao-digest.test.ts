@@ -242,8 +242,12 @@ describe("as decisões herdadas do aviso da Revisão", () => {
     // a HORA INTEIRA vale (27/08): a janela de 5 min morria num republish às 18:02
     expect(SRC).toContain("if (!HORARIOS_DA_GESTAO.includes(hora)) return;");
     expect(SRC).not.toContain("minuto >= 5");
-    // Desligado por padrão: ligar é decisão do dono, não efeito de deploy.
-    expect(SRC).toContain('env.GESTAO_DIGEST_ENABLED?.trim().toLowerCase() === "true"');
+    // LIGADO por padrão em produção (decisão do dono, 28/08: "segue não
+    // mandando automático" — a chave opt-in nunca era criada no deploy e o
+    // aviso morria em silêncio). Desligar é que exige =false, e o
+    // desligamento explícito fica na trilha.
+    expect(SRC).toContain('env.GESTAO_DIGEST_ENABLED?.trim().toLowerCase() !== "false"');
+    expect(SRC).toContain('await registrar("desligado (GESTAO_DIGEST_ENABLED=false) — nada enviado");');
     expect(ROUTES).toContain("startGestaoDigest();");
   });
 

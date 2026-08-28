@@ -257,13 +257,6 @@ export async function enviarAvisoDaRevisao(
   if (!ehProducao(env)) {
     return { status: "desligado", motivo: "Fora de produção — o ambiente de desenvolvimento não envia e-mail (os dados dele não são os reais)." };
   }
-  // O disparo MANUAL ignora o interruptor e a memória da trilha, porque ele é
-  // outra coisa: alguém pediu agora, na tela, e está esperando o e-mail. O que
-  // ele não ignora é a fila vazia — mandar "0 itens" a pedido também ensina a
-  // ignorar o remetente.
-  const ligado = opcoes.manual || env.REVISAO_DIGEST_ENABLED?.trim().toLowerCase() === "true";
-  if (!ligado) return { status: "desligado" };
-
   const { dia, hora } = agoraNoFuso(agora);
   if (!opcoes.manual && await jaAvisou(dia, hora)) return { status: "ja-enviado" };
 
@@ -277,6 +270,21 @@ export async function enviarAvisoDaRevisao(
       details: `${DETALHE_TRILHA} (${dia} ${hora}h)${marcaManual}: ${desfecho}`,
     } as any);
   };
+
+  // O disparo MANUAL ignora o interruptor e a memória da trilha, porque ele é
+  // outra coisa: alguém pediu agora, na tela, e está esperando o e-mail. O que
+  // ele não ignora é a fila vazia — mandar "0 itens" a pedido também ensina a
+  // ignorar o remetente.
+  //
+  // LIGADO POR PADRÃO em produção (dono, 28/08 — mesma decisão do aviso da
+  // gestão): a chave opt-in nunca era criada no deploy e o aviso morria em
+  // silêncio. Desligar é que exige REVISAO_DIGEST_ENABLED=false, e o
+  // desligamento explícito consome a edição na trilha.
+  const ligado = opcoes.manual || env.REVISAO_DIGEST_ENABLED?.trim().toLowerCase() !== "false";
+  if (!ligado) {
+    await registrar("desligado (REVISAO_DIGEST_ENABLED=false) — nada enviado");
+    return { status: "desligado" };
+  }
 
   const [itens, eventos] = await Promise.all([storage.getAllItems(), storage.getAllEvents()]);
   const nomePorId = new Map(eventos.map((e) => [e.id, e.name]));
@@ -335,6 +343,7 @@ export function startRevisaoDigest(): void {
     console.log("[revisao-digest] fora de produção — o aviso não roda aqui (só o deploy envia).");
     return;
   }
+  console.log(`[revisao-digest] relógio ativo — interruptor: ${process.env.REVISAO_DIGEST_ENABLED?.trim().toLowerCase() === "false" ? "DESLIGADO (REVISAO_DIGEST_ENABLED=false)" : "ligado (padrão)"}`);
   setInterval(async () => {
     try {
       const agora = new Date();

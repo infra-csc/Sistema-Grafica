@@ -13,6 +13,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { cn, parseDateLocal, toUTCDisplayDate, runInBatches, fileNameFromPath } from "@/lib/utils";
 import { compareDisplayId } from "@/lib/displayId";
+import { miniatura } from "@/lib/miniatura";
 import { DEPOIS_DA_ARTE, naoDevolvivel } from "@shared/fluxo-peca";
 // Motor de PDF compartilhado (mesmo da tela de Atendimento) — a Arte não tem
 // mais motor próprio; qualquer ajuste de layout do book vale para as duas telas.
@@ -453,7 +454,7 @@ function ThumbPreview({ url, label }: { url?: string | null; label: string }) {
             pointerEvents: 'none',
           }}
         >
-          <img loading="lazy" decoding="async" src={url} alt="" style={{ display: 'block', width: 240, maxHeight: 200, objectFit: 'contain', borderRadius: 6 }} />
+          <img loading="lazy" decoding="async" src={miniatura(url)} alt="" style={{ display: 'block', width: 240, maxHeight: 200, objectFit: 'contain', borderRadius: 6 }} />
         </span>
       )}
     </span>
@@ -2456,7 +2457,7 @@ export default function Arte() {
           quebrado aqui. */}
       {item.approvalThumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(item.approvalThumbUrl) || item.approvalThumbUrl.startsWith('/objects/')) && (
         <div style={{ marginTop: 6 }}>
-          <img loading="lazy" decoding="async" src={item.approvalThumbUrl} alt="" style={{ maxWidth: 80, maxHeight: 60, borderRadius: 6, objectFit: 'cover' }} />
+          <img loading="lazy" decoding="async" src={miniatura(item.approvalThumbUrl)} alt="" style={{ maxWidth: 80, maxHeight: 60, borderRadius: 6, objectFit: 'cover' }} />
         </div>
       )}
       <SponsorChips sponsors={item.sponsors ?? []} variant="colored" size="sm" max={3} destacarPendencia={tabId === "aguardando-patrocinador"} />
@@ -3367,7 +3368,7 @@ export default function Arte() {
                   {/* Thumb */}
                   <div style={{ width: isMobile ? '100%' : 80, height: isMobile ? 120 : 80, borderRadius: 8, backgroundColor: '#fef2f2', border: '1px solid #fecaca', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {isImage ? (
-                      <img loading="lazy" decoding="async" src={item.approvalThumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img loading="lazy" decoding="async" src={miniatura(item.approvalThumbUrl)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     ) : item.approvalThumbUrl ? (
                       <a href={item.approvalThumbUrl} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, textDecoration: 'none', color: '#ba1a1a' }}>
                         <FileText style={{ width: 22, height: 22 }} />
@@ -4393,7 +4394,7 @@ export default function Arte() {
                           gradiente — le como ruido. */}
                       <div style={{ width: 32, height: 32, borderRadius: 8, backgroundColor: '#15803d', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                         {/\.(png|jpg|jpeg|gif|webp)/i.test(correcaoThumbUrl)
-                          ? <img loading="lazy" decoding="async" src={correcaoThumbUrl} alt="" style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 8 }} />
+                          ? <img loading="lazy" decoding="async" src={miniatura(correcaoThumbUrl)} alt="" style={{ width: 32, height: 32, objectFit: 'cover', borderRadius: 8 }} />
                           : <FileText style={{ width: 15, height: 15, color: '#fff' }} />
                         }
                       </div>
@@ -5020,7 +5021,7 @@ export default function Arte() {
                       }}>
                         <div style={{ width: 40, height: 40, backgroundColor: '#d6d3d1', borderRadius: 6, flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                           {item.approvalThumbUrl ? (
-                            <img loading="lazy" decoding="async" src={item.approvalThumbUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <img loading="lazy" decoding="async" src={miniatura(item.approvalThumbUrl)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           ) : (
                             <FileImage style={{ width: 16, height: 16, color: '#57534e' }} />
                           )}

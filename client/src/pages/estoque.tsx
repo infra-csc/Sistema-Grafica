@@ -14,6 +14,7 @@ import {
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { miniatura } from "@/lib/miniatura";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogContent, AlertDialogTitle, AlertDialogDescription,
@@ -524,7 +525,7 @@ function AssetDetailModal({ asset, linkedItem, sponsors, onClose }: {
             {/* Approval thumb reference — only when URL is an image */}
             {asset.approvalThumbUrl && (/\.(png|jpg|jpeg|gif|webp)/i.test(asset.approvalThumbUrl) || asset.approvalThumbUrl.startsWith('/objects/')) && (
               <div style={{ position: "relative", borderRadius: 10, overflow: "hidden", aspectRatio: "21/9" }}>
-                <img loading="lazy" decoding="async" src={asset.approvalThumbUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", filter: "grayscale(0.25)", opacity: 0.85 }} />
+                <img loading="lazy" decoding="async" src={miniatura(asset.approvalThumbUrl)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", filter: "grayscale(0.25)", opacity: 0.85 }} />
                 <div style={{ position: "absolute", inset: 0, background: "linear-gradient(to top, rgba(28,25,23,0.8) 0%, transparent 55%)", display: "flex", alignItems: "flex-end", padding: "20px 24px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div style={{ width: 36, height: 36, borderRadius: "50%", background: "rgba(28,25,23,0.7)", border: "2px solid #f97316", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -1327,7 +1328,7 @@ export default function Estoque() {
                           {/* Thumbnail */}
                           <div style={{ width: 40, height: 40, borderRadius: 8, overflow: "hidden", background: "#f1f5f9", border: "1px solid #e2e8f0", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                             {thumbOk
-                              ? <img loading="lazy" decoding="async" src={asset.approvalThumbUrl!} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                              ? <img loading="lazy" decoding="async" src={miniatura(asset.approvalThumbUrl!)} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                               : <Package size={16} color="#cbd5e1" />
                             }
                           </div>

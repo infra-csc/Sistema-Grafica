@@ -4,6 +4,7 @@ import express, { type Express } from "express";
 import { storage } from "../storage";
 import { insertDeliveryPhotoSchema } from "@shared/schema";
 import { requireAuth } from "./shared";
+import { miniaturasDisponiveis, tipoMiniaturavel, gerarMiniatura, TETO_ORIGINAL_BYTES } from "../services/miniaturas";
 
 export async function registerObjectRoutes(app: Express): Promise<void> {
   
@@ -112,6 +113,35 @@ export async function registerObjectRoutes(app: Express): Promise<void> {
         });
         if (!canAccess) {
           return res.sendStatus(403);
+        }
+      }
+
+      // ── MINIATURA (?thumb=1 — auditoria 27/08) ─────────────────────────────
+      // As listas pintam originais de MBs em caixas de 12–80px. Com sharp
+      // instalado, devolve um webp de até 320px (LRU em memória + cache de
+      // browser de 24h). Sem sharp, imagem não-raster, original grande demais
+      // ou falha no resize: cai no fluxo normal e serve o original — o
+      // comportamento de ontem é o pior caso.
+      if (req.query.thumb === "1" && miniaturasDisponiveis()) {
+        try {
+          const [metadata] = await objectFile.getMetadata();
+          const contentType = String(metadata.contentType ?? "");
+          const tamanho = Number(metadata.size ?? 0);
+          if (tipoMiniaturavel(contentType) && tamanho > 0 && tamanho <= TETO_ORIGINAL_BYTES) {
+            const [original] = await objectFile.download();
+            const mini = await gerarMiniatura(req.path, original);
+            if (mini) {
+              res.set({
+                "Content-Type": "image/webp",
+                // private: mesma razão do downloadObject — rota autenticada,
+                // proxy compartilhado não pode cachear.
+                "Cache-Control": "private, max-age=86400",
+              });
+              return res.end(mini);
+            }
+          }
+        } catch (e) {
+          console.error("[miniaturas] falha ao gerar — servindo original", e);
         }
       }
 

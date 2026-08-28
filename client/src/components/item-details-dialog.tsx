@@ -1,4 +1,5 @@
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { miniatura } from "@/lib/miniatura";
 import { FilePreview, isWebUrl } from "@/components/file-preview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1283,7 +1284,7 @@ export function ItemDetailsDialog({
                               title={`Abrir referência ${k + 2} de ${refs.length}`}
                               data-testid={`link-referencia-${k + 2}`}
                               style={{ display: "block", width: 56, height: 42, borderRadius: 6, overflow: "hidden", border: "1px solid #fed7aa", backgroundColor: "#fff7ed" }}>
-                              <img loading="lazy" decoding="async" src={u} alt={`Referência ${k + 2} do solicitante`}
+                              <img loading="lazy" decoding="async" src={miniatura(u)} alt={`Referência ${k + 2} do solicitante`}
                                 style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
                                 onError={e => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                             </a>

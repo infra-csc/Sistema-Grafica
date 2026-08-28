@@ -25,6 +25,7 @@
 //    galpão. O registro informa, não bloqueia: remarcar é um clique.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useMemo, useRef, useState } from "react";
+import { miniatura } from "@/lib/miniatura";
 import { useQuery } from "@tanstack/react-query";
 import { useRoute, Link } from "wouter";
 import { Printer, ArrowLeft, Tags, Check } from "lucide-react";
@@ -460,7 +461,7 @@ export default function EtiquetasEvento() {
                 {/* A PEÇA: arte + código + descrição + quantidade */}
                 <div style={{ flex: "1 1 0", minWidth: 0, display: "flex", gap: 16, alignItems: "center" }}>
                   {(e.p.approvalThumbUrl || e.p.finalPreviewUrl) && (
-                    <img loading="lazy" decoding="async" src={e.p.approvalThumbUrl || e.p.finalPreviewUrl} alt=""
+                    <img loading="lazy" decoding="async" src={miniatura(e.p.approvalThumbUrl || e.p.finalPreviewUrl)} alt=""
                       style={{ width: 150, height: 150, objectFit: "contain", borderRadius: 10, border: "1px solid #e7e5e4", backgroundColor: "#fafaf9", flexShrink: 0 }} />
                   )}
                   <div style={{ minWidth: 0, flex: 1 }}>

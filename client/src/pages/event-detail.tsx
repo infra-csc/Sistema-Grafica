@@ -122,6 +122,7 @@ import {
   parseApiError,
 } from "@/components/aumentar-quantidade-dialog";
 import { compareDisplayId } from "@/lib/displayId";
+import { miniatura } from "@/lib/miniatura";
 
 const itemTypes = ["2x1", "Arena", "Halter", "Palco", "Painel Rosto", "Percurso", "Pórtico", "Prismas", "Qd Fotos", "Rolo", "Stand", "Testeiras", "WindBanner"];
 const materials = ["Adesivo", "Lona", "Madeira", "Sanett", "Tecido", "Tecido Pet"];
@@ -2467,7 +2468,7 @@ export default function EventDetail() {
                                           {refs.map((url, k) => (
                                             <span key={`${url}-${k}`} style={{ position: 'relative', display: 'inline-flex' }}>
                                               <a href={url} target="_blank" rel="noopener noreferrer" title={refs.length > 1 ? `Abrir referência ${k + 1} de ${refs.length}` : "Abrir referência visual"} data-testid={k === 0 ? `link-reference-${item.id}` : `link-reference-${item.id}-${k + 1}`}>
-                                                <img loading="lazy" decoding="async" src={url} className="h-8 w-8 rounded object-cover border border-border" alt={`Referência visual ${k + 1}`} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                                <img loading="lazy" decoding="async" src={miniatura(url)} className="h-8 w-8 rounded object-cover border border-border" alt={`Referência visual ${k + 1}`} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                                               </a>
                                               {podeEditarRef && (
                                                 <button
@@ -2972,7 +2973,7 @@ export default function EventDetail() {
                               {refs.map((url, k) => (
                                 <span key={`${url}-${k}`} style={{ position: 'relative', display: 'inline-flex' }}>
                                   <a href={url} target="_blank" rel="noopener noreferrer" title={refs.length > 1 ? `Ver referência ${k + 1} de ${refs.length}` : "Ver referência"} data-testid={k === 0 ? `link-reference-table-${item.id}` : `link-reference-table-${item.id}-${k + 1}`}>
-                                    <img loading="lazy" decoding="async" src={url} style={{ height: 32, width: 32, objectFit: 'cover', borderRadius: 6, border: '1px solid #e7e5e4' }} alt={`Referência visual ${k + 1}`} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
+                                    <img loading="lazy" decoding="async" src={miniatura(url)} style={{ height: 32, width: 32, objectFit: 'cover', borderRadius: 6, border: '1px solid #e7e5e4' }} alt={`Referência visual ${k + 1}`} onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }} />
                                   </a>
                                   {podeEditarRef && (
                                     <button

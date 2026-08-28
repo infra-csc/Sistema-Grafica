@@ -585,7 +585,7 @@ export default function PainelGeral() {
   } = useQuery<any[]>({
     queryKey: ["/api/items"],
     staleTime: 30_000,
-    refetchInterval: 60_000,
+    refetchInterval: 300_000, // 5min (auditoria 27/08): o WebSocket cobre o tempo real; isto é só a rede de segurança de socket morto
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
   });

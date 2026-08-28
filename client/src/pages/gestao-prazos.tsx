@@ -108,7 +108,7 @@ export default function GestaoPrazos() {
     // invalida a cada mutação de evento/peça) e este polling é a rede de
     // segurança para o socket morrer em silêncio — sem ele, "sem botão"
     // viraria "congelada até o próximo foco de janela".
-    refetchInterval: 60_000,
+    refetchInterval: 300_000, // 5min (auditoria 27/08): o WebSocket cobre o tempo real; isto é só a rede de segurança de socket morto
   });
 
   // Tick de 1 min: "há 12 min" era calculado no render e congelava no instante

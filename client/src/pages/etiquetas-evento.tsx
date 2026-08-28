@@ -99,7 +99,7 @@ export default function EtiquetasEvento() {
    */
   const [destaque, setDestaque] = useState<string | null>(null);
 
-  const { data: event, isError: eventoFalhou } = useQuery<any>({ queryKey: [`/api/events/${eventId}`], enabled: !!eventId });
+  const { data: event, isError: eventoFalhou } = useQuery<any>({ queryKey: ["/api/events", eventId], enabled: !!eventId });
   const { data: itens = [], isLoading, isError: itensFalharam, refetch } = useQuery<any[]>({
     queryKey: ["/api/items", eventId],
     enabled: !!eventId,

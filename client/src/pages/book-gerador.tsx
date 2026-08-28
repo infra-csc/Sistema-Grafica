@@ -41,7 +41,7 @@ export default function BookGerador() {
   const { user } = useAuth();
   const podePublicar = user?.role === "arte" || user?.role === "admin";
 
-  const { data: event } = useQuery<any>({ queryKey: [`/api/events/${eventId}`], enabled: !!eventId });
+  const { data: event } = useQuery<any>({ queryKey: ["/api/events", eventId], enabled: !!eventId });
   const { data: itens = [], isLoading } = useQuery<any[]>({ queryKey: ["/api/items", eventId], enabled: !!eventId });
 
   // Ajustes do usuário por grupo — a base deriva dos dados; isto guarda só o

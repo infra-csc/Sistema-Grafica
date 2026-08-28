@@ -376,7 +376,7 @@ export default function DashboardAnalises() {
     staleTime: 60_000,
     refetchOnMount: true,
     refetchOnWindowFocus: true,
-    refetchInterval: 60_000,
+    refetchInterval: 300_000, // 5min (auditoria 27/08): o WebSocket cobre o tempo real; isto é só a rede de segurança de socket morto
   } as const;
   const evQ = useQuery<AnaliseEvent[]>({ queryKey: ["/api/events"], ...freshness });
   const itQ = useQuery<AnaliseItem[]>({ queryKey: ["/api/items"], ...freshness });

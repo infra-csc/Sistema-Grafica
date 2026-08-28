@@ -739,6 +739,42 @@ export function registerItemRoutes(app: Express): void {
   // real (cursor) — nunca truncar sem avisar o cliente.
   app.get("/api/items", requireAuth, async (req, res) => {
     try {
+      // ── DELTA-SYNC (auditoria 27/08) ─────────────────────────────────────
+      // Com ?since=<ISO>, a resposta traz SÓ o que mudou desde então:
+      //   { delta: true, agora, itens (mudadas, enriquecidas),
+      //     removidas (ids apagados), eventos, patrocinadores }
+      // `eventos` e `patrocinadores` vêm inteiros (dezenas de linhas) porque
+      // estão EMBUTIDOS em cada peça do cache do cliente — um evento renomeado
+      // ou encerrado precisa se refletir nas peças que NÃO mudaram. Toda
+      // escrita de vínculo/aprovação carimba updated_at da peça (touchItem no
+      // storage), então mudança de patrocinador também entra no delta.
+      // `since` velho demais (>24h) cai no full fetch: o delta seria a lista
+      // inteira com overhead a mais.
+      const sinceCru = typeof req.query.since === "string" ? new Date(req.query.since) : null;
+      const since = sinceCru && !isNaN(sinceCru.getTime()) && Date.now() - sinceCru.getTime() < 24 * 60 * 60 * 1000
+        ? sinceCru
+        : null;
+      if (since) {
+        // 2s de sobreposição: uma transação commitando "agora" não pode cair
+        // no vão entre dois deltas. Duplicata é inofensiva — o merge é por id.
+        const agora = new Date(Date.now() - 2000).toISOString();
+        const mudadas = await storage.getItemsChangedSince(since);
+        const vivas = mudadas.filter((i) => !i.deletedAt);
+        const itens = await enrichItemsWithEventsAndSponsors(vivas);
+        const [eventos, patrocinadores] = await Promise.all([
+          storage.getAllEvents(),
+          storage.getAllSponsors(),
+        ]);
+        return res.json({
+          delta: true,
+          agora,
+          itens,
+          removidas: mudadas.filter((i) => i.deletedAt).map((i) => i.id),
+          eventos,
+          patrocinadores,
+        });
+      }
+
       const allItems = await storage.getAllItems();
       if (allItems.length > 5000) {
         console.warn(`[items] GET /api/items retornando ${allItems.length} itens — priorizar paginação`);

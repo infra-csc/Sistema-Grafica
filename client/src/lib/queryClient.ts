@@ -14,6 +14,7 @@ function handleUnauthorized() {
   if (typeof window === "undefined") return;
   if (window.location.pathname === "/login") return;
   try { localStorage.removeItem("currentUser"); } catch { /* modo privado */ }
+  resetItensDelta();
   queryClient.clear();
   window.location.replace("/login?sessao=expirada");
 }
@@ -107,6 +108,69 @@ export async function apiRequest(
   return res;
 }
 
+// ── DELTA-SYNC de /api/items (auditoria 27/08) ───────────────────────────────
+// O acervo enriquecido é a resposta mais pesada do app (MBs) e é invalidado a
+// toda hora. Depois do primeiro full fetch, as buscas seguintes pedem
+// `?since=` e o servidor devolve SÓ o que mudou; o merge por id reconstrói o
+// array completo que as telas esperam — o formato entregue aos consumidores
+// não muda em nada. `eventos`/`patrocinadores` vêm no delta para re-costurar
+// os objetos EMBUTIDOS nas peças que não mudaram (evento renomeado/encerrado,
+// patrocinador renomeado). Qualquer resposta que não seja delta (servidor
+// antigo, `since` velho demais) reseta o estado com o array cheio.
+let itensSync: { since: string; dados: any[] } | null = null;
+
+/** O maior updated_at/created_at do lote — âncora do próximo delta, imune a
+ *  relógio de cliente. */
+function maiorCarimbo(dados: any[]): string | null {
+  let max: string | null = null;
+  for (const i of dados) {
+    const c = (i?.updatedAt ?? i?.createdAt ?? null) as string | null;
+    if (c && (!max || c > max)) max = c;
+  }
+  return max;
+}
+
+function aplicarDelta(anterior: any[], delta: any): any[] {
+  const evPorId = new Map((delta.eventos ?? []).map((e: any) => [e.id, e]));
+  const spPorId = new Map((delta.patrocinadores ?? []).map((s: any) => [s.id, s]));
+  const porId = new Map<string, any>(anterior.map((i) => [i.id, i]));
+  for (const id of delta.removidas ?? []) porId.delete(id);
+  for (const item of delta.itens ?? []) porId.set(item.id, item);
+  return Array.from(porId.values()).map((i) => ({
+    ...i,
+    event: evPorId.get(i.eventId) ?? i.event,
+    sponsors: Array.isArray(i.sponsors)
+      ? i.sponsors.map((s: any) => {
+          const atual = spPorId.get(s.id);
+          return atual ? { ...atual, approvalStatus: s.approvalStatus ?? null } : s;
+        })
+      : i.sponsors,
+  }));
+}
+
+async function fetchItensComDelta(headers: Record<string, string>): Promise<any[]> {
+  const url = itensSync ? `/api/items?since=${encodeURIComponent(itensSync.since)}` : "/api/items";
+  const res = await fetch(url, { credentials: "include", headers });
+  if ((res.headers.get("content-type") || "").includes("text/html")) {
+    throw new Error("Servidor desatualizado — reinicie o app no Replit (Stop e Run) e tente de novo.");
+  }
+  await throwIfResNotOk(res, "/api/items");
+  const corpo = await res.json();
+  if (Array.isArray(corpo)) {
+    // full fetch (primeira vez, servidor antigo ou since expirado)
+    itensSync = { since: maiorCarimbo(corpo) ?? new Date(0).toISOString(), dados: corpo };
+    return corpo;
+  }
+  const dados = aplicarDelta(itensSync?.dados ?? [], corpo);
+  itensSync = { since: corpo.agora ?? itensSync?.since ?? new Date(0).toISOString(), dados };
+  return dados;
+}
+
+/** Logout/troca de usuário: zera o estado do delta junto com o cache. */
+export function resetItensDelta(): void {
+  itensSync = null;
+}
+
 type UnauthorizedBehavior = "returnNull" | "throw";
 export const getQueryFn: <T>(options: {
   on401: UnauthorizedBehavior;
@@ -114,6 +178,11 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     const url = queryKey.join("/") as string;
+    // A chave mais pesada do app busca por delta (ver bloco acima) — para os
+    // consumidores nada muda: o retorno é o mesmo array completo de sempre.
+    if (url === "/api/items") {
+      return (await fetchItensComDelta({ "x-user-name": getCurrentUserName() })) as any;
+    }
     const res = await fetch(url, {
       credentials: "include",
       headers: {
@@ -144,6 +213,10 @@ export const queryClient = new QueryClient({
       refetchInterval: false,
       refetchOnWindowFocus: false,
       staleTime: Infinity,
+      // AUDITORIA 27/08: o default de 5min descartava o cache de MBs cinco
+      // minutos depois de sair da tela — voltar do almoço re-baixava tudo.
+      // 30min segura a navegação de um turno; o WebSocket segue invalidando.
+      gcTime: 30 * 60 * 1000,
       retry: false,
     },
     mutations: {

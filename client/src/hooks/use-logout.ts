@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { apiRequest, queryClient, resetItensDelta } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
 /**
@@ -16,6 +16,7 @@ export function useLogout() {
       return await res.json();
     },
     onSuccess: () => {
+      resetItensDelta();
       queryClient.clear();
       // O toast que existia aqui vinha DEPOIS do redirect — nunca aparecia.
       window.location.href = import.meta.env.VITE_HUB_URL ?? "/login";

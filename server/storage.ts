@@ -343,6 +343,7 @@ export interface IStorage {
   createCatalogOption(option: InsertCatalogOption): Promise<CatalogOption>;
   deleteCatalogOption(kind: string, value: string): Promise<boolean>;
   getItemsSlimForEvents(): Promise<Array<{ id: string; eventId: string; status: string; skipApproval: boolean }>>;
+  getItemsChangedSince(since: Date): Promise<Item[]>;
   getEventsByIds(ids: string[]): Promise<Event[]>;
   getItemSponsorsByItemIds(itemIds: string[]): Promise<ItemSponsor[]>;
   getItemSponsorApprovalsByItemIds(itemIds: string[]): Promise<ItemSponsorApproval[]>;
@@ -1563,6 +1564,14 @@ export class DatabaseStorage implements IStorage {
       .where(isNull(items.deletedAt));
   }
 
+  // DELTA-SYNC (27/08): tudo que mudou desde `since` — INCLUINDO as apagadas
+  // (deleted_at preenchido), porque o cliente precisa removê-las do cache
+  // local. É a única leitura de items que NÃO filtra o soft delete, de
+  // propósito.
+  async getItemsChangedSince(since: Date): Promise<Item[]> {
+    return await db.select().from(items).where(gte(items.updatedAt, since));
+  }
+
   // AUDITORIA 27/08: o enriquecimento de peças (routes/items.ts) carregava as
   // QUATRO tabelas inteiras mesmo para servir as 20 peças de um evento. Estes
   // três recortes por id fecham o vão; a lista de patrocinadores (pequena)
@@ -1765,11 +1774,26 @@ export class DatabaseStorage implements IStorage {
     return out;
   }
 
+  // DELTA-SYNC (auditoria 27/08): /api/items?since= entrega só o que mudou —
+  // e a peça ENRIQUECIDA muda quando seus vínculos/aprovações mudam, sem que
+  // a linha de items fosse tocada. Este carimbo fecha o vão: toda escrita de
+  // vínculo ou aprovação bumpa o updated_at da peça, e o delta a enxerga.
+  // Falha no carimbo NUNCA derruba a operação (o pior caso é a outra aba só
+  // ver a mudança no próximo full fetch / F5).
+  private async touchItem(itemId: string): Promise<void> {
+    try {
+      await db.update(items).set({ updatedAt: new Date() }).where(eq(items.id, itemId));
+    } catch (e) {
+      console.error("[touch-item] falha ao carimbar updated_at", itemId, e);
+    }
+  }
+
   async addSponsorToItem(insertItemSponsor: InsertItemSponsor): Promise<ItemSponsor> {
     const [itemSponsor] = await db
       .insert(itemSponsors)
       .values(insertItemSponsor)
       .returning();
+    await this.touchItem(insertItemSponsor.itemId);
     return itemSponsor;
   }
 
@@ -1782,7 +1806,9 @@ export class DatabaseStorage implements IStorage {
           eq(itemSponsors.sponsorId, sponsorId)
         )
       );
-    return result.rowCount !== null && result.rowCount > 0;
+    const removeu = result.rowCount !== null && result.rowCount > 0;
+    if (removeu) await this.touchItem(itemId);
+    return removeu;
   }
 
   async bulkSyncItemSponsors(itemId: string, sponsorIds: string[]): Promise<void> {
@@ -1808,6 +1834,7 @@ export class DatabaseStorage implements IStorage {
         validIds.map(sponsorId => ({ itemId, sponsorId }))
       );
     }
+    await this.touchItem(itemId);
   }
 
   // Item Sponsor Approvals
@@ -1871,6 +1898,7 @@ export class DatabaseStorage implements IStorage {
       .insert(itemSponsorApprovals)
       .values(insertApproval)
       .returning();
+    await this.touchItem(insertApproval.itemId);
     return approval;
   }
 
@@ -1880,6 +1908,7 @@ export class DatabaseStorage implements IStorage {
       .set({ ...data, updatedAt: new Date() })
       .where(eq(itemSponsorApprovals.id, id))
       .returning();
+    if (approval) await this.touchItem(approval.itemId);
     return approval;
   }
 
@@ -1887,7 +1916,9 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(itemSponsorApprovals)
       .where(eq(itemSponsorApprovals.itemId, itemId));
-    return result.rowCount !== null && result.rowCount > 0;
+    const apagou = result.rowCount !== null && result.rowCount > 0;
+    if (apagou) await this.touchItem(itemId);
+    return apagou;
   }
 
   // A linha de UM patrocinador (25/08): o desvincular descarta a aprovação
@@ -1896,7 +1927,9 @@ export class DatabaseStorage implements IStorage {
     const result = await db
       .delete(itemSponsorApprovals)
       .where(and(eq(itemSponsorApprovals.itemId, itemId), eq(itemSponsorApprovals.sponsorId, sponsorId)));
-    return result.rowCount !== null && result.rowCount > 0;
+    const apagou = result.rowCount !== null && result.rowCount > 0;
+    if (apagou) await this.touchItem(itemId);
+    return apagou;
   }
 
   async initializeItemSponsorApprovals(itemId: string, sponsorIds: string[]): Promise<void> {
@@ -1913,6 +1946,7 @@ export class DatabaseStorage implements IStorage {
         }))
       );
     }
+    await this.touchItem(itemId);
   }
 
   // ── Inventory Assets ─────────────────────────────────────

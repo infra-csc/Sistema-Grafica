@@ -678,7 +678,7 @@ export default function Grafica() {
     staleTime: 60_000,
     refetchOnMount: true,
     refetchOnWindowFocus: true,
-    refetchInterval: 60_000,
+    refetchInterval: 300_000, // 5min (auditoria 27/08): o WebSocket cobre o tempo real; isto é só a rede de segurança de socket morto
   });
   // ── Evento FINALIZADO CONTINUA NA FILA ────────────────────────────────────
   // Regra do dono (17/08): "os eventos finalizados devem aparecer ainda na

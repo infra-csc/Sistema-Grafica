@@ -2700,26 +2700,44 @@ export default function Arte() {
           })();
           const ocultas = travando.length - visiveis.length;
           const pendencias = travando.reduce((s, t) => s + t.pecas, 0);
+          // TERCEIRA forma (dono, 27/08: "urgentemente, está péssimo"): as
+          // pílulas em fila tinham todas o mesmo peso — seis nomes brancos
+          // idênticos não respondem "quem é o pior". Virou RANKING com barra:
+          // a barra é proporcional ao nº de aprovações seguradas (o pior
+          // salta aos olhos antes de qualquer leitura), a cor é a idade da
+          // espera, e o clique continua filtrando.
           const pele = (espera: number, ligado: boolean) => {
-            if (ligado) return { bg: '#1c1917', borda: '#1c1917', texto: '#ffffff' };
-            if (espera >= 14) return { bg: '#fef2f2', borda: '#fecaca', texto: '#991b1b' };
-            if (espera >= 7) return { bg: '#fffbeb', borda: '#fde68a', texto: '#92400e' };
-            return { bg: '#ffffff', borda: '#e7e5e4', texto: '#44403c' };
+            if (ligado) return { bg: '#1c1917', borda: '#1c1917', texto: '#ffffff', barra: '#fb923c', trilho: 'rgba(255,255,255,0.16)', sub: 'rgba(255,255,255,0.65)' };
+            if (espera >= 14) return { bg: '#fef2f2', borda: '#fecaca', texto: '#991b1b', barra: '#dc2626', trilho: '#fee2e2', sub: '#b91c1c' };
+            if (espera >= 7) return { bg: '#fffbeb', borda: '#fde68a', texto: '#92400e', barra: '#f59e0b', trilho: '#fef3c7', sub: '#b45309' };
+            return { bg: '#ffffff', borda: '#e7e5e4', texto: '#44403c', barra: '#a8a29e', trilho: '#f0efed', sub: '#78716c' };
           };
+          const teto = Math.max(1, ...travando.map(t => t.pecas));
           return (
-            <div data-testid="faixa-travando" style={{ padding: '10px 14px', borderRadius: 10, background: '#fafaf9', border: '1px solid #e7e5e4' }}>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+            <div data-testid="faixa-travando" style={{ borderRadius: 12, background: '#ffffff', border: '1px solid #e7e5e4', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap', padding: '10px 14px', background: '#fafaf9', borderBottom: '1px solid #f0efed' }}>
                 <span style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#57534e', whiteSpace: 'nowrap' }}>Quem está travando</span>
                 <span data-testid="travando-resumo" style={{ fontSize: 12, color: '#78716c' }}>
                   {travando.length} {travando.length === 1 ? 'marca segura' : 'marcas seguram'} {pendencias} {pendencias === 1 ? 'aprovação' : 'aprovações'}
                   {travando[0].espera > 0 ? ` — a mais antiga espera há ${travando[0].espera}d` : ''}
                 </span>
+                <span style={{ flex: 1 }} />
+                {(ocultas > 0 || showAllTravando) && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllTravando(v => !v)}
+                    data-testid="button-travando-todas"
+                    style={{ border: 'none', background: 'transparent', padding: 0, color: '#c2410c', fontSize: 12, fontWeight: 700, cursor: 'pointer', font: 'inherit', whiteSpace: 'nowrap', textDecoration: 'underline', textUnderlineOffset: 3, textDecorationColor: '#fdba74' }}
+                  >
+                    {showAllTravando ? 'Mostrar menos' : `Ver as ${ocultas} outra${ocultas !== 1 ? 's' : ''}`}
+                  </button>
+                )}
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', columnGap: 18, padding: '4px 14px 8px' }}>
                 {visiveis.map(t => {
                   const ligado = sponsorFilter.length === 1 && sponsorFilter[0] === t.id;
-                  const tom = tomDaIdade(t.espera);
                   const p = pele(t.espera, ligado);
+                  const rank = travando.findIndex(x => x.id === t.id) + 1;
                   return (
                     <button
                       key={t.id}
@@ -2727,28 +2745,36 @@ export default function Arte() {
                       onClick={() => setSponsorFilter(ligado ? [] : [t.id])}
                       aria-pressed={ligado}
                       data-testid={`chip-travando-${t.id}`}
-                      title={ligado ? `Mostrar todas as peças de novo` : `Ver só as ${t.pecas} ${t.pecas === 1 ? 'peça que espera' : 'peças que esperam'} ${t.nome} — a mais antiga há ${t.espera}d`}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: isMobile ? 40 : 28, padding: '0 10px', borderRadius: 999, border: `1px solid ${p.borda}`, background: p.bg, color: p.texto, fontSize: 12, fontWeight: 700, cursor: 'pointer', font: 'inherit', whiteSpace: 'nowrap' }}
+                      title={ligado
+                        ? 'Mostrar todas as peças de novo'
+                        : `Ver só as ${t.pecas} ${t.pecas === 1 ? 'peça que espera' : 'peças que esperam'} ${t.nome}${t.espera > 0 ? ` — a mais antiga há ${t.espera}d` : ' — chegou hoje'}`}
+                      style={{
+                        display: 'block', width: '100%', textAlign: 'left', font: 'inherit', cursor: 'pointer',
+                        padding: '8px 10px', margin: '4px 0', borderRadius: 9,
+                        border: `1px solid ${ligado ? '#1c1917' : 'transparent'}`,
+                        background: ligado ? '#1c1917' : 'transparent',
+                        transition: 'background 0.1s',
+                      }}
+                      onMouseEnter={e => { if (!ligado) e.currentTarget.style.background = '#fafaf9'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = ligado ? '#1c1917' : 'transparent'; }}
                     >
-                      <Clock style={{ width: 11, height: 11, flexShrink: 0, color: ligado ? '#ffffff' : tom.cor }} />
-                      {t.nome}
-                      <span style={{ fontFamily: "'DM Mono', monospace", fontWeight: 700, color: ligado ? 'rgba(255,255,255,0.8)' : p.texto }}>{t.pecas}</span>
-                      {t.espera > 0 && (
-                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: tom.peso, color: ligado ? '#ffffff' : tom.cor }}>+{t.espera}d</span>
-                      )}
+                      <span style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 5 }}>
+                        <span aria-hidden style={{ fontFamily: "'DM Mono', monospace", fontSize: 10.5, fontWeight: 700, color: ligado ? 'rgba(255,255,255,0.5)' : '#a8a29e', minWidth: 16 }}>{rank}º</span>
+                        <span style={{ fontSize: 12.5, fontWeight: 700, color: ligado ? '#ffffff' : '#1c1917', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0, flex: 1 }}>{t.nome}</span>
+                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 12.5, fontWeight: 800, color: ligado ? '#ffffff' : p.texto, whiteSpace: 'nowrap' }}>{t.pecas}</span>
+                        <span style={{ fontFamily: "'DM Mono', monospace", fontSize: 11, fontWeight: 700, color: ligado ? 'rgba(255,255,255,0.8)' : p.sub, whiteSpace: 'nowrap', minWidth: 38, textAlign: 'right' }}>
+                          {t.espera > 0 ? `+${t.espera}d` : 'hoje'}
+                        </span>
+                      </span>
+                      {/* A barra: proporcional ao nº de aprovações que a marca
+                          segura, na cor da idade da espera — o pior caso é o
+                          maior E o mais vermelho, sem ler número nenhum. */}
+                      <span aria-hidden style={{ display: 'block', height: 5, borderRadius: 999, background: p.trilho, overflow: 'hidden' }}>
+                        <span style={{ display: 'block', height: '100%', width: `${Math.max(8, Math.round((t.pecas / teto) * 100))}%`, borderRadius: 999, background: p.barra }} />
+                      </span>
                     </button>
                   );
                 })}
-                {(ocultas > 0 || showAllTravando) && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAllTravando(v => !v)}
-                    data-testid="button-travando-todas"
-                    style={{ display: 'inline-flex', alignItems: 'center', height: isMobile ? 40 : 28, padding: '0 10px', borderRadius: 999, border: '1px dashed #d6d3d1', background: 'transparent', color: '#57534e', fontSize: 12, fontWeight: 700, cursor: 'pointer', font: 'inherit', whiteSpace: 'nowrap' }}
-                  >
-                    {showAllTravando ? 'Mostrar menos' : `+ ${ocultas} outra${ocultas !== 1 ? 's' : ''}`}
-                  </button>
-                )}
               </div>
             </div>
           );

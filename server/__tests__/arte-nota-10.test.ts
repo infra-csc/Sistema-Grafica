@@ -101,9 +101,10 @@ describe("2 · quem está travando", () => {
     expect(ARTE).toContain('data-testid="faixa-travando"');
     expect(ARTE).toContain("data-testid={`chip-travando-${t.id}`}");
     expect(ARTE).toContain("onClick={() => setSponsorFilter(ligado ? [] : [t.id])}");
-    // A espera mais antiga, no tom da escala da mudança 1.
+    // A espera mais antiga, na MESMA escala de idade da mudança 1 (7/14 dias)
+    // — que na 3ª forma da faixa vive em `pele` (ver travando-redesign.test).
     expect(ARTE).toContain("e.espera = Math.max(e.espera, diasNaFase(i, hoje) ?? 0);");
-    expect(ARTE).toContain("const tom = tomDaIdade(t.espera);");
+    expect(ARTE).toContain("const p = pele(t.espera, ligado);");
   });
 });
 

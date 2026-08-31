@@ -76,10 +76,27 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath));
+  // Regra de cache em duas camadas (31/08, depois do "Failed to fetch
+  // dynamically imported module" em produção):
+  //   - /assets/* tem hash no nome → pode viver 1 ano no navegador, immutable.
+  //   - index.html NUNCA entra em cache (no-store) → é ele quem aponta para os
+  //     hashes vigentes; um index velho depois de um Republicar pede chunks que
+  //     já não existem e derruba a tela inteira.
+  app.use(
+    "/assets",
+    express.static(path.resolve(distPath, "assets"), { maxAge: "365d", immutable: true }),
+  );
+  app.use(
+    express.static(distPath, {
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith("index.html")) res.setHeader("Cache-Control", "no-store");
+      },
+    }),
+  );
 
   // fall through to index.html if the file doesn't exist
   app.use("*", (_req, res) => {
+    res.setHeader("Cache-Control", "no-store");
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }

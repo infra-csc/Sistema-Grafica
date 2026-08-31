@@ -29,16 +29,34 @@ import { useEffect, useState, Component, lazy, Suspense, type ReactNode, type Co
  * meio de uma sessão aberta), recarrega a página UMA vez em vez de mostrar o
  * ErrorBoundary — é o modo de falha clássico do code splitting em produção.
  */
+const CHAVE_RELOAD_DE_CHUNK = "chunk-reload-once";
+
 function lazyPage<T extends ComponentType<any>>(fabrica: () => Promise<{ default: T }>) {
   return lazy(() =>
-    fabrica().catch((erro) => {
-      const chave = "chunk-reload-once";
-      if (!sessionStorage.getItem(chave)) {
-        sessionStorage.setItem(chave, "1");
-        window.location.reload();
-      }
-      throw erro;
-    })
+    fabrica()
+      .then((modulo) => {
+        // Chunk carregou: devolve a recarga única para o PRÓXIMO deploy.
+        // Sem isso, a trava gastava-se no primeiro deploy da sessão e o
+        // segundo caía direto no ErrorBoundary (aconteceu em 31/08).
+        try { sessionStorage.removeItem(CHAVE_RELOAD_DE_CHUNK); } catch {}
+        return modulo;
+      })
+      .catch((erro) => {
+        try {
+          if (!sessionStorage.getItem(CHAVE_RELOAD_DE_CHUNK)) {
+            sessionStorage.setItem(CHAVE_RELOAD_DE_CHUNK, "1");
+            window.location.reload();
+          }
+        } catch {}
+        throw erro;
+      })
+  );
+}
+
+/** O erro clássico do code splitting: o deploy trocou os arquivos e este navegador ainda pede o hash antigo. */
+function ehChunkPerdido(erro: Error) {
+  return /dynamically imported module|Loading chunk|Importing a module script failed|error loading dynamically imported/i.test(
+    erro.message || ""
   );
 }
 
@@ -108,6 +126,24 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
   render() {
     if (this.state.error) {
       const err = this.state.error as Error;
+      // Chunk que sumiu depois de um deploy NÃO é bug do usuário: nada de
+      // stack trace vermelho. E "Tentar novamente" via setState nunca resolve
+      // este caso (o lazy guarda a rejeição) — o único remédio é recarregar.
+      if (ehChunkPerdido(err)) {
+        return (
+          <div data-testid="tela-nova-versao" style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem' }}>
+            <div style={{ maxWidth: 420, textAlign: 'center' }}>
+              <h2 style={{ margin: '0 0 8px', fontSize: 18, fontWeight: 800, color: '#1c1917' }}>O sistema acabou de ser atualizado</h2>
+              <p style={{ margin: '0 0 18px', fontSize: 13.5, lineHeight: 1.6, color: '#57534e' }}>
+                Uma nova versão entrou no ar enquanto esta aba estava aberta. Recarregue para continuar de onde parou.
+              </p>
+              <button onClick={() => window.location.reload()} style={{ background: '#1c1917', color: '#fff', border: 'none', borderRadius: 8, padding: '10px 22px', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
+                Recarregar agora
+              </button>
+            </div>
+          </div>
+        );
+      }
       return (
         <div style={{ padding: '2rem', fontFamily: 'monospace' }}>
           <h2 style={{ color: '#ef4444' }}>Erro de renderização</h2>

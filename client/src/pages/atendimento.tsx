@@ -446,7 +446,7 @@ export default function Atendimento() {
   };
 
   // Confirmação de aprovação
-  const [confirmApproveIndividual, setConfirmApproveIndividual] = useState<{ itemId: string; sponsorId: string; sponsorName: string } | null>(null);
+  const [confirmApproveIndividual, setConfirmApproveIndividual] = useState<{ itemId: string; sponsorId: string; sponsorName: string; versaoAntiga?: boolean } | null>(null);
   // Desvincular patrocinador da peça (pedido do dono, 25/08) — admin, com confirmação.
   const [desvincularAlvo, setDesvincularAlvo] = useState<{ itemId: string; sponsorId: string; sponsorName: string } | null>(null);
   const [confirmApproveBatch, setConfirmApproveBatch] = useState(false);
@@ -2812,8 +2812,9 @@ export default function Atendimento() {
                             <div style={{ display: 'flex', justifyContent: isMobile ? 'stretch' : 'flex-end' }}>
                               {(() => {
                                 const primaria = temNovaVersao && !isFullyApproved;
+                                // Com a Arte também é 'Revisar' (31/08): lá dentro
+                                // existe ação agora — aprovar mesmo assim a versão antiga.
                                 const rotulo = isFullyApproved ? "Ver histórico"
-                                  : hasArteBlock ? "Ver histórico"
                                   : primaria ? "Revisar agora" : "Revisar";
                                 return (
                                   <button
@@ -3950,6 +3951,42 @@ export default function Atendimento() {
                                         </div>
                                       </div>
 
+                                      {/* AVISO NA TELA (dono, 31/08): quem vai decidir
+                                          precisa ver que a Arte está REFAZENDO por esta
+                                          reprovação — e o motivo — antes de aprovar. */}
+                                      {v.isAwaitingArte && !isRejectingThis && (
+                                        <div data-testid={`aviso-refazendo-${sponsor.id}`} style={{ margin: '10px 0', padding: '8px 12px', background: '#fffbeb', border: '1px solid #fde68a', borderLeft: '3px solid #f59e0b', borderRadius: 8, fontSize: 12, color: '#92400e', lineHeight: 1.55 }}>
+                                          A <strong>Arte está refazendo uma nova versão</strong> por causa da reprovação de <strong>{sponsor.name}</strong>{approval?.rejectionReason ? <>: “{approval.rejectionReason}”</> : null}. Aprovar agora aceita a <strong>versão atual (antiga)</strong> e cancela essa correção.
+                                        </div>
+                                      )}
+                                      {/* APROVAR MESMO COM A ARTE (dono, 31/08): a linha
+                                          reprovada que está com a Arte pode ser aprovada
+                                          mesmo assim — o cliente aceitou a versão antiga.
+                                          Sem botão de Reprovar aqui: já está reprovada. */}
+                                      {v.isAwaitingArte && !isRejectingThis && canDecide && (
+                                        <div style={{ display: 'flex', gap: 6, flexDirection: isMobile ? 'column' : 'row' }}>
+                                          <button
+                                            onClick={() => setConfirmApproveIndividual({ itemId: selectedItem.id, sponsorId: sponsor.id, sponsorName: sponsor.name || 'Patrocinador', versaoAntiga: true })}
+                                            disabled={individualApproveMutation.isPending}
+                                            title={'A linha está com a Arte para correção — aprovar agora vale para a VERSÃO ANTIGA da arte, e a Arte é avisada de que a correção não é mais necessária'}
+                                            data-testid={`button-approve-anyway-${sponsor.id}`}
+                                            style={{
+                                              padding: '8px 16px', borderRadius: 8,
+                                              backgroundColor: '#f0fdf4', border: '1px solid #86efac',
+                                              color: '#15803d', fontSize: 13, fontWeight: 700,
+                                              cursor: 'pointer', transition: 'all 0.15s',
+                                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                                              minHeight: 36,
+                                              width: isMobile ? '100%' : undefined,
+                                            }}
+                                          >
+                                            {individualApproveMutation.isPending
+                                              ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" />
+                                              : <CheckCircle style={{ width: 12, height: 12 }} />}
+                                            Aprovar
+                                          </button>
+                                        </div>
+                                      )}
                                       {isPending && !isRejectingThis && (
                                         <div style={{ display: 'flex', gap: 6, flexDirection: isMobile ? 'column' : 'row' }}>
                                           <button
@@ -4360,7 +4397,9 @@ export default function Atendimento() {
           <div style={{ padding: '20px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
             <DialogDescription style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0 }}>
               Aprovar a arte para o patrocinador <strong style={{ color: '#1c1917' }}>{confirmApproveIndividual?.sponsorName}</strong>?
-              Dá para revogar depois, enquanto a peça estiver em aprovação ou na finalização da Arte.
+              {confirmApproveIndividual?.versaoAntiga
+                ? <> Esta linha está <strong>com a Arte para correção</strong> — a aprovação vale para a <strong>versão antiga</strong> (a que ele havia reprovado), e a Arte será avisada de que a correção não é mais necessária.</>
+                : <> Dá para revogar depois, enquanto a peça estiver em aprovação ou na finalização da Arte.</>}
             </DialogDescription>
           </div>
           <ModalFooter>

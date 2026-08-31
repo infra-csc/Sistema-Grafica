@@ -3931,7 +3931,10 @@ export default function Atendimento() {
                                       backgroundColor: isApproved ? '#f0fdf4' : isRejected ? '#fef2f2' : '#fafaf9',
                                     }}
                                   >
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: isRejectingThis ? 12 : 0 }}>
+                                    {/* flexWrap (31/08, print 'cortando ainda'): com 3 botões
+                                        (Reprovar/Aprovar/Desvincular) a fileira estourava a
+                                        largura do painel e nascia rolagem horizontal. */}
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: isRejectingThis ? 12 : 0 }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                         <div style={{
                                           width: 32, height: 32, borderRadius: '50%',
@@ -3957,7 +3960,7 @@ export default function Atendimento() {
                                       </div>
 
                                       {isPending && !isRejectingThis && (
-                                        <div style={{ display: 'flex', gap: 6, flexDirection: isMobile ? 'column' : 'row' }}>
+                                        <div style={{ display: 'flex', gap: 6, flexDirection: isMobile ? 'column' : 'row', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                                           <button
                                             onClick={() => setRejectingSponsorId(sponsor.id)}
                                             disabled={individualRejectMutation.isPending || !canDecide}

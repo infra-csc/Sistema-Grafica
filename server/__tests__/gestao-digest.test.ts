@@ -76,8 +76,8 @@ describe("o resumo conta o que interessa e ignora o resto", () => {
     expect(r.eventos.map((e) => e.evento)).toEqual(["Meia Maratona", "Primavera SP"]);
     const sp = r.eventos.find((e) => e.evento === "Primavera SP")!;
     expect(sp.patrocinadores).toEqual([
-      { nome: "Livelo", pecas: 2, diasDoMaisAntigo: 9, travadas: 1 },
-      { nome: "Elo", pecas: 1, diasDoMaisAntigo: 2, travadas: 0 },
+      { nome: "Livelo", pecas: 2, diasDoMaisAntigo: 9, travadas: 1, novaVersao: 0 },
+      { nome: "Elo", pecas: 1, diasDoMaisAntigo: 2, travadas: 0, novaVersao: 0 },
     ]);
   });
 
@@ -220,8 +220,8 @@ describe("as decisões herdadas do aviso da Revisão", () => {
   const SRC = ler("server/services/gestaoDigest.ts");
   const ROUTES = ler("server/routes.ts");
 
-  it("fila vazia não vira e-mail", () => {
-    expect(SRC).toContain('if (resumo.totalPendentes === 0) {');
+  it("fila vazia não vira e-mail — e 'vazia' inclui a refação da Criação (31/08)", () => {
+    expect(SRC).toContain('if (resumo.totalPendentes === 0 && resumo.naCriacao === 0) {');
   });
 
   it("não repete: a trilha guarda o disparo do dia E DO HORÁRIO", () => {
@@ -260,6 +260,68 @@ describe("as decisões herdadas do aviso da Revisão", () => {
   });
 });
 
+describe("reprovada e nova versão TAMBÉM são pendência (dono, 31/08)", () => {
+  // O caso real que motivou: o e-mail de Dog Race dizia "só falta InnSide
+  // Melia" enquanto o BB Seguros tinha peça reprovada com a Criação e nova
+  // versão esperando decisão — invisíveis. "Reprovou" não é "resolveu".
+  const cenario31 = () => ({
+    itens: [
+      { id: "p1", eventId: "e1", status: "awaiting_sponsor_approval", statusChangedAt: diasAtras(3), type: "Lona" },
+      { id: "p2", eventId: "e1", status: "awaiting_sponsor_approval", statusChangedAt: diasAtras(9), type: "Lona" },
+      { id: "p3", eventId: "e1", status: "awaiting_sponsor_approval", statusChangedAt: diasAtras(9), type: "Lona" },
+    ],
+    aprovacoes: [
+      // o pendente clássico
+      { itemId: "p1", sponsorId: "s1", status: "pending", createdAt: diasAtras(3) },
+      // a Arte corrigiu — o patrocinador precisa decidir DE NOVO, e o relógio
+      // recomeça na volta da correção (updatedAt), não na reprovação antiga
+      { itemId: "p2", sponsorId: "s2", status: "new_version_pending", createdAt: diasAtras(9), updatedAt: diasAtras(1) },
+      // reprovada, refazendo com a Criação — pendência de OUTRA natureza
+      { itemId: "p3", sponsorId: "s2", status: "awaiting_arte", createdAt: diasAtras(9), rejectedAt: diasAtras(4) },
+    ],
+    sponsors: [{ id: "s1", name: "InnSide Melia" }, { id: "s2", name: "BB Seguros" }],
+    eventos: [{ id: "e1", name: "Dog Race", truckDepartureDate: emDias(10), startDate: emDias(12) }],
+  });
+  const c = cenario31();
+  const r = montarResumoDaGestao(c.itens, c.aprovacoes, c.sponsors, c.eventos, AGORA);
+
+  it("nova versão conta como esperando o patrocinador; refação conta à parte", () => {
+    expect(r.totalPendentes).toBe(2); // pending + new_version_pending
+    expect(r.naCriacao).toBe(1);      // awaiting_arte, em conta própria
+    const e = r.eventos[0];
+    expect(e.patrocinadores.find((p) => p.nome === "BB Seguros")).toEqual(
+      { nome: "BB Seguros", pecas: 1, diasDoMaisAntigo: 1, travadas: 0, novaVersao: 1 },
+    );
+    // o relógio da nova versão recomeçou há 1 dia (updatedAt), não há 9
+    expect(e.criacao).toEqual([{ nome: "BB Seguros", pecas: 1, diasDoMaisAntigo: 4 }]);
+  });
+
+  it("a refação NÃO entra em 'paradas' — essa régua é sobre patrocinador que não decide", () => {
+    expect(r.travadas).toBe(0);
+  });
+
+  it("o e-mail mostra os dois recortes com as palavras certas", () => {
+    const m = construirEmailDaGestao(r, CONFIG, DESTINATARIOS_DA_GESTAO);
+    if ("erro" in m) throw new Error(m.erro);
+    expect(m.subject).toContain("2 em 1 evento");
+    expect(m.subject).toContain("1 na Criação");
+    expect(m.html).toContain("nova versão da Arte para aprovar");
+    expect(m.html).toContain("reprovada, refazendo na Criação");
+    expect(m.html).toContain("com a Criação — nova versão a caminho");
+    expect(m.text).toContain("BB Seguros: 1 peça — reprovada, refazendo na Criação, há 4 dias");
+  });
+
+  it("SÓ refação já sustenta o envio — pendência com a Criação não é fila vazia", () => {
+    const c2 = cenario31();
+    c2.aprovacoes = c2.aprovacoes.filter((a) => a.status === "awaiting_arte");
+    const r2 = montarResumoDaGestao(c2.itens, c2.aprovacoes, c2.sponsors, c2.eventos, AGORA);
+    expect(r2.totalPendentes).toBe(0);
+    expect(r2.naCriacao).toBe(1);
+    // e o bloco do evento existe mesmo sem linha de decisão
+    expect(r2.eventos.map((e) => e.evento)).toEqual(["Dog Race"]);
+  });
+});
+
 describe("o disparo à mão", () => {
   const ITEMS = ler("server/routes/items.ts");
   const TELA = ler("client/src/pages/atendimento.tsx");
@@ -276,7 +338,7 @@ describe("o disparo à mão", () => {
     expect(SRC).toContain("if (!opcoes.manual && await jaAvisou(dia, hora))");
     // …e também o interruptor, mas a fila vazia continua calando o envio.
     expect(SRC).toContain("const ligado = opcoes.manual || env.GESTAO_DIGEST_ENABLED");
-    expect(SRC).toContain('if (resumo.totalPendentes === 0) {');
+    expect(SRC).toContain('if (resumo.totalPendentes === 0 && resumo.naCriacao === 0) {');
     expect(ITEMS).toContain("Nenhuma aprovação pendente agora");
   });
 

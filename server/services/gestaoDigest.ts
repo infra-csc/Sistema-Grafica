@@ -79,6 +79,20 @@ export const DESTINATARIOS_DA_GESTAO = [
 /** Peça esperando decisão de patrocinador. */
 const STATUS_EM_APROVACAO = ["awaiting_sponsor_approval", "awaiting_approval"];
 
+// ── O QUE CONTA COMO PENDÊNCIA (afinado pelo dono, 31/08) ────────────────────
+// O primeiro corte só olhava linha `pending` — e o e-mail dizia "Dog Race:
+// só falta InnSide Melia" enquanto o BB Seguros tinha peça reprovada sendo
+// refeita E nova versão esperando decisão. Sumir com elas ensina o leitor
+// errado: "reprovou = resolveu". Agora são DOIS recortes, porque a bola está
+// com gente diferente:
+//   · `new_version_pending` → a Arte já corrigiu, o PATROCINADOR precisa
+//     decidir de novo — conta junto com `pending` (com a marca "nova versão").
+//   · `awaiting_arte` → reprovada, a CRIAÇÃO está refazendo — linha própria,
+//     em âmbar, contando os dias desde a reprovação. Não entra em "paradas"
+//     (essa régua é sobre patrocinador que não decide), mas fica visível.
+/** Linha esperando o PATROCINADOR: pendente clássico ou nova versão da Arte. */
+const STATUS_ESPERANDO_PATROCINADOR = ["pending", "new_version_pending"];
+
 /** Parada demais: acima disso a pendência entra na conta de "travadas". */
 export const DIAS_PARA_TRAVADA = 7;
 
@@ -94,6 +108,16 @@ export type LinhaDePatrocinador = {
   pecas: number;
   diasDoMaisAntigo: number;
   travadas: number;
+  /** Quantas dessas são nova versão da Arte esperando nova decisão (31/08). */
+  novaVersao: number;
+};
+
+/** Peça reprovada que a Criação está refazendo — a bola NÃO é do patrocinador. */
+export type LinhaNaCriacao = {
+  nome: string;
+  pecas: number;
+  /** Dias desde a reprovação mais antiga. */
+  diasDoMaisAntigo: number;
 };
 
 export type BlocoDeEvento = {
@@ -106,7 +130,10 @@ export type BlocoDeEvento = {
   pendentes: number;
   pecas: number;
   travadas: number;
+  /** Linhas reprovadas em refação na Criação (peça × patrocinador). */
+  naCriacao: number;
   patrocinadores: LinhaDePatrocinador[];
+  criacao: LinhaNaCriacao[];
 };
 
 export type ResumoDaGestao = {
@@ -115,6 +142,8 @@ export type ResumoDaGestao = {
   /** Peças distintas esperando alguma decisão. */
   pecasPendentes: number;
   travadas: number;
+  /** Linhas reprovadas em refação na Criação — pendência de outra natureza (31/08). */
+  naCriacao: number;
   eventos: BlocoDeEvento[];
   /** Eventos que não couberam no teto — contados, nunca escondidos em silêncio. */
   eventosOcultos: number;
@@ -178,47 +207,82 @@ export function montarResumoDaGestao(
   );
   const nomeDoSponsor = new Map(sponsors.map((s) => [s.id, s.name]));
 
-  const pendentes = aprovacoes.filter((a) => a.status === "pending" && emAprovacao.has(a.itemId));
+  const pendentes = aprovacoes.filter((a) => STATUS_ESPERANDO_PATROCINADOR.includes(a.status) && emAprovacao.has(a.itemId));
+  const refazendo = aprovacoes.filter((a) => a.status === "awaiting_arte" && emAprovacao.has(a.itemId));
 
   type Acc = {
     pecas: Set<string>;
     travadas: number;
-    porSponsor: Map<string, { pecas: Set<string>; maisAntigo: number; travadas: number }>;
+    porSponsor: Map<string, { pecas: Set<string>; maisAntigo: number; travadas: number; novaVersao: number }>;
     pendentes: number;
+    naCriacao: number;
+    porCriacao: Map<string, { pecas: Set<string>; maisAntigo: number }>;
   };
+  const novoAcc = (): Acc => ({ pecas: new Set(), travadas: 0, porSponsor: new Map(), pendentes: 0, naCriacao: 0, porCriacao: new Map() });
   const porEvento = new Map<string, Acc>();
   const pecasTotais = new Set<string>();
   let travadasTotais = 0;
+  let naCriacaoTotais = 0;
+
+  // Patrocinador apagado do cadastro não vira linha anônima: dizer o id não
+  // ajuda ninguém, e "—" ao menos é honesto sobre o que se sabe.
+  const nomeDe = (sponsorId: string) => nomeDoSponsor.get(sponsorId) ?? "Patrocinador removido do cadastro";
 
   for (const a of pendentes) {
     const item = emAprovacao.get(a.itemId);
     const eventId = item.eventId ?? "";
     pecasTotais.add(a.itemId);
+    const novaVersao = a.status === "new_version_pending";
 
     // DESDE QUANDO espera: o carimbo de status da peça é a entrada na fila de
     // aprovação; a criação da linha é a reserva. Vale a mais recente das duas —
-    // uma peça devolvida e reenviada recomeça a contagem.
+    // uma peça devolvida e reenviada recomeça a contagem. Para NOVA VERSÃO
+    // vale também o updatedAt da linha: é quando a Arte devolveu a correção,
+    // e a espera do patrocinador recomeça dali (31/08).
     const desde = Math.max(
       new Date(item.statusChangedAt ?? item.updatedAt ?? item.createdAt).getTime(),
       new Date(a.createdAt ?? item.createdAt).getTime(),
+      novaVersao && a.updatedAt ? new Date(a.updatedAt).getTime() : 0,
     );
     const dias = Math.floor((agora.getTime() - desde) / DIA_MS);
     const travada = dias >= DIAS_PARA_TRAVADA;
     if (travada) travadasTotais++;
 
-    const acc = porEvento.get(eventId) ?? { pecas: new Set<string>(), travadas: 0, porSponsor: new Map(), pendentes: 0 };
+    const acc = porEvento.get(eventId) ?? novoAcc();
     acc.pecas.add(a.itemId);
     acc.pendentes += 1;
     if (travada) acc.travadas += 1;
 
-    // Patrocinador apagado do cadastro não vira linha anônima: dizer o id não
-    // ajuda ninguém, e "—" ao menos é honesto sobre o que se sabe.
-    const nome = nomeDoSponsor.get(a.sponsorId) ?? "Patrocinador removido do cadastro";
-    const s = acc.porSponsor.get(nome) ?? { pecas: new Set<string>(), maisAntigo: dias, travadas: 0 };
+    const nome = nomeDe(a.sponsorId);
+    const s = acc.porSponsor.get(nome) ?? { pecas: new Set<string>(), maisAntigo: dias, travadas: 0, novaVersao: 0 };
     s.pecas.add(a.itemId);
     s.maisAntigo = Math.max(s.maisAntigo, dias);
     if (travada) s.travadas += 1;
+    if (novaVersao) s.novaVersao += 1;
     acc.porSponsor.set(nome, s);
+
+    porEvento.set(eventId, acc);
+  }
+
+  // As REPROVADAS EM REFAÇÃO (31/08): pendência visível, mas em conta própria —
+  // cobrar o patrocinador aqui seria injusto (ele já decidiu; a bola é da
+  // Criação). O relógio conta desde a reprovação.
+  for (const a of refazendo) {
+    const item = emAprovacao.get(a.itemId);
+    const eventId = item.eventId ?? "";
+    naCriacaoTotais++;
+
+    const desde = new Date(a.rejectedAt ?? a.updatedAt ?? a.createdAt ?? item.createdAt).getTime();
+    const dias = Number.isFinite(desde) ? Math.floor((agora.getTime() - desde) / DIA_MS) : 0;
+
+    const acc = porEvento.get(eventId) ?? novoAcc();
+    acc.naCriacao += 1;
+
+    const nome = nomeDe(a.sponsorId);
+    const s = acc.porCriacao.get(nome) ?? { pecas: new Set<string>(), maisAntigo: dias };
+    s.pecas.add(a.itemId);
+    s.maisAntigo = Math.max(s.maisAntigo, dias);
+    acc.porCriacao.set(nome, s);
 
     porEvento.set(eventId, acc);
   }
@@ -237,9 +301,13 @@ export function montarResumoDaGestao(
       pendentes: acc.pendentes,
       pecas: acc.pecas.size,
       travadas: acc.travadas,
+      naCriacao: acc.naCriacao,
       patrocinadores: Array.from(acc.porSponsor.entries())
-        .map(([nome, v]) => ({ nome, pecas: v.pecas.size, diasDoMaisAntigo: v.maisAntigo, travadas: v.travadas }))
+        .map(([nome, v]) => ({ nome, pecas: v.pecas.size, diasDoMaisAntigo: v.maisAntigo, travadas: v.travadas, novaVersao: v.novaVersao }))
         // Quem espera há mais tempo primeiro: é a linha que pede cobrança.
+        .sort((a, b) => b.diasDoMaisAntigo - a.diasDoMaisAntigo || b.pecas - a.pecas || a.nome.localeCompare(b.nome, "pt-BR")),
+      criacao: Array.from(acc.porCriacao.entries())
+        .map(([nome, v]) => ({ nome, pecas: v.pecas.size, diasDoMaisAntigo: v.maisAntigo }))
         .sort((a, b) => b.diasDoMaisAntigo - a.diasDoMaisAntigo || b.pecas - a.pecas || a.nome.localeCompare(b.nome, "pt-BR")),
     };
   })
@@ -255,6 +323,7 @@ export function montarResumoDaGestao(
     totalPendentes: pendentes.length,
     pecasPendentes: pecasTotais.size,
     travadas: travadasTotais,
+    naCriacao: naCriacaoTotais,
     eventos: blocos.slice(0, MAX_EVENTOS),
     eventosOcultos: Math.max(0, blocos.length - MAX_EVENTOS),
   };
@@ -297,10 +366,12 @@ export function construirEmailDaGestao(
   const plural = (n: number, um: string, muitos: string) => `${n} ${n === 1 ? um : muitos}`;
 
   // O ASSUNTO carrega o número: a caixa de entrada corta o resto, e "há 6
-  // paradas" é o que faz alguém abrir.
+  // paradas" é o que faz alguém abrir. A refação entra no fim (31/08) — é
+  // pendência, mas de outra natureza.
+  const sufixoCriacao = r.naCriacao > 0 ? ` · ${r.naCriacao} na Criação` : "";
   const subject = r.travadas > 0
-    ? `Aprovações pendentes · ${r.totalPendentes} em ${plural(r.eventos.length, "evento", "eventos")} · ${r.travadas} paradas há ${DIAS_PARA_TRAVADA}+ dias`
-    : `Aprovações pendentes · ${r.totalPendentes} em ${plural(r.eventos.length, "evento", "eventos")}`;
+    ? `Aprovações pendentes · ${r.totalPendentes} em ${plural(r.eventos.length, "evento", "eventos")} · ${r.travadas} paradas há ${DIAS_PARA_TRAVADA}+ dias${sufixoCriacao}`
+    : `Aprovações pendentes · ${r.totalPendentes} em ${plural(r.eventos.length, "evento", "eventos")}${sufixoCriacao}`;
 
   const blocos = r.eventos.map((e) => {
     // Vermelho só quando o caminhão está a menos de uma semana COM pendência —
@@ -309,9 +380,23 @@ export function construirEmailDaGestao(
     const corPrazo = urgente ? "#b91c1c" : "#78716c";
     const linhas = e.patrocinadores.map((p) => [
       `<tr>`,
-      `<td style="padding:7px 12px;border-top:1px solid #f5f4f2;font-size:13.5px;color:#1c1917;">${esc(p.nome)}</td>`,
+      `<td style="padding:7px 12px;border-top:1px solid #f5f4f2;font-size:13.5px;color:#1c1917;">${esc(p.nome)}`,
+      // "Nova versão" muda a leitura da linha: não é patrocinador enrolando —
+      // a Arte devolveu a correção e a decisão recomeçou agora (31/08).
+      p.novaVersao > 0 ? `<div style="font-size:11.5px;color:#b45309;">${p.novaVersao === p.pecas ? "nova versão da Arte para aprovar" : `${p.novaVersao} com nova versão da Arte para aprovar`}</div>` : "",
+      `</td>`,
       `<td style="padding:7px 12px;border-top:1px solid #f5f4f2;font-size:13.5px;color:#57534e;text-align:right;white-space:nowrap;">${plural(p.pecas, "peça", "peças")}</td>`,
       `<td style="padding:7px 12px;border-top:1px solid #f5f4f2;font-size:13.5px;text-align:right;white-space:nowrap;color:${p.travadas > 0 ? "#b91c1c" : "#78716c"};font-weight:${p.travadas > 0 ? "700" : "400"};">há ${plural(p.diasDoMaisAntigo, "dia", "dias")}</td>`,
+      `</tr>`,
+    ].join("")).join("");
+
+    // As reprovadas em refação, depois das linhas de decisão: âmbar, com o
+    // relógio da Criação — quem lê vê a pendência sem cobrar a pessoa errada.
+    const linhasCriacao = e.criacao.map((p) => [
+      `<tr>`,
+      `<td style="padding:7px 12px;border-top:1px solid #f5f4f2;font-size:13.5px;color:#92400e;background:#fffbeb;">${esc(p.nome)} <span style="font-size:11.5px;">— reprovada, refazendo na Criação</span></td>`,
+      `<td style="padding:7px 12px;border-top:1px solid #f5f4f2;font-size:13.5px;color:#92400e;background:#fffbeb;text-align:right;white-space:nowrap;">${plural(p.pecas, "peça", "peças")}</td>`,
+      `<td style="padding:7px 12px;border-top:1px solid #f5f4f2;font-size:13.5px;color:#92400e;background:#fffbeb;text-align:right;white-space:nowrap;">há ${plural(p.diasDoMaisAntigo, "dia", "dias")}</td>`,
       `</tr>`,
     ].join("")).join("");
 
@@ -323,8 +408,10 @@ export function construirEmailDaGestao(
       `<div style="margin-top:2px;font-size:12.5px;color:${corPrazo};font-weight:${urgente ? "700" : "400"};">`,
       `${esc(frasedoPrazo(e.diasParaSaida))}${fmtDia(e.saidaDoCaminhao) ? ` · ${fmtDia(e.saidaDoCaminhao)}` : ""}`,
       ` &middot; <span style="color:#57534e;font-weight:400;">${plural(e.pecas, "peça", "peças")} esperando</span>`,
+      e.naCriacao > 0 ? ` &middot; <span style="color:#b45309;font-weight:400;">${e.naCriacao} na Criação</span>` : "",
       `</div></td></tr>`,
       linhas,
+      linhasCriacao,
       `</table></td></tr>`,
     ].join("");
   }).join("");
@@ -346,6 +433,7 @@ export function construirEmailDaGestao(
     `<p style="margin:6px 0 0;font-size:14px;line-height:1.5;color:#57534e;">`,
     `<strong style="color:#1c1917;">${r.totalPendentes}</strong> ${r.totalPendentes === 1 ? "aprovação espera" : "aprovações esperam"} decisão do patrocinador, em ${plural(r.pecasPendentes, "peça", "peças")} de ${plural(r.eventos.length, "evento", "eventos")}.`,
     r.travadas > 0 ? ` <strong style="color:#b91c1c;">${r.travadas}</strong> ${r.travadas === 1 ? "está parada" : "estão paradas"} há ${DIAS_PARA_TRAVADA} dias ou mais.` : "",
+    r.naCriacao > 0 ? ` <strong style="color:#b45309;">${r.naCriacao}</strong> ${r.naCriacao === 1 ? "foi reprovada e está" : "foram reprovadas e estão"} com a Criação — nova versão a caminho.` : "",
     `</p></td></tr>`,
 
     `<tr><td style="height:16px;line-height:16px;">&nbsp;</td></tr>`,
@@ -368,10 +456,12 @@ export function construirEmailDaGestao(
     ``,
     `${r.totalPendentes} ${r.totalPendentes === 1 ? "aprovação espera" : "aprovações esperam"} decisão do patrocinador, em ${plural(r.pecasPendentes, "peça", "peças")} de ${plural(r.eventos.length, "evento", "eventos")}.`,
     r.travadas > 0 ? `${r.travadas} ${r.travadas === 1 ? "parada" : "paradas"} há ${DIAS_PARA_TRAVADA} dias ou mais.` : "",
+    r.naCriacao > 0 ? `${r.naCriacao} ${r.naCriacao === 1 ? "reprovada está" : "reprovadas estão"} com a Criação — nova versão a caminho.` : "",
     ``,
     ...r.eventos.flatMap((e) => [
       `${e.evento} — ${frasedoPrazo(e.diasParaSaida)}${fmtDia(e.saidaDoCaminhao) ? ` (${fmtDia(e.saidaDoCaminhao)})` : ""}`,
-      ...e.patrocinadores.map((p) => `  - ${p.nome}: ${plural(p.pecas, "peça", "peças")}, há ${plural(p.diasDoMaisAntigo, "dia", "dias")}`),
+      ...e.patrocinadores.map((p) => `  - ${p.nome}: ${plural(p.pecas, "peça", "peças")}, há ${plural(p.diasDoMaisAntigo, "dia", "dias")}${p.novaVersao > 0 ? " (nova versão da Arte para aprovar)" : ""}`),
+      ...e.criacao.map((p) => `  - ${p.nome}: ${plural(p.pecas, "peça", "peças")} — reprovada, refazendo na Criação, há ${plural(p.diasDoMaisAntigo, "dia", "dias")}`),
       ``,
     ]),
     r.eventosOcultos > 0 ? `e mais ${plural(r.eventosOcultos, "evento", "eventos")} com pendência.` : "",
@@ -443,7 +533,10 @@ export async function enviarAvisoDaGestao(
   // faltava ou se o relógio nem bateu. Fila vazia e config ausente agora
   // CONSOMEM a edição na trilha (só no automático): o diagnóstico vira uma
   // consulta, e o tique de minuto em minuto para no jaAvisou.
-  if (resumo.totalPendentes === 0) {
+  // "Vazia" agora quer dizer vazia DE VERDADE (31/08): peça reprovada em
+  // refação na Criação também é pendência a acompanhar — só ela já sustenta
+  // o envio.
+  if (resumo.totalPendentes === 0 && resumo.naCriacao === 0) {
     if (!opcoes.manual) await registrar("fila vazia — nada a enviar; a edição desta hora fica registrada");
     return { status: "sem-fila", resumo };
   }
@@ -459,14 +552,14 @@ export async function enviarAvisoDaGestao(
   }
 
   if (config.dryRun) {
-    await registrar(`simulação para ${montado.to.join(", ")} — ${resumo.totalPendentes} pendentes, ${resumo.travadas} travadas`);
+    await registrar(`simulação para ${montado.to.join(", ")} — ${resumo.totalPendentes} pendentes, ${resumo.naCriacao} na Criação, ${resumo.travadas} travadas`);
     console.info("[gestao-digest] simulação", { dia, total: resumo.totalPendentes });
     return { status: "simulado", resumo };
   }
 
   try {
     await entregarEmail(montado);
-    await registrar(`enviado para ${montado.to.join(", ")} — ${resumo.totalPendentes} pendentes, ${resumo.travadas} travadas`);
+    await registrar(`enviado para ${montado.to.join(", ")} — ${resumo.totalPendentes} pendentes, ${resumo.naCriacao} na Criação, ${resumo.travadas} travadas`);
     console.info("[gestao-digest] enviado", { dia, total: resumo.totalPendentes });
     return { status: "enviado", resumo };
   } catch (error) {

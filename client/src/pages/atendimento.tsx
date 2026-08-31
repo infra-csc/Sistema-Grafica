@@ -109,7 +109,7 @@ const SITUACAO_META: Record<SituacaoPeca, { label: string; hint: string }> = {
   // letras: "eu acho que o atendimento não precisa fazer nada, mas eles
   // precisam aprovar". O rótulo agora nomeia a ação que trava a peça.
   nova_versao:     { label: "Nova versão para aprovar", hint: "A Arte corrigiu — a peça está parada esperando a SUA decisão de aprovar ou reprovar" },
-  aguardando_arte: { label: "Reprovado · Arte refazendo", hint: "O patrocinador reprovou e a Arte está refazendo — nada a fazer aqui por enquanto" },
+  aguardando_arte: { label: "Reprovado · Arte refazendo", hint: "Quem reprovou espera a nova arte; os demais patrocinadores seguem podendo ser aprovados" },
   reprovado:       { label: "Reprovado", hint: "Reprovado pelo patrocinador" },
   aguardando:      { label: "Aguardando patrocinador", hint: "Enviado, sem resposta do patrocinador até agora" },
   aprovado:        { label: "Aprovado", hint: "Todos os patrocinadores aprovaram" },
@@ -446,7 +446,7 @@ export default function Atendimento() {
   };
 
   // Confirmação de aprovação
-  const [confirmApproveIndividual, setConfirmApproveIndividual] = useState<{ itemId: string; sponsorId: string; sponsorName: string; versaoAntiga?: boolean } | null>(null);
+  const [confirmApproveIndividual, setConfirmApproveIndividual] = useState<{ itemId: string; sponsorId: string; sponsorName: string } | null>(null);
   // Desvincular patrocinador da peça (pedido do dono, 25/08) — admin, com confirmação.
   const [desvincularAlvo, setDesvincularAlvo] = useState<{ itemId: string; sponsorId: string; sponsorName: string } | null>(null);
   const [confirmApproveBatch, setConfirmApproveBatch] = useState(false);
@@ -2784,7 +2784,12 @@ export default function Atendimento() {
                                   : sit === "nova_versao"
                                     ? (desde ? `a Arte corrigiu ${desde} — a peça espera sua decisão` : "a Arte corrigiu — a peça espera sua decisão")
                                   : sit === "aguardando_arte"
-                                    ? "nada a fazer aqui — você é avisado quando voltar"
+                                    // Comunicado afinado (dono, 31/08): "nada a fazer"
+                                    // era mentira quando OUTROS patrocinadores ainda
+                                    // podiam ser decididos — só quem reprovou espera.
+                                    ? (quemFaltaAqui.length > 0
+                                        ? `quem reprovou espera a nova arte — ${fraseDeQuemFalta(quemFaltaAqui)} e pode(m) ser decidido(s) agora`
+                                        : "quem reprovou espera a nova arte — você é avisado quando ela chegar")
                                   : `${desde ? `enviada ${desde} · ` : ""}${quemFaltaAqui.length > 0 ? fraseDeQuemFalta(quemFaltaAqui) : `${responderam} de ${approvals.length} responderam`}`;
                                 return (
                                   <>
@@ -3951,42 +3956,6 @@ export default function Atendimento() {
                                         </div>
                                       </div>
 
-                                      {/* AVISO NA TELA (dono, 31/08): quem vai decidir
-                                          precisa ver que a Arte está REFAZENDO por esta
-                                          reprovação — e o motivo — antes de aprovar. */}
-                                      {v.isAwaitingArte && !isRejectingThis && (
-                                        <div data-testid={`aviso-refazendo-${sponsor.id}`} style={{ margin: '10px 0', padding: '8px 12px', background: '#fffbeb', border: '1px solid #fde68a', borderLeft: '3px solid #f59e0b', borderRadius: 8, fontSize: 12, color: '#92400e', lineHeight: 1.55 }}>
-                                          A <strong>Arte está refazendo uma nova versão</strong> por causa da reprovação de <strong>{sponsor.name}</strong>{approval?.rejectionReason ? <>: “{approval.rejectionReason}”</> : null}. Aprovar agora aceita a <strong>versão atual (antiga)</strong> e cancela essa correção.
-                                        </div>
-                                      )}
-                                      {/* APROVAR MESMO COM A ARTE (dono, 31/08): a linha
-                                          reprovada que está com a Arte pode ser aprovada
-                                          mesmo assim — o cliente aceitou a versão antiga.
-                                          Sem botão de Reprovar aqui: já está reprovada. */}
-                                      {v.isAwaitingArte && !isRejectingThis && canDecide && (
-                                        <div style={{ display: 'flex', gap: 6, flexDirection: isMobile ? 'column' : 'row' }}>
-                                          <button
-                                            onClick={() => setConfirmApproveIndividual({ itemId: selectedItem.id, sponsorId: sponsor.id, sponsorName: sponsor.name || 'Patrocinador', versaoAntiga: true })}
-                                            disabled={individualApproveMutation.isPending}
-                                            title={'A linha está com a Arte para correção — aprovar agora vale para a VERSÃO ANTIGA da arte, e a Arte é avisada de que a correção não é mais necessária'}
-                                            data-testid={`button-approve-anyway-${sponsor.id}`}
-                                            style={{
-                                              padding: '8px 16px', borderRadius: 8,
-                                              backgroundColor: '#f0fdf4', border: '1px solid #86efac',
-                                              color: '#15803d', fontSize: 13, fontWeight: 700,
-                                              cursor: 'pointer', transition: 'all 0.15s',
-                                              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                                              minHeight: 36,
-                                              width: isMobile ? '100%' : undefined,
-                                            }}
-                                          >
-                                            {individualApproveMutation.isPending
-                                              ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin" />
-                                              : <CheckCircle style={{ width: 12, height: 12 }} />}
-                                            Aprovar
-                                          </button>
-                                        </div>
-                                      )}
                                       {isPending && !isRejectingThis && (
                                         <div style={{ display: 'flex', gap: 6, flexDirection: isMobile ? 'column' : 'row' }}>
                                           <button
@@ -4077,8 +4046,19 @@ export default function Atendimento() {
                                       )}
                                     </div>
 
-                                    {/* Motivo de reprovação existente */}
-                                    {isRejected && approval?.rejectionReason && (
+                                    {/* AVISO (dono, 31/08): a Arte está REFAZENDO por esta
+                                        reprovação — quem reprovou só volta a decidir quando
+                                        a nova arte chegar; os DEMAIS aprovam normalmente.
+                                        Largura total, fora do cabeçalho flex (a 1ª versão
+                                        nasceu dentro dele e virava uma coluna espremida). */}
+                                    {v.isAwaitingArte && (
+                                      <div data-testid={`aviso-refazendo-${sponsor.id}`} style={{ marginTop: 10, padding: '10px 12px', background: '#fffbeb', border: '1px solid #fde68a', borderLeft: '3px solid #f59e0b', borderRadius: 8, fontSize: 12.5, color: '#92400e', lineHeight: 1.55 }}>
+                                        A <strong>Arte está refazendo uma nova versão</strong> por causa da reprovação de <strong>{sponsor.name}</strong>{approval?.rejectionReason ? <>: <em>“{approval.rejectionReason}”</em></> : null}. Ele só volta a decidir quando a nova arte chegar — os demais patrocinadores seguem aprovando normalmente.
+                                      </div>
+                                    )}
+                                    {/* Motivo de reprovação existente (o aviso acima já o
+                                        cita quando a linha está com a Arte) */}
+                                    {isRejected && !v.isAwaitingArte && approval?.rejectionReason && (
                                       <div style={{ marginTop: 10, padding: '10px 12px', backgroundColor: '#fff', borderRadius: 8, border: '1px solid #fecaca', borderLeft: '3px solid #dc2626' }}>
                                         <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#b91c1c', margin: '0 0 4px' }}>Motivo</p>
                                         <p style={{ fontSize: 13, fontStyle: 'italic', color: '#57534e', margin: 0, lineHeight: 1.5 }}>
@@ -4397,9 +4377,7 @@ export default function Atendimento() {
           <div style={{ padding: '20px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
             <DialogDescription style={{ fontSize: 13, color: '#57534e', lineHeight: 1.6, margin: 0 }}>
               Aprovar a arte para o patrocinador <strong style={{ color: '#1c1917' }}>{confirmApproveIndividual?.sponsorName}</strong>?
-              {confirmApproveIndividual?.versaoAntiga
-                ? <> Esta linha está <strong>com a Arte para correção</strong> — a aprovação vale para a <strong>versão antiga</strong> (a que ele havia reprovado), e a Arte será avisada de que a correção não é mais necessária.</>
-                : <> Dá para revogar depois, enquanto a peça estiver em aprovação ou na finalização da Arte.</>}
+ Dá para revogar depois, enquanto a peça estiver em aprovação ou na finalização da Arte.
             </DialogDescription>
           </div>
           <ModalFooter>

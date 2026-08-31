@@ -2436,16 +2436,14 @@ export function registerItemRoutes(app: Express): void {
       // Get or create approval record
       let approval = await storage.getItemSponsorApproval(itemId, sponsorId);
 
-      // APROVAR MESMO COM A ARTE (decisão do dono, 31/08). O fluxo real que a
-      // trava de 409 ignorava: o patrocinador reprova, a linha vai para a
-      // Arte corrigir — e o cliente volta atrás e aceita a versão que tinha
-      // reprovado. A rota travava ("aguardando nova versão") e obrigava a
-      // esperar uma correção que ninguém mais quer. Agora a aprovação PASSA,
-      // sobre a versão antiga, com o registro dizendo isso com todas as
-      // letras: decidedThumbUrl grava a arte atual (a antiga — é ela que foi
-      // aceita), a trilha carimba "VERSÃO ANTIGA", e a Arte é avisada para
-      // parar a correção que deixou de ser necessária.
-      const aprovouVersaoAntiga = approval?.status === 'awaiting_arte';
+      // A REGRA (afinada pelo dono, 31/08): quem REPROVOU não aprova enquanto
+      // a Arte não devolver a nova versão — a linha dele fica travada aqui.
+      // Os DEMAIS patrocinadores seguem aprovando normalmente (as linhas deles
+      // continuam 'pending' e nunca passam por esta trava); a tela agora avisa
+      // que a Arte está refazendo, por quem e por quê.
+      if (approval && approval.status === 'awaiting_arte') {
+        return res.status(409).json({ error: "Aguardando nova versão da Arte para este patrocinador. Não é possível aprovar agora." });
+      }
 
       if (approval) {
         // Update existing approval — com O QUE foi aprovado (o thumb de agora).
@@ -2479,24 +2477,7 @@ export function registerItemRoutes(app: Express): void {
         'item',
         itemId,
         `Patrocinador "${sponsor?.name || sponsorId}" aprovou o item`
-          + (aprovouVersaoAntiga
-            ? ' — SOBRE A VERSÃO ANTIGA: a linha estava com a Arte para correção após reprovação, e o patrocinador aceitou a arte anterior mesmo assim; a correção deixou de ser necessária'
-            : '')
       );
-
-      // A Arte precisa saber NA HORA que a correção morreu — sem este aviso,
-      // ela seguiria refazendo uma arte que o cliente já aceitou.
-      if (aprovouVersaoAntiga) {
-        const eventoDaPeca = await storage.getEvent(currentItem.eventId);
-        const avisoVersaoAntiga = await storage.createNotification({
-          type: "arteApproved",
-          message: `"${sponsor?.name || sponsorId}" aprovou a VERSÃO ANTIGA de ${currentItem.type} — a correção que estava com você não é mais necessária. Evento: ${eventoDaPeca?.name ?? "—"}`,
-          eventId: currentItem.eventId,
-          itemId,
-          targetRoles: ["arte"],
-        });
-        broadcast({ type: "notification_created", notification: avisoVersaoAntiga });
-      }
 
       // Check if ALL sponsors have approved
       const allApprovals = await storage.getItemSponsorApprovals(itemId);

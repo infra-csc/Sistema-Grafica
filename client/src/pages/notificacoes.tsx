@@ -38,6 +38,7 @@ interface Canal {
   emUso: string[];
 }
 interface Retrato {
+  servidorNoArDesde?: string;
   agora: { dia: string; hora: number; minuto: number };
   horarios: number[];
   chaves: {
@@ -165,6 +166,11 @@ export default function Notificacoes() {
 
         {/* ── 1 · As chaves ── */}
         <div data-testid="chaves-dos-avisos" style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", padding: "12px 14px", borderRadius: 10, background: "#fff", border: "1px solid #e7e5e4", marginBottom: 16 }}>
+          {data.servidorNoArDesde && (
+            <span title="Se esta data for ANTERIOR ao último git pull + Republicar, a produção está rodando código velho — republique." style={{ display: "inline-flex", alignItems: "center", height: 28, padding: "0 12px", borderRadius: 999, fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", background: "#fafaf9", border: "1px solid #e7e5e4", color: "#57534e" }}>
+              Servidor no ar desde {new Date(data.servidorNoArDesde).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}
+            </span>
+          )}
           {chip(chaves.producao, "Ambiente de produção", "Fora de produção — nada é enviado daqui", true)}
           {chip(chaves.emailsLigados, "Canal de e-mail ligado", "Canal de e-mail DESLIGADO")}
           {chip(!chaves.simulacao, "Envio real", "MODO SIMULAÇÃO — monta e não envia")}

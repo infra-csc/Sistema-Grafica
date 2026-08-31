@@ -4880,6 +4880,9 @@ export function registerItemRoutes(app: Express): void {
   // adicionar e remover destinatário. As listas do banco SUBSTITUEM as padrão
   // do código quando têm ao menos uma linha (ver services/destinatarios.ts).
 
+  // Carimbado UMA vez, na subida do processo.
+  const INICIO_DO_PROCESSO = new Date().toISOString();
+
   const CANAL_META: Record<CanalDeAviso, { titulo: string; descricao: string; padrao: readonly string[] }> = {
     gestao: {
       titulo: "Acompanhamento da gestão",
@@ -4904,6 +4907,9 @@ export function registerItemRoutes(app: Express): void {
         return res.status(403).json({ error: "Apenas administradores" });
       }
       const config = getBookEmailConfig(process.env);
+      // Desde quando este PROCESSO roda (28-31/08: três rodadas de diagnóstico
+      // termnaram em 'será que republicou?'). Data anterior ao último push =
+      // produção rodando código velho — a discussão acaba aqui.
       const canais = await Promise.all(CANAIS_DE_AVISO.map(async (canal) => {
         const personalizados = await storage.getEmailDestinatarios(canal).catch(() => []);
         return {
@@ -4914,6 +4920,7 @@ export function registerItemRoutes(app: Express): void {
         };
       }));
       res.json({
+        servidorNoArDesde: INICIO_DO_PROCESSO,
         agora: agoraNoFuso(new Date()),
         horarios: HORARIOS_DA_GESTAO,
         chaves: {

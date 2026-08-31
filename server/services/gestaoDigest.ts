@@ -152,7 +152,11 @@ export function montarResumoDaGestao(
   // Então: encerrado à mão sai, e data passada sai — sem a exceção da
   // reabertura. É deliberadamente uma régua local, e é por isso que ela está
   // escrita aqui em vez de virar mais um parâmetro do predicado compartilhado.
-  const hojeBiz = todayBusinessMs();
+  // O "hoje" vem do `agora` RECEBIDO, não do relógio da máquina (31/08): a
+  // função é pura de assinatura e vazava o wall clock por aqui — os testes
+  // com data fixa "envelheceram" no fim de semana e denunciaram. O dia é o
+  // do fuso do negócio (agoraNoFuso), comparado na mesma régua de eventDayMs.
+  const hojeBiz = eventDayMs(agoraNoFuso(agora).dia) ?? todayBusinessMs();
   const eventoVaiAcontecer = (eventId: string) => {
     const ev = eventoPorId.get(eventId);
     // Peça órfã (evento apagado) não tem como ser cobrada de ninguém.

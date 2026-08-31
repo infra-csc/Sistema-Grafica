@@ -115,19 +115,23 @@ describe("job 4 — o binário é pílula-atalho, nunca interruptor", () => {
 describe("Arte — ORDEM na URL, e ordem NÃO É FILTRO", () => {
   it("a ordem padrão não suja a URL", () => {
     expect(serializeArteFilters(EMPTY_ARTE_FILTERS, "criar-aprovacoes")).toBe("");
-    expect(serializeArteFilters(EMPTY_ARTE_FILTERS, "criar-aprovacoes", "evento")).toBe("");
+    // o padrão virou "prazo" (dono, 31/08)
+    expect(serializeArteFilters(EMPTY_ARTE_FILTERS, "criar-aprovacoes", "prazo")).toBe("");
   });
 
   it("a ordem não-padrão viaja, e volta", () => {
-    // "A fila por prazo" é metade do que se está mostrando quando se manda o
-    // link para um colega — sem isto o link abria em A→Z do outro lado.
-    expect(serializeArteFilters(EMPTY_ARTE_FILTERS, "criar-aprovacoes", "prazo")).toBe("ordem=prazo");
-    expect(parseArteFilters("ordem=prazo").sort).toBe("prazo");
+    // "A fila por evento" é metade do que se está mostrando quando se manda o
+    // link para um colega. O PADRÃO virou "prazo" (dono, 31/08) — é "evento"
+    // que agora precisa viajar explícito na URL.
+    expect(serializeArteFilters(EMPTY_ARTE_FILTERS, "criar-aprovacoes", "evento")).toBe("ordem=evento");
+    expect(parseArteFilters("ordem=evento").sort).toBe("evento");
+    // e o padrão não polui a URL
+    expect(serializeArteFilters(EMPTY_ARTE_FILTERS, "criar-aprovacoes", "prazo")).toBe("");
   });
 
   it("ordem inventada na URL cai no padrão em vez de quebrar a lista", () => {
-    expect(parseArteFilters("ordem=vontade").sort).toBe("evento");
-    expect(parseArteFilters("").sort).toBe("evento");
+    expect(parseArteFilters("ordem=vontade").sort).toBe("prazo");
+    expect(parseArteFilters("").sort).toBe("prazo");
   });
 
   it("a ordem NÃO conta como filtro ativo nem muda o recorte", () => {

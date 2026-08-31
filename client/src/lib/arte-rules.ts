@@ -128,7 +128,10 @@ export type PeriodFilter = (typeof PERIOD_FILTERS)[number];
  */
 export const ARTE_SORT_MODES = ["evento", "prazo"] as const;
 export type ArteSortMode = (typeof ARTE_SORT_MODES)[number];
-export const ARTE_SORT_PADRAO: ArteSortMode = "evento";
+// PRAZO é o padrão (decisão do dono, 31/08): a fila abre como fila de
+// trabalho — o marco mais apertado no topo — e não como lista organizada por
+// evento. "Por evento" continua a um clique e viaja na URL (?ordem=evento).
+export const ARTE_SORT_PADRAO: ArteSortMode = "prazo";
 
 export const EMPTY_ARTE_FILTERS: ArteFilters = {
   search: "",

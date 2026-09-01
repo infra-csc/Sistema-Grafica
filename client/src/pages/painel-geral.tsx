@@ -1595,6 +1595,10 @@ export default function PainelGeral() {
             .map(k => ({ k, zona: z.nome, n: stats.byGroup[k] ?? 0, meta: getStatusMeta(STATUS_GROUPS[k][0]) }))
             .filter(seg => seg.n > 0),
         );
+        // `stats.total` também inclui canceladas e status fora do fluxo. Um
+        // recorte só com esses itens deixa `segmentos` vazio; nesse caso não
+        // existe maior fila para anunciar nem barra proporcional para desenhar.
+        if (segmentos.length === 0) return null;
         const soma = segmentos.reduce((t, seg) => t + seg.n, 0) || 1;
         const maior = segmentos.reduce((a, b) => (b.n > a.n ? b : a), segmentos[0]);
 

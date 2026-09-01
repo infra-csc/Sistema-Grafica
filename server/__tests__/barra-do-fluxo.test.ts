@@ -50,9 +50,11 @@ describe("a barra do fluxo", () => {
   });
 
   it("some quando não há o que distribuir", () => {
-    // Barra vazia (ou de um segmento só) não informa nada e ainda ocupa a
-    // faixa mais nobre da tela.
+    // `stats.total` inclui canceladas e anomalias fora do fluxo. Portanto ele
+    // pode ser positivo com `segmentos` vazio; tentar ler `maior.k` nesse
+    // cenário derrubava o Painel Geral inteiro em produção.
     expect(painel).toContain("{!isLoading && stats.total > 0 && (() => {");
+    expect(painel).toContain("if (segmentos.length === 0) return null;");
   });
 
   it("o segmento ativo se distingue sem depender de cor", () => {

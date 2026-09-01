@@ -404,7 +404,7 @@ export function FilterSelect({
     setDentroDeModal(ref.current?.closest<HTMLElement>('[role="dialog"]') ?? null);
   }, [open]);
 
-  const [pos, setPos] = useState<{ top: number; left: number; minWidth: number } | null>(null);
+  const [pos, setPos] = useState<{ top: number; left: number; minWidth: number; maxAltura: number } | null>(null);
   useLayoutEffect(() => {
     if (!open) return;
     const measure = () => {
@@ -432,12 +432,31 @@ export function FilterSelect({
       const preferido = dropdownAlign === "right" ? rect.right - width : rect.left;
       const maximo = caixa.right - width - RESPIRO;
       const left = Math.max(caixa.left + RESPIRO, Math.min(preferido, maximo));
+      // ── GRAMPO VERTICAL (01/09: "clonar evento cortando tudo") ──────────
+      // O painel abria SEMPRE para baixo, na altura natural. Dentro de um
+      // modal baixo (Clonar Peças), o overflow:hidden do Dialog decepava a
+      // lista de eventos no meio — e não havia como rolar até o que sumiu.
+      // Agora o espaço abaixo e acima do gatilho é medido CONTRA A CAIXA
+      // (modal por dentro, janela por fora): se embaixo não cabe nem o mínimo
+      // útil e em cima cabe mais, o painel abre para CIMA; e nos dois casos a
+      // altura é grampeada ao espaço real — a lista interna rola em vez de
+      // ser cortada. A altura natural vem do painel já renderizado, como a
+      // largura logo acima.
+      const alturaNatural = painelRef.current?.getBoundingClientRect().height ?? 0;
+      const abaixo = caixa.bottom - RESPIRO - (rect.bottom + 6);
+      const acima = (rect.top - 6) - (caixa.top + RESPIRO);
+      const MINIMO_UTIL = 160;
+      const paraCima = abaixo < Math.min(MINIMO_UTIL, alturaNatural || MINIMO_UTIL) && acima > abaixo;
+      const maxAltura = Math.max(120, Math.floor(paraCima ? acima : abaixo));
+      const alturaEfetiva = Math.min(alturaNatural || maxAltura, maxAltura);
+      const topJanela = paraCima ? rect.top - 6 - alturaEfetiva : rect.bottom + 6;
       // Coordenadas do MODAL quando estamos dentro dele (o painel é absolute
       // ali), e da janela quando estamos fora (o painel é fixed).
       const novo = {
-        top: rect.bottom + 6 - (dentroDeModal ? caixa.top : 0),
+        top: topJanela - (dentroDeModal ? caixa.top : 0),
         left: left - (dentroDeModal ? caixa.left : 0),
         minWidth: piso,
+        maxAltura,
       };
       // IDENTIDADE ESTÁVEL. `measure` roda a cada scroll (fase de captura) e a
       // cada resize; gravar um objeto novo em toda passada re-renderizava o
@@ -446,7 +465,7 @@ export function FilterSelect({
       // subárvore em desmontagem é a primeira metade do #185. Só grava quando
       // algum número muda de verdade.
       setPos((antes) =>
-        antes && antes.top === novo.top && antes.left === novo.left && antes.minWidth === novo.minWidth
+        antes && antes.top === novo.top && antes.left === novo.left && antes.minWidth === novo.minWidth && antes.maxAltura === novo.maxAltura
           ? antes
           : novo);
     };
@@ -1030,10 +1049,13 @@ export function FilterSelect({
           backgroundColor: "#fff", border: "1px solid #E5E7EB",
           borderRadius: 10, boxShadow: "0 8px 24px rgba(0,0,0,0.10)",
           maxWidth: TETO_PAINEL, overflow: "hidden",
+          // O grampo vertical: coluna flex para a LISTA encolher (a busca é
+          // flexShrink:0) quando o espaço medido é menor que a altura natural.
+          maxHeight: pos?.maxAltura, display: "flex", flexDirection: "column",
         }}>
           {/* Search */}
           {!hideSearch && (
-          <div style={{ padding: "10px 10px 8px" }}>
+          <div style={{ padding: "10px 10px 8px", flexShrink: 0 }}>
             <div style={{ position: "relative" }}>
               <Search style={{ position: "absolute", left: 9, top: "50%", transform: "translateY(-50%)", width: 13, height: 13, color: "#9CA3AF" }} />
               <input
@@ -1057,7 +1079,7 @@ export function FilterSelect({
 
           {/* List. Sem a caixa de busca, o menu abre com uma folga mínima no
               topo para o primeiro item não colar na borda do painel. */}
-          <div ref={listRef} style={{ maxHeight: 280, overflowY: "auto", paddingTop: hideSearch ? 6 : 0, scrollbarWidth: "thin", scrollbarColor: "#E5E7EB transparent" }}>
+          <div ref={listRef} style={{ maxHeight: 280, minHeight: 0, flex: "0 1 auto", overflowY: "auto", paddingTop: hideSearch ? 6 : 0, scrollbarWidth: "thin", scrollbarColor: "#E5E7EB transparent" }}>
             {/* "Todos" row — só no job de FILTRO. Ordenação e campo de
                 formulário não têm "todos": não existe "toda ordem" nem "todo
                 material", e oferecer a linha seria oferecer um estado que o

@@ -110,7 +110,11 @@ export function CloneItemsDialog({
         // embaixo, simétrico porque o Radix centra) entra com a coluna flex
         // porque o `overflow: hidden` daqui recortaria em silêncio numa janela
         // menor: sem scrollport não há como alcançar o que passou.
-        style={{ maxWidth: 520, padding: 0, gap: 0, borderRadius: 12, overflow: 'hidden', maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column' }}>
+        // minHeight (01/09): o modal nascia com ~370px e o menu de eventos —
+        // ancorado DENTRO dele por causa do Radix — não tinha onde abrir.
+        // 480px dão ~250px de painel abaixo do gatilho; o min() protege
+        // janelas baixas.
+        style={{ maxWidth: 520, padding: 0, gap: 0, borderRadius: 12, overflow: 'hidden', minHeight: 'min(480px, calc(100vh - 48px))', maxHeight: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column' }}>
         <div style={{ padding: '24px 28px 20px', borderBottom: '1px solid #f0efed', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
             <Copy style={{ width: 18, height: 18, color: '#6366f1' }} />

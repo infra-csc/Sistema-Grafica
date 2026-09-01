@@ -76,3 +76,19 @@ describe("o dialog", () => {
     expect(EVENTOS).toContain("clone-items`, { sourceEventId: cloneFrom }");
   });
 });
+
+describe("o painel do select não é decepado pelo modal (print de 01/09)", () => {
+  const FILTRO = ler("client/src/components/filter-select.tsx");
+
+  it("a altura do painel é grampeada ao espaço da caixa — e ele abre para CIMA quando embaixo não cabe", () => {
+    expect(FILTRO).toContain("const maxAltura = Math.max(120, Math.floor(paraCima ? acima : abaixo));");
+    expect(FILTRO).toContain("const topJanela = paraCima ? rect.top - 6 - alturaEfetiva : rect.bottom + 6;");
+    // coluna flex para a lista encolher; a busca não encolhe
+    expect(FILTRO).toContain('maxHeight: pos?.maxAltura, display: "flex", flexDirection: "column"');
+    expect(FILTRO).toContain('minHeight: 0, flex: "0 1 auto", overflowY: "auto"');
+  });
+
+  it("o modal do clone tem altura mínima para o menu de eventos abrir dentro dele", () => {
+    expect(DIALOG).toContain("minHeight: 'min(480px, calc(100vh - 48px))'");
+  });
+});

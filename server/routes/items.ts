@@ -3767,6 +3767,9 @@ export function registerItemRoutes(app: Express): void {
 
       const item = await storage.updateItem(req.params.id, {
         status: "canceled",
+        // De onde a peça saiu — é o que o descancelar do admin restaura
+        // (dono, 01/09). Cancelar de novo uma já cancelada não sobrescreve.
+        statusBeforeCancel: currentItem.status === "canceled" ? currentItem.statusBeforeCancel : currentItem.status,
         observations: notes || currentItem.observations,
       });
 
@@ -3784,6 +3787,84 @@ export function registerItemRoutes(app: Express): void {
       );
       
       broadcast({ type: "item_updated", item });
+      res.json(item);
+    } catch (error: any) {
+      res.status(400).json({ error: error.message });
+    }
+  });
+
+  // ── Descancelar (dono, 01/09: "botão para adm descancelar item e ele
+  // voltar no fluxo onde estava") ────────────────────────────────────────────
+  // SÓ ADMIN: descancelar recoloca trabalho na fila de alguém — é decisão de
+  // gestão, não de operação. Para onde volta, em ordem de confiança:
+  //   1. statusBeforeCancel — gravado pelo cancelamento desde 01/09;
+  //   2. a trilha de auditoria — a última linha "Status alterado: X → Y"
+  //      anterior ao cancelamento diz onde a peça estava (cobre as canceladas
+  //      antes da coluna existir);
+  //   3. "requested" — sem pista nenhuma, volta ao início do fluxo, e a
+  //      trilha DIZ que foi esse o palpite.
+  app.patch("/api/items/:id/uncancel", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas administradores podem descancelar itens" });
+      }
+      const currentItem = await storage.getItem(req.params.id);
+      if (!currentItem) return res.status(404).json({ error: "Item not found" });
+      if (currentItem.status !== "canceled") {
+        return res.status(409).json({ error: "A peça não está cancelada — nada a descancelar" });
+      }
+      // Mesma guarda do cancelamento: mexer em peça de evento finalizado
+      // reescreve número fechado.
+      if (await barraEventoFinalizado(currentItem, res)) return;
+
+      let alvo: string | null = currentItem.statusBeforeCancel ?? null;
+      let origem = "registrado no cancelamento";
+      if (!alvo) {
+        // O mapa reverso do translateStatus (routes/shared.ts). Três rótulos
+        // são ambíguos porque status legados compartilham o texto — aqui vale
+        // a chave VIVA, a que o servidor escreve hoje.
+        const rotuloParaStatus: Record<string, string> = {
+          "Rascunho": "draft",
+          "Solicitado": "requested",
+          "Aguardando Vinculação": "awaiting_linking",
+          "Aguardando Envio": "awaiting_submission",
+          "Aguardando Aprovação": "awaiting_sponsor_approval",
+          "Aguardando Finalização": "sponsor_approved",
+          "Aguardando Revisão Final": "awaiting_final_review",
+          "Aguardando Revisão": "awaiting_review",
+          "Em Revisão": "in_review",
+          "Pronto para Produção": "ready_for_production",
+          "Liberado": "approved",
+          "Em Produção": "inProduction",
+          "Produzido": "produced",
+          "Conferido": "conferred",
+          "Entregue": "delivered",
+        };
+        const trilha = await storage.getAuditLogs("item", currentItem.id);
+        for (const linha of trilha) {
+          const m = /Status alterado: .+? → ([^(→]+?)(?: \(|$)/m.exec(linha.details ?? "");
+          const chave = m ? rotuloParaStatus[m[1].trim()] : undefined;
+          if (chave && chave !== "canceled") { alvo = chave; origem = "inferido pela trilha de auditoria"; break; }
+        }
+      }
+      if (!alvo) { alvo = "requested"; origem = "sem registro do status anterior — voltou ao início do fluxo"; }
+
+      const item = await storage.updateItem(req.params.id, {
+        status: alvo,
+        statusBeforeCancel: null,
+      });
+      if (!item) return res.status(404).json({ error: "Item not found" });
+
+      await createAuditLog(
+        req,
+        'updated',
+        'item',
+        item.id,
+        `Item descancelado — voltou para ${translateStatus(alvo)} (${origem})`
+      );
+
+      broadcast({ type: "item_updated", item });
+      await updateEventStatus(item.eventId);
       res.json(item);
     } catch (error: any) {
       res.status(400).json({ error: error.message });
@@ -3829,6 +3910,8 @@ export function registerItemRoutes(app: Express): void {
 
           const item = await storage.updateItem(itemId, {
             status: "canceled",
+            // Mesmo registro do cancelamento individual — o descancelar lê daqui.
+            statusBeforeCancel: currentItem.status === "canceled" ? currentItem.statusBeforeCancel : currentItem.status,
             observations: notes || currentItem.observations,
           });
           if (item) results.push(item);

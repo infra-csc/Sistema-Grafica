@@ -296,6 +296,13 @@ export const items = pgTable("items", {
   // confundir com a prioridade DO EVENTO (events.priority, régua da saída do
   // caminhão em shared/prioridade-do-evento.ts).
   isPriority: boolean("is_priority").notNull().default(false),
+  // ONDE A PEÇA ESTAVA quando foi cancelada (dono, 01/09: "descancelar item e
+  // ele voltar no fluxo onde estava"). Preenchida pelo cancelamento
+  // (individual e em lote); o descancelar do admin restaura para cá e limpa.
+  // NULL = cancelada antes desta coluna existir — o descancelar então infere
+  // pela trilha de auditoria ("Status alterado: X → Y") e, sem pista, volta
+  // para "requested", dizendo na trilha que foi o palpite.
+  statusBeforeCancel: text("status_before_cancel"),
   bookUrl: text("book_url"), // PDF do book de aprovação (layout pronto) que cobre esta peça — enviado pela Arte para os patrocinadores
   deletedAt: timestamp("deleted_at"), // Soft delete — item permanece no histórico (audit log) mas some das listagens
   createdAt: timestamp("created_at").notNull().default(sql`now()`),

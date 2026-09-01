@@ -259,6 +259,7 @@ export function ItemDetailsDialog({
   const { toast } = useToast();
   const isMobile = useIsMobile();
   const [revertingSponsorId, setRevertingSponsorId] = useState<string | null>(null);
+  const [descancelando, setDescancelando] = useState(false);
   // O percurso abre com os 4 mais recentes. Uma peça que foi e voltou três
   // vezes tem trinta registros, e a ficha inteira virava a trilha dela.
   const [percursoAberto, setPercursoAberto] = useState(false);
@@ -329,6 +330,31 @@ export function ItemDetailsDialog({
       toast({ title: "Erro ao reverter", description: error.message, variant: "destructive" });
     } finally {
       setRevertingSponsorId(null);
+    }
+  };
+
+  // DESCANCELAR (dono, 01/09): admin devolve a peça ao fluxo de onde ela saiu.
+  // Cabe na mesma exceção da reversão de aprovação logo acima — a ficha não
+  // age no fluxo, mas desfazer um lançamento errado é correção do próprio
+  // dado. Só admin vê o botão, e só em peça cancelada.
+  const handleUncancel = async () => {
+    if (!item?.id) return;
+    setDescancelando(true);
+    try {
+      const res = await fetch(`/api/items/${item.id}/uncancel`, {
+        method: "PATCH",
+        credentials: "include",
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Não foi possível descancelar a peça");
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/items", item.eventId] });
+      toast({ title: "Peça descancelada", description: `Voltou para "${getStatusLabel(data?.status) || "o fluxo"}".` });
+      onOpenChange(false);
+    } catch (error: any) {
+      toast({ title: "Erro ao descancelar", description: error.message, variant: "destructive" });
+    } finally {
+      setDescancelando(false);
     }
   };
 
@@ -930,7 +956,7 @@ export function ItemDetailsDialog({
           }}>
             <IconeDoBloqueio style={{ width: 17, height: 17 }} />
           </span>
-          <div style={{ minWidth: 0 }}>
+          <div style={{ minWidth: 0, flex: "1 1 auto" }}>
             <p style={{ fontSize: 14, fontWeight: 700, color: tom.frase, margin: 0, lineHeight: 1.35 }}>
               {bloqueio.frase}
             </p>
@@ -940,6 +966,25 @@ export function ItemDetailsDialog({
               </p>
             )}
           </div>
+          {/* Descancelar — só admin, só cancelada. Volta para onde estava
+              (o servidor sabe: coluna do cancelamento ou trilha). */}
+          {rawStatus === "canceled" && user?.role === "admin" && (
+            <button
+              type="button"
+              onClick={handleUncancel}
+              disabled={descancelando}
+              data-testid="button-descancelar"
+              style={{
+                flexShrink: 0, alignSelf: "center", display: "inline-flex", alignItems: "center", gap: 6,
+                padding: "8px 14px", borderRadius: 8, border: "1px solid #d6d3d1",
+                backgroundColor: "#1c1917", color: "#ffffff", fontSize: 12.5, fontWeight: 700,
+                cursor: descancelando ? "default" : "pointer", opacity: descancelando ? 0.6 : 1,
+              }}
+            >
+              <Undo2 style={{ width: 13, height: 13 }} />
+              {descancelando ? "Descancelando…" : "Descancelar"}
+            </button>
+          )}
         </div>
 
         {/* ══════════════════════════════════════════════════════════════════

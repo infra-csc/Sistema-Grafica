@@ -88,6 +88,8 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "PATCH", rota: "/api/items/:id/start-production", papeis: ["admin", "grafica"] },
   { metodo: "PATCH", rota: "/api/items/:id/submit-final-file", papeis: ["admin", "arte"] },
   { metodo: "PATCH", rota: "/api/items/:id/submit-for-approval", papeis: ["admin", "arte"] },
+  // Descancelar (dono, 01/09): recolocar trabalho na fila é decisão de gestão.
+  { metodo: "PATCH", rota: "/api/items/:id/uncancel", papeis: ["admin"] },
   { metodo: "PATCH", rota: "/api/items/:id/update-final-file", papeis: ["admin", "arte"] },
   { metodo: "PATCH", rota: "/api/items/:id/update-thumb", papeis: ["admin", "arte"] },
   { metodo: "POST", rota: "/api/items/:itemId/photos", papeis: ["admin", "grafica", "solicitacao"] },

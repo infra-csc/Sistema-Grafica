@@ -165,8 +165,10 @@ export function useEventClone({ eventId }: UseEventCloneParams) {
 
   // ── Clone items mutation ───────────────────────────────────────────────
   const cloneItemsMutation = useMutation({
-    mutationFn: async ({ sourceEventId }: { sourceEventId: string }) => {
-      const response = await apiRequest("POST", `/api/events/${eventId}/clone-items`, { sourceEventId });
+    // `itemIds` é a seleção do dialog (01/09); sem ela o servidor clona tudo,
+    // que é o que o fluxo de criar-evento-clonando continua fazendo.
+    mutationFn: async ({ sourceEventId, itemIds }: { sourceEventId: string; itemIds?: string[] }) => {
+      const response = await apiRequest("POST", `/api/events/${eventId}/clone-items`, { sourceEventId, itemIds });
       if (!response.ok) {
         const err = await response.json();
         throw new Error(err.error || "Erro ao clonar");

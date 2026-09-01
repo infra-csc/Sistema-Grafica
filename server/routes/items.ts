@@ -1261,15 +1261,37 @@ export function registerItemRoutes(app: Express): void {
         return res.status(409).json({ error: erroEventoFechado(fechadoClone) });
       }
 
-      const { sourceEventId } = req.body as { sourceEventId: string };
+      const { sourceEventId, itemIds } = req.body as { sourceEventId: string; itemIds?: string[] };
       if (!sourceEventId) return res.status(400).json({ error: "sourceEventId é obrigatório" });
 
       const sourceEvent = await storage.getEvent(sourceEventId);
       if (!sourceEvent) return res.status(404).json({ error: "Evento origem não encontrado" });
 
-      const sourceItems = await storage.getItemsByEvent(sourceEventId);
-      if (sourceItems.length === 0) {
+      const todasDaOrigem = await storage.getItemsByEvent(sourceEventId);
+      if (todasDaOrigem.length === 0) {
         return res.status(400).json({ error: "O evento de origem não tem itens para clonar" });
+      }
+
+      // SELEÇÃO (dono, 01/09: "similar ao clonar evento mas poder selecionar
+      // os itens"). `itemIds` ausente = clona tudo, como sempre foi — os
+      // fluxos existentes (criar evento clonando) não mudam. Presente, cada
+      // id precisa SER do evento de origem: aceitar id alheio deixaria
+      // qualquer um clonar peça de evento que não pode ver.
+      let sourceItems = todasDaOrigem;
+      if (itemIds !== undefined) {
+        if (!Array.isArray(itemIds) || itemIds.some((id) => typeof id !== "string")) {
+          return res.status(400).json({ error: "itemIds deve ser uma lista de ids de peças" });
+        }
+        if (itemIds.length === 0) {
+          return res.status(400).json({ error: "Nenhuma peça selecionada para clonar" });
+        }
+        const daOrigem = new Set(todasDaOrigem.map((i) => i.id));
+        const estranhos = itemIds.filter((id) => !daOrigem.has(id));
+        if (estranhos.length > 0) {
+          return res.status(400).json({ error: `${estranhos.length} das peças selecionadas não pertencem ao evento de origem — recarregue e tente de novo` });
+        }
+        const escolhidas = new Set(itemIds);
+        sourceItems = todasDaOrigem.filter((i) => escolhidas.has(i.id));
       }
 
       const cloned = sourceItems.map(item => ({
@@ -1307,7 +1329,7 @@ export function registerItemRoutes(app: Express): void {
         'created',
         'item',
         targetEvent.id,
-        `${created.length} itens clonados do evento "${sourceEvent.name}"`
+        `${created.length} itens clonados do evento "${sourceEvent.name}"${itemIds !== undefined && created.length < todasDaOrigem.length ? ` (seleção: ${created.length} de ${todasDaOrigem.length})` : ""}`
       );
 
       const notification = await storage.createNotification({

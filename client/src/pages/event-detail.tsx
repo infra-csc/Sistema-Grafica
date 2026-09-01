@@ -3571,7 +3571,7 @@ export default function EventDetail() {
         cloneSourceId={cloneSourceId}
         setCloneSourceId={setCloneSourceId}
         isCloning={cloneItemsMutation.isPending}
-        onConfirmClone={() => { if (cloneSourceId) cloneItemsMutation.mutate({ sourceEventId: cloneSourceId }); }}
+        onConfirmClone={(itemIds) => { if (cloneSourceId) cloneItemsMutation.mutate({ sourceEventId: cloneSourceId, itemIds }); }}
       />
 
     </div>

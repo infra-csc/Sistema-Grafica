@@ -50,6 +50,7 @@ import { sql } from "drizzle-orm";
 import { entregarEmail, getBookEmailConfig, separarDestinatarios, type BookEmailMessage } from "./bookEmailNotification";
 import { agoraNoFuso, ehProducao } from "./revisaoDigest";
 import { destinatariosDoCanal } from "./destinatarios";
+import { reservarDisparo, anotarDesfecho } from "./reservaDeDisparo";
 import { eventDayMs, todayBusinessMs, EVENT_CLOSED_STATUS } from "@shared/prazo-dates";
 
 /**
@@ -495,6 +496,13 @@ export async function enviarAvisoDaGestao(
   const { dia, hora } = agoraNoFuso(agora);
   if (!opcoes.manual && await jaAvisou(dia, hora)) return { status: "ja-enviado" };
 
+  // A TRAVA ENTRE RÉPLICAS (01/09). O jaAvisou logo acima lê a trilha, que só
+  // é escrita DEPOIS do envio — com o deploy em autoscale as três réplicas
+  // liam "ainda não" ao mesmo tempo e o dono recebia o aviso três vezes. Esta
+  // reserva é atômica no banco: uma ganha a edição, as outras desistem aqui.
+  const chaveDaEdicao = `gestao:${dia}:${hora}`;
+  if (!opcoes.manual && !(await reservarDisparo(chaveDaEdicao))) return { status: "ja-enviado" };
+
   const marcaManual = opcoes.manual ? " [manual]" : "";
   const registrar = async (desfecho: string) => {
     await db.insert(auditLogs).values({
@@ -504,6 +512,7 @@ export async function enviarAvisoDaGestao(
       entityId: dia,
       details: `${DETALHE_TRILHA} (${dia} ${hora}h)${marcaManual}: ${desfecho}`,
     } as any);
+    if (!opcoes.manual) await anotarDesfecho(chaveDaEdicao, desfecho);
   };
 
   // LIGADO POR PADRÃO em produção (dono, 28/08: "segue não mandando

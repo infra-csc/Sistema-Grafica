@@ -393,6 +393,31 @@ export const emailDestinatarios = pgTable("email_destinatarios", {
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
 });
 
+// -----------------------------------------------------------------------------
+// RESERVA DE DISPARO - uma edicao de aviso, um envio, mesmo com N servidores.
+//
+// O deploy e AUTOSCALE: o Replit sobe varias replicas do processo, e cada uma
+// roda o proprio relogio dos avisos. A trava era "olhe a trilha antes de
+// mandar" - mas a trilha so e gravada DEPOIS do envio, e mandar e-mail leva
+// segundos. No minuto cheio as tres replicas perguntavam "ja mandei?", todas
+// liam "nao", e todas mandavam: o dono recebeu o mesmo aviso tres vezes
+// (print de 01/09, 15h).
+//
+// A chave desta tabela e o CARIMBO DA EDICAO ("gestao:2026-09-01:15"). Quem
+// consegue inserir ganhou a edicao e envia; as demais recebem conflito e
+// desistem. A atomicidade e do Postgres (chave primaria), que e o unico
+// ponto que as replicas realmente compartilham.
+// -----------------------------------------------------------------------------
+export const reservasDeDisparo = pgTable("reservas_de_disparo", {
+  /** "<canal>:<dia>:<hora>" para avisos; "alerta:<chave do alerta>" para prazos. */
+  chave: text("chave").primaryKey(),
+  reservadoEm: timestamp("reservado_em").notNull().default(sql`now()`),
+  /** Qual replica ganhou - so para diagnostico ("por que nao saiu?"). */
+  instancia: text("instancia"),
+  /** Preenchido no fim: enviado / fila vazia / falhou. Diagnostico, nao regra. */
+  desfecho: text("desfecho"),
+});
+
 export const catalogOptions = pgTable("catalog_options", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   kind: text("kind").notNull(), // "material" | "finish" | "group"

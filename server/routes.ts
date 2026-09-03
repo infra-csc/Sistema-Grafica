@@ -30,6 +30,7 @@ import { registerBuscaRoutes } from "./routes/busca";
 import { registerRelatorioRoutes } from "./routes/relatorio";
 import { startRevisaoDigest } from "./services/revisaoDigest";
 import { startDeadlineAlerts } from "./services/deadlineAlerts";
+import { limparReservasAntigas } from "./services/reservaDeDisparo";
 import { startInventoryLifecycle } from "./services/inventoryLifecycle";
 import { startPrazoSnapshots } from "./services/prazoSnapshots";
 import { startPrioridadeAutomatica } from "./services/prioridadeAutomatica";
@@ -73,6 +74,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await registerObjectRoutes(app);
 
   // ── Background jobs ──────────────────────────────────────────────────────
+  // As reservas de disparo (a trava que impede réplicas de mandarem o mesmo
+  // aviso) são histórico depois de alguns dias — 90 é folga de sobra para
+  // investigar "o aviso de tal dia saiu?".
+  limparReservasAntigas();
   startDeadlineAlerts();
   // Aviso da fila de revisão às 10h, 15h e 18h (services/revisaoDigest.ts).
   // Sobe junto com os outros trabalhos de fundo; sem REVISAO_DIGEST_ENABLED=true

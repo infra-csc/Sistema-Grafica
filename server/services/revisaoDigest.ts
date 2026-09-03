@@ -29,6 +29,7 @@ import { auditLogs } from "@shared/schema";
 import { sql } from "drizzle-orm";
 import { entregarEmail, getBookEmailConfig, separarDestinatarios, type BookEmailMessage } from "./bookEmailNotification";
 import { destinatariosDoCanal } from "./destinatarios";
+import { reservarDisparo, anotarDesfecho } from "./reservaDeDisparo";
 
 /** O status que a tela de Revisão lista (client/src/pages/solicitacao.tsx). */
 export const STATUS_EM_REVISAO = "awaiting_final_review";
@@ -260,6 +261,11 @@ export async function enviarAvisoDaRevisao(
   const { dia, hora } = agoraNoFuso(agora);
   if (!opcoes.manual && await jaAvisou(dia, hora)) return { status: "ja-enviado" };
 
+  // Mesma trava entre réplicas do aviso da gestão (01/09): a trilha só prova
+  // o envio depois que ele acontece, e o deploy roda em autoscale.
+  const chaveDaEdicao = `revisao:${dia}:${hora}`;
+  if (!opcoes.manual && !(await reservarDisparo(chaveDaEdicao))) return { status: "ja-enviado" };
+
   const marcaManual = opcoes.manual ? " [manual]" : "";
   const registrar = async (desfecho: string) => {
     await db.insert(auditLogs).values({
@@ -269,6 +275,7 @@ export async function enviarAvisoDaRevisao(
       entityId: dia,
       details: `${DETALHE_TRILHA} (${dia} ${hora}h)${marcaManual}: ${desfecho}`,
     } as any);
+    if (!opcoes.manual) await anotarDesfecho(chaveDaEdicao, desfecho);
   };
 
   // O disparo MANUAL ignora o interruptor e a memória da trilha, porque ele é

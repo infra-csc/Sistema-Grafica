@@ -3,12 +3,24 @@
 // startDeadlineAlerts() from the routes orchestrator.
 import { storage } from "../storage";
 import { broadcast, EVENT_CLOSED_STATUS } from "../routes/shared";
+import { reservarDisparo } from "./reservaDeDisparo";
 
 // Deduplication: track alert keys already sent in this process lifetime.
 // Key format: "<eventId>-departure-<hours>h" or "<eventId>-<label>-<hours>h"
 // Prevents duplicate notifications if the service restarts mid-window or
 // the 30-minute tick fires twice inside the same ±0.5h alert window.
 const sentAlertKeys = new Set<string>();
+
+// A MEMÓRIA DO PROCESSO NÃO BASTA MAIS (01/09). O deploy roda em autoscale:
+// cada réplica tem o próprio Set, então três réplicas criavam três vezes a
+// mesma notificação de prazo — o mesmo defeito que triplicou os e-mails.
+// O Set continua como filtro barato (evita ida ao banco a cada tique); quem
+// decide é a reserva, que é atômica e compartilhada.
+async function podeAlertar(chave: string): Promise<boolean> {
+  if (sentAlertKeys.has(chave)) return false;
+  sentAlertKeys.add(chave);
+  return await reservarDisparo(`alerta:${chave}`);
+}
 
 export function startDeadlineAlerts(): void {
   // Background job to check for upcoming deadlines
@@ -34,8 +46,7 @@ export function startDeadlineAlerts(): void {
         ) {
           const hours = Math.floor(hoursUntilDeparture);
           const alertKey = `${event.id}-departure-${hours}h`;
-          if (!sentAlertKeys.has(alertKey)) {
-            sentAlertKeys.add(alertKey);
+          if (await podeAlertar(alertKey)) {
             const notification = await storage.createNotification({
               type: "deadlineAlert",
               message: `ALERTA: Faltam ${hours}h para saída do caminhão - ${event.name}`,
@@ -80,8 +91,7 @@ export function startDeadlineAlerts(): void {
           ) {
             const hours = Math.round(hoursUntil);
             const alertKey = `${event.id}-${label}-${hours}h`;
-            if (!sentAlertKeys.has(alertKey)) {
-              sentAlertKeys.add(alertKey);
+            if (await podeAlertar(alertKey)) {
               const notification = await storage.createNotification({
                 type: "prazoAlert",
                 message: `Prazo "${label}" em ${hours}h — ${event.name}`,

@@ -49,6 +49,20 @@ interface Retrato {
   edicoes: Edicao[];
 }
 
+interface AchadoDeSaude {
+  chave: string;
+  titulo: string;
+  explicacao: string;
+  gravidade: "critico" | "alto" | "medio";
+  quantas: number;
+  amostra: string[];
+}
+interface RetratoDaSaude {
+  achados: AchadoDeSaude[];
+  verificadas: number;
+  em: string;
+}
+
 const DIAS_NA_GRADE = 10;
 
 /** Dias da grade: hoje para trás, no fuso da operação (o `dia` vem do servidor). */
@@ -67,6 +81,11 @@ const rotuloDia = (dia: string) => `${dia.slice(8, 10)}/${dia.slice(5, 7)}`;
 export default function Notificacoes() {
   const { toast } = useToast();
   const { data, isLoading } = useQuery<Retrato>({ queryKey: ["/api/admin/notificacoes"] });
+  // SAÚDE DOS DADOS (08/09): as contradições que nenhuma tela vê sozinha —
+  // foi um par proibido (peça isenta E aguardando patrocinador) que escondeu
+  // 12 peças por 11 dias. Roda ao abrir a tela; falha aqui não derruba o resto.
+  const { data: saude, isLoading: saudeCarregando, isError: saudeFalhou } =
+    useQuery<RetratoDaSaude>({ queryKey: ["/api/admin/consistencia"] });
   const [novoEmail, setNovoEmail] = useState<Record<string, string>>({});
 
   const invalidar = () => queryClient.invalidateQueries({ queryKey: ["/api/admin/notificacoes"] });
@@ -300,6 +319,67 @@ export default function Notificacoes() {
           <MinusCircle style={{ width: 11, height: 11 }} />
           "Não rodou" antes de 27/08 pode ser só a versão antiga, que não registrava edição de fila vazia — desde 27/08, toda edição deixa rastro.
         </p>
+
+        {/* ── 4 · Saúde dos dados (08/09) ──────────────────────────────────────
+            Uma peça pode dizer duas coisas opostas ao mesmo tempo — e cada tela
+            acreditar em metade. Foi assim que 12 peças do Ministério ficaram 11
+            dias fora da fila do Atendimento enquanto a Gestão de Prazos as
+            cobrava. Aqui é o lugar que CRUZA: pergunta pelo que o produto
+            afirma ser impossível, e mostra se algum caso existe. */}
+        <h2 style={{ margin: "28px 0 4px", fontFamily: "'Space Grotesk', sans-serif", fontSize: 15, fontWeight: 800, color: "#1c1917" }}>
+          Saúde dos dados
+        </h2>
+        <p style={{ margin: "0 0 10px", fontSize: 12.5, color: "#57534e" }}>
+          Contradições que nenhuma tela percebe sozinha, porque cada uma acredita em metade do dado.
+        </p>
+
+        {saudeCarregando && (
+          <p style={{ fontSize: 13, color: "#78716c" }}>Conferindo…</p>
+        )}
+
+        {saudeFalhou && (
+          <div data-testid="saude-falhou" style={{ padding: "12px 14px", borderRadius: 10, background: "#fef2f2", border: "1px solid #fecaca", fontSize: 13, color: "#b91c1c" }}>
+            Não foi possível conferir agora — recarregue a página (F5). Enquanto isso, estas verificações estão sem vigilância.
+          </div>
+        )}
+
+        {saude && saude.achados.length === 0 && (
+          <div data-testid="saude-limpa" style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 14px", borderRadius: 10, background: "#f0fdf4", border: "1px solid #bbf7d0", fontSize: 13, color: "#15803d" }}>
+            <CheckCircle2 style={{ width: 15, height: 15, flexShrink: 0 }} />
+            Nenhuma contradição encontrada — {saude.verificadas} verificações.
+          </div>
+        )}
+
+        {saude && saude.achados.length > 0 && (
+          <div data-testid="saude-achados" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {saude.achados.map((a) => {
+              const cor = a.gravidade === "critico"
+                ? { bg: "#fef2f2", borda: "#fecaca", texto: "#b91c1c", rotulo: "Crítico" }
+                : a.gravidade === "alto"
+                  ? { bg: "#fffbeb", borda: "#fde68a", texto: "#92400e", rotulo: "Alto" }
+                  : { bg: "#fafaf9", borda: "#e7e5e4", texto: "#57534e", rotulo: "Médio" };
+              return (
+                <div key={a.chave} data-testid={`saude-${a.chave}`} style={{ padding: "12px 14px", borderRadius: 10, background: cor.bg, border: `1px solid ${cor.borda}` }}>
+                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: "0.06em", textTransform: "uppercase", color: cor.texto }}>{cor.rotulo}</span>
+                    <strong style={{ fontSize: 13.5, color: "#1c1917" }}>{a.titulo}</strong>
+                    {a.quantas > 0 && (
+                      <span style={{ fontSize: 12, fontWeight: 700, color: cor.texto }}>
+                        · {a.quantas} {a.quantas === 1 ? "peça" : "peças"}
+                      </span>
+                    )}
+                  </div>
+                  <p style={{ margin: "5px 0 0", fontSize: 12.5, lineHeight: 1.5, color: cor.texto }}>{a.explicacao}</p>
+                  {a.amostra.length > 0 && (
+                    <p style={{ margin: "6px 0 0", fontSize: 12, color: "#57534e", fontFamily: "ui-monospace, monospace" }}>
+                      {a.amostra.join("  ")}{a.quantas > a.amostra.length ? `  …e mais ${a.quantas - a.amostra.length}` : ""}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

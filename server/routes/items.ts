@@ -31,6 +31,7 @@ import { notifyBookSaved, descreverEnvio, getBookEmailConfig, type BookEmailResu
 import { enviarAvisoDaRevisao, DESTINATARIOS_DA_REVISAO, agoraNoFuso, ehProducao } from "../services/revisaoDigest";
 import { enviarAvisoDaGestao, historicoDeEnvios, HORARIOS_DA_GESTAO, DESTINATARIOS_DA_GESTAO } from "../services/gestaoDigest";
 import { destinatariosDoCanal, CANAIS_DE_AVISO, type CanalDeAviso } from "../services/destinatarios";
+import { verificarConsistencia } from "../services/consistencia";
 // A tela de Versões guarda o quadro calculado por 30 s. Toda escrita que mude
 // versão, decisão ou book derruba esse cache na hora — senão o Atendimento
 // revoga uma aprovação e continua vendo o quadro velho numa tela cujo trabalho
@@ -5010,6 +5011,20 @@ export function registerItemRoutes(app: Express): void {
     },
   };
 
+  // ── SAUDE DOS DADOS (08/09) ────────────────────────────────────────────────
+  // As contradicoes que nenhuma tela sozinha ve — porque cada tela acredita em
+  // metade do dado. Ler e barato (contagens), mas e SO ADMIN: a lista nomeia
+  // pecas de todos os eventos e nao e trabalho de operacao.
+  app.get("/api/admin/consistencia", requireAuth, async (req, res) => {
+    if (req.userRole !== "admin") {
+      return res.status(403).json({ error: "Apenas administradores podem ver a saude dos dados" });
+    }
+    try {
+      res.json(await verificarConsistencia());
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
   app.get("/api/admin/notificacoes", requireAuth, async (req, res) => {
     try {
       if (req.userRole !== "admin") {

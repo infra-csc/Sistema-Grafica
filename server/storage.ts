@@ -758,6 +758,29 @@ export class DatabaseStorage implements IStorage {
       updateData.statusChangedAt = sql`CASE WHEN ${items.status} IS DISTINCT FROM ${data.status} THEN now() ELSE ${items.statusChangedAt} END`;
     }
 
+    // ── A ISENCAO E A ESPERA NAO COEXISTEM (incidente de 08/09) ──
+    //
+    // Uma peca marcada "sem aprovacao" (skipApproval) que esteja AGUARDANDO a
+    // decisao do patrocinador afirma duas coisas opostas ao mesmo tempo — e o
+    // estrago nao aparece na tela que erra: o Atendimento acredita na isencao
+    // e SOME com a peca da fila, enquanto a Gestao de Prazos acredita no
+    // status e a cobra. Doze pecas do Ministerio (Primavera RJ) ficaram 11
+    // dias invisiveis assim: foram vinculadas em 27/08, antes de sponsors.ts
+    // passar a limpar a isencao ao acrescentar patrocinador (ae4dc415). O
+    // dono descobriu por acaso, cruzando duas telas.
+    //
+    // Aqui o estado deixa de ser ESCRIVIVEL: este metodo e o funil de toda
+    // escrita de peca, e a regra vale mesmo quando so um dos dois campos vem
+    // no update — por isso o status e a isencao "alvo" sao o valor novo
+    // quando ele veio, e a COLUNA quando nao veio. Sem SELECT antes do
+    // UPDATE, pelo mesmo motivo do carimbo acima: ler-para-decidir abriria
+    // uma janela de corrida nas pecas mais movimentadas.
+    if (data.status !== undefined || data.skipApproval !== undefined) {
+      const statusAlvo = data.status !== undefined ? sql`${data.status}` : sql`${items.status}`;
+      const isencaoAlvo = data.skipApproval !== undefined ? sql`${data.skipApproval}` : sql`${items.skipApproval}`;
+      updateData.skipApproval = sql`CASE WHEN ${statusAlvo} IN ('awaiting_sponsor_approval', 'awaiting_approval') THEN false ELSE ${isencaoAlvo} END`;
+    }
+
     const [item] = await db
       .update(items)
       .set(updateData)

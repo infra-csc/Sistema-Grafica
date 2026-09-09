@@ -2084,18 +2084,28 @@ export default function Arte() {
                   O NOME (dono, 09/09): era "Dispensar peça", com o ícone de
                   proibido — e "dispensar" leu-se como "a peça não vai
                   existir", que é o oposto do que acontece: ela vai ser
-                  impressa, e antes de todo mundo. O rótulo agora diz o
-                  DESTINO, e o ícone é de avanço, não de bloqueio. Âmbar em
-                  vez de vermelho pelo mesmo motivo: é atalho sério, não
-                  descarte. A rota segue /dispense — nome interno não muda. */}
+                  impressa, e antes de todo mundo. O ícone virou avanço, não
+                  bloqueio.
+                  O RÓTULO é escolha do dono, reafirmada em 09/09: "Direto
+                  para finalização". Fica registrado o que a ação FAZ, para
+                  quem vier depois não se perder: ela grava
+                  `ready_for_production`, ou seja, a peça sai da mesa da Arte
+                  para a aba Finalizados e entra na fila da Gráfica — NÃO
+                  para na aba "Finalizar arte" (que é sponsor_approved +
+                  awaiting_creator_review). O corpo do diálogo continua
+                  dizendo o efeito real, que é onde o engano custaria caro.
+                  AZUL, e não o âmbar de "Devolver ao solicitante" (dono,
+                  09/09: os dois estavam com a mesma cor): avançar e voltar
+                  atrás não podem parecer a mesma coisa.
+                  A rota segue /dispense — nome interno não muda. */}
               <button
                 onClick={() => { setDispenseItem(item); setDispenseReason(""); }}
                 data-testid={`button-dispense-${item.id}`}
-                style={menuItemStyle('#b45309')}
-                onMouseEnter={e => { e.currentTarget.style.background = '#fffbeb'; }}
+                style={menuItemStyle(P.blue.text)}
+                onMouseEnter={e => { e.currentTarget.style.background = P.blue.bg; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
               >
-                <FastForward style={{ width: 14, height: 14, flexShrink: 0 }} /> Direto para produção
+                <FastForward style={{ width: 14, height: 14, flexShrink: 0 }} /> Direto para finalização
               </button>
             </>
           )}
@@ -4132,7 +4142,7 @@ export default function Arte() {
               `dispenseItem`/`dispenseReason`, que acabaram de ser zerados. Sem
               congelar o modal se apaga durante o fade. */}
           <FreezeWhileClosing open={!!dispenseItem}>
-          <DialogTitle className="sr-only">Direto para produção</DialogTitle>
+          <DialogTitle className="sr-only">Direto para finalização</DialogTitle>
           <DialogDescription className="sr-only">Liberar a peça direto para produção, pulando aprovação e revisão</DialogDescription>
           {/* ModalHeader compartilhado: o X feito à mão aqui tinha 20px, abaixo
               do alvo mínimo de toque, num diálogo que libera peça para produção.
@@ -4141,7 +4151,7 @@ export default function Arte() {
             icon={FastForward}
             variant="confirm"
             tint="#dc2626"
-            title="Direto para produção"
+            title="Direto para finalização"
             subtitle="Ação irreversível — pula a aprovação do patrocinador e a revisão"
             onClose={() => { setDispenseItem(null); setDispenseReason(""); }}
           />
@@ -4213,7 +4223,7 @@ export default function Arte() {
                     Liberando…
                   </>
                 ) : (
-                  <><FastForward style={{ width: 14, height: 14 }} />Liberar para produção</>
+                  <><FastForward style={{ width: 14, height: 14 }} />Liberar peça</>
                 )}
               </button>
             </div>

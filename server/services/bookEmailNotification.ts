@@ -350,7 +350,21 @@ export async function entregarEmail(message: BookEmailMessage): Promise<void> {
     body: JSON.stringify(message),
   });
   if (!response.ok) {
-    throw new Error(`Resend respondeu com HTTP ${response.status}`);
+    const corpo = await response.text().catch(() => "");
+    let detalhe = "";
+    if (corpo) {
+      try {
+        const erro = JSON.parse(corpo) as { message?: unknown; name?: unknown };
+        if (typeof erro.message === "string") detalhe = erro.message.trim();
+        else if (typeof erro.name === "string") detalhe = erro.name.trim();
+      } catch {
+        detalhe = corpo.trim();
+      }
+    }
+    const detalheSeguro = detalhe.replace(/\s+/g, " ").slice(0, 240);
+    throw new Error(
+      `Resend respondeu com HTTP ${response.status}${detalheSeguro ? `: ${detalheSeguro}` : ""}`,
+    );
   }
 }
 

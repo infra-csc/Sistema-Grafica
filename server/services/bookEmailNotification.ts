@@ -354,9 +354,19 @@ export async function entregarEmail(message: BookEmailMessage): Promise<void> {
     let detalhe = "";
     if (corpo) {
       try {
-        const erro = JSON.parse(corpo) as { message?: unknown; name?: unknown };
+        const erro = JSON.parse(corpo) as {
+          message?: unknown;
+          name?: unknown;
+          error?: { message?: unknown; name?: unknown };
+        };
         if (typeof erro.message === "string") detalhe = erro.message.trim();
         else if (typeof erro.name === "string") detalhe = erro.name.trim();
+        else if (typeof erro.error?.message === "string") detalhe = erro.error.message.trim();
+        else if (typeof erro.error?.name === "string") detalhe = erro.error.name.trim();
+        // Formato desconhecido (09/09: nem `message`/`name` nem `error.message`
+        // bateram num corpo de 133 bytes) — mostra o JSON cru em vez de ficar
+        // mudo, senão a próxima falha volta a esconder a causa de novo.
+        else detalhe = corpo.trim();
       } catch {
         detalhe = corpo.trim();
       }

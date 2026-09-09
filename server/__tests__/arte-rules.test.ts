@@ -94,8 +94,18 @@ describe("recortes de status", () => {
     expect(ARTE_POOL_STATUSES).toContain("awaiting_submission");
   });
 
-  it("dispensar não é oferecido para peça já com o patrocinador", () => {
-    expect(DISPENSAVEIS_STATUSES).not.toContain("awaiting_sponsor_approval");
+  it("pular a aprovação vale JUSTAMENTE na fase em que a peça espera o patrocinador", () => {
+    // Invertido em 09/09 junto com o destino: antes a ação jogava a peça na
+    // Gráfica, e não fazia sentido oferecê-la a quem já estava em aprovação.
+    // Agora ela manda para a finalização, e a fase que mais trava é
+    // exatamente essa — era também a divergência entre a lista do cliente e
+    // a do servidor, agora unificadas em shared/fluxo-peca.ts.
+    expect(DISPENSAVEIS_STATUSES).toContain("awaiting_sponsor_approval");
+    expect(DISPENSAVEIS_STATUSES).toContain("awaiting_submission");
+    // E deixa de ser oferecida a quem JÁ está na finalização: seria um botão
+    // que não faz nada.
+    expect(DISPENSAVEIS_STATUSES).not.toContain("sponsor_approved");
+    expect(DISPENSAVEIS_STATUSES).not.toContain("awaiting_creator_review");
   });
 
   it("isArteTabId reconhece só as cinco fases", () => {

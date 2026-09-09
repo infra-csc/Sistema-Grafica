@@ -1,3 +1,4 @@
+import { DISPENSAVEIS } from "@shared/fluxo-peca";
 // ─────────────────────────────────────────────────────────────────────────────
 // Regras PURAS da tela de Arte.
 //
@@ -57,12 +58,13 @@ export function isArteTabId(v: string | null | undefined): v is ArteTabId {
   return !!v && (ARTE_TAB_IDS as readonly string[]).includes(v);
 }
 
-/** Status em que a Arte pode dispensar a peça (liberar direto para produção). */
-export const DISPENSAVEIS_STATUSES: string[] = [
-  "awaiting_submission",
-  "sponsor_approved",
-  "awaiting_creator_review",
-];
+/**
+ * Status em que a Arte pode mandar a peça direto para a finalização, pulando a
+ * aprovação do Atendimento. A lista mora em shared/ — esta cópia divergiu da do
+ * servidor uma vez (faltava `awaiting_sponsor_approval`) e a opção sumia
+ * justamente na fase em que a peça mais trava.
+ */
+export const DISPENSAVEIS_STATUSES: string[] = [...DISPENSAVEIS];
 
 // Peças "da Arte" para exportação/book: tudo que está no fluxo da tela mais as
 // já liberadas para produção (mas não as produzidas/entregues, que não fazem

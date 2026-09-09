@@ -974,7 +974,7 @@ export default function Arte() {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       setDispenseItem(null);
       setDispenseReason("");
-      toast({ title: "Liberada para produção", description: "A peça pulou a aprovação e a revisão — já está na fila da Gráfica." });
+      toast({ title: "Direto para a finalização", description: "A peça pulou a aprovação do Atendimento — agora é subir o arquivo final." });
     },
     onError: (error: Error) => {
       toast({ title: "Não foi possível liberar", description: mensagemDeErro(error), variant: "destructive" });
@@ -3705,7 +3705,7 @@ export default function Arte() {
             <div data-testid="banner-modo-consulta" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 14px', marginBottom: 14, borderRadius: 10, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
               <Lock style={{ width: 14, height: 14, color: '#57534e', flexShrink: 0 }} />
               <span style={{ fontSize: 12, color: '#44403c' }}>
-                <b style={{ fontWeight: 700 }}>Modo consulta.</b> Você vê a fila da Arte e pode exportar PDFs, mas enviar, corrigir, finalizar e liberar peças direto para produção é da equipe de Arte.
+                <b style={{ fontWeight: 700 }}>Modo consulta.</b> Você vê a fila da Arte e pode exportar PDFs, mas enviar, corrigir, finalizar e pular a aprovação é da equipe de Arte.
               </span>
             </div>
           )}
@@ -4143,7 +4143,7 @@ export default function Arte() {
               congelar o modal se apaga durante o fade. */}
           <FreezeWhileClosing open={!!dispenseItem}>
           <DialogTitle className="sr-only">Direto para finalização</DialogTitle>
-          <DialogDescription className="sr-only">Liberar a peça direto para produção, pulando aprovação e revisão</DialogDescription>
+          <DialogDescription className="sr-only">Mandar a peça direto para a finalização da arte, sem a aprovação do Atendimento</DialogDescription>
           {/* ModalHeader compartilhado: o X feito à mão aqui tinha 20px, abaixo
               do alvo mínimo de toque, num diálogo que libera peça para produção.
               A casca dá 34px, o mesmo tamanho dos outros modais da tela. */}
@@ -4152,7 +4152,7 @@ export default function Arte() {
             variant="confirm"
             tint="#dc2626"
             title="Direto para finalização"
-            subtitle="Ação irreversível — pula a aprovação do patrocinador e a revisão"
+            subtitle="A peça pula a aprovação do Atendimento e vai para a finalização"
             onClose={() => { setDispenseItem(null); setDispenseReason(""); }}
           />
           {/* ALTURA: cabeçalho 81 + este corpo 246 (tarja vermelha 75, rótulo 15,
@@ -4173,7 +4173,7 @@ export default function Arte() {
                 <FastForward style={{ width: 16, height: 16, color: P.amber.text, flexShrink: 0, marginTop: 2 }} />
                 <div>
                   <p style={{ fontSize: 12, fontWeight: 700, color: '#78350f', margin: '0 0 2px' }}>{dispenseItem.displayId} — {dispenseItem.type}</p>
-                  <p style={{ fontSize: 11, color: P.amber.text, margin: 0 }}>A peça será liberada diretamente para produção, pulando as etapas de aprovação de patrocinador e revisão.</p>
+                  <p style={{ fontSize: 11, color: P.amber.text, margin: 0 }}>A peça vai direto para a <strong>finalização da arte</strong>, sem passar pela aprovação do Atendimento. Você ainda sobe o arquivo final, e a Revisão confere antes da Gráfica.</p>
                 </div>
               </div>
             )}
@@ -4182,7 +4182,7 @@ export default function Arte() {
               <textarea
                 value={dispenseReason}
                 onChange={e => setDispenseReason(e.target.value)}
-                placeholder="Ex: urgência do caminhão; patrocinador já aprovou por fora..."
+                placeholder="Ex: patrocinador já aprovou por fora; peça sem marca..."
                 data-testid="textarea-dispense-reason"
                 style={{ width: '100%', backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 8, padding: '10px 12px', fontSize: 12, resize: 'none', height: 72, fontFamily: 'inherit', color: '#1c1917', boxSizing: 'border-box' }}
               />
@@ -4223,7 +4223,7 @@ export default function Arte() {
                     Liberando…
                   </>
                 ) : (
-                  <><FastForward style={{ width: 14, height: 14 }} />Liberar peça</>
+                  <><FastForward style={{ width: 14, height: 14 }} />Mandar para finalização</>
                 )}
               </button>
             </div>

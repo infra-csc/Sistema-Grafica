@@ -90,3 +90,32 @@ export const POS_APROVACAO: readonly string[] = [
   "awaiting_creator_review",
   "awaiting_final_review", "awaiting_review", "in_review",
 ];
+
+/**
+ * DIRETO PARA A FINALIZAÇÃO — os status de onde a Arte pode pular a aprovação
+ * do Atendimento (decisão do dono, 09/09).
+ *
+ * A REGRA MUDOU DE DESTINO. Até 09/09 a ação jogava a peça em
+ * `ready_for_production`: ela saía da mesa da Arte e caía na fila da Gráfica,
+ * pulando aprovação, finalização E revisão. Sete peças do "Bota pra Correr SP"
+ * passaram por lá e foram impressas e entregues SEM arquivo final no sistema —
+ * o arquivo foi por fora. O dono decidiu: a peça pula só a aprovação do
+ * Atendimento e vai para a FINALIZAÇÃO, onde a Arte sobe o arquivo final e a
+ * Revisão ainda confere. As sete antigas ficam como estão.
+ *
+ * Por que a lista encolheu: com o destino sendo a finalização, oferecer a ação
+ * a quem JÁ está nela (`sponsor_approved`, `awaiting_creator_review`) seria um
+ * botão que não faz nada. Sobram os dois estados anteriores a ela.
+ *
+ * Mora aqui, e não em duas cópias, porque as duas divergiram: o cliente não
+ * listava `awaiting_sponsor_approval` e o servidor sim — a Arte não via a
+ * opção justamente na fase em que a peça trava esperando patrocinador. É a
+ * dupla que o cabeçalho deste arquivo já apontava como candidata a migrar.
+ */
+export const DISPENSAVEIS: readonly string[] = [
+  "awaiting_submission",
+  "awaiting_sponsor_approval",
+];
+
+/** Onde a peça cai ao pular a aprovação: a fila de finalização da Arte. */
+export const DESTINO_DA_DISPENSA = "awaiting_creator_review";

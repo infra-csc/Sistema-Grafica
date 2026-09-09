@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { storage, assetPrefix, assetSeqOf, isDisplayIdConflictError } from "../storage";
 import type { Item } from "@shared/schema";
-import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, ehBookCompleto } from "@shared/fluxo-peca";
+import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA, ehBookCompleto } from "@shared/fluxo-peca";
 import {
   insertItemSchema,
   publicInsertItemSchema,
@@ -2347,21 +2347,37 @@ export function registerItemRoutes(app: Express): void {
       }
       const currentItem = await storage.getItem(req.params.id);
       if (!currentItem) return res.status(404).json({ error: "Item not found" });
-      // ANDA: a dispensa PULA a aprovação e joga a peça direto na fila da
-      // Gráfica — o gesto que mais rápido vira lona impressa.
+      // ANDA: a peça pula a aprovação do Atendimento e vai para a
+      // finalização da Arte.
       if (await barraEventoFinalizado(currentItem, res)) return;
-      const dispensableStatuses = ["awaiting_submission", "awaiting_sponsor_approval", "sponsor_approved", "awaiting_creator_review"];
-      if (!dispensableStatuses.includes(currentItem.status)) {
-        return res.status(409).json({ error: `Item não pode ser dispensado no status atual: ${currentItem.status}` });
+      if (!DISPENSAVEIS.includes(currentItem.status)) {
+        return res.status(409).json({ error: `Item não pode pular a aprovação no status atual: ${currentItem.status}` });
       }
       const { reason } = req.body;
-      await storage.updateItem(req.params.id, { status: "ready_for_production" });
+      // SAIU DA FILA DE QUEM? Só quem estava esperando patrocinador some da
+      // mesa do Atendimento — e é a única situação em que avisá-lo tem
+      // conteúdo. Peça em "aguardando envio" nunca chegou lá.
+      const saiuDoAtendimento = currentItem.status === "awaiting_sponsor_approval";
+      // O DESTINO MUDOU EM 09/09 (decisão do dono). Era
+      // `ready_for_production`: a peça saltava para a fila da Gráfica pulando
+      // aprovação, finalização E revisão — e chegava lá SEM arquivo final,
+      // porque nenhum dos status de origem tem um. As sete peças do "Bota pra
+      // Correr SP" que passaram por aqui foram impressas e entregues assim.
+      // Agora ela para na FINALIZAÇÃO: a Arte sobe o arquivo final e a Revisão
+      // ainda confere. O que se pula é só a aprovação do Atendimento.
+      //
+      // `skipApproval` registra a isenção na própria peça: sem isso a peça
+      // seguiria com linhas de patrocinador em "pending" e a saúde dos dados a
+      // acusaria como "avançou com patrocinador pendente" — que aqui é
+      // deliberado, não acidente. As linhas ficam como estão: ninguém decidiu,
+      // e apagar isso seria reescrever o histórico.
+      await storage.updateItem(req.params.id, { status: DESTINO_DA_DISPENSA, skipApproval: true });
       await createAuditLog(
         req,
         "dispensed",
         "item",
         req.params.id,
-        `Peça dispensada pela Arte. Status anterior: ${currentItem.status}${reason ? `. Motivo: ${reason}` : ''}`
+        `Peça dispensada pela Arte. Status anterior: ${currentItem.status}. Foi direto para a finalização, sem aprovação do Atendimento${reason ? `. Motivo: ${reason}` : ''}`
       );
 
       // A dispensa PULA a aprovação e joga a peça direto na fila da Gráfica —
@@ -2374,16 +2390,22 @@ export function registerItemRoutes(app: Express): void {
       if (!item) return res.status(404).json({ error: "Item not found" });
       const event = await storage.getEvent(item.eventId);
 
-      const notification = await storage.createNotification({
-        type: "itemAdded",
-        message: `Peça liberada sem aprovação: ${item.type}${event ? ` — ${event.name}` : ""}`,
-        eventId: item.eventId,
-        itemId: item.id,
-        targetRoles: ["grafica"],
-      });
+      // Avisar a GRÁFICA aqui virou mentira quando o destino mudou: a peça
+      // não entra mais na fila dela — vai para a finalização da Arte. Quem
+      // perde a peça de vista é o ATENDIMENTO, e só quando ela já estava
+      // esperando patrocinador.
+      if (saiuDoAtendimento) {
+        const notification = await storage.createNotification({
+          type: "itemAdded",
+          message: `Saiu da sua fila sem aprovação: ${item.type}${event ? ` — ${event.name}` : ""} (a Arte mandou direto para a finalização)`,
+          eventId: item.eventId,
+          itemId: item.id,
+          targetRoles: ["atendimento"],
+        });
+        broadcast({ type: "notification_created", notification });
+      }
 
       broadcast({ type: "item_updated", item });
-      broadcast({ type: "notification_created", notification });
 
       // Devolve O ITEM (não `{success:true}`): é o contrato das rotas irmãs, e
       // é o que permite ao cliente ler o novo status sem outro round-trip.

@@ -70,8 +70,12 @@ const VERIFICACOES: Verificacao[] = [
     explicacao:
       "A peça passou da fase de aprovação, mas há patrocinador que nunca decidiu. Pode virar peça impressa sem aval.",
     gravidade: "critico",
+    // `skip_approval` fora: a peça que a Arte mandou direto para a
+    // finalização (09/09) segue com linhas em "pending" DE PROPÓSITO — a
+    // aprovação foi dispensada, não esquecida. Acusá-la aqui seria ensinar o
+    // admin a ignorar esta lista.
     sql: sql`select display_id from items i
-      where i.deleted_at is null
+      where i.deleted_at is null and i.skip_approval = false
         and i.status in ('sponsor_approved','awaiting_creator_review','awaiting_final_review','ready_for_production','approved','inProduction')
         and exists (select 1 from item_sponsor_approvals a where a.item_id = i.id
           and a.status in ('pending','new_version_pending'))`,

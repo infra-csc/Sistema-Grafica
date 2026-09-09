@@ -1,11 +1,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// PATCH /api/items/:id/dispense — a dispensa da Arte, que PULA a aprovação e
-// joga a peça direto na fila da Gráfica.
+// PATCH /api/items/:id/dispense — a Arte manda a peça direto para a
+// FINALIZAÇÃO, pulando a aprovação do Atendimento.
 //
-// Era a única transição do fluxo que fazia isso em silêncio: sem broadcast, sem
-// notificação, e respondendo `{success:true}` em vez do item. A peça aparecia na
-// Gráfica só no próximo F5, e ninguém do chão de fábrica sabia que ela entrara.
-// Estes testes congelam o contrato alinhado com as rotas irmãs.
+// O DESTINO MUDOU EM 09/09 (decisão do dono). Antes a rota gravava
+// `ready_for_production`: a peça saltava para a fila da Gráfica pulando
+// aprovação, finalização E revisão — e chegava lá sem arquivo final, porque
+// nenhum status de origem tem um. Sete peças do "Bota pra Correr SP" foram
+// impressas e entregues assim. Agora ela para em `awaiting_creator_review`:
+// a Arte sobe o arquivo final e a Revisão ainda confere. As sete antigas
+// ficaram como estavam, por decisão do dono.
+//
+// Estes testes congelam o contrato alinhado com as rotas irmãs (responde o
+// item, emite broadcast) e o novo destino.
 //
 // Mesmo estilo de complemento-rotas.test.ts: os handlers reais rodam; só a
 // borda (db, storage, efeitos de ./shared) é mockada.
@@ -80,7 +86,7 @@ let notificacoes: any[];
 
 const peca = (over: Partial<any> = {}) => ({
   id: "i-1", displayId: "#0062", eventId: "ev-1",
-  type: "Pórtico 6x3", status: "awaiting_creator_review", quantity: 4,
+  type: "Pórtico 6x3", status: "awaiting_submission", quantity: 4,
   deletedAt: null, ...over,
 });
 
@@ -135,7 +141,7 @@ describe("gates que continuam de pé", () => {
     expect(r.status).toBe(404);
   });
 
-  it("409 num status que não permite dispensa (a peça já está em produção)", async () => {
+  it("409 num status que não permite pular a aprovação (já está em produção)", async () => {
     itens["i-1"] = peca({ status: "inProduction" });
     const r = await dispensar();
     expect(r.status).toBe(409);
@@ -148,33 +154,47 @@ describe("o contrato alinhado com as rotas irmãs", () => {
     const r = await dispensar();
     expect(r.status).toBe(200);
     // O cliente precisa ler o novo status sem outro round-trip.
-    expect(r.body).toMatchObject({ id: "i-1", displayId: "#0062", status: "ready_for_production" });
+    expect(r.body).toMatchObject({ id: "i-1", displayId: "#0062", status: "awaiting_creator_review" });
     expect(r.body.success).toBeUndefined();
+    // A isenção fica registrada NA PEÇA: a aprovação foi dispensada de
+    // propósito, não esquecida. É o que impede a saúde dos dados de acusar
+    // a pendência do patrocinador como acidente.
+    expect(itens["i-1"].skipApproval).toBe(true);
   });
 
-  it("emite item_updated — sem ele a Gráfica só via a peça no próximo F5", async () => {
+  it("emite item_updated — sem ele as filas só veriam a peça no próximo F5", async () => {
     await dispensar();
     const evento = broadcasts.find((b) => b.type === "item_updated");
     expect(evento).toBeDefined();
-    expect(evento.item).toMatchObject({ id: "i-1", status: "ready_for_production" });
+    expect(evento.item).toMatchObject({ id: "i-1", status: "awaiting_creator_review" });
   });
 
-  it("notifica o papel grafica com o texto pedido, e avisa pelo sino", async () => {
+  it("peça que NÃO estava com o Atendimento não notifica ninguém", async () => {
+    // Vinda de "aguardando envio": nunca chegou à fila do Atendimento, então
+    // não há de quem tirar a peça — avisar seria ruído.
+    await dispensar();
+    expect(notificacoes).toHaveLength(0);
+  });
+
+  it("peça que ESTAVA esperando patrocinador avisa o Atendimento, que a perde de vista", async () => {
+    itens["i-1"] = peca({ status: "awaiting_sponsor_approval" });
     await dispensar();
     expect(notificacoes).toHaveLength(1);
     const n = notificacoes[0];
-    expect(n.targetRoles).toEqual(["grafica"]);
-    expect(n.message).toBe("Peça liberada sem aprovação: Pórtico 6x3 — COPA NORTE 2026");
+    // O aviso vai para quem perdeu a peça da fila. A Gráfica não recebe mais
+    // nada: a peça deixou de ir para lá.
+    expect(n.targetRoles).toEqual(["atendimento"]);
+    expect(n.message).toContain("Saiu da sua fila sem aprovação");
+    expect(n.message).toContain("COPA NORTE 2026");
     expect(n.itemId).toBe("i-1");
-    expect(n.eventId).toBe("ev-1");
     expect(broadcasts.map((b) => b.type)).toContain("notification_created");
   });
 
   it("evento ausente não quebra a mensagem nem a rota", async () => {
-    itens["i-1"] = peca({ eventId: "ev-fantasma" });
+    itens["i-1"] = peca({ status: "awaiting_sponsor_approval", eventId: "ev-fantasma" });
     const r = await dispensar();
     expect(r.status).toBe(200);
-    expect(notificacoes[0].message).toBe("Peça liberada sem aprovação: Pórtico 6x3");
+    expect(notificacoes[0].message).toBe("Saiu da sua fila sem aprovação: Pórtico 6x3 (a Arte mandou direto para a finalização)");
   });
 
   it("o audit log da dispensa continua, com status anterior e motivo", async () => {
@@ -185,7 +205,8 @@ describe("o contrato alinhado com as rotas irmãs", () => {
     expect(acao).toBe("dispensed");
     expect(entidade).toBe("item");
     expect(id).toBe("i-1");
-    expect(detalhe).toContain("awaiting_creator_review");
+    expect(detalhe).toContain("awaiting_submission");
+    expect(detalhe).toContain("Foi direto para a finalização, sem aprovação do Atendimento");
     expect(detalhe).toContain("cliente aprovou por WhatsApp");
   });
 });

@@ -5,7 +5,7 @@ import { SponsorChips } from "@/components/sponsor-chips";
 import { ComentarioDoBook, comentarioDoBookValido } from "@/components/comentario-do-book";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, Printer, ChevronDown, CheckSquare, Palette, ExternalLink, RefreshCw, MoreHorizontal, Lock, WifiOff, Zap, Hourglass } from "lucide-react";
+import { CheckCircle, AlertCircle, AlertTriangle, Eye, Calendar, Truck, Check, ChevronsUpDown, Search, Upload, FileImage, Clock, Package, Send, FolderOpen, FileText, FileCheck, RotateCcw, X, Star, ArrowRight, Paperclip, Ban, FastForward, Printer, ChevronDown, CheckSquare, Palette, ExternalLink, RefreshCw, MoreHorizontal, Lock, WifiOff, Zap, Hourglass } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -974,10 +974,10 @@ export default function Arte() {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       setDispenseItem(null);
       setDispenseReason("");
-      toast({ title: "Peça dispensada", description: "A peça foi liberada para produção diretamente." });
+      toast({ title: "Liberada para produção", description: "A peça pulou a aprovação e a revisão — já está na fila da Gráfica." });
     },
     onError: (error: Error) => {
-      toast({ title: "Erro ao dispensar", description: mensagemDeErro(error), variant: "destructive" });
+      toast({ title: "Não foi possível liberar", description: mensagemDeErro(error), variant: "destructive" });
     },
   });
 
@@ -2073,17 +2073,23 @@ export default function Arte() {
           {podeDispensar && (
             <>
               <div style={{ height: 1, background: '#f0efee', margin: '4px 0' }} />
-              {/* Dispensar tinha o mesmo peso visual de "exportar prova", e a
-                  ação leva a peça direto para produção pulando patrocinador E
-                  revisão final. Sai da fileira e vem para cá, marcada. */}
+              {/* Sai da fileira e vem para cá, marcada: a ação leva a peça
+                  direto para produção, pulando patrocinador E revisão final.
+                  O NOME (dono, 09/09): era "Dispensar peça", com o ícone de
+                  proibido — e "dispensar" leu-se como "a peça não vai
+                  existir", que é o oposto do que acontece: ela vai ser
+                  impressa, e antes de todo mundo. O rótulo agora diz o
+                  DESTINO, e o ícone é de avanço, não de bloqueio. Âmbar em
+                  vez de vermelho pelo mesmo motivo: é atalho sério, não
+                  descarte. A rota segue /dispense — nome interno não muda. */}
               <button
                 onClick={() => { setDispenseItem(item); setDispenseReason(""); }}
                 data-testid={`button-dispense-${item.id}`}
-                style={menuItemStyle('#b91c1c')}
-                onMouseEnter={e => { e.currentTarget.style.background = '#fef2f2'; }}
+                style={menuItemStyle('#b45309')}
+                onMouseEnter={e => { e.currentTarget.style.background = '#fffbeb'; }}
                 onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
               >
-                <Ban style={{ width: 14, height: 14, flexShrink: 0 }} /> Dispensar peça
+                <FastForward style={{ width: 14, height: 14, flexShrink: 0 }} /> Direto para produção
               </button>
             </>
           )}
@@ -3629,7 +3635,7 @@ export default function Arte() {
             <div data-testid="banner-modo-consulta" style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 14px', marginBottom: 14, borderRadius: 10, background: '#f5f5f4', border: '1px solid #e7e5e4' }}>
               <Lock style={{ width: 14, height: 14, color: '#57534e', flexShrink: 0 }} />
               <span style={{ fontSize: 12, color: '#44403c' }}>
-                <b style={{ fontWeight: 700 }}>Modo consulta.</b> Você vê a fila da Arte e pode exportar PDFs, mas enviar, corrigir, finalizar e dispensar peças é da equipe de Arte.
+                <b style={{ fontWeight: 700 }}>Modo consulta.</b> Você vê a fila da Arte e pode exportar PDFs, mas enviar, corrigir, finalizar e liberar peças direto para produção é da equipe de Arte.
               </span>
             </div>
           )}
@@ -4066,17 +4072,17 @@ export default function Arte() {
               `dispenseItem`/`dispenseReason`, que acabaram de ser zerados. Sem
               congelar o modal se apaga durante o fade. */}
           <FreezeWhileClosing open={!!dispenseItem}>
-          <DialogTitle className="sr-only">Dispensar peça</DialogTitle>
-          <DialogDescription className="sr-only">Dispensar peça da fila de arte</DialogDescription>
+          <DialogTitle className="sr-only">Direto para produção</DialogTitle>
+          <DialogDescription className="sr-only">Liberar a peça direto para produção, pulando aprovação e revisão</DialogDescription>
           {/* ModalHeader compartilhado: o X feito à mão aqui tinha 20px, abaixo
               do alvo mínimo de toque, num diálogo que libera peça para produção.
               A casca dá 34px, o mesmo tamanho dos outros modais da tela. */}
           <ModalHeader
-            icon={Ban}
+            icon={FastForward}
             variant="confirm"
             tint="#dc2626"
-            title="Dispensar peça"
-            subtitle="Ação irreversível — a peça vai direto para produção"
+            title="Direto para produção"
+            subtitle="Ação irreversível — pula a aprovação do patrocinador e a revisão"
             onClose={() => { setDispenseItem(null); setDispenseReason(""); }}
           />
           {/* ALTURA: cabeçalho 81 + este corpo 246 (tarja vermelha 75, rótulo 15,
@@ -4088,13 +4094,16 @@ export default function Arte() {
               sobrar do teto do `modalSurface`, e só ele rola. */}
           <div style={{ padding: '18px 24px 24px', overflowY: 'auto', flex: '1 1 auto', minHeight: 0 }}>
             {dispenseItem && (
-              // Mesmos valores de antes, agora vindos da fonte: `#fef2f2` e
-              // `#fecaca` ERAM P.red.bg e P.red.border copiados à mão.
-              <div style={{ backgroundColor: P.red.bg, border: `1px solid ${P.red.border}`, borderRadius: R.md, padding: '12px 14px', marginBottom: 16, display: 'flex', gap: 10 }}>
-                <Ban style={{ width: 16, height: 16, color: '#dc2626', flexShrink: 0, marginTop: 2 }} />
+              // ÂMBAR, não vermelho (dono, 09/09): o vermelho de "proibido"
+              // dizia que a peça ia ser barrada, quando ela vai ser IMPRESSA
+              // na frente de todo mundo. Continua marcada — é irreversível e
+              // pula duas conferências —, mas com a cor de atenção que o
+              // diálogo vizinho (devolver ao solicitante) já usa.
+              <div style={{ backgroundColor: P.amber.bg, border: `1px solid ${P.amber.border}`, borderRadius: R.md, padding: '12px 14px', marginBottom: 16, display: 'flex', gap: 10 }}>
+                <FastForward style={{ width: 16, height: 16, color: P.amber.text, flexShrink: 0, marginTop: 2 }} />
                 <div>
-                  <p style={{ fontSize: 12, fontWeight: 700, color: '#7f1d1d', margin: '0 0 2px' }}>{dispenseItem.displayId} — {dispenseItem.type}</p>
-                  <p style={{ fontSize: 11, color: '#991b1b', margin: 0 }}>A peça será liberada diretamente para produção, pulando as etapas de aprovação de patrocinador e revisão.</p>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: '#78350f', margin: '0 0 2px' }}>{dispenseItem.displayId} — {dispenseItem.type}</p>
+                  <p style={{ fontSize: 11, color: P.amber.text, margin: 0 }}>A peça será liberada diretamente para produção, pulando as etapas de aprovação de patrocinador e revisão.</p>
                 </div>
               </div>
             )}
@@ -4103,7 +4112,7 @@ export default function Arte() {
               <textarea
                 value={dispenseReason}
                 onChange={e => setDispenseReason(e.target.value)}
-                placeholder="Ex: Peça sem necessidade de aprovação de patrocinador..."
+                placeholder="Ex: urgência do caminhão; patrocinador já aprovou por fora..."
                 data-testid="textarea-dispense-reason"
                 style={{ width: '100%', backgroundColor: '#fafaf9', border: '1px solid #e7e5e4', borderRadius: 8, padding: '10px 12px', fontSize: 12, resize: 'none', height: 72, fontFamily: 'inherit', color: '#1c1917', boxSizing: 'border-box' }}
               />
@@ -4128,7 +4137,7 @@ export default function Arte() {
                 // convida ao clique reflexo justamente onde não há volta. O
                 // contorno mantém o vermelho como AVISO e obriga a ler antes.
                 // Mesmo tratamento de "Reprovar" no Atendimento.
-                style={{ height: 36, padding: '0 16px', borderRadius: R.md, backgroundColor: '#ffffff', border: `1.5px solid ${P.red.text}`, color: P.red.text, fontSize: 13, fontWeight: 700, cursor: dispenseMutation.isPending ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: dispenseMutation.isPending ? 0.7 : 1 }}
+                style={{ height: 36, padding: '0 16px', borderRadius: R.md, backgroundColor: '#ffffff', border: `1.5px solid ${P.amber.text}`, color: P.amber.text, fontSize: 13, fontWeight: 700, cursor: dispenseMutation.isPending ? 'not-allowed' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: dispenseMutation.isPending ? 0.7 : 1 }}
               >
                 {dispenseMutation.isPending ? (
                   <>
@@ -4140,11 +4149,11 @@ export default function Arte() {
                         irreversível — o fundo virou #ffffff e o spinner ficou
                         invisível, justamente durante a dispensa, que é quando a
                         pessoa precisa saber que o clique pegou. */}
-                    <div style={{ width: 14, height: 14, borderRadius: R.pill, border: `2px solid ${P.red.border}`, borderTopColor: P.red.text, animation: 'spin 0.8s linear infinite' }} />
-                    Dispensando…
+                    <div style={{ width: 14, height: 14, borderRadius: R.pill, border: `2px solid ${P.amber.border}`, borderTopColor: P.amber.text, animation: 'spin 0.8s linear infinite' }} />
+                    Liberando…
                   </>
                 ) : (
-                  <><Ban style={{ width: 14, height: 14 }} />Dispensar peça</>
+                  <><FastForward style={{ width: 14, height: 14 }} />Liberar para produção</>
                 )}
               </button>
             </div>

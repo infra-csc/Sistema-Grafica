@@ -362,8 +362,18 @@ export async function entregarEmail(message: BookEmailMessage): Promise<void> {
       }
     }
     const detalheSeguro = detalhe.replace(/\s+/g, " ").slice(0, 240);
+    // Diagnóstico 09/09: um 401 sem corpo (detalheSeguro vazio) é a marca de
+    // um proxy/gateway recusando a IDENTIDADE antes de chegar ao Resend — o
+    // Resend, quando recusa a chave, sempre devolve um JSON com `message`.
+    // Sem os cabeçalhos abaixo não dava para distinguir "Resend recusou a
+    // chave" de "o proxy da Replit recusou o token do deployment".
+    const contentType = response.headers.get("content-type") ?? "(ausente)";
+    const contentLength = response.headers.get("content-length") ?? "(ausente)";
+    const requestId =
+      response.headers.get("x-request-id") ?? response.headers.get("x-amzn-requestid") ?? "(ausente)";
+    const diagnostico = `corpo=${corpo.length ? `${corpo.length}b` : "vazio"} content-type=${contentType} content-length=${contentLength} request-id=${requestId}`;
     throw new Error(
-      `Resend respondeu com HTTP ${response.status}${detalheSeguro ? `: ${detalheSeguro}` : ""}`,
+      `Resend respondeu com HTTP ${response.status}${detalheSeguro ? `: ${detalheSeguro}` : ""} [${diagnostico}]`,
     );
   }
 }

@@ -1618,6 +1618,12 @@ export default function Arte() {
     () => (itemsByTabSemParadas[activeTab] ?? []).filter((i: any) => estaParada(i, hoje)).length,
     [itemsByTabSemParadas, activeTab, hoje],
   );
+  // Mesma invariante para "urgentes": o número do atalho tem de ser o de
+  // linhas que o clique entrega, e não o do conjunto já recortado.
+  const urgentesNaAba = useMemo(
+    () => (itemsByTabBase[activeTab] ?? []).filter((i: any) => isUrgente(i.event?.priority)).length,
+    [itemsByTabBase, activeTab],
+  );
 
   // Quantas peças a janela de 90 dias está escondendo (para o rótulo do "ver tudo").
   const finalizadosForaDaJanela = useMemo(() => {
@@ -2653,34 +2659,88 @@ export default function Arte() {
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        {/* A FAIXA DE ATENÇÃO — terceira forma (dono, 09/09: "está péssimo").
+            O que estava errado não era a cor: era a faixa dizer três coisas com
+            três aparências diferentes e UM comportamento só no meio delas.
+            "Paradas" era botão e filtrava; "passaram do marco" e "urgentes"
+            eram texto morto — mesma pílula, mesmo peso, e o clique só
+            funcionava num dos três. Pior: os dois mudos repetiam, com outro
+            desenho, recortes que a barra "Mostrar" logo acima já oferece
+            (Prazo: atrasados · Prioridade: urgentes).
+            Agora os três são ATALHOS para os filtros que já existem, com a
+            mesma anatomia — ponto de cor, número, rótulo curto — e o mesmo
+            estado ligado/desligado. A cor saiu do fundo e virou só o ponto: o
+            fundo colorido em três tons quentes fazia os três gritarem juntos,
+            e o olho não tinha onde pousar primeiro. A ordem é a gravidade:
+            passou do marco (o prazo já venceu) antes de parada (está devagar)
+            antes de urgente (o evento é que corre). */}
         {(atrasadas > 0 || urgentes > 0 || paradas > 0) && (
-          <div data-testid="faixa-diagnostico" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            {paradas > 0 && (
-              <button
-                type="button"
-                onClick={() => setParadasFilter(v => !v)}
-                aria-pressed={paradasFilter}
-                data-testid="chip-paradas"
-                title={paradasFilter ? 'Mostrar todas as peças desta fase de novo' : `Ver só as ${paradas} ${paradas === 1 ? 'peça parada' : 'peças paradas'} há mais de ${PARADA_HA_MAIS_DE} dias nesta fase`}
-                /* #9a3412 sobre #fff7ed = 6,1:1. Ligado, inverte: branco sobre #9a3412. */
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 11px', borderRadius: 8, background: paradasFilter ? '#9a3412' : '#fff7ed', border: `1px solid ${paradasFilter ? '#9a3412' : '#fed7aa'}`, fontSize: 12, fontWeight: 700, color: paradasFilter ? '#ffffff' : '#9a3412', cursor: 'pointer', font: 'inherit' }}
-              >
-                <Hourglass style={{ width: 12, height: 12, flexShrink: 0 }} />
-                {paradas} {paradas === 1 ? 'parada' : 'paradas'} há mais de {PARADA_HA_MAIS_DE}d nesta fase
-              </button>
-            )}
-            {atrasadas > 0 && (
-              <span data-testid="chip-atrasadas" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 11px', borderRadius: 8, background: '#fef2f2', border: '1px solid #fecaca', fontSize: 12, fontWeight: 700, color: '#991b1b' }}>
-                <AlertTriangle style={{ width: 12, height: 12, flexShrink: 0 }} />
-                {atrasadas} de {items.length} {atrasadas === 1 ? 'peça já passou' : 'peças já passaram'} do marco desta fase
-              </span>
-            )}
-            {urgentes > 0 && (
-              <span data-testid="chip-urgentes" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 11px', borderRadius: 8, background: '#fffbeb', border: '1px solid #fde68a', fontSize: 12, fontWeight: 700, color: '#92400e' }}>
-                <Zap style={{ width: 12, height: 12, flexShrink: 0 }} />
-                {urgentes} {urgentes === 1 ? 'peça de evento urgente' : 'peças de eventos urgentes'}
-              </span>
-            )}
+          <div data-testid="faixa-diagnostico" style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '7px 10px', borderRadius: 10, background: '#fafaf9', border: '1px solid #e7e5e4' }}>
+            <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.09em', textTransform: 'uppercase', color: '#78716c', paddingLeft: 2, flexShrink: 0 }}>
+              Atenção
+            </span>
+            {([
+              atrasadas > 0 && {
+                chave: 'atrasadas' as const,
+                testid: 'chip-atrasadas',
+                ponto: '#dc2626',
+                n: tabId === activeTab ? atrasadasNaAba : atrasadas,
+                rotulo: 'passaram do marco',
+                ligado: atrasadoFilter,
+                alternar: () => setAtrasadoFilter(!atrasadoFilter),
+                titulo: atrasadoFilter
+                  ? 'Mostrar de novo todas as peças desta fase'
+                  : 'Ver só as peças que já passaram do marco desta fase',
+              },
+              paradas > 0 && {
+                chave: 'paradas' as const,
+                testid: 'chip-paradas',
+                ponto: '#ea580c',
+                n: paradas,
+                rotulo: `sem andar há ${PARADA_HA_MAIS_DE}d+`,
+                ligado: paradasFilter,
+                alternar: () => setParadasFilter(v => !v),
+                titulo: paradasFilter
+                  ? 'Mostrar de novo todas as peças desta fase'
+                  : `Ver só as peças paradas há mais de ${PARADA_HA_MAIS_DE} dias nesta fase`,
+              },
+              urgentes > 0 && {
+                chave: 'urgentes' as const,
+                testid: 'chip-urgentes',
+                ponto: '#d97706',
+                n: tabId === activeTab ? urgentesNaAba : urgentes,
+                rotulo: 'de eventos urgentes',
+                ligado: urgenteFilter,
+                alternar: () => setUrgenteFilter(!urgenteFilter),
+                titulo: urgenteFilter
+                  ? 'Mostrar de novo as peças de todos os eventos'
+                  : 'Ver só as peças de eventos urgentes',
+              },
+            ].filter(Boolean) as Array<{ chave: string; testid: string; ponto: string; n: number; rotulo: string; ligado: boolean; alternar: () => void; titulo: string }>)
+              .map(({ chave, testid, ponto, n, rotulo, ligado, alternar, titulo }) => (
+                <button
+                  key={chave}
+                  type="button"
+                  onClick={alternar}
+                  aria-pressed={ligado}
+                  data-testid={testid}
+                  title={titulo}
+                  style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 7,
+                    padding: '4px 11px', borderRadius: 999, cursor: 'pointer', font: 'inherit',
+                    background: ligado ? '#1c1917' : '#ffffff',
+                    border: `1px solid ${ligado ? '#1c1917' : '#e7e5e4'}`,
+                    transition: 'background 0.12s, border-color 0.12s',
+                  }}
+                >
+                  {/* O ponto carrega a gravidade. Ligado, ele vira branco: o
+                      fundo escuro já é o sinal, e dois sinais competindo no
+                      mesmo chip é o que deixava a faixa confusa. */}
+                  <span aria-hidden="true" style={{ width: 6, height: 6, borderRadius: 999, background: ligado ? '#ffffff' : ponto, flexShrink: 0 }} />
+                  <span style={{ fontSize: 12.5, fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: ligado ? '#ffffff' : '#1c1917' }}>{n}</span>
+                  <span style={{ fontSize: 12, fontWeight: 500, color: ligado ? '#e7e5e4' : '#57534e' }}>{rotulo}</span>
+                </button>
+              ))}
           </div>
         )}
 

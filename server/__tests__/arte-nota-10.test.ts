@@ -66,15 +66,44 @@ describe("1 · idade na fase", () => {
   });
 
   it("o chip de paradas filtra, e conta a camada SEM o próprio recorte", () => {
-    expect(ARTE).toContain('data-testid="chip-paradas"');
-    expect(ARTE).toContain("onClick={() => setParadasFilter(v => !v)}");
-    expect(ARTE).toContain("aria-pressed={paradasFilter}");
-    expect(ARTE).toContain('<Hourglass style={{ width: 12, height: 12, flexShrink: 0 }} />');
+    // A faixa foi redesenhada em 09/09 ("está péssimo"): os três atalhos
+    // passaram a ser gerados por um map com a MESMA anatomia, então o testid
+    // vem de variável. O que este teste garante segue igual — o atalho existe,
+    // alterna o recorte e conta a camada sem ele.
+    expect(ARTE).toContain("testid: 'chip-paradas'");
+    expect(ARTE).toContain("alternar: () => setParadasFilter(v => !v)");
+    expect(ARTE).toContain("ligado: paradasFilter");
+    expect(ARTE).toContain("aria-pressed={ligado}");
     // Invariante das facetas: o número do chip é o de linhas que o clique entrega.
     expect(ARTE).toContain("() => (itemsByTabSemParadas[activeTab] ?? []).filter((i: any) => estaParada(i, hoje)).length,");
     expect(ARTE).toContain("const paradas = tabId === activeTab ? paradasNaAba : items.filter(i => estaParada(i, hoje)).length;");
     // E a lista obedece, em cima do recorte de atrasadas.
     expect(ARTE).toContain("for (const tab in itemsByTabSemParadas) out[tab] = itemsByTabSemParadas[tab].filter((i: any) => estaParada(i, hoje));");
+  });
+
+  it("os TRÊS atalhos da faixa filtram — nenhum é texto morto (dono, 09/09)", () => {
+    // O defeito era comportamento inconsistente com aparência igual: só
+    // "paradas" clicava; "passaram do marco" e "urgentes" eram <span>.
+    for (const alternar of [
+      "alternar: () => setAtrasadoFilter(!atrasadoFilter)",
+      "alternar: () => setParadasFilter(v => !v)",
+      "alternar: () => setUrgenteFilter(!urgenteFilter)",
+    ]) {
+      expect(ARTE).toContain(alternar);
+    }
+    // Um <button> só, gerado pelo map: mesma anatomia para os três.
+    // Os três descritos como itens do MESMO array, com a mesma forma.
+    expect(ARTE).toContain("chave: 'atrasadas' as const");
+    expect(ARTE).toContain("chave: 'paradas' as const");
+    expect(ARTE).toContain("chave: 'urgentes' as const");
+    expect(ARTE).not.toContain('<span data-testid="chip-atrasadas"');
+    expect(ARTE).not.toContain('<span data-testid="chip-urgentes"');
+  });
+
+  it("o número de cada atalho é o que o clique entrega — inclusive urgentes", () => {
+    expect(ARTE).toContain("const urgentesNaAba = useMemo(");
+    expect(ARTE).toContain("n: tabId === activeTab ? atrasadasNaAba : atrasadas,");
+    expect(ARTE).toContain("n: tabId === activeTab ? urgentesNaAba : urgentes,");
   });
 
   it("o recorte viaja na URL sem tocar em arte-rules (só leitura)", () => {

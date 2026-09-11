@@ -98,6 +98,9 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "PATCH", rota: "/api/items/:id/start-production", papeis: ["admin", "grafica"] },
   { metodo: "PATCH", rota: "/api/items/:id/submit-final-file", papeis: ["admin", "arte"] },
   { metodo: "PATCH", rota: "/api/items/:id/submit-for-approval", papeis: ["admin", "arte"] },
+  // Transferir de evento (dono, 11/09): move só o vínculo com o evento, sem
+  // mexer no status — mesma família de correção de dado que o descancelar.
+  { metodo: "POST", rota: "/api/items/:id/transfer-event", papeis: ["admin"] },
   // Descancelar (dono, 01/09): recolocar trabalho na fila é decisão de gestão.
   { metodo: "PATCH", rota: "/api/items/:id/uncancel", papeis: ["admin"] },
   { metodo: "PATCH", rota: "/api/items/:id/update-final-file", papeis: ["admin", "arte"] },

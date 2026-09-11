@@ -11,8 +11,9 @@ import { getApprovalMeta, getStatusLabel, marcoEventoFinalizado, todayBusinessMs
 import {
   Edit, Save, X, Check, Clock, Eye, ExternalLink, Camera, Paperclip,
   FileImage, FolderOpen, AlertTriangle, CheckCircle2, Recycle,
-  ChevronDown, Undo2, Truck, Copy,
+  ChevronDown, Undo2, Truck, Copy, ArrowLeftRight,
 } from "lucide-react";
+import { FilterSelect } from "@/components/filter-select";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { useState, useEffect } from "react";
@@ -260,6 +261,13 @@ export function ItemDetailsDialog({
   const isMobile = useIsMobile();
   const [revertingSponsorId, setRevertingSponsorId] = useState<string | null>(null);
   const [descancelando, setDescancelando] = useState(false);
+  // TRANSFERIR DE EVENTO (dono, 11/09: "transferir um item de um evento para
+  // o outro sem mudar o status"). Mesma família da reversão de aprovação e do
+  // descancelar: corrige o PRÓPRIO DADO, não o fluxo — e por isso é também
+  // admin-only e mora aqui, fora da faixa de resolução.
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferDestino, setTransferDestino] = useState("");
+  const [transferindo, setTransferindo] = useState(false);
   // O percurso abre com os 4 mais recentes. Uma peça que foi e voltou três
   // vezes tem trinta registros, e a ficha inteira virava a trilha dela.
   const [percursoAberto, setPercursoAberto] = useState(false);
@@ -305,6 +313,16 @@ export function ItemDetailsDialog({
     staleTime: 0,
   });
   const flowPhotos: any[] = Array.isArray(flowPhotosData) ? flowPhotosData : [];
+
+  // A lista de eventos só é buscada quando o dialog de transferência abre —
+  // mesmo cuidado do clone de peças: baixar todos os eventos toda vez que
+  // qualquer ficha abre pesaria numa tela que já lista dezenas de peças.
+  const { data: todosEventos = [], isLoading: eventosCarregando } = useQuery<any[]>({
+    queryKey: ["/api/events"],
+    enabled: transferOpen,
+    placeholderData: (previousData: any) => previousData,
+    refetchOnWindowFocus: false,
+  });
 
   if (!item) return null;
 
@@ -355,6 +373,34 @@ export function ItemDetailsDialog({
       toast({ title: "Erro ao descancelar", description: error.message, variant: "destructive" });
     } finally {
       setDescancelando(false);
+    }
+  };
+
+  const handleTransferEvent = async () => {
+    if (!item?.id || !transferDestino) return;
+    setTransferindo(true);
+    try {
+      const res = await fetch(`/api/items/${item.id}/transfer-event`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ eventId: transferDestino }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Não foi possível transferir a peça");
+      // O item saiu de um evento e entrou noutro: as duas listas precisam
+      // refletir isso, e não só a genérica '/api/items' (Painel Geral e as
+      // filas usam a query com o eventId no meio da chave).
+      queryClient.invalidateQueries({ queryKey: ["/api/items"] });
+      const nomeDestino = todosEventos.find((e: any) => e.id === transferDestino)?.name || "o evento escolhido";
+      toast({ title: "Peça transferida", description: `Agora pertence a "${nomeDestino}" — status mantido.` });
+      setTransferOpen(false);
+      setTransferDestino("");
+      onOpenChange(false);
+    } catch (error: any) {
+      toast({ title: "Erro ao transferir", description: error.message, variant: "destructive" });
+    } finally {
+      setTransferindo(false);
     }
   };
 
@@ -827,6 +873,25 @@ export function ItemDetailsDialog({
                     <Recycle aria-hidden="true" style={{ width: 11, height: 11 }} />
                     {item.isReuse ? "Reaproveitamento" : `${item.reuseQty}ª de ${item.quantity} usos`}
                   </span>
+                )}
+                {/* TRANSFERIR — só admin (dono, 11/09). Muda só o dono da
+                    peça; status e todo o resto seguem como estavam. */}
+                {user?.role === "admin" && (
+                  <button
+                    type="button"
+                    onClick={() => setTransferOpen(true)}
+                    data-testid="button-transferir-evento"
+                    title="Transferir esta peça para outro evento, sem mudar o status"
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: 5,
+                      padding: "3px 10px", borderRadius: 999, border: "1px solid rgba(255,255,255,0.18)",
+                      backgroundColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.75)",
+                      fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", cursor: "pointer",
+                    }}
+                  >
+                    <ArrowLeftRight aria-hidden="true" style={{ width: 11, height: 11 }} />
+                    Transferir evento
+                  </button>
                 )}
               </div>
 
@@ -1627,6 +1692,82 @@ export function ItemDetailsDialog({
           </div>
         </footer>
       </DialogContent>
+
+      {/* TRANSFERIR DE EVENTO — diálogo próprio, aninhado ao da ficha (Radix
+          suporta; o de baixo some quando o de cima fecha o item inteiro). Só
+          o eventId muda: nada de status, aprovações ou fotos aqui. */}
+      <Dialog open={transferOpen} onOpenChange={(v) => { if (!transferindo) { setTransferOpen(v); if (!v) setTransferDestino(""); } }}>
+        <DialogContent style={{ maxWidth: 440, padding: 0, gap: 0, borderRadius: 12, overflow: "hidden" }}>
+          <div style={{ padding: "22px 24px 18px", borderBottom: "1px solid #f0efed" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4 }}>
+              <ArrowLeftRight style={{ width: 17, height: 17, color: "#6366f1" }} />
+              <DialogTitle style={{ fontFamily: "'Space Grotesk', sans-serif", fontSize: 17, fontWeight: 800, letterSpacing: "-0.03em", color: "#1c1917", margin: 0 }}>
+                Transferir peça de evento
+              </DialogTitle>
+            </div>
+            <DialogDescription style={{ fontSize: 12.5, color: "#746e69", margin: 0, paddingLeft: 27 }}>
+              {item.displayId} · atualmente em "{item.event?.name || "Sem evento"}" — o status não muda.
+            </DialogDescription>
+          </div>
+
+          <div style={{ padding: "20px 24px" }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: "#746e69", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", marginBottom: 8 }}>
+              Evento de destino
+            </label>
+            <FilterSelect
+              kind="field" fullWidth hideWhenEmpty={false}
+              label="Evento de destino"
+              placeholder={eventosCarregando ? "Carregando eventos…" : "— Escolha um evento —"}
+              disabled={eventosCarregando || transferindo}
+              value={transferDestino}
+              onChange={setTransferDestino}
+              options={todosEventos
+                .filter((e: any) => e.id !== item.eventId)
+                .map((e: any) => ({ value: e.id, label: e.name }))}
+              searchPlaceholder="Buscar evento..."
+              emptyText="Nenhum outro evento encontrado"
+              panelWidth={320}
+              testId="select-transfer-destino"
+              triggerStyle={{
+                width: "100%", padding: "10px 12px 10px 14px", height: "auto", borderRadius: 8,
+                border: "1.5px solid #e7e5e4", fontSize: 15,
+                fontFamily: "'Space Grotesk', sans-serif", backgroundColor: "#ffffff",
+                cursor: eventosCarregando ? "wait" : "pointer",
+              }}
+            />
+          </div>
+
+          <div style={{ padding: "16px 24px", borderTop: "1px solid #f0efed", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+            <button
+              type="button"
+              onClick={() => { setTransferOpen(false); setTransferDestino(""); }}
+              disabled={transferindo}
+              data-testid="button-cancelar-transferencia"
+              style={{
+                height: 40, padding: "0 18px", borderRadius: 8, border: "1px solid #e7e5e4",
+                backgroundColor: "#ffffff", color: "#44403c", cursor: transferindo ? "default" : "pointer",
+                font: "inherit", fontSize: 13, fontWeight: 700,
+              }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              onClick={handleTransferEvent}
+              disabled={!transferDestino || transferindo}
+              data-testid="button-confirmar-transferencia"
+              style={{
+                height: 40, padding: "0 18px", borderRadius: 8, border: "none",
+                backgroundColor: !transferDestino || transferindo ? "#a5b4fc" : "#4f46e5",
+                color: "#ffffff", cursor: !transferDestino || transferindo ? "default" : "pointer",
+                font: "inherit", fontSize: 13, fontWeight: 700,
+              }}
+            >
+              {transferindo ? "Transferindo…" : "Transferir"}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }

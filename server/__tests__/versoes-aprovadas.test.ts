@@ -222,9 +222,11 @@ describe("3 · o servidor filtra, pagina, resume e exporta", () => {
     expect(ITEMS).toContain('import { invalidarCacheDeVersoes } from "./versoes";');
     // envio, reenvio, troca, book, revogação automática, aprovar, reprovar,
     // revogar — o ATALHO de aprovação da peça inteira, que passou a marcar
-    // as linhas (24/08, caso #4176) — e o REENVIO do aviso do book (25/08),
-    // cujo registro a tela passou a mostrar lido da trilha.
-    expect((ITEMS.match(/invalidarCacheDeVersoes\(\);/g) ?? []).length).toBe(10);
+    // as linhas (24/08, caso #4176) — o REENVIO do aviso do book (25/08),
+    // cujo registro a tela passou a mostrar lido da trilha — e a TRANSFERÊNCIA
+    // de evento (11/09), que também muda de quadro quem está de um lado e do
+    // outro.
+    expect((ITEMS.match(/invalidarCacheDeVersoes\(\);/g) ?? []).length).toBe(11);
   });
 });
 

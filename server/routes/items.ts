@@ -1732,6 +1732,73 @@ export function registerItemRoutes(app: Express): void {
     }
   });
 
+  // TRANSFERIR peça de evento — SÓ ADMIN (mesma decisão do reenvio de book:
+  // ação que reescreve o dono da peça passa por quem responde pela lista
+  // inteira). Move só o vínculo com o evento; status, aprovações de
+  // patrocinador, fotos, comentários e arquivo final seguem exatamente como
+  // estavam — o pedido foi "sem mudar o status", e a leitura é "sem mudar
+  // nada além do evento".
+  app.post("/api/items/:id/transfer-event", requireAuth, async (req, res) => {
+    try {
+      if (req.userRole !== "admin") {
+        return res.status(403).json({ error: "Apenas administradores podem transferir peças de evento." });
+      }
+      const schema = z.object({ eventId: z.string().min(1, "Informe o evento de destino") });
+      const { eventId: destinoId } = schema.parse(req.body);
+
+      const item = await storage.getItem(req.params.id);
+      if (!item) return res.status(404).json({ error: "Peça não encontrada" });
+
+      if (destinoId === item.eventId) {
+        return res.status(409).json({ error: "A peça já está neste evento." });
+      }
+
+      const [origem, destino] = await Promise.all([
+        storage.getEvent(item.eventId),
+        storage.getEvent(destinoId),
+      ]);
+      if (!destino) return res.status(404).json({ error: "Evento de destino não encontrado" });
+
+      // Barra os dois lados: tirar uma peça de um evento finalizado reabre
+      // trabalho nele, e pousar numa igualmente finalizado a faz nascer
+      // invisível pras mesmas filas que já o escondem.
+      if (await barraEventoFinalizado(item, res)) return;
+      const motivoDestino = motivoEventoFechado(destino);
+      if (motivoDestino) {
+        return res.status(409).json({ error: erroEventoFechado(motivoDestino), code: "EVENT_FINALIZED", reason: motivoDestino });
+      }
+
+      const eventoOrigemId = item.eventId;
+      const atualizado = await storage.updateItem(item.id, { eventId: destinoId });
+      if (!atualizado) return res.status(404).json({ error: "Peça não encontrada" });
+
+      await createAuditLog(
+        req,
+        "updated",
+        "item",
+        item.id,
+        `Peça transferida do evento "${origem?.name ?? "—"}" para "${destino.name}" — status mantido (${translateStatus(item.status)}).`,
+      );
+
+      // Recalcula os dois eventos: a origem pode ter perdido a última peça
+      // pendente, o destino pode ter ganhado uma.
+      await Promise.all([
+        updateEventStatus(eventoOrigemId).catch(() => {}),
+        updateEventStatus(destinoId).catch(() => {}),
+      ]);
+      invalidarCacheDeVersoes();
+
+      broadcast({ type: "item_updated", item: atualizado });
+
+      res.json(atualizado);
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors[0]?.message ?? "Dados inválidos" });
+      }
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Delete item (soft delete — preservado no histórico)
   //
   // SEM a guarda de evento finalizado (é ARRUMAR A CASA). Excluir não faz o

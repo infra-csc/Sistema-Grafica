@@ -1457,9 +1457,20 @@ export default function Solicitacao() {
                             style={{ accentColor: "#f97316", width: 20, height: 20, cursor: "pointer", backgroundColor: "#292524" }}
                           />
                         </td>
-                        <td colSpan={7} style={{ padding: "10px 16px" }}>
-                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                        {/* colSpan 4 = as quatro colunas de dados depois do checkbox.
+                            Era 7 (e 8 nos subgrupos): sobra do tempo em que a
+                            tabela tinha sete colunas. Declarar mais colunas do
+                            que existem faz o navegador criar colunas FANTASMA e
+                            redistribuir a largura — somado aos chips de prazo em
+                            nowrap logo abaixo, isso alargava a tabela inteira e
+                            empurrava o botão Revisar para fora do card, onde a
+                            rolagem horizontal ficava no pé de uma lista de dezenas
+                            de linhas (dono, 11/09: "cortando o botão"). */}
+                        <td colSpan={4} style={{ padding: "10px 16px" }}>
+                          {/* flexWrap: quando os chips não cabem ao lado do nome,
+                              DESCEM de linha — nunca empurram a largura da tabela. */}
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "8px 16px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
                               <span style={{
                                 fontFamily: "'Space Grotesk', sans-serif",
                                 fontSize: 11, fontWeight: 900,
@@ -1477,7 +1488,7 @@ export default function Solicitacao() {
                               </span>
                             </div>
                             {event && (
-                              <div style={{ display: "flex", gap: 12, fontSize: 10, color: "#d6d3d1", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", flexWrap: "wrap", alignItems: "center" }}>
+                              <div style={{ display: "flex", gap: "6px 12px", fontSize: 10, color: "#d6d3d1", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.06em", flexWrap: "wrap", alignItems: "center", minWidth: 0 }}>
                                 {event.startDate && (
                                   <span>Início: <span style={{ color: "#d6d3d1" }}>{parseDateLocal(event.startDate).toLocaleDateString("pt-BR")}</span></span>
                                 )}
@@ -1564,14 +1575,14 @@ export default function Solicitacao() {
                           <Fragment key={item.id}>
                             {showGroupHeader && (
                               <tr style={{ backgroundColor: '#dbeafe' }}>
-                                <td colSpan={8} style={{ padding: '5px 16px' }}>
+                                <td colSpan={5} style={{ padding: '5px 16px' }}>
                                   <span style={{ fontSize: 10, fontWeight: 800, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{itemGroupName}</span>
                                 </td>
                               </tr>
                             )}
                             {showTypeHeader && (
                               <tr style={{ backgroundColor: '#f0ede8' }}>
-                                <td colSpan={8} style={{ padding: '5px 16px' }}>
+                                <td colSpan={5} style={{ padding: '5px 16px' }}>
                                   <span style={{ fontSize: 10, fontWeight: 700, color: '#57534e', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{item.type}</span>
                                 </td>
                               </tr>

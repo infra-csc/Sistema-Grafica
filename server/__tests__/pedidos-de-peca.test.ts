@@ -122,8 +122,20 @@ describe("o servidor", () => {
     expect(ROTAS).toContain('const requireResolverPedido = requireRole("admin", "solicitacao");');
   });
 
-  it("aceita pedido sem quantidade, mas não evento finalizado nem patrocinador de fora", () => {
-    expect(ROTAS).toContain(".max(100000).nullable().optional(),");
+  it("quantidade obrigatória (mínimo 1); não aceita evento finalizado nem patrocinador de fora", () => {
+    expect(ROTAS).toContain('.int().min(1, "A quantidade mínima é 1").max(100000),');
+    expect(ROTAS).not.toContain(".nullable().optional(),");
+    expect(ABA).toContain("String(Math.max(1, parseInt(digitos, 10)))");
+    expect(ABA).not.toContain("(se souber)");
+  });
+
+  it("várias referências: escolher várias, arrastar ou colar — com contador e teto", () => {
+    expect(ABA).toContain("<ObjectUploader");
+    expect(ABA).toContain("multiple");
+    expect(ABA).toContain('data-testid="zona-referencias-pedido"');
+    expect(ABA).toContain("enviarImagens(Array.from(e.dataTransfer.files));");
+    expect(ABA).toContain("onPaste={(e) => {");
+    expect(ABA).toContain("{form.referencias.length} de {MAX_REFERENCIAS_DO_PEDIDO}");
     expect(ROTAS).toContain("const motivo = await motivoEventoDaPeca({ eventId: evento.id });");
     expect(ROTAS).toContain("não é patrocinador de ${evento.name}.");
   });

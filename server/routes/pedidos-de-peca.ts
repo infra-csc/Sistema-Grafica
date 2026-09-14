@@ -40,8 +40,9 @@ const PECA_SEM_FLUXO = new Set(["draft", "requested"]);
 const novoPedidoSchema = z.object({
   eventId: z.string().min(1, "Escolha o evento"),
   sponsorId: z.string().min(1, "Escolha o patrocinador"),
-  // Vazia é pedido válido: o solicitante nem sempre sabe quantas.
-  quantidade: z.number().int().min(1, "A quantidade mínima é 1").max(100000).nullable().optional(),
+  // Obrigatória, mínimo 1 (dono, 14/09: "0 não tem como, no mínimo 1").
+  quantidade: z.number({ required_error: "Informe a quantidade (mínimo 1)", invalid_type_error: "Informe a quantidade (mínimo 1)" })
+    .int().min(1, "A quantidade mínima é 1").max(100000),
   observacao: z.string().trim().min(3, "Descreva o que precisa").max(2000),
   referencias: z.array(z.string().min(1)).max(MAX_REFERENCIAS_DO_PEDIDO, `No máximo ${MAX_REFERENCIAS_DO_PEDIDO} referências`).default([]),
 });

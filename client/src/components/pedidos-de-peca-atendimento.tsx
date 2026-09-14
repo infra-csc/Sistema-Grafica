@@ -1,8 +1,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // PEDIDOS DE PEÇAS — a aba do Atendimento (dono, 14/09).
 //
-// À esquerda, o pedido: evento, patrocinador, quantidade (se souber),
-// observação e referências. À direita, o que já foi pedido e em que pé está.
+// À esquerda, o pedido: evento, patrocinador, quantidade (mínimo 1),
+// observação e referências (várias). À direita, o que já foi pedido e em que pé está.
 //
 // O PEDIDO É UMA SOLICITAÇÃO, NÃO UMA PEÇA: nada aqui fala de peça até o
 // pedido ser atendido — aí ele leva à peça que saiu dele.
@@ -43,6 +43,7 @@ import { miniatura } from "@/lib/miniatura";
 import { motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import { T, FS, R } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useFileUpload } from "@/hooks/use-file-upload";
 
 export const TOM_DO_PEDIDO: Record<StatusDoPedido, { cor: string; fundo: string; borda: string }> = {
   aberto:    { cor: "#92400e", fundo: "#fffbeb", borda: "#fde68a" },
@@ -162,7 +163,7 @@ export function ObservacaoDoPedido({ valor }: { valor: unknown }) {
   );
 }
 
-const vazio = { eventId: "", sponsorId: "", quantidade: "", observacao: "", referencias: [] as string[] };
+const vazio = { eventId: "", sponsorId: "", quantidade: "1", observacao: "", referencias: [] as string[] };
 
 const CARTAO: React.CSSProperties = { background: "#ffffff", border: "1px solid #e7e5e4", borderRadius: R.lg, boxShadow: "0 1px 2px rgba(28,25,23,0.06)" };
 const ROTULO: React.CSSProperties = { display: "block", fontSize: FS.small, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#57534e", marginBottom: 6 };
@@ -182,6 +183,33 @@ export function PedidosDePecaAtendimento({ podePedir, userId, isAdmin }: {
   const [cancelando, setCancelando] = useState<PedidoDePeca | null>(null);
   const agora = new Date();
   const alvo = isMobile ? 44 : 34;
+
+  // VÁRIAS REFERÊNCIAS (dono, 14/09): escolher várias de uma vez, arrastar
+  // para a área ou colar com Ctrl+V — até MAX_REFERENCIAS_DO_PEDIDO.
+  const TAMANHO_MAXIMO = 10 * 1024 * 1024;
+  const adicionarReferencia = (url: string) =>
+    setForm((f) => (f.referencias.length >= MAX_REFERENCIAS_DO_PEDIDO ? f : { ...f, referencias: [...f.referencias, url] }));
+  const envioDeReferencias = useFileUpload({
+    maxFileSize: TAMANHO_MAXIMO,
+    onComplete: ({ url }) => adicionarReferencia(url),
+    onError: (e) => toast({ title: "Não deu para enviar a imagem", description: e.message, variant: "destructive" }),
+    validateFile: (file) => (!file.type.startsWith("image/") ? "Apenas imagens são permitidas" : null),
+  });
+  const [arrastando, setArrastando] = useState(false);
+  const enviarImagens = (arquivos: File[]) => {
+    const imagens = arquivos.filter((a) => a.type.startsWith("image/"));
+    if (imagens.length === 0) return;
+    const grandes = imagens.filter((a) => a.size > TAMANHO_MAXIMO);
+    if (grandes.length > 0) toast({ title: `${grandes.length} imagem(ns) acima de 10 MB ficaram de fora`, variant: "destructive" });
+    const vagas = MAX_REFERENCIAS_DO_PEDIDO - form.referencias.length;
+    if (vagas <= 0) {
+      toast({ title: `No máximo ${MAX_REFERENCIAS_DO_PEDIDO} referências por pedido`, variant: "destructive" });
+      return;
+    }
+    const aceitas = imagens.filter((a) => a.size <= TAMANHO_MAXIMO);
+    if (aceitas.length > vagas) toast({ title: `Só cabem mais ${vagas} referência(s)`, description: "As demais imagens ficaram de fora." });
+    void envioDeReferencias.uploadFiles(aceitas.slice(0, vagas));
+  };
 
   const { data: pedidos = [], isLoading, isError, refetch } = useQuery<PedidoDePeca[]>({ queryKey: ["/api/pedidos-de-peca"] });
   const { data: eventos = [] } = useQuery<any[]>({ queryKey: ["/api/events"] });
@@ -209,11 +237,11 @@ export function PedidosDePecaAtendimento({ podePedir, userId, isAdmin }: {
     .map((s) => ({ value: s.id, label: s.name }))
     .sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
 
-  const quantidadeDigitada = form.quantidade.trim();
-  const quantidade = quantidadeDigitada === "" ? null : parseInt(quantidadeDigitada, 10);
+  // Quantidade é obrigatória, mínimo 1 (dono, 14/09: "0 não tem como").
+  const quantidade = parseInt(form.quantidade, 10);
   const faltando = !form.eventId ? "Escolha o evento"
     : !form.sponsorId ? "Escolha o patrocinador"
-    : quantidade !== null && !(quantidade >= 1) ? "A quantidade precisa ser 1 ou mais — ou deixe em branco"
+    : !(quantidade >= 1) ? "Informe a quantidade (mínimo 1)"
     : form.observacao.trim().length < 3 ? "Descreva o que precisa"
     : null;
 
@@ -270,6 +298,14 @@ export function PedidosDePecaAtendimento({ podePedir, userId, isAdmin }: {
         <form
           data-testid="form-pedido-de-peca"
           onSubmit={(e) => { e.preventDefault(); if (!faltando && !enviar.isPending) enviar.mutate(); }}
+          onPaste={(e) => {
+            // Ctrl+V de um print em qualquer ponto do formulário vira referência.
+            const arquivos = Array.from(e.clipboardData?.files ?? []);
+            if (arquivos.some((a) => a.type.startsWith("image/"))) {
+              e.preventDefault();
+              enviarImagens(arquivos);
+            }
+          }}
           style={{ ...CARTAO, padding: 18, display: "flex", flexDirection: "column", gap: 14 }}
         >
           <div>
@@ -312,12 +348,16 @@ export function PedidosDePecaAtendimento({ podePedir, userId, isAdmin }: {
           </div>
 
           <div>
-            <label htmlFor="pedido-quantidade" style={ROTULO}>
-              Quantidade <span style={{ fontWeight: 600, textTransform: "none", letterSpacing: 0 }}>(se souber)</span>
-            </label>
-            <input id="pedido-quantidade" data-testid="input-pedido-quantidade" type="number" min={1} inputMode="numeric"
-              value={form.quantidade} placeholder="—"
-              onChange={(e) => setForm((f) => ({ ...f, quantidade: e.target.value }))}
+            <label htmlFor="pedido-quantidade" style={ROTULO}>Quantidade</label>
+            <input id="pedido-quantidade" data-testid="input-pedido-quantidade" type="number" min={1} step={1} inputMode="numeric"
+              value={form.quantidade}
+              onChange={(e) => {
+                // Só dígitos; 0 vira 1. Vazio é permitido enquanto digita e
+                // volta a 1 ao sair do campo.
+                const digitos = e.target.value.replace(/\D/g, "");
+                setForm((f) => ({ ...f, quantidade: digitos === "" ? "" : String(Math.max(1, parseInt(digitos, 10))) }));
+              }}
+              onBlur={() => setForm((f) => ({ ...f, quantidade: f.quantidade === "" ? "1" : f.quantidade }))}
               style={{ ...CAMPO, maxWidth: 140 }} />
           </div>
 
@@ -332,8 +372,20 @@ export function PedidosDePecaAtendimento({ podePedir, userId, isAdmin }: {
           </div>
 
           <div>
-            <span style={ROTULO}>Referências <span style={{ fontWeight: 600, textTransform: "none", letterSpacing: 0 }}>(opcional)</span></span>
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <span style={ROTULO}>
+              Referências <span style={{ fontWeight: 600, textTransform: "none", letterSpacing: 0 }}>(opcional · até {MAX_REFERENCIAS_DO_PEDIDO})</span>
+            </span>
+            <div
+              data-testid="zona-referencias-pedido"
+              onDragOver={(e) => { e.preventDefault(); setArrastando(true); }}
+              onDragLeave={() => setArrastando(false)}
+              onDrop={(e) => { e.preventDefault(); setArrastando(false); enviarImagens(Array.from(e.dataTransfer.files)); }}
+              style={{
+                display: "flex", flexDirection: "column", gap: 8, padding: 10, borderRadius: R.md,
+                border: `1.5px dashed ${arrastando ? "#b45309" : "#d6d3d1"}`,
+                background: arrastando ? "#fffbeb" : "#fafaf9",
+              }}
+            >
               <ReferenciasDoPedido
                 urls={form.referencias}
                 tamanho={56}
@@ -344,13 +396,18 @@ export function PedidosDePecaAtendimento({ podePedir, userId, isAdmin }: {
                 <ObjectUploader
                   multiple
                   buttonVariant="outline"
-                  onComplete={({ url }) => setForm((f) => (f.referencias.length >= MAX_REFERENCIAS_DO_PEDIDO ? f : { ...f, referencias: [...f.referencias, url] }))}
+                  onComplete={({ url }) => adicionarReferencia(url)}
                   onError={(e) => toast({ title: "Não deu para enviar a imagem", description: e.message, variant: "destructive" })}
                 >
-                  <ImagePlus className="h-4 w-4 mr-2" /> Adicionar referência
+                  <ImagePlus className="h-4 w-4 mr-2" /> {form.referencias.length === 0 ? "Adicionar referências" : "Adicionar mais referências"}
                 </ObjectUploader>
               )}
-              <span style={{ fontSize: FS.small, color: "#57534e" }}>Uma imagem do que você imagina — a arte final é feita pela Arte.</span>
+              {envioDeReferencias.isUploading && (
+                <span aria-live="polite" style={{ fontSize: FS.small, color: "#57534e" }}>Enviando imagens…</span>
+              )}
+              <span data-testid="contador-referencias-pedido" style={{ fontSize: FS.small, color: "#57534e", lineHeight: 1.45 }}>
+                {form.referencias.length} de {MAX_REFERENCIAS_DO_PEDIDO} · escolha várias de uma vez, arraste para cá ou cole com Ctrl+V. A arte final é feita pela Arte.
+              </span>
             </div>
           </div>
 

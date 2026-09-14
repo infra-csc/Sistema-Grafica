@@ -40,7 +40,7 @@ const TONS: Record<AcaoDoCartao["tom"], { fundo: string; cor: string; borda: str
   perigo:     { fundo: "#ffffff", cor: "#b91c1c", borda: "#fecaca" },
 };
 
-function BotaoDoCartao({ acao, altura }: { acao: AcaoDoCartao; altura: number }) {
+export function BotaoDoCartao({ acao, altura }: { acao: AcaoDoCartao; altura: number }) {
   const tom = TONS[acao.tom];
   const bloqueado = !!acao.bloqueio;
   const estilo: React.CSSProperties = {
@@ -62,7 +62,7 @@ function BotaoDoCartao({ acao, altura }: { acao: AcaoDoCartao; altura: number })
   );
 }
 
-export function CartaoDoPedido({ pedido, agora, selo, acoes = [], mostrarEvento = true, extra }: {
+export function CartaoDoPedido({ pedido, agora, selo, acoes = [], mostrarEvento = true, extra, onAbrir }: {
   pedido: PedidoDePeca;
   agora: Date;
   selo: SeloDoEvento | null;
@@ -70,20 +70,35 @@ export function CartaoDoPedido({ pedido, agora, selo, acoes = [], mostrarEvento 
   mostrarEvento?: boolean;
   /** Conteúdo sob o cartão (ex.: escolher a peça que já existe). */
   extra?: ReactNode;
+  /** Abre o detalhe do pedido (com histórico). */
+  onAbrir?: () => void;
 }) {
   const isMobile = useIsMobile();
   const patrocinador = pedido.sponsorName ?? "Patrocinador removido";
+  const titulo = (
+    <>
+      <EstadoDoPedido status={pedido.status} />
+      <strong style={{ flexShrink: 0, fontSize: 14, color: T.text }}>{quantidadeDoPedido(pedido.quantidade)}</strong>
+      <span title={patrocinador} style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5, fontWeight: 700, color: T.text, textDecoration: onAbrir ? "underline" : "none", textDecorationColor: "#d6d3d1", textUnderlineOffset: 3 }}>
+        {patrocinador}
+      </span>
+    </>
+  );
+  const todasAsAcoes: AcaoDoCartao[] = onAbrir
+    ? [{ chave: "detalhes", rotulo: "Detalhes", tom: "secundario", onClick: onAbrir, testId: `button-detalhes-pedido-${pedido.id}` }, ...acoes]
+    : acoes;
   return (
     <li data-testid={`pedido-${pedido.id}`} style={{ listStyle: "none", padding: "14px 16px", borderBottom: "1px solid #f1f0ef", display: "flex", flexDirection: "column", gap: 10 }}>
       <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
         <div style={{ flex: "1 1 auto", minWidth: 0, display: "flex", flexDirection: "column", gap: 6 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-            <EstadoDoPedido status={pedido.status} />
-            <strong style={{ flexShrink: 0, fontSize: 14, color: T.text }}>{quantidadeDoPedido(pedido.quantidade)}</strong>
-            <span title={patrocinador} style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13.5, fontWeight: 700, color: T.text }}>
-              {patrocinador}
-            </span>
-          </div>
+          {onAbrir ? (
+            <button type="button" onClick={onAbrir} aria-label={`Ver detalhes do pedido de ${patrocinador}`} data-testid={`abrir-pedido-${pedido.id}`}
+              style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0, padding: 0, border: "none", background: "none", cursor: "pointer", textAlign: "left", minHeight: isMobile ? 44 : undefined }}>
+              {titulo}
+            </button>
+          ) : (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>{titulo}</div>
+          )}
           <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
             {mostrarEvento && (
               <span style={{ fontSize: FS.body, color: "#57534e" }}>
@@ -114,9 +129,9 @@ export function CartaoDoPedido({ pedido, agora, selo, acoes = [], mostrarEvento 
         </div>
         <IdadeDoPedido pedido={pedido} agora={agora} />
       </div>
-      {acoes.length > 0 && (
+      {todasAsAcoes.length > 0 && (
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          {acoes.map((a) => <BotaoDoCartao key={a.chave} acao={a} altura={isMobile ? 44 : 34} />)}
+          {todasAsAcoes.map((a) => <BotaoDoCartao key={a.chave} acao={a} altura={isMobile ? 44 : 34} />)}
         </div>
       )}
       {extra}

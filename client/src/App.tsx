@@ -216,6 +216,8 @@ const ROLES_GRAFICA = ["grafica", "solicitacao", "admin"];
 // Triagem e local no galpão são da Gráfica (dono, 14/09). O Estoque usa
 // ROLES_GRAFICA: a Solicitação consulta o que tem para reservar.
 const ROLES_TRIAGEM = ["grafica", "admin"];
+// Pedidos de peça: o Atendimento pede, a Solicitação resolve (dono, 14/09).
+const ROLES_PEDIDOS = ["atendimento", "solicitacao", "admin"];
 const ROLES_PATROCINADORES = ["solicitacao", "atendimento", "admin"];
 // Cotas voltou a ser só do admin (decisão do dono, 17/08).
 const ROLES_COTAS = ["admin"];
@@ -337,7 +339,7 @@ function Router() {
         {() => <RoleProtectedRoute component={Solicitacao} allowedRoles={ROLES_SOLICITACAO} />}
       </Route>
       <Route path="/pedidos-de-peca">
-        {() => <RoleProtectedRoute component={PedidosDePeca} allowedRoles={ROLES_SOLICITACAO} />}
+        {() => <RoleProtectedRoute component={PedidosDePeca} allowedRoles={ROLES_PEDIDOS} />}
       </Route>
       <Route path="/grafica">
         {() => <RoleProtectedRoute component={Grafica} allowedRoles={ROLES_GRAFICA} />}
@@ -579,11 +581,11 @@ function AuthenticatedLayout() {
                   return;
                 }
                 // PEDIDOS DE PEÇA (14/09): cada aviso leva a quem precisa agir.
-                // Atendimento: a peça atendida abre a peça; o resto, a aba de
+                // Atendimento: a peça atendida abre a peça; o resto, a página de
                 // pedidos. Solicitação/admin: o painel de pedidos do evento.
                 if (typeof n.type === "string" && n.type.startsWith("pedido")) {
                   if (user?.role === "atendimento") {
-                    setLocation(n.type === "pedidoAtendido" && n.itemId ? `/eventos/${n.eventId}?item=${n.itemId}` : "/atendimento?aba=pedidos");
+                    setLocation(n.type === "pedidoAtendido" && n.itemId ? `/eventos/${n.eventId}?item=${n.itemId}` : "/pedidos-de-peca");
                   } else {
                     setLocation(`/eventos/${n.eventId}?pedidos=1`);
                   }

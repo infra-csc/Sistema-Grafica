@@ -1,11 +1,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // LISTA DE PEDIDOS — a mesma lista para quem pede e para quem resolve.
 //
-//   · modo "atendimento" (aba do Atendimento): novo pedido, editar, cancelar,
-//     reabrir o cancelado; filtro "só meus"; mais recentes primeiro;
-//   · modo "solicitacao" (caixa da Solicitação): criar peça direto do pedido,
-//     recusar, desfazer atendimento, reabrir o recusado; prazo mais próximo
-//     primeiro.
+// As AÇÕES seguem o papel de quem está vendo (a mesma régua do servidor):
+//   · quem pede (Atendimento, admin): novo pedido, editar, cancelar, reabrir o
+//     cancelado; filtro "só os meus";
+//   · quem resolve (Solicitação, admin): criar peça direto do pedido, recusar,
+//     desfazer atendimento, reabrir o recusado.
+// O admin vê as duas pontas. Clicar no pedido abre o detalhe, com histórico.
 //
 // Contadores dos estados contam a base (sem o próprio recorte); a faixa dos
 // parados olha todos os pedidos abertos, independente de filtro.
@@ -32,10 +33,10 @@ import { motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import { T, FS, R } from "@/lib/theme";
 import { MotivoDoPedidoDialog, type AcaoComMotivo } from "@/components/motivo-do-pedido-dialog";
 import { CartaoDoPedido, type AcaoDoCartao } from "@/components/pedidos/cartao-do-pedido";
+import { DetalheDoPedido } from "@/components/pedidos/detalhe-do-pedido";
 import { FormularioDoPedido } from "@/components/pedidos/formulario-do-pedido";
 import { ListaCarregando, invalidarPedidos, mensagemDaApi } from "@/components/pedidos/ui";
 
-export type ModoDaLista = "atendimento" | "solicitacao";
 type Ordem = "recentes" | "antigos" | "prazo";
 
 const PASSO = 300;
@@ -55,25 +56,25 @@ const combina = (p: PedidoDePeca, termo: string) => {
   return alvo.includes(termo);
 };
 
-export function ListaDePedidos({ modo, podePedir, podeResolver, userId, titulo = false }: {
-  modo: ModoDaLista;
+export function ListaDePedidos({ podePedir, podeResolver, userId }: {
   /** atendimento | admin */
   podePedir: boolean;
   /** solicitacao | admin */
   podeResolver: boolean;
   userId: string | null;
-  titulo?: boolean;
 }) {
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const [filtro, setFiltro] = useState<StatusDoPedido | "todos">("aberto");
-  const [ordem, setOrdem] = useState<Ordem>(modo === "solicitacao" ? "prazo" : "recentes");
+  // Quem resolve trabalha por prazo; quem só pede acompanha o mais recente.
+  const [ordem, setOrdem] = useState<Ordem>(podeResolver ? "prazo" : "recentes");
   const [busca, setBusca] = useState("");
   const [soMeus, setSoMeus] = useState(false);
   const [eventoFiltro, setEventoFiltro] = useState("");
   const [limite, setLimite] = useState(PASSO);
   const [formulario, setFormulario] = useState<{ aberto: boolean; pedido: PedidoDePeca | null }>({ aberto: false, pedido: null });
   const [motivo, setMotivo] = useState<{ pedido: PedidoDePeca; acao: AcaoComMotivo } | null>(null);
+  const [detalhe, setDetalhe] = useState<string | null>(null);
   const agora = new Date();
   const alvo = isMobile ? 44 : 34;
 
@@ -103,16 +104,7 @@ export function ListaDePedidos({ modo, podePedir, podeResolver, userId, titulo =
     const selo = seloDe(p);
     const bloqueio = selo?.bloqueiaAtender ? selo.explicacao : null;
     const acoes: AcaoDoCartao[] = [];
-    if (modo === "atendimento" && podePedir) {
-      if (p.status === "aberto") {
-        acoes.push({ chave: "editar", rotulo: "Editar", tom: "secundario", onClick: () => setFormulario({ aberto: true, pedido: p }), testId: `button-editar-pedido-${p.id}` });
-        acoes.push({ chave: "cancelar", rotulo: "Cancelar", tom: "perigo", onClick: () => setMotivo({ pedido: p, acao: "cancelar" }), testId: `button-cancelar-pedido-${p.id}` });
-      }
-      if (p.status === "cancelado") {
-        acoes.push({ chave: "reabrir", rotulo: "Reabrir", tom: "secundario", bloqueio, onClick: () => setMotivo({ pedido: p, acao: "reabrir" }), testId: `button-reabrir-pedido-${p.id}` });
-      }
-    }
-    if (modo === "solicitacao" && podeResolver) {
+    if (podeResolver) {
       if (p.status === "aberto") {
         acoes.push({ chave: "criar", rotulo: "Criar peça", tom: "criar", bloqueio, href: `/eventos/${p.eventId}?pedidos=1&criar=${p.id}`, testId: `button-criar-peca-pedido-${p.id}` });
         acoes.push({ chave: "abrir", rotulo: "Abrir no evento", tom: "secundario", href: `/eventos/${p.eventId}?pedidos=1`, testId: `link-evento-pedido-${p.id}` });
@@ -123,7 +115,16 @@ export function ListaDePedidos({ modo, podePedir, podeResolver, userId, titulo =
         acoes.push({ chave: "desfazer", rotulo: "Desfazer atendimento", tom: "perigo", bloqueio, onClick: () => setMotivo({ pedido: p, acao: "reabrir" }), testId: `button-desfazer-pedido-${p.id}` });
       }
       if (p.status === "recusado") {
-        acoes.push({ chave: "reabrir", rotulo: "Reabrir", tom: "secundario", bloqueio, onClick: () => setMotivo({ pedido: p, acao: "reabrir" }), testId: `button-reabrir-pedido-${p.id}` });
+        acoes.push({ chave: "reabrir-recusado", rotulo: "Reabrir", tom: "secundario", bloqueio, onClick: () => setMotivo({ pedido: p, acao: "reabrir" }), testId: `button-reabrir-pedido-${p.id}` });
+      }
+    }
+    if (podePedir) {
+      if (p.status === "aberto") {
+        acoes.push({ chave: "editar", rotulo: "Editar", tom: "secundario", onClick: () => setFormulario({ aberto: true, pedido: p }), testId: `button-editar-pedido-${p.id}` });
+        acoes.push({ chave: "cancelar", rotulo: "Cancelar", tom: "perigo", onClick: () => setMotivo({ pedido: p, acao: "cancelar" }), testId: `button-cancelar-pedido-${p.id}` });
+      }
+      if (p.status === "cancelado") {
+        acoes.push({ chave: "reabrir-cancelado", rotulo: "Reabrir", tom: "secundario", bloqueio, onClick: () => setMotivo({ pedido: p, acao: "reabrir" }), testId: `button-reabrir-pedido-${p.id}` });
       }
     }
     return acoes;
@@ -162,6 +163,9 @@ export function ListaDePedidos({ modo, podePedir, podeResolver, userId, titulo =
     return Array.from(m.values()).sort((a, b) => a.label.localeCompare(b.label, "pt-BR"));
   }, [pedidos]);
 
+  // O detalhe lê o pedido VIVO da lista: depois de uma ação, reflete na hora.
+  const pedidoDoDetalhe = detalhe ? pedidos.find((p) => p.id === detalhe) ?? null : null;
+
   const CHIP = (ativo: boolean, zerado: boolean): React.CSSProperties => ({
     height: alvo, padding: "0 11px", borderRadius: R.pill, cursor: "pointer",
     border: `1px solid ${ativo ? "#1c1917" : "#e7e5e4"}`, background: ativo ? "#1c1917" : "#ffffff",
@@ -170,20 +174,8 @@ export function ListaDePedidos({ modo, podePedir, podeResolver, userId, titulo =
   });
 
   return (
-    <section data-testid={`lista-pedidos-${modo}`} style={{ background: "#ffffff", border: "1px solid #e7e5e4", borderRadius: R.lg, boxShadow: "0 1px 2px rgba(28,25,23,0.06)", overflow: "hidden", minWidth: 0 }}>
+    <section data-testid="lista-pedidos" style={{ background: "#ffffff", border: "1px solid #e7e5e4", borderRadius: R.lg, boxShadow: "0 1px 2px rgba(28,25,23,0.06)", overflow: "hidden", minWidth: 0 }}>
       <div style={{ padding: "14px 16px", borderBottom: "1px solid #f1f0ef", display: "flex", flexDirection: "column", gap: 10 }}>
-        {(titulo || (modo === "atendimento" && podePedir)) && (
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-            {titulo && <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: T.text }}>Pedidos de peças</h2>}
-            {modo === "atendimento" && podePedir && (
-              <button type="button" data-testid="button-novo-pedido" onClick={() => setFormulario({ aberto: true, pedido: null })}
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, height: isMobile ? 44 : 38, padding: "0 16px", borderRadius: R.md, border: "none", background: "#1c1917", color: "#fff", fontSize: FS.body, fontWeight: 800, cursor: "pointer" }}>
-                <Plus size={15} aria-hidden="true" /> Novo pedido
-              </button>
-            )}
-          </div>
-        )}
-
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
           <div style={{ position: "relative", flex: isMobile ? "1 1 100%" : "1 1 240px", minWidth: 0 }}>
             <Search size={14} aria-hidden="true" style={{ position: "absolute", left: 11, top: "50%", transform: "translateY(-50%)", color: "#57534e" }} />
@@ -207,6 +199,12 @@ export function ListaDePedidos({ modo, podePedir, podeResolver, userId, titulo =
               <option value="antigos">Mais antigos</option>
             </select>
           </label>
+          {podePedir && (
+            <button type="button" data-testid="button-novo-pedido" onClick={() => setFormulario({ aberto: true, pedido: null })}
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, height: isMobile ? 44 : 38, padding: "0 16px", borderRadius: R.md, border: "none", background: "#1c1917", color: "#fff", fontSize: FS.body, fontWeight: 800, cursor: "pointer", marginLeft: isMobile ? 0 : "auto" }}>
+              <Plus size={15} aria-hidden="true" /> Novo pedido
+            </button>
+          )}
         </div>
 
         <div style={{ display: "flex", gap: 4, flexWrap: "wrap", alignItems: "center" }}>
@@ -217,7 +215,7 @@ export function ListaDePedidos({ modo, podePedir, podeResolver, userId, titulo =
               </button>
             ))}
           </div>
-          {modo === "atendimento" && (
+          {podePedir && (
             <button type="button" aria-pressed={soMeus} data-testid="filtro-pedidos-meus" onClick={() => setSoMeus((v) => !v)} style={{ ...CHIP(soMeus, false), marginLeft: isMobile ? 0 : "auto" }}>
               Só os meus
             </button>
@@ -256,14 +254,14 @@ export function ListaDePedidos({ modo, podePedir, podeResolver, userId, titulo =
           <p style={{ margin: "8px 0 2px", fontSize: 14, fontWeight: 700, color: T.text }}>
             {pedidos.length === 0 ? "Nenhum pedido ainda" : termo || eventoFiltro || soMeus ? "Nenhum pedido neste recorte" : filtro === "aberto" ? "Nenhum pedido esperando a lista" : `Nenhum pedido ${ROTULO_DO_PEDIDO[filtro as StatusDoPedido]?.toLowerCase() ?? ""}`}
           </p>
-          {pedidos.length === 0 && modo === "atendimento" && podePedir && (
+          {pedidos.length === 0 && podePedir && (
             <p style={{ margin: 0, fontSize: FS.body }}>Use “Novo pedido” para pedir uma peça a quem monta a lista.</p>
           )}
         </div>
       ) : (
         <ul style={{ margin: 0, padding: 0 }}>
           {visiveis.map((p) => (
-            <CartaoDoPedido key={p.id} pedido={p} agora={agora} selo={seloDe(p)} acoes={acoesDe(p)} />
+            <CartaoDoPedido key={p.id} pedido={p} agora={agora} selo={seloDe(p)} acoes={acoesDe(p)} onAbrir={() => setDetalhe(p.id)} />
           ))}
         </ul>
       )}
@@ -277,6 +275,13 @@ export function ListaDePedidos({ modo, podePedir, podeResolver, userId, titulo =
         </div>
       )}
 
+      <DetalheDoPedido
+        pedido={pedidoDoDetalhe}
+        agora={agora}
+        selo={pedidoDoDetalhe ? seloDe(pedidoDoDetalhe) : null}
+        acoes={pedidoDoDetalhe ? acoesDe(pedidoDoDetalhe) : []}
+        onFechar={() => setDetalhe(null)}
+      />
       <FormularioDoPedido aberto={formulario.aberto} pedido={formulario.pedido} onFechar={() => setFormulario({ aberto: false, pedido: null })} />
       <MotivoDoPedidoDialog
         pedido={motivo?.pedido ?? null}

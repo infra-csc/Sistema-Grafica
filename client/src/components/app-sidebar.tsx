@@ -40,8 +40,9 @@ const productionItems: MenuItem[] = [
   { title: "Vincular Patrocinadores", url: "/vincular-patrocinadores", icon: Link2,          roles: ["arte", "solicitacao", "atendimento", "admin"] },
   { title: "Atendimento",             url: "/atendimento",             icon: UserCheck,      roles: ["atendimento", "arte", "admin"] },
   { title: "Revisão",                 url: "/solicitacao",             icon: ClipboardCheck, roles: ["solicitacao", "admin"] },
-  // A caixa de pedidos do Atendimento, de todos os eventos (dono, 14/09).
-  { title: "Pedidos de peças",        url: "/pedidos-de-peca",         icon: Inbox,          roles: ["solicitacao", "admin"] },
+  // O lugar único dos pedidos de peça (dono, 14/09): o Atendimento pede, a
+  // Solicitação resolve — aqui e pelos eventos.
+  { title: "Pedidos de peças",        url: "/pedidos-de-peca",         icon: Inbox,          roles: ["atendimento", "solicitacao", "admin"] },
   { title: "Gráfica",                 url: "/grafica",                 icon: Printer,        roles: ["grafica", "solicitacao", "admin"] },
   { title: "Modelos",                 url: "/modelos",                 icon: Layers,         roles: ["solicitacao", "admin"] },
   { title: "Calendário",              url: "/calendario",              icon: Calendar },

@@ -102,6 +102,7 @@ const Arte = lazyPage(() => import("@/pages/arte"));
 const Atendimento = lazyPage(() => import("@/pages/atendimento"));
 const Solicitacao = lazyPage(() => import("@/pages/solicitacao"));
 const Grafica = lazyPage(() => import("@/pages/grafica"));
+const GraficaMaquinas = lazyPage(() => import("@/pages/grafica-maquinas"));
 const Modelos = lazyPage(() => import("@/pages/modelos"));
 const Calendario = lazyPage(() => import("@/pages/calendario"));
 const Historico = lazyPage(() => import("@/pages/historico"));
@@ -177,6 +178,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "/atendimento": "Atendimento",
   "/solicitacao": "Revisão",
   "/grafica": "Gráfica",
+  "/grafica/maquinas": "Máquinas da Gráfica",
   "/modelos": "Modelos",
   "/calendario": "Calendário",
   "/historico": "Histórico",
@@ -330,6 +332,9 @@ function Router() {
       </Route>
       <Route path="/solicitacao">
         {() => <RoleProtectedRoute component={Solicitacao} allowedRoles={ROLES_SOLICITACAO} />}
+      </Route>
+      <Route path="/grafica/maquinas">
+        {() => <RoleProtectedRoute component={GraficaMaquinas} allowedRoles={ROLES_GRAFICA} />}
       </Route>
       <Route path="/grafica">
         {() => <RoleProtectedRoute component={Grafica} allowedRoles={ROLES_GRAFICA} />}

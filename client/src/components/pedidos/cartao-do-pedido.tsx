@@ -10,6 +10,7 @@ import { quantidadeDoPedido, type PedidoDePeca, type SeloDoEvento } from "@share
 import { T, FS, R } from "@/lib/theme";
 import { useIsMobile } from "@/hooks/use-mobile";
 import {
+  AjusteDoPedido,
   AndamentoDoPedido,
   EspecificacaoDoPedido,
   EstadoDoPedido,
@@ -112,6 +113,7 @@ export function CartaoDoPedido({ pedido, agora, selo, acoes = [], mostrarEvento 
           <ObservacaoDoPedido valor={pedido.observacao} />
           <ReferenciasDoPedido urls={pedido.referencias ?? []} />
           <AndamentoDoPedido pedido={pedido} />
+          <AjusteDoPedido pedido={pedido} />
           {pedido.status === "recusado" && (
             <p style={{ margin: 0, fontSize: FS.body, color: "#991b1b" }}>
               Recusada em {diaEMes(pedido.resolvidoEm)}{pedido.resolvidoPor ? ` por ${pedido.resolvidoPor}` : ""}: {pedido.motivoRecusa}

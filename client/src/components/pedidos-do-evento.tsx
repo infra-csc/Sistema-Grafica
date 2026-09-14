@@ -19,7 +19,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { FilterSelect } from "@/components/filter-select";
 import { T, FS, R } from "@/lib/theme";
-import { MotivoDoPedidoDialog, type AcaoComMotivo } from "@/components/motivo-do-pedido-dialog";
+import { MotivoDoPedidoDialog, TITULO_DO_AVISO, enviarAcaoComMotivo, type AcaoComMotivo } from "@/components/motivo-do-pedido-dialog";
+import { ajustePendente } from "@shared/pedidos-de-peca";
 import { CartaoDoPedido, type AcaoDoCartao } from "@/components/pedidos/cartao-do-pedido";
 import { avisoDaAcao } from "@/components/pedidos/lista-de-pedidos";
 import { DetalheDoPedido } from "@/components/pedidos/detalhe-do-pedido";
@@ -64,9 +65,16 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
 
   const acaoComMotivo = useMutation({
     mutationFn: async ({ pedido, acao, texto }: { pedido: PedidoDePeca; acao: AcaoComMotivo; texto: string }) =>
-      (await apiRequest("PATCH", `/api/pedidos-de-peca/${pedido.id}/${acao}`, { motivo: texto })).json(),
-    onSuccess: (_d, v) => { toast({ title: v.acao === "recusar" ? "Solicitação recusada" : "Solicitação reaberta" }); setMotivo(null); invalidarPedidos(); },
+      (await enviarAcaoComMotivo(pedido.id, acao, texto)).json(),
+    onSuccess: (_d, v) => { toast({ title: TITULO_DO_AVISO[v.acao] }); setMotivo(null); invalidarPedidos(); },
     onError: (e) => toast({ title: "Não deu para concluir", description: mensagemDaApi(e), variant: "destructive" }),
+  });
+
+  const aceitarAjuste = useMutation({
+    mutationFn: async (pedido: PedidoDePeca) =>
+      (await apiRequest("PATCH", `/api/pedidos-de-peca/${pedido.id}/ajuste/responder`, { aceitar: true })).json(),
+    onSuccess: () => { toast({ title: "Ajuste aceito", description: "Quem pediu foi avisado. Ajuste a peça na lista." }); invalidarPedidos(); },
+    onError: (e) => toast({ title: "Não deu para aceitar o ajuste", description: mensagemDaApi(e), variant: "destructive" }),
   });
 
   // Vindo da faixa de Eventos ou da caixa (?pedidos=1): rola até o painel.
@@ -95,6 +103,7 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
   const abertos = pedidos.filter((p) => p.status === "aberto" || p.status === "atendido");
   const resolvidos = pedidos.filter((p) => p.status === "recusado" || p.status === "cancelado");
   const qtdAbertos = pedidos.filter((p) => p.status === "aberto").length;
+  const qtdAjustes = pedidos.filter(ajustePendente).length;
 
   const pecasDoEvento = pecas.filter((i) => !i.deletedAt && i.status !== "cancelled");
   const opcoesDePeca = (pedido: PedidoDePeca) => pecasDoEvento
@@ -115,6 +124,10 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
     }
     if (p.status === "atendido") {
       return [
+        ...(ajustePendente(p) ? [
+          { chave: "aceitar-ajuste", rotulo: "Aceitar ajuste", tom: "criar", bloqueio: aceitarAjuste.isPending ? "Salvando…" : null, onClick: () => aceitarAjuste.mutate(p), testId: `button-aceitar-ajuste-${p.id}` },
+          { chave: "recusar-ajuste", rotulo: "Recusar ajuste", tom: "perigo", onClick: () => setMotivo({ pedido: p, acao: "recusar-ajuste" }), testId: `button-recusar-ajuste-${p.id}` },
+        ] as AcaoDoCartao[] : []),
         { chave: "outra", rotulo: "+ Outra peça", tom: "secundario", bloqueio, onClick: () => onCriarPeca(p), testId: `button-outra-peca-pedido-${p.id}` },
         { chave: "ligar", rotulo: "Ligar peça existente", tom: "secundario", bloqueio: bloqueio ?? (livres === 0 ? "Nenhuma peça livre neste evento" : null), onClick: () => { setLigando(p.id); setPecaEscolhida(""); }, testId: `button-ligar-peca-pedido-${p.id}` },
         { chave: "desfazer", rotulo: "Desfazer atendimento", tom: "perigo", bloqueio, onClick: () => setMotivo({ pedido: p, acao: "reabrir" }), testId: `button-desfazer-pedido-${p.id}` },
@@ -164,6 +177,11 @@ export function PedidosDoEvento({ eventId, pecas, podeVer, podeAtender, motivoEv
         <span style={{ backgroundColor: qtdAbertos ? "#fffbeb" : "#f5f5f4", color: qtdAbertos ? "#92400e" : "#57534e", border: `1px solid ${qtdAbertos ? "#fde68a" : "#e7e5e4"}`, borderRadius: R.pill, padding: "2px 10px", fontSize: FS.small, fontWeight: 800 }}>
           {qtdAbertos} {qtdAbertos === 1 ? "aberta" : "abertas"}
         </span>
+        {qtdAjustes > 0 && (
+          <span data-testid="chip-ajustes-do-evento" style={{ backgroundColor: "#fffbeb", color: "#92400e", border: "1px solid #fde68a", borderRadius: R.pill, padding: "2px 10px", fontSize: FS.small, fontWeight: 800 }}>
+            {qtdAjustes} {qtdAjustes === 1 ? "ajuste pendente" : "ajustes pendentes"}
+          </span>
+        )}
         <SeloDoEventoChip selo={selo} pedidoId={eventId} />
         {!podeAtender && qtdAbertos > 0 && <span style={{ fontSize: FS.body, color: "#57534e" }}>Quem atende é a Solicitação.</span>}
       </div>

@@ -142,6 +142,24 @@ const TYPE_CONFIG: Record<string, TypeConfig> = {
     bgIcon: "#fffbeb", iconColor: "#92400e",
     label: "Solicitação reaberta",
   },
+  pedidoAjuste: {
+    Icon: Inbox,
+    border: "#f59e0b",
+    bgIcon: "#fffbeb", iconColor: "#92400e",
+    label: "Ajuste solicitado",
+  },
+  pedidoAjusteAceito: {
+    Icon: CheckCircle,
+    border: "#22c55e",
+    bgIcon: "#dcfce7", iconColor: "#15803d",
+    label: "Ajuste aceito",
+  },
+  pedidoAjusteRecusado: {
+    Icon: MinusCircle,
+    border: "#ef4444",
+    bgIcon: "#fef2f2", iconColor: "#b91c1c",
+    label: "Ajuste recusado",
+  },
 };
 
 const DEFAULT_CONFIG: TypeConfig = {

@@ -23,6 +23,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { T, FS, R } from "@/lib/theme";
 import { BotaoDoCartao, type AcaoDoCartao } from "@/components/pedidos/cartao-do-pedido";
 import {
+  AjusteDoPedido,
   AndamentoDoPedido,
   EstadoDoPedido,
   PrazoDoPedido,
@@ -147,6 +148,12 @@ export function DetalheDoPedido({ pedido, agora, selo, acoes, onFechar }: {
               <section>
                 <h3 style={TITULO_DA_SECAO}>Peças que saíram da solicitação</h3>
                 <AndamentoDoPedido pedido={p} />
+              </section>
+            )}
+            {p.ajusteStatus && (
+              <section>
+                <h3 style={TITULO_DA_SECAO}>Ajuste</h3>
+                <AjusteDoPedido pedido={p} />
               </section>
             )}
             {p.status === "recusado" && (

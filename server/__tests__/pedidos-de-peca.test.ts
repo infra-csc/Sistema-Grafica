@@ -26,6 +26,8 @@ import {
   seloDoEventoDoPedido,
   textoDaObservacao,
   unidadesCriadas,
+  podePedirAjuste,
+  ajustePendente,
 } from "@shared/pedidos-de-peca";
 
 const RAIZ = path.resolve(__dirname, "../..");
@@ -103,16 +105,57 @@ describe("regras puras", () => {
   });
 });
 
+describe("ajuste da solicitação (dono, 14/09)", () => {
+  // "Atendimento não consegue editar; se tiver errado, cancela e cria outra. Só
+  // cancela enquanto a Solicitação não tomou ação; caso tenha ação, pode
+  // solicitar um ajuste, e o usuário de Solicitação aceita ou não."
+  it("regra pura: ajuste só em atendida, um por vez", () => {
+    expect(podePedirAjuste({ status: "aberto", ajusteStatus: null })).toBe(false);
+    expect(podePedirAjuste({ status: "atendido", ajusteStatus: null })).toBe(true);
+    expect(podePedirAjuste({ status: "atendido", ajusteStatus: "pendente" })).toBe(false);
+    expect(podePedirAjuste({ status: "atendido", ajusteStatus: "recusado" })).toBe(true);
+    expect(podePedirAjuste({ status: "recusado", ajusteStatus: null })).toBe(false);
+    expect(ajustePendente({ ajusteStatus: "pendente" })).toBe(true);
+  });
+
+  it("servidor: Atendimento não edita, cancelar segue só em aberta, ajuste condicional e respondido uma vez", () => {
+    expect(ROTAS).toContain('app.patch("/api/pedidos-de-peca/:id", requireEditarPedido');
+    const cancelar = ROTAS.slice(ROTAS.indexOf('app.patch("/api/pedidos-de-peca/:id/cancelar"'), ROTAS.indexOf("// Desfazer:"));
+    expect(cancelar).toContain('eq(pedidosDePeca.status, "aberto")');
+    expect(ROTAS).toContain('or(isNull(pedidosDePeca.ajusteStatus), ne(pedidosDePeca.ajusteStatus, "pendente"))');
+    expect(ROTAS).toContain('.where(and(eq(pedidosDePeca.id, pedido.id), eq(pedidosDePeca.ajusteStatus, "pendente")))');
+    expect(ROTAS).toContain("Diga ao Atendimento por que o ajuste foi recusado");
+    expect(ROTAS).toContain('type: aceitar ? "pedidoAjusteAceito" : "pedidoAjusteRecusado",');
+    expect(ROTAS).toContain('type: "pedidoAjuste",');
+    expect(SCHEMA).toContain('ajusteStatus: text("ajuste_status"),');
+  });
+
+  it("telas: Atendimento sem Editar, com Pedir ajuste; Solicitação aceita ou recusa", () => {
+    expect(LISTA).toContain("if (podeResolver) acoes.push({ chave: \"editar\"");
+    expect(LISTA).toContain("button-pedir-ajuste-");
+    expect(LISTA).toContain("button-aceitar-ajuste-");
+    expect(LISTA).toContain("button-recusar-ajuste-");
+    expect(LISTA).toContain('{ k: "ajuste", rotulo: "Ajuste pendente"');
+    expect(PAINEL).toContain("button-aceitar-ajuste-");
+    expect(PAINEL).toContain('data-testid="chip-ajustes-do-evento"');
+    expect(CARTAO).toContain("<AjusteDoPedido pedido={pedido} />");
+    expect(MODAL).toContain('"recusar-ajuste": { titulo: "Recusar ajuste"');
+  });
+});
+
 describe("o servidor", () => {
   it("papéis: ler (sem Gráfica), pedir/editar/cancelar, resolver e reabrir", () => {
     expect(ROTAS).toContain('const requireLerPedidos = requireRole("admin", "solicitacao", "atendimento", "arte");');
     expect(ROTAS).toContain('const requirePedirPeca = requireRole("admin", "atendimento");');
+    expect(ROTAS).toContain('const requireEditarPedido = requireRole("admin");');
     expect(ROTAS).toContain('const requireResolverPedido = requireRole("admin", "solicitacao");');
     expect(ROTAS).toContain('const requireReabrirPedido = requireRole("admin", "atendimento", "solicitacao");');
     for (const rota of [
       'app.get("/api/pedidos-de-peca", requireLerPedidos',
       'app.post("/api/pedidos-de-peca", requirePedirPeca',
-      'app.patch("/api/pedidos-de-peca/:id", requirePedirPeca',
+      'app.patch("/api/pedidos-de-peca/:id", requireEditarPedido',
+      'app.patch("/api/pedidos-de-peca/:id/ajuste", requirePedirPeca',
+      'app.patch("/api/pedidos-de-peca/:id/ajuste/responder", requireResolverPedido',
       'app.patch("/api/pedidos-de-peca/:id/atender", requireResolverPedido',
       'app.patch("/api/pedidos-de-peca/:id/recusar", requireResolverPedido',
       'app.patch("/api/pedidos-de-peca/:id/cancelar", requirePedirPeca',
@@ -189,8 +232,8 @@ describe("as telas", () => {
     const ROTAS_DONO = ler("server/routes/pedidos-de-peca.ts");
     expect(ROTAS_DONO).toContain('req.userRole === "atendimento" && pedido.pedidoPorId !== req.userId;');
     expect(ROTAS_DONO).toContain('if ((req as any).userRole === "atendimento") {\n        condicoes.push(eq(pedidosDePeca.pedidoPorId, (req as any).userId ?? ""));');
-    // editar, cancelar e reabrir: a de outra pessoa do Atendimento "não existe".
-    expect(ROTAS_DONO.split("if (!pedido || ehDeOutraPessoa(req, pedido)) return res.status(404)").length - 1).toBe(3);
+    // editar, cancelar, reabrir e pedir ajuste: a de outra pessoa do Atendimento "não existe".
+    expect(ROTAS_DONO.split("if (!pedido || ehDeOutraPessoa(req, pedido)) return res.status(404)").length - 1).toBe(4);
     expect(LISTA).toContain('data-testid="input-busca-pedidos"');
     expect(LISTA).toContain('data-testid="button-mais-pedidos"');
   });
@@ -206,7 +249,7 @@ describe("as telas", () => {
   it("janela de motivo no padrão do app, para cancelar, recusar e reabrir", () => {
     expect(MODAL).toContain("style={modalSurface(520)}");
     expect(MODAL).toContain("<ModalHeader");
-    expect(MODAL).toContain('export type AcaoComMotivo = "cancelar" | "recusar" | "reabrir";');
+    expect(MODAL).toContain('export type AcaoComMotivo = "cancelar" | "recusar" | "reabrir" | "ajuste" | "recusar-ajuste";');
   });
 
   it("no evento: busca na peça existente, ?criar= abre o formulário, Entrada Rápida some ao atender", () => {

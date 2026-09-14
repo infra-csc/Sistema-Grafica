@@ -1,5 +1,5 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// MOTIVO DO PEDIDO — cancelar, recusar e reabrir.
+// MOTIVO DO PEDIDO — cancelar, recusar, reabrir, pedir ajuste e recusar ajuste.
 //
 // Uma decisão isolada: o pedido identificado, a observação citada, o motivo
 // obrigatório (MIN_MOTIVO_DO_PEDIDO caracteres), quem recebe a frase e o botão
@@ -7,7 +7,7 @@
 // ModalHeader + ModalFooter). Um componente só serve as três ações.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useRef, useState } from "react";
-import { BellRing, RotateCcw, XCircle, type LucideIcon } from "lucide-react";
+import { BellRing, RotateCcw, Wrench, XCircle, type LucideIcon } from "lucide-react";
 import {
   MIN_MOTIVO_DO_PEDIDO,
   quantidadeDoPedido,
@@ -17,15 +17,34 @@ import {
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { HIDE_NATIVE_CLOSE, ModalFooter, ModalHeader, modalSurface } from "@/components/modal-shell";
 import { T, FS, R } from "@/lib/theme";
+import { apiRequest } from "@/lib/queryClient";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-export type AcaoComMotivo = "cancelar" | "recusar" | "reabrir";
+export type AcaoComMotivo = "cancelar" | "recusar" | "reabrir" | "ajuste" | "recusar-ajuste";
 
 const ACOES: Record<AcaoComMotivo, { titulo: string; confirmar: string; cor: string; icone: LucideIcon }> = {
-  cancelar: { titulo: "Cancelar solicitação", confirmar: "Cancelar solicitação", cor: "#b91c1c", icone: XCircle },
-  recusar:  { titulo: "Recusar solicitação",  confirmar: "Recusar solicitação",  cor: "#b91c1c", icone: XCircle },
-  reabrir:  { titulo: "Reabrir solicitação",  confirmar: "Reabrir solicitação",  cor: "#1c1917", icone: RotateCcw },
+  cancelar:         { titulo: "Cancelar solicitação", confirmar: "Cancelar solicitação", cor: "#b91c1c", icone: XCircle },
+  recusar:          { titulo: "Recusar solicitação",  confirmar: "Recusar solicitação",  cor: "#b91c1c", icone: XCircle },
+  reabrir:          { titulo: "Reabrir solicitação",  confirmar: "Reabrir solicitação",  cor: "#1c1917", icone: RotateCcw },
+  ajuste:           { titulo: "Pedir ajuste",         confirmar: "Enviar ajuste",        cor: "#b45309", icone: Wrench },
+  "recusar-ajuste": { titulo: "Recusar ajuste",       confirmar: "Recusar ajuste",       cor: "#b91c1c", icone: XCircle },
 };
+
+/** O que aparece no aviso depois de concluir. */
+export const TITULO_DO_AVISO: Record<AcaoComMotivo, string> = {
+  cancelar: "Solicitação cancelada",
+  recusar: "Solicitação recusada",
+  reabrir: "Solicitação reaberta",
+  ajuste: "Ajuste enviado",
+  "recusar-ajuste": "Ajuste recusado",
+};
+
+/** Cada ação vai para a sua rota, com o corpo que ela espera. */
+export function enviarAcaoComMotivo(id: string, acao: AcaoComMotivo, texto: string) {
+  if (acao === "ajuste") return apiRequest("PATCH", `/api/pedidos-de-peca/${id}/ajuste`, { texto });
+  if (acao === "recusar-ajuste") return apiRequest("PATCH", `/api/pedidos-de-peca/${id}/ajuste/responder`, { aceitar: false, motivo: texto });
+  return apiRequest("PATCH", `/api/pedidos-de-peca/${id}/${acao}`, { motivo: texto });
+}
 
 export function MotivoDoPedidoDialog({ pedido, acao, aviso, pendente, onConfirmar, onFechar }: {
   pedido: PedidoDePeca | null;
@@ -69,7 +88,7 @@ export function MotivoDoPedidoDialog({ pedido, acao, aviso, pendente, onConfirma
           )}
           <div>
             <label htmlFor="motivo-do-pedido" style={{ display: "block", fontSize: FS.small, fontWeight: 800, letterSpacing: "0.08em", textTransform: "uppercase", color: "#57534e", marginBottom: 6 }}>
-              Motivo
+              {acao === "ajuste" ? "O que precisa ajustar" : "Motivo"}
             </label>
             <textarea
               id="motivo-do-pedido"
@@ -79,11 +98,11 @@ export function MotivoDoPedidoDialog({ pedido, acao, aviso, pendente, onConfirma
               value={motivo}
               onChange={(e) => setMotivo(e.target.value)}
               aria-describedby="motivo-do-pedido-contador"
-              placeholder="Explique em uma frase — quem recebe precisa entender o porquê."
+              placeholder={acao === "ajuste" ? "Diga exatamente o que mudar na peça — quem monta a lista decide se aceita." : "Explique em uma frase — quem recebe precisa entender o porquê."}
               style={{ width: "100%", boxSizing: "border-box", borderRadius: R.md, border: `1px solid ${falta > 0 && motivo ? "#fcd34d" : "#d6d3d1"}`, padding: "10px 12px", fontSize: 14, fontFamily: "inherit", lineHeight: 1.45, resize: "vertical", color: T.text }}
             />
             <p id="motivo-do-pedido-contador" aria-live="polite" style={{ margin: "4px 0 0", fontSize: FS.small, color: falta > 0 ? "#92400e" : "#065f46" }}>
-              {falta > 0 ? `Faltam ${falta} ${falta === 1 ? "caractere" : "caracteres"}` : "Motivo pronto"}
+              {falta > 0 ? `Faltam ${falta} ${falta === 1 ? "caractere" : "caracteres"}` : acao === "ajuste" ? "Texto pronto" : "Motivo pronto"}
             </p>
           </div>
           <p style={{ margin: 0, display: "flex", gap: 8, alignItems: "flex-start", fontSize: FS.body, color: "#44403c", lineHeight: 1.45 }}>

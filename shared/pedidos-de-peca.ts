@@ -12,8 +12,13 @@
 // Ciclo:
 //   aberto ──criar/ligar peça──▶ atendido (pode ganhar mais peças)
 //   aberto ──recusar (motivo)──▶ recusado
-//   aberto ──cancelar (motivo)─▶ cancelado
+//   aberto ──cancelar (motivo)─▶ cancelado   (só enquanto ninguém agiu)
 //   atendido / recusado / cancelado ──reabrir (motivo)──▶ aberto
+//   atendido ──pedir ajuste (texto)──▶ ajuste pendente ──aceitar | recusar (motivo)
+//
+// O Atendimento NÃO edita (dono, 14/09): errou, cancela enquanto está aberta e
+// cria outra. Depois que a Solicitação agiu, só pede um ajuste — e quem monta
+// a lista decide se aceita.
 //
 // O PEDIDO É UMA SOLICITAÇÃO, NÃO UMA PEÇA: a peça só existe depois de
 // atendido, e o pedido acompanha a peça (e as demais) até a entrega.
@@ -34,6 +39,16 @@ export const MAX_REFERENCIAS_DO_PEDIDO = 10;
 /** Cancelar, recusar e reabrir pedem uma frase de verdade: pedido negado sem
  *  explicação volta como o mesmo pedido na semana seguinte. */
 export const MIN_MOTIVO_DO_PEDIDO = 10;
+
+/** Ajuste pedido pelo Atendimento numa solicitação já atendida. */
+export const STATUS_DO_AJUSTE = ["pendente", "aceito", "recusado"] as const;
+export type StatusDoAjuste = (typeof STATUS_DO_AJUSTE)[number];
+
+/** Um ajuste por vez, e só depois de atendida. */
+export const podePedirAjuste = (p: { status: string; ajusteStatus?: string | null }): boolean =>
+  p.status === "atendido" && p.ajusteStatus !== "pendente";
+
+export const ajustePendente = (p: { ajusteStatus?: string | null }): boolean => p.ajusteStatus === "pendente";
 
 /** Referência só pode ser arquivo enviado pelo próprio app (/objects/…) ou um
  *  endereço https. Qualquer outra coisa — em especial `javascript:` — vira
@@ -71,6 +86,14 @@ export interface PedidoDePeca {
   resolvidoEm: string | null;
   motivoRecusa: string | null;
   motivoCancelamento: string | null;
+  ajusteStatus: StatusDoAjuste | null;
+  ajusteTexto: string | null;
+  ajustePedidoPor: string | null;
+  ajustePedidoPorId: string | null;
+  ajustePedidoEm: string | null;
+  ajusteRespondidoPor: string | null;
+  ajusteRespondidoEm: string | null;
+  ajusteResposta: string | null;
   editadoPor: string | null;
   editadoEm: string | null;
   createdAt: string;

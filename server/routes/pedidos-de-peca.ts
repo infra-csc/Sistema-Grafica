@@ -4,7 +4,9 @@
 //
 // Papéis:
 //   · ler: Atendimento, Solicitação, Arte e admin (a Gráfica não usa pedidos);
-//   · pedir, editar (aberto) e cancelar: Atendimento e admin;
+//   · pedir e cancelar (só ABERTA, antes de a Solicitação agir): Atendimento e admin;
+//   · editar: só o admin — o Atendimento, se errou, cancela e cria outra;
+//   · pedir ajuste (ATENDIDA): Atendimento e admin; aceitar/recusar: Solicitação e admin;
 //   · atender e recusar: Solicitação e admin;
 //   · reabrir: quem desfaz o estado — atendido/recusado pela Solicitação,
 //     cancelado pelo Atendimento (e admin nos três).
@@ -17,7 +19,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import type { Express } from "express";
 import { z } from "zod";
-import { and, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, or } from "drizzle-orm";
 import { db } from "../db";
 import { storage } from "../storage";
 import { pedidosDePeca, events, sponsors, eventSponsors, items as itemsTable } from "@shared/schema";
@@ -28,6 +30,7 @@ import {
   STATUS_DO_PEDIDO,
   ehReferenciaValida,
   quantidadeDoPedido,
+  podePedirAjuste,
   quemReabre,
   type StatusDoPedido,
 } from "@shared/pedidos-de-peca";
@@ -36,6 +39,7 @@ import { motivoEventoDaPeca, erroEventoFechado } from "./eventoFinalizado";
 
 const requireLerPedidos = requireRole("admin", "solicitacao", "atendimento", "arte");
 const requirePedirPeca = requireRole("admin", "atendimento");
+const requireEditarPedido = requireRole("admin");
 const requireResolverPedido = requireRole("admin", "solicitacao");
 const requireReabrirPedido = requireRole("admin", "atendimento", "solicitacao");
 
@@ -303,9 +307,9 @@ export function registerPedidosDePecaRoutes(app: Express): void {
     }
   });
 
-  // Editar enquanto ABERTO: corrigir um erro não pode exigir cancelar (com
-  // justificativa) e pedir de novo.
-  app.patch("/api/pedidos-de-peca/:id", requirePedirPeca, async (req, res) => {
+  // Editar enquanto ABERTA — só o admin. O Atendimento não edita (dono, 14/09):
+  // se errou, cancela e cria outra.
+  app.patch("/api/pedidos-de-peca/:id", requireEditarPedido, async (req, res) => {
     try {
       const dados = edicaoSchema.parse(req.body);
       const [pedido] = await db.select().from(pedidosDePeca).where(eq(pedidosDePeca.id, req.params.id));
@@ -472,6 +476,90 @@ export function registerPedidosDePecaRoutes(app: Express): void {
     }
   });
 
+  // AJUSTE (dono, 14/09): depois que a Solicitação agiu, o Atendimento não
+  // edita nem cancela — pede um ajuste por escrito, e quem monta a lista aceita
+  // ou recusa. Um ajuste esperando resposta por vez.
+  app.patch("/api/pedidos-de-peca/:id/ajuste", requirePedirPeca, async (req, res) => {
+    try {
+      const texto = typeof req.body?.texto === "string" ? req.body.texto.trim() : "";
+      if (texto.length < MIN_MOTIVO_DO_PEDIDO) {
+        return res.status(400).json({ error: `Descreva o ajuste (mínimo ${MIN_MOTIVO_DO_PEDIDO} caracteres).` });
+      }
+      if (texto.length > 2000) return res.status(400).json({ error: "O ajuste passou de 2000 caracteres." });
+      const [pedido] = await db.select().from(pedidosDePeca).where(eq(pedidosDePeca.id, req.params.id));
+      if (!pedido || ehDeOutraPessoa(req, pedido)) return res.status(404).json({ error: "Solicitação não encontrada" });
+      if (!podePedirAjuste(pedido)) {
+        return res.status(409).json({
+          error: pedido.ajusteStatus === "pendente"
+            ? "Já existe um ajuste esperando resposta de quem monta a lista."
+            : pedido.status === "aberto"
+              ? "A solicitação ainda está aberta — se algo está errado, cancele e crie outra."
+              : `Só dá para pedir ajuste em solicitação atendida — esta está ${rotulo(pedido.status)}.`,
+        });
+      }
+      const quem = quemAgiu(req);
+      const [atualizado] = await db.update(pedidosDePeca)
+        .set({
+          ajusteStatus: "pendente", ajusteTexto: texto, ajustePedidoPor: quem.userName, ajustePedidoPorId: quem.userId, ajustePedidoEm: new Date(),
+          ajusteRespondidoPor: null, ajusteRespondidoEm: null, ajusteResposta: null, updatedAt: new Date(),
+        })
+        .where(and(eq(pedidosDePeca.id, pedido.id), eq(pedidosDePeca.status, "atendido"), or(isNull(pedidosDePeca.ajusteStatus), ne(pedidosDePeca.ajusteStatus, "pendente"))))
+        .returning();
+      if (!atualizado) return res.status(409).json({ error: "Esta solicitação acabou de mudar — atualize a tela." });
+
+      const evento = await storage.getEvent(pedido.eventId);
+      await createAuditLog(req, "updated", "pedido_de_peca", pedido.id, `Ajuste solicitado por ${quem.userName}: ${texto}`);
+      await notificar({
+        type: "pedidoAjuste",
+        message: `Ajuste solicitado pelo Atendimento (${quantidadeDoPedido(pedido.quantidade)} — ${evento?.name ?? "—"}): ${texto}`,
+        eventId: pedido.eventId,
+        targetRoles: ["solicitacao", "admin"],
+      });
+      broadcast({ type: "pedidos_de_peca", eventId: pedido.eventId });
+      res.json(atualizado);
+    } catch (error) {
+      console.error("[pedidos] erro ao pedir ajuste:", error);
+      res.status(500).json({ error: "Erro ao pedir o ajuste" });
+    }
+  });
+
+  app.patch("/api/pedidos-de-peca/:id/ajuste/responder", requireResolverPedido, async (req, res) => {
+    try {
+      const aceitar = req.body?.aceitar === true;
+      const resposta = lerMotivo(req.body);
+      if (!aceitar && resposta.length < MIN_MOTIVO_DO_PEDIDO) {
+        return res.status(400).json({ error: `Diga ao Atendimento por que o ajuste foi recusado (mínimo ${MIN_MOTIVO_DO_PEDIDO} caracteres).` });
+      }
+      const [pedido] = await db.select().from(pedidosDePeca).where(eq(pedidosDePeca.id, req.params.id));
+      if (!pedido) return res.status(404).json({ error: "Solicitação não encontrada" });
+      const quem = quemAgiu(req);
+      const [respondido] = await db.update(pedidosDePeca)
+        .set({ ajusteStatus: aceitar ? "aceito" : "recusado", ajusteRespondidoPor: quem.userName, ajusteRespondidoEm: new Date(), ajusteResposta: resposta || null, updatedAt: new Date() })
+        .where(and(eq(pedidosDePeca.id, pedido.id), eq(pedidosDePeca.ajusteStatus, "pendente")))
+        .returning();
+      if (!respondido) return res.status(409).json({ error: "Não há ajuste esperando resposta nesta solicitação." });
+
+      const evento = await storage.getEvent(pedido.eventId);
+      await createAuditLog(req, "updated", "pedido_de_peca", pedido.id,
+        aceitar ? `Ajuste aceito por ${quem.userName}${resposta ? `: ${resposta}` : ""}` : `Ajuste recusado por ${quem.userName}: ${resposta}`);
+      await notificar({
+        type: aceitar ? "pedidoAjusteAceito" : "pedidoAjusteRecusado",
+        message: aceitar
+          ? `Seu ajuste foi aceito (${evento?.name ?? "—"}) — quem monta a lista vai ajustar a peça.`
+          : `Seu ajuste foi recusado (${evento?.name ?? "—"}): ${resposta}`,
+        eventId: pedido.eventId,
+        ...(pedido.ajustePedidoPorId
+          ? { targetRoles: ["atendimento", "admin"], targetUserId: pedido.ajustePedidoPorId }
+          : paraQuemPediu(pedido)),
+      });
+      broadcast({ type: "pedidos_de_peca", eventId: pedido.eventId });
+      res.json(respondido);
+    } catch (error) {
+      console.error("[pedidos] erro ao responder ajuste:", error);
+      res.status(500).json({ error: "Erro ao responder o ajuste" });
+    }
+  });
+
   // Desfazer: atendido com a peça errada, recusado ou cancelado por engano.
   // As peças ligadas continuam existindo — só deixam de atender o pedido.
   app.patch("/api/pedidos-de-peca/:id/reabrir", requireReabrirPedido, async (req, res) => {
@@ -495,7 +583,13 @@ export function registerPedidosDePecaRoutes(app: Express): void {
       if (motivoFim) return res.status(409).json({ error: erroEventoFechado(motivoFim) });
 
       const [reaberto] = await db.update(pedidosDePeca)
-        .set({ status: "aberto", itemId: null, resolvidoPor: null, resolvidoPorId: null, resolvidoEm: null, motivoRecusa: null, motivoCancelamento: null, updatedAt: new Date() })
+        .set({
+          status: "aberto", itemId: null, resolvidoPor: null, resolvidoPorId: null, resolvidoEm: null, motivoRecusa: null, motivoCancelamento: null,
+          // Voltou a aberta: um ajuste da versão atendida não vale mais (fica na auditoria).
+          ajusteStatus: null, ajusteTexto: null, ajustePedidoPor: null, ajustePedidoPorId: null, ajustePedidoEm: null,
+          ajusteRespondidoPor: null, ajusteRespondidoEm: null, ajusteResposta: null,
+          updatedAt: new Date(),
+        })
         .where(and(eq(pedidosDePeca.id, pedido.id), eq(pedidosDePeca.status, pedido.status)))
         .returning();
       if (!reaberto) return res.status(409).json({ error: "Esta solicitação acabou de mudar de estado — atualize a tela." });

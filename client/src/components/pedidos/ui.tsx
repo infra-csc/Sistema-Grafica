@@ -210,6 +210,29 @@ export function AndamentoDoPedido({ pedido }: { pedido: PedidoDePeca }) {
   );
 }
 
+/** O ajuste que o Atendimento pediu depois de atendida, e a resposta. */
+export function AjusteDoPedido({ pedido }: { pedido: PedidoDePeca }) {
+  if (!pedido.ajusteStatus || !pedido.ajusteTexto) return null;
+  const tom = pedido.ajusteStatus === "pendente"
+    ? { cor: "#92400e", fundo: "#fffbeb", borda: "#fde68a", titulo: "Ajuste esperando resposta" }
+    : pedido.ajusteStatus === "aceito"
+      ? { cor: "#065f46", fundo: "#ecfdf5", borda: "#a7f3d0", titulo: "Ajuste aceito" }
+      : { cor: "#991b1b", fundo: "#fef2f2", borda: "#fecaca", titulo: "Ajuste recusado" };
+  return (
+    <div data-testid={`ajuste-pedido-${pedido.id}`} style={{ padding: "8px 12px", borderRadius: R.md, background: tom.fundo, border: `1px solid ${tom.borda}`, display: "flex", flexDirection: "column", gap: 3 }}>
+      <span style={{ fontSize: FS.small, fontWeight: 800, color: tom.cor }}>
+        {tom.titulo} · pedido por {pedido.ajustePedidoPor ?? "—"} em {quandoFoi(pedido.ajustePedidoEm)}
+      </span>
+      <span style={{ fontSize: FS.body, color: "#44403c", lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>“{pedido.ajusteTexto}”</span>
+      {pedido.ajusteStatus !== "pendente" && (
+        <span style={{ fontSize: FS.small, color: tom.cor, fontWeight: 600, overflowWrap: "anywhere" }}>
+          {pedido.ajusteStatus === "aceito" ? "Aceito" : "Recusado"}{pedido.ajusteRespondidoPor ? ` por ${pedido.ajusteRespondidoPor}` : ""} em {quandoFoi(pedido.ajusteRespondidoEm)}{pedido.ajusteResposta ? `: ${pedido.ajusteResposta}` : ""}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function ListaCarregando({ linhas = 3 }: { linhas?: number }) {
   return (
     <div aria-busy="true" data-testid="skeleton-pedidos" style={{ padding: "8px 16px" }}>

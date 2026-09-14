@@ -21,7 +21,7 @@ export default function PedidosDePecaPagina() {
   const explicacao = podeResolver && !podePedir
     ? "O que o Atendimento solicitou para entrar na lista. “Criar peça” abre o evento com o formulário preenchido — a peça sai ligada à solicitação e quem solicitou é avisado."
     : podePedir && !podeResolver
-      ? "Solicite a quem monta a lista as peças que faltam nos eventos e acompanhe as suas solicitações até a entrega."
+      ? "Solicite a quem monta a lista as peças que faltam nos eventos e acompanhe as suas solicitações até a entrega. Errou? Cancele enquanto está aberta e crie outra; depois de atendida, peça um ajuste."
       : "As solicitações de peça do Atendimento: quem solicita acompanha aqui, quem monta a lista cria a peça a partir da solicitação.";
   return (
     <div style={{ padding: isMobile ? "16px" : "28px 32px", background: "#fafaf9", minHeight: "100%", boxSizing: "border-box" }}>

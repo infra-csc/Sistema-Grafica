@@ -19,7 +19,9 @@ import {
   IDADE_DE_ATENCAO,
   ROTULO_DO_PEDIDO,
   idadeDoPedido,
+  ajustePendente,
   pedidoEspera,
+  podePedirAjuste,
   seloDoEventoDoPedido,
   textoDaObservacao,
   type PedidoDePeca,
@@ -32,7 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { motivoEventoFinalizado, todayBusinessMs } from "@/lib/status";
 import { T, FS, R } from "@/lib/theme";
-import { MotivoDoPedidoDialog, type AcaoComMotivo } from "@/components/motivo-do-pedido-dialog";
+import { MotivoDoPedidoDialog, TITULO_DO_AVISO, enviarAcaoComMotivo, type AcaoComMotivo } from "@/components/motivo-do-pedido-dialog";
 import { CartaoDoPedido, type AcaoDoCartao } from "@/components/pedidos/cartao-do-pedido";
 import { DetalheDoPedido } from "@/components/pedidos/detalhe-do-pedido";
 import { FormularioDoPedido } from "@/components/pedidos/formulario-do-pedido";
@@ -43,6 +45,8 @@ type Ordem = "recentes" | "antigos" | "prazo";
 const PASSO = 300;
 
 export function avisoDaAcao(acao: AcaoComMotivo, pedido: PedidoDePeca): string {
+  if (acao === "ajuste") return "Quem monta a lista recebe o ajuste e aceita ou recusa — você é avisado da resposta.";
+  if (acao === "recusar-ajuste") return "Quem pediu o ajuste é avisado com este motivo.";
   if (acao === "recusar") return "Quem solicitou é avisado com este motivo.";
   if (acao === "cancelar") return "Quem monta a lista é avisado com este motivo — e quem solicitou, se não foi você.";
   if (pedido.status === "atendido") return "A solicitação volta a ficar aberta e as peças deixam de atendê-la (continuam na lista). Quem solicitou é avisado.";
@@ -66,7 +70,7 @@ export function ListaDePedidos({ podePedir, podeResolver, userId }: {
 }) {
   const isMobile = useIsMobile();
   const { toast } = useToast();
-  const [filtro, setFiltro] = useState<StatusDoPedido | "todos">("aberto");
+  const [filtro, setFiltro] = useState<StatusDoPedido | "todos" | "ajuste">("aberto");
   // Quem resolve trabalha por prazo; quem só pede acompanha o mais recente.
   const [ordem, setOrdem] = useState<Ordem>(podeResolver ? "prazo" : "recentes");
   const [busca, setBusca] = useState("");
@@ -92,13 +96,20 @@ export function ListaDePedidos({ podePedir, podeResolver, userId }: {
 
   const acaoComMotivo = useMutation({
     mutationFn: async ({ pedido, acao, texto }: { pedido: PedidoDePeca; acao: AcaoComMotivo; texto: string }) =>
-      (await apiRequest("PATCH", `/api/pedidos-de-peca/${pedido.id}/${acao}`, { motivo: texto })).json(),
+      (await enviarAcaoComMotivo(pedido.id, acao, texto)).json(),
     onSuccess: (_d, v) => {
-      toast({ title: v.acao === "cancelar" ? "Solicitação cancelada" : v.acao === "recusar" ? "Solicitação recusada" : "Solicitação reaberta" });
+      toast({ title: TITULO_DO_AVISO[v.acao] });
       setMotivo(null);
       invalidarPedidos();
     },
     onError: (e) => toast({ title: "Não deu para concluir", description: mensagemDaApi(e), variant: "destructive" }),
+  });
+
+  const aceitarAjuste = useMutation({
+    mutationFn: async (pedido: PedidoDePeca) =>
+      (await apiRequest("PATCH", `/api/pedidos-de-peca/${pedido.id}/ajuste/responder`, { aceitar: true })).json(),
+    onSuccess: () => { toast({ title: "Ajuste aceito", description: "Quem pediu foi avisado. Ajuste a peça no evento." }); invalidarPedidos(); },
+    onError: (e) => toast({ title: "Não deu para aceitar o ajuste", description: mensagemDaApi(e), variant: "destructive" }),
   });
 
   const acoesDe = (p: PedidoDePeca): AcaoDoCartao[] => {
@@ -112,6 +123,10 @@ export function ListaDePedidos({ podePedir, podeResolver, userId }: {
         acoes.push({ chave: "recusar", rotulo: "Recusar", tom: "perigo", onClick: () => setMotivo({ pedido: p, acao: "recusar" }), testId: `button-recusar-pedido-${p.id}` });
       }
       if (p.status === "atendido") {
+        if (ajustePendente(p)) {
+          acoes.push({ chave: "aceitar-ajuste", rotulo: "Aceitar ajuste", tom: "criar", bloqueio: aceitarAjuste.isPending ? "Salvando…" : null, onClick: () => aceitarAjuste.mutate(p), testId: `button-aceitar-ajuste-${p.id}` });
+          acoes.push({ chave: "recusar-ajuste", rotulo: "Recusar ajuste", tom: "perigo", onClick: () => setMotivo({ pedido: p, acao: "recusar-ajuste" }), testId: `button-recusar-ajuste-${p.id}` });
+        }
         acoes.push({ chave: "outra", rotulo: "+ Outra peça", tom: "secundario", bloqueio, href: `/eventos/${p.eventId}?pedidos=1&criar=${p.id}`, testId: `button-outra-peca-pedido-${p.id}` });
         acoes.push({ chave: "desfazer", rotulo: "Desfazer atendimento", tom: "perigo", bloqueio, onClick: () => setMotivo({ pedido: p, acao: "reabrir" }), testId: `button-desfazer-pedido-${p.id}` });
       }
@@ -120,9 +135,15 @@ export function ListaDePedidos({ podePedir, podeResolver, userId }: {
       }
     }
     if (podePedir) {
+      // O Atendimento não edita (dono, 14/09): errou, cancela e cria outra.
+      // Editar fica com o admin, que também resolve.
       if (p.status === "aberto") {
-        acoes.push({ chave: "editar", rotulo: "Editar", tom: "secundario", onClick: () => setFormulario({ aberto: true, pedido: p }), testId: `button-editar-pedido-${p.id}` });
+        if (podeResolver) acoes.push({ chave: "editar", rotulo: "Editar", tom: "secundario", onClick: () => setFormulario({ aberto: true, pedido: p }), testId: `button-editar-pedido-${p.id}` });
         acoes.push({ chave: "cancelar", rotulo: "Cancelar", tom: "perigo", onClick: () => setMotivo({ pedido: p, acao: "cancelar" }), testId: `button-cancelar-pedido-${p.id}` });
+      }
+      // Depois que a Solicitação agiu: não cancela mais — pede um ajuste.
+      if (podePedirAjuste(p)) {
+        acoes.push({ chave: "ajuste", rotulo: "Pedir ajuste", tom: "secundario", onClick: () => setMotivo({ pedido: p, acao: "ajuste" }), testId: `button-pedir-ajuste-${p.id}` });
       }
       if (p.status === "cancelado") {
         acoes.push({ chave: "reabrir-cancelado", rotulo: "Reabrir", tom: "secundario", bloqueio, onClick: () => setMotivo({ pedido: p, acao: "reabrir" }), testId: `button-reabrir-pedido-${p.id}` });
@@ -134,17 +155,18 @@ export function ListaDePedidos({ podePedir, podeResolver, userId }: {
   const termo = busca.trim().normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
   const base = pedidos.filter((p) => (!soMeus || p.pedidoPorId === userId) && (!eventoFiltro || p.eventId === eventoFiltro) && combina(p, termo));
   const contagem = (s: StatusDoPedido) => base.filter((p) => p.status === s).length;
-  const FILTROS: Array<{ k: StatusDoPedido | "todos"; rotulo: string; n: number }> = [
+  const FILTROS: Array<{ k: StatusDoPedido | "todos" | "ajuste"; rotulo: string; n: number }> = [
     { k: "aberto", rotulo: "Abertas", n: contagem("aberto") },
     { k: "atendido", rotulo: "Atendidas", n: contagem("atendido") },
     { k: "recusado", rotulo: "Recusadas", n: contagem("recusado") },
     { k: "cancelado", rotulo: "Canceladas", n: contagem("cancelado") },
+    { k: "ajuste", rotulo: "Ajuste pendente", n: base.filter(ajustePendente).length },
     { k: "todos", rotulo: "Todas", n: base.length },
   ];
 
   const tempo = (d: string | null) => (d ? new Date(d).getTime() : Infinity);
   const visiveis = base
-    .filter((p) => filtro === "todos" || p.status === filtro)
+    .filter((p) => filtro === "todos" || (filtro === "ajuste" ? ajustePendente(p) : p.status === filtro))
     .sort((a, b) => {
       if (ordem === "antigos") return tempo(a.createdAt) - tempo(b.createdAt);
       if (ordem === "prazo") return (tempo(a.precisaAte) - tempo(b.precisaAte)) || (tempo(a.createdAt) - tempo(b.createdAt));
@@ -253,7 +275,7 @@ export function ListaDePedidos({ podePedir, podeResolver, userId }: {
         <div data-testid="pedidos-vazio" style={{ padding: "36px 16px", textAlign: "center", color: "#57534e" }}>
           <Inbox size={26} color="#78716c" aria-hidden="true" />
           <p style={{ margin: "8px 0 2px", fontSize: 14, fontWeight: 700, color: T.text }}>
-            {pedidos.length === 0 ? "Nenhuma solicitação ainda" : termo || eventoFiltro || soMeus ? "Nenhuma solicitação neste recorte" : filtro === "aberto" ? "Nenhuma solicitação esperando a lista" : `Nenhuma solicitação ${ROTULO_DO_PEDIDO[filtro as StatusDoPedido]?.toLowerCase() ?? ""}`}
+            {pedidos.length === 0 ? "Nenhuma solicitação ainda" : termo || eventoFiltro || soMeus ? "Nenhuma solicitação neste recorte" : filtro === "aberto" ? "Nenhuma solicitação esperando a lista" : filtro === "ajuste" ? "Nenhum ajuste esperando resposta" : `Nenhuma solicitação ${ROTULO_DO_PEDIDO[filtro as StatusDoPedido]?.toLowerCase() ?? ""}`}
           </p>
           {pedidos.length === 0 && podePedir && (
             <p style={{ margin: 0, fontSize: FS.body }}>Use “Nova solicitação” para pedir uma peça a quem monta a lista.</p>

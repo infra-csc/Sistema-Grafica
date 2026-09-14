@@ -517,6 +517,16 @@ export const pedidosDePeca = pgTable("pedidos_de_peca", {
   resolvidoEm: timestamp("resolvido_em"),
   motivoRecusa: text("motivo_recusa"),
   motivoCancelamento: text("motivo_cancelamento"),
+  // Ajuste pedido pelo Atendimento depois de atendida — um por vez; o
+  // histórico completo fica na auditoria. pendente | aceito | recusado.
+  ajusteStatus: text("ajuste_status"),
+  ajusteTexto: text("ajuste_texto"),
+  ajustePedidoPor: text("ajuste_pedido_por"),
+  ajustePedidoPorId: varchar("ajuste_pedido_por_id"),
+  ajustePedidoEm: timestamp("ajuste_pedido_em"),
+  ajusteRespondidoPor: text("ajuste_respondido_por"),
+  ajusteRespondidoEm: timestamp("ajuste_respondido_em"),
+  ajusteResposta: text("ajuste_resposta"),
   createdAt: timestamp("created_at").notNull().default(sql`now()`),
   updatedAt: timestamp("updated_at").notNull().default(sql`now()`),
 }, (table) => [

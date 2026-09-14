@@ -123,8 +123,8 @@ const TYPE_CONFIG: Record<string, TypeCfg> = {
   item_released:            { label: "Lib. p/ Produção",  filterLabel: "Liberadas para produção",   phase: "aprovacao", icon: Package },
 
   /* ── Produção ── */
-  production_started:       { label: "Em Produção",       filterLabel: "Em produção",               phase: "producao", icon: Package },
-  item_produced:            { label: "Produzida",         filterLabel: "Produzidas",                phase: "producao", icon: Package },
+  production_started:       { label: "Em Impressão",      filterLabel: "Em impressão",              phase: "producao", icon: Package },
+  item_produced:            { label: "Impressão concluída", filterLabel: "Impressões concluídas",   phase: "producao", icon: Package },
   item_conferred:           { label: "Conferência",       filterLabel: "Conferências",              phase: "producao", icon: FileCheck },
   item_reused:              { label: "Reaproveitamento",  filterLabel: "Reaproveitamentos",         phase: "producao", icon: RefreshCw },
   item_reused_partial:      { label: "Reaprov. Parcial",  filterLabel: "Reaprov. parciais",         phase: "producao", icon: RefreshCw },

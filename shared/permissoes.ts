@@ -85,6 +85,8 @@ export const REGUA_DE_PAPEIS: RegraDeRota[] = [
   { metodo: "PATCH", rota: "/api/items/:id/sponsor-approve", papeis: ["admin", "atendimento"] },
   { metodo: "POST", rota: "/api/items/:id/sponsors", papeis: ["admin", "arte", "atendimento", "solicitacao"] },
   { metodo: "POST", rota: "/api/items/:id/sponsors/sync", papeis: ["admin", "arte", "atendimento", "solicitacao"] },
+  // Iniciar impressão (dono, 14/09): escolher a máquina é trabalho do galpão.
+  { metodo: "PATCH", rota: "/api/items/:id/start-printing", papeis: ["admin", "grafica"] },
   { metodo: "PATCH", rota: "/api/items/:id/start-production", papeis: ["admin", "grafica"] },
   { metodo: "PATCH", rota: "/api/items/:id/submit-final-file", papeis: ["admin", "arte"] },
   { metodo: "PATCH", rota: "/api/items/:id/submit-for-approval", papeis: ["admin", "arte"] },

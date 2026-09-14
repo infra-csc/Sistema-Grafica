@@ -245,6 +245,11 @@ export const items = pgTable("items", {
   rejectionReason: text("rejection_reason"),
   approvedAt: timestamp("approved_at"), // Timestamp quando foi liberado pela Arte
   productionStartedAt: timestamp("production_started_at"), // Timestamp quando produção iniciou
+  // EM QUAL MÁQUINA a peça está sendo impressa (dono, 14/09). Código curto
+  // ("1".."4") — o rótulo mora em MAQUINAS_DE_IMPRESSAO (shared/fluxo-peca.ts).
+  // NULL = peça que nunca passou por "Iniciar impressão" (todo o acervo
+  // anterior a esta coluna, e as reaproveitadas, que não vão para máquina).
+  printMachine: text("print_machine"),
   producedAt: timestamp("produced_at"), // Timestamp quando foi produzido
   // DESDE QUANDO a peca esta no status atual.
   //

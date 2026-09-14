@@ -27,7 +27,9 @@ describe("a lista tem um dono e os três status certos", () => {
   it("shared/fluxo-peca é a fonte — os mesmos três da etapa 'revisao' do funil", () => {
     expect(Array.from(EM_REVISAO).sort()).toEqual(["awaiting_final_review", "awaiting_review", "in_review"]);
     // e ninguém redeclara o trio na tela
-    expect(GRAFICA).toContain('import { EM_REVISAO } from "@shared/fluxo-peca";');
+    // O import pode trazer outros nomes do mesmo arquivo (as máquinas de
+    // impressão entraram em 14/09) — o que importa é o trio vir DE LÁ.
+    expect(GRAFICA).toMatch(/import \{[^}]*\bEM_REVISAO\b[^}]*\} from "@shared\/fluxo-peca";/);
     expect(GRAFICA).not.toContain('new Set(["awaiting_final_review"');
   });
 });
@@ -106,7 +108,9 @@ describe("segunda rodada (25/08): os quatro furos que sobraram", () => {
   it("o servidor tranca reaproveitar e corrigir reaproveitamento em revisão", () => {
     // O botão sumir é cortesia; a tranca é do servidor — script e tela velha
     // também batem nela.
-    expect(ITEMS.match(/Esta peça está em revisão — a Gráfica só age depois que a revisão liberar./g)?.length).toBe(2);
+    // 3 = reaproveitar, corrigir reaproveitamento e INICIAR IMPRESSÃO (14/09):
+    // levar a peça para a máquina também é agir, e a revisão também tranca.
+    expect(ITEMS.match(/Esta peça está em revisão — a Gráfica só age depois que a revisão liberar./g)?.length).toBe(3);
   });
 });
 

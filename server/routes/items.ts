@@ -6,7 +6,7 @@ import { eq } from "drizzle-orm";
 import { db } from "../db";
 import { storage, assetPrefix, assetSeqOf, isDisplayIdConflictError } from "../storage";
 import type { Item } from "@shared/schema";
-import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA, ehBookCompleto, ehMaquinaValida, rotuloDaMaquina } from "@shared/fluxo-peca";
+import { DEPOIS_DA_ARTE, EM_REVISAO, POS_APROVACAO, DISPENSAVEIS, DESTINO_DA_DISPENSA, ehBookCompleto } from "@shared/fluxo-peca";
 import {
   insertItemSchema,
   publicInsertItemSchema,
@@ -3858,10 +3858,6 @@ export function registerItemRoutes(app: Express): void {
           "Em Revisão": "in_review",
           "Pronto para Produção": "ready_for_production",
           "Liberado": "approved",
-          // Nomes de 14/09 em diante; os antigos logo abaixo seguem valendo
-          // para a trilha escrita antes da renomeação.
-          "Em Impressão": "inProduction",
-          "Em Acabamento / Conferência": "produced",
           "Em Produção": "inProduction",
           "Produzido": "produced",
           "Conferido": "conferred",
@@ -4223,81 +4219,12 @@ export function registerItemRoutes(app: Express): void {
   });
 
   // Start production (Gráfica module)
-  // ── INICIAR IMPRESSÃO (dono, 14/09) ─────────────────────────────────────────
-  // "Em Produção" existia e quase nunca acontecia: 2.227 peças foram direto de
-  // "Pronto para Produção" para "Produzido" e só UMA passou pelo meio, porque o
-  // único gesto da Gráfica registrava o RESULTADO ("produzi 40") e nunca o
-  // INÍCIO ("coloquei na máquina"). Este é o primeiro momento: a peça entra na
-  // máquina escolhida e fica "Em Impressão" até alguém registrar o que saiu.
-  //
-  // Também serve para TROCAR de máquina com a peça já em impressão — a máquina
-  // quebra, a peça muda de lugar, e o registro precisa acompanhar.
-  app.patch("/api/items/:id/start-printing", requireAuth, async (req, res) => {
-    try {
-      if (req.userRole !== "grafica" && req.userRole !== "admin") {
-        return res.status(403).json({ error: "Apenas usuários com perfil Gráfica podem iniciar impressão" });
-      }
-      const { printMachine } = req.body ?? {};
-      if (!ehMaquinaValida(printMachine)) {
-        return res.status(400).json({ error: "Escolha a máquina em que a peça vai ser impressa" });
-      }
-      const current = await storage.getItem(req.params.id);
-      if (!current) return res.status(404).json({ error: "Item not found" });
-      // ANDA: a peça vai para a máquina — mesma guarda de quem imprime.
-      if (await barraEventoFinalizado(current, res)) return;
-      if (EM_REVISAO.has(current.status)) {
-        return res.status(409).json({ error: "Esta peça está em revisão — a Gráfica só age depois que a revisão liberar." });
-      }
-      const PODE_IR_PARA_A_MAQUINA = ["ready_for_production", "pronto_para_producao", "approved", "liberado", "inProduction", "em_producao"];
-      if (!PODE_IR_PARA_A_MAQUINA.includes(current.status)) {
-        return res.status(409).json({ error: `A peça não pode ir para a máquina no status atual: ${translateStatus(current.status)}` });
-      }
-      const aImprimir = current.quantity - (current.reuseQty || 0) - (current.quantityProduced || 0);
-      if (aImprimir <= 0) {
-        return res.status(409).json({ error: "Nada a imprimir: a peça já está coberta por produção e reaproveitamento" });
-      }
-      const trocouDeMaquina = (current.status === "inProduction" || current.status === "em_producao") && !!current.printMachine;
-      if (trocouDeMaquina && current.printMachine === printMachine) {
-        return res.status(409).json({ error: `A peça já está na ${rotuloDaMaquina(printMachine)}` });
-      }
-
-      const item = await storage.updateItem(req.params.id, {
-        status: "inProduction",
-        printMachine,
-        ...(!current.productionStartedAt ? { productionStartedAt: new Date() } : {}),
-      } as any);
-      if (!item) return res.status(404).json({ error: "Item not found" });
-
-      await createAuditLog(
-        req,
-        "production",
-        "item",
-        item.id,
-        trocouDeMaquina
-          ? `Impressão mudou de máquina: ${rotuloDaMaquina(current.printMachine)} → ${rotuloDaMaquina(printMachine)}`
-          : `Impressão iniciada na ${rotuloDaMaquina(printMachine)} (${translateStatus(current.status)} → ${translateStatus("inProduction")})`
-      );
-
-      broadcast({ type: "item_updated", item });
-      broadcast({ type: "production_started", item });
-      res.json(item);
-    } catch (error: any) {
-      res.status(500).json({ error: error.message });
-    }
-  });
-
   app.patch("/api/items/:id/start-production", requireAuth, async (req, res) => {
     try {
       if (req.userRole !== "grafica" && req.userRole !== "admin") {
         return res.status(403).json({ error: "Apenas usuários com perfil Gráfica podem iniciar produção" });
       }
-      const { quantityProduced, expectedProduced, printMachine } = req.body;
-      // A máquina é OPCIONAL aqui: a tela sempre manda (é ela que obriga a
-      // escolha), mas este contrato é antigo e tem outros chamadores. O que o
-      // servidor não aceita é máquina que não existe.
-      if (printMachine != null && !ehMaquinaValida(printMachine)) {
-        return res.status(400).json({ error: `Máquina inválida: ${printMachine}` });
-      }
+      const { quantityProduced, expectedProduced } = req.body;
 
       if (!quantityProduced || quantityProduced <= 0) {
         return res.status(400).json({ error: "quantityProduced is required and must be greater than 0" });
@@ -4348,7 +4275,6 @@ export function registerItemRoutes(app: Express): void {
         quantityProduced,
         updatedAt: new Date(),
         ...(!before.productionStartedAt ? { productionStartedAt: new Date() } : {}),
-        ...(printMachine ? { printMachine } : {}),
         // produced_at era coluna morta desde sempre: a peça fechava como
         // "Produzido" e a trilha temporal da ficha pulava direto de "Produção
         // iniciada" para "Conferido". Uma linha devolve a etapa.

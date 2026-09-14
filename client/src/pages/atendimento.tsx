@@ -139,8 +139,8 @@ const PIPELINE_STAGES: { key: string; label: string; color: string; statuses: st
   { key: 'finalizacao',  label: 'Finalização',     color: '#a855f7', statuses: ['awaiting_finalization', 'awaiting_creator_review'] },
   { key: 'revisao',      label: 'Revisão',         color: '#d946ef', statuses: ['awaiting_final_review'] },
   { key: 'pronto',       label: 'Pronto p/ Prod.', color: '#10b981', statuses: ['ready_for_production', 'pronto_para_producao', 'approved', 'liberado'] },
-  { key: 'producao',     label: 'Em Impressão',    color: '#f59e0b', statuses: [ST_IN_PRODUCTION, 'in_production', 'em_producao'] },
-  { key: 'produzido',    label: 'Acabamento',      color: '#ec4899', statuses: [ST_PRODUCED, 'produzido'] },
+  { key: 'producao',     label: 'Em Produção',     color: '#f59e0b', statuses: [ST_IN_PRODUCTION, 'in_production', 'em_producao'] },
+  { key: 'produzido',    label: 'Produzido',       color: '#ec4899', statuses: [ST_PRODUCED, 'produzido'] },
   { key: 'entregue',     label: 'Entregue',        color: '#7c3aed', statuses: [ST_CONFERRED, 'conferido', ST_DELIVERED, 'entregue'] },
 ];
 
@@ -229,7 +229,7 @@ const ACTION_CONFIG: Record<string, { label: string; bg: string; iconColor: stri
   rejected:         { label: 'Reprovado',             bg: '#fee2e2', iconColor: '#dc2626', icon: XCircle },
   canceled:         { label: 'Cancelado',             bg: '#fee2e2', iconColor: '#dc2626', icon: XCircle },
   delivered:        { label: 'Entregue',              bg: '#ede9fe', iconColor: '#7c3aed', icon: Truck },
-  produced:         { label: 'Impressão concluída',   bg: '#e0e7ff', iconColor: '#4338ca', icon: Cog },
+  produced:         { label: 'Produzido',             bg: '#e0e7ff', iconColor: '#4338ca', icon: Cog },
   submitted:        { label: 'Enviado',               bg: '#cffafe', iconColor: '#0e7490', icon: Send },
   linked:           { label: 'Vinculado',             bg: '#ccfbf1', iconColor: '#0f766e', icon: Link2 },
   released:         { label: 'Liberado',              bg: '#dbeafe', iconColor: '#1d4ed8', icon: Unlock },

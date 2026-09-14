@@ -27,8 +27,6 @@ export interface PayloadProducao {
   quantityProduced: number;
   /** O total que o cliente leu ao abrir o modal (lock otimista do servidor). */
   expectedProduced: number;
-  /** Em que máquina saiu (14/09). Ausente só para chamador antigo. */
-  printMachine?: string;
 }
 
 export interface AvaliacaoProducao {
@@ -52,7 +50,7 @@ export interface AvaliacaoProducao {
 export const tetoDeProducao = (item: SaldoItem): number =>
   Math.max(0, qtyOf(item) - reusedOf(item));
 
-export function avaliarProducao(item: SaldoItem, quantidade: number, maquina?: string): AvaliacaoProducao {
+export function avaliarProducao(item: SaldoItem, quantidade: number): AvaliacaoProducao {
   const recusa = (erro: string): AvaliacaoProducao =>
     ({ ok: false, erro, precisaConfirmar: false, confirmacao: "", payload: null });
 
@@ -88,7 +86,7 @@ export function avaliarProducao(item: SaldoItem, quantidade: number, maquina?: s
         + `${jaProduzido - quantidade} un. deixam de constar como produzidas, e não há como desfazer.\n\n`
         + `Se você produziu ${quantidade} un. AGORA, o total deveria ser ${jaProduzido + quantidade}.`
       : "",
-    payload: { quantityProduced: quantidade, expectedProduced: jaProduzido, ...(maquina ? { printMachine: maquina } : {}) },
+    payload: { quantityProduced: quantidade, expectedProduced: jaProduzido },
   };
 }
 

@@ -42,12 +42,13 @@ describe("tabela ↔ código, sem sobras de nenhum lado", () => {
     expect(fantasmas).toEqual([]);
   });
 
-  it("são as 86 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
-    // 86 = as 78 do diagnóstico + o descancelar do admin (01/09) + iniciar impressão (14/09)
+  it("são as 85 — o número que o diagnóstico mediu; mudou, atualize os dois", () => {
+    // 85 = as 78 do diagnóstico + o descancelar do admin (01/09)
     //    + reservar e liberar peça do estoque (14/09)
     //    + pedir, atender, recusar e cancelar pedido de peça (14/09).
-    expect(REGUA_DE_PAPEIS.length).toBe(86);
-    expect(doCodigo.length).toBe(86);
+    // (Branch de produção: sem o "iniciar impressão" da Gráfica, que segurou.)
+    expect(REGUA_DE_PAPEIS.length).toBe(85);
+    expect(doCodigo.length).toBe(85);
   });
 });
 

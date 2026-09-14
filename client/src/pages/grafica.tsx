@@ -833,21 +833,12 @@ export default function Grafica() {
   const startProductionMutation = useMutation({
     mutationFn: async ({ itemId, data }: { itemId: string; data: any }) =>
       await apiRequest("PATCH", `/api/items/${itemId}/start-production`, data),
-    onSuccess: async (res: any, vars) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/items/approved"] });
       queryClient.invalidateQueries({ queryKey: ["/api/items"] });
       setSelectedItem(null); setModalType(null);
       setProductionData({ quantityProduced: 0 });
-      // O toast diz PARA ONDE a peça foi: parcial continua na máquina;
-      // completa vai para Acabamento / Conferência. "Registrado" não dizia
-      // nenhuma das duas, e é essa a pergunta de quem está no galpão.
-      const item = await res?.json?.().catch(() => null);
-      const qtd = vars?.data?.quantityProduced;
-      if (item?.status === "produced") {
-        toast({ title: "Impressão concluída", description: "A peça foi para Acabamento / Conferência." });
-      } else {
-        toast({ title: "Parcial registrada", description: item ? `${qtd} de ${item.quantity} já saíram da máquina — a peça segue em impressão.` : "A peça segue em impressão." });
-      }
+      toast({ title: "Impressão registrada", description: "A peça segue para acabamento e conferência quando a quantidade fecha." });
     },
     onError: (error: Error) => {
       // O 409 do lock otimista não é "erro do sistema": é outra pessoa tendo
@@ -1499,13 +1490,9 @@ export default function Grafica() {
   const openProductionModal = (item: any) => {
     setSelectedItem(item);
     setModalType("production");
-    // Pré-preenche com o que JÁ SAIU da máquina, não com o total (dono, 14/09).
-    // A impressão é registrada aos poucos — "conforme o tempo ele registra
-    // quantos já finalizaram" — e a peça só vai para Acabamento / Conferência
-    // quando todas saírem. Com o TOTAL pré-preenchido, um toque distraído em
-    // confirmar mandava para o acabamento uma peça com 10 de 40 impressas.
-    // Terminar de uma vez continua a um toque: o botão "Tudo".
-    setProductionData({ quantityProduced: producedOf(item) });
+    // Pré-preenche com o TOTAL a produzir (o campo é absoluto): o que já foi
+    // reaproveitado não precisa ser produzido de novo. Quem só confirma acerta.
+    setProductionData({ quantityProduced: tetoDeProducao(item) });
     setMaquinaEscolhida(item.printMachine ?? "");
   };
 
@@ -4063,7 +4050,7 @@ export default function Grafica() {
               : modalType === "conference" ? "Conferir peça"
               : "Confirmar entrega"}
             subtitle={modalType === "production"
-              ? (isInProd(selectedItem) ? "Registre quantas já saíram — vai para acabamento quando todas saírem" : "Escolha a máquina e inicie a impressão")
+              ? (isInProd(selectedItem) ? "Quando sair da máquina, registre o total impresso" : "Escolha a máquina e inicie a impressão")
               : modalType === "conference" ? "Anexe a foto da conferência"
               : "Registre a entrega do material"}
             onClose={() => { setSelectedItem(null); setModalType(null); }}
@@ -4277,12 +4264,12 @@ export default function Grafica() {
                       O nome agora diz o contrato, e a dica repete a conta com o
                       número real, porque é o número que resolve a dúvida. */}
                   <label htmlFor="input-quantity-produced" style={{ display: "block", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.1em", color: "#746e69", marginBottom: 6 }}>
-                    Quantas já saíram da máquina
+                    Total produzido até agora
                   </label>
                   <div style={{ fontSize: 11, color: "#746e69", marginBottom: 10, lineHeight: 1.4 }} id="dica-quantidade-produzida">
                     {producedOf(selectedItem) > 0
-                      ? `Já saíram ${producedOf(selectedItem)} de ${tetoDeProducao(selectedItem)}. Lance o TOTAL até agora (as que já estavam + as novas), não só as de hoje. Vai para Acabamento / Conferência quando chegar a ${tetoDeProducao(selectedItem)}.`
-                      : `Informe quantas unidades já terminaram de imprimir. A peça vai para Acabamento / Conferência quando chegar a ${tetoDeProducao(selectedItem)}.`}
+                      ? `Este valor SUBSTITUI o anterior (${producedOf(selectedItem)} un.), não soma. Se produziu mais ${remainingProduce(selectedItem)} agora, lance ${producedOf(selectedItem) + remainingProduce(selectedItem)}.`
+                      : "Este campo grava o total produzido da peça."}
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
                     {/* Teto = quantidade − reaproveitadas (a mesma conta de
@@ -4342,13 +4329,13 @@ export default function Grafica() {
                   )}
                   <button
                     type="submit"
-                    disabled={startProductionMutation.isPending || productionData.quantityProduced === 0 || productionData.quantityProduced === producedOf(selectedItem) || !maquinaEscolhida}
+                    disabled={startProductionMutation.isPending || productionData.quantityProduced === 0 || !maquinaEscolhida}
                     data-testid="button-confirm-production"
                     style={{ flex: 2, padding: "12px 0", backgroundColor: TI.text, border: "none", color: "#ffffff", fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, fontSize: 13, textTransform: "uppercase", letterSpacing: "-0.01em", cursor: startProductionMutation.isPending || productionData.quantityProduced === 0 ? "not-allowed" : "pointer", borderRadius: 8, opacity: startProductionMutation.isPending || productionData.quantityProduced === 0 ? 0.6 : 1, transition: "background-color 0.15s" }}
                     onMouseEnter={e => { if (!startProductionMutation.isPending && productionData.quantityProduced > 0) (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#000000"; }}
                     onMouseLeave={e => { if (!startProductionMutation.isPending) (e.currentTarget as HTMLButtonElement).style.backgroundColor = TI.text; }}
                   >
-                    {startProductionMutation.isPending ? "Salvando..." : productionData.quantityProduced >= tetoDeProducao(selectedItem) ? "Concluir impressão" : `Registrar ${productionData.quantityProduced} de ${tetoDeProducao(selectedItem)}`}
+                    {startProductionMutation.isPending ? "Salvando..." : isInProd(selectedItem) ? "Registrar impresso" : "Já impresso"}
                   </button>
                 </div>
               </form>

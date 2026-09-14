@@ -74,6 +74,7 @@ import { useAuth } from "@/contexts/auth-context";
 import { MARCOS_DO_EVENTO, OFFSET_PADRAO_DO_MARCO } from "@shared/prazo-dates";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Inbox } from "lucide-react";
+import { idadeDoPedido, quantidadeDoPedido, type PedidoDePeca } from "@shared/pedidos-de-peca";
 
 /** Selo de pedidos do Atendimento em aberto (dono, 14/09) — cartão e linha. */
 function SeloDePedidos({ n, eventId }: { n: number; eventId: string }) {
@@ -1231,7 +1232,7 @@ export default function Eventos() {
 
   // PEDIDOS DO ATENDIMENTO (dono, 14/09): quantos pedidos de peça cada evento
   // tem esperando a lista.
-  const { data: pedidosAbertos = [] } = useQuery<Array<{ eventId: string }>>({ queryKey: ["/api/pedidos-de-peca?status=aberto"] });
+  const { data: pedidosAbertos = [] } = useQuery<PedidoDePeca[]>({ queryKey: ["/api/pedidos-de-peca?status=aberto"] });
   const pedidosPorEvento = useMemo(() => {
     const porEvento = new Map<string, number>();
     for (const p of pedidosAbertos) porEvento.set(p.eventId, (porEvento.get(p.eventId) ?? 0) + 1);
@@ -1861,8 +1862,10 @@ export default function Eventos() {
     const stats = readEventStats(event);
     if (foco === "atrasado") return event.nextMilestone?.state === 'overdue';
     if (foco === "sem_pecas") return stats.activeItemCount === 0 && !ARCHIVED_LIFECYCLES.has(stats.lifecycle);
+    // Pedidos do Atendimento (dono, 14/09): eventos com pedido esperando a lista.
+    if (foco === "pedidos") return (pedidosPorEvento.get(event.id) ?? 0) > 0;
     return true;
-  }, [foco]);
+  }, [foco, pedidosPorEvento]);
 
   const matchesPriority = useCallback((event: any) => {
     if (selectedPriorities.length === 0) return true;
@@ -2066,16 +2069,17 @@ export default function Eventos() {
   // Contagens dos chips de foco (calculadas sem o próprio foco aplicado).
   const focoCounts = useMemo(() => {
     const base = events.filter((e) => matchesSearch(e) && matchesDates(e) && matchesPriority(e) && matchesSponsor(e) && matchesVisibility(e));
-    let atrasado = 0, semPecas = 0, semPrioridade = 0;
+    let atrasado = 0, semPecas = 0, semPrioridade = 0, pedidos = 0;
     base.forEach((e) => {
       const stats = readEventStats(e);
       if (e.nextMilestone?.state === 'overdue') atrasado += 1;
       const arquivado = ARCHIVED_LIFECYCLES.has(stats.lifecycle);
       if (stats.activeItemCount === 0 && !arquivado) semPecas += 1;
       if (!e.priority && !arquivado) semPrioridade += 1;
+      pedidos += pedidosPorEvento.get(e.id) ?? 0;
     });
-    return { atrasado, semPecas, semPrioridade };
-  }, [events, matchesSearch, matchesDates, matchesPriority, matchesSponsor, matchesVisibility]);
+    return { atrasado, semPecas, semPrioridade, pedidos };
+  }, [events, matchesSearch, matchesDates, matchesPriority, matchesSponsor, matchesVisibility, pedidosPorEvento]);
 
   // Opções de mês (com ANO) derivadas dos eventos existentes, em ordem cronológica.
   const monthOptions = useMemo(() => {
@@ -2110,6 +2114,7 @@ export default function Eventos() {
     if (next10DaysFilter) chips.push({ key: 'proximos', label: 'Próximos 10 dias', clear: () => setNext10DaysFilter(false) });
     if (foco === 'atrasado') chips.push({ key: 'foco', label: 'Marco atrasado', clear: () => setFoco("") });
     if (foco === 'sem_pecas') chips.push({ key: 'foco', label: 'Sem peças', clear: () => setFoco("") });
+    if (foco === 'pedidos') chips.push({ key: 'foco', label: 'Pedidos do Atendimento', clear: () => setFoco("") });
     // O chip de "concluídos ocultos" saiu: os três alternadores de situação
     // JÁ mostram o que está dentro e o que está fora, com contagem. Um chip
     // que repete um controle visível ao lado é ruído — e este ainda oferecia
@@ -2188,6 +2193,7 @@ export default function Eventos() {
                 { key: 'atrasado', label: 'Marco atrasado', count: focoCounts.atrasado, tone: { text: '#b91c1c', bg: '#fef2f2', border: '#fecaca' }, active: foco === 'atrasado', toggle: () => setFoco(foco === 'atrasado' ? '' : 'atrasado') },
                 { key: 'sem_prioridade', label: 'Sem prioridade', count: focoCounts.semPrioridade, tone: { text: '#57534e', bg: T.low, border: '#e7e5e4' }, active: selectedPriorities.length === 1 && selectedPriorities[0] === 'sem_prioridade', toggle: () => setSelectedPriorities((prev) => (prev.length === 1 && prev[0] === 'sem_prioridade') ? [] : ['sem_prioridade']) },
                 { key: 'sem_pecas', label: 'Sem peças', count: focoCounts.semPecas, tone: { text: '#b45309', bg: '#fffbeb', border: '#fde68a' }, active: foco === 'sem_pecas', toggle: () => setFoco(foco === 'sem_pecas' ? '' : 'sem_pecas') },
+                { key: 'pedidos', label: 'Pedidos do Atendimento', count: focoCounts.pedidos, tone: { text: '#92400e', bg: '#fef3c7', border: '#fcd34d' }, active: foco === 'pedidos', toggle: () => setFoco(foco === 'pedidos' ? '' : 'pedidos') },
               ].map((chip) => (
                 <button
                   key={chip.key}
@@ -2234,6 +2240,59 @@ export default function Eventos() {
             </Button>
           )}
         </div>
+
+        {/* ── PEDIDOS DO ATENDIMENTO (dono, 14/09) ──────────────────────────
+            "Só dentro do evento vai ser ruim para quem cria a peça." Quem
+            monta a lista (Solicitação) e o admin veem aqui, antes de qualquer
+            filtro, quantos pedidos esperam e quais são os mais antigos — com
+            link direto para o painel de pedidos do evento. Some quando não há
+            nenhum. */}
+        {(user?.role === 'solicitacao' || user?.role === 'admin') && pedidosAbertos.length > 0 && (() => {
+          const agora = new Date();
+          const maisAntigos = [...pedidosAbertos].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+          const n = pedidosAbertos.length;
+          return (
+            <div
+              data-testid="faixa-pedidos-atendimento"
+              role="status"
+              style={{ marginTop: 14, display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap', padding: '12px 16px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderLeft: '4px solid #d97706', borderRadius: R.lg }}
+            >
+              <Inbox aria-hidden="true" style={{ width: 18, height: 18, color: '#b45309', flexShrink: 0, marginTop: 2 }} />
+              <div style={{ flex: '1 1 320px', minWidth: 0 }}>
+                <div style={{ fontSize: FS.body + 1, fontWeight: 800, color: '#78350f' }}>
+                  {n} {n === 1 ? 'pedido do Atendimento esperando a lista' : 'pedidos do Atendimento esperando a lista'}
+                </div>
+                <ul style={{ listStyle: 'none', margin: '6px 0 0', padding: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {maisAntigos.slice(0, 3).map((p) => {
+                    const idade = idadeDoPedido(p.createdAt, agora);
+                    return (
+                      <li key={p.id} style={{ fontSize: FS.body, color: '#78350f', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Link
+                          href={`/eventos/${p.eventId}?pedidos=1`}
+                          data-testid={`link-pedido-evento-${p.id}`}
+                          style={{ fontWeight: 800, color: '#78350f', textDecoration: 'underline', textUnderlineOffset: 2 }}
+                        >
+                          {p.eventName ?? 'Evento'}
+                        </Link>
+                        {' · '}{p.sponsorName ?? 'sem patrocinador'} · {quantidadeDoPedido(p.quantidade)} ·{' '}
+                        <span style={{ fontWeight: idade.nivel === 'normal' ? 600 : 800, color: idade.nivel === 'parado' ? '#b91c1c' : '#78350f' }}>{idade.texto}</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {n > 3 && <span style={{ display: 'block', marginTop: 4, fontSize: FS.small, color: '#78350f' }}>e mais {n - 3}</span>}
+              </div>
+              <button
+                type="button"
+                data-testid="button-filtrar-pedidos"
+                onClick={() => setFoco(foco === 'pedidos' ? '' : 'pedidos')}
+                style={{ height: isMobile ? 44 : 34, padding: '0 14px', borderRadius: R.md, border: '1px solid #fcd34d', backgroundColor: foco === 'pedidos' ? '#78350f' : '#ffffff', color: foco === 'pedidos' ? '#ffffff' : '#78350f', fontSize: FS.body, fontWeight: 800, cursor: 'pointer', whiteSpace: 'nowrap' }}
+              >
+                {foco === 'pedidos' ? 'Mostrar todos os eventos' : 'Ver só eventos com pedido'}
+              </button>
+            </div>
+          );
+        })()}
 
         {/* ── MODAL CRIAR / EDITAR / DUPLICAR (Dialog 100% controlado) ── */}
         <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) requestCloseDialog(); else setOpen(true); }}>

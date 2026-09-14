@@ -219,3 +219,17 @@ describe("as telas", () => {
     expect(PAINEL).toContain("data-testid={`button-recusar-pedido-${p.id}`}");
   });
 });
+
+describe("Eventos sinaliza os pedidos para quem monta a lista", () => {
+  it("atalho 'Pedidos do Atendimento' no topo, que filtra os eventos com pedido", () => {
+    expect(EVENTOS).toContain("{ key: 'pedidos', label: 'Pedidos do Atendimento', count: focoCounts.pedidos,");
+    expect(EVENTOS).toContain('if (foco === "pedidos") return (pedidosPorEvento.get(event.id) ?? 0) > 0;');
+  });
+
+  it("faixa para Solicitação e admin com os mais antigos e link direto ao painel do evento", () => {
+    expect(EVENTOS).toContain('data-testid="faixa-pedidos-atendimento"');
+    expect(EVENTOS).toContain("(user?.role === 'solicitacao' || user?.role === 'admin') && pedidosAbertos.length > 0");
+    expect(EVENTOS).toContain("href={`/eventos/${p.eventId}?pedidos=1`}");
+    expect(PAINEL).toContain('id="pedidos-do-atendimento"');
+  });
+});

@@ -11,7 +11,7 @@
 // criam peça ficam VISÍVEIS e desabilitados, com o motivo — sumir com eles
 // deixaria a ausência sem explicação. Recusar continua valendo.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ChevronDown, Inbox, Plus } from "lucide-react";
 import {
@@ -74,6 +74,13 @@ export function PedidosDoEvento({ eventId, pecas, podeAtender, motivoEventoFim, 
     onError: (e: Error) => toast({ title: "Não deu para recusar", description: e.message, variant: "destructive" }),
   });
 
+  // Vindo da faixa de Eventos (?pedidos=1): rola até este painel.
+  useEffect(() => {
+    if (pedidos.length === 0) return;
+    if (new URLSearchParams(window.location.search).get("pedidos") !== "1") return;
+    document.getElementById("pedidos-do-atendimento")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [pedidos.length]);
+
   if (pedidos.length === 0) return null;
   const abertos = pedidos.filter((p) => p.status === "aberto");
   const resolvidos = pedidos.filter((p) => p.status !== "aberto");
@@ -87,6 +94,7 @@ export function PedidosDoEvento({ eventId, pecas, podeAtender, motivoEventoFim, 
 
   return (
     <section
+      id="pedidos-do-atendimento"
       data-testid="painel-pedidos-do-evento"
       aria-labelledby="titulo-pedidos-do-evento"
       style={{ backgroundColor: "#fff", border: "1px solid #e7e5e4", borderLeft: `3px solid ${abertos.length ? "#b45309" : "#d6d3d1"}`, borderRadius: R.lg, boxShadow: "0 1px 4px rgba(0,0,0,0.05)", marginBottom: 32 }}

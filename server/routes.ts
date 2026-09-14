@@ -29,7 +29,6 @@ import { registerVersoesRoutes } from "./routes/versoes";
 import { registerBuscaRoutes } from "./routes/busca";
 import { registerRelatorioRoutes } from "./routes/relatorio";
 import { registerMaquinasRoutes } from "./routes/maquinas";
-import { registerTubosRoutes } from "./routes/tubos";
 import { registerEstoqueReservasRoutes } from "./routes/estoque-reservas";
 import { registerPedidosDePecaRoutes } from "./routes/pedidos-de-peca";
 import { startRevisaoDigest } from "./services/revisaoDigest";
@@ -69,7 +68,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   registerBuscaRoutes(app);
   registerRelatorioRoutes(app);
   registerMaquinasRoutes(app);
-  registerTubosRoutes(app);
   registerEstoqueReservasRoutes(app);
   registerPedidosDePecaRoutes(app);
   registerNotificationRoutes(app);

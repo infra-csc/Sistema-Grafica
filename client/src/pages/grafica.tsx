@@ -1881,15 +1881,6 @@ export default function Grafica() {
           )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          {/* A aba de MÁQUINAS (dono, 14/09): o que cada máquina imprime agora e
-              o histórico do dia. Fica no cabeçalho, à vista, e não num menu. */}
-          <Link
-            href="/grafica/maquinas"
-            data-testid="link-maquinas"
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", borderRadius: 8, border: "1px solid #e7e5e4", background: "#ffffff", color: "#1c1917", fontSize: 12, fontWeight: 700, textDecoration: "none", whiteSpace: "nowrap" }}
-          >
-            <Printer aria-hidden="true" style={{ width: 13, height: 13 }} /> Máquinas
-          </Link>
           {/* Chip de complementos — clicável e visível TAMBÉM no celular (o
               chip de "aguardando produção" ao lado é !isMobile; este é
               importante demais para sumir justamente na tela de quem está no
